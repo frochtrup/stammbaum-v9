@@ -1,6 +1,10 @@
 // core/model/types.ts — reine Typdefinitionen des Domänenkerns (Spec 10).
 // DOM-frei, framework-frei (INV-ARCH-1). Keine Laufzeit-Logik hier.
 
+// Konkrete Orts-/Hof-Form kommt aus dem Orts-Kern (Spec 11). Type-only-Import →
+// unter isolatedModules erased, kein Laufzeit-Zyklus (Model ↔ Places, gleiche Schicht).
+import type { PlaceObject as PlaceObjectT, HofObject as HofObjectT } from '../places/types';
+
 // --- ID-Typen (GEDCOM-Konvention @Ixx@/@Fxx@/@Sxx@/@Rxx@/@Nxx@) ---
 export type PersonId = string;
 export type FamilyId = string;
@@ -228,10 +232,9 @@ export interface Database {
   sources: Map<SourceId, Source>;
   repositories: Map<RepoId, Repository>;
   notes: Map<NoteId, Note>;
-  // placeObjects/hofObjects (Spec 11) sind hier bewusst opak typisiert —
-  // der Orts-Kern (places-builder) definiert ihre Form. Modell-Kern hält nur die Map.
-  placeObjects: Map<PlaceId, unknown>;
-  hofObjects: Map<HofId, unknown>;
+  // placeObjects/hofObjects (Spec 11): konkrete Form aus dem Orts-Kern.
+  placeObjects: Map<PlaceId, PlaceObjectT>;
+  hofObjects: Map<HofId, HofObjectT>;
   placForm: string;
   gedVersion: 'unknown' | '5.5.1' | '7.0';
   header: HeaderMeta;
