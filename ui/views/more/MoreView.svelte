@@ -2,15 +2,24 @@
   // ui/views/more/MoreView.svelte — "Mehr"-Hub (Spec 21 §2 Mobile-Modell: "Mehr = Hub
   // für die Lenses (Karte / Zeitleiste / Statistik / Story) + Ausgaben + Einstellungen").
   //
-  // Diese Scheibe liefert NUR das Navigations-Gerüst: ein Menü mit sechs Einträgen, die
-  // jeweils den existierenden ComingSoonPanel-Platzhalter zeigen — analog dem Muster, das
-  // BottomNav/App.svelte für die anfangs unimplementierten Bottom-Nav-Ziele nutzen (ein
-  // `implemented`-Flag pro Eintrag, "(folgt)"-Label-Suffix), nur eine Ebene tiefer (Hub-
-  // Menü statt Bottom-Nav-Leiste). Die Lenses/Reports selbst (Karte/Zeitleiste/Statistik/
-  // Story/Ausgaben/Einstellungen mit echtem Inhalt) sind eigene, spätere Bauabschnitte —
-  // Karte/Zeitleiste sind laut Spec 02 §5 sogar imperative SVG-Inseln, eigener
-  // Agenten-Zuständigkeitsbereich (islands-builder).
+  // Diese Scheibe liefert das Navigations-Gerüst: ein Menü mit sechs Einträgen. Fünf davon
+  // zeigen weiterhin den ComingSoonPanel-Platzhalter (ein `implemented`-Flag pro Eintrag,
+  // "(folgt)"-Label-Suffix — analog dem Muster, das BottomNav/App.svelte für die anfangs
+  // unimplementierten Bottom-Nav-Ziele nutzen). "Statistik" ist jetzt echt (Spec 20 §4
+  // "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst KEINE Diagramm-/
+  // imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt noch KEINEN
+  // gemeinsamen Lens-Umschalter und ist für diese Slice ausschließlich über diesen Hub-
+  // Eintrag erreichbar. Karte/Zeitleiste/Story/Ausgaben/Einstellungen bleiben Platzhalter —
+  // eigene, spätere Bauabschnitte (Karte/Zeitleiste sind laut Spec 02 §5 sogar imperative
+  // SVG-Inseln, eigener Agenten-Zuständigkeitsbereich, islands-builder).
+  import type { AppState } from '../../shell/app-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
+  import StatisticsView from '../stats/StatisticsView.svelte';
+
+  interface Props {
+    appState: AppState;
+  }
+  const { appState }: Props = $props();
 
   type MoreEntry = 'map' | 'timeline' | 'stats' | 'story' | 'reports' | 'settings';
 
@@ -26,7 +35,7 @@
   const items: MenuItem[] = [
     { id: 'map', icon: '🗺', label: 'Karte', implemented: false },
     { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: false },
-    { id: 'stats', icon: '📊', label: 'Statistik', implemented: false },
+    { id: 'stats', icon: '📊', label: 'Statistik', implemented: true },
     { id: 'story', icon: '📖', label: 'Story', implemented: false },
     { id: 'reports', icon: '🖨', label: 'Ausgaben', implemented: false },
     { id: 'settings', icon: '⚙', label: 'Einstellungen', implemented: false },
@@ -53,7 +62,11 @@
     <div class="more-view__sub-header">
       <button type="button" class="more-view__back" onclick={backToMenu}>← Zurück zum Menü</button>
     </div>
-    <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
+    {#if openEntry.id === 'stats'}
+      <StatisticsView {appState} />
+    {:else}
+      <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
+    {/if}
   {:else}
     <ul class="more-view__list">
       {#each items as item (item.id)}
