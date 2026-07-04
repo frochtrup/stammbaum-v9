@@ -1,0 +1,67 @@
+/* ui/shell/design-system.css — Design-System (Spec 21 §6), als CSS-Variablen.
+   Warme Dunkelbraun-Palette (Pergament-Ästhetik) + Gold als Primärfarbe. Grobe
+   Anwendung für diese Scheibe (muss nicht pixelperfekt sein) — Dark/Light-Umschaltung
+   ist ein Folge-Schritt (nur die Dark-Palette aus §6 ist hier hinterlegt). */
+
+:root {
+  /* Hintergründe: bg -> surfaces */
+  --stb-bg: #18140f;
+  --stb-surface-1: #211c14;
+  --stb-surface-2: #2a2318;
+  --stb-surface-3: #342c1e;
+
+  /* Gold */
+  --stb-gold: #c8a84a;
+  --stb-gold-light: #e5c96e;
+  --stb-gold-dim: #7a6328;
+
+  /* Text */
+  --stb-text: #f2e8d4;
+  --stb-text-dim: #a0906e;
+  --stb-text-muted: #5a4e38;
+
+  /* Aktion */
+  --stb-danger: #c04040;
+
+  /* QUAY-Farbindikator (Spec 21 §7): rot/orange/blau/grün = q0..q3 */
+  --stb-quay-0: #c0504a;
+  --stb-quay-1: #c8874a;
+  --stb-quay-2: #4a80c8;
+  --stb-quay-3: #4ac86e;
+
+  /* Radius */
+  --stb-radius-card: 14px;
+  --stb-radius-control: 9px;
+
+  /* Typografie */
+  --stb-font-title: 'Playfair Display', serif;
+  --stb-font-body: 'Source Serif 4', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--stb-bg);
+  color: var(--stb-text);
+  font-family: var(--stb-font-body);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--stb-font-title);
+}
+
+a {
+  color: var(--stb-gold-light);
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
