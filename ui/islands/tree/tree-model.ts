@@ -95,3 +95,39 @@ export function ancestorLevel(
 export function ancestorLevelHasAny(level: (PersonId | null)[]): boolean {
   return level.some((id) => id != null);
 }
+
+export interface SiblingInfo {
+  id: PersonId;
+  /** Kein Kind der ersten (primären) Eltern-Familie des Probanden -> `½`-Markierung (Spec 20 §1.3 [K]). */
+  isHalf: boolean;
+}
+
+/**
+ * Voll- und Halbgeschwister des Probanden: alle Kinder der Eltern-Familie(n) in
+ * `person.childOf`, außer dem Probanden selbst (ADR-v9-23 — eigene Zeile im Sanduhr-Baum,
+ * nicht nur die `½`-Markierung). Ein Kind zählt als Halbgeschwister, wenn es NICHT Kind
+ * der ersten (primären) Herkunftsfamilie ist — analog zur bestehenden Haupt-/Nebenfamilie-
+ * Unterscheidung bei den Kindern des Probanden (`mainKidSet`/`halfKidSet` in tree-layout.ts).
+ * Reihenfolge: primäre Familie zuerst, danach weitere Familien; Dubletten (Kind mehrerer
+ * Eltern-Familien) einmalig, als Vollgeschwister sobald es in der primären Familie auftaucht.
+ */
+export function getSiblingIds(db: Database, personId: PersonId | null | undefined): SiblingInfo[] {
+  if (!personId) return [];
+  const person = db.individuals.get(personId);
+  if (!person || person.childOf.length === 0) return [];
+
+  const primaryFamilyId = person.childOf[0].familyId;
+  const out: SiblingInfo[] = [];
+  const seen = new Set<PersonId>();
+  for (const link of person.childOf) {
+    const fam = db.families.get(link.familyId);
+    if (!fam) continue;
+    const isHalf = link.familyId !== primaryFamilyId;
+    for (const childId of fam.children) {
+      if (childId === personId || seen.has(childId)) continue;
+      seen.add(childId);
+      out.push({ id: childId, isHalf });
+    }
+  }
+  return out;
+}

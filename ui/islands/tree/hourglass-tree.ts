@@ -98,6 +98,7 @@ export function mountHourglassTree(
     div.className =
       'tree-island__card' +
       (card.isCenter ? ' tree-island__card--center' : '') +
+      (card.isSibling ? ' tree-island__card--sibling' : '') +
       (card.isHalfSibling ? ' tree-island__card--half' : '');
     div.style.left = `${Math.round(card.x)}px`;
     div.style.top = `${Math.round(card.y)}px`;

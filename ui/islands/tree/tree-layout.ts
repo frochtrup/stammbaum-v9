@@ -7,10 +7,20 @@
 // Algorithmus-Herkunft: legacy-v8/ui-views-tree.js `showTree()` (Orakel, Spec 21 §8) —
 // Konstanten/Kekule-Vergabe/ancSpan-Slots 1:1 wiederverwendet, Code neu geschrieben
 // (framework-frei, kein AppState/UIState, reine Parameter statt globaler DOM-Reads).
-// Bewusst NICHT übernommen: Geschwister-Reihe (kein [K]-Punkt in Spec 20 §1.3 für diese
-// Slice) — Folge-Schritt, falls gewünscht.
+// Geschwisterzeile (ADR-v9-23, Spec 20 §1.3 [K]): horizontale Reihe links vom Probanden,
+// vertikal auf die Proband-Zeile zentriert (Orakel: `useHorizSibs`-Zweig in `showTree()`).
+// Bewusst vereinfacht ggü. v8: KEIN "Peek-Stapel"-Fallback bei wenigen Ahnen-Ebenen und
+// KEIN "…"-Kappungs-Indikator bei sehr vielen Geschwistern — die Insel legt alle
+// Geschwister-Karten in einer Reihe an; Scroll/Zoom der Insel übernimmt das Sichtbarmachen
+// (kein Datenverlust ggü. v8, nur ein anderer Kompromiss bei extremen Breiten).
 import type { Database, PersonId } from '../../../core/model/types';
-import { ancestorLevel, ancestorLevelHasAny, computeKekuleNumbers, getSpouseFamilies } from './tree-model';
+import {
+  ancestorLevel,
+  ancestorLevelHasAny,
+  computeKekuleNumbers,
+  getSiblingIds,
+  getSpouseFamilies,
+} from './tree-model';
 
 export interface TreeLayoutOptions {
   /** Hochformat/Mobile (Spec 20 §1.3: 2 Ebenen) vs. Desktop (bis 4 Ebenen). */
@@ -29,6 +39,8 @@ export interface CardBox {
   height: number;
   isCenter: boolean;
   isHalfSibling: boolean;
+  /** Karte steht in der Geschwisterzeile des Probanden (ADR-v9-23), nicht in der Kinderzeile. */
+  isSibling: boolean;
   kekule: number | null;
 }
 
@@ -71,8 +83,8 @@ export interface TreeLayoutResult {
 
 // Layout-Konstanten (Orakel: legacy-v8/UI-DESIGN.md "Sanduhr-Ansicht: Layout-Algorithmus").
 const DIMS = {
-  landscape: { W: 96, H: 64, CW: 160, CH: 80, HGAP: 10, VGAP: 44, MGAP: 20, PAD: 20 },
-  portrait: { W: 80, H: 54, CW: 124, CH: 72, HGAP: 8, VGAP: 34, MGAP: 16, PAD: 14 },
+  landscape: { W: 96, H: 64, CW: 160, CH: 80, HGAP: 10, VGAP: 44, MGAP: 20, PAD: 20, SIB_GAP: 14 },
+  portrait: { W: 80, H: 54, CW: 124, CH: 72, HGAP: 8, VGAP: 34, MGAP: 16, PAD: 14, SIB_GAP: 12 },
 };
 
 const MAX_CHILD_COLS = 4;
@@ -86,9 +98,15 @@ export function computeTreeLayout(
   if (!proband) return null;
 
   const d = options.portrait ? DIMS.portrait : DIMS.landscape;
-  const { W, H, CW, CH, HGAP, VGAP, MGAP, PAD } = d;
+  const { W, H, CW, CH, HGAP, VGAP, MGAP, PAD, SIB_GAP } = d;
   const SLOT = W + HGAP;
   const ROW = H + VGAP;
+
+  // ── Geschwister des Probanden (ADR-v9-23, Spec 20 §1.3 [K]): eigene Zeile links vom
+  // Probanden, Voll- und Halbgeschwister aus person.childOf. ──
+  const siblings = getSiblingIds(db, probandId);
+  const nSibs = siblings.length;
+  const sibRowW = nSibs > 0 ? nSibs * W + Math.max(0, nSibs - 1) * SIB_GAP : 0;
 
   const requestedLevels = Math.max(1, Math.min(4, options.maxAncestorLevels ?? (options.portrait ? 2 : 4)));
 
@@ -138,7 +156,11 @@ export function computeTreeLayout(
 
   // ── Layout-Breite ──
   const nSp = spouseFamilies.length;
-  const personCX = Math.max(PAD + CW / 2, PAD + ancSpan / 2);
+  // personCX muss sowohl den Ahnen-Fächer (links+rechts der Mittelachse) als auch die
+  // Geschwisterzeile (komplett links der Proband-Karte, zusätzlich zu deren halber Breite)
+  // links von sich Platz bieten (Orakel: v8 reserviert die Geschwisterzeile links von personX).
+  const sibReserve = nSibs > 0 ? sibRowW + SIB_GAP : 0;
+  const personCX = Math.max(PAD + CW / 2, PAD + ancSpan / 2, PAD + sibReserve + CW / 2);
   const personX = personCX - CW / 2;
   const spousesW = nSp > 0 ? nSp * (W + MGAP) : 0;
   const rightEdge = personCX + CW / 2 + spousesW + PAD;
@@ -183,6 +205,7 @@ export function computeTreeLayout(
         height: H,
         isCenter: false,
         isHalfSibling: false,
+        isSibling: false,
         kekule: kNum(id),
       });
       if (id) {
@@ -208,16 +231,66 @@ export function computeTreeLayout(
         height: H,
         isCenter: false,
         isHalfSibling: false,
+        isSibling: false,
         kekule: kNum(id),
       });
     });
-    if (par0.father || par0.mother) {
-      const juncX = personCX;
-      const juncY = ry(-1) + H + Math.round(VGAP * 0.4);
-      if (par0.father) connectors.push({ x1: ancCenterX(1, 0), y1: ry(-1) + H, x2: juncX, y2: juncY, dashed: false });
-      if (par0.mother) connectors.push({ x1: ancCenterX(1, 1), y1: ry(-1) + H, x2: juncX, y2: juncY, dashed: false });
-      connectors.push({ x1: juncX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
+  }
+
+  // ── Eltern → Proband-Verzweigungspunkt (Orakel: v8 zeichnet den Junktions-Punkt sowohl
+  // für Eltern-Linien als auch für die Geschwister-T-Linie, unabhängig davon ob Eltern-
+  // Karten überhaupt dargestellt werden — Auslöser ist "Eltern bekannt ODER Geschwister
+  // vorhanden") ──
+  if (ancLevels >= 1 && (par0.father || par0.mother || nSibs > 0)) {
+    const juncX = personCX;
+    const juncY = ry(-1) + H + Math.round(VGAP * 0.4);
+    if (par0.father) connectors.push({ x1: ancCenterX(1, 0), y1: ry(-1) + H, x2: juncX, y2: juncY, dashed: false });
+    if (par0.mother) connectors.push({ x1: ancCenterX(1, 1), y1: ry(-1) + H, x2: juncX, y2: juncY, dashed: false });
+    connectors.push({ x1: juncX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
+    if (nSibs > 0) {
+      // Horizontaler T-Balken von der linkesten Geschwister-Mitte bis zur Mittelachse +
+      // je eine kurze Vertikale zur Oberkante jeder Geschwister-Karte (Orakel: `useHorizSibs`).
+      const sibY = ry(0) + Math.round((CH - H) / 2);
+      const sibRowStartX = personX - SIB_GAP - sibRowW;
+      const sibCX = (i: number): number => sibRowStartX + i * (W + SIB_GAP) + W / 2;
+      connectors.push({ x1: sibCX(0), y1: juncY, x2: juncX, y2: juncY, dashed: false });
+      for (let i = 0; i < nSibs; i++) {
+        connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+      }
     }
+  } else if (nSibs > 0) {
+    // Keine Ahnen-Ebene dargestellt (ancLevels=0 kommt praktisch nicht vor, da Ebene 1
+    // immer mind. als Ghost-Slots gerendert wird) — Fallback: T-Linie direkt aus der
+    // Proband-Oberkante, falls doch einmal ancLevels=0 anliegt.
+    const juncY = ry(0) - Math.round(VGAP * 0.4);
+    const sibY = ry(0) + Math.round((CH - H) / 2);
+    const sibRowStartX = personX - SIB_GAP - sibRowW;
+    const sibCX = (i: number): number => sibRowStartX + i * (W + SIB_GAP) + W / 2;
+    connectors.push({ x1: sibCX(0), y1: juncY, x2: personCX, y2: juncY, dashed: false });
+    connectors.push({ x1: personCX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
+    for (let i = 0; i < nSibs; i++) {
+      connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+    }
+  }
+
+  // ── Geschwisterzeile (ADR-v9-23): horizontal links vom Probanden, vertikal auf die
+  // Proband-Zeile zentriert. ──
+  if (nSibs > 0) {
+    const sibY = ry(0) + Math.round((CH - H) / 2);
+    const sibRowStartX = personX - SIB_GAP - sibRowW;
+    siblings.forEach((sib, i) => {
+      cards.push({
+        id: sib.id,
+        x: sibRowStartX + i * (W + SIB_GAP),
+        y: sibY,
+        width: W,
+        height: H,
+        isCenter: false,
+        isHalfSibling: sib.isHalf,
+        isSibling: true,
+        kekule: kNum(sib.id),
+      });
+    });
   }
 
   // ── Zentrumsperson ──
@@ -229,6 +302,7 @@ export function computeTreeLayout(
     height: CH,
     isCenter: true,
     isHalfSibling: false,
+    isSibling: false,
     kekule: kNum(probandId),
   });
 
@@ -251,6 +325,7 @@ export function computeTreeLayout(
       height: H,
       isCenter: false,
       isHalfSibling: false,
+      isSibling: false,
       kekule: kNum(fam.spouseId),
     });
     if (isActive) {
@@ -282,6 +357,7 @@ export function computeTreeLayout(
         height: H,
         isCenter: false,
         isHalfSibling: isHalf,
+        isSibling: false,
         kekule: kNum(id),
       });
       connectors.push({ x1: personCX, y1: row0Bottom, x2: cx, y2: rowY, dashed: isHalf });

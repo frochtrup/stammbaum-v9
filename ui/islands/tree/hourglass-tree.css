@@ -81,6 +81,10 @@
   border-color: var(--stb-gold-dim);
 }
 
+.tree-island__card--sibling {
+  background: var(--stb-surface-1);
+}
+
 .tree-island__card--empty {
   opacity: 0.25;
   border-style: dashed;

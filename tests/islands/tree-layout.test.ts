@@ -127,6 +127,117 @@ describe('computeTreeLayout', () => {
     expect(a).toEqual(b);
   });
 
+  describe('Geschwisterzeile des Probanden (ADR-v9-23, Spec 20 §1.3 [K])', () => {
+    function addSibling(db: ReturnType<typeof makeDatabase>, id: string, familyId: string): void {
+      addPerson(db, id, id);
+      db.families.get(familyId)!.children.push(id);
+      db.individuals.get(id)!.childOf.push({
+        familyId,
+        pedigree: 'birth',
+        fatherRel: '',
+        motherRel: '',
+        fatherRelSeen: false,
+        motherRelSeen: false,
+        citations: [],
+      });
+    }
+
+    it('ohne Geschwister: keine isSibling-Karten', () => {
+      const db = buildFourGenTree();
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      expect(layout.cards.filter((c) => c.isSibling)).toHaveLength(0);
+    });
+
+    it('Vollgeschwister aus der primären Familie erscheinen als eigene Zeile links vom Probanden, nicht half-markiert', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(1);
+      expect(sibCards[0].id).toBe('I42');
+      expect(sibCards[0].isHalfSibling).toBe(false);
+
+      const center = layout.cards.find((c) => c.isCenter)!;
+      // Geschwisterzeile liegt komplett links von der Proband-Karte.
+      expect(sibCards[0].x + sibCards[0].width).toBeLessThanOrEqual(center.x);
+      // Vertikal auf die Proband-Zeile zentriert (gleiche Zeile wie Proband/Ehepartner).
+      expect(sibCards[0].y).toBeGreaterThanOrEqual(center.y);
+      expect(sibCards[0].y).toBeLessThanOrEqual(center.y + center.height);
+    });
+
+    it('Halbgeschwister aus einer zweiten Elternfamilie sind isHalfSibling markiert (½)', () => {
+      const db = buildFourGenTree();
+      addPerson(db, 'I51', 'Neuer Partner Vater', 'F');
+      marry(db, 'F20', 'I2', 'I51', []);
+      addSibling(db, 'I52', 'F20');
+      db.individuals.get('I1')!.childOf.push({
+        familyId: 'F20',
+        pedigree: 'birth',
+        fatherRel: '',
+        motherRel: '',
+        fatherRelSeen: false,
+        motherRelSeen: false,
+        citations: [],
+      });
+
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(1);
+      expect(sibCards[0].id).toBe('I52');
+      expect(sibCards[0].isHalfSibling).toBe(true);
+    });
+
+    it('Proband selbst taucht nie in der Geschwisterzeile auf', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards.some((c) => c.id === 'I1')).toBe(false);
+    });
+
+    it('mehrere Geschwister werden nebeneinander (unterschiedliche X, gleiche Y) platziert', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      addSibling(db, 'I43', 'F1');
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(2);
+      expect(new Set(sibCards.map((c) => c.x)).size).toBe(2);
+      expect(new Set(sibCards.map((c) => c.y)).size).toBe(1);
+    });
+
+    it('erzeugt eine T-Verbindungslinie zwischen Eltern-Junktion und jeder Geschwister-Karte', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      const withSibs = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const without = computeTreeLayout(db, 'I2', { portrait: false })!; // I2 hat kein famc -> keine Geschwister-Linien
+      expect(withSibs.connectors.length).toBeGreaterThan(without.connectors.length);
+    });
+
+    it('Geschwisterzeile beeinflusst navTargets nicht (nur Kinder/Eltern/Partner sind Navigationsziele)', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      expect(layout.navTargets).toEqual({ up: 'I2', up2: 'I3', down: 'I30', right: 'I20' });
+    });
+
+    it('bleibt deterministisch mit Geschwistern (gleiche Eingabe -> identisches Ergebnis)', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      const a = computeTreeLayout(db, 'I1', { portrait: false });
+      const b = computeTreeLayout(db, 'I1', { portrait: false });
+      expect(a).toEqual(b);
+    });
+
+    it('Layout-Breite reserviert Platz für die Geschwisterzeile (totalW wächst mit vielen Geschwistern)', () => {
+      const db = buildFourGenTree();
+      const before = computeTreeLayout(db, 'I1', { portrait: false })!;
+      for (let i = 0; i < 6; i++) addSibling(db, `I6${i}`, 'F1');
+      const after = computeTreeLayout(db, 'I1', { portrait: false })!;
+      expect(after.width).toBeGreaterThan(before.width);
+    });
+  });
+
   it('Person ohne jede Familie: Zentrum-Karte + 2 leere Ahnen-Slots (Ghost-Karten für unbekannte Eltern), keine Kinder/Ehepartner', () => {
     const db = makeDatabase();
     addPerson(db, 'solo');

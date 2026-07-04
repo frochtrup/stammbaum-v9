@@ -7,6 +7,7 @@ import {
   ancestorLevelHasAny,
   computeKekuleNumbers,
   getParentIds,
+  getSiblingIds,
   getSpouseFamilies,
 } from '../../ui/islands/tree/tree-model';
 import { addPerson, buildFourGenTree, marry } from './tree-fixtures';
@@ -81,6 +82,78 @@ describe('computeKekuleNumbers', () => {
     expect(k.get('A')).toBe(1);
     // A taucht nicht zusätzlich als eigener Vorfahre mit anderer Nummer auf.
     expect([...k.values()].filter((n) => n === 1)).toHaveLength(1);
+  });
+});
+
+describe('getSiblingIds (ADR-v9-23: Geschwisterzeile ist [K]-Bestandteil der Sanduhr)', () => {
+  it('liefert leeres Array ohne Herkunftsfamilie', () => {
+    const db = buildFourGenTree();
+    expect(getSiblingIds(db, 'I20')).toEqual([]); // Ehepartner hat kein childOf
+    expect(getSiblingIds(db, null)).toEqual([]);
+    expect(getSiblingIds(db, 'I999')).toEqual([]);
+  });
+
+  it('liefert Vollgeschwister aus der primären Familie (famc[0]), Proband ausgeschlossen', () => {
+    const db = buildFourGenTree();
+    addPerson(db, 'I40', 'Bruder Eins');
+    addPerson(db, 'I41', 'Schwester Zwei');
+    // I1 gehört bereits zu F1 (Eltern I2/I3) — zwei weitere Kinder derselben Familie anhängen.
+    db.families.get('F1')!.children.push('I40', 'I41');
+    for (const id of ['I40', 'I41']) {
+      db.individuals.get(id)!.childOf.push({
+        familyId: 'F1',
+        pedigree: 'birth',
+        fatherRel: '',
+        motherRel: '',
+        fatherRelSeen: false,
+        motherRelSeen: false,
+        citations: [],
+      });
+    }
+    const sibs = getSiblingIds(db, 'I1');
+    expect(sibs).toHaveLength(2);
+    expect(sibs.every((s) => !s.isHalf)).toBe(true);
+    expect(sibs.map((s) => s.id).sort()).toEqual(['I40', 'I41']);
+    expect(sibs.some((s) => s.id === 'I1')).toBe(false); // Proband selbst nie enthalten
+  });
+
+  it('markiert Kinder aus einer zweiten (nicht-primären) Eltern-Familie als Halbgeschwister', () => {
+    const db = buildFourGenTree();
+    addPerson(db, 'I50', 'Stiefbruder');
+    addPerson(db, 'I51', 'Neuer Partner Vater');
+    // Vater I2 bekommt eine zweite Familie mit einem weiteren Kind -> Halbgeschwister von I1.
+    marry(db, 'F20', 'I2', 'I51', ['I50']);
+    db.individuals.get('I1')!.childOf.push({
+      familyId: 'F20',
+      pedigree: 'birth',
+      fatherRel: '',
+      motherRel: '',
+      fatherRelSeen: false,
+      motherRelSeen: false,
+      citations: [],
+    });
+    const sibs = getSiblingIds(db, 'I1');
+    const half = sibs.find((s) => s.id === 'I50');
+    expect(half).toBeDefined();
+    expect(half!.isHalf).toBe(true);
+  });
+
+  it('dedupliziert Kinder, die in mehreren Eltern-Familien des Probanden auftauchen (erste Familie gewinnt)', () => {
+    const db = makeDatabase();
+    addPerson(db, 'P');
+    addPerson(db, 'Sib');
+    marry(db, 'FA', 'P', null, []);
+    marry(db, 'FB', 'P', null, []); // Platzhalter, um FamilyId-Kollisionen zu vermeiden
+    // Proband + Sib beide Kinder von FA (primär) UND fälschlich auch FB verlinkt.
+    db.individuals.get('P')!.childOf.push(
+      { familyId: 'FA', pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] },
+      { familyId: 'FB', pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] },
+    );
+    db.families.get('FA')!.children.push('P', 'Sib');
+    db.families.get('FB')!.children.push('Sib');
+    const sibs = getSiblingIds(db, 'P');
+    expect(sibs).toHaveLength(1);
+    expect(sibs[0]).toEqual({ id: 'Sib', isHalf: false }); // aus FA (primär) zuerst gefunden
   });
 });
 
