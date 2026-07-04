@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+
+# Echte personenbezogene Genealogie-Daten + generierte Skalierungs-Fixture bleiben lokal
+# (Datenschutz + Repo-Größe; s. build-from-spec). Nur kuratierte Klein-Fixtures werden eingecheckt.
+tests/fixtures/*.ged
+tests/fixtures/*.gramps
+!tests/fixtures/*.small.ged
+!tests/fixtures/*.small.gramps
