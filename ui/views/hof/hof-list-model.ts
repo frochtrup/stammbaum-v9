@@ -24,7 +24,7 @@ export function houseNumberOf(addr: string): number {
   return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
 }
 
-function toRow(h: HofObject, db: Database): HofRow {
+export function toRow(h: HofObject, db: Database): HofRow {
   const village = db.placeObjects.get(h.villageId);
   const addr = h.addrs[0]?.value ?? '';
   return {
@@ -36,7 +36,13 @@ function toRow(h: HofObject, db: Database): HofRow {
   };
 }
 
-function matchesSearch(row: HofRow, query: string): boolean {
+/**
+ * Textmatch über Adresse + Dorf-Titel (Spec 20 §1.8 [K]).
+ * EXPORTIERT für die globale Suche (ui/views/search/global-search-model.ts,
+ * Spec 20 §1.1 [K], ADR-v9-24) — kein zweiter, abweichender Hof-Matcher
+ * (ADR-v9-18-Lehre "eine Extraktionsfunktion statt Drift").
+ */
+export function matchesSearch(row: HofRow, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return `${row.addr} ${row.villageTitle}`.toLowerCase().includes(q);

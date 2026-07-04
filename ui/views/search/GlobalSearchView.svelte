@@ -2,8 +2,8 @@
   // ui/views/search/GlobalSearchView.svelte — globale Suche als erstklassiges Nav-Ziel
   // (Spec 20 §1.1 [K], Spec 21 §2: "Suche ist erstklassig — das universelle 'finde
   // irgendwas'"). Ein Texteingabefeld + gruppierte Ergebnisse (Personen/Familien/
-  // Quellen/Orte). Bewusst KEINE Filterleiste (die bleibt lokale Tab-Suche, Spec-Auftrag
-  // "globale Suche ist bewusst schlank").
+  // Quellen/Orte/Höfe, ADR-v9-24). Bewusst KEINE Filterleiste (die bleibt lokale
+  // Tab-Suche, Spec-Auftrag "globale Suche ist bewusst schlank").
   //
   // Klick auf ein Ergebnis läuft über GENAU den ViewState-Mechanismus (INV-VS) + den
   // nach oben gereichten onNavigate*-Callback (analog `onNavigateToTree` in App.svelte)
@@ -27,8 +27,17 @@
     onNavigateToSource: (id: string) => void;
     /** Navigiert zur Orte-Detailseite (EntityTab-Segment "place"). */
     onNavigateToPlace: (id: string) => void;
+    /** Navigiert zur Hof-Detailseite (EntityTab-Segment "hof", ADR-v9-24). */
+    onNavigateToHof: (id: string) => void;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onNavigateToPlace }: Props = $props();
+  const {
+    appState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    onNavigateToSource,
+    onNavigateToPlace,
+    onNavigateToHof,
+  }: Props = $props();
 
   let query = $state('');
 
@@ -49,7 +58,7 @@
     <div class="global-search__field">
       <input
         type="search"
-        placeholder="Suche über Personen, Familien, Quellen, Orte…"
+        placeholder="Suche über Personen, Familien, Quellen, Orte, Höfe…"
         aria-label="Global suchen"
         bind:value={query}
       />
@@ -120,6 +129,22 @@
             {#each results.places as row (row.id)}
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPlace(row.id)}>
+                  <span class="global-search__primary">{row.primary}</span>
+                  {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if results.hofs.length > 0}
+        <section class="global-search__group">
+          <h2 class="global-search__group-title">Höfe</h2>
+          <ul class="global-search__rows">
+            {#each results.hofs as row (row.id)}
+              <li>
+                <button type="button" class="global-search__row" onclick={() => onNavigateToHof(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>

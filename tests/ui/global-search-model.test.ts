@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeDatabase, makeFamily, makePerson, makeSource } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
-import { place } from '../core/places-fixtures';
+import { place, hof } from '../core/places-fixtures';
 import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from '../../ui/views/search/global-search-model';
 
 function ctxFor(db: ReturnType<typeof makeDatabase>) {
@@ -23,6 +23,7 @@ function seedDb() {
   db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
   db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Ochtrup', author: 'Pfarrer Meyer' }));
   db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+  db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
   return db;
 }
 
@@ -110,20 +111,43 @@ describe('globalSearch — Orte', () => {
   });
 });
 
+describe('globalSearch — Höfe (ADR-v9-24)', () => {
+  it('findet einen Hof über die Adresse', () => {
+    const db = seedDb();
+    const result = globalSearch(db, ctxFor(db), 'Wall 33');
+    expect(result.hofs.map((r) => r.id)).toEqual(['@H1@']);
+    expect(result.hofs[0].primary).toBe('Wall 33');
+    expect(result.hofs[0].secondary).toBe('Ochtrup');
+  });
+
+  it('findet einen Hof über den Dorf-Titel', () => {
+    const db = seedDb();
+    const result = globalSearch(db, ctxFor(db), 'Ochtrup');
+    expect(result.hofs.map((r) => r.id)).toContain('@H1@');
+  });
+
+  it('kein Treffer, wenn kein Hof passt', () => {
+    const db = seedDb();
+    const result = globalSearch(db, ctxFor(db), 'Zimmermann');
+    expect(result.hofs).toEqual([]);
+  });
+});
+
 describe('globalSearch — Gruppierung', () => {
   it('gruppiert Treffer über mehrere Entitätstypen hinweg im selben Aufruf', () => {
     const db = seedDb();
-    // "Ochtrup" trifft die Quelle (Kurzname) UND den Ort (Titel) gleichzeitig.
+    // "Ochtrup" trifft die Quelle (Kurzname), den Ort (Titel) UND den Hof (Dorf-Titel).
     const result = globalSearch(db, ctxFor(db), 'Ochtrup');
     expect(result.sources.length).toBeGreaterThan(0);
     expect(result.places.length).toBeGreaterThan(0);
+    expect(result.hofs.length).toBeGreaterThan(0);
     expect(result.persons).toEqual([]);
     expect(result.families).toEqual([]);
   });
 
-  it('liefert für alle vier Gruppen leere Arrays, wenn nichts geladen ist', () => {
+  it('liefert für alle fünf Gruppen leere Arrays, wenn nichts geladen ist', () => {
     const db = makeDatabase();
     const result = globalSearch(db, ctxFor(db), 'irgendwas');
-    expect(result).toEqual({ persons: [], families: [], sources: [], places: [] });
+    expect(result).toEqual({ persons: [], families: [], sources: [], places: [], hofs: [] });
   });
 });

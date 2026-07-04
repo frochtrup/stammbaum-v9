@@ -74,6 +74,11 @@
     activeTarget = 'person';
   }
 
+  function openHofFromSearch(hofId: string) {
+    viewState.setCurrent('hof', hofId);
+    activeTarget = 'person';
+  }
+
   const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree' | 'search'>, string> = {
     tasks: '☑ Aufgaben',
     more: '⋯ Mehr',
@@ -104,6 +109,7 @@
         onNavigateToFamily={openFamilyFromSearch}
         onNavigateToSource={openSourceFromSearch}
         onNavigateToPlace={openPlaceFromSearch}
+        onNavigateToHof={openHofFromSearch}
       />
     {:else}
       <ComingSoonPanel label={comingSoonLabels[activeTarget]} />
