@@ -10,6 +10,7 @@
   import ComingSoonPanel from '../ui/shell/ComingSoonPanel.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
+  import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
 
   const viewState = createViewState();
   const appState = createAppState();
@@ -47,8 +48,33 @@
     activeTarget = 'person';
   }
 
-  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree'>, string> = {
-    search: '🔍 Suche',
+  // Globale Suche (Spec 20 §1.1 [K]) -> Detailseiten leben alle im Personen-Tab
+  // (EntityTab-Umbrella, Spec ADR-v9-17); ein Klick setzt GENAU die ViewState-Auswahl
+  // des Zielsegments und wechselt activeTarget zurück auf 'person' — EntityTab liest
+  // beim (Re-)Mount seinen initialen Segment-Zustand aus genau dieser ViewState-
+  // Auswahl (s. EntityTab.svelte initialSegment()), also KEIN zweiter Segment-Prop nötig.
+  function openPersonFromSearch(personId: string) {
+    viewState.setCurrent('person', personId);
+    activeTarget = 'person';
+  }
+
+  function openFamilyFromSearch(familyId: string) {
+    viewState.setCurrent('family', familyId);
+    activeTarget = 'person';
+  }
+
+  function openSourceFromSearch(sourceId: string) {
+    viewState.setCurrent('repository', null);
+    viewState.setCurrent('source', sourceId);
+    activeTarget = 'person';
+  }
+
+  function openPlaceFromSearch(placeId: string) {
+    viewState.setCurrent('place', placeId);
+    activeTarget = 'person';
+  }
+
+  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree' | 'search'>, string> = {
     tasks: '☑ Aufgaben',
     more: '⋯ Mehr',
   };
@@ -70,6 +96,14 @@
         {viewState}
         onOpenPersonDetail={openPersonDetailFromTree}
         onNavigateToFamily={openFamilyFromTree}
+      />
+    {:else if activeTarget === 'search'}
+      <GlobalSearchView
+        {appState}
+        onNavigateToPerson={openPersonFromSearch}
+        onNavigateToFamily={openFamilyFromSearch}
+        onNavigateToSource={openSourceFromSearch}
+        onNavigateToPlace={openPlaceFromSearch}
       />
     {:else}
       <ComingSoonPanel label={comingSoonLabels[activeTarget]} />

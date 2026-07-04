@@ -43,3 +43,21 @@ export function buildSourceRows(db: Database): SourceRow[] {
     .map((s) => toRow(s, refCounts.get(s.id)?.length ?? 0))
     .sort((a, b) => a.label.localeCompare(b.label, 'de'));
 }
+
+/**
+ * Textmatch über Kurzname/Titel/Autor/Datum/Verlag/Signatur/Notiz (Spec 20 §1.6 [K]:
+ * "Liste (Kurzname, Autor, Datum, Referenzzähler)"). Der lokale Quellen-Tab selbst hat
+ * (noch) kein eigenes Suchfeld — diese Funktion existiert primär als der EINE Baustein,
+ * den die globale Suche nutzt (ui/views/search/global-search-model.ts, Spec 20 §1.1
+ * [K]), analog zu den bereits exportierten `matchesSearch` in person-/family-/
+ * place-list-model.ts (ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift).
+ */
+export function matchesSearch(s: Source, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [s.abbr, s.title, s.author, s.date, s.publisher, s.text, s.callNumber]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q);
+}

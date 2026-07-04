@@ -71,7 +71,13 @@ function personSearchText(p: Person): string {
     .toLowerCase();
 }
 
-function matchesSearch(p: Person, query: string): boolean {
+/**
+ * Textmatch über Name/Titel/Ereignisse/Notizen/Religion (Spec 20 §1.4 [K]).
+ * EXPORTIERT, damit die globale Suche (ui/views/search/global-search-model.ts,
+ * Spec 20 §1.1 [K]) denselben Baustein nutzt statt einer zweiten, abweichenden
+ * Personen-Matchlogik (ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift).
+ */
+export function matchesSearch(p: Person, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return personSearchText(p).includes(q);

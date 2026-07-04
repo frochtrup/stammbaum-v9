@@ -61,7 +61,12 @@ function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
   return true;
 }
 
-function matchesSearch(pl: PlaceObject, query: string): boolean {
+/**
+ * Textmatch über Titel + pnames-Varianten (Spec 20 §1.7 [K]).
+ * EXPORTIERT für die globale Suche (ui/views/search/global-search-model.ts,
+ * Spec 20 §1.1 [K]) — kein zweiter, abweichender Orts-Matcher (ADR-v9-18-Lehre).
+ */
+export function matchesSearch(pl: PlaceObject, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const haystack = [pl.title, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();

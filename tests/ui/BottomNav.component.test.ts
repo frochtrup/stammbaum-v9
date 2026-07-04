@@ -31,12 +31,13 @@ describe('BottomNav — 5 feste Ziele, deutlicher Aktiv-Zustand', () => {
   it('markiert nicht-implementierte Ziele sichtbar als "(folgt)"', () => {
     render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
 
-    expect(screen.getByText(/Suche \(folgt\)/)).toBeTruthy();
     expect(screen.getByText(/Aufgaben \(folgt\)/)).toBeTruthy();
     expect(screen.getByText(/Mehr \(folgt\)/)).toBeTruthy();
-    // Personen UND Baum (Sanduhr-Insel, Spec 20 §1.3 [K]) sind funktional, kein "(folgt)"-Hinweis.
+    // Personen, Baum (Sanduhr-Insel, Spec 20 §1.3 [K]) UND Suche (Spec 20 §1.1 [K])
+    // sind funktional, kein "(folgt)"-Hinweis.
     expect(screen.queryByText(/Personen \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Baum \(folgt\)/)).toBeNull();
+    expect(screen.queryByText(/Suche \(folgt\)/)).toBeNull();
   });
 
   it('ruft onNavigate mit dem Ziel auf, auch für noch nicht gebaute Ziele — kein Absturz beim Klick', async () => {

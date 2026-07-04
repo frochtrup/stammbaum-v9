@@ -73,7 +73,12 @@ function familySearchText(db: Database, f: Family): string {
     .toLowerCase();
 }
 
-function matchesSearch(db: Database, f: Family, query: string): boolean {
+/**
+ * Textmatch über Ehepartnernamen/Kindernamen/Ereignisse/Notizen (Spec 20 §1.5 [K]).
+ * EXPORTIERT für die globale Suche (ui/views/search/global-search-model.ts,
+ * Spec 20 §1.1 [K]) — kein zweiter, abweichender Familien-Matcher (ADR-v9-18-Lehre).
+ */
+export function matchesSearch(db: Database, f: Family, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return familySearchText(db, f).includes(q);
