@@ -7,11 +7,11 @@
   import { createAppState } from '../ui/shell/app-state.svelte';
   import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
   import ImportButton from '../ui/shell/ImportButton.svelte';
-  import ComingSoonPanel from '../ui/shell/ComingSoonPanel.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import TasksView from '../ui/views/tasks/TasksView.svelte';
+  import MoreView from '../ui/views/more/MoreView.svelte';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
 
   const viewState = createViewState();
@@ -27,7 +27,7 @@
 
   // Bottom-Nav-Ziele sind eine Teilmenge von ViewTarget (Spec 21 §2: 5 feste Slots;
   // Familien/Quellen/Archive/Orte/Höfe leben NICHT hier, sondern im Entitäten-Segment-
-  // Umschalter innerhalb von EntityTab.svelte, s. Auftrag "kein Absturz beim Klick").
+  // Umschalter innerhalb von EntityTab.svelte).
   let activeTarget = $state<BottomNavTarget>('person');
 
   function navigate(target: BottomNavTarget) {
@@ -88,10 +88,6 @@
     viewState.setCurrent('hof', hofId);
     activeTarget = 'person';
   }
-
-  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree' | 'search' | 'tasks'>, string> = {
-    more: '⋯ Mehr',
-  };
 </script>
 
 <div class="app-shell">
@@ -122,8 +118,8 @@
       />
     {:else if activeTarget === 'tasks'}
       <TasksView {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
-    {:else}
-      <ComingSoonPanel label={comingSoonLabels[activeTarget]} />
+    {:else if activeTarget === 'more'}
+      <MoreView />
     {/if}
   </main>
 

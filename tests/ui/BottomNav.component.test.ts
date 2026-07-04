@@ -28,16 +28,18 @@ describe('BottomNav — 5 feste Ziele, deutlicher Aktiv-Zustand', () => {
     expect(treeButton.className).not.toContain('bottom-nav__item--active');
   });
 
-  it('markiert nicht-implementierte Ziele sichtbar als "(folgt)"', () => {
+  it('markiert keines der 5 Ziele als "(folgt)" — alle Bottom-Nav-Slots sind gebaut', () => {
     render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
 
-    expect(screen.getByText(/Mehr \(folgt\)/)).toBeTruthy();
-    // Personen, Baum (Sanduhr-Insel, Spec 20 §1.3 [K]), Suche (Spec 20 §1.1 [K]) UND
-    // Aufgaben (Spec 20 §1.11 [K]) sind funktional, kein "(folgt)"-Hinweis.
+    // Personen, Baum (Sanduhr-Insel, Spec 20 §1.3 [K]), Suche (Spec 20 §1.1 [K]),
+    // Aufgaben (Spec 20 §1.11 [K]) UND Mehr (Hub-Gerüst, s. MoreView.svelte) sind
+    // funktional, kein "(folgt)"-Hinweis mehr auf Bottom-Nav-Ebene (die einzelnen
+    // Lenses/Ausgaben/Einstellungen HINTER "Mehr" bleiben Platzhalter, s. MoreView).
     expect(screen.queryByText(/Personen \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Baum \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Suche \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Aufgaben \(folgt\)/)).toBeNull();
+    expect(screen.queryByText(/Mehr \(folgt\)/)).toBeNull();
   });
 
   it('zeigt einen Badge mit der Anzahl offener Aufgaben am Aufgaben-Ziel (Orakel "99+" ab >99)', () => {

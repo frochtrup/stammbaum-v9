@@ -1,9 +1,11 @@
 <script lang="ts">
   // ui/shell/BottomNav.svelte — mobile Bottom-Nav, 5 feste Ziele (Spec 21 §2).
-  // "Personen", "Baum" (Sanduhr-Insel, Spec 20 §1.3 [K]), "Suche" (Spec 20 §1.1 [K])
-  // UND "Aufgaben" (Spec 20 §1.11 [K]) sind in dieser Scheibe funktional; "Mehr" bleibt
-  // ein sichtbarer, klickbarer Platzhalter (deutlich als "folgt" markiert) — kein
-  // Absturz beim Klick, aber auch kein stiller Wechsel in einen nicht gebauten Bereich.
+  // "Personen", "Baum" (Sanduhr-Insel, Spec 20 §1.3 [K]), "Suche" (Spec 20 §1.1 [K]),
+  // "Aufgaben" (Spec 20 §1.11 [K]) UND "Mehr" (Hub-Gerüst für die Lenses + Ausgaben +
+  // Einstellungen, s. MoreView.svelte) sind in dieser Scheibe funktional. Die einzelnen
+  // Lenses/Ausgaben/Einstellungen HINTER dem Mehr-Hub sind noch Platzhalter (eigene,
+  // spätere Bauabschnitte) — kein Absturz beim Klick, aber auch kein stiller Wechsel in
+  // einen nicht gebauten Bereich.
   //
   // Aktiver Zustand: Balken + fett + Akzentfarbe (nicht nur Farbe, WCAG 1.4.1 / LP-8,
   // Spec 21 §2 "nie nur Farbe").
@@ -24,7 +26,7 @@
     { target: 'person', icon: '👤', label: 'Personen', implemented: true },
     { target: 'search', icon: '🔍', label: 'Suche', implemented: true },
     { target: 'tasks', icon: '☑', label: 'Aufgaben', implemented: true },
-    { target: 'more', icon: '⋯', label: 'Mehr', implemented: false },
+    { target: 'more', icon: '⋯', label: 'Mehr', implemented: true },
   ];
 
   interface Props {
