@@ -139,6 +139,23 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     expect(treeTab.getAttribute('aria-current')).toBe('page');
   });
 
+  it('zeigt KEINE redundante Titel-Zeile über dem Umschalter (Befund: doppeltes "Baum")', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const { container, getByText } = render(TreeView, { props: { appState, viewState } });
+
+    // "Baum" darf nur einmal im DOM stehen (als aktives Tab im Lens-Umschalter) —
+    // keine zusätzliche `__topbar`-Titel-Zeile mehr darüber.
+    expect(container.querySelectorAll('.lens-switcher__item--active')).toHaveLength(1);
+    expect(container.textContent?.match(/Baum/g)).toHaveLength(1);
+    // Der Vollbild-Button bleibt erreichbar — jetzt im Aktionen-Slot der gemeinsamen
+    // Kopfzeile (ui/shell/LensViewHeader.svelte), nicht mehr in einer eigenen Zeile.
+    expect(getByText(/⤢ Vollbild/)).toBeTruthy();
+  });
+
   it('Klick auf eine andere implementierte Lens (Karte) im Umschalter ruft onNavigateLens auf, ohne den Fokus zu ändern', async () => {
     const appState = createAppState();
     const viewState = createViewState();

@@ -63,6 +63,17 @@ describe('MapLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () =
 
     expect(onNavigateLens).toHaveBeenCalledWith('tree');
   });
+
+  it('zeigt KEINE redundante Titel-Zeile über dem Umschalter (Befund: doppeltes "Karte")', () => {
+    const { container } = render(MapLensView, {
+      props: { appState: createAppState(), viewState: createViewState() },
+    });
+
+    // "Karte" darf nur einmal im DOM stehen (als aktives Tab im Lens-Umschalter) —
+    // keine zusätzliche `__topbar`-Titel-Zeile mehr darüber.
+    expect(container.querySelectorAll('.lens-switcher__item--active')).toHaveLength(1);
+    expect(container.textContent?.match(/Karte/g)).toHaveLength(1);
+  });
 });
 
 describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Migrationen)', () => {

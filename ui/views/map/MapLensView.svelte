@@ -30,7 +30,7 @@
   } from '../../islands/map/map-model';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import LensSwitcher from '../../shell/LensSwitcher.svelte';
+  import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import type { LensId } from '../../shell/lens-model';
   import { displayName, sortKey } from '../../shell/person-display';
 
@@ -180,12 +180,7 @@
 </script>
 
 <div class="map-lens-view">
-  <div class="map-lens-view__topbar">
-    <span class="map-lens-view__title">Karte</span>
-  </div>
-  <div class="map-lens-view__lens-row">
-    <LensSwitcher active="map" onNavigate={(lens) => onNavigateLens?.(lens)} />
-  </div>
+  <LensViewHeader active="map" onNavigate={(lens) => onNavigateLens?.(lens)} />
 
   <div class="map-lens-view__mode-row" role="tablist" aria-label="Karten-Modus wählen">
     <button
@@ -307,22 +302,6 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-  }
-
-  .map-lens-view__topbar {
-    display: flex;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .map-lens-view__title {
-    font-family: var(--stb-font-title);
-    color: var(--stb-gold-light);
-  }
-
-  .map-lens-view__lens-row {
-    padding: 0.5rem 0.75rem 0;
   }
 
   .map-lens-view__mode-row {

@@ -13,7 +13,7 @@
   import { mountHourglassTree, type TreeIslandHandle } from '../../islands/tree/hourglass-tree';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import LensSwitcher from '../../shell/LensSwitcher.svelte';
+  import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import type { LensId } from '../../shell/lens-model';
 
   interface Props {
@@ -81,15 +81,13 @@
 </script>
 
 <div class="tree-view">
-  <div class="tree-view__topbar">
-    <span class="tree-view__title">Baum</span>
-    <button type="button" class="tree-view__fs-btn" onclick={toggleFullscreen}>
-      {fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild'}
-    </button>
-  </div>
-  <div class="tree-view__lens-row">
-    <LensSwitcher active="tree" onNavigate={(lens) => onNavigateLens?.(lens)} />
-  </div>
+  <LensViewHeader active="tree" onNavigate={(lens) => onNavigateLens?.(lens)}>
+    {#snippet actions()}
+      <button type="button" class="tree-view__fs-btn" onclick={toggleFullscreen}>
+        {fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild'}
+      </button>
+    {/snippet}
+  </LensViewHeader>
   {#if !focusId}
     <p class="tree-view__empty">Keine Person geladen.</p>
   {/if}
@@ -104,19 +102,6 @@
     min-height: 0;
   }
 
-  .tree-view__topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .tree-view__title {
-    font-family: var(--stb-font-title);
-    color: var(--stb-gold-light);
-  }
-
   .tree-view__fs-btn {
     background: var(--stb-surface-2);
     border: 1px solid var(--stb-surface-3);
@@ -125,10 +110,7 @@
     padding: 0.3rem 0.6rem;
     font-size: 0.78rem;
     cursor: pointer;
-  }
-
-  .tree-view__lens-row {
-    padding: 0.5rem 0.75rem 0;
+    white-space: nowrap;
   }
 
   .tree-view__empty {
