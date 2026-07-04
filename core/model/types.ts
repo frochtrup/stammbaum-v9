@@ -22,7 +22,7 @@ export type DateValue = string;
 
 // --- Evidenz (3-Achsen-Modell, Detail in Spec 12 §3) ---
 export type EvidenceSource = 'original' | 'derivative' | 'authored' | '';
-export type EvidenceInformation = 'primary' | 'secondary' | 'indeterminate' | '';
+export type EvidenceInformation = 'primary' | 'secondary' | 'undetermined' | '';
 export type EvidenceEvidenceKind = 'direct' | 'indirect' | 'negative' | '';
 
 export interface EvidenceEval {

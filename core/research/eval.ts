@@ -20,14 +20,13 @@ export function makeEvidenceEval(patch: Partial<EvidenceEval> = {}): EvidenceEva
  * Spec 12 §3 — geordnete Regel (erste Übereinstimmung gewinnt):
  *   1. evidence === 'negative'               → 0
  *   2. source === 'original' && info==='primary' → 3
- *   3. source==='authored' | info==='indeterminate' | evidence==='indirect' → 1
+ *   3. source==='authored' | info==='undetermined' | evidence==='indirect' → 1
  *   4. sonst                                 → 2
- * (`undetermined` in der Spec-Tabelle = der `indeterminate`-Wert des Info-Typs.)
  */
 export function evalToQuay(ev: EvidenceEval): Quay {
   if (ev.evidence === 'negative') return 0;
   if (ev.source === 'original' && ev.information === 'primary') return 3;
-  if (ev.source === 'authored' || ev.information === 'indeterminate' || ev.evidence === 'indirect') {
+  if (ev.source === 'authored' || ev.information === 'undetermined' || ev.evidence === 'indirect') {
     return 1;
   }
   return 2;

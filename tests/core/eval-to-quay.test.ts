@@ -17,9 +17,9 @@ describe('Spec 12 §3: evalToQuay-Mapping', () => {
     expect(evalToQuay(makeEvidenceEval({ evidence: 'negative' }))).toBe(0);
   });
 
-  it('authored | undetermined(=indeterminate) | indirect → 1', () => {
+  it('authored | undetermined | indirect → 1', () => {
     expect(evalToQuay(makeEvidenceEval({ source: 'authored', information: 'secondary', evidence: 'direct' }))).toBe(1);
-    expect(evalToQuay(makeEvidenceEval({ source: 'derivative', information: 'indeterminate', evidence: 'direct' }))).toBe(1);
+    expect(evalToQuay(makeEvidenceEval({ source: 'derivative', information: 'undetermined', evidence: 'direct' }))).toBe(1);
     expect(evalToQuay(makeEvidenceEval({ source: 'derivative', information: 'secondary', evidence: 'indirect' }))).toBe(1);
   });
 
