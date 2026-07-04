@@ -1,7 +1,8 @@
 # v8-Abweichungs-Register
 
 > Geführte Liste jeder Stelle, an der v9-Ausgabe **bewusst** vom v8-Verhaltens-Orakel
-> abweicht (Testframework [32 §9](../../Stammbaum/specs/v9/32-Testframework.md), TST-DEV).
+> abweicht (Testframework 32 §9 im Specs-Repo `Stammbaum/specs/v9/32-Testframework.md`
+> — separates Repo, kein relativer Pfad möglich, TST-DEV).
 > Jede beabsichtigte Abweichung hat (a) einen Eintrag hier **und** (b) einen
 > verriegelnden Test. Ein unerwarteter Orakel-Diff ohne Eintrag = Regression → CI rot.
 
