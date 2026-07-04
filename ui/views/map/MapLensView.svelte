@@ -182,12 +182,12 @@
 <div class="map-lens-view">
   <LensViewHeader active="map" onNavigate={(lens) => onNavigateLens?.(lens)} />
 
-  <div class="map-lens-view__mode-row" role="tablist" aria-label="Karten-Modus wählen">
+  <div class="map-lens-view__mode-row stb-segment-row" role="tablist" aria-label="Karten-Modus wählen">
     <button
       type="button"
       role="tab"
-      class="map-lens-view__mode-btn"
-      class:map-lens-view__mode-btn--active={mode === 'orte'}
+      class="stb-segment-btn"
+      class:stb-segment-btn--active={mode === 'orte'}
       aria-current={mode === 'orte' ? 'page' : undefined}
       onclick={() => switchMode('orte')}
     >
@@ -196,8 +196,8 @@
     <button
       type="button"
       role="tab"
-      class="map-lens-view__mode-btn"
-      class:map-lens-view__mode-btn--active={mode === 'person'}
+      class="stb-segment-btn"
+      class:stb-segment-btn--active={mode === 'person'}
       aria-current={mode === 'person' ? 'page' : undefined}
       onclick={() => switchMode('person')}
     >
@@ -206,8 +206,8 @@
     <button
       type="button"
       role="tab"
-      class="map-lens-view__mode-btn"
-      class:map-lens-view__mode-btn--active={mode === 'migr'}
+      class="stb-segment-btn"
+      class:stb-segment-btn--active={mode === 'migr'}
       aria-current={mode === 'migr' ? 'page' : undefined}
       onclick={() => switchMode('migr')}
     >
@@ -304,27 +304,11 @@
     min-height: 0;
   }
 
+  /* Modus-Umschalter-Pillen selbst kommen aus design-system.css (.stb-segment-row/
+     .stb-segment-btn/--active) — EntityTab-Kanon, dieselben Klassen wie der
+     Entitäten-Segment-Umschalter und LensSwitcher. */
   .map-lens-view__mode-row {
-    display: flex;
-    gap: 0.4rem;
     padding: 0.5rem 0.75rem 0;
-  }
-
-  .map-lens-view__mode-btn {
-    flex: 1;
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.5rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-
-  .map-lens-view__mode-btn--active {
-    background: var(--stb-surface-3);
-    color: var(--stb-gold-light);
-    font-weight: 700;
   }
 
   .map-lens-view__offline-banner {

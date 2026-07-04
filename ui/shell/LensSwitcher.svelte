@@ -27,12 +27,13 @@
   }
 </script>
 
-<div class="lens-switcher" role="tablist" aria-label="Ansicht wählen">
+<div class="lens-switcher stb-segment-row" role="tablist" aria-label="Ansicht wählen">
   {#each LENSES as lens (lens.id)}
     <button
       type="button"
       role="tab"
-      class="lens-switcher__item"
+      class="stb-segment-btn lens-switcher__item"
+      class:stb-segment-btn--active={active === lens.id}
       class:lens-switcher__item--active={active === lens.id}
       class:lens-switcher__item--disabled={!lens.implemented}
       aria-current={active === lens.id ? 'page' : undefined}
@@ -47,37 +48,17 @@
 </div>
 
 <style>
-  .lens-switcher {
-    display: flex;
-    gap: 0.25rem;
-    padding: 0.3rem;
-    background: var(--stb-surface-2);
-    border-radius: var(--stb-radius-control);
-  }
-
+  /* Segment-Control-Pillen selbst kommen aus design-system.css (.stb-segment-row/
+     .stb-segment-btn/--active) — EntityTab-Kanon (Spec 21 §6/§2: individuell
+     umrandete Pillen, aktiv = volle Gold-Füllung, kein Zeilenumbruch). Icon ist ein
+     zusätzliches Element INNERHALB der standardisierten Pille, kein eigenes
+     Styling-System. `.lens-switcher__item--active` bleibt als Alias-Klasse für den
+     bestehenden Komponenten-Test (prüft genau diesen Klassennamen). */
   .lens-switcher__item {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     gap: 0.35rem;
-    background: transparent;
-    border: none;
-    border-radius: var(--stb-radius-control);
-    color: var(--stb-text-dim);
-    padding: 0.4rem 0.5rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-  }
-
-  .lens-switcher__item--active {
-    background: var(--stb-surface-3);
-    color: var(--stb-gold-light);
-    font-weight: 700;
   }
 
   .lens-switcher__item--disabled {
-    cursor: default;
     opacity: 0.55;
   }
 

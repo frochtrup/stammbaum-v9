@@ -154,14 +154,14 @@
 </script>
 
 <div class="entity-tab">
-  <div class="entity-tab__segments" role="tablist" aria-label="Entität wählen">
+  <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
     {#each segments as segment (segment.id)}
       <button
         type="button"
         role="tab"
         aria-selected={segment.id === activeSegment}
-        class="entity-tab__segment"
-        class:entity-tab__segment--active={segment.id === activeSegment}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={segment.id === activeSegment}
         disabled={!segment.implemented}
         onclick={() => selectSegment(segment)}
       >
@@ -171,13 +171,17 @@
   </div>
 
   {#if activeSegment === 'source'}
-    <div class="entity-tab__subsegments" role="tablist" aria-label="Quellen-Ansicht wählen">
+    <div
+      class="entity-tab__subsegments stb-segment-row entity-tab__subsegments--dashed"
+      role="tablist"
+      aria-label="Quellen-Ansicht wählen"
+    >
       <button
         type="button"
         role="tab"
         aria-selected={sourceSubView === 'sources'}
-        class="entity-tab__subsegment"
-        class:entity-tab__subsegment--active={sourceSubView === 'sources'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={sourceSubView === 'sources'}
         onclick={() => {
           sourceSubView = 'sources';
         }}
@@ -188,8 +192,8 @@
         type="button"
         role="tab"
         aria-selected={sourceSubView === 'repositories'}
-        class="entity-tab__subsegment"
-        class:entity-tab__subsegment--active={sourceSubView === 'repositories'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={sourceSubView === 'repositories'}
         onclick={() => {
           sourceSubView = 'repositories';
         }}
@@ -292,43 +296,17 @@
     min-height: 0;
   }
 
+  /* Segment-Control-Pillen selbst kommen aus design-system.css (.stb-segment-row/
+     .stb-segment-btn/--active) — hier bleibt nur das EntityTab-eigene Layout-Detail
+     (Trennlinie unter der Segment-Reihe, gestrichelt unter der Subsegment-Reihe). */
   .entity-tab__segments,
   .entity-tab__subsegments {
-    display: flex;
-    gap: 0.3rem;
-    padding: 0.5rem 0.75rem;
-    overflow-x: auto;
     border-bottom: 1px solid var(--stb-surface-3);
   }
 
-  .entity-tab__subsegments {
+  .entity-tab__subsegments--dashed {
     padding-top: 0;
     border-bottom-style: dashed;
-  }
-
-  .entity-tab__segment,
-  .entity-tab__subsegment {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    font-size: 0.78rem;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .entity-tab__segment:disabled {
-    cursor: not-allowed;
-  }
-
-  .entity-tab__segment--active,
-  .entity-tab__subsegment--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    font-weight: 700;
-    border-color: var(--stb-gold);
-    cursor: default;
   }
 
   .entity-tab__detail-header {

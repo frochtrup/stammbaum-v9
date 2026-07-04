@@ -72,3 +72,44 @@ button {
   font-family: inherit;
   color: inherit;
 }
+
+/* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
+   zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
+   Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung
+   mit dunklem Text, kein Zeilenumbruch mit Scroll-Fallback). LensSwitcher und der
+   Karten-Modus-Umschalter (MapLensView) nutzen dieselben Klassen statt eigener
+   Kopien — eine Quelle für dieses eine visuelle Muster. */
+.stb-segment-row {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+}
+
+.stb-segment-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: var(--stb-surface-2);
+  border: 1px solid var(--stb-surface-3);
+  color: var(--stb-text-dim);
+  border-radius: var(--stb-radius-control);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stb-segment-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stb-segment-btn--active {
+  background: var(--stb-gold);
+  color: var(--stb-bg);
+  font-weight: 700;
+  border-color: var(--stb-gold);
+  cursor: default;
+}
