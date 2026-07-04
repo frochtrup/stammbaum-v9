@@ -139,18 +139,32 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     expect(treeTab.getAttribute('aria-current')).toBe('page');
   });
 
-  it('Klick auf eine andere Lens im Umschalter ruft onNavigateLens auf, ohne den Fokus zu ändern', async () => {
+  it('Klick auf eine andere implementierte Lens (Karte) im Umschalter ruft onNavigateLens auf, ohne den Fokus zu ändern', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
     viewState.setCurrent('lensFocus', '@I1@');
     const onNavigateLens = vi.fn();
 
-    // "Karte" ist (noch) nicht implementiert -> Klick tut nichts (LensSwitcher selbst
-    // verriegelt das, s. LensSwitcher.component.test.ts) -- hier wird nur verifiziert,
-    // dass der Fokus dabei unangetastet bleibt.
+    // "Karte" ist implementiert (ADR-v9-25) -> Klick ruft onNavigateLens('map') auf;
+    // der geteilte Fokus-Slot bleibt unverändert (TreeView schreibt ihn beim
+    // Lens-Wechsel selbst nicht, das übernimmt App.svelte/MapLensView).
     const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
     await fireEvent.click(getByRole('tab', { name: /Karte/ }));
+
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
+    expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
+  });
+
+  it('Klick auf eine NICHT implementierte Lens (Zeitleiste) ruft onNavigateLens NICHT auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+    const onNavigateLens = vi.fn();
+
+    const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(getByRole('tab', { name: /Zeitleiste/ }));
 
     expect(onNavigateLens).not.toHaveBeenCalled();
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');

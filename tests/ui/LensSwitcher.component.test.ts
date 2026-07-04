@@ -28,16 +28,16 @@ describe('LensSwitcher — der eine Lens-Umschalter (INV-UI-3)', () => {
     expect(treeTab.getAttribute('aria-current')).toBe('page');
     expect(treeTab.className).toContain('lens-switcher__item--active');
 
-    const mapTab = screen.getByRole('tab', { name: /Karte/ });
-    expect(mapTab.getAttribute('aria-current')).toBeNull();
-    expect(mapTab.className).not.toContain('lens-switcher__item--active');
+    const timelineTab = screen.getByRole('tab', { name: /Zeitleiste/ });
+    expect(timelineTab.getAttribute('aria-current')).toBeNull();
+    expect(timelineTab.className).not.toContain('lens-switcher__item--active');
   });
 
   it('markiert nicht implementierte Lenses als "(folgt)" und deaktiviert (disabled)', () => {
     render(LensSwitcher, { props: { active: 'tree', onNavigate: vi.fn() } });
 
-    const mapTab = screen.getByRole('tab', { name: /Karte \(folgt\)/ }) as HTMLButtonElement;
-    expect(mapTab.disabled).toBe(true);
+    const timelineTab = screen.getByRole('tab', { name: /Zeitleiste \(folgt\)/ }) as HTMLButtonElement;
+    expect(timelineTab.disabled).toBe(true);
   });
 
   it('Klick auf eine implementierte Lens ruft onNavigate mit deren id auf', async () => {
@@ -49,11 +49,20 @@ describe('LensSwitcher — der eine Lens-Umschalter (INV-UI-3)', () => {
     expect(onNavigate).toHaveBeenCalledWith('tree');
   });
 
-  it('Klick auf eine nicht implementierte Lens ruft onNavigate NICHT auf — kein Crash', async () => {
+  it('Klick auf eine implementierte Lens (Karte) ruft onNavigate ebenfalls auf', async () => {
     const onNavigate = vi.fn();
     render(LensSwitcher, { props: { active: 'tree', onNavigate } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Karte/ }));
+
+    expect(onNavigate).toHaveBeenCalledWith('map');
+  });
+
+  it('Klick auf eine nicht implementierte Lens ruft onNavigate NICHT auf — kein Crash', async () => {
+    const onNavigate = vi.fn();
+    render(LensSwitcher, { props: { active: 'tree', onNavigate } });
+
+    await fireEvent.click(screen.getByRole('tab', { name: /Zeitleiste/ }));
 
     expect(onNavigate).not.toHaveBeenCalled();
   });

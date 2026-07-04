@@ -13,10 +13,10 @@ describe('LENSES — Lens-Umschalter-Datenmodell (Spec 21 §4)', () => {
     expect(LENSES.map((l) => l.label)).not.toContain('Statistik');
   });
 
-  it('nur Baum ist implementiert; Karte/Zeitleiste/Story sind deaktivierte Platzhalter', () => {
+  it('Baum und Karte sind implementiert; Zeitleiste/Story sind deaktivierte Platzhalter', () => {
     const byId = Object.fromEntries(LENSES.map((l) => [l.id, l.implemented]));
     expect(byId.tree).toBe(true);
-    expect(byId.map).toBe(false);
+    expect(byId.map).toBe(true);
     expect(byId.timeline).toBe(false);
     expect(byId.story).toBe(false);
   });

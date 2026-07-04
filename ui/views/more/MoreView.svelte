@@ -2,40 +2,33 @@
   // ui/views/more/MoreView.svelte — "Mehr"-Hub (Spec 21 §2 Mobile-Modell: "Mehr = Hub
   // für die Lenses (Karte / Zeitleiste / Statistik / Story) + Ausgaben + Einstellungen").
   //
-  // Diese Scheibe liefert das Navigations-Gerüst: ein Menü mit sechs Einträgen. Fünf davon
-  // zeigen weiterhin den ComingSoonPanel-Platzhalter (ein `implemented`-Flag pro Eintrag,
-  // "(folgt)"-Label-Suffix — analog dem Muster, das BottomNav/App.svelte für die anfangs
-  // unimplementierten Bottom-Nav-Ziele nutzen). "Statistik" ist jetzt echt (Spec 20 §4
-  // "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst KEINE Diagramm-/
-  // imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt noch KEINEN
-  // gemeinsamen Lens-Umschalter und ist für diese Slice ausschließlich über diesen Hub-
-  // Eintrag erreichbar. Karte/Zeitleiste/Story/Ausgaben/Einstellungen bleiben Platzhalter —
-  // eigene, spätere Bauabschnitte (Karte/Zeitleiste sind laut Spec 02 §5 sogar imperative
-  // SVG-Inseln, eigener Agenten-Zuständigkeitsbereich, islands-builder).
+  // Diese Scheibe liefert das Navigations-Gerüst: ein Menü mit sechs Einträgen. "Statistik"
+  // ist echt (Spec 20 §4 "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst
+  // KEINE Diagramm-/imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt
+  // keinen gemeinsamen Lens-Umschalter und ist ausschließlich über diesen Hub-Eintrag
+  // erreichbar. Zeitleiste/Story/Ausgaben/Einstellungen bleiben Platzhalter (eigene,
+  // spätere Bauabschnitte).
   //
-  // INV-UI-2-Hinweis (bewusste, vorübergehende Ausnahme): seit dem Lens-Umschalter
-  // (LensSwitcher.svelte, Spec 21 §4) ist "Karte" jetzt AUCH aus dem Baum-Kontext
-  // heraus erreichbar (App.svelte activeTarget='map', mit geteiltem ViewState-Fokus
-  // `lensFocus`). Dieser Hub-Eintrag hier zeigt weiterhin seinen EIGENEN,
-  // fokus-losen ComingSoonPanel — ein zweiter Pfad zum selben Ziel, was INV-UI-2
-  // ("genau ein kanonischer Weg") strenggenommen verletzt. Bewusst NICHT bereinigt:
-  // beide Pfade zeigen aktuell nur einen Platzhalter (kein echter Inhalt, kein
-  // Doppelpfad-Schaden), und eine Umleitung hierher würde einen Callback nach
-  // App.svelte verdrahten, der beim echten Karten-Bau (islands-builder, ADR-v9-25)
-  // ohnehin neu zugeschnitten wird. SOBALD die Karte echten Inhalt bekommt, MUSS
-  // dieser Eintrag entweder entfernt oder auf denselben App.svelte-Pfad (`onNavigateLens`/
-  // `activeTarget='map'`) umgeleitet werden — nicht zwei echte Karten-Implementierungen
-  // parallel pflegen.
+  // "Karte" hat inzwischen echten Inhalt (Leaflet+OSM-Primärpfad + SVG-Offline-Fallback,
+  // ADR-v9-25) — GENAU EIN kanonischer Weg dorthin (INV-UI-2), daher leitet dieser
+  // Hub-Eintrag über `onNavigateLens` auf denselben App.svelte-Pfad um (activeTarget=
+  // 'map'), den auch der Lens-Umschalter nutzt, STATT eine zweite Karten-Implementierung
+  // (eigener ComingSoonPanel/eigene Insel-Instanz) hier zu pflegen. Kein Menü-Sub-Eintrag
+  // mehr für "Karte" — der Klick verlässt den Hub sofort (analog "Statistik" bleibt im
+  // Hub, weil Statistik KEINEN zweiten Pfad hat).
   import type { AppState } from '../../shell/app-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
   import StatisticsView from '../stats/StatisticsView.svelte';
+  import type { LensId } from '../../shell/lens-model';
 
   interface Props {
     appState: AppState;
+    /** Verlässt den Hub Richtung Karten-Lens (App.svelte activeTarget='map', INV-UI-2). */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState }: Props = $props();
+  const { appState, onNavigateLens }: Props = $props();
 
-  type MoreEntry = 'map' | 'timeline' | 'stats' | 'story' | 'reports' | 'settings';
+  type MoreEntry = 'timeline' | 'stats' | 'story' | 'reports' | 'settings';
 
   interface MenuItem {
     id: MoreEntry;
@@ -44,10 +37,11 @@
     implemented: boolean;
   }
 
-  // Reihenfolge folgt Spec 21 §1/§3: erst die vier Lenses (Ansichten), dann die zwei
-  // Arbeitsflächen-Einträge, die laut §2 in den "Mehr"-Hub gehören.
+  // Reihenfolge folgt Spec 21 §1/§3: erst die verbleibenden Lenses (Ansichten), dann
+  // die zwei Arbeitsflächen-Einträge, die laut §2 in den "Mehr"-Hub gehören. "Karte"
+  // ist KEIN Menü-Sub-Eintrag mehr (s. Kommentar oben) — eigener Button, der sofort
+  // über onNavigateLens navigiert statt eine Sub-Ansicht im Hub zu öffnen.
   const items: MenuItem[] = [
-    { id: 'map', icon: '🗺', label: 'Karte', implemented: false },
     { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: false },
     { id: 'stats', icon: '📊', label: 'Statistik', implemented: true },
     { id: 'story', icon: '📖', label: 'Story', implemented: false },
@@ -83,6 +77,12 @@
     {/if}
   {:else}
     <ul class="more-view__list">
+      <li>
+        <button type="button" class="more-view__item" onclick={() => onNavigateLens?.('map')}>
+          <span class="more-view__icon" aria-hidden="true">🗺</span>
+          <span class="more-view__label">Karte</span>
+        </button>
+      </li>
       {#each items as item (item.id)}
         <li>
           <button type="button" class="more-view__item" onclick={() => open(item)}>

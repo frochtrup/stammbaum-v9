@@ -152,7 +152,7 @@
     {:else if activeTarget === 'tasks'}
       <TasksView {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
     {:else if activeTarget === 'more'}
-      <MoreView {appState} />
+      <MoreView {appState} onNavigateLens={navigateLens} />
     {/if}
   </main>
 

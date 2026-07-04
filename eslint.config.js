@@ -30,11 +30,17 @@ export default tseslint.config(
     // halten (`bind:this`), anders als der Kern (INV-ARCH-1, gilt nur für core/).
     // Ohne diese Globals meldet der eingebettete <script>-Parser HTMLDivElement/window/
     // document als undefined (base no-undef, DOM-Lib-Typen sind kein Laufzeit-Scope).
+    // `navigator`/`setTimeout`/`clearTimeout` ergänzt für die Karten-Lens (ADR-v9-25:
+    // Offline-Erkennung + Animations-Takt) — dieselbe Plattform-Erlaubnis wie window/
+    // document, weiterhin nur außerhalb von core/ (INV-ARCH-1-Gate prüft das separat).
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
         window: 'readonly',
         document: 'readonly',
+        navigator: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
         HTMLDivElement: 'readonly',
         HTMLElement: 'readonly',
         HTMLSelectElement: 'readonly'
