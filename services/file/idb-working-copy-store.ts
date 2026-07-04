@@ -5,31 +5,20 @@
 //
 // Ein Object-Store, ein fester Key ("current") — das erzwingt strukturell, dass es
 // höchstens eine gespeicherte Arbeitskopie geben kann (INV-FILE-1).
+//
+// Öffnet die EINE geteilte stammbaum-v9-IndexedDB über services/idb-schema.ts (nicht
+// einen eigenen indexedDB.open() mit eigenem Upgrade-Handler) — sonst gewinnt bei
+// gleichzeitiger Nutzung durch mehrere Stores nur der zuerst geöffnete Handler und
+// Object-Stores anderer Module fehlen (s. Kommentarkopf idb-schema.ts).
 
 import type { WorkingCopy, WorkingCopyStore } from './types';
+import { openStammbaumDb, STORE_WORKING_COPY as STORE_NAME } from '../idb-schema';
 
-const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 1;
-const STORE_NAME = 'working-copy';
 const KEY = 'current';
-
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
 
 export class IdbWorkingCopyStore implements WorkingCopyStore {
   async load(): Promise<WorkingCopy | null> {
-    const db = await openDb();
+    const db = await openStammbaumDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const req = tx.objectStore(STORE_NAME).get(KEY);
@@ -39,7 +28,7 @@ export class IdbWorkingCopyStore implements WorkingCopyStore {
   }
 
   async save(copy: WorkingCopy): Promise<void> {
-    const db = await openDb();
+    const db = await openStammbaumDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).put(copy, KEY);
@@ -49,7 +38,7 @@ export class IdbWorkingCopyStore implements WorkingCopyStore {
   }
 
   async clear(): Promise<void> {
-    const db = await openDb();
+    const db = await openStammbaumDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).delete(KEY);
