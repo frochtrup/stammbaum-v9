@@ -14,13 +14,37 @@ export function displayName(p: Person): string {
   return cleaned || '(ohne Namen)';
 }
 
+/**
+ * Nachname-Kandidat, konsistent für Gruppierung (sortLetter), Sortierung (sortKey) UND
+ * jede andere Stelle, die "den Nachnamen einer Person" braucht (z. B. Familien-Sortierung
+ * nach Nachname Ehemann/Ehefrau). `p.surname` ist NUR gesetzt, wenn die GEDCOM-Quelle
+ * explizite `GIVN`/`SURN`-Untertags hatte (core/interop/gedcom-parse.ts) — bei reinem
+ * `1 NAME Otto /Anders/` ohne Untertags (verbreitete Form) bleibt `p.surname` leer, daher
+ * der Fallback auf den Slash-Teil von `p.name`. EXPORTIERT, damit kein Aufrufer eine eigene,
+ * abweichende Nachname-Ermittlung baut (das war ein realer Bug: family-list-model.ts hatte
+ * eine eigene, fallback-lose `surnameFor()` → Familien-Sortierung nach Nachname brach bei
+ * Personen ohne GIVN/SURN-Untertags auf reine Label-Text-Sortierung durch).
+ */
+export function surnameCandidate(p: Person): string {
+  return p.surname || p.name.split('/')[1] || p.given || p.name;
+}
+
 /** Erster Buchstabe des Nachnamens für den Alphabet-Trenner der Personen-Liste. */
 export function sortLetter(p: Person): string {
-  const candidate = p.surname || p.name.split('/')[1] || p.given || p.name;
-  const ch = candidate.trim().charAt(0).toUpperCase();
+  const ch = surnameCandidate(p).trim().charAt(0).toUpperCase();
   // Kein alphabetisches Zeichen ermittelbar (auch kein GEDCOM-NAME vorhanden) →
   // Sammel-Buchstaben, statt versehentlich das Platzhalter-"(" von displayName zu sortieren.
   return /[A-ZÄÖÜ]/.test(ch) ? ch : '#';
+}
+
+/**
+ * Sortierschlüssel "Nachname, Vorname" für den Name-Sortier-Modus — MUSS denselben
+ * Nachname-Kandidaten wie sortLetter() verwenden, sonst laufen Buchstaben-Trenner
+ * (nach Nachname gruppiert) und tatsächliche Reihenfolge (sonst nach displayName()
+ * = "Vorname Nachname" sortiert, also fälschlich nach Vornamen) auseinander.
+ */
+export function sortKey(p: Person): string {
+  return `${surnameCandidate(p)} ${p.given ?? ''}`.trim().toLowerCase();
 }
 
 /** Jahr aus einem Event-Datum, für die Kurzanzeige in der Personen-Liste. */
