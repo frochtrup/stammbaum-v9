@@ -12,6 +12,20 @@
   // Eintrag erreichbar. Karte/Zeitleiste/Story/Ausgaben/Einstellungen bleiben Platzhalter —
   // eigene, spätere Bauabschnitte (Karte/Zeitleiste sind laut Spec 02 §5 sogar imperative
   // SVG-Inseln, eigener Agenten-Zuständigkeitsbereich, islands-builder).
+  //
+  // INV-UI-2-Hinweis (bewusste, vorübergehende Ausnahme): seit dem Lens-Umschalter
+  // (LensSwitcher.svelte, Spec 21 §4) ist "Karte" jetzt AUCH aus dem Baum-Kontext
+  // heraus erreichbar (App.svelte activeTarget='map', mit geteiltem ViewState-Fokus
+  // `lensFocus`). Dieser Hub-Eintrag hier zeigt weiterhin seinen EIGENEN,
+  // fokus-losen ComingSoonPanel — ein zweiter Pfad zum selben Ziel, was INV-UI-2
+  // ("genau ein kanonischer Weg") strenggenommen verletzt. Bewusst NICHT bereinigt:
+  // beide Pfade zeigen aktuell nur einen Platzhalter (kein echter Inhalt, kein
+  // Doppelpfad-Schaden), und eine Umleitung hierher würde einen Callback nach
+  // App.svelte verdrahten, der beim echten Karten-Bau (islands-builder, ADR-v9-25)
+  // ohnehin neu zugeschnitten wird. SOBALD die Karte echten Inhalt bekommt, MUSS
+  // dieser Eintrag entweder entfernt oder auf denselben App.svelte-Pfad (`onNavigateLens`/
+  // `activeTarget='map'`) umgeleitet werden — nicht zwei echte Karten-Implementierungen
+  // parallel pflegen.
   import type { AppState } from '../../shell/app-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
   import StatisticsView from '../stats/StatisticsView.svelte';

@@ -17,9 +17,18 @@
 // (sie prüft, ob die id im aktuellen Datenbestand existiert, und zeigt sonst einen
 // Leerzustand statt eines Absturzes — s. PersonDetail.svelte).
 
-/** Navigations-Ziele dieser Scheibe (Rollenmodell Spec 21 §1). Wächst mit dem Bau. */
+/**
+ * Navigations-Ziele dieser Scheibe (Rollenmodell Spec 21 §1). Wächst mit dem Bau.
+ *
+ * `lensFocus` ist bewusst NICHT "tree" genannt: es ist der EINE geteilte Fokus-Begriff
+ * (welche Person/welcher Ort ist gerade zentriert) für ALLE Kontext-Fokus-Lenses
+ * (Spec 21 §4: "Baum ▸ Karte ▸ Zeitleiste ▸ Story" — "Der Fokus … bleibt beim
+ * Lens-Wechsel erhalten"). Baum und die künftige Karte lesen/schreiben DENSELBEN
+ * Slot — kein `tree`+`map`-Trio mit eigenem Fokus je Lens (das wäre selbst wieder
+ * eine INV-VS-Verletzung, "eine Auswahl-Instanz je Ziel", s. Spec 21 §5/ADR-Log).
+ */
 export type ViewTarget =
-  | 'tree'
+  | 'lensFocus'
   | 'person'
   | 'family'
   | 'source'
@@ -49,7 +58,7 @@ export interface ViewState {
  */
 export function createViewState(): ViewState {
   const selection = $state<Record<ViewTarget, string | null>>({
-    tree: null,
+    lensFocus: null,
     person: null,
     family: null,
     source: null,

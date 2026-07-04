@@ -1,0 +1,33 @@
+// ui/shell/lens-model.ts — reine Datenbeschreibung des EINEN Lens-Umschalters
+// (Spec 21 §4: "Ein einziger, überall identischer Umschalter"; INV-UI-3: "genau ein
+// Lens-Umschalter-Mechanismus; kein Diagramm bringt eigene Wechsel-Buttons mit").
+//
+// Deckt die Kontext-Fokus-Lenses ab: dieselbe Person/derselbe Ort anders betrachtet
+// (Baum ▸ Karte ▸ Zeitleiste ▸ Story, Spec 21 §4). Statistik ist bewusst NICHT Teil
+// dieser Liste — Nutzer-Entscheidung: Statistik ist ein globales Dashboard, keine
+// "dieselbe Person anders betrachtet"-Lens, bleibt ausschließlich über den Mehr-Hub
+// erreichbar (s. MoreView.svelte).
+//
+// Baum ist als einzige Lens bereits mit echtem Inhalt gebaut; Karte/Zeitleiste/Story
+// sind deaktivierte Platzhalter (analog zum `implemented:false`-Muster aus
+// BottomNav.svelte/EntityTab.svelte/MoreView.svelte) — Klick tut nichts, kein Crash.
+export type LensId = 'tree' | 'map' | 'timeline' | 'story';
+
+export interface LensDef {
+  id: LensId;
+  icon: string;
+  label: string;
+  implemented: boolean;
+}
+
+// Reihenfolge folgt Spec 21 §4 wörtlich: "Baum ▸ Karte ▸ Zeitleiste ▸ Story".
+export const LENSES: readonly LensDef[] = [
+  { id: 'tree', icon: '⧖', label: 'Baum', implemented: true },
+  { id: 'map', icon: '🗺', label: 'Karte', implemented: false },
+  { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: false },
+  { id: 'story', icon: '📖', label: 'Story', implemented: false },
+];
+
+export function lensById(id: LensId): LensDef | undefined {
+  return LENSES.find((l) => l.id === id);
+}

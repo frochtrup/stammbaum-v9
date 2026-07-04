@@ -11,7 +11,7 @@ describe('INV-VS — eine zentrale ViewState-Instanz', () => {
   it('startet mit keiner Auswahl je Ziel (definierter Ausgangszustand, kein undefined)', () => {
     const vs = createViewState();
     expect(vs.getCurrent('person')).toBeNull();
-    expect(vs.getCurrent('tree')).toBeNull();
+    expect(vs.getCurrent('lensFocus')).toBeNull();
   });
 
   it('setCurrent/getCurrent bilden den EINEN Weg, die Auswahl je Ziel zu lesen/schreiben', () => {
@@ -19,7 +19,7 @@ describe('INV-VS — eine zentrale ViewState-Instanz', () => {
     vs.setCurrent('person', '@I1@');
     expect(vs.getCurrent('person')).toBe('@I1@');
     // Ziele sind unabhängig voneinander (kein gemeinsamer "currentX"-Topf wie in v8).
-    expect(vs.getCurrent('tree')).toBeNull();
+    expect(vs.getCurrent('lensFocus')).toBeNull();
   });
 
   it('feuert das Change-Event genau einmal pro setCurrent-Aufruf, mit Ziel und id', () => {
@@ -61,5 +61,14 @@ describe('INV-VS — eine zentrale ViewState-Instanz', () => {
 
     expect(a.getCurrent('person')).toBe('@I1@');
     expect(b.getCurrent('person')).toBeNull();
+  });
+
+  it('lensFocus ist EIN geteilter Slot für alle Kontext-Fokus-Lenses (Spec 21 §4: "Fokus bleibt beim Lens-Wechsel erhalten") — kein separater Slot je Lens', () => {
+    const vs = createViewState();
+
+    // Baum schreibt den Fokus...
+    vs.setCurrent('lensFocus', '@I1@');
+    // ...eine künftige Karten-Lens läse denselben Slot, nicht einen eigenen "map"-Topf.
+    expect(vs.getCurrent('lensFocus')).toBe('@I1@');
   });
 });

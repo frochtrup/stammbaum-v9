@@ -13,6 +13,8 @@
   import { mountHourglassTree, type TreeIslandHandle } from '../../islands/tree/hourglass-tree';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import LensSwitcher from '../../shell/LensSwitcher.svelte';
+  import type { LensId } from '../../shell/lens-model';
 
   interface Props {
     appState: AppState;
@@ -21,14 +23,22 @@
     onNavigateToFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation: Klick auf die Zentrum-Karte öffnet die Personen-Detailseite. */
     onOpenPersonDetail?: (personId: string) => void;
+    /**
+     * Lens-Umschalter (Spec 21 §4, INV-UI-3) — Klick auf eine ANDERE implementierte
+     * Lens (aktuell nur "Baum" selbst ist implementiert, aber der Slot ruft trotzdem
+     * durch, damit der nächste Bauabschnitt (Karte) nur noch hier andocken muss).
+     * Der Fokus selbst wandert NICHT über diesen Callback — er lebt bereits im
+     * geteilten ViewState-Slot `lensFocus` und bleibt beim Wechsel automatisch erhalten.
+     */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateToFamily, onOpenPersonDetail }: Props = $props();
+  const { appState, viewState, onNavigateToFamily, onOpenPersonDetail, onNavigateLens }: Props = $props();
 
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: TreeIslandHandle | null = null;
   let fullscreen = $state(false);
 
-  const focusId = $derived(viewState.getCurrent('tree') ?? firstAvailablePersonId());
+  const focusId = $derived(viewState.getCurrent('lensFocus') ?? firstAvailablePersonId());
 
   function firstAvailablePersonId(): string | null {
     const first = appState.db.individuals.keys().next();
@@ -36,7 +46,7 @@
   }
 
   function recenter(id: string): void {
-    viewState.setCurrent('tree', id);
+    viewState.setCurrent('lensFocus', id);
   }
 
   function toggleFullscreen(): void {
@@ -77,6 +87,9 @@
       {fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild'}
     </button>
   </div>
+  <div class="tree-view__lens-row">
+    <LensSwitcher active="tree" onNavigate={(lens) => onNavigateLens?.(lens)} />
+  </div>
   {#if !focusId}
     <p class="tree-view__empty">Keine Person geladen.</p>
   {/if}
@@ -112,6 +125,10 @@
     padding: 0.3rem 0.6rem;
     font-size: 0.78rem;
     cursor: pointer;
+  }
+
+  .tree-view__lens-row {
+    padding: 0.5rem 0.75rem 0;
   }
 
   .tree-view__empty {

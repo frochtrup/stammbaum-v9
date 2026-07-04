@@ -21,7 +21,7 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
-    viewState.setCurrent('tree', '@I1@');
+    viewState.setCurrent('lensFocus', '@I1@');
 
     const { container } = render(TreeView, { props: { appState, viewState } });
 
@@ -42,7 +42,7 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
-    // Bewusst KEIN viewState.setCurrent('tree', ...) — Baum-Tab muss trotzdem etwas zeigen.
+    // Bewusst KEIN viewState.setCurrent('lensFocus', ...) — Baum-Tab muss trotzdem etwas zeigen.
 
     const { container } = render(TreeView, { props: { appState, viewState } });
 
@@ -53,7 +53,7 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
-    viewState.setCurrent('tree', '@I1@');
+    viewState.setCurrent('lensFocus', '@I1@');
 
     const { container, getByText } = render(TreeView, { props: { appState, viewState } });
     const island = container.querySelector('.tree-island')!;
@@ -70,7 +70,7 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
-    viewState.setCurrent('tree', '@I1@');
+    viewState.setCurrent('lensFocus', '@I1@');
     const onOpenPersonDetail = vi.fn();
 
     const { container } = render(TreeView, { props: { appState, viewState, onOpenPersonDetail } });
@@ -114,13 +114,63 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     db.individuals.get('@I2@')!.parentIn.push('@F1@');
     db.individuals.get('@I3@')!.parentIn.push('@F1@');
     appState.loadDatabase(db, 'test.ged');
-    viewState.setCurrent('tree', '@I1@');
+    viewState.setCurrent('lensFocus', '@I1@');
 
     const { container } = render(TreeView, { props: { appState, viewState } });
     const fatherCard = container.querySelector('[data-person-id="@I2@"]') as HTMLElement;
     expect(fatherCard).toBeTruthy();
     await fireEvent.click(fatherCard);
 
-    expect(viewState.getCurrent('tree')).toBe('@I2@');
+    expect(viewState.getCurrent('lensFocus')).toBe('@I2@');
+  });
+});
+
+describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () => {
+  it('bindet den EINEN Lens-Umschalter ein, mit "Baum" als aktiver Lens', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const { container, getByRole } = render(TreeView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.lens-switcher')).toBeTruthy();
+    const treeTab = getByRole('tab', { name: /Baum/ });
+    expect(treeTab.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('Klick auf eine andere Lens im Umschalter ruft onNavigateLens auf, ohne den Fokus zu ändern', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+    const onNavigateLens = vi.fn();
+
+    // "Karte" ist (noch) nicht implementiert -> Klick tut nichts (LensSwitcher selbst
+    // verriegelt das, s. LensSwitcher.component.test.ts) -- hier wird nur verifiziert,
+    // dass der Fokus dabei unangetastet bleibt.
+    const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(getByRole('tab', { name: /Karte/ }));
+
+    expect(onNavigateLens).not.toHaveBeenCalled();
+    expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
+  });
+
+  it('der Fokus bleibt in ViewState erhalten, wenn TreeView entfernt und mit derselben ViewState-Instanz neu gemountet wird (Lens-Wechsel weg-und-zurück)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const first = render(TreeView, { props: { appState, viewState } });
+    expect(first.container.querySelector('[data-person-id="@I1@"].tree-island__card--center')).toBeTruthy();
+    first.unmount();
+
+    // Simuliert "Weg zu Karte (Platzhalter) und zurück zu Baum" — dieselbe geteilte
+    // ViewState-Instanz überlebt den Lens-Wechsel (App.svelte reicht sie unverändert
+    // durch), der Fokus ist danach identisch zu vorher.
+    const second = render(TreeView, { props: { appState, viewState } });
+    expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
+    expect(second.container.querySelector('[data-person-id="@I1@"].tree-island__card--center')).toBeTruthy();
   });
 });
