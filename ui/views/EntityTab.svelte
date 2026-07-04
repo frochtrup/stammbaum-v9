@@ -29,8 +29,16 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /**
+     * Cross-Navigation "Im Baum anzeigen" (PersonDetail -> Baum-Tab, Spec 20 §1.3 [K]).
+     * Optional durchgereicht statt hier verdrahtet: `activeTarget` (welcher Bottom-Nav-
+     * Slot aktiv ist) sitzt in App.svelte, nicht in EntityTab — das ist bewusst KEIN
+     * EntityTab-Sub-Callback wie navigateToPerson/-Family/etc. (die bleiben INNERHALB
+     * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
+     */
+    onNavigateToTree?: (personId: string) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onNavigateToTree }: Props = $props();
 
   type EntitySegment = 'person' | 'family' | 'source' | 'repository' | 'place' | 'hof';
 
@@ -214,6 +222,7 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
+        {onNavigateToTree}
       />
     {:else}
       <PersonList {appState} {viewState} />

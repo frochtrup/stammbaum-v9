@@ -1,8 +1,9 @@
 <script lang="ts">
   // ui/shell/BottomNav.svelte — mobile Bottom-Nav, 5 feste Ziele (Spec 21 §2).
-  // Nur "Personen" ist in dieser Scheibe funktional; die anderen vier sind sichtbare,
-  // klickbare Platzhalter (deutlich als "folgt" markiert) — kein Absturz beim Klick,
-  // aber auch kein stiller Wechsel in einen nicht gebauten Bereich.
+  // "Personen" UND "Baum" (Sanduhr-Insel, Spec 20 §1.3 [K]) sind in dieser Scheibe
+  // funktional; die übrigen drei sind sichtbare, klickbare Platzhalter (deutlich als
+  // "folgt" markiert) — kein Absturz beim Klick, aber auch kein stiller Wechsel in
+  // einen nicht gebauten Bereich.
   //
   // Aktiver Zustand: Balken + fett + Akzentfarbe (nicht nur Farbe, WCAG 1.4.1 / LP-8,
   // Spec 21 §2 "nie nur Farbe").
@@ -19,7 +20,7 @@
   }
 
   const items: NavItem[] = [
-    { target: 'tree', icon: '⧖', label: 'Baum', implemented: false },
+    { target: 'tree', icon: '⧖', label: 'Baum', implemented: true },
     { target: 'person', icon: '👤', label: 'Personen', implemented: true },
     { target: 'search', icon: '🔍', label: 'Suche', implemented: false },
     { target: 'tasks', icon: '☑', label: 'Aufgaben', implemented: false },

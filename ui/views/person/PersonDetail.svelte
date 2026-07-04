@@ -20,9 +20,18 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
+    /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
+    onNavigateToTree?: (personId: string) => void;
   }
-  const { appState, viewState, onNavigateToFamily, onNavigateToSource, onNavigateToPlace, onNavigateToHof }: Props =
-    $props();
+  const {
+    appState,
+    viewState,
+    onNavigateToFamily,
+    onNavigateToSource,
+    onNavigateToPlace,
+    onNavigateToHof,
+    onNavigateToTree,
+  }: Props = $props();
 
   const personId = $derived(viewState.getCurrent('person'));
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
@@ -42,7 +51,18 @@
   {:else if !detail}
     <p class="person-detail__empty">Person nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <h2 class="person-detail__name">{displayName(detail.person)}</h2>
+    <div class="person-detail__hero">
+      <h2 class="person-detail__name">{displayName(detail.person)}</h2>
+      {#if onNavigateToTree}
+        <button
+          type="button"
+          class="person-detail__tree-link"
+          onclick={() => onNavigateToTree(detail.person.id)}
+        >
+          ⧖ Im Baum anzeigen
+        </button>
+      {/if}
+    </div>
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
@@ -145,8 +165,27 @@
     color: var(--stb-text-dim);
   }
 
+  .person-detail__hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
   .person-detail__name {
     margin-top: 0;
+  }
+
+  .person-detail__tree-link {
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    color: var(--stb-gold-light);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
   }
 
   .person-detail__section {

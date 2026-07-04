@@ -9,6 +9,7 @@
   import ImportButton from '../ui/shell/ImportButton.svelte';
   import ComingSoonPanel from '../ui/shell/ComingSoonPanel.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
+  import TreeView from '../ui/views/tree/TreeView.svelte';
 
   const viewState = createViewState();
   const appState = createAppState();
@@ -22,8 +23,31 @@
     activeTarget = target;
   }
 
-  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person'>, string> = {
-    tree: '⧖ Baum',
+  // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (activeTarget sitzt in
+  // App.svelte, nicht in EntityTab — daher ein eigener Callback statt eines
+  // EntityTab-Sub-Callbacks, s. Auftrag "IST aber kein EntityTab-Sub-Callback").
+  function openPersonDetailFromTree(personId: string) {
+    viewState.setCurrent('person', personId);
+    activeTarget = 'person';
+  }
+
+  // Umgekehrte Richtung: "Im Baum anzeigen" aus PersonDetail heraus (durchgereicht
+  // via EntityTab.onNavigateToTree -> PersonDetail.onNavigateToTree).
+  function openTreeFromPersonDetail(personId: string) {
+    viewState.setCurrent('tree', personId);
+    activeTarget = 'tree';
+  }
+
+  // Klick auf den ⚭-Badge im Baum (zwischen Proband und aktivem Ehepartner) ->
+  // Familien-Detail (Spec 20 §1.3 [K]-Interaktion "Klick-Rezentrierung" ergänzende
+  // Familien-Navigation, analog v8 `showFamilyDetail`). Wechselt in den Personen-Tab
+  // (Familien-Segment), weil die Familien-Detailansicht dort lebt (EntityTab).
+  function openFamilyFromTree(familyId: string) {
+    viewState.setCurrent('family', familyId);
+    activeTarget = 'person';
+  }
+
+  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree'>, string> = {
     search: '🔍 Suche',
     tasks: '☑ Aufgaben',
     more: '⋯ Mehr',
@@ -39,7 +63,14 @@
 
   <main class="app-shell__main">
     {#if activeTarget === 'person'}
-      <EntityTab {appState} {viewState} />
+      <EntityTab {appState} {viewState} onNavigateToTree={openTreeFromPersonDetail} />
+    {:else if activeTarget === 'tree'}
+      <TreeView
+        {appState}
+        {viewState}
+        onOpenPersonDetail={openPersonDetailFromTree}
+        onNavigateToFamily={openFamilyFromTree}
+      />
     {:else}
       <ComingSoonPanel label={comingSoonLabels[activeTarget]} />
     {/if}

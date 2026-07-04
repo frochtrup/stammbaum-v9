@@ -24,5 +24,15 @@ export default tseslint.config(
     languageOptions: {
       globals: { console: 'readonly', process: 'readonly' }
     }
+  },
+  {
+    // Svelte-Komponenten sind die reaktive Schale (Spec 02 §2) — sie dürfen DOM-Refs
+    // halten (`bind:this`), anders als der Kern (INV-ARCH-1, gilt nur für core/).
+    // Ohne diese Globals meldet der eingebettete <script>-Parser HTMLDivElement/window/
+    // document als undefined (base no-undef, DOM-Lib-Typen sind kein Laufzeit-Scope).
+    files: ['**/*.svelte'],
+    languageOptions: {
+      globals: { window: 'readonly', document: 'readonly', HTMLDivElement: 'readonly', HTMLElement: 'readonly' }
+    }
   }
 );
