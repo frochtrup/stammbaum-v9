@@ -1,9 +1,9 @@
 <script lang="ts">
   // ui/shell/BottomNav.svelte — mobile Bottom-Nav, 5 feste Ziele (Spec 21 §2).
-  // "Personen", "Baum" (Sanduhr-Insel, Spec 20 §1.3 [K]) UND "Suche" (Spec 20 §1.1 [K])
-  // sind in dieser Scheibe funktional; die übrigen zwei sind sichtbare, klickbare
-  // Platzhalter (deutlich als "folgt" markiert) — kein Absturz beim Klick, aber auch
-  // kein stiller Wechsel in einen nicht gebauten Bereich.
+  // "Personen", "Baum" (Sanduhr-Insel, Spec 20 §1.3 [K]), "Suche" (Spec 20 §1.1 [K])
+  // UND "Aufgaben" (Spec 20 §1.11 [K]) sind in dieser Scheibe funktional; "Mehr" bleibt
+  // ein sichtbarer, klickbarer Platzhalter (deutlich als "folgt" markiert) — kein
+  // Absturz beim Klick, aber auch kein stiller Wechsel in einen nicht gebauten Bereich.
   //
   // Aktiver Zustand: Balken + fett + Akzentfarbe (nicht nur Farbe, WCAG 1.4.1 / LP-8,
   // Spec 21 §2 "nie nur Farbe").
@@ -23,15 +23,19 @@
     { target: 'tree', icon: '⧖', label: 'Baum', implemented: true },
     { target: 'person', icon: '👤', label: 'Personen', implemented: true },
     { target: 'search', icon: '🔍', label: 'Suche', implemented: true },
-    { target: 'tasks', icon: '☑', label: 'Aufgaben', implemented: false },
+    { target: 'tasks', icon: '☑', label: 'Aufgaben', implemented: true },
     { target: 'more', icon: '⋯', label: 'Mehr', implemented: false },
   ];
 
   interface Props {
     active: BottomNavTarget;
     onNavigate: (target: BottomNavTarget) => void;
+    /** Anzahl offener Aufgaben fürs Badge (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`
+     * "99+" ab >99) — 0/undefined blendet das Badge aus. Formatierung obliegt dem
+     * Aufrufer (tasks-model.ts `formatBadgeCount`), diese Komponente zeigt nur an. */
+    openTaskBadge?: string;
   }
-  const { active, onNavigate }: Props = $props();
+  const { active, onNavigate, openTaskBadge }: Props = $props();
 </script>
 
 <nav class="bottom-nav" aria-label="Hauptnavigation">
@@ -44,7 +48,12 @@
       onclick={() => onNavigate(item.target)}
     >
       <span class="bottom-nav__bar" aria-hidden="true"></span>
-      <span class="bottom-nav__icon" aria-hidden="true">{item.icon}</span>
+      <span class="bottom-nav__icon" aria-hidden="true">
+        {item.icon}
+        {#if item.target === 'tasks' && openTaskBadge}
+          <span class="bottom-nav__badge">{openTaskBadge}</span>
+        {/if}
+      </span>
       <span class="bottom-nav__label">{item.label}{item.implemented ? '' : ' (folgt)'}</span>
     </button>
   {/each}
@@ -99,8 +108,25 @@
   }
 
   .bottom-nav__icon {
+    position: relative;
+    display: inline-block;
     font-size: 1.25rem;
     line-height: 1;
+  }
+
+  .bottom-nav__badge {
+    position: absolute;
+    top: -6px;
+    right: -10px;
+    background: var(--stb-danger);
+    color: var(--stb-text);
+    border-radius: 999px;
+    padding: 0 0.3em;
+    font-size: 0.58rem;
+    font-weight: 700;
+    line-height: 1.4;
+    min-width: 1.3em;
+    text-align: center;
   }
 
   .bottom-nav__label {

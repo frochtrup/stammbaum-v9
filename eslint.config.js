@@ -32,7 +32,13 @@ export default tseslint.config(
     // document als undefined (base no-undef, DOM-Lib-Typen sind kein Laufzeit-Scope).
     files: ['**/*.svelte'],
     languageOptions: {
-      globals: { window: 'readonly', document: 'readonly', HTMLDivElement: 'readonly', HTMLElement: 'readonly' }
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        HTMLDivElement: 'readonly',
+        HTMLElement: 'readonly',
+        HTMLSelectElement: 'readonly'
+      }
     }
   }
 );

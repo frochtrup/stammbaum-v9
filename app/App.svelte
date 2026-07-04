@@ -11,9 +11,19 @@
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
+  import TasksView from '../ui/views/tasks/TasksView.svelte';
+  import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
 
   const viewState = createViewState();
   const appState = createAppState();
+
+  // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
+  // $derived liest appState.db über den Chokepoint neu, sobald ein Aufgaben-Kommando
+  // db reassigned (Spec 02 §3, EIN Pfad). '' blendet das Badge in BottomNav aus.
+  const openTasksBadge = $derived.by(() => {
+    const n = openTaskCount(appState.db);
+    return n > 0 ? formatBadgeCount(n) : '';
+  });
 
   // Bottom-Nav-Ziele sind eine Teilmenge von ViewTarget (Spec 21 §2: 5 feste Slots;
   // Familien/Quellen/Archive/Orte/Höfe leben NICHT hier, sondern im Entitäten-Segment-
@@ -79,8 +89,7 @@
     activeTarget = 'person';
   }
 
-  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree' | 'search'>, string> = {
-    tasks: '☑ Aufgaben',
+  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person' | 'tree' | 'search' | 'tasks'>, string> = {
     more: '⋯ Mehr',
   };
 </script>
@@ -111,12 +120,14 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
+    {:else if activeTarget === 'tasks'}
+      <TasksView {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
     {:else}
       <ComingSoonPanel label={comingSoonLabels[activeTarget]} />
     {/if}
   </main>
 
-  <BottomNav active={activeTarget} onNavigate={navigate} />
+  <BottomNav active={activeTarget} onNavigate={navigate} openTaskBadge={openTasksBadge} />
 </div>
 
 <style>

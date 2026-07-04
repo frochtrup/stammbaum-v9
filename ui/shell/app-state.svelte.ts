@@ -5,7 +5,7 @@
 // Spec 02 §3) — die Schale liest ihn über die definierten Chokepoints und hält eine
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
-import type { Database, PlaceId, HofId } from '../../core/model/types';
+import type { Database, PlaceId, HofId, PersonId, FamilyId } from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
 import { makeDatabase } from '../../core/model';
 import {
@@ -17,6 +17,14 @@ import {
   deleteHofObject,
   type PlaceContext,
 } from '../../core/places';
+import type { TaskStatus } from '../../core/research/types';
+import type { TaskEntityKind } from '../views/tasks/tasks-model';
+import {
+  addTask as addTaskCmd,
+  updateTask as updateTaskCmd,
+  setTaskStatusById,
+  deleteTask as deleteTaskCmd,
+} from '../views/tasks/tasks-commands';
 
 export interface AppState {
   /** Aktuell geladene Datenbank (leer, bis eine Datei importiert wurde). */
@@ -42,6 +50,18 @@ export interface AppState {
    * Chokepoints neu lesen → Views aktualisieren sich (Spec 02 §3, EIN Pfad).
    */
   touch(): void;
+  /**
+   * Kommando: legt eine neue Aufgabe an einer Person ODER Familie an (Spec 20 §1.11 [K]).
+   * `taskId`/`now` werden vom Aufrufer injiziert (TST-3, analog `newTaskId()`/Uhrzeit in
+   * TasksView.svelte) — kein Date.now()/Math.random() innerhalb dieses Kommandos selbst.
+   */
+  addTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, text: string, category: string, now: string): void;
+  /** Kommando: ersetzt Text/Kategorie einer bestehenden Aufgabe vollständig. */
+  updateTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, text: string, category: string): void;
+  /** Kommando: setzt den Kanban-Status einer Aufgabe (hält `done` synchron). */
+  setTaskStatus(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, status: TaskStatus): void;
+  /** Kommando: entfernt eine Aufgabe. */
+  deleteTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string): void;
 }
 
 /**
@@ -101,6 +121,24 @@ export function createAppState(): AppState {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität
       // auszulösen (Referenzänderung), ohne die Map-Identitäten (individuals/families/…)
       // unnötig zu klonen.
+      db = { ...db };
+    },
+    addTask(kind, entityId, taskId, text, category, now) {
+      // Kommando mutiert Person/Family.tasks[] in-place (analog linkEventToPlace oben) —
+      // die abschließende Reassign-Zeile löst Svelte's Reaktivität aus (EIN Pfad, Spec 02 §3).
+      addTaskCmd(db, kind, entityId, taskId, text, category, now);
+      db = { ...db };
+    },
+    updateTask(kind, entityId, taskId, text, category) {
+      updateTaskCmd(db, kind, entityId, taskId, text, category);
+      db = { ...db };
+    },
+    setTaskStatus(kind, entityId, taskId, status) {
+      setTaskStatusById(db, kind, entityId, taskId, status);
+      db = { ...db };
+    },
+    deleteTask(kind, entityId, taskId) {
+      deleteTaskCmd(db, kind, entityId, taskId);
       db = { ...db };
     },
   };

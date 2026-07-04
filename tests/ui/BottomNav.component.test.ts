@@ -31,13 +31,28 @@ describe('BottomNav — 5 feste Ziele, deutlicher Aktiv-Zustand', () => {
   it('markiert nicht-implementierte Ziele sichtbar als "(folgt)"', () => {
     render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
 
-    expect(screen.getByText(/Aufgaben \(folgt\)/)).toBeTruthy();
     expect(screen.getByText(/Mehr \(folgt\)/)).toBeTruthy();
-    // Personen, Baum (Sanduhr-Insel, Spec 20 §1.3 [K]) UND Suche (Spec 20 §1.1 [K])
-    // sind funktional, kein "(folgt)"-Hinweis.
+    // Personen, Baum (Sanduhr-Insel, Spec 20 §1.3 [K]), Suche (Spec 20 §1.1 [K]) UND
+    // Aufgaben (Spec 20 §1.11 [K]) sind funktional, kein "(folgt)"-Hinweis.
     expect(screen.queryByText(/Personen \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Baum \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Suche \(folgt\)/)).toBeNull();
+    expect(screen.queryByText(/Aufgaben \(folgt\)/)).toBeNull();
+  });
+
+  it('zeigt einen Badge mit der Anzahl offener Aufgaben am Aufgaben-Ziel (Orakel "99+" ab >99)', () => {
+    render(BottomNav, { props: { active: 'person', onNavigate: vi.fn(), openTaskBadge: '3' } });
+    expect(screen.getByText('3')).toBeTruthy();
+  });
+
+  it('zeigt kein Badge, wenn keine Aufgaben offen sind (openTaskBadge leer/undefiniert)', () => {
+    render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
+    expect(screen.queryByText(/^\d+\+?$/)).toBeNull();
+  });
+
+  it('zeigt "99+" bei mehr als 99 offenen Aufgaben', () => {
+    render(BottomNav, { props: { active: 'person', onNavigate: vi.fn(), openTaskBadge: '99+' } });
+    expect(screen.getByText('99+')).toBeTruthy();
   });
 
   it('ruft onNavigate mit dem Ziel auf, auch für noch nicht gebaute Ziele — kein Absturz beim Klick', async () => {
