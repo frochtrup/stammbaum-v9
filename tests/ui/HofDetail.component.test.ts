@@ -1,0 +1,90 @@
+// @vitest-environment happy-dom
+// tests/ui/HofDetail.component.test.ts — Hof-Steckbrief + Bearbeitung (Spec 32 §6;
+// Spec 20 §1.8 [K]).
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/svelte';
+import HofDetail from '../../ui/views/hof/HofDetail.svelte';
+import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createViewState } from '../../ui/shell/view-state.svelte';
+import { makeDatabase, makePerson } from '../../core/model';
+import { place, hof } from '../core/places-fixtures';
+
+describe('HofDetail — Steckbrief (read-only Teile)', () => {
+  it('zeigt einen definierten Leerzustand ohne Auswahl', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    render(HofDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Kein Hof ausgewählt.')).toBeTruthy();
+  });
+
+  it('zeigt einen definierten Leerzustand, wenn die id nicht (mehr) existiert', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@gone@');
+
+    render(HofDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
+  });
+
+  it('zeigt Bewohner chronologisch + verlinkt zur Person', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.birth.hofId = '@H1@';
+    person.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+    const onNavigateToPerson = vi.fn();
+
+    render(HofDetail, { props: { appState, viewState, onNavigateToPerson } });
+
+    expect(screen.getAllByText('Wall 33').length).toBeGreaterThan(0);
+    expect(screen.getByText('Ochtrup')).toBeTruthy();
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+    expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+  });
+});
+
+describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebenszyklus)', () => {
+  it('speichert Grunddaten über appState.saveHof', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Breitengrad'), { target: { value: '52.2' } });
+    await fireEvent.input(screen.getByLabelText('Notiz'), { target: { value: 'Alter Bauernhof' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.hofObjects.get('@H1@')?.lat).toBe(52.2);
+    expect(appState.db.hofObjects.get('@H1@')?.note).toBe('Alter Bauernhof');
+  });
+
+  it('fügt eine neue Adressvariante hinzu', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.input(screen.getByLabelText('Neue Adressvariante'), { target: { value: 'Wallstraße 33' } });
+    await fireEvent.click(screen.getByText('+ Hinzufügen'));
+
+    expect(appState.db.hofObjects.get('@H1@')?.addrs.map((a) => a.value)).toEqual(['Wall 33', 'Wallstraße 33']);
+  });
+});

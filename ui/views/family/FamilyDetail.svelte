@@ -14,8 +14,13 @@
     onNavigateToPerson: (personId: string) => void;
     /** Cross-Tab-Navigation zur Quellen-Detailseite (optional — Tests ohne Quellen-Tab). */
     onNavigateToSource?: (sourceId: string) => void;
+    /** Cross-Tab-Navigation zum Orte-Tab (optional — Tests/Kontexte ohne Orte-Tab). */
+    onNavigateToPlace?: (placeId: string) => void;
+    /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
+    onNavigateToHof?: (hofId: string) => void;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToSource }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onNavigateToSource, onNavigateToPlace, onNavigateToHof }: Props =
+    $props();
 
   const familyId = $derived(viewState.getCurrent('family'));
   const detail = $derived(familyId ? buildFamilyDetail(appState.db, appState.placeContext, familyId) : null);
@@ -77,6 +82,15 @@
                   >
                     Karte ↗
                   </a>
+                {/if}
+                {#if ev.hofId && onNavigateToHof}
+                  <button type="button" class="family-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
+                    Hof ansehen →
+                  </button>
+                {:else if ev.placeId && onNavigateToPlace}
+                  <button type="button" class="family-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
+                    Ort ansehen →
+                  </button>
                 {/if}
               </div>
               {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
@@ -207,6 +221,17 @@
   .family-detail__geo-link {
     font-size: 0.78rem;
     margin-left: auto;
+  }
+
+  .family-detail__place-link {
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    text-decoration: underline;
   }
 
   .family-detail__event-note {

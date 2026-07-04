@@ -20,6 +20,11 @@
   import SourceDetail from './source/SourceDetail.svelte';
   import RepositoryList from './repository/RepositoryList.svelte';
   import RepositoryDetail from './repository/RepositoryDetail.svelte';
+  import PlaceList from './place/PlaceList.svelte';
+  import PlaceDetail from './place/PlaceDetail.svelte';
+  import HofList from './hof/HofList.svelte';
+  import HofDetail from './hof/HofDetail.svelte';
+  import HofReview from './hof/HofReview.svelte';
 
   interface Props {
     appState: AppState;
@@ -40,8 +45,8 @@
     { id: 'person', label: 'Personen', target: 'person', implemented: true },
     { id: 'family', label: 'Familien', target: 'family', implemented: true },
     { id: 'source', label: 'Quellen', target: 'source', implemented: true },
-    { id: 'place', label: 'Orte', target: null, implemented: false },
-    { id: 'hof', label: 'Höfe', target: null, implemented: false },
+    { id: 'place', label: 'Orte', target: 'place', implemented: true },
+    { id: 'hof', label: 'Höfe', target: 'hof', implemented: true },
   ];
 
   // Archive sind Teil des Quellen-Tabs (Spec 20 §1.6: "Quellen-Tab & Archive"), aber
@@ -55,6 +60,8 @@
   function initialSegment(): EntitySegment {
     if (viewState.getCurrent('family')) return 'family';
     if (viewState.getCurrent('source') || viewState.getCurrent('repository')) return 'source';
+    if (viewState.getCurrent('place')) return 'place';
+    if (viewState.getCurrent('hof')) return 'hof';
     return 'person';
   }
 
@@ -66,6 +73,10 @@
   let sourceSubView = $state<'sources' | 'repositories'>(
     untrack(() => (viewState.getCurrent('repository') ? 'repositories' : 'sources')),
   );
+  // "Hof-Zuweisungen prüfen" (Spec 20 §1.8 [K], Spec 11 §6) ist ein Overlay innerhalb
+  // des Höfe-Segments, kein eigener Segment-Button (INV-UI-2: ein kanonischer Weg zu
+  // Höfe-nahen Daten bleibt "Höfe" — der Review ist ein Werkzeug darin, kein Ziel).
+  let hofReviewOpen = $state(false);
 
   function selectSegment(segment: SegmentDef) {
     if (!segment.implemented) return;
@@ -78,16 +89,19 @@
     else if (activeSegment === 'source') {
       if (viewState.getCurrent('repository')) viewState.setCurrent('repository', null);
       else viewState.setCurrent('source', null);
-    }
+    } else if (activeSegment === 'place') viewState.setCurrent('place', null);
+    else if (activeSegment === 'hof') viewState.setCurrent('hof', null);
   }
 
   function navigateToPerson(id: string) {
     activeSegment = 'person';
+    hofReviewOpen = false;
     viewState.setCurrent('person', id);
   }
 
   function navigateToFamily(id: string) {
     activeSegment = 'family';
+    hofReviewOpen = false;
     viewState.setCurrent('family', id);
   }
 
@@ -104,15 +118,30 @@
     viewState.setCurrent('repository', id);
   }
 
+  function navigateToPlace(id: string) {
+    activeSegment = 'place';
+    viewState.setCurrent('place', id);
+  }
+
+  function navigateToHof(id: string) {
+    activeSegment = 'hof';
+    hofReviewOpen = false;
+    viewState.setCurrent('hof', id);
+  }
+
   const selectedPersonId = $derived(viewState.getCurrent('person'));
   const selectedFamilyId = $derived(viewState.getCurrent('family'));
   const selectedSourceId = $derived(viewState.getCurrent('source'));
   const selectedRepositoryId = $derived(viewState.getCurrent('repository'));
+  const selectedPlaceId = $derived(viewState.getCurrent('place'));
+  const selectedHofId = $derived(viewState.getCurrent('hof'));
 
   const showBack = $derived(
     (activeSegment === 'person' && !!selectedPersonId) ||
       (activeSegment === 'family' && !!selectedFamilyId) ||
-      (activeSegment === 'source' && (!!selectedSourceId || !!selectedRepositoryId)),
+      (activeSegment === 'source' && (!!selectedSourceId || !!selectedRepositoryId)) ||
+      (activeSegment === 'place' && !!selectedPlaceId) ||
+      (activeSegment === 'hof' && !!selectedHofId && !hofReviewOpen),
   );
 </script>
 
@@ -162,6 +191,14 @@
     </div>
   {/if}
 
+  {#if activeSegment === 'hof' && !selectedHofId}
+    <div class="entity-tab__detail-header">
+      <button type="button" class="entity-tab__review-toggle" onclick={() => (hofReviewOpen = !hofReviewOpen)}>
+        {hofReviewOpen ? '← Zur Hof-Liste' : 'Hof-Zuweisungen prüfen'}
+      </button>
+    </div>
+  {/if}
+
   {#if showBack}
     <div class="entity-tab__detail-header">
       <button type="button" class="entity-tab__back" onclick={backToList}>← Zur Liste</button>
@@ -175,6 +212,8 @@
         {viewState}
         onNavigateToFamily={navigateToFamily}
         onNavigateToSource={navigateToSource}
+        onNavigateToPlace={navigateToPlace}
+        onNavigateToHof={navigateToHof}
       />
     {:else}
       <PersonList {appState} {viewState} />
@@ -186,6 +225,8 @@
         {viewState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToSource={navigateToSource}
+        onNavigateToPlace={navigateToPlace}
+        onNavigateToHof={navigateToHof}
       />
     {:else}
       <FamilyList {appState} {viewState} />
@@ -207,6 +248,29 @@
       />
     {:else}
       <SourceList {appState} {viewState} />
+    {/if}
+  {:else if activeSegment === 'place'}
+    {#if selectedPlaceId}
+      <PlaceDetail
+        {appState}
+        {viewState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+      />
+    {:else}
+      <PlaceList {appState} {viewState} />
+    {/if}
+  {:else if activeSegment === 'hof'}
+    {#if hofReviewOpen && !selectedHofId}
+      <HofReview
+        {appState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+      />
+    {:else if selectedHofId}
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} />
+    {:else}
+      <HofList {appState} {viewState} />
     {/if}
   {/if}
 </div>
@@ -269,5 +333,15 @@
     cursor: pointer;
     font: inherit;
     padding: 0;
+  }
+
+  .entity-tab__review-toggle {
+    background: var(--stb-surface-3);
+    border: 1px solid var(--stb-gold-dim);
+    color: var(--stb-text);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.8rem;
   }
 </style>

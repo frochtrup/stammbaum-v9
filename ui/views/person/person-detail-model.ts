@@ -4,7 +4,7 @@
 // keine Mutation, keine Feld-Interpretation, die eigentlich in den Kern gehört.
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
-import { eventCoords } from '../../../core/places';
+import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 
@@ -23,6 +23,10 @@ export interface EventRow {
   note: string;
   citations: Citation[];
   coords: Coords | null;
+  /** Für "Ort ansehen"-Link (Cross-Tab-Navigation zum Orte-Tab, ADR-v9-17-Muster). */
+  placeId: string | null;
+  /** Für "Hof ansehen"-Link (Cross-Tab-Navigation zum Höfe-Tab). */
+  hofId: string | null;
 }
 
 export interface FamilyNavRow {
@@ -48,6 +52,8 @@ function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): E
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),
+    placeId: eventPlaceId(ev, ctx),
+    hofId: eventHofId(ev, ctx),
   };
 }
 

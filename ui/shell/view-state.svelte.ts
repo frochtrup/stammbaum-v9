@@ -18,7 +18,17 @@
 // Leerzustand statt eines Absturzes — s. PersonDetail.svelte).
 
 /** Navigations-Ziele dieser Scheibe (Rollenmodell Spec 21 §1). Wächst mit dem Bau. */
-export type ViewTarget = 'tree' | 'person' | 'family' | 'source' | 'repository' | 'search' | 'tasks' | 'more';
+export type ViewTarget =
+  | 'tree'
+  | 'person'
+  | 'family'
+  | 'source'
+  | 'repository'
+  | 'place'
+  | 'hof'
+  | 'search'
+  | 'tasks'
+  | 'more';
 
 type Listener = (target: ViewTarget, id: string | null) => void;
 
@@ -44,6 +54,8 @@ export function createViewState(): ViewState {
     family: null,
     source: null,
     repository: null,
+    place: null,
+    hof: null,
     search: null,
     tasks: null,
     more: null,

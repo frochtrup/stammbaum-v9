@@ -50,3 +50,19 @@ export {
   type ResolvedEvent,
   type ResolveResult,
 } from './resolve';
+
+// Mutations-Kommandos (Spec 20 §1.7/§1.8 [K] "Bearbeitung") — savePlaceObject(model)-
+// Muster, keine verstreuten Feld-Setter.
+export {
+  savePlaceObject,
+  deletePlaceObject,
+  saveHofObject,
+  deleteHofObject,
+  withAddedPname,
+  withRemovedPname,
+  withAddedEnclosedBy,
+  withRemovedEnclosedBy,
+  withAddedHofAddr,
+  withRemovedHofAddr,
+  linkEventToPlace,
+} from './commands';

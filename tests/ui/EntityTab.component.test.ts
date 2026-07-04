@@ -17,6 +17,7 @@ import {
   makeRepository,
   makeSource,
 } from '../../core/model';
+import { place, hof } from '../core/places-fixtures';
 
 function seedRichDb() {
   const db = makeDatabase();
@@ -58,19 +59,36 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(screen.getByText('Otto Bauer ⚭ Anna Klein')).toBeTruthy();
   });
 
-  it('nicht-implementierte Segmente (Orte/Höfe) sind deaktiviert und wechseln nichts', async () => {
+  it('Segment-Klick auf "Orte" wechselt zur Orte-Liste (Spec 20 §1.7)', async () => {
     const appState = createAppState();
-    appState.loadDatabase(seedRichDb(), 'test.ged');
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
     render(EntityTab, { props: { appState, viewState } });
 
     const placesTab = screen.getByRole('tab', { name: /Orte/ });
-    expect(placesTab).toHaveProperty('disabled', true);
+    expect(placesTab).toHaveProperty('disabled', false);
     await fireEvent.click(placesTab);
 
-    // weiterhin Personen-Segment aktiv (kein stiller Wechsel in einen nicht gebauten Bereich).
-    expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
+    expect(placesTab.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Ochtrup')).toBeTruthy();
+  });
+
+  it('Segment-Klick auf "Höfe" wechselt zur Höfe-Liste (Spec 20 §1.8)', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
+
+    expect(screen.getByText('Wall 33')).toBeTruthy();
   });
 
   it('Familie -> Person: Klick auf ein Mitglied wechselt Segment UND ViewState-Auswahl auf einen Rutsch', async () => {
@@ -149,5 +167,44 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     await fireEvent.click(screen.getByText('← Zur Liste'));
 
     expect(viewState.getCurrent('repository')).toBeNull();
+  });
+
+  it('Person -> Ort: "Ort ansehen" navigiert zur Orte-Detailseite (Spec 20 §1.7)', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const husband = db.individuals.get('@I1@')!;
+    husband.birth.placeId = '@P1@';
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('person', '@I1@');
+
+    render(EntityTab, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByText('Ort ansehen →'));
+
+    expect(screen.getByRole('tab', { name: /Orte/ }).getAttribute('aria-selected')).toBe('true');
+    expect(viewState.getCurrent('place')).toBe('@P1@');
+  });
+
+  it('Höfe-Segment: Toggle öffnet das "Hof-Zuweisungen prüfen"-Review und "Quelle schärfen" navigiert zur Person', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Town' }));
+    const husband = db.individuals.get('@I1@')!;
+    husband.death.place = 'Ochtrup';
+    husband.death.addr = 'Wall 33';
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
+    await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
+
+    expect(screen.getByText('Klasse A')).toBeTruthy();
+    await fireEvent.click(screen.getByText('Quelle schärfen'));
+
+    expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
+    expect(viewState.getCurrent('person')).toBe('@I1@');
   });
 });
