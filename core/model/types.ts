@@ -1,5 +1,6 @@
 // core/model/types.ts — reine Typdefinitionen des Domänenkerns (Spec 10).
 // DOM-frei, framework-frei (INV-ARCH-1). Keine Laufzeit-Logik hier.
+import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 
 // --- ID-Typen (GEDCOM-Konvention @Ixx@/@Fxx@/@Sxx@/@Rxx@/@Nxx@) ---
 export type PersonId = string;
@@ -24,6 +25,8 @@ export interface EvidenceEval {
   source: EvidenceSource;
   information: EvidenceInformation;
   evidence: EvidenceEvidenceKind;
+  /** Informant (optional, `_INFM`, Spec 12 §3): Freitext oder Person-Xref. */
+  informant?: string;
 }
 
 export interface MediaRef {
@@ -152,10 +155,10 @@ export interface Person {
   exids: ExternalId[];
   createdDate: string;
 
-  // Forschung (Spec 12) — als opake Referenzen; Modell-Kern rührt sie nicht an.
-  tasks: unknown[];
-  researchLog: unknown[];
-  hypotheses: unknown[];
+  // Forschung (Spec 12) — Form definiert in core/research/types.ts.
+  tasks: ResearchTask[];
+  researchLog: LogEntry[];
+  hypotheses: Hypothesis[];
 
   lastChanged: string;
 }
@@ -170,9 +173,9 @@ export interface Family {
   events: Event[];
   noteText: string;
   citations: Citation[];
-  tasks: unknown[];
-  researchLog: unknown[];
-  hypotheses: unknown[];
+  tasks: ResearchTask[];
+  researchLog: LogEntry[];
+  hypotheses: Hypothesis[];
   lastChanged: string;
 }
 
