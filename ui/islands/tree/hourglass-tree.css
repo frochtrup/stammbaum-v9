@@ -62,11 +62,11 @@
 }
 
 .tree-island__card[data-sex='M'] {
-  border-left: 3px solid #5b8fd4;
+  border-left: 3px solid var(--stb-sex-m);
 }
 
 .tree-island__card[data-sex='F'] {
-  border-left: 3px solid #d485a0;
+  border-left: 3px solid var(--stb-sex-f);
 }
 
 .tree-island__card--center {

@@ -341,11 +341,11 @@
   }
 
   .stats-gender-seg--m {
-    background: #4a80c8;
+    background: var(--stb-sex-m);
   }
 
   .stats-gender-seg--f {
-    background: #c84a92;
+    background: var(--stb-sex-f);
   }
 
   .stats-gender-seg--u {
@@ -361,11 +361,11 @@
   }
 
   .stats-gender-legend__m {
-    color: #4a80c8;
+    color: var(--stb-sex-m);
   }
 
   .stats-gender-legend__f {
-    color: #c84a92;
+    color: var(--stb-sex-f);
   }
 
   .stats-gender-legend__u {
@@ -438,11 +438,11 @@
   }
 
   .stats-summary__lbl--m {
-    color: #4a80c8;
+    color: var(--stb-sex-m);
   }
 
   .stats-summary__lbl--f {
-    color: #c84a92;
+    color: var(--stb-sex-f);
   }
 
   /* Histogramme */
@@ -485,11 +485,11 @@
   }
 
   .stats-tl-bar--marr-m {
-    background: #4a80c8;
+    background: var(--stb-sex-m);
   }
 
   .stats-tl-bar--marr-f {
-    background: #c84a92;
+    background: var(--stb-sex-f);
   }
 
   .stats-tl-bar--birth {
@@ -532,11 +532,11 @@
   }
 
   .stats-legend__dot--m {
-    background: #4a80c8;
+    background: var(--stb-sex-m);
   }
 
   .stats-legend__dot--f {
-    background: #c84a92;
+    background: var(--stb-sex-f);
   }
 
   .stats-legend__dot--birth {
@@ -581,7 +581,7 @@
   }
 
   .stats-bar-row__fill--blue {
-    background: #4a80c8;
+    background: var(--stb-sex-m);
   }
 
   .stats-bar-row__fill--dim {

@@ -29,6 +29,13 @@
   --stb-quay-2: #4a80c8;
   --stb-quay-3: #4ac86e;
 
+  /* Geschlecht (Spec 21 §7: "Geschlecht im Baum: data-sex -> Border-Farbe, M blau,
+     F rosa, U keine"). Eine zentrale Quelle statt unabhängig gedrifteter Hex-Werte je
+     Konsument (Baum-Kartenrand, Statistik-Balken/-Legende hatten vorher leicht
+     unterschiedliche Blau-/Rosa-Töne). */
+  --stb-sex-m: #4a80c8;
+  --stb-sex-f: #c84a92;
+
   /* Radius */
   --stb-radius-card: 14px;
   --stb-radius-control: 9px;
