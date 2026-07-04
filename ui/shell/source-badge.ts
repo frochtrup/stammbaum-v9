@@ -18,7 +18,12 @@ export function badgeLabel(citation: Citation): string {
 
 /** QUAY→CSS-Modifier-Klasse (Spec 21 §7: rot/orange/blau/grün = q0–q3). */
 export function quayClass(citation: Citation): string {
-  return `src-badge--q${citation.quay}`;
+  return quayClassFor(citation.quay);
+}
+
+/** Wie {@link quayClass}, aber direkt aus dem QUAY-Wert (für Kontexte ohne volles Citation-Objekt). */
+export function quayClassFor(quay: Citation['quay']): string {
+  return `src-badge--q${quay}`;
 }
 
 /** Tooltip-Text: Quellentitel (Kurzname bevorzugt), Fallback auf die rohe ID. */

@@ -1,24 +1,28 @@
 <script lang="ts">
   // app/App.svelte — App-Wurzel dieser Scheibe (Spec 21 §2 Mobile-Modell).
   // Verdrahtet die EINE ViewState-Instanz + den EINEN AppState mit BottomNav + Import
-  // + Personen-Tab. Desktop-Sidebar/Multi-Pane (Spec 21 §3) ist NICHT Teil dieser Scheibe.
-  import { createViewState, type ViewTarget } from '../ui/shell/view-state.svelte';
+  // + Entitäten-Tab (Personen/Familien/Quellen, Segment-Umschalter in EntityTab.svelte).
+  // Desktop-Sidebar/Multi-Pane (Spec 21 §3) ist NICHT Teil dieser Scheibe.
+  import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
-  import BottomNav from '../ui/shell/BottomNav.svelte';
+  import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
   import ImportButton from '../ui/shell/ImportButton.svelte';
   import ComingSoonPanel from '../ui/shell/ComingSoonPanel.svelte';
-  import PersonTab from '../ui/views/person/PersonTab.svelte';
+  import EntityTab from '../ui/views/EntityTab.svelte';
 
   const viewState = createViewState();
   const appState = createAppState();
 
-  let activeTarget = $state<ViewTarget>('person');
+  // Bottom-Nav-Ziele sind eine Teilmenge von ViewTarget (Spec 21 §2: 5 feste Slots;
+  // Familien/Quellen/Archive/Orte/Höfe leben NICHT hier, sondern im Entitäten-Segment-
+  // Umschalter innerhalb von EntityTab.svelte, s. Auftrag "kein Absturz beim Klick").
+  let activeTarget = $state<BottomNavTarget>('person');
 
-  function navigate(target: ViewTarget) {
+  function navigate(target: BottomNavTarget) {
     activeTarget = target;
   }
 
-  const comingSoonLabels: Record<Exclude<ViewTarget, 'person'>, string> = {
+  const comingSoonLabels: Record<Exclude<BottomNavTarget, 'person'>, string> = {
     tree: '⧖ Baum',
     search: '🔍 Suche',
     tasks: '☑ Aufgaben',
@@ -35,7 +39,7 @@
 
   <main class="app-shell__main">
     {#if activeTarget === 'person'}
-      <PersonTab {appState} {viewState} />
+      <EntityTab {appState} {viewState} />
     {:else}
       <ComingSoonPanel label={comingSoonLabels[activeTarget]} />
     {/if}

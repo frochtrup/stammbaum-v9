@@ -12,8 +12,12 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Cross-Tab-Navigation zur Familien-Detailseite (optional — Tests/Kontexte ohne Familien-Tab). */
+    onNavigateToFamily?: (familyId: string) => void;
+    /** Cross-Tab-Navigation zur Quellen-Detailseite (optional — Tests/Kontexte ohne Quellen-Tab). */
+    onNavigateToSource?: (sourceId: string) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onNavigateToFamily, onNavigateToSource }: Props = $props();
 
   const personId = $derived(viewState.getCurrent('person'));
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
@@ -61,7 +65,11 @@
               {#if ev.citations.length > 0}
                 <div class="person-detail__citations">
                   {#each ev.citations as cit, i (i)}
-                    <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} />
+                    <SourceBadge
+                      citation={cit}
+                      source={appState.db.sources.get(cit.sourceId)}
+                      onSelect={onNavigateToSource}
+                    />
                   {/each}
                 </div>
               {/if}
@@ -94,6 +102,16 @@
                     {member.name}
                   </button>
                 {/each}
+              {/if}
+              {#if onNavigateToFamily}
+                <button
+                  type="button"
+                  class="person-detail__family-detail-link"
+                  onclick={() => onNavigateToFamily(fam.familyId)}
+                  title="Familien-Detail öffnen"
+                >
+                  Familie ansehen →
+                </button>
               {/if}
             </li>
           {/each}
@@ -212,6 +230,18 @@
     cursor: pointer;
     padding: 0;
     font: inherit;
+    text-decoration: underline;
+  }
+
+  .person-detail__family-detail-link {
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    margin-left: auto;
     text-decoration: underline;
   }
 </style>

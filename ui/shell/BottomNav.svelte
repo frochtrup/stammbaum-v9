@@ -6,10 +6,13 @@
   //
   // Aktiver Zustand: Balken + fett + Akzentfarbe (nicht nur Farbe, WCAG 1.4.1 / LP-8,
   // Spec 21 §2 "nie nur Farbe").
-  import type { ViewTarget } from './view-state.svelte';
+  // Bottom-Nav-Ziele sind eine feste Teilmenge von ViewTarget (Spec 21 §2: 5 feste
+  // Slots). Familien/Quellen/Archive sind KEINE Bottom-Nav-Ziele — sie leben im
+  // Entitäten-Segment-Umschalter (EntityTab.svelte), erreichbar über "Personen".
+  export type BottomNavTarget = 'tree' | 'person' | 'search' | 'tasks' | 'more';
 
   interface NavItem {
-    target: ViewTarget;
+    target: BottomNavTarget;
     icon: string;
     label: string;
     implemented: boolean;
@@ -24,8 +27,8 @@
   ];
 
   interface Props {
-    active: ViewTarget;
-    onNavigate: (target: ViewTarget) => void;
+    active: BottomNavTarget;
+    onNavigate: (target: BottomNavTarget) => void;
   }
   const { active, onNavigate }: Props = $props();
 </script>
