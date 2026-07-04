@@ -93,17 +93,21 @@ export function mountHourglassTree(
     svg.appendChild(el);
   }
 
-  function makeCard(layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number]): void {
+  function makeCard(layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number], peekIndex: number): void {
     const div = document.createElement('div');
     div.className =
       'tree-island__card' +
       (card.isCenter ? ' tree-island__card--center' : '') +
       (card.isSibling ? ' tree-island__card--sibling' : '') +
-      (card.isHalfSibling ? ' tree-island__card--half' : '');
+      (card.isHalfSibling ? ' tree-island__card--half' : '') +
+      (card.isPeek ? ' tree-island__card--peek' : '');
     div.style.left = `${Math.round(card.x)}px`;
     div.style.top = `${Math.round(card.y)}px`;
     div.style.width = `${card.width}px`;
     div.style.height = `${card.height}px`;
+    // Peek-Stapel (Orakel: v8 `zidx = nSibs - i + 5`): jüngere Stapelkarte deckt ältere
+    // teilweise ab, jeweils oben auf dem Stapel liegend.
+    if (card.isPeek) div.style.zIndex = String(peekIndex + 1);
 
     if (!card.id) {
       div.classList.add('tree-island__card--empty');
@@ -153,6 +157,15 @@ export function mountHourglassTree(
       marrEl.textContent = `⚭ ${layout.marriageCount}`;
       div.appendChild(marrEl);
     }
+    if (card.isCenter && layout.siblingCountBadge != null) {
+      // Peek-Stapel-Fallback (Orakel: `tree-half-badge--sib-count`, unten-links am
+      // Proband-Kartenrand — kein Konflikt mit ⚭/Kekule oben-rechts/oben-links).
+      const sibCountEl = document.createElement('div');
+      sibCountEl.className = 'tree-island__sib-count-badge';
+      sibCountEl.title = `${layout.siblingCountBadge} Geschwister`;
+      sibCountEl.textContent = String(layout.siblingCountBadge);
+      div.appendChild(sibCountEl);
+    }
 
     const handler = () => {
       if (card.isCenter) {
@@ -188,7 +201,7 @@ export function mountHourglassTree(
     lastLayout = layout;
     currentId = personId;
 
-    wrapEl.querySelectorAll('.tree-island__card, .tree-island__marr-btn').forEach((el) => el.remove());
+    wrapEl.querySelectorAll('.tree-island__card, .tree-island__marr-btn, .tree-island__sib-more').forEach((el) => el.remove());
     svg.innerHTML = '';
     wrapEl.style.width = `${layout.width}px`;
     wrapEl.style.height = `${layout.height}px`;
@@ -197,7 +210,23 @@ export function mountHourglassTree(
     svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
 
     for (const c of layout.connectors) svgLine(c.x1, c.y1, c.x2, c.y2, c.dashed);
-    for (const card of layout.cards) makeCard(layout, card);
+    let peekIndex = 0;
+    for (const card of layout.cards) makeCard(layout, card, card.isPeek ? peekIndex++ : 0);
+
+    if (layout.siblingOverflow) {
+      // „…"-Kappungs-Indikator (Orakel: `tree-sib-more`) — Geschwister, die trotz
+      // Kartenschrumpfung nicht mehr in die horizontale Zeile passen.
+      const overflow = layout.siblingOverflow;
+      const morEl = document.createElement('div');
+      morEl.className = 'tree-island__sib-more';
+      morEl.style.left = `${Math.round(overflow.x)}px`;
+      morEl.style.top = `${Math.round(overflow.y)}px`;
+      morEl.style.width = `${overflow.width}px`;
+      morEl.style.height = `${overflow.height}px`;
+      morEl.title = overflow.title;
+      morEl.textContent = '…';
+      wrapEl.appendChild(morEl);
+    }
 
     if (layout.marriageBadge && callbacks.onSelectFamily) {
       const badge = layout.marriageBadge;

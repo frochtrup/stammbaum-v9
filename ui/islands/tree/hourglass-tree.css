@@ -91,6 +91,10 @@
   cursor: default;
 }
 
+.tree-island__card--peek {
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.25);
+}
+
 .tree-island__name {
   font-family: var(--stb-font-body);
   line-height: 1.15;
@@ -134,4 +138,27 @@
   cursor: pointer;
   color: var(--stb-gold-light);
   z-index: 6;
+}
+
+/* „…"-Kappungs-Indikator der horizontalen Geschwisterzeile (Orakel: `tree-sib-more`). */
+.tree-island__sib-more {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--stb-text-dim);
+  font-size: 0.85rem;
+  border: 1px dashed var(--stb-surface-3);
+  border-radius: var(--stb-radius-control);
+  background: var(--stb-surface-1);
+}
+
+/* Geschwisterzähler-Badge am Proband-Kartenrand (Peek-Stapel-Fallback, Orakel:
+   `tree-half-badge--sib-count`) — unten-links, kein Konflikt mit ⚭/Kekule oben. */
+.tree-island__sib-count-badge {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  font-size: 0.65rem;
+  color: var(--stb-gold-dim);
 }

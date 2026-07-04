@@ -229,12 +229,151 @@ describe('computeTreeLayout', () => {
       expect(a).toEqual(b);
     });
 
-    it('Layout-Breite reserviert Platz für die Geschwisterzeile (totalW wächst mit vielen Geschwistern)', () => {
+    it('Layout-Breite bleibt durch den Ahnen-Fächer begrenzt, auch mit vielen Geschwistern (Regressionsschutz gegen unbegrenztes Breitenwachstum, Nachtrag Auftrag)', () => {
+      // Vorher (ohne Kappung) wuchs totalW linear mit nSibs, weil personCX die Geschwister-
+      // zeile mit einreservierte. Jetzt hängt personCX NUR vom Ahnen-Fächer ab (Orakel) —
+      // die Geschwisterzeile schrumpft/kappt sich in den verfügbaren Platz hinein, totalW
+      // bleibt vom Ahnen-Fächer bestimmt (bzw. wächst nur noch marginal durch Rundung).
       const db = buildFourGenTree();
       const before = computeTreeLayout(db, 'I1', { portrait: false })!;
       for (let i = 0; i < 6; i++) addSibling(db, `I6${i}`, 'F1');
       const after = computeTreeLayout(db, 'I1', { portrait: false })!;
-      expect(after.width).toBeGreaterThan(before.width);
+      expect(after.width).toBeLessThanOrEqual(before.width);
+    });
+  });
+
+  describe('Geschwisterzeile: Kappung + Peek-Stapel-Fallback (Orakel legacy-v8 `useHorizSibs`)', () => {
+    function addSibling(db: ReturnType<typeof makeDatabase>, id: string, familyId: string): void {
+      addPerson(db, id, id);
+      db.families.get(familyId)!.children.push(id);
+      db.individuals.get(id)!.childOf.push({
+        familyId,
+        pedigree: 'birth',
+        fatherRel: '',
+        motherRel: '',
+        fatherRelSeen: false,
+        motherRelSeen: false,
+        citations: [],
+      });
+    }
+    function addManySiblings(db: ReturnType<typeof makeDatabase>, n: number): string[] {
+      const ids: string[] = [];
+      for (let i = 0; i < n; i++) {
+        const id = `SIB${i}`;
+        addSibling(db, id, 'F1');
+        ids.push(id);
+      }
+      return ids;
+    }
+
+    it('horizontale Zeile mit wenigen Geschwistern (>=3 Ahnen-Ebenen): alle sichtbar, kein Overflow', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      addSibling(db, 'I43', 'F1');
+      const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 4 })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(2);
+      expect(layout.siblingOverflow).toBeNull();
+    });
+
+    it('horizontale Zeile mit vielen Geschwistern (10) bei >=3 Ahnen-Ebenen: Kappung + Overflow-Indikator', () => {
+      const db = buildFourGenTree();
+      const ids = addManySiblings(db, 10);
+      const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 4 })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+
+      // nFit < nSibs -> Kappung, Overflow-Indikator vorhanden
+      expect(sibCards.length).toBeLessThan(ids.length);
+      expect(layout.siblingOverflow).not.toBeNull();
+      expect(layout.siblingOverflow!.count).toBe(ids.length - sibCards.length);
+
+      // Kartenbreite geschrumpft, aber nie unter MIN_SIB_W (60 im Landscape)
+      const widths = new Set(sibCards.map((c) => c.width));
+      expect(widths.size).toBe(1);
+      const [w] = [...widths];
+      expect(w).toBeLessThanOrEqual(96); // < normale Kartenbreite W
+      expect(w).toBeGreaterThanOrEqual(60); // MIN_SIB_W landscape
+
+      // Gesamtbreite bleibt in einem vernünftigen, begrenzten Rahmen — wächst NICHT
+      // mehr linear mit nSibs (Regressionsschutz gegen den gemeldeten Bug).
+      const dbFew = buildFourGenTree();
+      addManySiblings(dbFew, 2);
+      const layoutFew = computeTreeLayout(dbFew, 'I1', { portrait: false, maxAncestorLevels: 4 })!;
+      // Unterschied zwischen 2 und 10 Geschwistern darf nicht das ~5-fache betragen wie
+      // es bei linearem Wachstum (10 vs 2 Karten) der Fall wäre.
+      expect(layout.width).toBeLessThan(layoutFew.width * 2);
+
+      // Alle sichtbaren Geschwister-Karten liegen weiterhin links der Proband-Karte.
+      const center = layout.cards.find((c) => c.isCenter)!;
+      for (const c of sibCards) expect(c.x + c.width).toBeLessThanOrEqual(center.x);
+
+      // Kein Zähler-Badge im Horizontal-Modus (das ist nur der Peek-Stapel-Fallback).
+      expect(layout.siblingCountBadge).toBeNull();
+    });
+
+    it('„…"-Overflow-Indikator liegt links der sichtbaren Geschwister-Karten, mit Zähler + Tooltip-Text', () => {
+      const db = buildFourGenTree();
+      addManySiblings(db, 10);
+      const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 4 })!;
+      const overflow = layout.siblingOverflow!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(overflow.count).toBeGreaterThan(0);
+      expect(overflow.title).toBe(`+${overflow.count} Geschwister nicht dargestellt`);
+      // volle Kartenhöhe
+      const anySib = sibCards[0];
+      expect(overflow.height).toBe(anySib.height);
+      // links von allen sichtbaren Geschwister-Karten (oder an Stelle davon, falls nFit=0)
+      for (const c of sibCards) expect(overflow.x + overflow.width).toBeLessThanOrEqual(c.x + 0.01);
+    });
+
+    it('Peek-Stapel-Fallback bei <3 Ahnen-Ebenen: ALLE Geschwister gerendert, kein Overflow, Zähler-Badge vorhanden', () => {
+      const db = makeDatabase();
+      addPerson(db, 'P');
+      addPerson(db, 'VATER', 'Vater', 'M');
+      addPerson(db, 'MUTTER', 'Mutter', 'F');
+      marry(db, 'F1', 'VATER', 'MUTTER', ['P']);
+      const ids = addManySiblings(db, 10);
+
+      // maxAncestorLevels=1 -> nur Elternebene -> ancLevels < 3 -> Peek-Stapel
+      const layout = computeTreeLayout(db, 'P', { portrait: false, maxAncestorLevels: 1 })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(ids.length); // alle 10, kein Cutoff
+      expect(layout.siblingOverflow).toBeNull();
+      expect(layout.siblingCountBadge).toBe(ids.length);
+
+      // vertikal versetzt (PEEK-Offset), nicht alle auf derselben Y-Position
+      const ys = new Set(sibCards.map((c) => c.y));
+      expect(ys.size).toBeGreaterThan(1);
+
+      // Reserviert nur EINE Kartenbreite (keine Breiten-Multiplikation) -> Höhe wächst statt Breite.
+      const center = layout.cards.find((c) => c.isCenter)!;
+      for (const c of sibCards) {
+        expect(c.width).toBe(sibCards[0].width);
+        expect(c.x + c.width).toBeLessThanOrEqual(center.x);
+      }
+    });
+
+    it('Peek-Stapel: Proband-Zähler-Badge nur wenn nSibs > 1', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'ONLY', 'F1');
+      // Portrait mit 1 Ahnen-Ebene -> Peek-Modus, aber nur 1 Geschwister -> kein Badge.
+      const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 1 })!;
+      expect(layout.cards.filter((c) => c.isSibling)).toHaveLength(1);
+      expect(layout.siblingCountBadge).toBeNull();
+    });
+
+    it('Modus-Umschaltung ist deterministisch anhand ancLevels (Regressionsschutz 1-2-Geschwister-Fall bleibt unverändert)', () => {
+      const db = buildFourGenTree();
+      addSibling(db, 'I42', 'F1');
+      addSibling(db, 'I43', 'F1');
+      // Standard-Optionen (portrait:false -> 4 Ebenen Default): identisch zu vorher.
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      const sibCards = layout.cards.filter((c) => c.isSibling);
+      expect(sibCards).toHaveLength(2);
+      expect(new Set(sibCards.map((c) => c.width)).size).toBe(1);
+      expect(sibCards[0].width).toBeLessThanOrEqual(96);
+      expect(layout.siblingOverflow).toBeNull();
+      expect(layout.siblingCountBadge).toBeNull();
     });
   });
 

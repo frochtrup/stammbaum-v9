@@ -9,10 +9,23 @@
 // (framework-frei, kein AppState/UIState, reine Parameter statt globaler DOM-Reads).
 // Geschwisterzeile (ADR-v9-23, Spec 20 §1.3 [K]): horizontale Reihe links vom Probanden,
 // vertikal auf die Proband-Zeile zentriert (Orakel: `useHorizSibs`-Zweig in `showTree()`).
-// Bewusst vereinfacht ggü. v8: KEIN "Peek-Stapel"-Fallback bei wenigen Ahnen-Ebenen und
-// KEIN "…"-Kappungs-Indikator bei sehr vielen Geschwistern — die Insel legt alle
-// Geschwister-Karten in einer Reihe an; Scroll/Zoom der Insel übernimmt das Sichtbarmachen
-// (kein Datenverlust ggü. v8, nur ein anderer Kompromiss bei extremen Breiten).
+//
+// Kappung + Peek-Stapel-Fallback (Nachtrag, Orakel: legacy-v8 Zeilen 476-524/667-700):
+// - `useHorizSibs = nSibs > 0 && ancLevels >= 3` — horizontale Zeile NUR ab 3 sichtbaren
+//   Ahnen-Ebenen, sonst Peek-Stapel-Fallback (alle Geschwister sichtbar, kein Cutoff).
+// - v8-Zirkelbezug Kartenbreite<->personX aufgelöst wie im Orakel selbst: `personX`
+//   hängt NIE von der Geschwisterzeile ab (v8 Zeile 473 berechnet `personCX` rein aus
+//   `ancSpan`, ohne Sib-Reserve-Term). Die Geschwisterzeile bekommt nur, was links von
+//   `personX` noch frei ist (`availSibW = personX - PAD - SIB_GAP`) und schrumpft/kappt
+//   sich hinein — sie verbreitert das Gesamtlayout nie über den Ahnen-Fächer hinaus.
+//   Das ist kein Kompromiss ggü. v8, sondern exakt dessen Lösung: der scheinbare
+//   Zirkelbezug existiert in v8 nicht, weil die Breitenberechnung einseitig ist
+//   (Ahnen-Fächer bestimmt `personX`, Geschwister ordnen sich unter).
+// - Horizontal-Modus: Kartenbreite schrumpft bis `MIN_SIB_W` (52 portrait/60 landscape),
+//   danach kappt `nFit` die Anzahl; „…“-Indikator zeigt `nHidden` (Tooltip s. `_buildSiblingRow`).
+// - Peek-Modus: alle Geschwister gestapelt, vertikal versetzt um `PEEK` (10 portrait/12
+//   landscape) px pro Karte, reserviert nur eine Kartenbreite (Höhe wächst statt Breite);
+//   Zähler-Badge (`siblingCountBadge`) am Proband-Kartenrand, nur wenn `nSibs > 1`.
 import type { Database, PersonId } from '../../../core/model/types';
 import {
   ancestorLevel,
@@ -41,6 +54,9 @@ export interface CardBox {
   isHalfSibling: boolean;
   /** Karte steht in der Geschwisterzeile des Probanden (ADR-v9-23), nicht in der Kinderzeile. */
   isSibling: boolean;
+  /** Peek-Stapel-Fallback (<3 Ahnen-Ebenen, Orakel `tree-card-peek`): Karte liegt versetzt
+   * hinter den vorherigen Geschwister-Karten, statt in eigener horizontaler Zeile. */
+  isPeek: boolean;
   kekule: number | null;
 }
 
@@ -61,6 +77,19 @@ export interface MarriageBadge {
   height: number;
 }
 
+/** „…"-Kappungs-Indikator der horizontalen Geschwisterzeile (Orakel: `tree-sib-more`,
+ * legacy-v8 Zeile 672-687) — erscheint nur wenn `useHorizSibs` UND `nHidden > 0`. */
+export interface SiblingOverflow {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Anzahl nicht dargestellter Geschwister (`nHidden`). */
+  count: number;
+  /** Tooltip-Text (Orakel: `+${nHidden} Geschwister nicht dargestellt`). */
+  title: string;
+}
+
 export interface TreeLayoutResult {
   width: number;
   height: number;
@@ -69,6 +98,11 @@ export interface TreeLayoutResult {
   marriageBadge: MarriageBadge | null;
   /** Gesamtzahl der Ehen des Probanden (für `⚭N`-Badge, Spec 20 §1.3). */
   marriageCount: number;
+  /** „…"-Kappungs-Indikator, nur im Horizontal-Modus bei `nHidden > 0` (sonst `null`). */
+  siblingOverflow: SiblingOverflow | null;
+  /** Geschwisterzähler-Badge am Proband-Kartenrand, nur im Peek-Stapel-Fallback bei
+   * `nSibs > 1` (sonst `null`) — Orakel: `tree-half-badge--sib-count`. */
+  siblingCountBadge: number | null;
   /** Tastaturnavigationsziele (Spec: Pfeiltasten zwischen Fokuspersonen). */
   navTargets: {
     up: PersonId | null;
@@ -83,8 +117,8 @@ export interface TreeLayoutResult {
 
 // Layout-Konstanten (Orakel: legacy-v8/UI-DESIGN.md "Sanduhr-Ansicht: Layout-Algorithmus").
 const DIMS = {
-  landscape: { W: 96, H: 64, CW: 160, CH: 80, HGAP: 10, VGAP: 44, MGAP: 20, PAD: 20, SIB_GAP: 14 },
-  portrait: { W: 80, H: 54, CW: 124, CH: 72, HGAP: 8, VGAP: 34, MGAP: 16, PAD: 14, SIB_GAP: 12 },
+  landscape: { W: 96, H: 64, CW: 160, CH: 80, HGAP: 10, VGAP: 44, MGAP: 20, PAD: 20, SIB_GAP: 14, PEEK: 12, MIN_SIB_W: 60, MORE_W: 26 },
+  portrait: { W: 80, H: 54, CW: 124, CH: 72, HGAP: 8, VGAP: 34, MGAP: 16, PAD: 14, SIB_GAP: 12, PEEK: 10, MIN_SIB_W: 52, MORE_W: 22 },
 };
 
 const MAX_CHILD_COLS = 4;
@@ -98,7 +132,7 @@ export function computeTreeLayout(
   if (!proband) return null;
 
   const d = options.portrait ? DIMS.portrait : DIMS.landscape;
-  const { W, H, CW, CH, HGAP, VGAP, MGAP, PAD, SIB_GAP } = d;
+  const { W, H, CW, CH, HGAP, VGAP, MGAP, PAD, SIB_GAP, PEEK, MIN_SIB_W, MORE_W } = d;
   const SLOT = W + HGAP;
   const ROW = H + VGAP;
 
@@ -106,7 +140,6 @@ export function computeTreeLayout(
   // Probanden, Voll- und Halbgeschwister aus person.childOf. ──
   const siblings = getSiblingIds(db, probandId);
   const nSibs = siblings.length;
-  const sibRowW = nSibs > 0 ? nSibs * W + Math.max(0, nSibs - 1) * SIB_GAP : 0;
 
   const requestedLevels = Math.max(1, Math.min(4, options.maxAncestorLevels ?? (options.portrait ? 2 : 4)));
 
@@ -156,12 +189,28 @@ export function computeTreeLayout(
 
   // ── Layout-Breite ──
   const nSp = spouseFamilies.length;
-  // personCX muss sowohl den Ahnen-Fächer (links+rechts der Mittelachse) als auch die
-  // Geschwisterzeile (komplett links der Proband-Karte, zusätzlich zu deren halber Breite)
-  // links von sich Platz bieten (Orakel: v8 reserviert die Geschwisterzeile links von personX).
-  const sibReserve = nSibs > 0 ? sibRowW + SIB_GAP : 0;
-  const personCX = Math.max(PAD + CW / 2, PAD + ancSpan / 2, PAD + sibReserve + CW / 2);
+  // personCX hängt NUR vom Ahnen-Fächer ab, NIE von der Geschwisterzeile (Orakel: v8
+  // Zeile 473 — `Math.max(PAD + CW/2, PAD + ancSpan/2)`, kein Sib-Reserve-Term). Das löst
+  // den scheinbaren Zirkelbezug Kartenbreite<->personX auf: die Geschwisterzeile ordnet
+  // sich dem bereits feststehenden `personX` unter (schrumpft/kappt sich hinein), statt
+  // ihn zu verschieben — genau wie im Orakel.
+  const personCX = Math.max(PAD + CW / 2, PAD + ancSpan / 2);
   const personX = personCX - CW / 2;
+
+  // ── Geschwister: horizontale Zeile ab 3 Ahnen-Ebenen, sonst Peek-Stapel-Fallback
+  // (Orakel: legacy-v8 Zeilen 476-524, `useHorizSibs`/`sibCardW`/`nFit`/`nHidden`). ──
+  const useHorizSibs = nSibs > 0 && ancLevels >= 3;
+  const availSibW = personX - PAD - SIB_GAP;
+  const sibCardW =
+    useHorizSibs && availSibW > 0
+      ? Math.max(MIN_SIB_W, Math.min(W, Math.floor((availSibW - Math.max(0, nSibs - 1) * SIB_GAP) / nSibs)))
+      : W;
+  const nFit = useHorizSibs
+    ? Math.min(nSibs, Math.max(0, Math.floor((availSibW + SIB_GAP) / (sibCardW + SIB_GAP))))
+    : nSibs;
+  const nHidden = nSibs - nFit;
+  const sibRowW = nFit > 0 ? nFit * sibCardW + Math.max(0, nFit - 1) * SIB_GAP : 0;
+
   const spousesW = nSp > 0 ? nSp * (W + MGAP) : 0;
   const rightEdge = personCX + CW / 2 + spousesW + PAD;
   const childMaxCols = childRows.length > 0 ? Math.max(...childRows.map((r) => r.length)) : 0;
@@ -172,7 +221,10 @@ export function computeTreeLayout(
   function ry(lv: number): number {
     return lv <= 0 ? baseY + lv * ROW : baseY + CH + VGAP + (lv - 1) * ROW;
   }
-  const row0Bottom = ry(0) + CH;
+  // Peek-Stapel wächst nach unten (eine Kartenbreite reserviert, dafür mehr Höhe);
+  // horizontale Zeile bleibt in der Proband-Zeile (kein zusätzlicher Höhenbedarf).
+  const sibStackH = useHorizSibs ? 0 : nSibs > 0 ? H + (nSibs - 1) * PEEK : 0;
+  const row0Bottom = Math.max(ry(0) + CH, ry(0) + sibStackH);
   const childStartY = row0Bottom + VGAP;
   const totalH = childRows.length > 0 ? childStartY + childRows.length * ROW - VGAP + PAD : row0Bottom + PAD;
 
@@ -206,6 +258,7 @@ export function computeTreeLayout(
         isCenter: false,
         isHalfSibling: false,
         isSibling: false,
+        isPeek: false,
         kekule: kNum(id),
       });
       if (id) {
@@ -232,10 +285,22 @@ export function computeTreeLayout(
         isCenter: false,
         isHalfSibling: false,
         isSibling: false,
+        isPeek: false,
         kekule: kNum(id),
       });
     });
   }
+
+  // ── X/Y der Geschwisterzeile bzw. -stapel (vor der Junktions-/Kartenberechnung, da
+  // beide Zweige dieselben Positionsfunktionen brauchen — Orakel: v8 `sibX`/`sibCX`
+  // (Zeile 519-522) vs. `sibColX`/`sibColCX`/`sibMidY` (Zeile 524-526)). ──
+  const sibY = ry(0) + Math.round((CH - H) / 2);
+  const sibRowStartX = personX - SIB_GAP - sibRowW;
+  const sibX = (i: number): number => sibRowStartX + i * (sibCardW + SIB_GAP);
+  const sibCX = (i: number): number => sibX(i) + sibCardW / 2;
+  const sibColX = personX - SIB_GAP - W;
+  const sibColCX = sibColX + W / 2;
+  const sibMidY = (i: number): number => ry(0) + i * PEEK + H / 2;
 
   // ── Eltern → Proband-Verzweigungspunkt (Orakel: v8 zeichnet den Junktions-Punkt sowohl
   // für Eltern-Linien als auch für die Geschwister-T-Linie, unabhängig davon ob Eltern-
@@ -248,14 +313,18 @@ export function computeTreeLayout(
     if (par0.mother) connectors.push({ x1: ancCenterX(1, 1), y1: ry(-1) + H, x2: juncX, y2: juncY, dashed: false });
     connectors.push({ x1: juncX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
     if (nSibs > 0) {
-      // Horizontaler T-Balken von der linkesten Geschwister-Mitte bis zur Mittelachse +
-      // je eine kurze Vertikale zur Oberkante jeder Geschwister-Karte (Orakel: `useHorizSibs`).
-      const sibY = ry(0) + Math.round((CH - H) / 2);
-      const sibRowStartX = personX - SIB_GAP - sibRowW;
-      const sibCX = (i: number): number => sibRowStartX + i * (W + SIB_GAP) + W / 2;
-      connectors.push({ x1: sibCX(0), y1: juncY, x2: juncX, y2: juncY, dashed: false });
-      for (let i = 0; i < nSibs; i++) {
-        connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+      if (useHorizSibs && nFit > 0) {
+        // Horizontaler T-Balken von der linkesten sichtbaren Geschwister-Mitte bis zur
+        // Mittelachse + je eine kurze Vertikale zur Oberkante jeder sichtbaren Karte.
+        connectors.push({ x1: sibCX(0), y1: juncY, x2: juncX, y2: juncY, dashed: false });
+        for (let i = 0; i < nFit; i++) {
+          connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+        }
+      } else if (!useHorizSibs) {
+        // Peek-Stapel-Fallback: eine T-Linie zur Peek-Spalte, eine Vertikale durch den
+        // gesamten Stapel (Orakel: `sib-h`/`sib-v`, Zeile 661-662).
+        connectors.push({ x1: juncX, y1: juncY, x2: sibColCX, y2: juncY, dashed: false });
+        connectors.push({ x1: sibColCX, y1: juncY, x2: sibColCX, y2: sibMidY(nSibs - 1), dashed: false });
       }
     }
   } else if (nSibs > 0) {
@@ -263,34 +332,66 @@ export function computeTreeLayout(
     // immer mind. als Ghost-Slots gerendert wird) — Fallback: T-Linie direkt aus der
     // Proband-Oberkante, falls doch einmal ancLevels=0 anliegt.
     const juncY = ry(0) - Math.round(VGAP * 0.4);
-    const sibY = ry(0) + Math.round((CH - H) / 2);
-    const sibRowStartX = personX - SIB_GAP - sibRowW;
-    const sibCX = (i: number): number => sibRowStartX + i * (W + SIB_GAP) + W / 2;
-    connectors.push({ x1: sibCX(0), y1: juncY, x2: personCX, y2: juncY, dashed: false });
-    connectors.push({ x1: personCX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
-    for (let i = 0; i < nSibs; i++) {
-      connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+    if (useHorizSibs && nFit > 0) {
+      connectors.push({ x1: sibCX(0), y1: juncY, x2: personCX, y2: juncY, dashed: false });
+      connectors.push({ x1: personCX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
+      for (let i = 0; i < nFit; i++) {
+        connectors.push({ x1: sibCX(i), y1: juncY, x2: sibCX(i), y2: sibY, dashed: siblings[i].isHalf });
+      }
+    } else if (!useHorizSibs) {
+      connectors.push({ x1: personCX, y1: juncY, x2: sibColCX, y2: juncY, dashed: false });
+      connectors.push({ x1: sibColCX, y1: juncY, x2: sibColCX, y2: sibMidY(nSibs - 1), dashed: false });
+      connectors.push({ x1: personCX, y1: juncY, x2: personCX, y2: ry(0), dashed: false });
     }
   }
 
-  // ── Geschwisterzeile (ADR-v9-23): horizontal links vom Probanden, vertikal auf die
-  // Proband-Zeile zentriert. ──
-  if (nSibs > 0) {
-    const sibY = ry(0) + Math.round((CH - H) / 2);
-    const sibRowStartX = personX - SIB_GAP - sibRowW;
+  // ── Geschwister: horizontale Zeile (ADR-v9-23, mit Kappung) ODER Peek-Stapel-Fallback
+  // (Orakel: legacy-v8 Zeilen 667-695). ──
+  let siblingOverflow: SiblingOverflow | null = null;
+  let siblingCountBadge: number | null = null;
+  if (useHorizSibs) {
+    siblings.slice(0, nFit).forEach((sib, i) => {
+      cards.push({
+        id: sib.id,
+        x: sibX(i),
+        y: sibY,
+        width: sibCardW,
+        height: H,
+        isCenter: false,
+        isHalfSibling: sib.isHalf,
+        isSibling: true,
+        isPeek: false,
+        kekule: kNum(sib.id),
+      });
+    });
+    if (nHidden > 0) {
+      const morX = nFit > 0 ? Math.max(PAD, sibRowStartX - 4 - MORE_W) : personX - SIB_GAP - MORE_W;
+      siblingOverflow = {
+        x: morX,
+        y: sibY,
+        width: MORE_W,
+        height: H,
+        count: nHidden,
+        title: `+${nHidden} Geschwister nicht dargestellt`,
+      };
+    }
+  } else if (nSibs > 0) {
+    // Peek-Stapel: ALLE Geschwister sichtbar, vertikal versetzt, keine Kappung.
     siblings.forEach((sib, i) => {
       cards.push({
         id: sib.id,
-        x: sibRowStartX + i * (W + SIB_GAP),
-        y: sibY,
+        x: sibColX,
+        y: ry(0) + i * PEEK,
         width: W,
         height: H,
         isCenter: false,
         isHalfSibling: sib.isHalf,
         isSibling: true,
+        isPeek: i > 0,
         kekule: kNum(sib.id),
       });
     });
+    if (nSibs > 1) siblingCountBadge = nSibs;
   }
 
   // ── Zentrumsperson ──
@@ -303,6 +404,7 @@ export function computeTreeLayout(
     isCenter: true,
     isHalfSibling: false,
     isSibling: false,
+    isPeek: false,
     kekule: kNum(probandId),
   });
 
@@ -326,6 +428,7 @@ export function computeTreeLayout(
       isCenter: false,
       isHalfSibling: false,
       isSibling: false,
+      isPeek: false,
       kekule: kNum(fam.spouseId),
     });
     if (isActive) {
@@ -358,6 +461,7 @@ export function computeTreeLayout(
         isCenter: false,
         isHalfSibling: isHalf,
         isSibling: false,
+        isPeek: false,
         kekule: kNum(id),
       });
       connectors.push({ x1: personCX, y1: row0Bottom, x2: cx, y2: rowY, dashed: isHalf });
@@ -371,6 +475,8 @@ export function computeTreeLayout(
     connectors,
     marriageBadge,
     marriageCount: spouseFamilies.length,
+    siblingOverflow,
+    siblingCountBadge,
     navTargets: {
       up: par0.father,
       up2: par0.mother,
