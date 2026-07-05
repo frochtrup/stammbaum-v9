@@ -113,3 +113,43 @@ button {
   border-color: var(--stb-gold);
   cursor: default;
 }
+
+/* Pill/Chip-Reihe (Spec 21 §6): DER EINE Stil für kompakte, wortartige Häppchen in
+   einer umbrechenden Reihe — z. B. Namens-/Herkunftsvarianten (PlaceDetail), künftig
+   weitere "kleine Tag-artige Werte in einer Zeile"-Stellen. Bewusst vom Segment-Control
+   oben unterschieden (Pillen sind keine Umschalter — kein aktiver/inaktiver Zustand,
+   dafür ein optionaler Entfernen-Slot). Übernimmt dieselbe Rand-/Radius-Sprache wie die
+   bereits bestehenden `*__type-badge`-Stellen (PlaceList/PlaceDetail), statt einen
+   dritten Chip-Stil zu erfinden (INV-UI-4). */
+.stb-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.stb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--stb-text);
+  background: var(--stb-surface-2);
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
+}
+
+.stb-pill__remove {
+  background: transparent;
+  border: none;
+  color: var(--stb-text-dim);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.85em;
+}
+
+.stb-pill__remove:hover,
+.stb-pill__remove:focus-visible {
+  color: var(--stb-text);
+}

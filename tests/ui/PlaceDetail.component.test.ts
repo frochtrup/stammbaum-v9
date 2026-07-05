@@ -98,9 +98,120 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
     viewState.setCurrent('place', '@P1@');
 
     render(PlaceDetail, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByLabelText('Namensvariante entfernen'));
+    await fireEvent.click(screen.getByLabelText('Namensvariante „Sassenbergk" entfernen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.pnames).toEqual([]);
+  });
+});
+
+describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () => {
+  it('bietet die übrigen Orte als Ziel-Auswahl an (nicht sich selbst)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrupp (Schreibvariante)' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    const select = screen.getByLabelText('Ziel-Ort für Merge') as HTMLSelectElement;
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    expect(optionValues).toContain('@P2@');
+    expect(optionValues).not.toContain('@P1@');
+  });
+
+  it('führt den aktuellen Ort per appState.mergePlace in den gewählten Ziel-Ort zusammen und navigiert dorthin', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrupp' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.change(screen.getByLabelText('Ziel-Ort für Merge'), { target: { value: '@P2@' } });
+    await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
+
+    // Dublette ist verschwunden, Überlebender hat die Variante aufgenommen (verlustfrei).
+    expect(appState.db.placeObjects.get('@P1@')).toBeUndefined();
+    expect(appState.db.placeObjects.get('@P2@')?.pnames.map((p) => p.value)).toContain('Ochtrup');
+    // Navigation zum Ziel-Ort (der jetzt die Varianten hält).
+    expect(viewState.getCurrent('place')).toBe('@P2@');
+  });
+
+  it('zeigt die gefaltete Variante nach dem Merge als Herkunfts-Pille beim Ziel-Ort', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrupp' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.change(screen.getByLabelText('Ziel-Ort für Merge'), { target: { value: '@P2@' } });
+    await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
+
+    expect(screen.getByText('Ochtrupp')).toBeTruthy(); // Ziel-Titel im Steckbrief
+    const pill = screen.getByText('Ochtrup'); // gefaltete Variante als Pille
+    expect(pill.closest('.stb-pill')).toBeTruthy();
+  });
+
+  it('schließt Selbst-Merge aus (kein appState.mergePlace-Aufruf, Fehlermeldung)', async () => {
+    const appState = createAppState();
+    const mergeSpy = vi.spyOn(appState, 'mergePlace');
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    // Kein weiterer Ort vorhanden -> die Aktion bietet gar keine Auswahl an (kanonischer
+    // Ausschluss von Selbst-Merge structurell, nicht nur per Laufzeit-Check).
+    expect(screen.getByText(/Kein weiterer Ort vorhanden/)).toBeTruthy();
+    expect(mergeSpy).not.toHaveBeenCalled();
+  });
+
+  it('meldet einen Fehler statt appState.mergePlace aufzurufen, wenn kein Ziel gewählt ist', async () => {
+    const appState = createAppState();
+    const mergeSpy = vi.spyOn(appState, 'mergePlace');
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrupp' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    const mergeBtn = screen.getByText('In Ziel-Ort zusammenführen') as HTMLButtonElement;
+
+    // Kein Ziel gewählt -> Button ist deaktiviert (kanonischer Weg, kein zweiter Pfad).
+    expect(mergeBtn.disabled).toBe(true);
+    expect(mergeSpy).not.toHaveBeenCalled();
+  });
+
+  it('bietet auch bei sehr vielen übrigen Orten alle als Ziel-Kandidaten an (TST-7 Überlauf-Fall)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P0@', place('@P0@', { title: 'Ochtrup' }));
+    for (let i = 1; i <= 60; i += 1) {
+      db.placeObjects.set(`@P${i}@`, place(`@P${i}@`, { title: `Ort ${i}` }));
+    }
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P0@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    const select = screen.getByLabelText('Ziel-Ort für Merge') as HTMLSelectElement;
+    // 60 Ziel-Orte + der "wählen…"-Platzhalter, aktueller Ort fehlt weiterhin.
+    expect(select.options.length).toBe(61);
+    expect(Array.from(select.options).map((o) => o.value)).not.toContain('@P0@');
   });
 });
 

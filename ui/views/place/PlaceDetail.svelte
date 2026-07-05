@@ -1,8 +1,14 @@
 <script lang="ts">
   // ui/views/place/PlaceDetail.svelte — Orts-Steckbrief + Bearbeitung (Spec 20 §1.7 [K]:
   // "Ereignisse nach Typ, Quellen, … Bearbeitung: Name, Koordinaten, Typ, pnames,
-  // enclosedBy", "String→PlaceObject verknüpfen"). SVG-Namens-Zeitstrahl + Mini-Karte
-  // sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative Inseln — anderer Bauabschnitt).
+  // enclosedBy", "String→PlaceObject verknüpfen", "Dubletten-Merge (verlustfrei,
+  // Herkunfts-Pille)"). Namensvarianten werden als `.stb-pill`-Reihe angezeigt (INV-UI-4:
+  // gemeinsamer Pill-Stil aus design-system.css statt eigenem Chip-CSS) — nach einem
+  // Merge erscheint der Titel/die Varianten des zusammengeführten Orts hier als neue
+  // Pille (Verlustfreiheit sichtbar). Merge selbst läuft NUR über den Kern-Chokepoint
+  // `appState.mergePlace(survivorId, mergedId)` (Spec 02 §3) — keine Merge-Logik hier.
+  // SVG-Namens-Zeitstrahl + Mini-Karte sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative
+  // Inseln — anderer Bauabschnitt).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { linkEventToPlace, withAddedPname, withRemovedPname, withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
@@ -33,6 +39,8 @@
   let newEnclosedParent = $state('');
   let newEnclosedFrom = $state<number | null>(null);
   let newEnclosedTo = $state<number | null>(null);
+  let mergeTargetId = $state('');
+  let mergeError = $state('');
 
   function startEdit() {
     if (!detail) return;
@@ -108,6 +116,25 @@
 
   function placeTitleFor(id: string): string {
     return appState.db.placeObjects.get(id)?.title ?? id;
+  }
+
+  /**
+   * Dubletten-Merge (Spec 20 §1.7 [K] "Dubletten-Merge, verlustfrei"): der aktuell
+   * gezeigte Ort (die Dublette) wird IN den gewählten Ziel-Ort (Überlebenden) gefaltet.
+   * `appState.mergePlace` ist der EINE Chokepoint (INV-ARCH-1) — keine Merge-Logik hier.
+   * Ziel darf nicht der aktuelle Ort sein (Selbst-Merge ausgeschlossen); danach Navigation
+   * zum Überlebenden, der jetzt Titel + pnames der Dublette als Varianten hält.
+   */
+  function mergeIntoTarget() {
+    if (!detail || !placeId) return;
+    if (!mergeTargetId || mergeTargetId === placeId) {
+      mergeError = 'Bitte einen anderen Ziel-Ort wählen.';
+      return;
+    }
+    appState.mergePlace(mergeTargetId, placeId);
+    viewState.setCurrent('place', mergeTargetId);
+    mergeTargetId = '';
+    mergeError = '';
   }
 </script>
 
@@ -187,19 +214,18 @@
     </section>
 
     <section class="place-detail__section">
-      <h3>Namens-Varianten</h3>
+      <h3>Namens-Varianten <span class="place-detail__muted">(Herkunfts-Pillen)</span></h3>
       {#if detail.variants.length === 0}
         <p class="place-detail__muted">Keine Namensvarianten erfasst.</p>
       {:else}
-        <ul class="place-detail__variant-list">
+        <div class="stb-pill-row" aria-label="Namensvarianten">
           {#each detail.variants as v, i (i)}
-            <li>
-              <span>{v.value}</span>
-              {#if v.from || v.to}<span class="place-detail__muted">({v.from ?? '…'}–{v.to ?? '…'})</span>{/if}
-              <button type="button" class="place-detail__remove-btn" onclick={() => removePname(i)} aria-label="Namensvariante entfernen">✕</button>
-            </li>
+            <span class="stb-pill" title={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
+              {v.value}
+              <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+            </span>
           {/each}
-        </ul>
+        </div>
       {/if}
       <div class="place-detail__add-row">
         <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
@@ -207,6 +233,37 @@
         <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
         <button type="button" onclick={addPname}>+ Hinzufügen</button>
       </div>
+    </section>
+
+    <section class="place-detail__section">
+      <h3>Dubletten-Merge</h3>
+      <p class="place-detail__muted">
+        Diesen Ort verlustfrei in einen anderen Ort zusammenführen — Titel und Namensvarianten
+        von „{detail.place.title || detail.place.id}" erscheinen danach als Herkunfts-Pillen
+        beim Ziel-Ort.
+      </p>
+      {#if otherPlaces.length === 0}
+        <p class="place-detail__muted">Kein weiterer Ort vorhanden, um damit zusammenzuführen.</p>
+      {:else}
+        <div class="place-detail__add-row">
+          <select
+            aria-label="Ziel-Ort für Merge"
+            value={mergeTargetId}
+            onchange={(e) => (mergeTargetId = (e.currentTarget as HTMLSelectElement).value)}
+          >
+            <option value="">Ziel-Ort wählen…</option>
+            {#each otherPlaces as p (p.id)}
+              <option value={p.id}>{p.title || p.id} ({p.id})</option>
+            {/each}
+          </select>
+          <button type="button" class="place-detail__merge-btn" onclick={mergeIntoTarget} disabled={!mergeTargetId}>
+            In Ziel-Ort zusammenführen
+          </button>
+        </div>
+        {#if mergeError}
+          <p class="place-detail__error">{mergeError}</p>
+        {/if}
+      {/if}
     </section>
 
     {#if detail.unlinkedEvents.length > 0}
@@ -385,7 +442,6 @@
   }
 
   .place-detail__enclosed-list,
-  .place-detail__variant-list,
   .place-detail__citation-list,
   .place-detail__unlinked ul,
   .place-detail__event-group ul {
@@ -395,7 +451,6 @@
   }
 
   .place-detail__enclosed-list li,
-  .place-detail__variant-list li,
   .place-detail__unlinked li,
   .place-detail__event-group li {
     display: flex;
@@ -437,6 +492,17 @@
     border-radius: var(--stb-radius-control);
     padding: 0.3rem 0.7rem;
     cursor: pointer;
+  }
+
+  .place-detail__add-row button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .place-detail__error {
+    color: var(--stb-danger);
+    font-size: 0.82rem;
+    margin-top: 0.3rem;
   }
 
   .place-detail__unlinked-owner {
