@@ -51,6 +51,10 @@ export {
   type ResolveResult,
 } from './resolve';
 
+// Orte-Bootstrap-Vorschlag (Spec 20 §1.7 [K], ADR-v9-27): reine Vorschlags-Sammlung,
+// legt NICHTS automatisch an (kuratierte placeObjects, Spec 11 §2).
+export { suggestPlaceCandidates, type PlaceCandidate } from './place-bootstrap';
+
 // Mutations-Kommandos (Spec 20 §1.7/§1.8 [K] "Bearbeitung") — savePlaceObject(model)-
 // Muster, keine verstreuten Feld-Setter.
 export {
