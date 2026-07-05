@@ -1,0 +1,157 @@
+// core/places/seed.ts — Village-Seed-Vorpass (Spec 11 §4.2 Schritt 0, ADR-v9-28/-29).
+//
+// REINE, DETERMINISTISCHE Kernfunktion (TST-3/INV-ARCH-1): erzeugt aus den distinkten
+// PLAC-Hierarchien noch UNAUFGELÖSTER Events die fehlenden Village-PlaceObjects (+ ihre
+// enclosedBy-Kette). Läuft VOR resolveEvents (der Verwaltungs-Match findet die POs dann
+// vor) — der Match-Algorithmus selbst bleibt unverändert.
+//
+// DEDUP-REGEL (ADR-v9-29) = Name + Hierarchie-Verträglichkeit, WEDER name-only (verschmölze
+// Oldenburg/NS + Oldenburg/USA) NOCH Voll-Hierarchie-String (spaltete Ochtrup nach
+// Schreibtiefe):
+//   - gleicher normalisierter Leitname + VERTRÄGLICHE Eltern (eine Elternkette ist Präfix
+//     der anderen, oder leer) → EIN PlaceObject (hunderte „Ochtrup", auch atomar+reich
+//     gemischt, bleiben ein Ort; die reichste Kette gewinnt für enclosedBy).
+//   - WIDERSPRÜCHLICHE Eltern (auf gemeinsamer Ebene abweichend) → DISTINKTE POs.
+//   - atomar (leere Eltern) trifft ≥2 widersprüchliche Cluster → mehrdeutig, KEIN stilles
+//     Merge (der Fall wird bei der Auflösung Review-Klasse P, §6).
+//
+// HÖFE ENTSTEHEN NIE IM SEED: das Village-Segment wird mit demselben Konventions-Signal
+// wie §4.3 gewählt (Konvention-1-Hof-Fall → Leitsegment ist der Hof → Village = segs[1..]).
+import type { Event, PlaceId } from '../model/types';
+import type { PlaceObject } from './types';
+import type { PlaceContext } from './build-plac';
+import { eventPlaceId } from './chokepoints';
+import { normPlaceName, extractHofAddr, slugify } from './normalize';
+
+/** Hof-relevante Event-Typen (Spec 11 §4.2) — hier kann das Leitsegment ein Hof sein. */
+const HOF_TYPES = new Set(['RESI', 'PROP', 'CENS', 'OCCU']);
+
+/** Getrimmte, nicht-leere Komma-Segmente eines PLAC-Strings. */
+function segments(plac: string): string[] {
+  return plac.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Verwaltungs-Kette (leaf-first) eines Events: Village + Eltern. Bei Konvention 1
+ * (Hof-Typ + ADDR-Extract trifft das Leitsegment, §4.3/§4.4) wird das Hof-Leitsegment
+ * abgeworfen — der Hof bleibt dem Hof-Bootstrap überlassen, der Seed nur der Verwaltung.
+ */
+function adminChain(ev: Event, segs: string[]): string[] {
+  if (segs.length <= 1) return segs;
+  if (HOF_TYPES.has(ev.type) && ev.addr) {
+    const extractNorm = normPlaceName(extractHofAddr(ev.addr));
+    if (extractNorm && extractNorm === normPlaceName(segs[0])) return segs.slice(1);
+  }
+  return segs;
+}
+
+/**
+ * Eltern-Verträglichkeit (ADR-v9-29): zwei Elternketten sind verträglich, wenn eine ein
+ * Präfix der anderen ist (an jeder gemeinsamen Position gleich). Widerspruch an einer
+ * gemeinsamen Position → unverträglich (distinkte Orte).
+ */
+function parentsCompatible(a: readonly string[], b: readonly string[]): boolean {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+interface SeedCluster {
+  /** Normalisierte Elternkette der reichsten (zuerst verarbeiteten) Fassung. */
+  repParentsNorm: string[];
+  id: PlaceId;
+}
+
+function makeSeededPlace(id: PlaceId, title: string, parentId: PlaceId | null): PlaceObject {
+  return {
+    id,
+    title,
+    type: '', // unbekannt — Kuration (Typ, Koordinaten, GOV) folgt nachgelagert (Spec 11 §2).
+    pnames: [],
+    enclosedBy: parentId ? [{ placeId: parentId, from: null, to: null }] : [],
+    lat: null,
+    long: null,
+    note: '',
+    existsFrom: null,
+    existsTo: null,
+    govId: null,
+    govTypes: null,
+  };
+}
+
+/**
+ * Seedet fehlende Village-PlaceObjects aus den Events. Gibt die NEU zu erzeugenden
+ * PlaceObjects zurück (der Aufrufer übernimmt sie in db.placeObjects) — mutiert weder
+ * Events noch den übergebenen Kontext. Deterministisch: gleiche Eingabe → gleiche Ausgabe.
+ */
+export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext): PlaceObject[] {
+  // 1. Verwaltungs-Ketten (leaf-first) + alle Suffixe (jede Ebene ist ein Ort) sammeln —
+  //    nur aus noch UNAUFGELÖSTEN Events (placeId ODER findByName trifft → schon vorhanden).
+  const chains: string[][] = [];
+  for (const ev of events) {
+    if (eventPlaceId(ev, ctx) != null) continue;
+    const segs = segments(ev.place ?? '');
+    const admin = adminChain(ev, segs);
+    for (let i = 0; i < admin.length; i++) chains.push(admin.slice(i));
+  }
+
+  // 2. Deterministische Ordnung: LÄNGSTE zuerst (die reichste Kette pro Ort gewinnt und
+  //    prägt den Cluster), bei Gleichstand normalisiert-lexikographisch.
+  const normJoin = (c: string[]): string => c.map(normPlaceName).join('|');
+  chains.sort((a, b) => b.length - a.length || normJoin(a).localeCompare(normJoin(b)));
+
+  const created: PlaceObject[] = [];
+  const usedIds = new Set<string>();
+  const clustersByLeaf = new Map<string, SeedCluster[]>();
+
+  const mintId = (leafNorm: string, parentNorm: string): PlaceId => {
+    const base = '_plac_' + (slugify(leafNorm) || 'x') + (parentNorm ? '__' + (slugify(parentNorm) || 'x') : '');
+    let id = base;
+    let n = 1;
+    while (usedIds.has(id) || ctx.places.byId(id) !== undefined) id = `${base}_${++n}`;
+    return id;
+  };
+
+  /** Liefert die (normalisierte) Elternkette eines bereits existierenden PlaceObject. */
+  const existingParentsNorm = (id: PlaceId): string[] =>
+    ctx.places.enclosureChainAsOf(id, null).slice(1).map(normPlaceName);
+
+  /**
+   * Stellt sicher, dass es für die Kette einen Ort gibt (neu oder bestehend) und gibt
+   * dessen PlaceId zurück. null, wenn die Kette leer oder (atomar/kurz) mehrdeutig ist.
+   */
+  function ensure(chain: string[]): PlaceId | null {
+    if (chain.length === 0) return null;
+    const leaf = chain[0];
+    const leafNorm = normPlaceName(leaf);
+    if (!leafNorm) return null;
+    const parents = chain.slice(1);
+    const parentsNorm = parents.map(normPlaceName);
+
+    // (a) Bestehendes, kuratiertes PlaceObject wiederverwenden — aber NUR bei verträglicher
+    //     Elternkette (sonst würde „Oldenburg, USA" an das deutsche Oldenburg gebunden).
+    const existingCompat = ctx.places
+      .findAllByName(leaf)
+      .filter((id) => parentsCompatible(existingParentsNorm(id), parentsNorm));
+    if (existingCompat.length === 1) return existingCompat[0];
+    if (existingCompat.length > 1) return null; // mehrdeutig gegen kuratierte Daten → Klasse P
+
+    // (b) Bereits geseedeten Cluster wiederverwenden (verträglich).
+    const bucket = clustersByLeaf.get(leafNorm) ?? [];
+    const seedCompat = bucket.filter((c) => parentsCompatible(c.repParentsNorm, parentsNorm));
+    if (seedCompat.length === 1) return seedCompat[0].id;
+    if (seedCompat.length > 1) return null; // atomar/kurz gegen ≥2 Cluster → mehrdeutig → Klasse P
+
+    // (c) Neu anlegen — zuerst die Elternkette sicherstellen (für enclosedBy).
+    const parentId = ensure(parents);
+    const id = mintId(leafNorm, parentsNorm[0] ?? '');
+    usedIds.add(id);
+    created.push(makeSeededPlace(id, leaf, parentId));
+    bucket.push({ repParentsNorm: parentsNorm, id });
+    clustersByLeaf.set(leafNorm, bucket);
+    return id;
+  }
+
+  for (const chain of chains) ensure(chain);
+  return created;
+}

@@ -55,6 +55,10 @@ export {
 // legt NICHTS automatisch an (kuratierte placeObjects, Spec 11 §2).
 export { suggestPlaceCandidates, type PlaceCandidate } from './place-bootstrap';
 
+// Village-Seed-Vorpass (Spec 11 §4.2 Schritt 0, ADR-v9-28/-29): erzeugt fehlende
+// Village-PlaceObjects automatisch beim Import — Dedup nach Name+Hierarchie-Verträglichkeit.
+export { seedPlacesFromEvents } from './seed';
+
 // Mutations-Kommandos (Spec 20 §1.7/§1.8 [K] "Bearbeitung") — savePlaceObject(model)-
 // Muster, keine verstreuten Feld-Setter.
 export {
