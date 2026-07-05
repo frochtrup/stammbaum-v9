@@ -15,6 +15,7 @@ import {
   withRemovedHofAddr,
   linkEventToPlace,
 } from '../../core/places/commands';
+import { makePlaceRegistry, makeHofRegistry } from '../../core/places/index';
 import { place, hof, placeMap, hofMap, ev } from './places-fixtures';
 
 describe('savePlaceObject/deletePlaceObject — Upsert per id', () => {
@@ -125,11 +126,43 @@ describe('withAddedHofAddr/withRemovedHofAddr — Adressvarianten (Formular-Pfad
   });
 });
 
-describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [K])', () => {
-  it('setzt ev.placeId, ohne ev.place selbst umzuschreiben (Reprojektion läuft beim nächsten Laden)', () => {
-    const e = ev('BIRT', { place: 'Ochtrup' });
-    linkEventToPlace(e, '@P1@');
+describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [K], ADR-v9-19)', () => {
+  it('setzt ev.placeId UND reprojiziert ev.place sofort (INV-PLACE, Sofort-Reprojektion)', () => {
+    const places = placeMap(
+      place('@P1@', {
+        title: 'Ochtrup',
+        type: 'Town',
+        enclosedBy: [{ placeId: '@DE@', from: null, to: null }],
+      }),
+      place('@DE@', { title: 'Deutschland', type: 'Country' }),
+    );
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofMap()) };
+    const e = ev('BIRT', { place: 'irgendein roher String', date: '1900' });
+    linkEventToPlace(e, '@P1@', ctx);
     expect(e.placeId).toBe('@P1@');
-    expect(e.place).toBe('Ochtrup'); // unverändert — keine Parallel-Reprojektion in der UI
+    // ev.place ist ab sofort die Projektion aus dem Modell, nicht mehr der Rohstring.
+    expect(e.place).toBe('Ochtrup, Deutschland');
+  });
+
+  it('reprojiziert periodengerecht auf die im Jahr gültige pname', () => {
+    const places = placeMap(
+      place('@S@', {
+        title: 'Sassenberg',
+        type: 'Town',
+        pnames: [{ value: 'Sassenbergk', from: 1600, to: 1750 }],
+      }),
+    );
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofMap()) };
+    const e = ev('BIRT', { place: 'Sassenberg', date: '1700' });
+    linkEventToPlace(e, '@S@', ctx);
+    expect(e.place).toBe('Sassenbergk');
+  });
+
+  it('unbekannte placeId (kein PO) → ev.place bleibt Rohstring (kein Overwrite mit null)', () => {
+    const ctx = { places: makePlaceRegistry(placeMap()), hofs: makeHofRegistry(hofMap()) };
+    const e = ev('BIRT', { place: 'Ochtrup' });
+    linkEventToPlace(e, '@NOPE@', ctx);
+    expect(e.placeId).toBe('@NOPE@');
+    expect(e.place).toBe('Ochtrup');
   });
 });

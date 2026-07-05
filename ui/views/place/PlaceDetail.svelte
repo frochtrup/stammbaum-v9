@@ -93,7 +93,7 @@
     if (!detail || !placeId) return;
     const row = detail.unlinkedEvents.find((r) => r.key === eventKey);
     if (!row) return;
-    linkEventToPlace(row.event, placeId);
+    linkEventToPlace(row.event, placeId, appState.placeContext);
     appState.touch();
   }
 

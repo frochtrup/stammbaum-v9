@@ -7,6 +7,7 @@
 // der Schale, s. ui/shell/app-state.svelte.ts).
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress } from './types';
+import { buildPlacForGedcom, eventYear, type PlaceContext } from './build-plac';
 
 /**
  * Kommando: legt ein PlaceObject an oder ersetzt es vollständig (Upsert per id).
@@ -90,16 +91,19 @@ export function withRemovedHofAddr(hof: HofObject, index: number): HofObject {
 
 /**
  * Kommando (Spec 20 §1.7 [K] "String→PlaceObject verknüpfen"): setzt `ev.placeId` auf
- * ein bestehendes PlaceObject. Nach Spec 11 §3 (INV-PLACE) folgt am Ende JEDES
- * Auflösungspfads eine Reprojektion (`ev.place ← buildPlacForGedcom`) — diese Funktion
- * setzt bewusst NUR die Identität (`placeId`); die Reprojektion läuft beim nächsten
- * `resolveEvents()`-Durchlauf (Laden ist der einzige Ort, an dem reprojiziert wird,
- * Spec 11 §4.1 "Re-Derivation ist die Persistenz") — kein Parallel-Reprojections-Code
- * in der UI-Schicht (verboten laut INV-ARCH-1, keine Kern-Logik im View).
+ * ein bestehendes PlaceObject UND reprojiziert `ev.place` sofort (Spec 11 §3 INV-PLACE,
+ * ADR-v9-19 — Sofort-Reprojektion im Kommando). Die Reprojektion läuft an ZWEI Stellen,
+ * die INV-PLACE gemeinsam garantieren: beim Laden (voller `resolveEvents()`-Pass) UND in
+ * jedem `placeId`/`hofId`-setzenden Modell-Kommando (Spec 11 §4.1). Das ist reine
+ * Kern-Logik (`buildPlacForGedcom`), INV-ARCH-1-konform — KEINE UI-/DOM-Referenz; die
+ * Schale reicht nur den `PlaceContext` (Chokepoints, Spec 11 §5) herein.
+ * Es gibt keinen Zwischenzustand, in dem `placeId` gesetzt, `ev.place` aber veraltet ist.
  * Mutiert das Event in-place (Event-Objekte werden von Person/Family referenziert,
  * analog core/model/integrity.ts-Kommandos, die ihre Owner-Objekte ebenfalls in-place
- * mutieren statt zu kopieren).
+ * mutieren statt zu kopieren). Persistiert wird nur `placeId`, nie `ev.place` (Spec 11 §2).
  */
-export function linkEventToPlace(ev: Event, placeId: PlaceId): void {
+export function linkEventToPlace(ev: Event, placeId: PlaceId, ctx: PlaceContext): void {
   ev.placeId = placeId;
+  const proj = buildPlacForGedcom(ev, eventYear(ev), ctx);
+  if (proj != null) ev.place = proj;
 }
