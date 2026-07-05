@@ -9,7 +9,7 @@
 // placeId/hofId ist ev.place ausschließlich buildPlacForGedcom(ev, year). Es gibt
 // keinen Pfad ohne Reprojektion → Stale-Cache strukturell ausgeschlossen.
 import type { Event, PlaceId, HofId } from '../model/types';
-import type { HofObject, HofObjects, PlaceObjects } from './types';
+import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
 import { makePlaceRegistry } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
 import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
@@ -75,6 +75,26 @@ function isAddrJustVillage(addr: string, villageId: PlaceId | null, ctx: PlaceCo
   const addrNorm = normPlaceName(clean);
   if (pl.title && normPlaceName(pl.title) === addrNorm) return true;
   return pl.pnames.some((pn) => pn.value && normPlaceName(pn.value) === addrNorm);
+}
+
+/**
+ * Konsistenz-Guard (ADR-v9-29, §4.2): Ist die modellierte Elternkette des Kandidaten mit
+ * den PLAC-Folgesegmenten verträglich? Verträglich = an jeder gemeinsamen Position gleich
+ * (eine Kette ist Präfix der anderen; fehlende Eltern sind kein Widerspruch). Ein
+ * widersprechender Elter (`Oldenburg, USA` vs. modellierte Kette `Niedersachsen`) macht den
+ * Kandidaten unverträglich → kein Match (verhindert stille Falschattribution).
+ */
+function chainCompatible(
+  reg: PlaceContext['places'],
+  candidateId: PlaceId,
+  placParents: readonly string[],
+  year: Year,
+): boolean {
+  const modeled = reg.enclosureChainAsOf(candidateId, year).slice(1).map(normPlaceName);
+  const stated = placParents.map(normPlaceName);
+  const n = Math.min(modeled.length, stated.length);
+  for (let i = 0; i < n; i++) if (modeled[i] !== stated[i]) return false;
+  return true;
 }
 
 /**
@@ -171,11 +191,19 @@ function resolveOne(
       if (!ev.addr) return { resolved: reproject('hierarchy-exact'), review: null };
     }
   }
-  // 3c. Hierarchie-PLAC: Leitname eindeutig + Anker (Leitsegment als Dorf-Identität).
+  // 3c/3c′. Hierarchie-PLAC → Dorf über Leitname, mit Konsistenz-Guard + Eltern-
+  //   Disambiguierung (ADR-v9-29): ein eindeutiger Leitname genügt NICHT — die
+  //   PLAC-Folgesegmente müssen mit der modellierten enclosureChain des Kandidaten
+  //   verträglich sein (widersprechender Elter = Veto). Bei mehreren gleichnamigen
+  //   Kandidaten gewinnt der eindeutig verträgliche (3c′). Sonst bleibt placeId null —
+  //   die Rest-Mehrdeutigkeit wird als Review-Klasse P sichtbar (Slice 1.1c).
   if (ev.placeId == null && isRich && leadSeg) {
-    const leadIds = ctx.places.findAllByName(leadSeg);
-    if (leadIds.length === 1) {
-      ev.placeId = leadIds[0];
+    const plsParents = segs.slice(1);
+    const compatible = ctx.places
+      .findAllByName(leadSeg)
+      .filter((id) => chainCompatible(ctx.places, id, plsParents, year));
+    if (compatible.length === 1) {
+      ev.placeId = compatible[0];
       villageOnlyPath = 'hierarchy-lead';
       if (!ev.addr) return { resolved: reproject('hierarchy-lead'), review: null };
     }
