@@ -78,3 +78,46 @@ describe('Eltern-Disambiguierung (3c′) — zwei gleichnamige Oldenburgs', () =
     expect(res.events[0].event.placeId).toBeNull();
   });
 });
+
+describe('Review-Klasse P (1.1c) — Orts-Mehrdeutigkeit wird sichtbar, kein stiller Guess', () => {
+  const places = placeMap(oldenburgNS, niedersachsen, deutschland, oldenburgUS, usa);
+
+  it('atomarer "Oldenburg" trifft ≥2 gleichnamige POs → placeId null + Review-Klasse P mit Kandidaten', () => {
+    const res = resolveEvents([ev('BIRT', { place: 'Oldenburg', date: '1900' })], places, hofMap());
+    expect(res.events[0].event.placeId).toBeNull();
+    expect(res.review).toHaveLength(1);
+    expect(res.review[0].klass).toBe('P');
+    expect(res.review[0].candidates.slice().sort()).toEqual(['@OLD_NS@', '@OLD_US@']);
+  });
+
+  it('rich-PLAC mit widersprechendem Elter (Guard-Veto) → Klasse P (Kandidat sichtbar)', () => {
+    const onlyDe = placeMap(oldenburgNS, niedersachsen, deutschland);
+    const res = resolveEvents([ev('DEAT', { place: 'Oldenburg, USA', date: '1900' })], onlyDe, hofMap());
+    expect(res.events[0].event.placeId).toBeNull();
+    expect(res.review).toHaveLength(1);
+    expect(res.review[0].klass).toBe('P');
+    expect(res.review[0].candidates).toEqual(['@OLD_NS@']);
+  });
+
+  it('rich-PLAC mit ≥2 verträglichen Kandidaten (bare + kontextualisiert) → Klasse P', () => {
+    const bare = place('@OLD_BARE@', { title: 'Oldenburg', type: 'Town' }); // keine Kette → verträglich
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Oldenburg, Niedersachsen', date: '1900' })],
+      placeMap(bare, oldenburgNS, niedersachsen, deutschland),
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBeNull();
+    expect(res.review[0].klass).toBe('P');
+    expect(res.review[0].candidates.slice().sort()).toEqual(['@OLD_BARE@', '@OLD_NS@']);
+  });
+
+  it('eindeutig auflösbar erzeugt KEIN Review (kein falscher P-Alarm)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Oldenburg, USA', date: '1900' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OLD_US@');
+    expect(res.review).toHaveLength(0);
+  });
+});

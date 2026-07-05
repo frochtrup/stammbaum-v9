@@ -32,7 +32,7 @@ export type ResolvePath =
   | "B'" // event.addr ohne Hof + Hof-Typ → Bootstrap
   | 'none'; // nichts aufgelöst (→ evtl. Review)
 
-export type ReviewClass = 'A' | 'C' | 'D';
+export type ReviewClass = 'A' | 'C' | 'D' | 'P';
 
 export interface ReviewItem {
   /** Index des Events in der Eingabeliste (stabile Referenz). */
@@ -40,8 +40,8 @@ export interface ReviewItem {
   klass: ReviewClass;
   addr: string;
   eventType: string;
-  /** Kandidaten-Höfe bei Klasse C (mehrdeutig). */
-  candidates: HofId[];
+  /** Mehrdeutige Kandidaten: Höfe bei Klasse C, PlaceObjects bei Klasse P. */
+  candidates: (HofId | PlaceId)[];
 }
 
 export interface ResolvedEvent {
@@ -176,11 +176,18 @@ function resolveOne(
   //    v8 _link: _placeLink ohne return, dann _tryHofAddrLink). Ohne ev.addr ist der
   //    Verwaltungs-Match die finale Auflösung.
   let villageOnlyPath: ResolvePath = 'none';
-  // 3a. atomare PLAC matcht placeObject.
-  if (isAtomic && leadSeg && ctx.places.findByName(leadSeg) != null) {
-    ev.placeId = ctx.places.findByName(leadSeg);
-    villageOnlyPath = 'atomic-po';
-    if (!ev.addr) return { resolved: reproject('atomic-po'), review: null };
+  // 3a. atomare PLAC matcht placeObject. Bei ≥2 gleichnamigen POs mehrdeutig →
+  //     Review-Klasse P (ADR-v9-29), kein stilles Raten auf den spezifischsten.
+  if (ev.placeId == null && isAtomic && leadSeg) {
+    const ids = ctx.places.findAllByName(leadSeg);
+    if (ids.length === 1) {
+      ev.placeId = ids[0];
+      villageOnlyPath = 'atomic-po';
+      if (!ev.addr) return { resolved: reproject('atomic-po'), review: null };
+    } else if (ids.length >= 2 && !ev.addr) {
+      review = { index, klass: 'P', addr: ev.addr ?? '', eventType: type, candidates: ids };
+      return { resolved: reproject('none'), review };
+    }
   }
   // 3b. Hierarchie-PLAC matcht voll-projektions-exakt.
   if (ev.placeId == null && isRich && anchorVillageId != null) {
@@ -199,13 +206,18 @@ function resolveOne(
   //   die Rest-Mehrdeutigkeit wird als Review-Klasse P sichtbar (Slice 1.1c).
   if (ev.placeId == null && isRich && leadSeg) {
     const plsParents = segs.slice(1);
-    const compatible = ctx.places
-      .findAllByName(leadSeg)
-      .filter((id) => chainCompatible(ctx.places, id, plsParents, year));
+    const leadIds = ctx.places.findAllByName(leadSeg);
+    const compatible = leadIds.filter((id) => chainCompatible(ctx.places, id, plsParents, year));
     if (compatible.length === 1) {
       ev.placeId = compatible[0];
       villageOnlyPath = 'hierarchy-lead';
       if (!ev.addr) return { resolved: reproject('hierarchy-lead'), review: null };
+    } else if (leadIds.length >= 1 && !ev.addr) {
+      // Guard-Veto (0 verträglich) ODER Mehrdeutigkeit (≥2 verträglich) → Ort mehrdeutig,
+      //   Review-Klasse P (ADR-v9-29, §6). Nicht binden, kein stiller Guess.
+      review = { index, klass: 'P', addr: ev.addr ?? '', eventType: type,
+                 candidates: compatible.length ? compatible : leadIds };
+      return { resolved: reproject('none'), review };
     }
   }
 
