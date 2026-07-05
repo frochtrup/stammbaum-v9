@@ -10,6 +10,8 @@
     knownPlaceTypes,
     type PlaceFilters,
   } from './place-list-model';
+  import { buildPlaceCandidates } from './place-bootstrap-model';
+  import PlaceBootstrap from './PlaceBootstrap.svelte';
 
   interface Props {
     appState: AppState;
@@ -21,10 +23,17 @@
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
   let showFilters = $state(false);
   let groupMode = $state(false);
+  // "Orte vorschlagen" (Spec 20 §1.7 [K], ADR-v9-27) ist ein Sichtungs-Panel innerhalb
+  // des Orte-Segments, kein eigener Tab/Modal-Overlay — Struktur-Vorbild HofReview
+  // innerhalb des Höfe-Segments (INV-UI-4: ein etabliertes Muster wiederverwenden).
+  let bootstrapOpen = $state(false);
 
   const rows = $derived(buildPlaceRows(appState.db, query, filters));
   const types = $derived(knownPlaceTypes(appState.db));
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
+  // Solange unaufgelöste PLAC-Kandidaten existieren, bleibt die Aktion sichtbar — auch
+  // wenn schon Orte erfasst sind (nicht nur im initial leeren Zustand).
+  const hasCandidates = $derived(buildPlaceCandidates(appState.db, appState.placeContext).length > 0);
 
   function selectPlace(id: string) {
     viewState.setCurrent('place', id);
@@ -37,11 +46,27 @@
   function resetFilters() {
     filters = defaultPlaceFilters();
   }
+
+  function openBootstrap() {
+    bootstrapOpen = true;
+  }
+
+  function closeBootstrap() {
+    bootstrapOpen = false;
+  }
 </script>
 
 <div class="place-list">
-  {#if isEmpty}
-    <p class="place-list__empty">Keine Orte erfasst — werden beim Laden einer Datei automatisch gesammelt.</p>
+  {#if bootstrapOpen}
+    <PlaceBootstrap {appState} onClose={closeBootstrap} />
+  {:else if isEmpty}
+    <p class="place-list__empty">
+      Keine Orte erfasst — Orte werden hier NICHT automatisch gesammelt. Nutze „Orte
+      vorschlagen", um Orte aus den geladenen Ereignissen zu übernehmen.
+    </p>
+    <div class="place-list__empty-actions">
+      <button type="button" class="place-list__bootstrap-btn" onclick={openBootstrap}>Orte vorschlagen</button>
+    </div>
   {:else}
     <div class="place-list__toolbar">
       <div class="place-list__search">
@@ -62,6 +87,9 @@
       >
         Filter
       </button>
+      {#if hasCandidates}
+        <button type="button" class="place-list__bootstrap-btn" onclick={openBootstrap}>Orte vorschlagen</button>
+      {/if}
     </div>
 
     {#if showFilters}
@@ -118,8 +146,24 @@
   }
 
   .place-list__empty {
-    padding: 1.5rem;
+    padding: 1.5rem 1.5rem 0.5rem;
     color: var(--stb-text-dim);
+  }
+
+  .place-list__empty-actions {
+    padding: 0 1.5rem 1.5rem;
+  }
+
+  .place-list__bootstrap-btn {
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    border: 1px solid var(--stb-gold);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
   }
 
   .place-list__toolbar {
