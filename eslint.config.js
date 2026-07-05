@@ -35,6 +35,8 @@ export default tseslint.config(
     // document, weiterhin nur außerhalb von core/ (INV-ARCH-1-Gate prüft das separat).
     // `ResizeObserver` ergänzt für die Zeitleiste-Lens (Spec 20 §1.10: Swim-Lane-Breite
     // folgt der Containerbreite, analog zum Orakel-`window.resize`-Listener).
+    // `fetch` ergänzt für den Demo-Ladeweg (Spec 20 §1.2 [S]: `fetch('./demo.ged')`,
+    // analog Verhaltens-Orakel legacy-v8/storage.js loadDemo()).
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
@@ -46,7 +48,8 @@ export default tseslint.config(
         ResizeObserver: 'readonly',
         HTMLDivElement: 'readonly',
         HTMLElement: 'readonly',
-        HTMLSelectElement: 'readonly'
+        HTMLSelectElement: 'readonly',
+        fetch: 'readonly'
       }
     }
   }

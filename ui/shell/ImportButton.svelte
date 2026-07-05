@@ -1,21 +1,16 @@
 <script lang="ts">
-  // ui/shell/ImportButton.svelte — Import-Einstieg (Spec 20 §1.2): "Datei öffnen"
-  // nutzt services/file (createFileService + pickAndImport), core/interop (parseGedcom)
-  // gibt reines Domänenmodell zurück, das über AppState.loadDatabase() geladen wird.
+  // ui/shell/ImportButton.svelte — Import-Einstieg (Spec 20 §1.2): "Datei öffnen" +
+  // "Demo laden" ([S] Demo-Modus). Beide Wege nutzen dieselbe Lade-Pipeline
+  // load-gedcom-text.ts (parseGedcom -> Orte/Höfe-Wiring -> appState.loadDatabase()) —
+  // EIN kanonischer Lade-Pfad (INV-UI-4-Lehre auf Lade-Orchestrierung angewendet, s.
+  // load-gedcom-text.ts-Kopf), nur die Text-Quelle unterscheidet sich: echter
+  // Datei-Picker (services/file) vs. mitgeliefertes Asset (fetch('./demo.ged'), analog
+  // Verhaltens-Orakel legacy-v8/storage.js loadDemo() — funktioniert offline, weil
+  // demo.ged als Vite-Static-Asset gebündelt ist, s. app/public/demo.ged).
   // GRAMPS-Import ist NICHT Teil dieser Scheibe (nur GEDCOM).
-  //
-  // Orte/Höfe-Wiring (Spec 14 §6, Spec 11 §4, Behebung ADR-v9-19-Befund): NACH dem Parsen
-  // und VOR appState.loadDatabase() wird der orte.json-Browser-Spiegel geladen und
-  // core/places.resolveEvents() über applyPlaceResolution() auf ALLE Events der frisch
-  // geparsten Datenbank angewendet — sonst bleiben Orte-/Höfe-Tab nach echtem Import leer
-  // (nur die live-berechneten Chokepoint-Fallbacks laufen dann, aber ohne befüllte
-  // Registry-Maps gibt es nichts zu matchen). Ist durch den Hof-Bootstrap (Pfade C/B')
-  // db.hofObjects gewachsen, wird der orte.json-Spiegel aktualisiert zurückgespeichert,
-  // BEVOR appState.loadDatabase() die Schale mit dem fertig aufgelösten Stand versorgt —
-  // ein Ladepfad, keine zweite Invalidierung danach.
   import { createFileService } from '../../services/file';
-  import { parseGedcom } from '../../core/interop';
-  import { createPlacesSyncService, applyPlaceResolution } from '../../services/places';
+  import { createPlacesSyncService } from '../../services/places';
+  import { loadGedcomText } from './load-gedcom-text';
   import type { AppState } from './app-state.svelte';
 
   interface Props {
@@ -23,7 +18,7 @@
   }
   const { appState }: Props = $props();
 
-  let status = $state<'idle' | 'loading' | 'error'>('idle');
+  let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
   /** Einfacher State-Flag für Konflikt-/Schema-Hinweise (Spec 30 §4 LP-9) — kein Modal,
    * keine eigene Toast-Infrastruktur vorhanden; reicht laut Aufgabenstellung. */
@@ -33,7 +28,7 @@
   const placesSync = createPlacesSyncService();
 
   async function handleClick() {
-    status = 'loading';
+    status = 'loading-file';
     errorMessage = '';
     placesNotice = '';
     try {
@@ -42,30 +37,25 @@
         status = 'idle';
         return;
       }
-      const parsed = parseGedcom(picked.text);
+      const result = await loadGedcomText(picked.text, picked.name, appState, placesSync);
+      placesNotice = result.placesNotice;
+      status = 'idle';
+    } catch (err) {
+      status = 'error';
+      errorMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
 
-      const loaded = await placesSync.loadPlaces();
-      parsed.db.placeObjects = loaded.placeObjects;
-      parsed.db.hofObjects = loaded.hofObjects;
-
-      const resolution = applyPlaceResolution(parsed.db);
-
-      if (resolution.hofObjectsGrew) {
-        const reconciled = await placesSync.reconcileAndSave(
-          parsed.db.placeObjects,
-          parsed.db.hofObjects,
-          loaded.rev
-        );
-        parsed.db.placeObjects = reconciled.placeObjects;
-        parsed.db.hofObjects = reconciled.hofObjects;
-        if (reconciled.warning?.kind === 'union-merge') {
-          placesNotice = 'Orts-/Hofwissen wurde mit einem anderen Gerät zusammengeführt (kein Datenverlust).';
-        } else if (reconciled.warning?.kind === 'schema-too-new') {
-          placesNotice = 'Orts-/Hofwissen stammt von einer neueren App-Version — nicht gespeichert (Nur-Lese-Schutz).';
-        }
-      }
-
-      appState.loadDatabase(parsed.db, picked.name);
+  async function handleDemoClick() {
+    status = 'loading-demo';
+    errorMessage = '';
+    placesNotice = '';
+    try {
+      const res = await fetch('./demo.ged');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const result = await loadGedcomText(text, 'demo.ged', appState, placesSync);
+      placesNotice = result.placesNotice;
       status = 'idle';
     } catch (err) {
       status = 'error';
@@ -75,8 +65,21 @@
 </script>
 
 <div class="import-bar">
-  <button type="button" class="import-bar__button" onclick={handleClick} disabled={status === 'loading'}>
-    {status === 'loading' ? 'Lade …' : 'Datei öffnen (GEDCOM)'}
+  <button
+    type="button"
+    class="import-bar__button"
+    onclick={handleClick}
+    disabled={status === 'loading-file' || status === 'loading-demo'}
+  >
+    {status === 'loading-file' ? 'Lade …' : 'Datei öffnen (GEDCOM)'}
+  </button>
+  <button
+    type="button"
+    class="import-bar__button import-bar__button--secondary"
+    onclick={handleDemoClick}
+    disabled={status === 'loading-file' || status === 'loading-demo'}
+  >
+    {status === 'loading-demo' ? 'Lade …' : 'Demo laden'}
   </button>
   {#if appState.fileName}
     <span class="import-bar__filename">{appState.fileName}</span>
@@ -113,6 +116,12 @@
   .import-bar__button:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+
+  .import-bar__button--secondary {
+    background: transparent;
+    color: var(--stb-gold);
+    border: 1px solid var(--stb-gold-dim);
   }
 
   .import-bar__filename {
