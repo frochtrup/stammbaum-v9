@@ -10,6 +10,7 @@
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
+  import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import TasksView from '../ui/views/tasks/TasksView.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
@@ -31,37 +32,41 @@
   // Familien/Quellen/Archive/Orte/Höfe leben NICHT hier, sondern im Entitäten-Segment-
   // Umschalter innerhalb von EntityTab.svelte).
   //
-  // MainRoute erweitert BottomNavTarget um 'map': die Karten-Lens hat KEINEN eigenen
-  // Bottom-Nav-Slot (Baum bleibt der Signatur-Slot, Spec 21 §2) — sie wird nur über
-  // den Lens-Umschalter (LensSwitcher, Spec 21 §4) erreicht, während man im Baum
-  // steht. BottomNav.svelte bekommt weiterhin ausschließlich echte BottomNavTarget-
-  // Werte (s. <BottomNav active={...}> unten) — der erweiterte Typ ist reines
-  // App-internes Routing, kein neuer Bottom-Nav-Slot.
-  type MainRoute = BottomNavTarget | 'map';
+  // MainRoute erweitert BottomNavTarget um 'map'/'timeline': weder Karte noch
+  // Zeitleiste haben einen eigenen Bottom-Nav-Slot (Baum bleibt der Signatur-Slot,
+  // Spec 21 §2) — beide werden nur über den Lens-Umschalter (LensSwitcher, Spec 21 §4)
+  // erreicht, während man im Baum steht. BottomNav.svelte bekommt weiterhin
+  // ausschließlich echte BottomNavTarget-Werte (s. <BottomNav active={...}> unten) —
+  // der erweiterte Typ ist reines App-internes Routing, kein neuer Bottom-Nav-Slot.
+  type MainRoute = BottomNavTarget | 'map' | 'timeline';
   let activeTarget = $state<MainRoute>('person');
 
-  // BottomNav zeigt "Baum" als aktiv, auch wenn die Karte offen ist (Karte hängt
+  // BottomNav zeigt "Baum" als aktiv, auch wenn Karte/Zeitleiste offen ist (beide hängen
   // navigatorisch am Baum-Slot, s. Kommentar oben) — nie ein aria-current auf einem
   // Bottom-Nav-Ziel, das BottomNav selbst gar nicht kennt.
-  const bottomNavActive = $derived<BottomNavTarget>(activeTarget === 'map' ? 'tree' : activeTarget);
+  const bottomNavActive = $derived<BottomNavTarget>(
+    activeTarget === 'map' || activeTarget === 'timeline' ? 'tree' : activeTarget,
+  );
 
   function navigate(target: BottomNavTarget) {
     activeTarget = target;
   }
 
   // Lens-Umschalter (Spec 21 §4, INV-UI-3) — EIN Callback für alle Lens-Wechsel aus
-  // jeder Lens heraus (TreeView UND MapLensView reichen denselben Callback-Namen
-  // durch). Der Fokus selbst wird NICHT hier verschoben: er lebt bereits im
-  // geteilten ViewState-Slot `lensFocus` (view-state.svelte.ts) und bleibt beim
-  // Wechsel automatisch erhalten, weil beide Lenses denselben Slot lesen/schreiben.
+  // jeder Lens heraus (TreeView, MapLensView UND TimelineLensView reichen denselben
+  // Callback-Namen durch). Der Fokus selbst wird NICHT hier verschoben: er lebt bereits
+  // im geteilten ViewState-Slot `lensFocus` (view-state.svelte.ts) und bleibt beim
+  // Wechsel automatisch erhalten, weil alle Lenses denselben Slot lesen/schreiben.
   function navigateLens(lens: LensId) {
     if (lens === 'tree') {
       activeTarget = 'tree';
     } else if (lens === 'map') {
       activeTarget = 'map';
+    } else if (lens === 'timeline') {
+      activeTarget = 'timeline';
     }
-    // 'timeline'/'story' sind noch nicht implementiert (LensSwitcher selbst
-    // verriegelt das bereits — Klick ruft onNavigate gar nicht erst auf).
+    // 'story' ist noch nicht implementiert (LensSwitcher selbst verriegelt das
+    // bereits — Klick ruft onNavigate gar nicht erst auf).
   }
 
   // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (activeTarget sitzt in
@@ -140,6 +145,8 @@
       />
     {:else if activeTarget === 'map'}
       <MapLensView {appState} {viewState} onNavigateLens={navigateLens} />
+    {:else if activeTarget === 'timeline'}
+      <TimelineLensView {appState} {viewState} onNavigateLens={navigateLens} />
     {:else if activeTarget === 'search'}
       <GlobalSearchView
         {appState}

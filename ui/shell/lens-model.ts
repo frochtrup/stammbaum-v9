@@ -8,10 +8,11 @@
 // "dieselbe Person anders betrachtet"-Lens, bleibt ausschließlich über den Mehr-Hub
 // erreichbar (s. MoreView.svelte).
 //
-// Baum UND Karte sind mit echtem Inhalt gebaut (Karte: Leaflet+OSM-Primärpfad +
-// SVG-Offline-Fallback, ADR-v9-25); Zeitleiste/Story bleiben deaktivierte Platzhalter
-// (analog zum `implemented:false`-Muster aus BottomNav.svelte/EntityTab.svelte/
-// MoreView.svelte) — Klick tut nichts, kein Crash.
+// Baum, Karte UND Zeitleiste sind mit echtem Inhalt gebaut (Karte: Leaflet+OSM-Primärpfad
+// + SVG-Offline-Fallback, ADR-v9-25; Zeitleiste: Swim-Lane + Dekaden-Modus, Spec 20
+// §1.10 [S]); Story bleibt deaktivierter Platzhalter (analog zum `implemented:false`-
+// Muster aus BottomNav.svelte/EntityTab.svelte/MoreView.svelte) — Klick tut nichts, kein
+// Crash.
 export type LensId = 'tree' | 'map' | 'timeline' | 'story';
 
 export interface LensDef {
@@ -25,7 +26,7 @@ export interface LensDef {
 export const LENSES: readonly LensDef[] = [
   { id: 'tree', icon: '⧖', label: 'Baum', implemented: true },
   { id: 'map', icon: '🗺', label: 'Karte', implemented: true },
-  { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: false },
+  { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: true },
   { id: 'story', icon: '📖', label: 'Story', implemented: false },
 ];
 

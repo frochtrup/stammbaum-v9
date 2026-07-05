@@ -2,11 +2,12 @@
 // tests/ui/MoreView.component.test.ts — "Mehr"-Hub (Spec 21 §2: "Mehr = Hub für die
 // Lenses (Karte / Zeitleiste / Statistik / Story) + Ausgaben + Einstellungen").
 // "Statistik" ist echt verdrahtet (Spec 20 §4) und zeigt StatisticsView statt eines
-// Platzhalters. "Karte" hat jetzt ebenfalls echten Inhalt (ADR-v9-25) — GENAU EIN
-// kanonischer Weg dorthin (INV-UI-2): dieser Hub-Eintrag ist KEIN Menü-Sub-Eintrag
-// mehr, sondern navigiert sofort über onNavigateLens('map') auf denselben
-// App.svelte-Pfad, den auch der Lens-Umschalter nutzt. Zeitleiste/Story/Ausgaben/
-// Einstellungen bleiben Platzhalter — eigene, spätere Bauabschnitte.
+// Platzhalters. "Karte" UND "Zeitleiste" haben jetzt ebenfalls echten Inhalt
+// (ADR-v9-25 / Spec 20 §1.10) — GENAU EIN kanonischer Weg dorthin je Lens (INV-UI-2):
+// beide Hub-Einträge sind KEIN Menü-Sub-Eintrag mehr, sondern navigieren sofort über
+// onNavigateLens('map'/'timeline') auf denselben App.svelte-Pfad, den auch der
+// Lens-Umschalter nutzt. Story/Ausgaben/Einstellungen bleiben Platzhalter — eigene,
+// spätere Bauabschnitte.
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
@@ -21,14 +22,15 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     }
   });
 
-  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik und Karte NICHT mehr', () => {
+  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste NICHT mehr', () => {
     render(MoreView, { props: { appState: createAppState() } });
 
-    for (const label of ['Zeitleiste', 'Story', 'Ausgaben', 'Einstellungen']) {
+    for (const label of ['Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
     }
     expect(screen.queryByText(/Statistik \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Karte \(folgt\)/)).toBeNull();
+    expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
   });
 
   it('Klick auf "Karte" ruft onNavigateLens mit "map" auf, OHNE den Hub zu verlassen (App.svelte wechselt activeTarget)', async () => {
@@ -40,6 +42,18 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     expect(onNavigateLens).toHaveBeenCalledWith('map');
     // Kein ComingSoonPanel/Sub-Ansicht für "Karte" — der Hub selbst öffnet keine
     // eigene zweite Karten-Implementierung (INV-UI-2).
+    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
+  });
+
+  it('Klick auf "Zeitleiste" ruft onNavigateLens mit "timeline" auf, OHNE den Hub zu verlassen', async () => {
+    const onNavigateLens = vi.fn();
+    render(MoreView, { props: { appState: createAppState(), onNavigateLens } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Zeitleiste/ }));
+
+    expect(onNavigateLens).toHaveBeenCalledWith('timeline');
+    // Kein ComingSoonPanel/Sub-Ansicht für "Zeitleiste" — der Hub selbst öffnet keine
+    // eigene zweite Zeitleiste-Implementierung (INV-UI-2).
     expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
   });
 

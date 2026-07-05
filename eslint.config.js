@@ -33,6 +33,8 @@ export default tseslint.config(
     // `navigator`/`setTimeout`/`clearTimeout` ergänzt für die Karten-Lens (ADR-v9-25:
     // Offline-Erkennung + Animations-Takt) — dieselbe Plattform-Erlaubnis wie window/
     // document, weiterhin nur außerhalb von core/ (INV-ARCH-1-Gate prüft das separat).
+    // `ResizeObserver` ergänzt für die Zeitleiste-Lens (Spec 20 §1.10: Swim-Lane-Breite
+    // folgt der Containerbreite, analog zum Orakel-`window.resize`-Listener).
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
@@ -41,6 +43,7 @@ export default tseslint.config(
         navigator: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        ResizeObserver: 'readonly',
         HTMLDivElement: 'readonly',
         HTMLElement: 'readonly',
         HTMLSelectElement: 'readonly'

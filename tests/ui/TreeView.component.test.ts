@@ -173,7 +173,7 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
   });
 
-  it('Klick auf eine NICHT implementierte Lens (Zeitleiste) ruft onNavigateLens NICHT auf', async () => {
+  it('Klick auf eine implementierte Lens (Zeitleiste) ruft onNavigateLens auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
@@ -182,6 +182,20 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
 
     const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
     await fireEvent.click(getByRole('tab', { name: /Zeitleiste/ }));
+
+    expect(onNavigateLens).toHaveBeenCalledWith('timeline');
+    expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
+  });
+
+  it('Klick auf eine NICHT implementierte Lens (Story) ruft onNavigateLens NICHT auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+    const onNavigateLens = vi.fn();
+
+    const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(getByRole('tab', { name: /Story/ }));
 
     expect(onNavigateLens).not.toHaveBeenCalled();
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');

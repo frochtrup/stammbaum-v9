@@ -6,16 +6,18 @@
   // ist echt (Spec 20 §4 "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst
   // KEINE Diagramm-/imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt
   // keinen gemeinsamen Lens-Umschalter und ist ausschließlich über diesen Hub-Eintrag
-  // erreichbar. Zeitleiste/Story/Ausgaben/Einstellungen bleiben Platzhalter (eigene,
-  // spätere Bauabschnitte).
+  // erreichbar. Story/Ausgaben/Einstellungen bleiben Platzhalter (eigene, spätere
+  // Bauabschnitte).
   //
-  // "Karte" hat inzwischen echten Inhalt (Leaflet+OSM-Primärpfad + SVG-Offline-Fallback,
-  // ADR-v9-25) — GENAU EIN kanonischer Weg dorthin (INV-UI-2), daher leitet dieser
-  // Hub-Eintrag über `onNavigateLens` auf denselben App.svelte-Pfad um (activeTarget=
-  // 'map'), den auch der Lens-Umschalter nutzt, STATT eine zweite Karten-Implementierung
-  // (eigener ComingSoonPanel/eigene Insel-Instanz) hier zu pflegen. Kein Menü-Sub-Eintrag
-  // mehr für "Karte" — der Klick verlässt den Hub sofort (analog "Statistik" bleibt im
-  // Hub, weil Statistik KEINEN zweiten Pfad hat).
+  // "Karte" und "Zeitleiste" haben inzwischen echten Inhalt (Karte: Leaflet+OSM-
+  // Primärpfad + SVG-Offline-Fallback, ADR-v9-25; Zeitleiste: Swim-Lane + Dekaden-Modus,
+  // Spec 20 §1.10) — GENAU EIN kanonischer Weg dorthin je Lens (INV-UI-2), daher leiten
+  // diese Hub-Einträge über `onNavigateLens` auf denselben App.svelte-Pfad um
+  // (activeTarget='map'/'timeline'), den auch der Lens-Umschalter nutzt, STATT eine
+  // zweite Implementierung (eigener ComingSoonPanel/eigene Insel-Instanz) hier zu
+  // pflegen. Kein Menü-Sub-Eintrag mehr für "Karte"/"Zeitleiste" — der Klick verlässt
+  // den Hub sofort (analog "Statistik" bleibt im Hub, weil Statistik KEINEN zweiten
+  // Pfad hat).
   import type { AppState } from '../../shell/app-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
   import StatisticsView from '../stats/StatisticsView.svelte';
@@ -23,12 +25,13 @@
 
   interface Props {
     appState: AppState;
-    /** Verlässt den Hub Richtung Karten-Lens (App.svelte activeTarget='map', INV-UI-2). */
+    /** Verlässt den Hub Richtung Karten-/Zeitleiste-Lens (App.svelte activeTarget=
+     * 'map'/'timeline', INV-UI-2). */
     onNavigateLens?: (lens: LensId) => void;
   }
   const { appState, onNavigateLens }: Props = $props();
 
-  type MoreEntry = 'timeline' | 'stats' | 'story' | 'reports' | 'settings';
+  type MoreEntry = 'stats' | 'story' | 'reports' | 'settings';
 
   interface MenuItem {
     id: MoreEntry;
@@ -37,12 +40,11 @@
     implemented: boolean;
   }
 
-  // Reihenfolge folgt Spec 21 §1/§3: erst die verbleibenden Lenses (Ansichten), dann
-  // die zwei Arbeitsflächen-Einträge, die laut §2 in den "Mehr"-Hub gehören. "Karte"
-  // ist KEIN Menü-Sub-Eintrag mehr (s. Kommentar oben) — eigener Button, der sofort
-  // über onNavigateLens navigiert statt eine Sub-Ansicht im Hub zu öffnen.
+  // Reihenfolge folgt Spec 21 §1/§3: erst die verbleibende Lens (Story), dann die
+  // beiden Arbeitsflächen-Einträge, die laut §2 in den "Mehr"-Hub gehören. "Karte" und
+  // "Zeitleiste" sind KEIN Menü-Sub-Eintrag mehr (s. Kommentar oben) — eigene Buttons,
+  // die sofort über onNavigateLens navigieren statt eine Sub-Ansicht im Hub zu öffnen.
   const items: MenuItem[] = [
-    { id: 'timeline', icon: '⏱', label: 'Zeitleiste', implemented: false },
     { id: 'stats', icon: '📊', label: 'Statistik', implemented: true },
     { id: 'story', icon: '📖', label: 'Story', implemented: false },
     { id: 'reports', icon: '🖨', label: 'Ausgaben', implemented: false },
@@ -81,6 +83,12 @@
         <button type="button" class="more-view__item" onclick={() => onNavigateLens?.('map')}>
           <span class="more-view__icon" aria-hidden="true">🗺</span>
           <span class="more-view__label">Karte</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="more-view__item" onclick={() => onNavigateLens?.('timeline')}>
+          <span class="more-view__icon" aria-hidden="true">⏱</span>
+          <span class="more-view__label">Zeitleiste</span>
         </button>
       </li>
       {#each items as item (item.id)}

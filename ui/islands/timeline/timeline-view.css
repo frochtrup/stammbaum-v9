@@ -1,0 +1,253 @@
+/* ui/islands/timeline/timeline-view.css — Styling der Zeitleiste-Insel.
+   Bewusst plain CSS (kein Svelte-Scoping) — die Insel baut ihr DOM framework-frei
+   selbst auf (Spec 02 §5), Klassen sind global unter `.tl-body` (Orakel-Klassennamen
+   `tl-*` bewusst wörtlich übernommen, legacy-v8/ui-timeline.js + zugehöriges CSS). */
+
+.tl-body {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: auto;
+  position: relative;
+  font-size: 0.8rem;
+}
+
+.tl-empty {
+  padding: 1rem;
+  color: var(--stb-text-dim);
+}
+
+/* ── Personen-Farben (Mehrpersonen-Modus, bis 5) ─────────────────────────── */
+.tl-pc0 {
+  --tl-pc: #c8a84a;
+}
+.tl-pc1 {
+  --tl-pc: #5b9bd5;
+}
+.tl-pc2 {
+  --tl-pc: #4aaa8a;
+}
+.tl-pc3 {
+  --tl-pc: #e07050;
+}
+.tl-pc4 {
+  --tl-pc: #9b7aaa;
+}
+
+.tl-chip-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--tl-pc, var(--stb-gold));
+  margin-right: 0.25rem;
+}
+
+/* ── Swim-Lane (horizontal) ──────────────────────────────────────────────── */
+.tl-body.tl-swim {
+  display: flex;
+  flex-direction: column;
+}
+
+.tl-swim-axis {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--stb-surface-1);
+  border-bottom: 1px solid var(--stb-surface-3);
+  height: 26px;
+}
+
+.tl-swim-axis-pad {
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  background: var(--stb-surface-1);
+  z-index: 4;
+}
+
+.tl-swim-axis-track {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tl-tick {
+  position: absolute;
+  top: 4px;
+  color: var(--stb-text-dim);
+  font-size: 0.7rem;
+  border-left: 1px solid var(--stb-surface-3);
+  padding-left: 3px;
+}
+
+.tl-lane {
+  display: flex;
+  border-bottom: 1px solid var(--stb-surface-3);
+  position: relative;
+}
+
+.tl-lane-lbl {
+  flex-shrink: 0;
+  width: 76px;
+  position: sticky;
+  left: 0;
+  background: var(--stb-surface-1);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  color: var(--stb-text-dim);
+  font-size: 0.72rem;
+  border-right: 1px solid var(--stb-surface-3);
+}
+
+.tl-lane-body {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tl-swim-span {
+  position: absolute;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--stb-gold-dim);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tl-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--stb-surface-2);
+  border: 1px solid var(--stb-surface-3);
+  border-left: 3px solid var(--tl-person-color, var(--stb-gold));
+  border-radius: var(--stb-radius-control);
+  padding: 0.15rem 0.4rem;
+  white-space: nowrap;
+  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-chip--undated-stack {
+  position: static;
+  display: inline-flex;
+  margin: 0.2rem;
+}
+
+.tl-chip--birth,
+.tl-chip--death {
+  border-left-color: var(--stb-gold-light);
+}
+
+.tl-chip .tl-y {
+  color: var(--stb-text-dim);
+  font-size: 0.7rem;
+}
+
+.tl-chip .tl-type {
+  font-weight: 600;
+}
+
+.tl-chip .tl-desc,
+.tl-chip .tl-place {
+  color: var(--stb-text-dim);
+  font-size: 0.72rem;
+}
+
+.tl-hist-evt {
+  position: absolute;
+  top: 8px;
+  display: inline-flex;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--stb-text-dim);
+  border-left: 2px dashed var(--stb-text-muted);
+  padding-left: 0.3rem;
+  white-space: nowrap;
+}
+
+.tl-hist-evt--war {
+  border-left-color: var(--stb-danger);
+}
+.tl-hist-evt--disease {
+  border-left-color: #7a9a4a;
+}
+.tl-hist-evt--political {
+  border-left-color: #4a80c8;
+}
+.tl-hist-evt--religion {
+  border-left-color: var(--stb-gold);
+}
+.tl-hist-evt--natural {
+  border-left-color: #c8874a;
+}
+
+/* ── Dekaden (vertikal) ───────────────────────────────────────────────────── */
+.tl-wrap {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 0.5rem 0.75rem;
+}
+
+.tl-decade {
+  position: relative;
+  border-bottom: 1px solid var(--stb-surface-3);
+  padding-left: 3.5rem;
+}
+
+.tl-dec-label {
+  position: absolute;
+  left: 0;
+  top: 0.4rem;
+  width: 3rem;
+  color: var(--stb-gold-light);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.tl-axis-seg {
+  position: absolute;
+  left: 3.2rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--stb-surface-3);
+}
+
+.tl-ev,
+.tl-hist {
+  position: absolute;
+  left: 3.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  font-size: 0.78rem;
+}
+
+.tl-hist {
+  color: var(--stb-text-dim);
+  font-style: italic;
+}
+
+.tl-ev .tl-y,
+.tl-hist .tl-y {
+  color: var(--stb-text-dim);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.tl-ev .tl-lbl {
+  font-weight: 600;
+}
+
+.tl-ev .tl-place {
+  color: var(--stb-text-dim);
+  font-size: 0.72rem;
+}
