@@ -37,6 +37,8 @@ export default tseslint.config(
     // folgt der Containerbreite, analog zum Orakel-`window.resize`-Listener).
     // `fetch` ergänzt für den Demo-Ladeweg (Spec 20 §1.2 [S]: `fetch('./demo.ged')`,
     // analog Verhaltens-Orakel legacy-v8/storage.js loadDemo()).
+    // `HTMLInputElement` ergänzt für PersonForm (Spec 20 §2: value/onchange-Muster auf
+    // <input>-Feldern, analog dem bereits erlaubten HTMLSelectElement).
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
@@ -49,6 +51,7 @@ export default tseslint.config(
         HTMLDivElement: 'readonly',
         HTMLElement: 'readonly',
         HTMLSelectElement: 'readonly',
+        HTMLInputElement: 'readonly',
         fetch: 'readonly'
       }
     }

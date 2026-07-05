@@ -92,3 +92,51 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     expect(onNavigateToTree).toHaveBeenCalledWith('@I1@');
   });
 });
+
+describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
+  it('"✎ Bearbeiten" öffnet den Editor; Speichern zeigt die Änderung wieder im Steckbrief', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Anna Maria' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(screen.getByText('Anna Maria Bauer')).toBeTruthy();
+  });
+
+  it('"Abbrechen" verwirft Änderungen und kehrt zum read-only Steckbrief zurück', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Geändert' } });
+    await fireEvent.click(screen.getByText('Abbrechen'));
+
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+    expect(appState.db.individuals.get('@I1@')?.given).toBe('Anna');
+  });
+
+  it('startInEdit öffnet den Editor sofort beim Mount (Fluss "＋ Neue Person")', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState, startInEdit: true } });
+
+    expect(screen.getByText('Neue Person')).toBeTruthy();
+  });
+});

@@ -5,7 +5,7 @@
 // Gruppierungs-/Filterlogik (person-list-model.test.ts) nicht zeigt: Buchstaben-Trenner
 // erscheinen tatsächlich im DOM, Sortier-Umschalter/Suche/Filter-Panel reagieren auf
 // Nutzer-Interaktion, Klick ruft den EINEN ViewState-Weg auf.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -174,5 +174,32 @@ describe('PersonList — Filter-Panel (Component)', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
 
     expect(screen.getByText('Otto Meyer')).toBeTruthy();
+  });
+});
+
+describe('PersonList — "＋ Neue Person" (Spec 20 §2)', () => {
+  it('legt eine leere Person mit kollisionsfreier id an und meldet sie über onCreate', async () => {
+    const appState = seedAppState(); // bereits @I1@/@I2@ belegt
+    const viewState = createViewState();
+    const onCreate = vi.fn();
+
+    render(PersonList, { props: { appState, viewState, onCreate } });
+    await fireEvent.click(screen.getByText('＋ Neue Person'));
+
+    expect(onCreate).toHaveBeenCalledWith('@I3@');
+    expect(appState.db.individuals.has('@I3@')).toBe(true);
+    expect(appState.db.individuals.get('@I3@')?.given).toBe('');
+  });
+
+  it('funktioniert auch bei leerem Datenbestand (erste Person)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const onCreate = vi.fn();
+
+    render(PersonList, { props: { appState, viewState, onCreate } });
+    await fireEvent.click(screen.getByText('＋ Neue Person'));
+
+    expect(onCreate).toHaveBeenCalledWith('@I1@');
+    expect(appState.db.individuals.has('@I1@')).toBe(true);
   });
 });

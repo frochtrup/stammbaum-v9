@@ -1,13 +1,16 @@
 <script lang="ts">
-  // ui/views/person/PersonDetail.svelte — Personen-Detail (Spec 20 §1.4 [K], read-only
-  // für diese Scheibe): Ereignisse, Quellen-Badges §N (QUAY-Farbindikator), Geo-Links,
-  // Familien-Navigationszeilen (anklickbar -> verlinkte Person). Bearbeiten/Formulare
-  // sind NICHT Teil dieser Scheibe (Spec 20 §2, künftiger Durchgang).
+  // ui/views/person/PersonDetail.svelte — Personen-Detail (Spec 20 §1.4 [K]): Ereignisse,
+  // Quellen-Badges §N (QUAY-Farbindikator), Geo-Links, Familien-Navigationszeilen
+  // (anklickbar -> verlinkte Person). "Bearbeiten" öffnet PersonForm inline (analog
+  // PlaceDetail.svelte's editing-Abschnitt, Spec 20 §2) — Beziehungen bearbeiten bleibt
+  // außerhalb dieser Scheibe.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { untrack } from 'svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail } from './person-detail-model';
+  import PersonForm from './PersonForm.svelte';
 
   interface Props {
     appState: AppState;
@@ -22,6 +25,9 @@
     onNavigateToHof?: (hofId: string) => void;
     /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
     onNavigateToTree?: (personId: string) => void;
+    /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
+     *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
+    startInEdit?: boolean;
   }
   const {
     appState,
@@ -31,10 +37,13 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateToTree,
+    startInEdit = false,
   }: Props = $props();
 
   const personId = $derived(viewState.getCurrent('person'));
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
+
+  let editing = $state(untrack(() => startInEdit));
 
   function geoHref(coords: { lat: number; long: number }): string {
     return `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.long}#map=12/${coords.lat}/${coords.long}`;
@@ -43,6 +52,18 @@
   function goToPerson(id: string) {
     viewState.setCurrent('person', id);
   }
+
+  function startEdit() {
+    editing = true;
+  }
+
+  function cancelEdit() {
+    editing = false;
+  }
+
+  function afterSave() {
+    editing = false;
+  }
 </script>
 
 <div class="person-detail">
@@ -50,9 +71,12 @@
     <p class="person-detail__empty">Keine Person ausgewählt.</p>
   {:else if !detail}
     <p class="person-detail__empty">Person nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
+  {:else if editing}
+    <PersonForm {appState} person={detail.person} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
     <div class="person-detail__hero">
       <h2 class="person-detail__name">{displayName(detail.person)}</h2>
+      <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
       {#if onNavigateToTree}
         <button
           type="button"
@@ -186,6 +210,17 @@
     font-size: 0.78rem;
     cursor: pointer;
     white-space: nowrap;
+  }
+
+  .person-detail__edit-btn {
+    margin-left: auto;
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.82rem;
   }
 
   .person-detail__section {

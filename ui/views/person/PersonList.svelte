@@ -3,8 +3,14 @@
   // Alphabetisch mit Buchstaben-Trenner (Name-Modus) bzw. chronologisch ohne Trenner
   // (Geburtsdatum-Modus), Suche + erweiterte Filter. Ortsdarstellung über
   // core/places-Chokepoints (person-display.ts), nie ev.place roh.
+  //
+  // "＋ Neue Person" (Spec 20 §2): legt eine leere Person mit einer kollisionsfreien id
+  // an (allocatorFromDatabase, Spec ADR-v9-11 — kein Zufall/Wall-Clock) und meldet die
+  // neue id über onCreate an den Aufrufer (EntityTab), der Auswahl + Editor-Öffnung
+  // übernimmt — dieselbe Kommando-Disziplin wie appState.savePerson(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -15,8 +21,17 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Nach dem Anlegen einer neuen Person aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
+    onCreate?: (personId: string) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onCreate }: Props = $props();
+
+  function createPerson() {
+    const alloc = allocatorFromDatabase(appState.db);
+    const id = nextId(alloc, 'I');
+    appState.savePerson(makePerson(id));
+    onCreate?.(id);
+  }
 
   let sortMode = $state<PersonSortMode>('name');
   let query = $state('');
@@ -47,11 +62,15 @@
 <div class="person-list">
   {#if isEmpty}
     <p class="person-list__empty">Keine Personen geladen — Datei öffnen, um zu starten.</p>
+    <div class="person-list__toolbar person-list__toolbar--empty">
+      <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
+    </div>
   {:else}
     <div class="person-list__toolbar">
       <button type="button" class="person-list__sort-toggle" onclick={toggleSortMode}>
         ⇅ {sortMode === 'name' ? 'Name' : 'Geburtsdatum'}
       </button>
+      <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
       <div class="person-list__search">
         <input
           type="search"
@@ -173,9 +192,15 @@
     z-index: 1;
   }
 
+  .person-list__toolbar--empty {
+    position: static;
+    justify-content: flex-start;
+  }
+
   .person-list__sort-toggle,
   .person-list__filter-toggle,
-  .person-list__filter-reset {
+  .person-list__filter-reset,
+  .person-list__new-btn {
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -183,6 +208,14 @@
     padding: 0.35rem 0.7rem;
     cursor: pointer;
     font-size: 0.85rem;
+  }
+
+  .person-list__new-btn {
+    margin-left: auto;
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    font-weight: 600;
+    border-color: var(--stb-gold);
   }
 
   .person-list__sort-toggle:hover,

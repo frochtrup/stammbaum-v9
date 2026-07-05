@@ -138,6 +138,43 @@ describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', 
   });
 });
 
+describe('AppState.savePerson/deletePerson — Personen-Editor-Kommandos (Spec 20 §2)', () => {
+  it('savePerson fügt eine Person hinzu, die über db sichtbar wird', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+
+    expect(appState.db.individuals.get('@I1@')?.given).toBe('Anna');
+  });
+
+  it('savePerson ersetzt eine bestehende Person vollständig (Upsert per id)', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@', { given: 'Alt' }));
+    appState.savePerson(makePerson('@I1@', { given: 'Neu' }));
+
+    expect(appState.db.individuals.get('@I1@')?.given).toBe('Neu');
+  });
+
+  it('savePerson loest KEIN persistPlaces aus (Genealogie-Persistenz ist ein separates Folge-Feature)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.savePerson(makePerson('@I1@'));
+    expect(calls).toBe(0);
+  });
+
+  it('deletePerson entfernt eine Person wieder', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@'));
+    appState.deletePerson('@I1@');
+
+    expect(appState.db.individuals.has('@I1@')).toBe(false);
+  });
+
+  it('deletePerson ist ein No-Op bei unbekannter id (kein Fehler)', () => {
+    const appState = createAppState();
+    expect(() => appState.deletePerson('@I-gone@')).not.toThrow();
+  });
+});
+
 describe('AppState.touch — erzwungene Aktualisierung nach In-Place-Event-Mutation', () => {
   it('gibt eine neue db-Referenz zurück, mit unverändertem Inhalt', () => {
     const appState = createAppState();

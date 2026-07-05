@@ -107,6 +107,16 @@
     viewState.setCurrent('person', id);
   }
 
+  /** "＋ Neue Person" (Spec 20 §2): PersonList hat die Person bereits per appState.savePerson
+   *  angelegt — hier nur Auswahl + Editor-Sofort-Öffnung (createdPersonId markiert, welche
+   *  id das ist, damit PersonDetail beim Mount direkt in den Editor startet). */
+  let createdPersonId = $state<string | null>(null);
+
+  function createPerson(id: string) {
+    createdPersonId = id;
+    navigateToPerson(id);
+  }
+
   function navigateToFamily(id: string) {
     activeSegment = 'family';
     hofReviewOpen = false;
@@ -227,9 +237,10 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        startInEdit={selectedPersonId === createdPersonId}
       />
     {:else}
-      <PersonList {appState} {viewState} />
+      <PersonList {appState} {viewState} onCreate={createPerson} />
     {/if}
   {:else if activeSegment === 'family'}
     {#if selectedFamilyId}

@@ -207,4 +207,16 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('person')).toBe('@I1@');
   });
+
+  it('"＋ Neue Person" wählt die neue Person aus UND öffnet den Editor sofort (Spec 20 §2)', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(seedRichDb(), 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('＋ Neue Person'));
+
+    expect(viewState.getCurrent('person')).toBe('@I3@');
+    expect(screen.getByText('Neue Person')).toBeTruthy(); // Editor-Überschrift, nicht die Liste
+  });
 });

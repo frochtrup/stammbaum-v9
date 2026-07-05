@@ -5,9 +5,9 @@
 // Spec 02 §3) — die Schale liest ihn über die definierten Chokepoints und hält eine
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
-import type { Database, PlaceId, HofId, PersonId, FamilyId } from '../../core/model/types';
+import type { Database, PlaceId, HofId, PersonId, FamilyId, Person } from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
-import { makeDatabase } from '../../core/model';
+import { makeDatabase, savePerson as savePersonCmd, deletePerson as deletePersonCmd } from '../../core/model';
 import {
   makePlaceRegistry,
   makeHofRegistry,
@@ -40,6 +40,16 @@ export interface AppState {
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
   deletePlace(id: PlaceId): void;
+  /**
+   * Kommando: Upsert einer Person (`savePerson(model)`-Muster, Spec 20 §2). Bewusst OHNE
+   * Relationship-Graph-Seiteneffekte (childOf/parentIn/Family.children/husband/wife) —
+   * Beziehungen bearbeiten ist ein separates Folge-Feature (core/model/commands.ts). Auch
+   * OHNE persistPlaces-artigen Persistenz-Callback: Genealogie-Arbeitskopie/-Export ist
+   * bewusst NICHT Teil dieser Scheibe — Edits bleiben bis zum nächsten Reload in-memory.
+   */
+  savePerson(model: Person): void;
+  /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
+  deletePerson(id: PersonId): void;
   /** Kommando: Dubletten-Merge — führt `mergedId` in `survivorId` zusammen (Spec 20 §1.7 [K]). */
   mergePlace(survivorId: PlaceId, mergedId: PlaceId): void;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
@@ -143,6 +153,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       deleteHofObject(nextHofs, id);
       db = { ...db, hofObjects: nextHofs };
       persistPlaces();
+    },
+    savePerson(model) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextIndividuals = new Map(db.individuals);
+      savePersonCmd(nextIndividuals, model);
+      db = { ...db, individuals: nextIndividuals };
+    },
+    deletePerson(id) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextIndividuals = new Map(db.individuals);
+      deletePersonCmd(nextIndividuals, id);
+      db = { ...db, individuals: nextIndividuals };
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität
