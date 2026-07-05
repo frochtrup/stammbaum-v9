@@ -1,20 +1,24 @@
 // tests/islands/timeline-model.test.ts — reine Datenaufbereitungs-Tests der
 // Zeitleiste-Insel (Spec 32 §2: Layout-Berechnung wird über Modell -> Positionen
 // unit-getestet, nicht über gerenderte Pixel). Deckt: Swim-Lane-Zuordnung je Event-Typ,
-// Overlap-Auflösung (deterministisch), Dekaden-Gruppierung inkl. Höhenberechnung,
-// Mehrpersonen-Farbzuordnung, historische Ereignisse im Jahresbereich gefiltert.
+// Overlap-Auflösung (deterministisch, Greedy Interval Scheduling, beliebig viele
+// Sub-Zeilen), Lane-Höhen-Skalierung mit Personenzahl/Sub-Zeilen-Bedarf,
+// Dekaden-Gruppierung inkl. Höhenberechnung, Mehrpersonen-Farbzuordnung, historische
+// Ereignisse im Jahresbereich gefiltert.
 import { describe, expect, it } from 'vitest';
 import {
   ALL_HIST_CATEGORIES,
   MAX_TIMELINE_PERSONS,
+  SL_ROW_H,
+  assignOverlapRows,
   collectMultiPersonEvents,
   collectPersonEvents,
   computeDecadeLayout,
   computeSwimLaneLayout,
   historicalEventsInRange,
+  overlapRowCount,
   personColor,
   personDisplayName,
-  resolveSwimOverlaps,
   swimLane,
   TIMELINE_PERSON_COLORS,
 } from '../../ui/islands/timeline/timeline-model';
@@ -63,64 +67,114 @@ describe('swimLane — Kategorie-Zuordnung (Orakel: _swimLane)', () => {
   });
 });
 
-describe('resolveSwimOverlaps — Kollisions-Auflösung (Orakel: _resolveSwimOverlaps)', () => {
-  it('lässt weit auseinanderliegende Chips unverändert (nudge=0)', () => {
+describe('assignOverlapRows — Greedy Interval Scheduling (ersetzt Orakel _resolveSwimOverlaps)', () => {
+  it('lässt weit auseinanderliegende Chips unverändert (row=0)', () => {
     const chips = [
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 300, nudge: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 300, row: 0 },
     ];
-    const out = resolveSwimOverlaps(chips, 140);
-    expect(out.map((c) => c.nudge)).toEqual([0, 0]);
+    const out = assignOverlapRows(chips, 140);
+    expect(out.map((c) => c.row)).toEqual([0, 0]);
   });
 
-  it('weicht kollidierende Chips in entgegengesetzte Richtungen aus', () => {
+  it('weicht 2 kollidierende Chips in unterschiedliche Sub-Zeilen aus', () => {
     const chips = [
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 50, nudge: 0 }, // < 140px Abstand -> Kollision
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 50, row: 0 }, // < 140px Abstand -> Kollision
     ];
-    const out = resolveSwimOverlaps(chips, 140);
-    expect(out[0].nudge).toBe(1);
-    expect(out[1].nudge).toBe(-1);
+    const out = assignOverlapRows(chips, 140);
+    expect(out[0].row).toBe(0);
+    expect(out[1].row).toBe(1);
   });
 
-  it('behandelt eine Kette von 3 kollidierenden Chips deterministisch', () => {
+  it('KERN-REGRESSION (Befund 2): 3 dicht beieinanderliegende Chips (pxLeft 0/50/100, chipWidth 147) — ' +
+    'der Orakel-Algorithmus liefert hier Chip1=Chip3 (beide "nudge=1") und überlappt sichtbar; ' +
+    'assignOverlapRows MUSS Chip3 eine dritte Sub-Zeile geben, weil Chip3 mit Chip1 (Abstand 100 < 147) kollidiert', () => {
     const chips = [
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 20, nudge: 0 },
-      { pxLeft: 40, nudge: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 50, row: 0 },
+      { pxLeft: 100, row: 0 },
     ];
-    const out = resolveSwimOverlaps(chips, 140);
-    expect(out.map((c) => c.nudge)).toEqual([1, -1, 1]);
+    const out = assignOverlapRows(chips, 147);
+    expect(out.map((c) => c.row)).toEqual([0, 1, 2]);
+    // Keine zwei Chips in derselben Zeile dürfen sich überlappen.
+    const rows = new Map<number, { left: number; right: number }[]>();
+    for (const c of out) {
+      const list = rows.get(c.row) ?? [];
+      list.push({ left: c.pxLeft, right: c.pxLeft + 147 });
+      rows.set(c.row, list);
+    }
+    for (const list of rows.values()) {
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const overlap = list[i].left < list[j].right && list[j].left < list[i].right;
+          expect(overlap).toBe(false);
+        }
+      }
+    }
   });
 
-  it('behandelt undatierte Chips (pxLeft=null) als nudge=0, ohne die Kollisionskette zu stören', () => {
+  it('behandelt 5+ eng beieinanderliegende Chips ohne dass sich zwei in derselben Zeile überlappen', () => {
+    // 6 Chips im Abstand von 20px, chipWidth 140 -> alle paarweise kollidierend.
+    const chips = Array.from({ length: 6 }, (_, i) => ({ pxLeft: i * 20, row: 0 }));
+    const out = assignOverlapRows(chips, 140);
+    // Jeder Chip kollidiert mit allen anderen (Abstand max 100 < 140) -> jede Zeile darf
+    // nur genau einen Chip enthalten -> 6 unterschiedliche Zeilen.
+    expect(new Set(out.map((c) => c.row)).size).toBe(6);
+  });
+
+  it('weist einer Gruppe NICHT kollidierender, aber ineinander verschachtelter Zeitfenster die niedrigste freie Zeile zu ' +
+    '(z. B. Mehrlingsgeburten: 2 Chips eng beieinander, ein 3. weit entfernter Chip darf wieder Zeile 0 nutzen)', () => {
     const chips = [
-      { pxLeft: null, nudge: 0 },
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 50, nudge: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 50, row: 0 }, // kollidiert mit 0 -> Zeile 1
+      { pxLeft: 1000, row: 0 }, // weit weg von beiden -> darf Zeile 0 wiederverwenden
     ];
-    const out = resolveSwimOverlaps(chips, 140);
-    expect(out[0].nudge).toBe(0);
-    expect(out[1].nudge).toBe(1);
-    expect(out[2].nudge).toBe(-1);
+    const out = assignOverlapRows(chips, 140);
+    expect(out[0].row).toBe(0);
+    expect(out[1].row).toBe(1);
+    expect(out[2].row).toBe(0);
+  });
+
+  it('behandelt undatierte Chips (pxLeft=null) als row=0, ohne die Kollisionskette zu stören', () => {
+    const chips = [
+      { pxLeft: null, row: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 50, row: 0 },
+    ];
+    const out = assignOverlapRows(chips, 140);
+    expect(out[0].row).toBe(0);
+    expect(out[1].row).toBe(0);
+    expect(out[2].row).toBe(1);
   });
 
   it('mutiert die Eingabe nicht (reine Funktion)', () => {
     const chips = [
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 20, nudge: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 20, row: 0 },
     ];
-    resolveSwimOverlaps(chips, 140);
-    expect(chips.map((c) => c.nudge)).toEqual([0, 0]);
+    assignOverlapRows(chips, 140);
+    expect(chips.map((c) => c.row)).toEqual([0, 0]);
   });
 
   it('ist deterministisch: gleiche Eingabe -> gleiche Ausgabe', () => {
     const chips = [
-      { pxLeft: 0, nudge: 0 },
-      { pxLeft: 20, nudge: 0 },
-      { pxLeft: 300, nudge: 0 },
+      { pxLeft: 0, row: 0 },
+      { pxLeft: 20, row: 0 },
+      { pxLeft: 300, row: 0 },
     ];
-    expect(resolveSwimOverlaps(chips, 140)).toEqual(resolveSwimOverlaps(chips, 140));
+    expect(assignOverlapRows(chips, 140)).toEqual(assignOverlapRows(chips, 140));
+  });
+});
+
+describe('overlapRowCount — Sub-Zeilen-Bedarf aus assignOverlapRows-Ergebnis', () => {
+  it('liefert 1 für keine oder nur row=0-Chips', () => {
+    expect(overlapRowCount([])).toBe(1);
+    expect(overlapRowCount([{ row: 0 }, { row: 0 }])).toBe(1);
+  });
+
+  it('liefert max(row)+1', () => {
+    expect(overlapRowCount([{ row: 0 }, { row: 2 }, { row: 1 }])).toBe(3);
   });
 });
 
@@ -296,7 +350,7 @@ describe('computeSwimLaneLayout — horizontales Layout (Orakel: _renderTlH)', (
     expect(result.maxYear).toBe(1900);
   });
 
-  it('löst Überlappungen innerhalb einer Lane auf (nudge gesetzt bei dichten Events)', () => {
+  it('löst Überlappungen innerhalb einer Lane auf (row gesetzt bei dichten Events)', () => {
     // Große Zeitspanne (200 Jahre) + schmaler Container -> niedriges px/Jahr, sodass
     // zwei Events im selben Jahr garantiert unter der Chip-Kollisionsbreite (140px) liegen.
     const events = [
@@ -305,9 +359,75 @@ describe('computeSwimLaneLayout — horizontales Layout (Orakel: _renderTlH)', (
       { personIdx: 0, personId: 'I1', year: 1851, date: '1 JAN 1851', type: 'event' as const, label: 'B', title: 'B', desc: '', place: '', gedType: 'RESI', eventType: '' },
     ];
     const result = computeSwimLaneLayout(events, [], 400);
-    const nudges = result.chipsByLane.resi.map((c) => c.nudge);
-    expect(nudges).toContain(1);
-    expect(nudges).toContain(-1);
+    const rows = result.chipsByLane.resi.map((c) => c.row);
+    expect(rows).toContain(0);
+    expect(rows).toContain(1);
+  });
+
+  it('BEFUND 2 (Regression): 5 eng beieinanderliegende Events in derselben Lane überlappen sich in KEINER Sub-Zeile ' +
+    'und die Lane-Höhe wächst mit dem tatsächlichen Sub-Zeilen-Bedarf statt konstant zu bleiben', () => {
+    const events = Array.from({ length: 5 }, (_, i) => ({
+      personIdx: 0,
+      personId: 'I1',
+      year: 1900 + i, // 5 Jahre eng beieinander
+      date: `1 JAN ${1900 + i}`,
+      type: 'event' as const,
+      label: `Wohnort ${i}`,
+      title: 'Wohnort',
+      desc: '',
+      place: '',
+      gedType: 'RESI',
+      eventType: '',
+    }));
+    // Schmaler Container -> niedriges px/Jahr -> benachbarte Events liegen garantiert
+    // unter der Chip-Kollisionsbreite (140px) beieinander -> viele Sub-Zeilen nötig (das
+    // frühere 2-Ebenen-Schema hätte hier den 3./5. Chip auf eine belegte Zeile zurückfallen
+    // lassen und sich überlappt).
+    const result = computeSwimLaneLayout(events, [], 300);
+    const chips = result.chipsByLane.resi;
+    // KERN-ASSERTION: keine zwei Chips in derselben Zeile dürfen sich überlappen (echte
+    // Positionsprüfung, nicht nur "row wurde irgendwie gesetzt").
+    for (let i = 0; i < chips.length; i++) {
+      for (let j = i + 1; j < chips.length; j++) {
+        if (chips[i].row !== chips[j].row) continue;
+        const li = chips[i].pxLeft as number;
+        const lj = chips[j].pxLeft as number;
+        const overlap = Math.abs(li - lj) < 140;
+        expect(overlap).toBe(false);
+      }
+    }
+    // Mit 5 im Abstand von je 40px liegenden Chips (pxPerYear=40) kollidiert jeder Chip
+    // mit seinen unmittelbaren Nachbarn (Abstand 40 < 140) -> mind. 4 unterschiedliche
+    // Sub-Zeilen nötig, bevor eine Zeile wieder frei genug für Wiederverwendung ist
+    // (nur weit genug entfernte Chips dürfen eine Zeile recyceln, das ist KEIN Rückfall
+    // auf eine belegte Zeile wie beim Orakel-Bug, sondern effiziente Wiederverwendung).
+    const rowCount = new Set(chips.map((c) => c.row)).size;
+    expect(rowCount).toBeGreaterThanOrEqual(4);
+    const resiLane = result.lanes.find((l) => l.id === 'resi')!;
+    const baseHeight = 58; // SWIM_LANES resi-Basishöhe
+    expect(resiLane.height).toBeGreaterThan(baseHeight);
+    expect(resiLane.height).toBeGreaterThanOrEqual(rowCount * SL_ROW_H);
+  });
+
+  it('BEFUND 1 (Regression): die "life"-Lane wächst mit der Personenzahl (Orakel: `numPersons*16`), ' +
+    'bleibt bei einer einzelnen Person bei der Basishöhe (50px)', () => {
+    const singlePerson = [
+      { personIdx: 0, personId: 'I1', year: 1900, date: '1 JAN 1900', type: 'birth' as const, label: 'Geburt', title: 'Geburt', desc: '', place: '' },
+    ];
+    const single = computeSwimLaneLayout(singlePerson, []);
+    expect(single.lanes.find((l) => l.id === 'life')!.height).toBe(50);
+
+    // 5 Personen (Spec-Obergrenze) mit je Geburt+Tod -> life-Lane muss mit numPersons
+    // wachsen, sonst werden gestaffelte Lebensspannen-Balken bei vielen Personen zu eng
+    // (Aufgaben-Befund 1, Orakel `_renderTlH`: `lifeH = max(50, numPersons*16)`).
+    const fivePersons = Array.from({ length: 5 }, (_, idx) => [
+      { personIdx: idx, personId: `I${idx}`, year: 1848 + idx, date: `1 JAN ${1848 + idx}`, type: 'birth' as const, label: 'Geburt', title: 'Geburt', desc: '', place: '' },
+      { personIdx: idx, personId: `I${idx}`, year: 1900 + idx, date: `1 JAN ${1900 + idx}`, type: 'death' as const, label: 'Tod', title: 'Tod', desc: '', place: '' },
+    ]).flat();
+    const multi = computeSwimLaneLayout(fivePersons, []);
+    const lifeLane = multi.lanes.find((l) => l.id === 'life')!;
+    expect(lifeLane.height).toBeGreaterThanOrEqual(Math.max(50, 5 * 16));
+    expect(lifeLane.height).toBeGreaterThan(single.lanes.find((l) => l.id === 'life')!.height);
   });
 
   it('ist deterministisch: gleiche Eingabe -> gleiche Ausgabe', () => {
@@ -322,6 +442,27 @@ describe('computeSwimLaneLayout — horizontales Layout (Orakel: _renderTlH)', (
     expect(result.totalWidth).toBeGreaterThan(0);
     expect(result.minYear).toBe(0);
     expect(result.maxYear).toBe(0);
+  });
+
+  it('Lane-Höhe ist eine reine Funktion des Sub-Zeilen-Bedarfs: mehr Sub-Zeilen -> größere Höhe (SL_ROW_H-Vielfaches)', () => {
+    const dense = Array.from({ length: 8 }, (_, i) => ({
+      personIdx: 0,
+      personId: 'I1',
+      year: 1900 + i,
+      date: `1 JAN ${1900 + i}`,
+      type: 'event' as const,
+      label: `E${i}`,
+      title: `E${i}`,
+      desc: '',
+      place: '',
+      gedType: 'OCCU',
+      eventType: '',
+    }));
+    const result = computeSwimLaneLayout(dense, [], 300);
+    const workLane = result.lanes.find((l) => l.id === 'work')!;
+    const rowCount = new Set(result.chipsByLane.work.map((c) => c.row)).size;
+    expect(rowCount).toBeGreaterThan(1);
+    expect(workLane.height).toBeGreaterThanOrEqual(rowCount * SL_ROW_H);
   });
 });
 

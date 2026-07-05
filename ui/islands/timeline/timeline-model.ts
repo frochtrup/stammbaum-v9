@@ -15,6 +15,18 @@
 // das SVG/DOM-Rendering selbst lebt in timeline-view.ts (Trennung Layout<->Rendering,
 // Spec 02 §5).
 //
+// Nachtrag (Stresstest 5 Personen, dicht beieinanderliegende Ereignisse 1848-1940):
+// zwei am Code verifizierte Schwachstellen behoben. (1) `SWIM_LANES[].height` war
+// unabhängig von Personenzahl/Ereignisdichte konstant — Orakel skaliert wenigstens die
+// "life"-Lane mit `numPersons*16`; hier verallgemeinert auf ALLE Lanes über den
+// tatsächlichen Sub-Zeilen-Bedarf (`swimLaneHeight`). (2) `_resolveSwimOverlaps`
+// (2-Ebenen-`nudge`-Schema, wörtlich portiert) vergleicht neue Chips nur mit dem
+// kumulativen `lastRight` des VORHERIGEN Chips, nicht mit allen bereits platzierten —
+// bei ≥3 dicht beieinanderliegenden Chips fällt der dritte auf dieselbe Ebene wie der
+// erste zurück (durchgerechnet: pxLeft 0/50/100, chipWidth 147 -> Chip1 und Chip3 beide
+// nudge=1, überlappen sich). Ersetzt durch `assignOverlapRows` (Greedy Interval
+// Scheduling, beliebig viele Sub-Zeilen statt fixer 2).
+//
 // Bewusste v9-Vereinfachung ggü. Orakel (Vereinfachen vor Erfinden): EIN Modul für
 // Swim-Lane- UND Dekaden-Modus statt zweier Insel-Dateien — beide Modi konsumieren
 // dieselbe `collectPersonEvents()`-Ausgabe, nur die Gruppierung unterscheidet sich
@@ -274,16 +286,18 @@ export const SWIM_LANES: readonly LaneDef[] = [
 export interface SwimChip extends TimelinePersonEvent {
   /** Pixel-Position auf der Zeitachse relativ zum Lane-Body-Anfang; `null` = undatiert. */
   pxLeft: number | null;
-  /** Kollisions-Ausweich-Richtung: 0 = zentriert, 1 = oben/Hintergrund, -1 = unten/Vordergrund
-   * (Orakel: `_resolveSwimOverlaps` — Kollisionspaare weichen in entgegengesetzte Richtungen aus). */
-  nudge: number;
+  /** Sub-Zeilen-Index innerhalb der Lane (0-basiert, 0 = erste/oberste Sub-Zeile).
+   * Ersetzt das frühere 2-Ebenen-`nudge`-Schema (s. `assignOverlapRows`): bei ≥3 eng
+   * beieinanderliegenden Chips reicht eine feste obere/untere Ebene nicht aus — ein
+   * dritter, nah liegender Chip braucht eine DRITTE Sub-Zeile statt auf eine der beiden
+   * bereits belegten zurückzufallen (verifizierter Bug, s. Kommentar bei `assignOverlapRows`). */
+  row: number;
 }
 
 export interface HistChip extends HistEvent {
   pxLeft: number;
-  /** Kollisions-Ausweich-Richtung, analog SwimChip.nudge (Orakel wendet
-   * `_resolveSwimOverlaps` unverändert auch auf die Hist-Lane an). */
-  nudge: number;
+  /** Sub-Zeilen-Index innerhalb der Hist-Lane, analog SwimChip.row. */
+  row: number;
 }
 
 export interface SwimLaneResult {
@@ -300,34 +314,48 @@ export interface SwimLaneResult {
 }
 
 /**
- * Überlappungsauflösung: sortierte Chips (nach `pxLeft`) bekommen bei Kollision
- * (Abstand < `chipWidth`) abwechselnd `nudge=1`/`nudge=-1` (Orakel: `_resolveSwimOverlaps`,
- * wörtlich übernommener Algorithmus — Kollisionspaare weichen ins Hintergrund/Vordergrund
- * aus statt sich zu überdecken). Mutiert die übergebenen Objekte NICHT — gibt ein neues
- * Array mit gesetztem `nudge` zurück (reine Funktion).
+ * Überlappungsauflösung — Greedy Interval Scheduling (analog Kalender-UIs): jeder Chip
+ * bekommt die NIEDRIGSTE freie Sub-Zeile, in der er mit KEINEM bereits in dieser
+ * Sub-Zeile platzierten Chip kollidiert (nicht nur mit dem unmittelbar vorherigen Chip
+ * verglichen). Anzahl benötigter Sub-Zeilen = `Math.max(...rows) + 1`, bestimmt direkt
+ * den Höhenbedarf der Lane (s. `swimLaneHeight`).
+ *
+ * Ersetzt das v8-Orakel `_resolveSwimOverlaps` (2-Ebenen-`nudge`-Schema, abwechselnd
+ * `1`/`-1` nur gegen den kumulativen `lastRight` des VORHERIGEN Chips verglichen). Bug
+ * am Orakel-Algorithmus durchgerechnet und verifiziert: bei 3 Chips mit `pxLeft` 0/50/100
+ * und `chipWidth=147` bekommt Chip 1 `nudge=1`, Chip 2 `nudge=-1` (Kollision mit 1), Chip 3
+ * kollidiert mit `lastRight` (von Chip 2, Kante bei `50+147=197 > 100`) und bekommt daher
+ * `nudge=1` — dieselbe Ebene wie Chip 1, obwohl Chip 1 und Chip 3 (Abstand 100px < 147px)
+ * ebenfalls kollidieren -> sichtbarer Überlapp. Diese Funktion verhindert das strukturell:
+ * Chip 3 sieht bei der Suche nach einer freien Zeile explizit nach, ob er mit JEDEM
+ * bereits in Zeile 0 platzierten Chip (nicht nur dem letzten) kollidiert, und weicht bei
+ * Bedarf in Zeile 2 aus. Mutiert die übergebenen Objekte NICHT (reine Funktion).
  */
-export function resolveSwimOverlaps<T extends { pxLeft: number | null; nudge: number }>(
+export function assignOverlapRows<T extends { pxLeft: number | null; row: number }>(
   chips: readonly T[],
   chipWidth: number,
 ): T[] {
-  const out = chips.map((c) => ({ ...c }));
-  let lastRight = -Infinity;
-  let prev: T | null = null;
+  const out = chips.map((c) => ({ ...c, row: 0 }));
+  // rowRights[r] = rechte Kante (px) des am weitesten reichenden bislang in Sub-Zeile r
+  // platzierten Chips. Ein neuer Chip passt in Zeile r, wenn sein pxLeft >= rowRights[r] + Puffer.
+  const rowRights: number[] = [];
   for (const c of out) {
     if (c.pxLeft == null) {
-      c.nudge = 0;
+      c.row = 0;
       continue;
     }
-    if (prev && prev.pxLeft != null && c.pxLeft < lastRight + 6) {
-      if (prev.nudge === 0) prev.nudge = 1; // erstes Paar: prev -> Hintergrund
-      c.nudge = prev.nudge === 1 ? -1 : 1; // aktueller -> entgegengesetzt
-    } else {
-      c.nudge = 0;
-    }
-    lastRight = Math.max(lastRight, c.pxLeft + chipWidth);
-    prev = c;
+    let row = 0;
+    while (row < rowRights.length && c.pxLeft < rowRights[row] + 6) row++;
+    c.row = row;
+    rowRights[row] = c.pxLeft + chipWidth;
   }
   return out;
+}
+
+/** Anzahl der von `assignOverlapRows` tatsächlich benötigten Sub-Zeilen (min. 1). */
+export function overlapRowCount(chips: readonly { row: number }[]): number {
+  if (chips.length === 0) return 1;
+  return Math.max(...chips.map((c) => c.row)) + 1;
 }
 
 // Exportiert (statt modul-privat), weil timeline-view.ts denselben Wert für die
@@ -339,6 +367,40 @@ const SL_MIN_PX_Y = 14; // px/Jahr — Mindest-Skalierung (Orakel: `_SL_MIN_PX_Y
 const SL_CHIP_W = 140; // px — nominale Chip-Breite für Kollisionserkennung (Orakel: `_SL_CHIP_W`).
 const SL_PAD_YR = 1.5; // Jahre — Rand links/rechts der Zeitachse (Orakel: `_SL_PAD_YR`).
 const SL_HIST_CHIP_W = 88; // px — Kollisionsbreite historischer Chips (Orakel: `_resolveSwimOverlaps(..., 88)`).
+
+// Höhe je zusätzlicher Sub-Zeile (Befund 1+2 hängen zusammen, s. Modul-Kopf-Kommentar):
+// `assignOverlapRows` kann jetzt beliebig viele Sub-Zeilen brauchen (statt max. 2 beim
+// alten `nudge`-Schema), also muss die Lane-Höhe mitwachsen, sonst hätten die neuen
+// Sub-Zeilen keinen Platz und die Chips würden trotz korrekter `row`-Zuweisung wieder
+// optisch überlappen. `SL_ROW_H` ist bewusst == Chip-Zeilenhöhe (Chip-Padding 0.15rem*2
+// + Zeilenhöhe ≈ 22-24px, hier mit Marge 26px) statt eine zweite Konstante zu erfinden.
+export const SL_ROW_H = 26; // px pro Sub-Zeile (Chip-Höhe + Marge).
+// Exportiert (statt modul-privat): timeline-view.ts braucht denselben Wert für die
+// tatsächliche Chip-/Hist-Chip-`top`-Platzierung (Zeile 0..N per `row * SL_*_ROW_H`),
+// damit die Höhenrechnung hier und die Platzierung dort garantiert übereinstimmen —
+// zwei getrennte Literale wären eine Wiederholung derselben Konstante (Fehlerquelle).
+export const SL_HIST_ROW_H = 18; // px pro Sub-Zeile in der "hist"-Lane (kompaktere Textzeile, Orakel: `histRowH`).
+export const SL_LANE_PAD = 12; // px — vertikaler Rand ober-/unterhalb der Sub-Zeilen einer Lane.
+
+/**
+ * Lane-Höhe als reine Funktion von Basis-Höhe, Sub-Zeilen-Bedarf und (nur "life")
+ * Personenzahl (Befund 1 — Orakel: `_renderTlH` `lifeH = isMulti ? max(50, numPersons*16) : 50`,
+ * hier verallgemeinert: JEDE Lane wächst mit ihrem tatsächlichen Sub-Zeilen-Bedarf, nicht
+ * nur "life" mit der Personenzahl — bei dichten Wohnort-/Berufs-/Familien-Lanes tritt
+ * dieselbe Enge auf wie in "life", s. Aufgabenstellung).
+ */
+function swimLaneHeight(base: number, rowCount: number, rowH: number, numPersons: number, isLifeLane: boolean): number {
+  const byRows = rowCount * rowH + SL_LANE_PAD;
+  if (isLifeLane) {
+    // Gestaffelte Lebensspannen-Balken (eine Zeile pro Person, Orakel-Verhalten
+    // `_renderTlH` life-Lane bei isMulti) UND ggf. zusätzliche Chip-Sub-Zeilen (z. B.
+    // mehrere Geburten/Todesfälle knapp beieinander) — beide Bedarfe zählen additiv,
+    // die größere Anforderung gewinnt.
+    const byPersons = numPersons > 1 ? Math.max(50, numPersons * 16) : 50;
+    return Math.max(base, byPersons, byRows);
+  }
+  return Math.max(base, byRows);
+}
 
 /**
  * Baut das vollständige Swim-Lane-Layout: Jahres-Skala, Lane-Zuordnung, Chip-Positionen,
@@ -389,27 +451,51 @@ export function computeSwimLaneLayout(
     hist: [],
   };
   for (const ev of dated) {
-    chipsByLane[swimLane(ev)].push({ ...ev, pxLeft: yearToX(ev.year), nudge: 0 });
+    chipsByLane[swimLane(ev)].push({ ...ev, pxLeft: yearToX(ev.year), row: 0 });
   }
   for (const ev of undated) {
-    chipsByLane[swimLane(ev)].push({ ...ev, pxLeft: null, nudge: 0 });
+    chipsByLane[swimLane(ev)].push({ ...ev, pxLeft: null, row: 0 });
   }
 
+  const rowCountByLane: Record<TimelineLaneId, number> = {
+    life: 1,
+    resi: 1,
+    work: 1,
+    family: 1,
+    church: 1,
+    other: 1,
+    hist: 1,
+  };
   for (const id of Object.keys(chipsByLane) as TimelineLaneId[]) {
     chipsByLane[id].sort((a, b) => (a.pxLeft ?? -Infinity) - (b.pxLeft ?? -Infinity));
-    chipsByLane[id] = resolveSwimOverlaps(chipsByLane[id], SL_CHIP_W);
+    chipsByLane[id] = assignOverlapRows(chipsByLane[id], SL_CHIP_W);
+    rowCountByLane[id] = overlapRowCount(chipsByLane[id]);
   }
 
-  const histChips: HistChip[] = resolveSwimOverlaps(
-    histEvents.map((e) => ({ ...e, pxLeft: yearToX(e.year), nudge: 0 })),
+  const histChips: HistChip[] = assignOverlapRows(
+    histEvents.map((e) => ({ ...e, pxLeft: yearToX(e.year), row: 0 })),
     SL_HIST_CHIP_W,
   );
+  rowCountByLane.hist = overlapRowCount(histChips);
+
+  // Personenzahl aus tatsächlich vorhandenen Ereignissen (nicht aus einem separaten
+  // Parameter) — reine Funktion des Modells, deckungsgleich mit Befund 1.
+  const numPersons = new Set(events.map((e) => e.personIdx)).size || 1;
 
   const activeLanes = SWIM_LANES.filter((ln) => {
     if (ln.id === 'life') return true;
     if (ln.id === 'hist') return histChips.length > 0;
     return chipsByLane[ln.id].length > 0;
-  });
+  }).map((ln) => ({
+    ...ln,
+    height: swimLaneHeight(
+      ln.height,
+      rowCountByLane[ln.id],
+      ln.id === 'hist' ? SL_HIST_ROW_H : SL_ROW_H,
+      numPersons,
+      ln.id === 'life',
+    ),
+  }));
 
   return {
     lanes: activeLanes,

@@ -16,7 +16,7 @@
 // 'self'"): keine inline `style="..."`-Attribute im HTML-String-Bau — Positionen werden
 // nach dem Einhängen per JS-CSSOM (`el.style.xxx = ...`) gesetzt.
 import type { TimelinePersonEvent, SwimLaneResult, DecadeLayoutResult } from './timeline-model';
-import { personColor, SWIM_LANE_LABEL_W } from './timeline-model';
+import { personColor, SWIM_LANE_LABEL_W, SL_ROW_H, SL_HIST_ROW_H, SL_LANE_PAD } from './timeline-model';
 
 export type TimelineMode = 'swim' | 'decade';
 
@@ -165,14 +165,16 @@ function renderSwimLane(
     body.style.width = `${swim.totalWidth}px`;
 
     if (lane.id === 'hist') {
-      // Kollisions-Ausweich wie bei Personen-Chips (nudge aus computeSwimLaneLayout):
+      // Sub-Zeilen-Platzierung (row aus computeSwimLaneLayout/assignOverlapRows):
       // dicht beieinanderliegende historische Ereignisse überlappen sich sonst textlich
-      // (Chips sind nowrap-breiter als der Jahresabstand bei enger Zeitskala).
-      const histRowH = 18;
+      // (Chips sind nowrap-breiter als der Jahresabstand bei enger Zeitskala). `row` kann
+      // jetzt >1 sein (Greedy Interval Scheduling statt fixer 2-Ebenen-`nudge`), die
+      // Lane-Höhe wurde von computeSwimLaneLayout bereits passend mitskaliert.
+      const histPad = 8;
       for (const hc of swim.histChips) {
         const chip = el('div', `tl-hist-evt tl-hist-evt--${hc.cat}`);
         chip.style.left = `${hc.pxLeft}px`;
-        chip.style.top = hc.nudge === 1 ? '2px' : hc.nudge === -1 ? `${2 + histRowH}px` : '10px';
+        chip.style.top = `${histPad + hc.row * SL_HIST_ROW_H}px`;
         chip.title = `${hc.year}: ${hc.label}`;
         const yr = el('span', 'tl-y');
         yr.textContent = String(hc.year);
@@ -183,27 +185,17 @@ function renderSwimLane(
         body.appendChild(chip);
       }
     } else {
+      // Sub-Zeilen-Platzierung analog: `row` (0-basiert) * SL_ROW_H + Rand ergibt die
+      // `top`-Position. Ersetzt das frühere 3-Fall-`nudge`-Schema (oben/unten/zentriert)
+      // durch gleichmäßig gestapelte Zeilen von oben, beliebig viele.
       const chips = swim.chipsByLane[lane.id];
       for (const c of chips) {
         const chipEl = buildChipEl(c, primaryBirthYear, isMulti, onSelectPerson);
         if (c.pxLeft !== null) {
           chipEl.style.left = `${c.pxLeft}px`;
+          chipEl.style.top = `${SL_LANE_PAD / 2 + c.row * SL_ROW_H}px`;
+          chipEl.style.zIndex = String(c.row + 1);
           body.appendChild(chipEl);
-          // Höhe erst NACH dem Einhängen messbar (Orakel: `el.offsetHeight || 40` —
-          // ohne echte Messung würde die 40px-Annahme bei tatsächlich ~21px hohen
-          // Chips den nudge=-1-Versatz auf denselben Wert wie nudge=0 kollabieren
-          // lassen, weil `lane.height - 40 - pad` dann kleiner als `pad` wird).
-          const pad2 = 6;
-          const chipH = chipEl.offsetHeight || 24;
-          if (c.nudge === 1) {
-            chipEl.style.top = `${pad2}px`;
-            chipEl.style.zIndex = '1';
-          } else if (c.nudge === -1) {
-            chipEl.style.top = `${Math.max(lane.height - chipH - pad2, pad2)}px`;
-            chipEl.style.zIndex = '2';
-          } else {
-            chipEl.style.top = `${Math.round(Math.max((lane.height - chipH) / 2, pad2))}px`;
-          }
         } else {
           chipEl.classList.add('tl-chip--undated-stack');
           body.appendChild(chipEl);
