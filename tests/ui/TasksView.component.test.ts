@@ -107,6 +107,30 @@ describe('TasksView — Aufgabe hinzufügen', () => {
     expect(allTexts).toContain('Neue Aufgabe');
   });
 
+  it('wählt gezielt eine NICHT-erste Person aus der Ziel-Liste (value/onchange-Muster, kein bind:value)', async () => {
+    // Bewusst NICHT die erste Option wählen: bei size="5" ohne Leer-Platzhalter-Option
+    // selektiert der Browser standardmäßig die erste Option, auch ohne Nutzeraktion —
+    // ein Test, der nur die erste Option wählt, würde ein kaputtes onchange nicht
+    // bemerken. Optionen sind nach Anzeigename sortiert ("Anna Klein" vor "Otto Bauer");
+    // hier muss die Auswahl tatsächlich reagieren, damit die Aufgabe bei Otto (@I1@)
+    // statt beim Default (Anna, @I2@) landet.
+    const { appState } = renderView(seedDb());
+    await fireEvent.click(screen.getByRole('button', { name: '+ Aufgabe' }));
+    await fireEvent.input(screen.getByPlaceholderText('Was ist zu tun?'), { target: { value: 'Für Otto' } });
+
+    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
+    const options = [...select.querySelectorAll('option')] as HTMLOptionElement[];
+    const ottoOption = options.find((o) => o.textContent?.includes('Otto'))!;
+    expect(ottoOption.value).not.toBe(options[0].value); // Otto ist nicht die erste Option
+    await fireEvent.change(select, { target: { value: ottoOption.value } });
+    expect(select.value).toBe(ottoOption.value);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    expect(appState.db.individuals.get('@I1@')!.tasks.some((t) => t.text === 'Für Otto')).toBe(true);
+    expect(appState.db.individuals.get('@I2@')!.tasks.some((t) => t.text === 'Für Otto')).toBe(false);
+  });
+
   it('Abbrechen schließt das Formular ohne Aufgabe anzulegen', async () => {
     const { appState } = renderView(seedDb());
     const before = appState.db.individuals.get('@I1@')!.tasks.length;

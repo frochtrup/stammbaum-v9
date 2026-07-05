@@ -3,7 +3,7 @@
 // Spec 20 §1.7 [K]). Deckt Ereignis-Gruppierung, Bearbeitung, pnames/enclosedBy-Pflege,
 // String→PlaceObject-Verknüpfung als tatsächliches DOM-Rendering ab.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -101,6 +101,31 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
     await fireEvent.click(screen.getByLabelText('Namensvariante „Sassenbergk" entfernen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.pnames).toEqual([]);
+  });
+});
+
+describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => {
+  it('fügt eine neue enclosedBy-Zugehörigkeit über den Eltern-Select hinzu (value/onchange-Muster, kein bind:value)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kreis Steinfurt' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    const select = screen.getByLabelText('Übergeordneter Ort') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: '@P2@' } });
+    // Reaktion des value/onchange-Musters direkt am DOM belegen (das war unter happy-dom
+    // mit bind:value unbemerkt still verschluckt worden).
+    expect(select.value).toBe('@P2@');
+
+    const addRow = select.closest('.place-detail__add-row') as HTMLElement;
+    await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual(['@P2@']);
   });
 });
 

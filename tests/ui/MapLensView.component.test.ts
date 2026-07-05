@@ -117,6 +117,17 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
     await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
     expect(screen.getByText(/Loop/)).toBeTruthy();
   });
+
+  it('Geschwindigkeits-Select reagiert auf Auswahl (value/onchange-Muster, kein bind:value; numerische Option)', async () => {
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
+
+    const select = screen.getByLabelText('Geschwindigkeit') as HTMLSelectElement;
+    expect(select.value).toBe('600'); // Default (normal)
+    await fireEvent.change(select, { target: { value: '250' } });
+
+    expect(select.value).toBe('250');
+  });
 });
 
 describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erhalten")', () => {

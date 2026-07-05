@@ -68,6 +68,24 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
     expect(screen.getByText('Ochtrup')).toBeTruthy();
   });
 
+  it('Typ-Filter reduziert die Liste auf den gewählten Typ (value/onchange-Muster, kein bind:value)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Kreis Steinfurt', type: 'County' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrup', type: 'Village' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PlaceList, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('Filter'));
+    const select = screen.getByLabelText('Typ') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: 'Village' } });
+
+    expect(select.value).toBe('Village');
+    expect(screen.queryByText('Kreis Steinfurt')).toBeNull();
+    expect(screen.getByText('Ochtrup')).toBeTruthy();
+  });
+
   it('zeigt einen Leerzustand ohne Orte — verweist auf den automatischen Import-Seed (ADR-v9-28), kein Opt-in-Dialog mehr', () => {
     const appState = createAppState();
     const viewState = createViewState();

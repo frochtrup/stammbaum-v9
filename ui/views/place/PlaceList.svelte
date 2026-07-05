@@ -71,7 +71,7 @@
       <div class="place-list__filters">
         <label>
           Typ
-          <select bind:value={filters.type}>
+          <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
             <option value="">alle</option>
             {#each types as t (t)}
               <option value={t}>{t}</option>

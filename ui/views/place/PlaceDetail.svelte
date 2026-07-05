@@ -200,7 +200,11 @@
       </ul>
       {#if otherPlaces.length > 0}
         <div class="place-detail__add-row">
-          <select bind:value={newEnclosedParent} aria-label="Übergeordneter Ort">
+          <select
+            value={newEnclosedParent}
+            onchange={(e) => (newEnclosedParent = e.currentTarget.value)}
+            aria-label="Übergeordneter Ort"
+          >
             <option value="">Übergeordneten Ort wählen…</option>
             {#each otherPlaces as p (p.id)}
               <option value={p.id}>{p.title || p.id}</option>

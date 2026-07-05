@@ -87,4 +87,24 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
 
     expect(appState.db.hofObjects.get('@H1@')?.addrs.map((a) => a.value)).toEqual(['Wall 33', 'Wallstraße 33']);
   });
+
+  it('setzt Vorgänger-/Nachfolger-Hof über die Lebenszyklus-Selects (value/onchange-Muster, kein bind:value)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Oster 5', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    const predecessorSelect = screen.getByLabelText('Vorgänger-Hof') as HTMLSelectElement;
+    await fireEvent.change(predecessorSelect, { target: { value: '@H2@' } });
+    expect(predecessorSelect.value).toBe('@H2@');
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.hofObjects.get('@H1@')?.predecessor).toBe('@H2@');
+  });
 });

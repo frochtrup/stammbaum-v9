@@ -251,7 +251,11 @@
       <button type="button" class="map-lens-view__anim-btn" onclick={resetAnim}>⏹ Zurücksetzen</button>
       <label class="map-lens-view__anim-label">
         Geschwindigkeit
-        <select bind:value={animSpeed} class="map-lens-view__anim-select">
+        <select
+          value={animSpeed}
+          onchange={(e) => (animSpeed = Number(e.currentTarget.value))}
+          class="map-lens-view__anim-select"
+        >
           <option value={1200}>langsam</option>
           <option value={600}>normal</option>
           <option value={250}>schnell</option>

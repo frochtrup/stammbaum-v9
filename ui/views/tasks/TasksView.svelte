@@ -249,7 +249,13 @@
             aria-label="Ziel-Entität durchsuchen"
             bind:value={formEntityQuery}
           />
-          <select bind:value={formEntityId} aria-label="Ziel-Entität wählen" required size="5">
+          <select
+            value={formEntityId}
+            onchange={(e) => (formEntityId = e.currentTarget.value)}
+            aria-label="Ziel-Entität wählen"
+            required
+            size="5"
+          >
             {#each entityOptions as opt (opt.id)}
               <option value={opt.id}>{opt.label}</option>
             {/each}

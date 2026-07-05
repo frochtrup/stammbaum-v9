@@ -100,7 +100,11 @@
             {#if row.klass === 'D'}
               <button type="button" onclick={() => createHof(row)}>+ Hof anlegen</button>
               <div class="hof-review__variant-picker">
-                <select bind:value={variantTargets[row.index]} aria-label="Ziel-Hof für Variante">
+                <select
+                  value={variantTargets[row.index]}
+                  onchange={(e) => (variantTargets[row.index] = e.currentTarget.value)}
+                  aria-label="Ziel-Hof für Variante"
+                >
                   <option value="">Ziel-Hof wählen…</option>
                   {#each Array.from(appState.db.hofObjects.values()).filter((h) => h.villageId === row.villageId) as h (h.id)}
                     <option value={h.id}>{h.addrs[0]?.value ?? h.id}</option>

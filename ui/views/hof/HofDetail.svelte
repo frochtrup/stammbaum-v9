@@ -118,7 +118,7 @@
         </label>
         <label>
           Vorgänger-Hof
-          <select bind:value={formPredecessor}>
+          <select value={formPredecessor} onchange={(e) => (formPredecessor = e.currentTarget.value)}>
             <option value="">(keiner)</option>
             {#each otherHofs as h (h.id)}
               <option value={h.id}>{h.addrs[0]?.value ?? h.id}</option>
@@ -127,7 +127,7 @@
         </label>
         <label>
           Nachfolger-Hof
-          <select bind:value={formSuccessor}>
+          <select value={formSuccessor} onchange={(e) => (formSuccessor = e.currentTarget.value)}>
             <option value="">(keiner)</option>
             {#each otherHofs as h (h.id)}
               <option value={h.id}>{h.addrs[0]?.value ?? h.id}</option>

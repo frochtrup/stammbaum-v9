@@ -61,6 +61,34 @@ describe('HofReview — Klasse C: "Hof wählen"', () => {
   });
 });
 
+describe('HofReview — Klasse D: "Variante zum Hof" (value/onchange-Select, kein bind:value)', () => {
+  it('hängt die Adresse als Variante an den gewählten Ziel-Hof', async () => {
+    const appState = createAppState();
+    appState.savePlace(place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' }));
+    appState.saveHof(hof('_hof_existing', '@OCHTRUP@', { addrs: [{ value: 'Oster 5', from: null, to: null }] }));
+
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    // Non-Hof-Event-Typ (BIRT) mit ADDR, die keinen bestehenden Hof trifft, aber im Dorf
+    // existiert bereits ein Hof (Norm-Drift) -> Klasse D (Spec 11 §6).
+    person.birth.place = 'Ochtrup';
+    person.birth.addr = 'Wall 33';
+    const db = appState.db;
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(HofReview, { props: { appState } });
+
+    expect(screen.getByText('Klasse D')).toBeTruthy();
+    const select = screen.getByLabelText('Ziel-Hof für Variante') as HTMLSelectElement;
+    await fireEvent.change(select, { target: { value: '_hof_existing' } });
+    expect(select.value).toBe('_hof_existing');
+    await fireEvent.click(screen.getByText('Variante zum Hof'));
+
+    expect(appState.db.hofObjects.get('_hof_existing')?.addrs.map((a) => a.value)).toContain('Wall 33');
+    expect(person.birth.hofId).toBe('_hof_existing');
+  });
+});
+
 describe('HofReview — "Quelle schärfen" navigiert zur Person/Familie', () => {
   it('ruft onNavigateToPerson mit der Owner-Id auf', async () => {
     const appState = createAppState();
