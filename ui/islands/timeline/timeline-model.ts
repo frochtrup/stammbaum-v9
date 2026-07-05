@@ -330,7 +330,11 @@ export function resolveSwimOverlaps<T extends { pxLeft: number | null; nudge: nu
   return out;
 }
 
-const SL_LABEL_W = 76; // px — sticky Lane-Label-Breite (Orakel: `_SL_LABEL_W`).
+// Exportiert (statt modul-privat), weil timeline-view.ts denselben Wert für die
+// explizite `.tl-swim-axis`/`.tl-lane`-Breite braucht (Sticky-Fix, s. dortiger
+// Kommentar) — eine Quelle für die Label-/Pad-Breite statt eines zweiten `76`-Literals.
+export const SWIM_LANE_LABEL_W = 76; // px — sticky Lane-Label-Breite (Orakel: `_SL_LABEL_W`).
+const SL_LABEL_W = SWIM_LANE_LABEL_W;
 const SL_MIN_PX_Y = 14; // px/Jahr — Mindest-Skalierung (Orakel: `_SL_MIN_PX_Y`).
 const SL_CHIP_W = 140; // px — nominale Chip-Breite für Kollisionserkennung (Orakel: `_SL_CHIP_W`).
 const SL_PAD_YR = 1.5; // Jahre — Rand links/rechts der Zeitachse (Orakel: `_SL_PAD_YR`).

@@ -57,6 +57,16 @@
   background: var(--stb-surface-1);
   border-bottom: 1px solid var(--stb-surface-3);
   height: 26px;
+  /* Sticky-Fix (Bugfix, browser-verifiziert): explizite Breite wird von timeline-view.ts
+     gesetzt (Label-Breite + totalWidth). Ohne eigene Breite streckt der Flex-Cross-
+     Achsen-Stretch dieses Element (Kind von `.tl-body.tl-swim`, ebenfalls `display:flex`)
+     nur auf die Container-Breite, während der Inhalt (`.tl-swim-axis-track`) per
+     `overflow:visible` optisch darüber hinausragt — die für `.tl-swim-axis-pad`s
+     `position:sticky;left:0` maßgebliche Referenzbox bliebe dann schmaler als der
+     Scroll-Bereich, wodurch die Sticky-Verankerung nicht mit dem tatsächlichen Scroll
+     übereinstimmt. `flex-shrink: 0` verhindert zusätzlich, dass diese Breite unter der
+     Default-`min-width:auto`-Regel für Flex-Items wieder zusammenschrumpft. */
+  flex-shrink: 0;
 }
 
 .tl-swim-axis-pad {
@@ -85,6 +95,10 @@
   display: flex;
   border-bottom: 1px solid var(--stb-surface-3);
   position: relative;
+  /* Sticky-Fix: s. ausführlichen Kommentar bei `.tl-swim-axis` oben — dasselbe Problem
+     betrifft `.tl-lane-lbl`s `position:sticky;left:0`. Explizite Breite kommt aus
+     timeline-view.ts, `flex-shrink: 0` verhindert erneutes Zusammenschrumpfen. */
+  flex-shrink: 0;
 }
 
 .tl-lane-lbl {

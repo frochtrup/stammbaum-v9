@@ -16,7 +16,7 @@
 // 'self'"): keine inline `style="..."`-Attribute im HTML-String-Bau — Positionen werden
 // nach dem Einhängen per JS-CSSOM (`el.style.xxx = ...`) gesetzt.
 import type { TimelinePersonEvent, SwimLaneResult, DecadeLayoutResult } from './timeline-model';
-import { personColor } from './timeline-model';
+import { personColor, SWIM_LANE_LABEL_W } from './timeline-model';
 
 export type TimelineMode = 'swim' | 'decade';
 
@@ -121,9 +121,26 @@ function renderSwimLane(
   host.classList.add('tl-swim');
   host.innerHTML = '';
 
+  // Sticky-Fix (Nutzer-Bug, browser-verifiziert): `.tl-swim-axis`/`.tl-lane` sind
+  // `display:flex`-Kinder von `.tl-body.tl-swim` (ebenfalls `display:flex`). Ohne
+  // eigene explizite Breite werden sie vom Flex-Cross-Achsen-Stretch auf die
+  // Container-Breite (`host.clientWidth`) gestreckt, WÄHREND ihr eigentlicher Inhalt
+  // (`.tl-swim-axis-track`/`.tl-lane-body`, beide mit expliziter `totalWidth`-Breite)
+  // per `overflow:visible` optisch darüber hinausragt. Die eigene Box von
+  // `.tl-swim-axis`/`.tl-lane` bleibt dabei schmaler als der Scroll-Bereich — genau
+  // diese Box ist aber die Sticky-Referenzbox für `.tl-swim-axis-pad`/`.tl-lane-lbl`
+  // (`position:sticky; left:0`), wodurch deren Sticky-Verankerung nicht mit dem
+  // tatsächlichen horizontalen Scroll des `.tl-body.tl-swim`-Containers übereinstimmt
+  // (das Label rutscht mit nach links, statt stehen zu bleiben). Fix: `.tl-swim-axis`/
+  // `.tl-lane` bekommen dieselbe Gesamtbreite (Label-/Pad-Breite + `totalWidth`) wie
+  // ihre `-track`/`-body`-Kinder explizit gesetzt — dann deckt ihre eigene Box den
+  // vollen Scroll-Bereich ab und Sticky verankert korrekt am Scroll-Container.
+  const swimRowWidth = `${SWIM_LANE_LABEL_W + swim.totalWidth}px`;
+
   const axis = el('div', 'tl-swim-axis');
+  axis.style.width = swimRowWidth;
   const pad = el('div', 'tl-swim-axis-pad');
-  pad.style.width = '76px';
+  pad.style.width = `${SWIM_LANE_LABEL_W}px`;
   axis.appendChild(pad);
   const track = el('div', 'tl-swim-axis-track');
   track.style.width = `${swim.totalWidth}px`;
@@ -140,6 +157,7 @@ function renderSwimLane(
   for (const lane of swim.lanes) {
     const laneEl = el('div', `tl-lane tl-lane--${lane.id}`);
     laneEl.style.height = `${lane.height}px`;
+    laneEl.style.width = swimRowWidth;
     const lbl = el('div', 'tl-lane-lbl');
     lbl.textContent = lane.label;
     laneEl.appendChild(lbl);
