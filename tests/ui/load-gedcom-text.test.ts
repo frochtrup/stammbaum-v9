@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { loadGedcomText } from '../../ui/shell/load-gedcom-text';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { PlacesSyncService } from '../../services/places';
+import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { createMockPlacesStore, createMockDeviceId, createMockClock } from '../services/mock-places-store';
 
 const MINI_GED = `0 HEAD
@@ -34,9 +35,9 @@ function makeSyncService(): PlacesSyncService {
 describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', () => {
   it('parst den Text, lädt Orte/Höfe-Wissen und ruft appState.loadDatabase() mit dem übergebenen Dateinamen auf', async () => {
     const appState = createAppState();
-    const placesSync = makeSyncService();
+    const persister = createPlacesPersister(makeSyncService());
 
-    const result = await loadGedcomText(MINI_GED, 'demo.ged', appState, placesSync);
+    const result = await loadGedcomText(MINI_GED, 'demo.ged', appState, persister);
 
     expect(appState.fileName).toBe('demo.ged');
     expect(appState.db.individuals.get('@I1@')?.given).toBe('Max');
@@ -45,9 +46,9 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
 
   it('funktioniert identisch für einen anderen Dateinamen (Datei-Picker-Pfad) — dieselbe Pipeline, andere Quelle', async () => {
     const appState = createAppState();
-    const placesSync = makeSyncService();
+    const persister = createPlacesPersister(makeSyncService());
 
-    await loadGedcomText(MINI_GED, 'echte-datei.ged', appState, placesSync);
+    await loadGedcomText(MINI_GED, 'echte-datei.ged', appState, persister);
 
     expect(appState.fileName).toBe('echte-datei.ged');
     expect(appState.db.individuals.size).toBe(1);
@@ -55,9 +56,9 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
 
   it('frischer Start: Orte werden aus PLAC automatisch geseedet (ADR-v9-28), Höfe brauchen weiterhin ADDR', async () => {
     const appState = createAppState();
-    const placesSync = makeSyncService();
+    const persister = createPlacesPersister(makeSyncService());
 
-    await loadGedcomText(MINI_GED, 'demo.ged', appState, placesSync);
+    await loadGedcomText(MINI_GED, 'demo.ged', appState, persister);
 
     // Auto-Seed: "Ochtrup, Steinfurt, Deutschland" → Village-POs sind nach dem Import sichtbar.
     expect(appState.db.placeObjects.size).toBeGreaterThan(0);
@@ -93,7 +94,7 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
       ],
       hofObjects: [],
     });
-    const placesSync = new PlacesSyncService(store, createMockDeviceId('device-1'), createMockClock(1000));
+    const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId("device-1"), createMockClock(1000)));
 
     const gedWithAddr = `0 HEAD
 1 GEDC
@@ -110,7 +111,7 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
 0 TRLR
 `;
 
-    await loadGedcomText(gedWithAddr, 'demo.ged', appState, placesSync);
+    await loadGedcomText(gedWithAddr, 'demo.ged', appState, persister);
 
     // Hof-Bootstrap (Pfad B') ist gelaufen -> hofObjects gewachsen -> reconcileAndSave lief.
     expect(appState.db.hofObjects.size).toBe(1);

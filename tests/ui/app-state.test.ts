@@ -3,7 +3,7 @@
 // Directive gesetzt (läuft mit dem globalen 'node'-Environment, s. vitest.config.ts).
 import { describe, expect, it } from 'vitest';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makePerson, makeFamily } from '../../core/model/index';
+import { makePerson, makeFamily, makeDatabase } from '../../core/model/index';
 import type { PlaceObject, HofObject } from '../../core/places';
 
 function place(id: string, patch: Partial<PlaceObject> = {}): PlaceObject {
@@ -82,6 +82,40 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     expect(appState.db.hofObjects.get('_hof_x')?.villageId).toBe('@A@');
     // Chokepoint-Kontext passt zur neuen db: die zusammengeführte Variante findet jetzt @A@.
     expect(appState.placeContext.places.findByName('Ochtorp')).toBe('@A@');
+  });
+});
+
+describe('AppState.persistPlaces — Orts-/Hof-Edits lösen Persistenz aus (Befund 1 / task_a82678c1)', () => {
+  it('jede Orts-/Hof-Mutation ruft persistPlaces genau einmal', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Wettringen' }));
+    appState.mergePlace('@A@', '@B@');
+    appState.saveHof(hof('_h1', '@A@'));
+    appState.deleteHof('_h1');
+    appState.deletePlace('@A@');
+    expect(calls).toBe(6);
+  });
+
+  it('persistPlaces bekommt den aktuellen placeObjects-Stand nach der Mutation', () => {
+    let lastPlaces: Map<string, unknown> | null = null;
+    const appState = createAppState({ persistPlaces: (p) => (lastPlaces = p) });
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    expect((lastPlaces as unknown as Map<string, { title: string }>)?.get('@A@')?.title).toBe('Ochtrup');
+  });
+
+  it('loadDatabase löst KEIN persistPlaces aus (der Import-Pfad persistiert separat)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.loadDatabase(makeDatabase(), 'x.ged');
+    expect(calls).toBe(0);
+  });
+
+  it('ohne injizierten Callback bleiben Edits rein in-memory (kein Fehler)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    expect(appState.db.placeObjects.get('@A@')?.title).toBe('Ochtrup');
   });
 });
 

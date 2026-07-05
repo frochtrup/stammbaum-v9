@@ -9,14 +9,16 @@
   // demo.ged als Vite-Static-Asset gebündelt ist, s. app/public/demo.ged).
   // GRAMPS-Import ist NICHT Teil dieser Scheibe (nur GEDCOM).
   import { createFileService } from '../../services/file';
-  import { createPlacesSyncService } from '../../services/places';
   import { loadGedcomText } from './load-gedcom-text';
   import type { AppState } from './app-state.svelte';
+  import type { PlacesPersister } from './places-persister';
 
   interface Props {
     appState: AppState;
+    /** Geteilter Orts-Persister (dieselbe Instanz wie app-state, damit baseRev konsistent bleibt). */
+    persister: PlacesPersister;
   }
-  const { appState }: Props = $props();
+  const { appState, persister }: Props = $props();
 
   let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
@@ -25,7 +27,6 @@
   let placesNotice = $state('');
 
   const fileService = createFileService();
-  const placesSync = createPlacesSyncService();
 
   async function handleClick() {
     status = 'loading-file';
@@ -37,7 +38,7 @@
         status = 'idle';
         return;
       }
-      const result = await loadGedcomText(picked.text, picked.name, appState, placesSync);
+      const result = await loadGedcomText(picked.text, picked.name, appState, persister);
       placesNotice = result.placesNotice;
       status = 'idle';
     } catch (err) {
@@ -54,7 +55,7 @@
       const res = await fetch('./demo.ged');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
-      const result = await loadGedcomText(text, 'demo.ged', appState, placesSync);
+      const result = await loadGedcomText(text, 'demo.ged', appState, persister);
       placesNotice = result.placesNotice;
       status = 'idle';
     } catch (err) {

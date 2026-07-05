@@ -5,6 +5,8 @@
   // Desktop-Sidebar/Multi-Pane (Spec 21 §3) ist NICHT Teil dieser Scheibe.
   import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
+  import { createPlacesSyncService } from '../services/places';
+  import { createPlacesPersister } from '../ui/shell/places-persister';
   import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
   import ImportButton from '../ui/shell/ImportButton.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
@@ -18,7 +20,25 @@
   import type { LensId } from '../ui/shell/lens-model';
 
   const viewState = createViewState();
-  const appState = createAppState();
+
+  // EIN geteilter Orts-Persister (orte.json-Spiegel) für Import UND Edits — dieselbe
+  // baseRev, damit Orts-/Hof-Edits nach dem Import persistieren (Befund 1 / task_a82678c1).
+  const persister = createPlacesPersister(createPlacesSyncService());
+  let placesEditNotice = $state('');
+  const appState = createAppState({
+    persistPlaces: (places, hofs) => {
+      // Fire-and-forget: die Edit-Kommandos bleiben synchron; die Persistenz läuft daneben.
+      persister
+        .persist(places, hofs)
+        .then((r) => {
+          placesEditNotice = r.notice;
+        })
+        .catch((err) => {
+          placesEditNotice = 'Speichern des Orts-/Hofwissens fehlgeschlagen.';
+          console.error('persistPlaces', err);
+        });
+    },
+  });
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
   // $derived liest appState.db über den Chokepoint neu, sobald ein Aufgaben-Kommando
@@ -130,7 +150,11 @@
     <h1 class="app-shell__title">Stammbaum</h1>
   </header>
 
-  <ImportButton {appState} />
+  <ImportButton {appState} {persister} />
+
+  {#if placesEditNotice}
+    <p class="app-shell__notice" role="status">{placesEditNotice}</p>
+  {/if}
 
   <main class="app-shell__main">
     {#if activeTarget === 'person'}
@@ -181,6 +205,14 @@
     font-size: 1.1rem;
     margin: 0;
     color: var(--stb-gold-light);
+  }
+
+  .app-shell__notice {
+    margin: 0;
+    padding: 0.4rem 1rem;
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
+    font-style: italic;
   }
 
   .app-shell__main {

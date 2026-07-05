@@ -43,6 +43,9 @@ export interface ReconcileResult {
   warning: ConflictWarning | null;
   /** false bei schema-too-new (Spec 30 §4 Read-Only-Schreibstopp) — nichts wurde geschrieben. */
   saved: boolean;
+  /** Revision des Ergebnisses: die geschriebene rev bei saved=true, sonst die remote rev.
+   * Der Aufrufer nutzt sie als `baseRev` des nächsten Speicherns (Rev-Tracking). */
+  rev: number;
 }
 
 const emptyWrapper = (): PlacesFileWrapper => ({
@@ -146,7 +149,8 @@ export class PlacesSyncService {
         placeObjects: toMap(remoteWrapper.placeObjects),
         hofObjects: toMap(remoteWrapper.hofObjects),
         warning: { kind: 'schema-too-new', foundSchemaVersion: remoteWrapper.schemaVersion },
-        saved: false
+        saved: false,
+        rev: remoteWrapper.rev
       };
     }
 
@@ -196,6 +200,6 @@ export class PlacesSyncService {
     };
     await this.store.save(wrapper);
 
-    return { placeObjects: finalPlaces, hofObjects: finalHofs, warning, saved: true };
+    return { placeObjects: finalPlaces, hofObjects: finalHofs, warning, saved: true, rev: nextRev };
   }
 }

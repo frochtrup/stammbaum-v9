@@ -71,13 +71,23 @@ export interface AppState {
  * Baut EINEN AppState. Analog zu createViewState() kein Modul-Singleton — main.ts
  * erzeugt eine Instanz, Tests je eine frische (kein geteilter Zustand über Tests hinweg).
  */
-export function createAppState(): AppState {
+export interface CreateAppStateOptions {
+  /** Wird nach jeder Orts-/Hof-Mutation (save/delete/merge) aufgerufen — Persistenz nach
+   * orte.json (Behebung Befund 1 / task_a82678c1). Fire-and-forget: der Aufrufer kümmert
+   * sich um Async + Konflikt-Hinweise (s. ui/shell/places-persister.ts). Fehlt der Callback
+   * (z. B. in Kern-Tests), bleiben Edits rein in-memory. Der Import-Pfad persistiert separat
+   * (load-gedcom-text) — `loadDatabase` löst deshalb bewusst KEIN persistPlaces aus. */
+  persistPlaces?: (placeObjects: Database['placeObjects'], hofObjects: Database['hofObjects']) => void;
+}
+
+export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   let db = $state.raw<Database>(makeDatabase());
   let fileName = $state('');
   const placeContext = $derived.by<PlaceContext>(() => ({
     places: makePlaceRegistry(db.placeObjects),
     hofs: makeHofRegistry(db.hofObjects),
   }));
+  const persistPlaces = (): void => opts.persistPlaces?.(db.placeObjects, db.hofObjects);
 
   return {
     get db() {
@@ -101,12 +111,14 @@ export function createAppState(): AppState {
       const nextPlaces = new Map(db.placeObjects);
       savePlaceObject(nextPlaces, model);
       db = { ...db, placeObjects: nextPlaces };
+      persistPlaces();
     },
     deletePlace(id) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextPlaces = new Map(db.placeObjects);
       deletePlaceObject(nextPlaces, id);
       db = { ...db, placeObjects: nextPlaces };
+      persistPlaces();
     },
     mergePlace(survivorId, mergedId) {
       // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
@@ -116,18 +128,21 @@ export function createAppState(): AppState {
       const nextHofs = new Map(db.hofObjects);
       mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedId);
       db = { ...db, placeObjects: nextPlaces, hofObjects: nextHofs };
+      persistPlaces();
     },
     saveHof(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, model);
       db = { ...db, hofObjects: nextHofs };
+      persistPlaces();
     },
     deleteHof(id) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       deleteHofObject(nextHofs, id);
       db = { ...db, hofObjects: nextHofs };
+      persistPlaces();
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität

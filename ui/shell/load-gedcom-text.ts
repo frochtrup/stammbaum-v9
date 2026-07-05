@@ -16,8 +16,8 @@
 // nicht (Abhängigkeitsrichtung Schale -> Dienste, INV-ARCH-1).
 import { parseGedcom } from '../../core/interop';
 import { applyPlaceResolution } from '../../services/places';
-import type { PlacesSyncService } from '../../services/places';
 import type { AppState } from './app-state.svelte';
+import type { PlacesPersister } from './places-persister';
 
 /** Hinweis-Text für Orts-/Hofwissen-Konflikte beim Reconcile (Spec 30 §4 LP-9). */
 export interface LoadGedcomTextResult {
@@ -35,11 +35,12 @@ export async function loadGedcomText(
   text: string,
   fileName: string,
   appState: AppState,
-  placesSync: PlacesSyncService
+  persister: PlacesPersister
 ): Promise<LoadGedcomTextResult> {
   const parsed = parseGedcom(text);
 
-  const loaded = await placesSync.loadPlaces();
+  // orte.json-Spiegel laden (merkt die baseRev für spätere Edit-Persistenz, s. places-persister).
+  const loaded = await persister.load();
   parsed.db.placeObjects = loaded.placeObjects;
   parsed.db.hofObjects = loaded.hofObjects;
 
@@ -47,18 +48,10 @@ export async function loadGedcomText(
 
   let placesNotice = '';
   if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) {
-    const reconciled = await placesSync.reconcileAndSave(
-      parsed.db.placeObjects,
-      parsed.db.hofObjects,
-      loaded.rev
-    );
-    parsed.db.placeObjects = reconciled.placeObjects;
-    parsed.db.hofObjects = reconciled.hofObjects;
-    if (reconciled.warning?.kind === 'union-merge') {
-      placesNotice = 'Orts-/Hofwissen wurde mit einem anderen Gerät zusammengeführt (kein Datenverlust).';
-    } else if (reconciled.warning?.kind === 'schema-too-new') {
-      placesNotice = 'Orts-/Hofwissen stammt von einer neueren App-Version — nicht gespeichert (Nur-Lese-Schutz).';
-    }
+    const persisted = await persister.persist(parsed.db.placeObjects, parsed.db.hofObjects);
+    parsed.db.placeObjects = persisted.placeObjects;
+    parsed.db.hofObjects = persisted.hofObjects;
+    placesNotice = persisted.notice;
   }
 
   appState.loadDatabase(parsed.db, fileName);
