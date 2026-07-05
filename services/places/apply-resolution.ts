@@ -18,7 +18,13 @@
 // core/places bleibt UNVERÄNDERT (INV-ARCH-1) — nur seine öffentliche API wird aufgerufen.
 
 import type { Database, Event } from '../../core/model/types';
-import { resolveEvents, type ResolveResult } from '../../core/places';
+import {
+  resolveEvents,
+  seedPlacesFromEvents,
+  makePlaceRegistry,
+  makeHofRegistry,
+  type ResolveResult,
+} from '../../core/places';
 
 /** Ein Rückschreib-Ziel: Funktion, die die aufgelöste Event-Kopie an ihrer Stelle einsetzt. */
 type EventSlot = (resolved: Event) => void;
@@ -52,10 +58,12 @@ function collectEventSlots(db: Database): { events: Event[]; slots: EventSlot[] 
 }
 
 export interface ApplyResolutionResult {
-  /** Review-Klassen A/C/D (Spec 11 §6) — Index bezieht sich auf die interne Slot-Reihenfolge. */
+  /** Review-Klassen A/C/D/P (Spec 11 §6) — Index bezieht sich auf die interne Slot-Reihenfolge. */
   review: ResolveResult['review'];
   /** true, wenn Hof-Bootstrap (Pfade C/B') neue Höfe erzeugt hat — orte.json muss neu gespeichert werden. */
   hofObjectsGrew: boolean;
+  /** true, wenn der Village-Seed (Spec 11 §4.2 Schritt 0) neue PlaceObjects erzeugt hat. */
+  placeObjectsGrew: boolean;
 }
 
 /**
@@ -66,11 +74,24 @@ export interface ApplyResolutionResult {
  * bekommt anschließend eine fertig aufgelöste Datenbank über den EINEN Ladepfad,
  * `AppState.loadDatabase()` — kein zweiter Invalidierungspfad).
  *
- * `db.placeObjects` bleibt unverändert (Auflösung fügt nie PlaceObjects hinzu — nur Hof-
- * Bootstrap ist möglich); `db.hofObjects` wird auf das ggf. gewachsene Ergebnis gesetzt.
+ * `db.placeObjects` wächst um die vom Village-Seed (Schritt 0, ADR-v9-28/-29) erzeugten
+ * PlaceObjects; `db.hofObjects` wird auf das ggf. durch Hof-Bootstrap gewachsene Ergebnis
+ * gesetzt.
  */
 export function applyPlaceResolution(db: Database): ApplyResolutionResult {
   const { events, slots } = collectEventSlots(db);
+
+  // Schritt 0 (Spec 11 §4.2, ADR-v9-28/-29): Village-Seed VOR der Auflösung — erzeugt die
+  // fehlenden PlaceObjects, damit der (unveränderte) Verwaltungs-Match sie danach vorfindet.
+  const seedCtx = { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+  const seeded = seedPlacesFromEvents(events, seedCtx);
+  const placeObjectsGrew = seeded.length > 0;
+  if (placeObjectsGrew) {
+    const nextPlaces = new Map(db.placeObjects);
+    for (const po of seeded) nextPlaces.set(po.id, po);
+    db.placeObjects = nextPlaces;
+  }
+
   const result = resolveEvents(events, db.placeObjects, db.hofObjects);
 
   result.events.forEach((resolved, i) => slots[i](resolved.event));
@@ -78,5 +99,5 @@ export function applyPlaceResolution(db: Database): ApplyResolutionResult {
   const hofObjectsGrew = result.hofObjects.size !== db.hofObjects.size;
   db.hofObjects = result.hofObjects;
 
-  return { review: result.review, hofObjectsGrew };
+  return { review: result.review, hofObjectsGrew, placeObjectsGrew };
 }

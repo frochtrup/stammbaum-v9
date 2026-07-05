@@ -30,11 +30,27 @@ describe('applyPlaceResolution — sammelt alle Event-Fundstellen', () => {
     expect(updated.chr.placeId).toBe('P1');
     expect(updated.buri.placeId).toBe('P1');
     expect(updated.events[0].placeId).toBe('P1');
-    // "Andernorts" matcht kein PlaceObject → bleibt unverlinkt, aber der Slot ist NICHT
-    // mit einem falschen (z. B. verschobenen) Event vertauscht worden.
-    expect(updated.death.placeId).toBeNull();
+    // "Andernorts" matcht kein bestehendes PlaceObject → wird jetzt automatisch geseedet
+    // (ADR-v9-28) und verlinkt; der Slot ist NICHT mit einem falschen Event vertauscht
+    // (place bleibt "Andernorts", placeId ist der neue Seed-Ort, nicht P1).
+    expect(updated.death.placeId).not.toBeNull();
+    expect(updated.death.placeId).not.toBe('P1');
     expect(updated.death.place).toBe('Andernorts');
+    expect(result.placeObjectsGrew).toBe(true);
     expect(result.review).toEqual([]);
+  });
+
+  it('unaufgelöster Ort wird automatisch geseedet und verlinkt (ADR-v9-28) → placeObjectsGrew=true', () => {
+    const db = makeDatabase(); // KEINE bestehenden placeObjects
+    const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Wettringen, Kreis Steinfurt' }) });
+    db.individuals.set(p.id, p);
+
+    const result = applyPlaceResolution(db);
+
+    expect(result.placeObjectsGrew).toBe(true);
+    const birth = db.individuals.get('I1')!.birth;
+    expect(birth.placeId).not.toBeNull();
+    expect(db.placeObjects.get(birth.placeId!)?.title).toBe('Wettringen');
   });
 
   it('löst marriage/engagement/events[] einer Familie und schreibt sie an die richtige Stelle zurück', () => {

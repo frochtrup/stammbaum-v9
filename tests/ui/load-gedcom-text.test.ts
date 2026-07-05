@@ -53,13 +53,16 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
     expect(appState.db.individuals.size).toBe(1);
   });
 
-  it('ohne vorhandene placeObjects (frischer Start) bleibt Orte-/Höfe-Wissen leer — keine Hof-Bootstrap ohne Dorf-Anker', async () => {
+  it('frischer Start: Orte werden aus PLAC automatisch geseedet (ADR-v9-28), Höfe brauchen weiterhin ADDR', async () => {
     const appState = createAppState();
     const placesSync = makeSyncService();
 
     await loadGedcomText(MINI_GED, 'demo.ged', appState, placesSync);
 
-    expect(appState.db.placeObjects.size).toBe(0);
+    // Auto-Seed: "Ochtrup, Steinfurt, Deutschland" → Village-POs sind nach dem Import sichtbar.
+    expect(appState.db.placeObjects.size).toBeGreaterThan(0);
+    expect([...appState.db.placeObjects.values()].some((p) => p.title === 'Ochtrup')).toBe(true);
+    // Reines BIRT ohne ADDR bootstrappt keinen Hof.
     expect(appState.db.hofObjects.size).toBe(0);
   });
 

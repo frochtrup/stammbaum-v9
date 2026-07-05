@@ -46,7 +46,7 @@ export async function loadGedcomText(
   const resolution = applyPlaceResolution(parsed.db);
 
   let placesNotice = '';
-  if (resolution.hofObjectsGrew) {
+  if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) {
     const reconciled = await placesSync.reconcileAndSave(
       parsed.db.placeObjects,
       parsed.db.hofObjects,

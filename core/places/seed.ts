@@ -32,15 +32,23 @@ function segments(plac: string): string[] {
 }
 
 /**
- * Verwaltungs-Kette (leaf-first) eines Events: Village + Eltern. Bei Konvention 1
- * (Hof-Typ + ADDR-Extract trifft das Leitsegment, §4.3/§4.4) wird das Hof-Leitsegment
- * abgeworfen — der Hof bleibt dem Hof-Bootstrap überlassen, der Seed nur der Verwaltung.
+ * Verwaltungs-Kette (leaf-first) eines Events: Village + Eltern. Muss KONSISTENT zum
+ * Resolver sein (sonst schattet der Seed die Hof-Erkennung): bei hof-relevanten Typen mit
+ * reichem PLAC behandelt der Resolver das Leitsegment als (potenziellen) Hof (Pfad A/C) —
+ * der Seed darf es dann NICHT als Ort anlegen, Dorf = segs[1..]. Ausnahme Konvention 2
+ * (§4.3): eine explizite ADDR nennt einen ANDEREN Hof als das Leitsegment → das
+ * Leitsegment ist das Dorf (behalten). Non-Hof-Typen: das Leitsegment ist immer der Ort.
  */
 function adminChain(ev: Event, segs: string[]): string[] {
   if (segs.length <= 1) return segs;
-  if (HOF_TYPES.has(ev.type) && ev.addr) {
-    const extractNorm = normPlaceName(extractHofAddr(ev.addr));
-    if (extractNorm && extractNorm === normPlaceName(segs[0])) return segs.slice(1);
+  if (HOF_TYPES.has(ev.type)) {
+    if (ev.addr) {
+      const extractNorm = normPlaceName(extractHofAddr(ev.addr));
+      // Konvention 2: ADDR-Hof ≠ Leitsegment → Leitsegment ist das Dorf.
+      if (extractNorm && extractNorm !== normPlaceName(segs[0])) return segs;
+    }
+    // Konvention 1 / Pfad-C (auch ohne ADDR): Leitsegment = Hof → nicht seeden.
+    return segs.slice(1);
   }
   return segs;
 }

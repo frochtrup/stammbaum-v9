@@ -98,6 +98,13 @@ describe('seedPlacesFromEvents — Auto-Seed (ADR-v9-28)', () => {
     expect(titles).not.toContain('Wall 33'); // der Hof-Leitsegment wird NICHT als Ort angelegt
   });
 
+  it('hof-relevanter Typ, reicher PLAC OHNE ADDR: Leitsegment gilt als (potenzieller) Hof → Dorf geseedet, nicht das Leitsegment (Resolver-Konsistenz Pfad C)', () => {
+    const created = seedPlacesFromEvents([ev('RESI', { place: 'Wall 33, Ochtrup, Deutschland' })], ctxFrom());
+    const titles = created.map((p) => p.title);
+    expect(titles).toContain('Ochtrup');
+    expect(titles).not.toContain('Wall 33');
+  });
+
   it('atomar mehrdeutig gegenüber ≥2 widersprüchlichen Clustern → kein stilles Merge (kein PO aus dem atomaren Event)', () => {
     const events = [
       ev('BIRT', { place: 'Oldenburg, Niedersachsen' }),
