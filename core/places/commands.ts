@@ -8,6 +8,7 @@
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress } from './types';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from './build-plac';
+import { normPlaceName } from './normalize';
 
 /**
  * Kommando: legt ein PlaceObject an oder ersetzt es vollständig (Upsert per id).
@@ -106,4 +107,77 @@ export function linkEventToPlace(ev: Event, placeId: PlaceId, ctx: PlaceContext)
   ev.placeId = placeId;
   const proj = buildPlacForGedcom(ev, eventYear(ev), ctx);
   if (proj != null) ev.place = proj;
+}
+
+/**
+ * Kommando: Dubletten-Merge (Spec 20 §1.7 [K] „Dubletten-Merge, verlustfrei"). Führt das
+ * PlaceObject `mergedId` in `survivorId` zusammen und entfernt `mergedId`. VERLUSTFREI:
+ * Titel + `pnames` des zusammengeführten Orts überleben als Namensvarianten (dedupliziert
+ * über die Norm-Form); fehlende Koordinaten/Notiz/Typ/Metadaten des Überlebenden werden
+ * gefüllt; `enclosedBy` wird vereinigt. Alle Fremd-Referenzen werden umgehängt: andere
+ * `PlaceObjects.enclosedBy` und alle `HofObjects.villageId`, die auf `mergedId` zeigten,
+ * verweisen danach auf `survivorId`. `event.placeId` ist runtime-only (Spec 11 §2) und wird
+ * beim nächsten `resolveEvents()` neu abgeleitet — hier nichts zu tun.
+ * Mutiert die beiden übergebenen Maps in place (analog `addChildToFamily` in
+ * `core/model/integrity.ts`). No-Op bei gleicher ID oder fehlendem Ort.
+ */
+export function mergePlaceObjects(
+  places: PlaceObjects,
+  hofObjects: HofObjects,
+  survivorId: PlaceId,
+  mergedId: PlaceId,
+): void {
+  if (survivorId === mergedId) return;
+  const survivor = places.get(survivorId);
+  const merged = places.get(mergedId);
+  if (!survivor || !merged) return;
+
+  // 1. Namen verlustfrei falten (Titel + pnames des Merged → pnames des Überlebenden),
+  //    dedupliziert über die Norm-Form (survivor.title + bestehende pnames zählen bereits).
+  const seen = new Set<string>([
+    normPlaceName(survivor.title),
+    ...survivor.pnames.map((p) => normPlaceName(p.value)),
+  ]);
+  const addName = (value: string, from: DatedName['from'], to: DatedName['to']): void => {
+    const k = normPlaceName(value);
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    survivor.pnames.push({ value, from, to });
+  };
+  addName(merged.title, null, null);
+  for (const pn of merged.pnames) addName(pn.value, pn.from, pn.to);
+
+  // 2. enclosedBy vereinigen (Selbst-/Kreis-Referenzen weglassen, dedupliziert).
+  const encKey = (e: DatedRef): string => `${e.placeId}|${e.from}|${e.to}`;
+  const encSeen = new Set(survivor.enclosedBy.map(encKey));
+  for (const e of merged.enclosedBy) {
+    if (e.placeId === survivorId || e.placeId === mergedId) continue;
+    if (encSeen.has(encKey(e))) continue;
+    encSeen.add(encKey(e));
+    survivor.enclosedBy.push({ ...e });
+  }
+
+  // 3. Fehlende Metadaten des Überlebenden aus dem Merged füllen (nie überschreiben).
+  if (!survivor.type && merged.type) survivor.type = merged.type;
+  if (survivor.lat == null && merged.lat != null) survivor.lat = merged.lat;
+  if (survivor.long == null && merged.long != null) survivor.long = merged.long;
+  if (!survivor.note) survivor.note = merged.note;
+  else if (merged.note && merged.note !== survivor.note) survivor.note = `${survivor.note}\n${merged.note}`;
+  if (survivor.existsFrom == null) survivor.existsFrom = merged.existsFrom;
+  if (survivor.existsTo == null) survivor.existsTo = merged.existsTo;
+  if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
+  if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
+
+  // 4. Fremd-Referenzen umhängen: andere PlaceObjects.enclosedBy, die auf mergedId zeigen.
+  for (const pl of places.values()) {
+    if (pl.id === mergedId) continue;
+    for (const e of pl.enclosedBy) if (e.placeId === mergedId) e.placeId = survivorId;
+  }
+  // 5. HofObjects.villageId umhängen.
+  for (const h of hofObjects.values()) {
+    if (h.villageId === mergedId) h.villageId = survivorId;
+  }
+
+  // 6. Zusammengeführten Ort entfernen.
+  places.delete(mergedId);
 }

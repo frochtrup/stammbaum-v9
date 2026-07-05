@@ -68,6 +68,21 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
 
     expect(appState.db.placeObjects.has('@P1@')).toBe(false);
   });
+
+  it('mergePlace führt Dubletten zusammen: Variante überlebt, Hof-villageId wird umgehängt, Kontext bleibt konsistent', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup', type: 'Town' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.saveHof(hof('_hof_x', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    appState.mergePlace('@A@', '@B@');
+
+    expect(appState.db.placeObjects.has('@B@')).toBe(false);
+    expect(appState.db.placeObjects.get('@A@')?.pnames.map((p) => p.value)).toContain('Ochtorp');
+    expect(appState.db.hofObjects.get('_hof_x')?.villageId).toBe('@A@');
+    // Chokepoint-Kontext passt zur neuen db: die zusammengeführte Variante findet jetzt @A@.
+    expect(appState.placeContext.places.findByName('Ochtorp')).toBe('@A@');
+  });
 });
 
 describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', () => {

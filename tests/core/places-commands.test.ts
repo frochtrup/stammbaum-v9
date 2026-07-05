@@ -14,6 +14,7 @@ import {
   withAddedHofAddr,
   withRemovedHofAddr,
   linkEventToPlace,
+  mergePlaceObjects,
 } from '../../core/places/commands';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places/index';
 import { place, hof, placeMap, hofMap, ev } from './places-fixtures';
@@ -164,5 +165,66 @@ describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [
     linkEventToPlace(e, '@NOPE@', ctx);
     expect(e.placeId).toBe('@NOPE@');
     expect(e.place).toBe('Ochtrup');
+  });
+});
+
+describe('mergePlaceObjects — Dubletten-Merge (verlustfrei, Spec 20 §1.7 [K])', () => {
+  it('faltet Titel + pnames des zusammengeführten Orts als Varianten in den Überlebenden (verlustfrei)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup', type: 'Town' }),
+      place('@B@', { title: 'Ochtorp', pnames: [{ value: 'Ochtrupe', from: 1600, to: 1700 }] }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.has('@B@')).toBe(false);
+    expect(places.get('@A@')!.title).toBe('Ochtrup');
+    expect(places.get('@A@')!.pnames.map((p) => p.value).sort()).toEqual(['Ochtorp', 'Ochtrupe']);
+  });
+
+  it('dedupliziert Namensvarianten über die Norm-Form (kein doppelter Wert)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup', pnames: [{ value: 'Ochtorp', from: null, to: null }] }),
+      place('@B@', { title: 'ochtorp' }), // Norm-Duplikat der bestehenden Variante
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.pnames).toHaveLength(1);
+  });
+
+  it('repointet hofObjects.villageId vom zusammengeführten auf den Überlebenden Ort', () => {
+    const places = placeMap(place('@A@', { title: 'Ochtrup' }), place('@B@', { title: 'Ochtorp' }));
+    const hofs = hofMap(hof('_hof_x', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    mergePlaceObjects(places, hofs, '@A@', '@B@');
+    expect(hofs.get('_hof_x')!.villageId).toBe('@A@');
+  });
+
+  it('repointet enclosedBy-Referenzen anderer Orte vom zusammengeführten auf den Überlebenden', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtorp' }),
+      place('@C@', { title: 'Bauerschaft', enclosedBy: [{ placeId: '@B@', from: null, to: null }] }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@C@')!.enclosedBy[0].placeId).toBe('@A@');
+  });
+
+  it('füllt fehlende Koordinaten/Notiz/Typ des Überlebenden aus dem zusammengeführten Ort', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtorp', type: 'Town', lat: 52.2, long: 7.2, note: 'Quelle X' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    const a = places.get('@A@')!;
+    expect(a.lat).toBe(52.2);
+    expect(a.long).toBe(7.2);
+    expect(a.note).toBe('Quelle X');
+    expect(a.type).toBe('Town');
+  });
+
+  it('No-Op bei gleicher ID oder fehlendem Ort', () => {
+    const places = placeMap(place('@A@', { title: 'Ochtrup' }));
+    mergePlaceObjects(places, hofMap(), '@A@', '@A@');
+    mergePlaceObjects(places, hofMap(), '@A@', '@MISSING@');
+    expect(places.size).toBe(1);
+    expect(places.get('@A@')!.title).toBe('Ochtrup');
+    expect(places.get('@A@')!.pnames).toHaveLength(0);
   });
 });

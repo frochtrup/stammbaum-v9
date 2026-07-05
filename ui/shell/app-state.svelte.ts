@@ -15,6 +15,7 @@ import {
   deletePlaceObject,
   saveHofObject,
   deleteHofObject,
+  mergePlaceObjects,
   type PlaceContext,
 } from '../../core/places';
 import type { TaskStatus } from '../../core/research/types';
@@ -39,6 +40,8 @@ export interface AppState {
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
   deletePlace(id: PlaceId): void;
+  /** Kommando: Dubletten-Merge — führt `mergedId` in `survivorId` zusammen (Spec 20 §1.7 [K]). */
+  mergePlace(survivorId: PlaceId, mergedId: PlaceId): void;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
   saveHof(model: HofObject): void;
   /** Kommando: entfernt ein HofObject. */
@@ -104,6 +107,15 @@ export function createAppState(): AppState {
       const nextPlaces = new Map(db.placeObjects);
       deletePlaceObject(nextPlaces, id);
       db = { ...db, placeObjects: nextPlaces };
+    },
+    mergePlace(survivorId, mergedId) {
+      // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextPlaces = new Map(db.placeObjects);
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextHofs = new Map(db.hofObjects);
+      mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedId);
+      db = { ...db, placeObjects: nextPlaces, hofObjects: nextHofs };
     },
     saveHof(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity

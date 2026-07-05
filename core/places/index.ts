@@ -72,4 +72,5 @@ export {
   withAddedHofAddr,
   withRemovedHofAddr,
   linkEventToPlace,
+  mergePlaceObjects,
 } from './commands';
