@@ -6,7 +6,12 @@
   //
   // Sonder-Ereignisse (birth/chr/death+cause/buri) haben feste, eigene Abschnitte (Spec
   // 10 §5.1 "Sonder-Ereignisse... feste UI-Position"). events[] ist eine generische
-  // Hinzufügen/Entfernen-Liste (makeEvent(type) aus dem Kern, Spec 20 §2).
+  // Hinzufügen/Entfernen-Liste (makeEvent(type) aus dem Kern, Spec 20 §2). Beide teilen
+  // sich EINE Überschrift "Ereignisse" (ADR-v9-30 Nachtrag 2026-07-06 — ersetzt die
+  // zuvor getrennten, nicht zielführenden Überschriften "Sonder-Ereignisse"/"Weitere
+  // Ereignisse"): Geburt (immer offen) -> Tod (isEventPresent-gesteuert wie jedes andere
+  // Ereignis-Pill, erscheint kanonisch direkt nach Geburt sobald befüllt) -> Ereignis-
+  // Pill-Reihe -> aktivierte/weitere events[]-Einträge.
   //
   // ADR-v9-30 Punkt 1 (Datum-Dirty-Tracking) + Punkt 3 (Schnellauswahl-Pills) + Punkt 4
   // (kompakte Zeilen, INV-UI-5): Datum/Ort sind IMMER direkt editierbar (keine Gate-
@@ -572,7 +577,7 @@
   </section>
 
   <section class="person-form__section">
-    <h4>Sonder-Ereignisse</h4>
+    <h4>Ereignisse</h4>
     {@render specialEventSection('Geburt (BIRT)', birth, false, false)}
     {#if showChr}
       {@render specialEventSection('Taufe (CHR)', chr, false, false)}
@@ -590,10 +595,6 @@
         {/each}
       </div>
     {/if}
-  </section>
-
-  <section class="person-form__section">
-    <h4>Weitere Ereignisse</h4>
     {#each events as ev (ev.key)}
       <div class="person-form__event">
         <div class="person-form__event-head">
