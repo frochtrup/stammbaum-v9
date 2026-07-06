@@ -102,6 +102,80 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     expect(head.querySelector('.src-badge, [class*="src-badge"]')).toBeTruthy();
   });
 
+  it('zeigt Eltern als informative Boxen mit Name+Geburtsjahr+Ort (Nachtrag 2026-07-06 [20 §1.5])', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const husband = makePerson('@I1@', { given: 'Heinrich', surname: 'Winkelmann' });
+    husband.birth.date = '1 JAN 1880';
+    husband.birth.place = 'Ochtrup';
+    const wife = makePerson('@I2@', { given: 'Margarete', surname: 'Winkelmann' });
+    wife.birth.date = '1 JAN 1885';
+    wife.birth.place = 'Ochtrup';
+    db.individuals.set('@I1@', husband);
+    db.individuals.set('@I2@', wife);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    const boxes = screen.getAllByRole('button', { name: /Winkelmann/ });
+    expect(boxes).toHaveLength(2);
+    expect(screen.getAllByText('1880, Ochtrup')).toHaveLength(1);
+    expect(screen.getAllByText('1885, Ochtrup')).toHaveLength(1);
+    for (const box of boxes) {
+      expect(box.className).toContain('stb-person-box');
+    }
+  });
+
+  it('zeigt bei Kindern zusätzlich das Geburtsjahr zur eindeutigen Identifikation (Nachtrag 2026-07-06 [20 §1.5])', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const child1 = makePerson('@I3@', { given: 'Julius', surname: 'Winkelmann' });
+    child1.birth.date = '1 JAN 1955';
+    const child2 = makePerson('@I4@', { given: 'Julius', surname: 'Winkelmann' });
+    child2.birth.date = '1 JAN 1958';
+    db.individuals.set('@I3@', child1);
+    db.individuals.set('@I4@', child2);
+    db.families.set('@F1@', makeFamily('@F1@', { children: ['@I3@', '@I4@'] }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.getByText('(1955)')).toBeTruthy();
+    expect(screen.getByText('(1958)')).toBeTruthy();
+  });
+
+  it('zeigt die Heirat direkt nach den Eltern-Boxen, vor den Kindern (DOM-Reihenfolge)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Heinrich', surname: 'Winkelmann' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Margarete', surname: 'Winkelmann' }));
+    const child = makePerson('@I3@', { given: 'Julius', surname: 'Winkelmann' });
+    child.birth.date = '1 JAN 1955';
+    db.individuals.set('@I3@', child);
+    const f = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@', children: ['@I3@'] });
+    f.marriage.date = '1 JUN 1920';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    const { container } = render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    const sections = Array.from(container.querySelectorAll('.family-detail__section'));
+    const parentsIdx = sections.findIndex((s) => s.textContent?.includes('Heinrich Winkelmann'));
+    const marriageIdx = sections.findIndex((s) => s.textContent?.includes('Heirat'));
+    const childrenIdx = sections.findIndex((s) => s.textContent?.includes('Julius Winkelmann'));
+
+    expect(parentsIdx).toBeGreaterThanOrEqual(0);
+    expect(marriageIdx).toBeGreaterThan(parentsIdx);
+    expect(childrenIdx).toBeGreaterThan(marriageIdx);
+  });
+
   it('zeigt einen definierten Leerzustand, wenn die id nicht (mehr) im Datenbestand existiert', () => {
     const appState = createAppState();
     const viewState = createViewState();

@@ -7,7 +7,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
-  import { buildFamilyDetail } from './family-detail-model';
+  import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
   import FamilyForm from './FamilyForm.svelte';
 
   interface Props {
@@ -46,6 +46,20 @@
     child: 'Kind',
   };
 
+  /** Eltern-Boxen (Ehemann/Ehefrau), gleicher kompakter Box-Stil wie FamilyForm/PersonPicker
+   *  (Nachtrag 2026-07-06 [20 §1.5]). */
+  const parents = $derived(detail?.members.filter((m) => m.role === 'husband' || m.role === 'wife') ?? []);
+  /** Kinder — zeigen zusätzlich das Geburtsjahr (summary) zur eindeutigen Identifikation
+   *  bei Namensgleichheit (Nachtrag 2026-07-06 [20 §1.5]). */
+  const children = $derived(detail?.members.filter((m) => m.role === 'child') ?? []);
+
+  /** Heirat steht prominent direkt nach den Eltern-Boxen, nicht als Teil der generischen
+   *  Ereignis-Liste (Nachtrag 2026-07-06 [20 §1.5]). Verlobung bleibt (falls vorhanden)
+   *  ebenfalls hier, in ihrer kanonischen GEDCOM-Reihenfolge VOR der Heirat. Alle übrigen
+   *  Ereignisse (events[]) bleiben in der generischen Liste am Ende. */
+  const marriageEvents = $derived(detail?.events.filter((e) => e.key === 'MARR' || e.key === 'ENGA') ?? []);
+  const otherEvents = $derived(detail?.events.filter((e) => e.key !== 'MARR' && e.key !== 'ENGA') ?? []);
+
   function geoHref(coords: { lat: number; long: number }): string {
     return `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.long}#map=12/${coords.lat}/${coords.long}`;
   }
@@ -63,6 +77,44 @@
   }
 </script>
 
+{#snippet eventRow(ev: FamilyEventRow)}
+  <li class="family-detail__event">
+    <div class="family-detail__event-head">
+      <span class="family-detail__event-label">{ev.label}</span>
+      {#if ev.summary}<span class="family-detail__event-summary">{ev.summary}</span>{/if}
+      {#if ev.coords}
+        <a
+          class="family-detail__geo-link"
+          href={geoHref(ev.coords)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Karte ↗
+        </a>
+      {/if}
+      {#if ev.hofId && onNavigateToHof}
+        <button type="button" class="family-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
+          Hof ansehen →
+        </button>
+      {:else if ev.placeId && onNavigateToPlace}
+        <button type="button" class="family-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
+          Ort ansehen →
+        </button>
+      {/if}
+      {#if ev.citations.length > 0}
+        {#each ev.citations as cit, i (i)}
+          <SourceBadge
+            citation={cit}
+            source={appState.db.sources.get(cit.sourceId)}
+            onSelect={onNavigateToSource}
+          />
+        {/each}
+      {/if}
+    </div>
+    {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
+  </li>
+{/snippet}
+
 <div class="family-detail">
   {#if !familyId}
     <p class="family-detail__empty">Keine Familie ausgewählt.</p>
@@ -77,65 +129,65 @@
     </div>
 
     <section class="family-detail__section">
-      <h3>Mitglieder</h3>
-      <ul class="family-detail__members">
-        {#each detail.members as member (member.personId)}
-          <li>
-            <span class="family-detail__member-role">{roleLabel[member.role]}</span>
-            <button
-              type="button"
-              class="family-detail__member-link"
-              onclick={() => onNavigateToPerson(member.personId)}
-            >
-              {member.name}
-            </button>
-          </li>
+      <h3>Eltern</h3>
+      <div class="family-detail__parents">
+        {#each parents as member (member.personId)}
+          <button
+            type="button"
+            class="stb-person-box family-detail__parent-box"
+            onclick={() => onNavigateToPerson(member.personId)}
+          >
+            <span class="family-detail__parent-role">{roleLabel[member.role]}</span>
+            <span class="stb-person-box__name">{member.name}</span>
+            {#if member.summary}<span class="stb-person-box__meta">{member.summary}</span>{/if}
+          </button>
         {/each}
-      </ul>
+        {#if parents.length === 0}
+          <p class="family-detail__muted">Keine Eltern zugeordnet.</p>
+        {/if}
+      </div>
+    </section>
+
+    {#if marriageEvents.length > 0}
+      <section class="family-detail__section">
+        <ul class="family-detail__events">
+          {#each marriageEvents as ev (ev.key)}
+            {@render eventRow(ev)}
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
+    <section class="family-detail__section">
+      <h3>Kinder</h3>
+      {#if children.length === 0}
+        <p class="family-detail__muted">Keine Kinder zugeordnet.</p>
+      {:else}
+        <ul class="family-detail__children">
+          {#each children as child (child.personId)}
+            <li>
+              <button
+                type="button"
+                class="family-detail__child-link"
+                onclick={() => onNavigateToPerson(child.personId)}
+              >
+                {child.name}
+                {#if child.summary}<span class="family-detail__child-summary">({child.summary})</span>{/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </section>
 
     <section class="family-detail__section">
-      <h3>Ereignisse</h3>
-      {#if detail.events.length === 0}
-        <p class="family-detail__muted">Keine Ereignisse erfasst.</p>
+      <h3>Weitere Ereignisse</h3>
+      {#if otherEvents.length === 0}
+        <p class="family-detail__muted">Keine weiteren Ereignisse erfasst.</p>
       {:else}
         <ul class="family-detail__events">
-          {#each detail.events as ev (ev.key)}
-            <li class="family-detail__event">
-              <div class="family-detail__event-head">
-                <span class="family-detail__event-label">{ev.label}</span>
-                {#if ev.summary}<span class="family-detail__event-summary">{ev.summary}</span>{/if}
-                {#if ev.coords}
-                  <a
-                    class="family-detail__geo-link"
-                    href={geoHref(ev.coords)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Karte ↗
-                  </a>
-                {/if}
-                {#if ev.hofId && onNavigateToHof}
-                  <button type="button" class="family-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
-                    Hof ansehen →
-                  </button>
-                {:else if ev.placeId && onNavigateToPlace}
-                  <button type="button" class="family-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
-                    Ort ansehen →
-                  </button>
-                {/if}
-                {#if ev.citations.length > 0}
-                  {#each ev.citations as cit, i (i)}
-                    <SourceBadge
-                      citation={cit}
-                      source={appState.db.sources.get(cit.sourceId)}
-                      onSelect={onNavigateToSource}
-                    />
-                  {/each}
-                {/if}
-              </div>
-              {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
-            </li>
+          {#each otherEvents as ev (ev.key)}
+            {@render eventRow(ev)}
           {/each}
         </ul>
       {/if}
@@ -206,36 +258,54 @@
     font-size: 0.85rem;
   }
 
-  .family-detail__members {
+  /* Eltern-Boxen (Nachtrag 2026-07-06 [20 §1.5]): nebeneinander wie im Bearbeiten-Modus
+     (FamilyForm.svelte's .family-form__grid), gemeinsame Box-Optik aus .stb-person-box
+     (design-system.css, INV-UI-4) — nur Layout (Grid) + die zusätzliche Rollen-Beschriftung
+     bleiben hier lokal. */
+  .family-detail__parents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .family-detail__parent-role {
+    font-size: 0.68rem;
+    color: var(--stb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* Kinder — kompakte, anklickbare Einzeiler (INV-UI-5): Name + Geburtsjahr in Klammern,
+     kein voller .stb-person-box-Kasten nötig (Nachtrag 2026-07-06 [20 §1.5]). */
+  .family-detail__children {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
-  .family-detail__members li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0;
+  .family-detail__children li {
     border-bottom: 1px solid var(--stb-surface-2);
   }
 
-  .family-detail__member-role {
-    font-size: 0.72rem;
-    color: var(--stb-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    min-width: 5.5rem;
-  }
-
-  .family-detail__member-link {
+  .family-detail__child-link {
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
     background: transparent;
     border: none;
     color: var(--stb-gold-light);
     cursor: pointer;
-    padding: 0;
+    padding: 0.4rem 0;
     font: inherit;
+    text-align: left;
     text-decoration: underline;
+  }
+
+  .family-detail__child-summary {
+    color: var(--stb-text-dim);
+    font-size: 0.82rem;
+    text-decoration: none;
   }
 
   .family-detail__events {

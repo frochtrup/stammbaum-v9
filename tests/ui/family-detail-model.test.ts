@@ -33,6 +33,23 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
     expect(detail.label).toBe('Otto Bauer ⚭ Anna Klein');
   });
 
+  it('liefert je Mitgliedszeile eine yearPlaceSummary aus der Geburt (Nachtrag 2026-07-06 [20 §1.5])', () => {
+    const db = makeDatabase();
+    const husband = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    husband.birth.date = '1 JAN 1900';
+    husband.birth.place = 'Ochtrup';
+    const child = makePerson('@I3@', { given: 'Karl', surname: 'Bauer' });
+    child.birth.date = '1 JAN 1925';
+    db.individuals.set('@I1@', husband);
+    db.individuals.set('@I3@', child);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', children: ['@I3@'] }));
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    expect(detail.members[0].summary).toBe('1900, Ochtrup');
+    expect(detail.members[1].summary).toBe('1925');
+  });
+
   it('überspringt Mitglieder, deren Person-Id nicht (mehr) existiert', () => {
     const db = makeDatabase();
     db.families.set('@F1@', makeFamily('@F1@', { husband: '@I-gone@' }));

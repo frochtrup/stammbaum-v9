@@ -17,6 +17,11 @@ export interface FamilyMemberRow {
   personId: string;
   name: string;
   role: 'husband' | 'wife' | 'child';
+  /** Jahr+Ort der Geburt (analog PersonPicker.svelte's `.person-picker__field`-
+   *  Sekundärzeile — `yearPlaceSummary` ist derselbe Mechanismus, kein neuer,
+   *  Nachtrag 2026-07-06 [20 §1.5]). Für Eltern die Sekundärzeile der Box, für Kinder
+   *  das sichtbare Geburtsjahr zur eindeutigen Identifikation bei Namensgleichheit. */
+  summary: string;
 }
 
 export interface FamilyEventRow {
@@ -40,11 +45,16 @@ export interface FamilyDetailModel {
   citations: Citation[];
 }
 
-function memberRow(id: string | null, role: FamilyMemberRow['role'], db: Database): FamilyMemberRow | null {
+function memberRow(
+  id: string | null,
+  role: FamilyMemberRow['role'],
+  db: Database,
+  ctx: PlaceContext,
+): FamilyMemberRow | null {
   if (!id) return null;
   const p = db.individuals.get(id);
   if (!p) return null;
-  return { personId: id, name: displayName(p), role };
+  return { personId: id, name: displayName(p), role, summary: yearPlaceSummary(p.birth, ctx) };
 }
 
 function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): FamilyEventRow | null {
@@ -71,12 +81,12 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
   if (!family) return null;
 
   const members: FamilyMemberRow[] = [];
-  const husband = memberRow(family.husband, 'husband', db);
+  const husband = memberRow(family.husband, 'husband', db, ctx);
   if (husband) members.push(husband);
-  const wife = memberRow(family.wife, 'wife', db);
+  const wife = memberRow(family.wife, 'wife', db, ctx);
   if (wife) members.push(wife);
   for (const childId of family.children) {
-    const child = memberRow(childId, 'child', db);
+    const child = memberRow(childId, 'child', db, ctx);
     if (child) members.push(child);
   }
 
