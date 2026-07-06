@@ -3,15 +3,33 @@
 // KEINE Relationship-Graph-Seiteneffekte (childOf/parentIn/Family.* außerhalb Scope,
 // Spec 20 §1.87 [S/E]) — analog deletePlaceObject, das enclosedBy auch nicht nachführt.
 import { describe, it, expect } from 'vitest';
-import { savePerson, deletePerson, saveFamily, deleteFamily } from '../../../core/model/commands';
+import {
+  savePerson,
+  deletePerson,
+  saveFamily,
+  deleteFamily,
+  saveSource,
+  deleteSource,
+  saveRepository,
+  deleteRepository,
+} from '../../../core/model/commands';
 import {
   makePerson,
   makeFamily,
+  makeSource,
+  makeRepository,
   makeDatabase,
   addChildToFamily,
   checkIndiFamConsistency,
 } from '../../../core/model/index';
-import type { Person, PersonId } from '../../../core/model/types';
+import type {
+  Person,
+  PersonId,
+  Source,
+  SourceId,
+  Repository,
+  RepoId,
+} from '../../../core/model/types';
 
 function fresh(): Map<PersonId, Person> {
   return new Map<PersonId, Person>();
@@ -231,5 +249,141 @@ describe('deleteFamily — Entfernen ohne Kaskade', () => {
     saveFamily(db, makeFamily('@F1@'));
     deleteFamily(db, '@F999@');
     expect(db.families.size).toBe(1);
+  });
+});
+
+// --- saveSource / deleteSource (Spec 20 §2 Quelle-Formular; Spec 10 §4) ---
+// FLACHES Modell ohne Beziehungs-Graph: reines Whole-Object-Upsert (savePlaceObject-Muster).
+// Source.repo ist nur eine lose Referenz — KEINE Sync-Logik nötig.
+
+function freshSources(): Map<SourceId, Source> {
+  return new Map<SourceId, Source>();
+}
+
+describe('saveSource — Upsert per id', () => {
+  it('legt eine neue Quelle an', () => {
+    const map = freshSources();
+    const s = makeSource('@S1@');
+    saveSource(map, s);
+    expect(map.get('@S1@')).toBe(s);
+    expect(map.size).toBe(1);
+  });
+
+  it('ersetzt eine bestehende Quelle vollständig (per id)', () => {
+    const map = freshSources();
+    saveSource(map, makeSource('@S1@', { title: 'Alt' }));
+    const s2 = makeSource('@S1@', { title: 'Neu' });
+    saveSource(map, s2);
+    expect(map.size).toBe(1);
+    expect(map.get('@S1@')).toBe(s2);
+    expect(map.get('@S1@')!.title).toBe('Neu');
+  });
+
+  it('rührt andere Quellen nicht an', () => {
+    const map = freshSources();
+    const a = makeSource('@S1@');
+    const b = makeSource('@S2@');
+    saveSource(map, a);
+    saveSource(map, b);
+    expect(map.size).toBe(2);
+    expect(map.get('@S1@')).toBe(a);
+    expect(map.get('@S2@')).toBe(b);
+  });
+
+  it('fasst die repo-Referenz nicht an (lose Referenz, keine Sync-Logik)', () => {
+    const map = freshSources();
+    const s = makeSource('@S1@', { repo: '@R7@' });
+    saveSource(map, s);
+    // saveSource ersetzt nur das Objekt — kein Repository-Seiteneffekt.
+    expect(map.get('@S1@')!.repo).toBe('@R7@');
+  });
+});
+
+describe('deleteSource — Entfernen per id', () => {
+  it('entfernt eine vorhandene Quelle', () => {
+    const map = freshSources();
+    saveSource(map, makeSource('@S1@'));
+    deleteSource(map, '@S1@');
+    expect(map.has('@S1@')).toBe(false);
+    expect(map.size).toBe(0);
+  });
+
+  it('ist ein No-Op bei unbekannter id', () => {
+    const map = freshSources();
+    saveSource(map, makeSource('@S1@'));
+    deleteSource(map, '@S999@');
+    expect(map.size).toBe(1);
+  });
+
+  it('räumt referenzierende Citations NICHT auf (kein Cleanup, INV-P2 meldet)', () => {
+    // deleteSource kennt weder Personen noch deren Zitate — verwaiste citation.sourceId
+    // werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still aufgeräumt.
+    const map = freshSources();
+    saveSource(map, makeSource('@S1@'));
+    deleteSource(map, '@S1@');
+    expect(map.has('@S1@')).toBe(false);
+  });
+});
+
+// --- saveRepository / deleteRepository (Spec 20 §2 Archiv-Formular; Spec 10 §4) ---
+
+function freshRepos(): Map<RepoId, Repository> {
+  return new Map<RepoId, Repository>();
+}
+
+describe('saveRepository — Upsert per id', () => {
+  it('legt ein neues Archiv an', () => {
+    const map = freshRepos();
+    const r = makeRepository('@R1@');
+    saveRepository(map, r);
+    expect(map.get('@R1@')).toBe(r);
+    expect(map.size).toBe(1);
+  });
+
+  it('ersetzt ein bestehendes Archiv vollständig (per id)', () => {
+    const map = freshRepos();
+    saveRepository(map, makeRepository('@R1@', { name: 'Alt' }));
+    const r2 = makeRepository('@R1@', { name: 'Neu' });
+    saveRepository(map, r2);
+    expect(map.size).toBe(1);
+    expect(map.get('@R1@')).toBe(r2);
+    expect(map.get('@R1@')!.name).toBe('Neu');
+  });
+
+  it('rührt andere Archive nicht an', () => {
+    const map = freshRepos();
+    const a = makeRepository('@R1@');
+    const b = makeRepository('@R2@');
+    saveRepository(map, a);
+    saveRepository(map, b);
+    expect(map.size).toBe(2);
+    expect(map.get('@R1@')).toBe(a);
+    expect(map.get('@R2@')).toBe(b);
+  });
+});
+
+describe('deleteRepository — Entfernen per id', () => {
+  it('entfernt ein vorhandenes Archiv', () => {
+    const map = freshRepos();
+    saveRepository(map, makeRepository('@R1@'));
+    deleteRepository(map, '@R1@');
+    expect(map.has('@R1@')).toBe(false);
+    expect(map.size).toBe(0);
+  });
+
+  it('ist ein No-Op bei unbekannter id', () => {
+    const map = freshRepos();
+    saveRepository(map, makeRepository('@R1@'));
+    deleteRepository(map, '@R999@');
+    expect(map.size).toBe(1);
+  });
+
+  it('räumt Source.repo-Referenzen NICHT auf (kein Cleanup, INV-P2 meldet)', () => {
+    // deleteRepository kennt die Sources-Map nicht — verwaiste Source.repo-Referenzen
+    // werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still aufgeräumt.
+    const map = freshRepos();
+    saveRepository(map, makeRepository('@R1@'));
+    deleteRepository(map, '@R1@');
+    expect(map.has('@R1@')).toBe(false);
   });
 });

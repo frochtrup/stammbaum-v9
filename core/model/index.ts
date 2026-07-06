@@ -47,3 +47,9 @@ export {
   type ConsistencyIssue,
 } from './integrity';
 export { saveFamily, deleteFamily } from './commands';
+export {
+  saveSource,
+  deleteSource,
+  saveRepository,
+  deleteRepository,
+} from './commands';

@@ -6,7 +6,17 @@
 //
 // Kein Zustand hier, kein DOM/I/O (INV-ARCH-1/2) — die UI-Schale ruft diese Kommandos
 // über ein AppState-Kommando auf, das die Reaktivität auslöst.
-import type { Database, Family, FamilyId, Person, PersonId } from './types';
+import type {
+  Database,
+  Family,
+  FamilyId,
+  Person,
+  PersonId,
+  Repository,
+  RepoId,
+  Source,
+  SourceId,
+} from './types';
 import {
   addChildToFamily,
   removeChildFromFamily,
@@ -105,4 +115,48 @@ export function saveFamily(db: Database, next: Family): void {
  */
 export function deleteFamily(db: Database, id: FamilyId): void {
   db.families.delete(id);
+}
+
+// --- Quelle / Archiv (Spec 10 §4, Spec 20 §2 Quelle-/Archiv-Formular) ---
+//
+// Source und Repository sind FLACHE Modelle ohne Beziehungs-Graph: Source.repo ist nur eine
+// lose Referenz (RepoId | Freitext), kein bidirektionales Sync-Bedürfnis wie Family.husband /
+// Person.parentIn. Deshalb reicht — anders als saveFamily — reines Whole-Object-Upsert
+// (savePlaceObject-/savePerson-Muster), KEINE Sync-Logik.
+
+/**
+ * Kommando: legt eine Quelle an oder ersetzt sie vollständig (Upsert per id).
+ *
+ * BEWUSST OHNE Nachführung der repo-Referenz — sie ist ein loser Verweis, kein Graph.
+ */
+export function saveSource(sources: Map<SourceId, Source>, next: Source): void {
+  sources.set(next.id, next);
+}
+
+/**
+ * Kommando: entfernt eine Quelle (per id). No-Op bei unbekannter id.
+ *
+ * BEWUSST OHNE Kaskade auf referenzierende Citations (analog deletePerson/deletePlaceObject):
+ * verwaiste citation.sourceId werden von findOrphanRefs (INV-P2, Spec 10 §6) gemeldet, nicht
+ * hier still aufgeräumt.
+ */
+export function deleteSource(sources: Map<SourceId, Source>, id: SourceId): void {
+  sources.delete(id);
+}
+
+/**
+ * Kommando: legt ein Archiv an oder ersetzt es vollständig (Upsert per id).
+ */
+export function saveRepository(repositories: Map<RepoId, Repository>, next: Repository): void {
+  repositories.set(next.id, next);
+}
+
+/**
+ * Kommando: entfernt ein Archiv (per id). No-Op bei unbekannter id.
+ *
+ * BEWUSST OHNE Kaskade auf Source.repo-Referenzen (gleiches Prinzip wie deleteSource):
+ * verwaiste Verweise werden von findOrphanRefs (INV-P2) gemeldet, nicht hier aufgeräumt.
+ */
+export function deleteRepository(repositories: Map<RepoId, Repository>, id: RepoId): void {
+  repositories.delete(id);
 }
