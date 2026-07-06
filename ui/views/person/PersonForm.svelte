@@ -178,7 +178,14 @@
   let eventKeySeq = untrack(() => events.length);
 
   function addEvent() {
-    const fresh = makeEvent(newEventType);
+    addEventOfType(newEventType);
+  }
+
+  /** Fügt sofort ein Ereignis eines festen Typs hinzu (ADR-v9-30 Punkt 3 Nachtrag: Beruf-
+   *  /Wohnort-Pills) — derselbe Kern-Mechanismus (makeEvent + toEditable) wie addEvent(),
+   *  nur ohne den Umweg über Typ-Dropdown + Button-Klick. */
+  function addEventOfType(type: string): void {
+    const fresh = makeEvent(type);
     eventKeySeq += 1;
     events = [...events, toEditable(`new-${eventKeySeq}`, fresh)];
   }
@@ -248,7 +255,11 @@
     label: string;
     activate: () => void;
   }
-  const pills = $derived.by<FieldPill[]>(() => {
+
+  /** Identitäts-Pills (Präfix/Suffix, Rufname, Titel, Religion, RESN, E-Mail, Website) —
+   *  eigene, räumlich getrennte Reihe bei der Identitäts-Sektion (ADR-v9-30 Nachtrag
+   *  "Zwei graphisch getrennte Pill-Gruppen", Spec 20 §2). */
+  const identityPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
     if (!showPrefixSuffix) list.push({ id: 'prefix-suffix', label: 'Präfix / Suffix', activate: () => (showPrefixSuffix = true) });
     if (!showNick) list.push({ id: 'nick', label: 'Rufname', activate: () => (showNick = true) });
@@ -257,9 +268,23 @@
     if (!showRestriction) list.push({ id: 'restriction', label: 'Zugriffsbeschränkung', activate: () => (showRestriction = true) });
     if (!showEmail) list.push({ id: 'email', label: 'E-Mail', activate: () => (showEmail = true) });
     if (!showWww) list.push({ id: 'www', label: 'Website', activate: () => (showWww = true) });
+    return list;
+  });
+
+  /** Ereignis-Pills (Taufe/Tod/Bestattung + Beruf/Wohnort) — eigene Reihe bei den
+   *  Sonder-/weiteren Ereignissen. Beruf/Wohnort verschwinden, sobald (mindestens) ein
+   *  OCCU-/RESI-Event in events[] existiert — der generische "+ Ereignis hinzufügen"-Weg
+   *  bleibt für einen ZWEITEN OCCU/RESI (z. B. Berufswechsel) weiterhin nutzbar. */
+  const hasOccu = $derived(events.some((e) => e.type === 'OCCU'));
+  const hasResi = $derived(events.some((e) => e.type === 'RESI'));
+
+  const eventPills = $derived.by<FieldPill[]>(() => {
+    const list: FieldPill[] = [];
     if (!showChr) list.push({ id: 'chr', label: 'Taufe', activate: () => (showChr = true) });
     if (!showDeath) list.push({ id: 'death', label: 'Tod', activate: () => (showDeath = true) });
     if (!showBuri) list.push({ id: 'buri', label: 'Bestattung', activate: () => (showBuri = true) });
+    if (!hasOccu) list.push({ id: 'occu', label: 'Beruf', activate: () => addEventOfType('OCCU') });
+    if (!hasResi) list.push({ id: 'resi', label: 'Wohnort', activate: () => addEventOfType('RESI') });
     return list;
   });
 
@@ -537,9 +562,9 @@
       Notiz
       <textarea bind:value={noteText}></textarea>
     </label>
-    {#if pills.length > 0}
+    {#if identityPills.length > 0}
       <div class="person-form__pill-row" aria-label="Weitere Felder">
-        {#each pills as pill (pill.id)}
+        {#each identityPills as pill (pill.id)}
           <button type="button" class="person-form__pill" onclick={pill.activate}>+ {pill.label}</button>
         {/each}
       </div>
@@ -557,6 +582,13 @@
     {/if}
     {#if showBuri}
       {@render specialEventSection('Bestattung (BURI)', buri, false, false)}
+    {/if}
+    {#if eventPills.length > 0}
+      <div class="person-form__pill-row person-form__pill-row--events" aria-label="Weitere Ereignisse">
+        {#each eventPills as pill (pill.id)}
+          <button type="button" class="person-form__pill" onclick={pill.activate}>+ {pill.label}</button>
+        {/each}
+      </div>
     {/if}
   </section>
 
@@ -672,6 +704,15 @@
     margin-top: 0.6rem;
   }
 
+  /* Ereignis-Pills (Taufe/Tod/Bestattung/Beruf/Wohnort) sind räumlich/optisch von den
+     Identitäts-Pills getrennt (ADR-v9-30 Nachtrag "Zwei graphisch getrennte Pill-
+     Gruppen") — eigener oberer Abstand + dezente Trennlinie statt derselben Reihe. */
+  .person-form__pill-row--events {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed var(--stb-gold-dim);
+  }
+
   .person-form__pill {
     background: var(--stb-surface-2);
     border: 1px dashed var(--stb-gold-dim);
@@ -715,13 +756,42 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     margin-top: 0.4rem;
+  }
+
+  /* ADR-v9-30 Punkt 4 Nachtrag (2026-07-06): Qualifier-Select UND Monat-Feld brauchen
+     ebenfalls eine feste/begrenzte geschlossene Feldbreite, sonst bläht die längste
+     Qualifier-Option ("zwischen (BET…AND…)") das <select> so weit auf, dass Tag/Monat/
+     Jahr auf 375px Viewport-Breite (primäre Mobile-Zielbreite, Spec 21 §2) nicht mehr in
+     eine Zeile passen. Das native Dropdown-Menü selbst zeigt trotzdem die vollen Labels —
+     nur die GESCHLOSSENE <select>-Breite ist begrenzt (min-width:0 erlaubt das
+     Schrumpfen unter die intrinsische Optionsbreite, text-overflow blendet den Rest ab).
+     Werte so bemessen, dass Qualifier(5.5rem)+Tag(3.2rem)+Monat(3.6rem)+Jahr(3.2rem) +
+     3 Gaps (0.3rem) auf 375px-Viewport (~285px nutzbare Breite in .person-form__event
+     nach Padding) in eine Zeile passen — verifiziert per preview_resize(mobile). */
+  .person-form__date-row select {
+    flex: 0 1 5.5rem;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .person-form__date-row input[type='text'] {
+    width: 3.6rem;
+    flex: 0 0 auto;
   }
 
   .person-form__day,
   .person-form__year {
-    width: 5.5rem;
+    width: 3.2rem;
+    flex: 0 0 auto;
+  }
+
+  .person-form__date-row input[type='number'] {
+    padding-left: 0.3rem;
+    padding-right: 0.2rem;
   }
 
   .person-form__muted {

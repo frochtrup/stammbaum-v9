@@ -6,7 +6,7 @@
 // (Seite/QUAY/Notiz) sowie Speichern/Abbrechen ab. KEIN <select bind:value> mit
 // fireEvent.change (bekannter happy-dom-Bug, Commit 3cc3d67) — value/onchange-Muster.
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonForm from '../../ui/views/person/PersonForm.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makePerson, makeSource, makeCitation } from '../../core/model';
@@ -354,7 +354,7 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
 
     render(PersonForm, { props: { appState, person } });
 
-    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website', 'Taufe', 'Tod', 'Bestattung']) {
+    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website', 'Taufe', 'Tod', 'Bestattung', 'Beruf', 'Wohnort']) {
       await fireEvent.click(screen.getByText(`+ ${label}`));
     }
 
@@ -369,6 +369,82 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
     expect(screen.getByText('Taufe (CHR)')).toBeTruthy();
     expect(screen.getByText('Tod (DEAT)')).toBeTruthy();
     expect(screen.getByText('Bestattung (BURI)')).toBeTruthy();
+    expect(screen.getAllByText('OCCU').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('RESI').length).toBeGreaterThan(0);
+  });
+
+  it('Identitäts- und Ereignis-Pills sind zwei getrennte Reihen (ADR-v9-30 Nachtrag "zwei Gruppen")', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    const identityRow = screen.getByLabelText('Weitere Felder');
+    const eventRow = screen.getByLabelText('Weitere Ereignisse');
+    expect(identityRow).not.toBe(eventRow);
+    expect(identityRow.className).toContain('person-form__pill-row');
+    expect(eventRow.className).toContain('person-form__pill-row');
+    // Identitäts-Pills liegen in der ersten Reihe, nicht in der Ereignis-Reihe.
+    expect(within(identityRow).getByText('+ Titel')).toBeTruthy();
+    expect(within(eventRow).queryByText('+ Titel')).toBeNull();
+    // Ereignis-Pills (inkl. Beruf/Wohnort) liegen in der zweiten Reihe, nicht in der ersten.
+    expect(within(eventRow).getByText('+ Taufe')).toBeTruthy();
+    expect(within(eventRow).getByText('+ Beruf')).toBeTruthy();
+    expect(within(eventRow).getByText('+ Wohnort')).toBeTruthy();
+    expect(within(identityRow).queryByText('+ Beruf')).toBeNull();
+  });
+});
+
+describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)', () => {
+  it('"+ Beruf" fügt sofort ein OCCU-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('OCCU', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Beruf'));
+    expect(screen.getByText('OCCU', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Beruf')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['OCCU']);
+  });
+
+  it('"+ Wohnort" fügt sofort ein RESI-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('RESI', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Wohnort'));
+    expect(screen.getByText('RESI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Wohnort')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['RESI']);
+  });
+
+  it('"+ Beruf"-Pill verschwindet, sobald bereits ein OCCU-Event existiert (importiert), aber "+ Ereignis hinzufügen" legt trotzdem einen zweiten OCCU an (Berufswechsel)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.events.push({
+      type: 'OCCU', value: 'Bauer', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+    });
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('+ Beruf')).toBeNull();
+    expect(screen.getAllByText('OCCU', { selector: 'strong' })).toHaveLength(1);
+
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'OCCU' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['OCCU', 'OCCU']);
   });
 });
 
