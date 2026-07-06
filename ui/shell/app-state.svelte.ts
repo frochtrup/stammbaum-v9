@@ -5,9 +5,15 @@
 // Spec 02 §3) — die Schale liest ihn über die definierten Chokepoints und hält eine
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
-import type { Database, PlaceId, HofId, PersonId, FamilyId, Person } from '../../core/model/types';
+import type { Database, PlaceId, HofId, PersonId, FamilyId, Person, Family } from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
-import { makeDatabase, savePerson as savePersonCmd, deletePerson as deletePersonCmd } from '../../core/model';
+import {
+  makeDatabase,
+  savePerson as savePersonCmd,
+  deletePerson as deletePersonCmd,
+  saveFamily as saveFamilyCmd,
+  deleteFamily as deleteFamilyCmd,
+} from '../../core/model';
 import {
   makePlaceRegistry,
   makeHofRegistry,
@@ -50,6 +56,16 @@ export interface AppState {
   savePerson(model: Person): void;
   /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
   deletePerson(id: PersonId): void;
+  /**
+   * Kommando: Upsert einer Familie (`saveFamily(model)`-Muster, Spec 20 §2). ANDERS als
+   * savePerson führt der Kern (core/model/commands.ts saveFamily) hier die INDI-Seite
+   * (Person.parentIn/childOf) synchron nach (INV-P3) — deshalb mutiert das Kommando BEIDE
+   * Maps (individuals + families) in-place und reassigned danach beide, damit Svelte's
+   * Reaktivität an beiden betroffenen Aggregaten greift (analog addTask/updateTask unten).
+   */
+  saveFamily(model: Family): void;
+  /** Kommando: entfernt eine Familie (per id, keine Kaskade — analog deleteFamily im Kern). */
+  deleteFamily(id: FamilyId): void;
   /** Kommando: Dubletten-Merge — führt `mergedId` in `survivorId` zusammen (Spec 20 §1.7 [K]). */
   mergePlace(survivorId: PlaceId, mergedId: PlaceId): void;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
@@ -165,6 +181,19 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       const nextIndividuals = new Map(db.individuals);
       deletePersonCmd(nextIndividuals, id);
       db = { ...db, individuals: nextIndividuals };
+    },
+    saveFamily(model) {
+      // saveFamilyCmd mutiert db.individuals (childOf/parentIn) UND db.families in-place
+      // (Spec 10 INV-P3) — die abschließende Reassign-Zeile löst Svelte's Reaktivität an
+      // BEIDEN betroffenen Maps aus (analog addTask's "Kommando mutiert ... in-place"-Muster).
+      saveFamilyCmd(db, model);
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      db = { ...db, individuals: new Map(db.individuals), families: new Map(db.families) };
+    },
+    deleteFamily(id) {
+      deleteFamilyCmd(db, id);
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      db = { ...db, families: new Map(db.families) };
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität

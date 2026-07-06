@@ -123,6 +123,15 @@
     viewState.setCurrent('family', id);
   }
 
+  /** "＋ Neue Familie" (Spec 20 §2): FamilyList hat die Familie bereits per
+   *  appState.saveFamily angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
+  let createdFamilyId = $state<string | null>(null);
+
+  function createFamily(id: string) {
+    createdFamilyId = id;
+    navigateToFamily(id);
+  }
+
   function navigateToSource(id: string) {
     activeSegment = 'source';
     sourceSubView = 'sources';
@@ -251,9 +260,10 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
+        startInEdit={selectedFamilyId === createdFamilyId}
       />
     {:else}
-      <FamilyList {appState} {viewState} />
+      <FamilyList {appState} {viewState} onCreate={createFamily} />
     {/if}
   {:else if activeSegment === 'source'}
     {#if sourceSubView === 'repositories'}

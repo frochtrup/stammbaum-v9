@@ -175,6 +175,54 @@ describe('AppState.savePerson/deletePerson — Personen-Editor-Kommandos (Spec 2
   });
 });
 
+describe('AppState.saveFamily/deleteFamily — Familien-Editor-Kommandos (Spec 20 §2, INV-P3)', () => {
+  it('saveFamily fügt eine Familie hinzu, die über db sichtbar wird', () => {
+    const appState = createAppState();
+    appState.saveFamily(makeFamily('@F1@'));
+
+    expect(appState.db.families.has('@F1@')).toBe(true);
+  });
+
+  it('saveFamily führt die INDI-Seite (parentIn/childOf) synchron nach — der eigentliche Beweis für INV-P3', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@', { given: 'Otto' })); // Ehemann
+    appState.savePerson(makePerson('@I2@', { given: 'Anna' })); // Ehefrau
+    appState.savePerson(makePerson('@I3@', { given: 'Kind' })); // Kind
+
+    const fam = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@', children: ['@I3@'] });
+    appState.saveFamily(fam);
+
+    expect(appState.db.individuals.get('@I1@')?.parentIn).toContain('@F1@');
+    expect(appState.db.individuals.get('@I2@')?.parentIn).toContain('@F1@');
+    expect(appState.db.individuals.get('@I3@')?.childOf.map((c) => c.familyId)).toContain('@F1@');
+  });
+
+  it('saveFamily entfernt eine INDI-Seiten-Verknüpfung wieder, wenn ein Elternteil/Kind aus der Familie genommen wird', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@'));
+    appState.savePerson(makePerson('@I3@'));
+    appState.saveFamily(makeFamily('@F1@', { husband: '@I1@', children: ['@I3@'] }));
+
+    appState.saveFamily(makeFamily('@F1@', { husband: null, children: [] }));
+
+    expect(appState.db.individuals.get('@I1@')?.parentIn).not.toContain('@F1@');
+    expect(appState.db.individuals.get('@I3@')?.childOf.map((c) => c.familyId)).not.toContain('@F1@');
+  });
+
+  it('deleteFamily entfernt eine Familie wieder', () => {
+    const appState = createAppState();
+    appState.saveFamily(makeFamily('@F1@'));
+    appState.deleteFamily('@F1@');
+
+    expect(appState.db.families.has('@F1@')).toBe(false);
+  });
+
+  it('deleteFamily ist ein No-Op bei unbekannter id (kein Fehler)', () => {
+    const appState = createAppState();
+    expect(() => appState.deleteFamily('@F-gone@')).not.toThrow();
+  });
+});
+
 describe('AppState.touch — erzwungene Aktualisierung nach In-Place-Event-Mutation', () => {
   it('gibt eine neue db-Referenz zurück, mit unverändertem Inhalt', () => {
     const appState = createAppState();

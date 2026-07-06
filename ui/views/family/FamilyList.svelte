@@ -3,8 +3,14 @@
   // Elternpaar-Namen, Heiratsdatum, Kinderzahl pro Zeile. Zyklischer Sortier-Umschalter
   // mit drei Zuständen (Nachname Ehemann · Nachname Ehefrau · Heiratsdatum), Suche +
   // erweiterte Filter — konsistent zum Personen-Tab-Muster (PersonList.svelte).
+  //
+  // "＋ Neue Familie" (Spec 20 §2): legt eine leere Familie mit einer kollisionsfreien id
+  // an (allocatorFromDatabase, Spec ADR-v9-11 — kein Zufall/Wall-Clock) und meldet die
+  // neue id über onCreate an den Aufrufer (EntityTab), der Auswahl + Editor-Öffnung
+  // übernimmt — dieselbe Kommando-Disziplin wie appState.saveFamily(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { makeFamily, allocatorFromDatabase, nextId } from '../../../core/model';
   import {
     buildFamilyRows,
     defaultFamilyFilters,
@@ -15,8 +21,17 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Nach dem Anlegen einer neuen Familie aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
+    onCreate?: (familyId: string) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onCreate }: Props = $props();
+
+  function createFamily() {
+    const alloc = allocatorFromDatabase(appState.db);
+    const id = nextId(alloc, 'F');
+    appState.saveFamily(makeFamily(id));
+    onCreate?.(id);
+  }
 
   const SORT_CYCLE: FamilySortMode[] = ['husbandSurname', 'wifeSurname', 'marriageDate'];
   const SORT_LABEL: Record<FamilySortMode, string> = {
@@ -54,11 +69,15 @@
 <div class="family-list">
   {#if isEmpty}
     <p class="family-list__empty">Keine Familien geladen — Datei öffnen, um zu starten.</p>
+    <div class="family-list__toolbar family-list__toolbar--empty">
+      <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
+    </div>
   {:else}
     <div class="family-list__toolbar">
       <button type="button" class="family-list__sort-toggle" onclick={cycleSortMode}>
         ⇅ {SORT_LABEL[sortMode]}
       </button>
+      <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
       <div class="family-list__search">
         <input
           type="search"
@@ -152,9 +171,15 @@
     z-index: 1;
   }
 
+  .family-list__toolbar--empty {
+    position: static;
+    justify-content: flex-start;
+  }
+
   .family-list__sort-toggle,
   .family-list__filter-toggle,
-  .family-list__filter-reset {
+  .family-list__filter-reset,
+  .family-list__new-btn {
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -162,6 +187,14 @@
     padding: 0.35rem 0.7rem;
     cursor: pointer;
     font-size: 0.85rem;
+  }
+
+  .family-list__new-btn {
+    margin-left: auto;
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    font-weight: 600;
+    border-color: var(--stb-gold);
   }
 
   .family-list__sort-toggle:hover,

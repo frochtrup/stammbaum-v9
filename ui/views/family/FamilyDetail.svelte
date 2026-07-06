@@ -1,11 +1,14 @@
 <script lang="ts">
-  // ui/views/family/FamilyDetail.svelte — Familien-Detail (Spec 20 §1.5 [K], read-only
-  // für diese Scheibe): anklickbare Mitglieder (-> Personen-Detail), Ereignisse,
-  // Quellen-Badges. "Baum-Sprung" ist NICHT Teil dieser Scheibe (imperative Insel).
+  // ui/views/family/FamilyDetail.svelte — Familien-Detail (Spec 20 §1.5 [K]): anklickbare
+  // Mitglieder (-> Personen-Detail), Ereignisse, Quellen-Badges. "Bearbeiten" öffnet
+  // FamilyForm inline (analog PersonDetail.svelte's editing-Abschnitt, Spec 20 §2).
+  // "Baum-Sprung" ist NICHT Teil dieser Scheibe (imperative Insel).
+  import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import { buildFamilyDetail } from './family-detail-model';
+  import FamilyForm from './FamilyForm.svelte';
 
   interface Props {
     appState: AppState;
@@ -18,12 +21,24 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
+    /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Familie", Spec 20 §2).
+     *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
+    startInEdit?: boolean;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToSource, onNavigateToPlace, onNavigateToHof }: Props =
-    $props();
+  const {
+    appState,
+    viewState,
+    onNavigateToPerson,
+    onNavigateToSource,
+    onNavigateToPlace,
+    onNavigateToHof,
+    startInEdit = false,
+  }: Props = $props();
 
   const familyId = $derived(viewState.getCurrent('family'));
   const detail = $derived(familyId ? buildFamilyDetail(appState.db, appState.placeContext, familyId) : null);
+
+  let editing = $state(untrack(() => startInEdit));
 
   const roleLabel: Record<'husband' | 'wife' | 'child', string> = {
     husband: 'Ehemann',
@@ -34,6 +49,18 @@
   function geoHref(coords: { lat: number; long: number }): string {
     return `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.long}#map=12/${coords.lat}/${coords.long}`;
   }
+
+  function startEdit() {
+    editing = true;
+  }
+
+  function cancelEdit() {
+    editing = false;
+  }
+
+  function afterSave() {
+    editing = false;
+  }
 </script>
 
 <div class="family-detail">
@@ -41,8 +68,13 @@
     <p class="family-detail__empty">Keine Familie ausgewählt.</p>
   {:else if !detail}
     <p class="family-detail__empty">Familie nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
+  {:else if editing}
+    <FamilyForm {appState} family={detail.family} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <h2 class="family-detail__label">{detail.label}</h2>
+    <div class="family-detail__hero">
+      <h2 class="family-detail__label">{detail.label}</h2>
+      <button type="button" class="family-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+    </div>
 
     <section class="family-detail__section">
       <h3>Mitglieder</h3>
@@ -140,6 +172,25 @@
 
   .family-detail__label {
     margin-top: 0;
+  }
+
+  .family-detail__hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .family-detail__edit-btn {
+    margin-left: auto;
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.82rem;
   }
 
   .family-detail__section {
