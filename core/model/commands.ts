@@ -6,7 +6,13 @@
 //
 // Kein Zustand hier, kein DOM/I/O (INV-ARCH-1/2) — die UI-Schale ruft diese Kommandos
 // über ein AppState-Kommando auf, das die Reaktivität auslöst.
-import type { Person, PersonId } from './types';
+import type { Database, Family, FamilyId, Person, PersonId } from './types';
+import {
+  addChildToFamily,
+  removeChildFromFamily,
+  addParentToFamily,
+  removeParentFromFamily,
+} from './integrity';
 
 /**
  * Kommando: legt eine Person an oder ersetzt sie vollständig (Upsert per id).
@@ -30,4 +36,73 @@ export function savePerson(individuals: Map<PersonId, Person>, next: Person): vo
  */
 export function deletePerson(individuals: Map<PersonId, Person>, id: PersonId): void {
   individuals.delete(id);
+}
+
+/**
+ * Kommando: legt eine Familie an oder aktualisiert sie aus dem Familie-Formular
+ * (Spec 20 §2: "Eltern (Dropdown), Heirat + Verlobung, Kinder ±, Quellen").
+ *
+ * ANDERS als savePerson ist die Beziehungsseite (Eltern/Kinder) hier KERN des Formulars —
+ * ein naives `families.set` würde die INDI-Seite (Person.parentIn/childOf) nicht nachführen
+ * und INV-P3 (Spec 10 §6) verletzen. Daher werden Eltern-/Kind-Änderungen über die
+ * synchron haltenden Kommandos aus integrity.ts angewandt, NICHT direkt geschrieben.
+ *
+ * Pedigree (INV-P4): `next.children` ist ein reines PersonId[] ohne Pedigree-Information.
+ * addChildToFamily wird deshalb OHNE pedigree-Argument aufgerufen — bestehende ChildLinks
+ * behalten ihren Pedigree-Wert unangetastet, neue erhalten den Default ''. Wer Pedigree
+ * bearbeiten will, tut das über den ChildLink-Editor; dieses Formular fasst ihn nicht an.
+ */
+export function saveFamily(db: Database, next: Family): void {
+  const prev = db.families.get(next.id);
+  const prevHusband = prev ? prev.husband : null;
+  const prevWife = prev ? prev.wife : null;
+  const prevChildren = prev ? prev.children : [];
+
+  // Sicherstellen, dass eine Familie existiert, bevor die integrity-Kommandos greifen
+  // (sie no-op'en auf fehlende Familien). Restfelder werden am Ende endgültig gesetzt.
+  if (!prev) {
+    db.families.set(next.id, { ...next, husband: null, wife: null, children: [] });
+  }
+
+  // --- Eltern-Slots synchron nachführen (INV-P3) ---
+  if (next.husband !== prevHusband) {
+    if (next.husband === null) removeParentFromFamily(db, next.id, 'husband');
+    else addParentToFamily(db, next.id, next.husband, 'husband');
+  }
+  if (next.wife !== prevWife) {
+    if (next.wife === null) removeParentFromFamily(db, next.id, 'wife');
+    else addParentToFamily(db, next.id, next.wife, 'wife');
+  }
+
+  // --- Kinder-Differenz synchron nachführen (INV-P3), Pedigree unangetastet (INV-P4) ---
+  const nextSet = new Set(next.children);
+  const prevSet = new Set(prevChildren);
+  for (const cid of prevChildren) {
+    if (!nextSet.has(cid)) removeChildFromFamily(db, next.id, cid);
+  }
+  for (const cid of next.children) {
+    if (!prevSet.has(cid)) addChildToFamily(db, next.id, cid); // ohne pedigree → Default/erhalten
+  }
+
+  // --- Restfelder als reines Upsert übernehmen (keine Beziehungs-Seiteneffekte) ---
+  // husband/wife/children stehen bereits konsistent im aktuellen Family-Objekt; children in
+  // der vom Formular gewünschten Reihenfolge übernehmen. Beziehungslose Felder kommen aus next.
+  const fam = db.families.get(next.id)!;
+  db.families.set(next.id, {
+    ...next,
+    husband: fam.husband,
+    wife: fam.wife,
+    children: next.children.slice(),
+  });
+}
+
+/**
+ * Kommando: entfernt eine Familie (per id). No-Op bei unbekannter id.
+ *
+ * BEWUSST OHNE Kaskade auf Person.childOf/parentIn (analog deletePerson/deletePlaceObject):
+ * verwaiste Referenzen werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still
+ * aufgeräumt — konsistentes Muster, kein Bug.
+ */
+export function deleteFamily(db: Database, id: FamilyId): void {
+  db.families.delete(id);
 }

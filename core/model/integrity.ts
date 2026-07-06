@@ -200,3 +200,29 @@ export function addParentToFamily(
   }
   if (!parent.parentIn.includes(familyId)) parent.parentIn.push(familyId);
 }
+
+/**
+ * Kommando (INV-P3): leert einen Elternteil-Slot (husband/wife → null).
+ * Löst den bisherigen Insassen sauber aus parentIn, falls er nirgends sonst
+ * Elternteil dieser Familie ist — exakt wie der Slot-Wechsel in addParentToFamily.
+ * Idempotent (leerer Slot bleibt leer).
+ */
+export function removeParentFromFamily(
+  db: Database,
+  familyId: FamilyId,
+  slot: 'husband' | 'wife',
+): void {
+  const fam = db.families.get(familyId);
+  if (!fam) return;
+
+  const previous = fam[slot];
+  fam[slot] = null;
+  if (previous !== null) {
+    // Nur lösen, wenn die Person nicht noch im anderen Slot dieser Familie sitzt.
+    const stillParent = fam.husband === previous || fam.wife === previous;
+    if (!stillParent) {
+      const old = db.individuals.get(previous);
+      if (old) old.parentIn = old.parentIn.filter((f) => f !== familyId);
+    }
+  }
+}

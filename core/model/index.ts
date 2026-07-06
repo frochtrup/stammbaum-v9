@@ -42,6 +42,8 @@ export {
   addChildToFamily,
   removeChildFromFamily,
   addParentToFamily,
+  removeParentFromFamily,
   type OrphanRef,
   type ConsistencyIssue,
 } from './integrity';
+export { saveFamily, deleteFamily } from './commands';
