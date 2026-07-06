@@ -199,11 +199,13 @@
           <li>
             <span>{placeTitleFor(enc.placeId)}</span>
             {#if enc.from || enc.to}<span class="place-detail__muted">({enc.from ?? '…'}–{enc.to ?? '…'})</span>{/if}
-            <button type="button" class="place-detail__remove-btn" onclick={() => removeEnclosedBy(i)} aria-label="Zugehörigkeit entfernen">✕</button>
+            {#if editing}
+              <button type="button" class="place-detail__remove-btn" onclick={() => removeEnclosedBy(i)} aria-label="Zugehörigkeit entfernen">✕</button>
+            {/if}
           </li>
         {/each}
       </ul>
-      {#if otherPlaces.length > 0}
+      {#if editing && otherPlaces.length > 0}
         <div class="place-detail__add-row">
           <select
             value={newEnclosedParent}
@@ -231,49 +233,60 @@
           {#each detail.variants as v, i (i)}
             <span class="stb-pill" title={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
               {v.value}
-              <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+              {#if editing}
+                <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+              {/if}
             </span>
           {/each}
         </div>
       {/if}
-      <div class="place-detail__add-row">
-        <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
-        <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
-        <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
-        <button type="button" onclick={addPname}>+ Hinzufügen</button>
-      </div>
-    </section>
-
-    <section class="place-detail__section">
-      <h3>Dubletten-Merge</h3>
-      <p class="place-detail__muted">
-        Diesen Ort verlustfrei in einen anderen Ort zusammenführen — Titel und Namensvarianten
-        von „{detail.place.title || detail.place.id}" erscheinen danach als Herkunfts-Pillen
-        beim Ziel-Ort.
-      </p>
-      {#if otherPlaces.length === 0}
-        <p class="place-detail__muted">Kein weiterer Ort vorhanden, um damit zusammenzuführen.</p>
-      {:else}
+      {#if editing}
         <div class="place-detail__add-row">
-          <select
-            aria-label="Ziel-Ort für Merge"
-            value={mergeTargetId}
-            onchange={(e) => (mergeTargetId = (e.currentTarget as HTMLSelectElement).value)}
-          >
-            <option value="">Ziel-Ort wählen…</option>
-            {#each otherPlaces as p (p.id)}
-              <option value={p.id}>{p.title || p.id} ({p.id})</option>
-            {/each}
-          </select>
-          <button type="button" class="place-detail__merge-btn" onclick={mergeIntoTarget} disabled={!mergeTargetId}>
-            In Ziel-Ort zusammenführen
-          </button>
+          <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
+          <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
+          <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
+          <button type="button" onclick={addPname}>+ Hinzufügen</button>
         </div>
-        {#if mergeError}
-          <p class="place-detail__error">{mergeError}</p>
-        {/if}
       {/if}
     </section>
+
+    {#if editing}
+      <!-- Dubletten-Merge bewusst ebenfalls hinter den Bearbeiten-Modus gestellt (ADR-v9-30
+           Punkt 5: "kein Add/Remove-Control … darf außerhalb des Bearbeitungs-Modus sichtbar
+           sein" — Merge ist im selben visuellen Add-Row-Stil gebaut und destruktiv/mutierend
+           wie pnames/enclosedBy, auch wenn der Spec-Wortlaut nur diese beiden explizit nennt.
+           Konsistente, sicherere Default-Interpretation statt eines dritten Sonderfalls. -->
+      <section class="place-detail__section">
+        <h3>Dubletten-Merge</h3>
+        <p class="place-detail__muted">
+          Diesen Ort verlustfrei in einen anderen Ort zusammenführen — Titel und Namensvarianten
+          von „{detail.place.title || detail.place.id}" erscheinen danach als Herkunfts-Pillen
+          beim Ziel-Ort.
+        </p>
+        {#if otherPlaces.length === 0}
+          <p class="place-detail__muted">Kein weiterer Ort vorhanden, um damit zusammenzuführen.</p>
+        {:else}
+          <div class="place-detail__add-row">
+            <select
+              aria-label="Ziel-Ort für Merge"
+              value={mergeTargetId}
+              onchange={(e) => (mergeTargetId = (e.currentTarget as HTMLSelectElement).value)}
+            >
+              <option value="">Ziel-Ort wählen…</option>
+              {#each otherPlaces as p (p.id)}
+                <option value={p.id}>{p.title || p.id} ({p.id})</option>
+              {/each}
+            </select>
+            <button type="button" class="place-detail__merge-btn" onclick={mergeIntoTarget} disabled={!mergeTargetId}>
+              In Ziel-Ort zusammenführen
+            </button>
+          </div>
+          {#if mergeError}
+            <p class="place-detail__error">{mergeError}</p>
+          {/if}
+        {/if}
+      </section>
+    {/if}
 
     {#if detail.unlinkedEvents.length > 0}
       <section class="place-detail__section place-detail__unlinked">

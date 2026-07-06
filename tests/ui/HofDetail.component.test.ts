@@ -72,7 +72,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     expect(appState.db.hofObjects.get('@H1@')?.note).toBe('Alter Bauernhof');
   });
 
-  it('fügt eine neue Adressvariante hinzu', async () => {
+  it('fügt eine neue Adressvariante hinzu (nur im Bearbeiten-Modus sichtbar)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
@@ -82,6 +82,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     viewState.setCurrent('hof', '@H1@');
 
     render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.input(screen.getByLabelText('Neue Adressvariante'), { target: { value: 'Wallstraße 33' } });
     await fireEvent.click(screen.getByText('+ Hinzufügen'));
 
@@ -106,6 +107,52 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.hofObjects.get('@H1@')?.predecessor).toBe('@H2@');
+  });
+});
+
+describe('HofDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Punkt 5)', () => {
+  it('zeigt Adressvarianten als reine Lese-Darstellung ohne Mutations-Controls außerhalb des Bearbeiten-Modus', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set(
+      '@H1@',
+      hof('@H1@', '@P1@', {
+        addrs: [
+          { value: 'Wall 33', from: null, to: null },
+          { value: 'Wallstraße 33', from: null, to: null },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    const { container } = render(HofDetail, { props: { appState, viewState } });
+
+    // Lese-Darstellung bleibt sichtbar.
+    expect(screen.getByText('Wallstraße 33')).toBeTruthy();
+    // Aber keine Mutations-Controls außerhalb des Bearbeiten-Modus.
+    expect(container.querySelector('.hof-detail__remove-btn')).toBeNull();
+    expect(container.querySelector('.hof-detail__add-row')).toBeNull();
+    expect(screen.queryByLabelText('Neue Adressvariante')).toBeNull();
+    expect(container.querySelector('.hof-detail__form')).toBeNull();
+  });
+
+  it('blendet die Mutations-Controls nach Klick auf "✎ Bearbeiten" wieder ein', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    const { container } = render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+
+    expect(container.querySelector('.hof-detail__remove-btn')).toBeTruthy();
+    expect(screen.getByLabelText('Neue Adressvariante')).toBeTruthy();
   });
 });
 

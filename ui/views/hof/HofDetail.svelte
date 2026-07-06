@@ -161,16 +161,20 @@
           <li>
             <span>{a.value}</span>
             {#if a.from || a.to}<span class="hof-detail__muted">({a.from ?? '…'}–{a.to ?? '…'})</span>{/if}
-            <button type="button" class="hof-detail__remove-btn" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
+            {#if editing}
+              <button type="button" class="hof-detail__remove-btn" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
+            {/if}
           </li>
         {/each}
       </ul>
-      <div class="hof-detail__add-row">
-        <input type="text" placeholder="neue Adresse…" bind:value={newAddrValue} aria-label="Neue Adressvariante" />
-        <input type="number" placeholder="von" bind:value={newAddrFrom} aria-label="Gültig von (Jahr)" />
-        <input type="number" placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr)" />
-        <button type="button" onclick={addAddr}>+ Hinzufügen</button>
-      </div>
+      {#if editing}
+        <div class="hof-detail__add-row">
+          <input type="text" placeholder="neue Adresse…" bind:value={newAddrValue} aria-label="Neue Adressvariante" />
+          <input type="number" placeholder="von" bind:value={newAddrFrom} aria-label="Gültig von (Jahr)" />
+          <input type="number" placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr)" />
+          <button type="button" onclick={addAddr}>+ Hinzufügen</button>
+        </div>
+      {/if}
     </section>
 
     <section class="hof-detail__section">
