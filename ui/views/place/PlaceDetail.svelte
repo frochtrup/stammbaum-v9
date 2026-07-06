@@ -11,6 +11,7 @@
   // Inseln — anderer Bauabschnitt).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import DetailHeader from '../../shell/DetailHeader.svelte';
   import { linkEventToPlace, withAddedPname, withRemovedPname, withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
   import { buildPlaceDetail } from './place-detail-model';
 
@@ -21,8 +22,11 @@
     onNavigateToPerson?: (personId: string) => void;
     /** Cross-Tab-Navigation zu einer Familie. */
     onNavigateToFamily?: (familyId: string) => void;
+    /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
+     *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
+    onBack?: () => void;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onBack }: Props = $props();
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
@@ -144,13 +148,14 @@
   {:else if !detail}
     <p class="place-detail__empty">Ort nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <div class="place-detail__head">
-      <h2 class="place-detail__title">{detail.place.title || detail.place.id}</h2>
-      {#if detail.place.type}<span class="place-detail__type-badge">{detail.place.type}</span>{/if}
-      {#if !editing}
-        <button type="button" class="place-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-      {/if}
-    </div>
+    <DetailHeader title={detail.place.title || detail.place.id} onBack={onBack ?? (() => {})}>
+      {#snippet actions()}
+        {#if detail.place.type}<span class="place-detail__type-badge">{detail.place.type}</span>{/if}
+        {#if !editing}
+          <button type="button" class="place-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        {/if}
+      {/snippet}
+    </DetailHeader>
 
     {#if editing}
       <section class="place-detail__section place-detail__form">
@@ -340,17 +345,6 @@
     color: var(--stb-text-dim);
   }
 
-  .place-detail__head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .place-detail__title {
-    margin: 0;
-  }
-
   .place-detail__type-badge {
     font-size: 0.72rem;
     color: var(--stb-text-dim);
@@ -360,7 +354,6 @@
   }
 
   .place-detail__edit-btn {
-    margin-left: auto;
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);

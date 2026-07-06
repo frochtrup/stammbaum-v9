@@ -108,3 +108,28 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     expect(appState.db.hofObjects.get('@H1@')?.predecessor).toBe('@H2@');
   });
 });
+
+describe('HofDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
+  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+    const onBack = vi.fn();
+
+    const { container } = render(HofDetail, { props: { appState, viewState, onBack } });
+
+    const row = container.querySelector('.detail-header__row');
+    const title = container.querySelector('.detail-header__title');
+    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(title?.textContent).toBe('Wall 33');
+    expect(row?.contains(title)).toBe(false);
+
+    await fireEvent.click(screen.getByText('← Zur Liste'));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+});

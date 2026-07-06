@@ -230,7 +230,7 @@
     </div>
   {/if}
 
-  {#if showBack}
+  {#if showBack && activeSegment === 'source'}
     <div class="entity-tab__detail-header">
       <button type="button" class="entity-tab__back" onclick={backToList}>← Zur Liste</button>
     </div>
@@ -246,6 +246,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
       />
     {:else}
@@ -260,6 +261,7 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
+        onBack={backToList}
         startInEdit={selectedFamilyId === createdFamilyId}
       />
     {:else}
@@ -290,6 +292,7 @@
         {viewState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
+        onBack={backToList}
       />
     {:else}
       <PlaceList {appState} {viewState} />
@@ -302,7 +305,7 @@
         onNavigateToFamily={navigateToFamily}
       />
     {:else if selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} />
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
       <HofList {appState} {viewState} />
     {/if}

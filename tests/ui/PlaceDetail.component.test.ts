@@ -261,3 +261,27 @@ describe('PlaceDetail — String→PlaceObject verknüpfen', () => {
     expect(screen.queryByText(/Nicht verknüpfte Ereignisse/)).toBeNull();
   });
 });
+
+describe('PlaceDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
+  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    const onBack = vi.fn();
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState, onBack } });
+
+    const row = container.querySelector('.detail-header__row');
+    const title = container.querySelector('.detail-header__title');
+    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(title?.textContent).toBe('Ochtrup');
+    expect(row?.contains(title)).toBe(false);
+
+    await fireEvent.click(screen.getByText('← Zur Liste'));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+});

@@ -8,6 +8,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { untrack } from 'svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
+  import DetailHeader from '../../shell/DetailHeader.svelte';
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -25,6 +26,9 @@
     onNavigateToHof?: (hofId: string) => void;
     /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
     onNavigateToTree?: (personId: string) => void;
+    /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
+     *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
+    onBack?: () => void;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -37,6 +41,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateToTree,
+    onBack,
     startInEdit = false,
   }: Props = $props();
 
@@ -74,19 +79,20 @@
   {:else if editing}
     <PersonForm {appState} person={detail.person} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <div class="person-detail__hero">
-      <h2 class="person-detail__name">{displayName(detail.person)}</h2>
-      <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-      {#if onNavigateToTree}
-        <button
-          type="button"
-          class="person-detail__tree-link"
-          onclick={() => onNavigateToTree(detail.person.id)}
-        >
-          ⧖ Im Baum anzeigen
-        </button>
-      {/if}
-    </div>
+    <DetailHeader title={displayName(detail.person)} onBack={onBack ?? (() => {})}>
+      {#snippet actions()}
+        <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        {#if onNavigateToTree}
+          <button
+            type="button"
+            class="person-detail__tree-link"
+            onclick={() => onNavigateToTree(detail.person.id)}
+          >
+            ⧖ Im Baum anzeigen
+          </button>
+        {/if}
+      {/snippet}
+    </DetailHeader>
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
@@ -199,18 +205,6 @@
     color: var(--stb-text-dim);
   }
 
-  .person-detail__hero {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .person-detail__name {
-    margin-top: 0;
-  }
-
   .person-detail__tree-link {
     background: var(--stb-surface-2);
     border: 1px solid var(--stb-gold-dim);
@@ -223,7 +217,6 @@
   }
 
   .person-detail__edit-btn {
-    margin-left: auto;
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);

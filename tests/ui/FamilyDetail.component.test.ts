@@ -186,3 +186,29 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
   });
 });
+
+describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
+  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Anna', surname: 'Klein' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+    const onBack = vi.fn();
+
+    const { container } = render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn(), onBack } });
+
+    const row = container.querySelector('.detail-header__row');
+    const title = container.querySelector('.detail-header__title');
+    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(title?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
+    expect(row?.contains(title)).toBe(false);
+
+    await fireEvent.click(screen.getByText('← Zur Liste'));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+});

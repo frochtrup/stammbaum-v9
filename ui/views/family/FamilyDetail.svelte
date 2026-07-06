@@ -7,6 +7,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
+  import DetailHeader from '../../shell/DetailHeader.svelte';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
   import FamilyForm from './FamilyForm.svelte';
 
@@ -21,6 +22,9 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
+    /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
+     *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
+    onBack?: () => void;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Familie", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -32,6 +36,7 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
+    onBack,
     startInEdit = false,
   }: Props = $props();
 
@@ -123,10 +128,11 @@
   {:else if editing}
     <FamilyForm {appState} family={detail.family} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <div class="family-detail__hero">
-      <h2 class="family-detail__label">{detail.label}</h2>
-      <button type="button" class="family-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-    </div>
+    <DetailHeader title={detail.label} onBack={onBack ?? (() => {})}>
+      {#snippet actions()}
+        <button type="button" class="family-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+      {/snippet}
+    </DetailHeader>
 
     <section class="family-detail__section">
       <h3>Eltern</h3>
@@ -220,20 +226,7 @@
     color: var(--stb-text-dim);
   }
 
-  .family-detail__label {
-    margin-top: 0;
-  }
-
-  .family-detail__hero {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
   .family-detail__edit-btn {
-    margin-left: auto;
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);

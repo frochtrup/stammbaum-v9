@@ -208,3 +208,39 @@ describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
     expect(screen.getByText('Neue Person')).toBeTruthy();
   });
 });
+
+describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
+  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    const onBack = vi.fn();
+
+    const { container } = render(PersonDetail, { props: { appState, viewState, onBack } });
+
+    const row = container.querySelector('.detail-header__row');
+    const title = container.querySelector('.detail-header__title');
+    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(title?.textContent).toBe('Anna Bauer');
+    expect(row?.contains(title)).toBe(false);
+  });
+
+  it('Klick auf "← Zur Liste" ruft das von EntityTab übergebene onBack auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    const onBack = vi.fn();
+
+    render(PersonDetail, { props: { appState, viewState, onBack } });
+    await fireEvent.click(screen.getByText('← Zur Liste'));
+
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+});

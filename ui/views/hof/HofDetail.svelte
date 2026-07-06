@@ -5,6 +5,7 @@
   // (Cross-Tab-Navigation, ADR-v9-17-Muster).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import DetailHeader from '../../shell/DetailHeader.svelte';
   import { withAddedHofAddr, withRemovedHofAddr } from '../../../core/places';
   import { buildHofDetail } from './hof-detail-model';
 
@@ -12,8 +13,11 @@
     appState: AppState;
     viewState: ViewState;
     onNavigateToPerson?: (personId: string) => void;
+    /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
+     *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
+    onBack?: () => void;
   }
-  const { appState, viewState, onNavigateToPerson }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onBack }: Props = $props();
 
   const hofId = $derived(viewState.getCurrent('hof'));
   const detail = $derived(hofId ? buildHofDetail(appState.db, appState.placeContext, hofId) : null);
@@ -85,13 +89,14 @@
   {:else if !detail}
     <p class="hof-detail__empty">Hof nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <div class="hof-detail__head">
-      <h2 class="hof-detail__title">{detail.hof.addrs[0]?.value || detail.hof.id}</h2>
-      <span class="hof-detail__village">{detail.villageTitle}</span>
-      {#if !editing}
-        <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-      {/if}
-    </div>
+    <DetailHeader title={detail.hof.addrs[0]?.value || detail.hof.id} onBack={onBack ?? (() => {})}>
+      {#snippet actions()}
+        <span class="hof-detail__village">{detail.villageTitle}</span>
+        {#if !editing}
+          <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        {/if}
+      {/snippet}
+    </DetailHeader>
 
     {#if editing}
       <section class="hof-detail__section hof-detail__form">
@@ -202,24 +207,12 @@
     color: var(--stb-text-dim);
   }
 
-  .hof-detail__head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .hof-detail__title {
-    margin: 0;
-  }
-
   .hof-detail__village {
     font-size: 0.85rem;
     color: var(--stb-text-dim);
   }
 
   .hof-detail__edit-btn {
-    margin-left: auto;
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
