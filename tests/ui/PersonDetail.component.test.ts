@@ -93,6 +93,50 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   });
 });
 
+describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06 Befund 1, INV-UI-5)', () => {
+  it('Kartenlink UND Ortslink liegen im selben event-head-Container, wenn beide existieren', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    p.birth.lati = 52.1;
+    p.birth.long = 7.6;
+    p.birth.placeId = '@P1@';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    const onNavigateToPlace = vi.fn();
+    render(PersonDetail, { props: { appState, viewState, onNavigateToPlace } });
+
+    const link = screen.getByRole('link', { name: /Karte/ });
+    const placeLink = screen.getByText('Ort ansehen →');
+    expect(link.closest('.person-detail__event-head')).toBe(placeLink.closest('.person-detail__event-head'));
+    // Kartenlink ist nicht mehr unbedingt margin-left:auto (nur :last-child) — Ortslink
+    // folgt im selben Flex-Fluss statt in eine eigene Zeile zu brechen.
+    expect(link.className).toContain('person-detail__geo-link');
+  });
+
+  it('Quellen-Badge läuft im selben Flex-Fluss wie event-head statt in einem separaten Container', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    p.birth.citations.push(makeCitation('@S42@', { quay: 3 }));
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S42@', makeSource('@S42@', { abbr: 'KB Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    const badge = screen.getByText('§42');
+    expect(badge.closest('.person-detail__event-head')).toBeTruthy();
+  });
+});
+
 describe('PersonDetail — wesentliche Beziehungen (ADR-v9-30 Punkt 6/Nachtrag)', () => {
   it('zeigt bei der eigenen Familie Ehepartner UND Kinder an, jeder Name anklickbar', async () => {
     const appState = createAppState();

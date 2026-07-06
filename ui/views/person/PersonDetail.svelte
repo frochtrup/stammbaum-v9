@@ -118,19 +118,15 @@
                     Ort ansehen →
                   </button>
                 {/if}
+                {#each ev.citations as cit, i (i)}
+                  <SourceBadge
+                    citation={cit}
+                    source={appState.db.sources.get(cit.sourceId)}
+                    onSelect={onNavigateToSource}
+                  />
+                {/each}
               </div>
               {#if ev.note}<p class="person-detail__event-note">{ev.note}</p>{/if}
-              {#if ev.citations.length > 0}
-                <div class="person-detail__citations">
-                  {#each ev.citations as cit, i (i)}
-                    <SourceBadge
-                      citation={cit}
-                      source={appState.db.sources.get(cit.sourceId)}
-                      onSelect={onNavigateToSource}
-                    />
-                  {/each}
-                </div>
-              {/if}
             </li>
           {/each}
         </ul>
@@ -283,6 +279,13 @@
 
   .person-detail__geo-link {
     font-size: 0.78rem;
+  }
+
+  /* ADR-v9-30 Nachtrag 2026-07-06 Befund 1 (INV-UI-5): margin-left:auto nur auf
+     :last-child, sonst drückt es einen nachfolgenden Ort-/Hof-Link aus der Zeile heraus,
+     obwohl beide Links zusammen mit Label/Datum/Ort umbruchfrei in eine Zeile passen
+     würden. */
+  .person-detail__geo-link:last-child {
     margin-left: auto;
   }
 
@@ -297,21 +300,10 @@
     text-decoration: underline;
   }
 
-  .person-detail__geo-link + .person-detail__place-link {
-    margin-left: 0;
-  }
-
   .person-detail__event-note {
     margin: 0.3rem 0 0;
     font-size: 0.82rem;
     color: var(--stb-text-dim);
-  }
-
-  .person-detail__citations {
-    margin-top: 0.35rem;
-    display: flex;
-    gap: 0.3rem;
-    flex-wrap: wrap;
   }
 
   .person-detail__families {

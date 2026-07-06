@@ -66,6 +66,7 @@
   interface EditableEvent {
     key: string;
     type: string;
+    value: string;
     eventType: string;
     dateQualifier: DateQualifier;
     day: number | null;
@@ -90,6 +91,7 @@
     return {
       key,
       type: ev.type,
+      value: ev.value,
       eventType: ev.eventType,
       dateQualifier: parts?.qualifier ?? 'EXACT',
       day: parts?.day ?? null,
@@ -143,6 +145,7 @@
     return {
       ...original,
       type: e.type,
+      value: e.value,
       eventType: e.eventType,
       date,
       place,
@@ -287,6 +290,7 @@
   const hasEmig = $derived(events.some((e) => e.type === 'EMIG'));
   const hasImmi = $derived(events.some((e) => e.type === 'IMMI'));
   const hasMili = $derived(events.some((e) => e.type === 'MILI'));
+  const hasEven = $derived(events.some((e) => e.type === 'EVEN'));
 
   const eventPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
@@ -298,6 +302,7 @@
     if (!hasEmig) list.push({ id: 'emig', label: 'Auswanderung', activate: () => addEventOfType('EMIG') });
     if (!hasImmi) list.push({ id: 'immi', label: 'Einwanderung', activate: () => addEventOfType('IMMI') });
     if (!hasMili) list.push({ id: 'mili', label: 'Militärdienst', activate: () => addEventOfType('MILI') });
+    if (!hasEven) list.push({ id: 'even', label: 'Ereignis', activate: () => addEventOfType('EVEN') });
     return list;
   });
 
@@ -416,10 +421,12 @@
 
 {#snippet citationList(ev: EditableEvent, labelPrefix: string)}
   <div class="person-form__citations">
-    <h5>Quellen</h5>
-    {#if ev.citations.length === 0}
-      <p class="person-form__muted">Keine Quellen zugeordnet.</p>
-    {/if}
+    <div class="person-form__citations-head">
+      <h5>Quellen</h5>
+      <button type="button" class="person-form__add-citation-btn" onclick={() => addCitation(ev)} disabled={sources.length === 0}>
+        + Quelle hinzufügen
+      </button>
+    </div>
     {#each ev.citations as cit, i (i)}
       <div class="person-form__citation-row">
         <select
@@ -460,9 +467,6 @@
         <button type="button" class="person-form__remove-btn" onclick={() => removeCitation(ev, i)} aria-label={`${labelPrefix} Quelle ${i + 1} entfernen`}>✕</button>
       </div>
     {/each}
-    <button type="button" class="person-form__add-citation-btn" onclick={() => addCitation(ev)} disabled={sources.length === 0}>
-      + Quelle hinzufügen
-    </button>
   </div>
 {/snippet}
 
@@ -615,6 +619,10 @@
             <input type="text" bind:value={ev.eventType} />
           </label>
         {/if}
+        <label>
+          Wert
+          <input type="text" bind:value={ev.value} placeholder="z. B. Beruf bei OCCU" />
+        </label>
         {@render dateFields(ev)}
         <label>
           Ort (Freitext)
@@ -812,10 +820,22 @@
     margin-top: 0.6rem;
   }
 
+  /* Quellen-Widget kompakt (ADR-v9-30 Nachtrag 2026-07-06 Befund 2, INV-UI-5): Überschrift
+     + "+ Quelle hinzufügen"-Button in EINER Zeile statt Überschrift/Leerzustand/Button auf
+     drei eigenen Zeilen. Der Leerzustand-Text "Keine Quellen zugeordnet." entfällt
+     ersatzlos — der Button allein signalisiert bereits den fehlenden Inhalt. */
+  .person-form__citations-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+  }
+
   .person-form__citations h5 {
     font-size: 0.8rem;
     color: var(--stb-text-dim);
-    margin: 0 0 0.3rem;
+    margin: 0;
   }
 
   .person-form__citation-row {

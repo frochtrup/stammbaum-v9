@@ -454,6 +454,80 @@ describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)'
   });
 });
 
+describe('PersonForm — Ereignis-Wert (Event.value, ADR-v9-30 Nachtrag 2026-07-06 Befund 4)', () => {
+  it('speichert einen eingegebenen Wert (z. B. Beruf bei OCCU) und zeigt ihn beim erneuten Öffnen vorbefüllt', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    const person = makePerson('@I1@');
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    const { unmount } = render(PersonForm, { props: { appState, person: db.individuals.get('@I1@')! } });
+    await fireEvent.click(screen.getByText('+ Beruf'));
+    const valueInput = screen.getByLabelText('Wert') as HTMLInputElement;
+    await fireEvent.input(valueInput, { target: { value: 'Bauer' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events[0].value).toBe('Bauer');
+    unmount();
+
+    render(PersonForm, { props: { appState, person: saved } });
+    expect((screen.getByLabelText('Wert') as HTMLInputElement).value).toBe('Bauer');
+  });
+
+  it('zeigt kein "Wert"-Feld bei Sonder-Ereignissen (Geburt)', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByLabelText('Wert')).toBeNull();
+  });
+});
+
+describe('PersonForm — Quellen-Widget kompakt (ADR-v9-30 Nachtrag 2026-07-06 Befund 2)', () => {
+  it('zeigt keinen Leerzustand-Text mehr, wenn keine Quellen zugeordnet sind', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('Keine Quellen zugeordnet.')).toBeNull();
+  });
+});
+
+describe('PersonForm — "+ Ereignis" (EVEN)-Pill (ADR-v9-30 Nachtrag 2026-07-06 Befund 3)', () => {
+  it('"+ Ereignis" fügt sofort ein EVEN-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('EVEN', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    expect(screen.getByText('EVEN', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Ereignis')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['EVEN']);
+  });
+
+  it('"+ Ereignis"-Pill verschwindet, sobald bereits ein EVEN-Event existiert (importiert)', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.events.push({
+      type: 'EVEN', value: '', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+    });
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('+ Ereignis')).toBeNull();
+    expect(screen.getAllByText('EVEN', { selector: 'strong' })).toHaveLength(1);
+  });
+});
+
 describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v9-30 Zweiter Nachtrag, Spec 20 §2)', () => {
   it('"+ Auswanderung" fügt sofort ein EMIG-Ereignis hinzu, das gespeichert wird', async () => {
     const appState = createAppState();
