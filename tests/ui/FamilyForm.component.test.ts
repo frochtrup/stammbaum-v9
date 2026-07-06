@@ -22,17 +22,17 @@ function seedThreePersons() {
 }
 
 describe('FamilyForm — Eltern speichern', () => {
-  it('setzt Ehemann/Ehefrau per Dropdown (value/onchange-Muster) und speichert über appState.saveFamily', async () => {
+  it('setzt Ehemann/Ehefrau per PersonPicker (Klick auf Feld, Ergebnis wählen) und speichert über appState.saveFamily', async () => {
     const appState = seedThreePersons();
     const family = makeFamily('@F1@');
     const onSaved = vi.fn();
 
     render(FamilyForm, { props: { appState, family, onSaved } });
 
-    const husbandSelect = screen.getByLabelText('Ehemann') as HTMLSelectElement;
-    await fireEvent.change(husbandSelect, { target: { value: '@I1@' } });
-    const wifeSelect = screen.getByLabelText('Ehefrau') as HTMLSelectElement;
-    await fireEvent.change(wifeSelect, { target: { value: '@I2@' } });
+    await fireEvent.click(screen.getByLabelText('Ehemann'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+    await fireEvent.click(screen.getByLabelText('Ehefrau'));
+    await fireEvent.click(screen.getByText('Anna Klein'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.husband).toBe('@I1@');
@@ -47,8 +47,8 @@ describe('FamilyForm — Eltern speichern', () => {
 
     render(FamilyForm, { props: { appState, family: appState.db.families.get('@F1@')! } });
 
-    const husbandSelect = screen.getByLabelText('Ehemann') as HTMLSelectElement;
-    await fireEvent.change(husbandSelect, { target: { value: '' } });
+    await fireEvent.click(screen.getByLabelText('Ehemann'));
+    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.person-picker__result--none' }));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.husband).toBeNull();
@@ -59,7 +59,8 @@ describe('FamilyForm — Eltern speichern', () => {
     const family = makeFamily('@F1@');
 
     render(FamilyForm, { props: { appState, family } });
-    await fireEvent.change(screen.getByLabelText('Ehemann') as HTMLSelectElement, { target: { value: '@I1@' } });
+    await fireEvent.click(screen.getByLabelText('Ehemann'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.individuals.get('@I1@')?.parentIn).toContain('@F1@');
@@ -72,7 +73,8 @@ describe('FamilyForm — Eltern speichern', () => {
     const onCancel = vi.fn();
 
     render(FamilyForm, { props: { appState, family: appState.db.families.get('@F1@')!, onCancel } });
-    await fireEvent.change(screen.getByLabelText('Ehemann') as HTMLSelectElement, { target: { value: '@I1@' } });
+    await fireEvent.click(screen.getByLabelText('Ehemann'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
     await fireEvent.click(screen.getByText('Abbrechen'));
 
     expect(appState.db.families.get('@F1@')?.husband).toBeNull();
@@ -121,19 +123,29 @@ describe('FamilyForm — Heirat (MARR) + Verlobung (ENGA)', () => {
 });
 
 describe('FamilyForm — Kinder (± Liste)', () => {
-  it('fügt ein Kind per Picker hinzu', async () => {
+  it('fügt ein Kind per Picker hinzu (Auswahl fügt sofort hinzu, kein Zwischenschritt)', async () => {
     const appState = seedThreePersons();
     const family = makeFamily('@F1@');
 
     render(FamilyForm, { props: { appState, family } });
 
-    const picker = screen.getByLabelText('Kind hinzufügen') as HTMLSelectElement;
-    await fireEvent.change(picker, { target: { value: '@I3@' } });
-    await fireEvent.click(screen.getByText('+ Kind hinzufügen'));
+    await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
+    await fireEvent.click(screen.getByText('Karl Bauer'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.children).toEqual(['@I3@']);
     expect(appState.db.individuals.get('@I3@')?.childOf.map((c) => c.familyId)).toContain('@F1@');
+  });
+
+  it('bereits zugeordnete Kinder werden im Picker nicht nochmal angeboten (excludeIds)', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@', { children: ['@I1@'] });
+    appState.saveFamily(family);
+
+    render(FamilyForm, { props: { appState, family: appState.db.families.get('@F1@')! } });
+
+    await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
+    expect(screen.queryByText('Otto Bauer', { selector: '.person-picker__result-name' })).toBeNull();
   });
 
   it('entfernt ein Kind wieder (kein Diffing im UI nötig — volle Zielliste wird gebaut)', async () => {

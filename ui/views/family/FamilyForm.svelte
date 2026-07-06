@@ -18,6 +18,7 @@
   import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../../core/model/gedcom-date';
   import { setCitationQuay } from '../../../core/model/citation';
   import { displayName } from '../../shell/person-display';
+  import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
     appState: AppState;
@@ -123,17 +124,16 @@
   let wife = $state(untrack(() => family.wife));
 
   // --- Kinder (± Liste, Ziel-Reihenfolge wie im Formular gezeigt) ---
+  // Vereinfacht ggü. dem bisherigen zweistufigen "auswählen dann + Kind hinzufügen"-Muster
+  // (ADR-v9-30 Punkt 2, Aufgabenbeschreibung "darf vereinfacht werden"): der PersonPicker
+  // wählt direkt -> Kind ist sofort in der Liste, kein Zwischenschritt/Bestätigungs-Klick
+  // mehr nötig. `excludeIds={children}` ersetzt die bisherige `availableChildren`-Berechnung
+  // (identische Filterlogik: bereits zugeordnete Kinder werden nicht nochmal angeboten).
   let children = $state<PersonId[]>(untrack(() => family.children.slice()));
-  let childToAdd = $state<string>('');
 
-  const availableChildren = $derived(
-    Array.from(appState.db.individuals.values()).filter((p) => !children.includes(p.id)),
-  );
-
-  function addChild() {
-    if (!childToAdd) return;
-    children = [...children, childToAdd];
-    childToAdd = '';
+  function addChild(id: PersonId | null) {
+    if (!id || children.includes(id)) return;
+    children = [...children, id];
   }
 
   function removeChild(id: string) {
@@ -375,29 +375,25 @@
     <div class="family-form__grid">
       <label>
         Ehemann
-        <select
-          aria-label="Ehemann"
-          value={husband ?? ''}
-          onchange={(e) => (husband = (e.currentTarget as HTMLSelectElement).value || null)}
-        >
-          <option value="">— kein Elternteil —</option>
-          {#each Array.from(appState.db.individuals.values()) as p (p.id)}
-            <option value={p.id}>{displayName(p)}</option>
-          {/each}
-        </select>
+        <PersonPicker
+          {appState}
+          value={husband}
+          onChange={(id) => (husband = id)}
+          allowNone={true}
+          noneLabel="— kein Elternteil —"
+          label="Ehemann"
+        />
       </label>
       <label>
         Ehefrau
-        <select
-          aria-label="Ehefrau"
-          value={wife ?? ''}
-          onchange={(e) => (wife = (e.currentTarget as HTMLSelectElement).value || null)}
-        >
-          <option value="">— kein Elternteil —</option>
-          {#each Array.from(appState.db.individuals.values()) as p (p.id)}
-            <option value={p.id}>{displayName(p)}</option>
-          {/each}
-        </select>
+        <PersonPicker
+          {appState}
+          value={wife}
+          onChange={(id) => (wife = id)}
+          allowNone={true}
+          noneLabel="— kein Elternteil —"
+          label="Ehefrau"
+        />
       </label>
     </div>
   </section>
@@ -430,17 +426,14 @@
       </ul>
     {/if}
     <div class="family-form__add-row">
-      <select
-        aria-label="Kind hinzufügen"
-        value={childToAdd}
-        onchange={(e) => (childToAdd = (e.currentTarget as HTMLSelectElement).value)}
-      >
-        <option value="">— Person wählen —</option>
-        {#each availableChildren as p (p.id)}
-          <option value={p.id}>{displayName(p)}</option>
-        {/each}
-      </select>
-      <button type="button" onclick={addChild} disabled={!childToAdd}>+ Kind hinzufügen</button>
+      <PersonPicker
+        {appState}
+        value={null}
+        onChange={addChild}
+        excludeIds={children}
+        label="Kind hinzufügen"
+        placeholder="Kind hinzufügen…"
+      />
     </div>
   </section>
 
