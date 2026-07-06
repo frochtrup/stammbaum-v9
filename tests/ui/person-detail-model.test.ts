@@ -99,4 +99,56 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
     const origin = detail.families.find((f) => f.role === 'childOf')!;
     expect(origin.members.map((m) => m.personId)).toEqual(['@I2@']);
   });
+
+  it('zeigt bei der eigenen Familie (parentIn) auch die Kinder an (ADR-v9-30 Punkt 6/Nachtrag)', () => {
+    const db = makeDatabase();
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    const spouse = makePerson('@I2@', { given: 'Lisa', surname: 'Klein' });
+    const child1 = makePerson('@I3@', { given: 'Julius', surname: 'Bauer' });
+    const child2 = makePerson('@I4@', { given: 'Elisabeth', surname: 'Bauer' });
+
+    const famOwn = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@', children: ['@I3@', '@I4@'] });
+    person.parentIn.push('@F1@');
+
+    db.individuals.set('@I1@', person);
+    db.individuals.set('@I2@', spouse);
+    db.individuals.set('@I3@', child1);
+    db.individuals.set('@I4@', child2);
+    db.families.set('@F1@', famOwn);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const own = detail.families.find((f) => f.role === 'parentIn')!;
+    expect(own.members.map((m) => m.personId)).toEqual(['@I2@']);
+    expect(own.children.map((c) => c.personId)).toEqual(['@I3@', '@I4@']);
+    expect(own.children.map((c) => c.name)).toEqual(['Julius Bauer', 'Elisabeth Bauer']);
+  });
+
+  it('liefert bei der Herkunftsfamilie (childOf) keine Kinder (nur Eltern, Geschwister bleiben außen vor)', () => {
+    const db = makeDatabase();
+    const child = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    const parent = makePerson('@I2@', { given: 'Otto', surname: 'Bauer' });
+    const sibling = makePerson('@I3@', { given: 'Karl', surname: 'Bauer' });
+
+    const famChild = makeFamily('@F1@', { husband: '@I2@', children: ['@I1@', '@I3@'] });
+    child.childOf.push({
+      familyId: '@F1@',
+      pedigree: 'birth',
+      fatherRel: '',
+      motherRel: '',
+      fatherRelSeen: false,
+      motherRelSeen: false,
+      citations: [],
+    });
+
+    db.individuals.set('@I1@', child);
+    db.individuals.set('@I2@', parent);
+    db.individuals.set('@I3@', sibling);
+    db.families.set('@F1@', famChild);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const origin = detail.families.find((f) => f.role === 'childOf')!;
+    expect(origin.children).toEqual([]);
+  });
 });

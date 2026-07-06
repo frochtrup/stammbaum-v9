@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeSource, makeCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation } from '../../core/model';
 
 describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   it('rendert eine §N-Badge mit QUAY-Farbklasse und Quellentitel als Tooltip', () => {
@@ -90,6 +90,30 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     render(PersonDetail, { props: { appState, viewState, onNavigateToTree } });
     await fireEvent.click(screen.getByText(/Im Baum anzeigen/));
     expect(onNavigateToTree).toHaveBeenCalledWith('@I1@');
+  });
+});
+
+describe('PersonDetail — wesentliche Beziehungen (ADR-v9-30 Punkt 6/Nachtrag)', () => {
+  it('zeigt bei der eigenen Familie Ehepartner UND Kinder an, jeder Name anklickbar', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Lisa', surname: 'Klein' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Julius', surname: 'Bauer' }));
+    const fam = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@', children: ['@I3@'] });
+    db.families.set('@F1@', fam);
+    db.individuals.get('@I1@')!.parentIn.push('@F1@');
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Lisa Klein')).toBeTruthy();
+    expect(screen.getByText('Kinder:')).toBeTruthy();
+    const childLink = screen.getByText('Julius Bauer');
+    await fireEvent.click(childLink);
+    expect(viewState.getCurrent('person')).toBe('@I3@');
   });
 });
 

@@ -66,14 +66,13 @@ describe('PersonForm — Sonder-Ereignisse (Geburt/Taufe/Tod/Bestattung)', () =>
     render(PersonForm, { props: { appState, person } });
 
     const birthSection = screen.getByText('Geburt (BIRT)').closest('.person-form__event') as HTMLElement;
-    await fireEvent.click(birthSection.querySelector('input[type="checkbox"]')!);
     const dayInput = birthSection.querySelector('input[aria-label="Tag"]') as HTMLInputElement;
     const monthInput = birthSection.querySelector('input[aria-label="Monat"]') as HTMLInputElement;
     const yearInput = birthSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
-    await fireEvent.input(dayInput, { target: { value: '12' } });
+    await fireEvent.change(dayInput, { target: { value: '12' } });
     await fireEvent.input(monthInput, { target: { value: 'märz' } });
     await fireEvent.change(monthInput, { target: { value: 'märz' } }); // onchange normalisiert den Monat
-    await fireEvent.input(yearInput, { target: { value: '1890' } });
+    await fireEvent.change(yearInput, { target: { value: '1890' } });
 
     await fireEvent.click(screen.getByText('Speichern'));
 
@@ -85,6 +84,7 @@ describe('PersonForm — Sonder-Ereignisse (Geburt/Taufe/Tod/Bestattung)', () =>
     const person = makePerson('@I1@');
 
     render(PersonForm, { props: { appState, person } });
+    await fireEvent.click(screen.getByText('+ Tod'));
 
     const deathSection = screen.getByText('Tod (DEAT)').closest('.person-form__event') as HTMLElement;
     const causeInput = Array.from(deathSection.querySelectorAll('label')).find((l) =>
@@ -226,6 +226,149 @@ describe('PersonForm — Quellen-Widget pro Ereignis', () => {
 
     const btn = screen.getAllByText('+ Quelle hinzufügen')[0] as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+});
+
+describe('PersonForm — Datum-Dirty-Tracking (ADR-v9-30 Punkt 1, kein Checkbox-Gate mehr)', () => {
+  it('lässt ein importiertes date:"" (Tag vorhanden, leer) unangetastet, wenn nur der Name geändert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    person.birth.date = '';
+    person.birth.seen = true;
+
+    render(PersonForm, { props: { appState, person } });
+
+    await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Anna Maria' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBe('');
+  });
+
+  it('lässt ein date:null unangetastet, wenn das Datumsformular nicht angefasst wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+
+    render(PersonForm, { props: { appState, person } });
+    await fireEvent.input(screen.getByLabelText('Nachname'), { target: { value: 'Bauer-Schmidt' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBeNull();
+  });
+
+  it('berechnet das Datum neu, sobald der Nutzer ein Datumsfeld tatsächlich ändert (keine Checkbox nötig)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    const birthSection = screen.getByText('Geburt (BIRT)').closest('.person-form__event') as HTMLElement;
+    const yearInput = birthSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
+    await fireEvent.change(yearInput, { target: { value: '1901' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBe('1901');
+  });
+
+  it('aktives Leeren aller Datumsfelder ergibt null, nie einen leeren String', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.birth.date = '1890';
+
+    render(PersonForm, { props: { appState, person } });
+
+    const birthSection = screen.getByText('Geburt (BIRT)').closest('.person-form__event') as HTMLElement;
+    const yearInput = birthSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
+    await fireEvent.change(yearInput, { target: { value: '' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBeNull();
+  });
+
+  it('Qualifier-Dropdown und Tag/Monat/Jahr sind ohne Checkbox-Klick direkt sichtbar/editierbar', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('Datum erfasst')).toBeNull();
+    expect(screen.getByLabelText('Datums-Qualifier')).toBeTruthy();
+    const birthSection = screen.getByText('Geburt (BIRT)').closest('.person-form__event') as HTMLElement;
+    expect(birthSection.querySelector('input[aria-label="Tag"]')).toBeTruthy();
+  });
+});
+
+describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
+  it('zeigt Pills nur für leere Felder/Ereignisse; befüllte Felder sind sofort inline sichtbar, kein Pill', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@', { given: 'Anna', surname: 'Bauer', title: 'Dr.' });
+
+    render(PersonForm, { props: { appState, person } });
+
+    // Titel ist befüllt -> inline sichtbar, kein Pill dafür.
+    expect(screen.getByLabelText('Titel')).toBeTruthy();
+    expect(screen.queryByText('+ Titel')).toBeNull();
+    // Religion ist leer -> Pill vorhanden, Feld nicht gerendert.
+    expect(screen.getByText('+ Religion')).toBeTruthy();
+    expect(screen.queryByLabelText('Religion')).toBeNull();
+  });
+
+  it('Klick auf einen Pill blendet das Feld ein und der Pill verschwindet aus der Reihe', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByLabelText('E-Mail')).toBeNull();
+    await fireEvent.click(screen.getByText('+ E-Mail'));
+
+    expect(screen.getByLabelText('E-Mail')).toBeTruthy();
+    expect(screen.queryByText('+ E-Mail')).toBeNull();
+  });
+
+  it('Sonder-Ereignis-Pills (Taufe/Tod/Bestattung) zeigen die Sektion an ihrer festen Position nach Aktivierung', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('Taufe (CHR)')).toBeNull();
+    await fireEvent.click(screen.getByText('+ Taufe'));
+    expect(screen.getByText('Taufe (CHR)')).toBeTruthy();
+    expect(screen.queryByText('+ Taufe')).toBeNull();
+  });
+
+  it('ein bereits befülltes Sonder-Ereignis (isEventPresent) ist inline sichtbar, nie hinter einem Pill', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.buri.date = '1950';
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.getByText('Bestattung (BURI)')).toBeTruthy();
+    expect(screen.queryByText('+ Bestattung')).toBeNull();
+  });
+
+  it('viele Pills gleichzeitig bleiben unabhängig aktivierbar (TST-7 Überlauf-Fall)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website', 'Taufe', 'Tod', 'Bestattung']) {
+      await fireEvent.click(screen.getByText(`+ ${label}`));
+    }
+
+    expect(screen.getByLabelText('Präfix')).toBeTruthy();
+    expect(screen.getByLabelText('Suffix')).toBeTruthy();
+    expect(screen.getByLabelText('Rufname')).toBeTruthy();
+    expect(screen.getByLabelText('Titel')).toBeTruthy();
+    expect(screen.getByLabelText('Religion')).toBeTruthy();
+    expect(screen.getByLabelText('RESN (Zugriffsbeschränkung)')).toBeTruthy();
+    expect(screen.getByLabelText('E-Mail')).toBeTruthy();
+    expect(screen.getByLabelText('Website')).toBeTruthy();
+    expect(screen.getByText('Taufe (CHR)')).toBeTruthy();
+    expect(screen.getByText('Tod (DEAT)')).toBeTruthy();
+    expect(screen.getByText('Bestattung (BURI)')).toBeTruthy();
   });
 });
 

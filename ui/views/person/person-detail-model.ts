@@ -35,6 +35,11 @@ export interface FamilyNavRow {
   label: string;
   /** Anklickbare Gegenpersonen dieser Familie (Partner bzw. Eltern), nie die Person selbst. */
   members: { personId: string; name: string }[];
+  /** Nur bei role==='parentIn': Kinder dieser eigenen Familie, ebenfalls anklickbar
+   *  (ADR-v9-30 Punkt 6/Nachtrag — "wesentliche Beziehungen" zeigte bisher nur den
+   *  Ehepartner, keine Kinder). Bei role==='childOf' immer leer (Geschwister sind
+   *  NICHT Teil dieser Zeile — nur Eltern, unverändert). */
+  children: { personId: string; name: string }[];
 }
 
 export interface PersonDetailModel {
@@ -104,7 +109,10 @@ export function buildPersonDetail(
       .filter((id): id is string => id != null && id !== personId)
       .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
       .filter((m) => m.name);
-    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members });
+    const children = f.children
+      .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
+      .filter((c) => c.name);
+    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children });
   }
   for (const link of person.childOf) {
     const f = db.families.get(link.familyId);
@@ -113,7 +121,7 @@ export function buildPersonDetail(
       .filter((id): id is string => id != null)
       .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
       .filter((m) => m.name);
-    families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members });
+    families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
   }
 
   return { person, events, families };

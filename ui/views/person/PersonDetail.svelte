@@ -161,6 +161,20 @@
                   </button>
                 {/each}
               {/if}
+              {#if fam.children.length > 0}
+                <span class="person-detail__family-children">
+                  <span class="person-detail__family-children-label">Kinder:</span>
+                  {#each fam.children as child, i (child.personId)}
+                    <button
+                      type="button"
+                      class="person-detail__family-link"
+                      onclick={() => goToPerson(child.personId)}
+                    >
+                      {child.name}
+                    </button>{#if i < fam.children.length - 1}<span class="person-detail__family-children-sep">,</span>{/if}
+                  {/each}
+                </span>
+              {/if}
               {#if onNavigateToFamily}
                 <button
                   type="button"
@@ -334,6 +348,23 @@
     padding: 0;
     font: inherit;
     text-decoration: underline;
+  }
+
+  .person-detail__family-children {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+
+  .person-detail__family-children-label {
+    color: var(--stb-text-dim);
+    font-size: 0.82rem;
+  }
+
+  .person-detail__family-children-sep {
+    color: var(--stb-text-dim);
+    margin-right: -0.15rem;
   }
 
   .person-detail__family-detail-link {

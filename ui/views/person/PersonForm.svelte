@@ -8,6 +8,11 @@
   // 10 §5.1 "Sonder-Ereignisse... feste UI-Position"). events[] ist eine generische
   // Hinzufügen/Entfernen-Liste (makeEvent(type) aus dem Kern, Spec 20 §2).
   //
+  // ADR-v9-30 Punkt 1 (Datum-Dirty-Tracking) + Punkt 3 (Schnellauswahl-Pills) + Punkt 4
+  // (kompakte Zeilen, INV-UI-5): Datum/Ort sind IMMER direkt editierbar (keine Gate-
+  // Checkbox mehr); seltene Felder/Sonder-Ereignisse erscheinen als "+ Label"-Pill, wenn
+  // sie leer sind, und an ihrer kanonischen Formularposition, sobald aktiviert.
+  //
   // Ort ist in DIESER Scheibe bewusst NUR Freitext (Spec-Aufgabe: "6-Felder-Toggle NICHT
   // im Scope"). Evidenz-Achsen (eval) sind auskommentiert (TODO Folgeschritt) — siehe
   // Kommentar unten bei der Quellen-Sektion.
@@ -17,6 +22,7 @@
   import { makeEvent, makeCitation } from '../../../core/model/factory';
   import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../../core/model/gedcom-date';
   import { setCitationQuay } from '../../../core/model/citation';
+  import { isEventPresent } from '../../../core/model';
 
   interface Props {
     appState: AppState;
@@ -46,7 +52,12 @@
   ];
 
   /** Editierbarer Ereignis-Zustand: strukturiertes Datum statt roher Raw-String, damit
-   *  die Qualifier/Tag/Monat/Jahr-Felder direkt daran binden können. */
+   *  die Qualifier/Tag/Monat/Jahr-Felder direkt daran binden können. ADR-v9-30 Punkt 1:
+   *  KEIN hasDate/hasPlace-Gate mehr — stattdessen originalDate/originalPlace (roher
+   *  Ursprungswert, Tristate-treu) + dateDirty/placeDirty (wird von JEDEM Change-Handler
+   *  am jeweiligen Teilformular gesetzt). Nur wenn der Nutzer das Teilformular tatsächlich
+   *  anfasst, wird beim Speichern neu berechnet — sonst bleibt der Rohwert (null/''/Wert)
+   *  unangetastet durchgereicht (Roundtrip-Erhaltung, [10 §5.1](10-Domaenenmodell.md)). */
   interface EditableEvent {
     key: string;
     type: string;
@@ -58,9 +69,11 @@
     day2: number | null;
     month2: string | null;
     year2: number | null;
-    hasDate: boolean;
+    originalDate: string | null;
+    dateDirty: boolean;
     place: string;
-    hasPlace: boolean;
+    originalPlace: string | null;
+    placeDirty: boolean;
     addr: string;
     note: string;
     cause: string;
@@ -80,9 +93,11 @@
       day2: parts?.day2 ?? null,
       month2: parts?.month2 ?? null,
       year2: parts?.year2 ?? null,
-      hasDate: ev.date != null,
+      originalDate: ev.date,
+      dateDirty: false,
       place: ev.place ?? '',
-      hasPlace: ev.place != null,
+      originalPlace: ev.place,
+      placeDirty: false,
       addr: ev.addr,
       note: ev.note,
       cause,
@@ -90,27 +105,42 @@
     };
   }
 
+  /** Markiert das Datums-Teilformular als angefasst — von JEDEM Qualifier/Tag/Monat/Jahr
+   *  (inkl. der zweiten BET/FROM-Grenze)-Change-Handler aufgerufen (ADR-v9-30 Punkt 1). */
+  function markDateDirty(ev: EditableEvent): void {
+    ev.dateDirty = true;
+  }
+
   /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet,
    *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId bleiben
-   *  unangetastet (Scope-Grenze: 6-Felder-Ort-Eingabe ist NICHT Teil dieser Scheibe). */
+   *  unangetastet (Scope-Grenze: 6-Felder-Ort-Eingabe ist NICHT Teil dieser Scheibe).
+   *  Dirty-Tracking (ADR-v9-30 Punkt 1): rührt der Nutzer das jeweilige Teilformular
+   *  nicht an, wird der ursprüngliche Rohwert unverändert übernommen (null/''/Wert bleibt
+   *  erhalten). Nur bei aktivem dirty-Flag wird neu berechnet; ergibt die Neuberechnung
+   *  einen leeren String, wird daraus explizit null (aktives Leeren = "kein Datum/Ort"). */
   function fromEditable(original: Event, e: EditableEvent): Event {
-    const date = e.hasDate
-      ? formatDateValue({
-          qualifier: e.dateQualifier,
-          day: e.day,
-          month: e.month,
-          year: e.year,
-          day2: e.day2,
-          month2: e.month2,
-          year2: e.year2,
-        })
-      : null;
+    let date: string | null;
+    if (!e.dateDirty) {
+      date = e.originalDate;
+    } else {
+      const formatted = formatDateValue({
+        qualifier: e.dateQualifier,
+        day: e.day,
+        month: e.month,
+        year: e.year,
+        day2: e.day2,
+        month2: e.month2,
+        year2: e.year2,
+      });
+      date = formatted === '' ? null : formatted;
+    }
+    const place = !e.placeDirty ? e.originalPlace : (e.place === '' ? null : e.place);
     return {
       ...original,
       type: e.type,
       eventType: e.eventType,
       date,
-      place: e.hasPlace ? e.place : (e.place ? e.place : null),
+      place,
       addr: e.addr,
       note: e.note,
       citations: e.citations,
@@ -187,7 +217,51 @@
 
   function onMonthBlur(target: EditableEvent, field: 'month' | 'month2', raw: string) {
     target[field] = normalizeMonth(raw);
+    markDateDirty(target);
   }
+
+  // --- Schnellauswahl-Pills (ADR-v9-30 Punkt 3) ---------------------------------------
+  // Sichtbarkeits-Kriterium "gefüllt schlägt selten": ein Pill-Feld/-Ereignis erscheint
+  // NUR wenn leer/nicht vorhanden — für Sonder-Ereignisse per isEventPresent (Kern-
+  // Prädikat, kein neuer Mechanismus), für Skalarfelder per leerer-String-Test. Einmal
+  // aktiviert (durch Nutzerklick ODER weil das Feld beim Laden schon befüllt war) bleibt
+  // die Sektion für die Dauer der Formular-Sitzung sichtbar (kein Zurückspringen hinter
+  // die Pille beim Leeren).
+  //
+  // Bündelung (Design-Entscheidung, s. Abschlussbericht): "Präfix/Suffix" ist EIN Pill
+  // (geschlossene Einheit wie im v8-Vorbild `_PF_PILLS` "prefix-suffix"). Das v9-Modell
+  // hat nur EIN "nick"-Feld (kein separates "Rufname" daneben wie in v8) — deshalb ein
+  // einzelner "Rufname"-Pill statt eines Bündels.
+  let showPrefixSuffix = $state(untrack(() => person.prefix !== '' || person.suffix !== ''));
+  let showNick = $state(untrack(() => person.nick !== ''));
+  let showTitle = $state(untrack(() => person.title !== ''));
+  let showReligion = $state(untrack(() => person.religion !== ''));
+  let showRestriction = $state(untrack(() => person.restriction !== ''));
+  let showEmail = $state(untrack(() => person.email !== ''));
+  let showWww = $state(untrack(() => person.www !== ''));
+  let showChr = $state(untrack(() => isEventPresent(person.chr)));
+  let showDeath = $state(untrack(() => isEventPresent(person.death) || person.cause !== ''));
+  let showBuri = $state(untrack(() => isEventPresent(person.buri)));
+
+  interface FieldPill {
+    id: string;
+    label: string;
+    activate: () => void;
+  }
+  const pills = $derived.by<FieldPill[]>(() => {
+    const list: FieldPill[] = [];
+    if (!showPrefixSuffix) list.push({ id: 'prefix-suffix', label: 'Präfix / Suffix', activate: () => (showPrefixSuffix = true) });
+    if (!showNick) list.push({ id: 'nick', label: 'Rufname', activate: () => (showNick = true) });
+    if (!showTitle) list.push({ id: 'title', label: 'Titel', activate: () => (showTitle = true) });
+    if (!showReligion) list.push({ id: 'religion', label: 'Religion', activate: () => (showReligion = true) });
+    if (!showRestriction) list.push({ id: 'restriction', label: 'Zugriffsbeschränkung', activate: () => (showRestriction = true) });
+    if (!showEmail) list.push({ id: 'email', label: 'E-Mail', activate: () => (showEmail = true) });
+    if (!showWww) list.push({ id: 'www', label: 'Website', activate: () => (showWww = true) });
+    if (!showChr) list.push({ id: 'chr', label: 'Taufe', activate: () => (showChr = true) });
+    if (!showDeath) list.push({ id: 'death', label: 'Tod', activate: () => (showDeath = true) });
+    if (!showBuri) list.push({ id: 'buri', label: 'Bestattung', activate: () => (showBuri = true) });
+    return list;
+  });
 
   function save() {
     const next: Person = {
@@ -222,45 +296,82 @@
 
 {#snippet dateFields(ev: EditableEvent)}
   <div class="person-form__date-row">
-    <label class="person-form__checkbox">
+    <select
+      aria-label="Datums-Qualifier"
+      value={ev.dateQualifier}
+      onchange={(e) => {
+        ev.dateQualifier = (e.currentTarget as HTMLSelectElement).value as DateQualifier;
+        markDateDirty(ev);
+      }}
+    >
+      {#each QUALIFIER_OPTIONS as q (q.value)}
+        <option value={q.value}>{q.label}</option>
+      {/each}
+    </select>
+    <input
+      type="number"
+      placeholder="Tag"
+      aria-label="Tag"
+      value={ev.day ?? ''}
+      onchange={(e) => {
+        const v = (e.currentTarget as HTMLInputElement).value;
+        ev.day = v === '' ? null : Number(v);
+        markDateDirty(ev);
+      }}
+      class="person-form__day"
+    />
+    <input
+      type="text"
+      placeholder="Monat"
+      aria-label="Monat"
+      value={ev.month ?? ''}
+      onchange={(e) => onMonthBlur(ev, 'month', (e.currentTarget as HTMLInputElement).value)}
+    />
+    <input
+      type="number"
+      placeholder="Jahr"
+      aria-label="Jahr"
+      value={ev.year ?? ''}
+      onchange={(e) => {
+        const v = (e.currentTarget as HTMLInputElement).value;
+        ev.year = v === '' ? null : Number(v);
+        markDateDirty(ev);
+      }}
+      class="person-form__year"
+    />
+    {#if ev.dateQualifier === 'BET' || ev.dateQualifier === 'FROM'}
+      <span class="person-form__muted">{ev.dateQualifier === 'BET' ? 'und' : 'bis'}</span>
       <input
-        type="checkbox"
-        checked={ev.hasDate}
-        onchange={(e) => (ev.hasDate = (e.currentTarget as HTMLInputElement).checked)}
+        type="number"
+        placeholder="Tag"
+        aria-label="Tag (Ende)"
+        value={ev.day2 ?? ''}
+        onchange={(e) => {
+          const v = (e.currentTarget as HTMLInputElement).value;
+          ev.day2 = v === '' ? null : Number(v);
+          markDateDirty(ev);
+        }}
+        class="person-form__day"
       />
-      Datum erfasst
-    </label>
-    {#if ev.hasDate}
-      <select
-        aria-label="Datums-Qualifier"
-        value={ev.dateQualifier}
-        onchange={(e) => (ev.dateQualifier = (e.currentTarget as HTMLSelectElement).value as DateQualifier)}
-      >
-        {#each QUALIFIER_OPTIONS as q (q.value)}
-          <option value={q.value}>{q.label}</option>
-        {/each}
-      </select>
-      <input type="number" placeholder="Tag" aria-label="Tag" bind:value={ev.day} class="person-form__day" />
       <input
         type="text"
         placeholder="Monat"
-        aria-label="Monat"
-        value={ev.month ?? ''}
-        onchange={(e) => onMonthBlur(ev, 'month', (e.currentTarget as HTMLInputElement).value)}
+        aria-label="Monat (Ende)"
+        value={ev.month2 ?? ''}
+        onchange={(e) => onMonthBlur(ev, 'month2', (e.currentTarget as HTMLInputElement).value)}
       />
-      <input type="number" placeholder="Jahr" aria-label="Jahr" bind:value={ev.year} class="person-form__year" />
-      {#if ev.dateQualifier === 'BET' || ev.dateQualifier === 'FROM'}
-        <span class="person-form__muted">{ev.dateQualifier === 'BET' ? 'und' : 'bis'}</span>
-        <input type="number" placeholder="Tag" aria-label="Tag (Ende)" bind:value={ev.day2} class="person-form__day" />
-        <input
-          type="text"
-          placeholder="Monat"
-          aria-label="Monat (Ende)"
-          value={ev.month2 ?? ''}
-          onchange={(e) => onMonthBlur(ev, 'month2', (e.currentTarget as HTMLInputElement).value)}
-        />
-        <input type="number" placeholder="Jahr" aria-label="Jahr (Ende)" bind:value={ev.year2} class="person-form__year" />
-      {/if}
+      <input
+        type="number"
+        placeholder="Jahr"
+        aria-label="Jahr (Ende)"
+        value={ev.year2 ?? ''}
+        onchange={(e) => {
+          const v = (e.currentTarget as HTMLInputElement).value;
+          ev.year2 = v === '' ? null : Number(v);
+          markDateDirty(ev);
+        }}
+        class="person-form__year"
+      />
     {/if}
   </div>
 {/snippet}
@@ -329,7 +440,7 @@
         onchange={(e) => {
           const v = (e.currentTarget as HTMLInputElement).value;
           ev.place = v;
-          ev.hasPlace = v !== '';
+          ev.placeDirty = true;
         }}
       />
     </label>
@@ -368,18 +479,6 @@
         <input type="text" bind:value={surname} />
       </label>
       <label>
-        Präfix
-        <input type="text" bind:value={prefix} />
-      </label>
-      <label>
-        Suffix
-        <input type="text" bind:value={suffix} />
-      </label>
-      <label>
-        Rufname
-        <input type="text" bind:value={nick} />
-      </label>
-      <label>
         Geschlecht
         <select value={sex} onchange={(e) => (sex = (e.currentTarget as HTMLSelectElement).value as typeof sex)}>
           <option value="M">Männlich</option>
@@ -387,39 +486,78 @@
           <option value="U">Unbekannt</option>
         </select>
       </label>
-      <label>
-        Titel
-        <input type="text" bind:value={title} />
-      </label>
-      <label>
-        Religion
-        <input type="text" bind:value={religion} />
-      </label>
-      <label>
-        RESN (Zugriffsbeschränkung)
-        <input type="text" bind:value={restriction} placeholder="confidential | locked | privacy" />
-      </label>
-      <label>
-        E-Mail
-        <input type="email" bind:value={email} />
-      </label>
-      <label>
-        Website
-        <input type="url" bind:value={www} />
-      </label>
+      {#if showPrefixSuffix}
+        <label>
+          Präfix
+          <input type="text" bind:value={prefix} />
+        </label>
+        <label>
+          Suffix
+          <input type="text" bind:value={suffix} />
+        </label>
+      {/if}
+      {#if showNick}
+        <label>
+          Rufname
+          <input type="text" bind:value={nick} />
+        </label>
+      {/if}
+      {#if showTitle}
+        <label>
+          Titel
+          <input type="text" bind:value={title} />
+        </label>
+      {/if}
+      {#if showReligion}
+        <label>
+          Religion
+          <input type="text" bind:value={religion} />
+        </label>
+      {/if}
+      {#if showRestriction}
+        <label>
+          RESN (Zugriffsbeschränkung)
+          <input type="text" bind:value={restriction} placeholder="confidential | locked | privacy" />
+        </label>
+      {/if}
+      {#if showEmail}
+        <label>
+          E-Mail
+          <input type="email" bind:value={email} />
+        </label>
+      {/if}
+      {#if showWww}
+        <label>
+          Website
+          <input type="url" bind:value={www} />
+        </label>
+      {/if}
     </div>
     <label>
       Notiz
       <textarea bind:value={noteText}></textarea>
     </label>
+    {#if pills.length > 0}
+      <div class="person-form__pill-row" aria-label="Weitere Felder">
+        {#each pills as pill (pill.id)}
+          <button type="button" class="person-form__pill" onclick={pill.activate}>+ {pill.label}</button>
+        {/each}
+      </div>
+    {/if}
   </section>
 
   <section class="person-form__section">
     <h4>Sonder-Ereignisse</h4>
     {@render specialEventSection('Geburt (BIRT)', birth, false, false)}
-    {@render specialEventSection('Taufe (CHR)', chr, false, false)}
-    {@render specialEventSection('Tod (DEAT)', death, true, false)}
-    {@render specialEventSection('Bestattung (BURI)', buri, false, false)}
+    {#if showChr}
+      {@render specialEventSection('Taufe (CHR)', chr, false, false)}
+    {/if}
+    {#if showDeath}
+      {@render specialEventSection('Tod (DEAT)', death, true, false)}
+    {/if}
+    {#if showBuri}
+      {@render specialEventSection('Bestattung (BURI)', buri, false, false)}
+    {/if}
   </section>
 
   <section class="person-form__section">
@@ -445,7 +583,7 @@
             onchange={(e) => {
               const v = (e.currentTarget as HTMLInputElement).value;
               ev.place = v;
-              ev.hasPlace = v !== '';
+              ev.placeDirty = true;
             }}
           />
         </label>
@@ -522,10 +660,31 @@
     font: inherit;
   }
 
-  .person-form__checkbox {
-    flex-direction: row;
-    align-items: center;
+  /* Schnellauswahl-Pills (ADR-v9-30 Punkt 3): eigener Stil, bewusst NICHT .stb-pill
+     (design-system.css) wiederverwendet — .stb-pill ist ein entfernbarer Chip/Tag
+     (Namensvarianten in PlaceDetail), diese Pille ist dagegen ein AKTIVIERUNGS-Button
+     ("+ Label" -> blendet ein Feld ein und verschwindet selbst), kein Tag mit
+     Remove-Slot. Analog v8-Vorbild `.field-pill` (legacy-v8/ui-forms-person.js). */
+  .person-form__pill-row {
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
+
+  .person-form__pill {
+    background: var(--stb-surface-2);
+    border: 1px dashed var(--stb-gold-dim);
+    color: var(--stb-gold-light);
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  .person-form__pill:hover,
+  .person-form__pill:focus-visible {
+    border-style: solid;
   }
 
   .person-form__event {
