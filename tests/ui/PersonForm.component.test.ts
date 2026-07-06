@@ -354,7 +354,7 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
 
     render(PersonForm, { props: { appState, person } });
 
-    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website', 'Taufe', 'Tod', 'Bestattung', 'Beruf', 'Wohnort']) {
+    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website', 'Taufe', 'Tod', 'Bestattung', 'Beruf', 'Wohnort', 'Auswanderung', 'Einwanderung', 'Militärdienst']) {
       await fireEvent.click(screen.getByText(`+ ${label}`));
     }
 
@@ -371,6 +371,9 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
     expect(screen.getByText('Bestattung (BURI)')).toBeTruthy();
     expect(screen.getAllByText('OCCU').length).toBeGreaterThan(0);
     expect(screen.getAllByText('RESI').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('EMIG').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('IMMI').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('MILI').length).toBeGreaterThan(0);
   });
 
   it('Identitäts- und Ereignis-Pills sind zwei getrennte Reihen (ADR-v9-30 Nachtrag "zwei Gruppen")', () => {
@@ -391,6 +394,9 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
     expect(within(eventRow).getByText('+ Taufe')).toBeTruthy();
     expect(within(eventRow).getByText('+ Beruf')).toBeTruthy();
     expect(within(eventRow).getByText('+ Wohnort')).toBeTruthy();
+    expect(within(eventRow).getByText('+ Auswanderung')).toBeTruthy();
+    expect(within(eventRow).getByText('+ Einwanderung')).toBeTruthy();
+    expect(within(eventRow).getByText('+ Militärdienst')).toBeTruthy();
     expect(within(identityRow).queryByText('+ Beruf')).toBeNull();
   });
 });
@@ -445,6 +451,74 @@ describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)'
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['OCCU', 'OCCU']);
+  });
+});
+
+describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v9-30 Zweiter Nachtrag, Spec 20 §2)', () => {
+  it('"+ Auswanderung" fügt sofort ein EMIG-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('EMIG', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Auswanderung'));
+    expect(screen.getByText('EMIG', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Auswanderung')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['EMIG']);
+  });
+
+  it('"+ Einwanderung" fügt sofort ein IMMI-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('IMMI', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Einwanderung'));
+    expect(screen.getByText('IMMI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Einwanderung')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['IMMI']);
+  });
+
+  it('"+ Militärdienst" fügt sofort ein MILI-Ereignis hinzu, das gespeichert wird', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('MILI', { selector: 'strong' })).toBeNull();
+    await fireEvent.click(screen.getByText('+ Militärdienst'));
+    expect(screen.getByText('MILI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('+ Militärdienst')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['MILI']);
+  });
+
+  it('"+ Auswanderung"-Pill verschwindet, sobald bereits ein EMIG-Event existiert (importiert), aber "+ Ereignis hinzufügen" legt trotzdem einen zweiten EMIG an (zweite Auswanderung)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.events.push({
+      type: 'EMIG', value: '', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+    });
+
+    render(PersonForm, { props: { appState, person } });
+
+    expect(screen.queryByText('+ Auswanderung')).toBeNull();
+    expect(screen.getAllByText('EMIG', { selector: 'strong' })).toHaveLength(1);
+
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'EMIG' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['EMIG', 'EMIG']);
   });
 });
 

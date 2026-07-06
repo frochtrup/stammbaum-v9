@@ -276,12 +276,17 @@
     return list;
   });
 
-  /** Ereignis-Pills (Taufe/Tod/Bestattung + Beruf/Wohnort) — eigene Reihe bei den
-   *  Sonder-/weiteren Ereignissen. Beruf/Wohnort verschwinden, sobald (mindestens) ein
-   *  OCCU-/RESI-Event in events[] existiert — der generische "+ Ereignis hinzufügen"-Weg
-   *  bleibt für einen ZWEITEN OCCU/RESI (z. B. Berufswechsel) weiterhin nutzbar. */
+  /** Ereignis-Pills (Taufe/Tod/Bestattung + Beruf/Wohnort/Auswanderung/Einwanderung/
+   *  Militärdienst) — eigene Reihe bei den Sonder-/weiteren Ereignissen. Die generischen
+   *  Ereignis-Pills verschwinden, sobald (mindestens) ein Event des jeweiligen Typs in
+   *  events[] existiert — der generische "+ Ereignis hinzufügen"-Weg bleibt für einen
+   *  ZWEITEN Event desselben Typs (z. B. Berufswechsel, zweite Auswanderung) weiterhin
+   *  nutzbar (ADR-v9-30 Punkt 3, Zweiter Nachtrag 2026-07-06). */
   const hasOccu = $derived(events.some((e) => e.type === 'OCCU'));
   const hasResi = $derived(events.some((e) => e.type === 'RESI'));
+  const hasEmig = $derived(events.some((e) => e.type === 'EMIG'));
+  const hasImmi = $derived(events.some((e) => e.type === 'IMMI'));
+  const hasMili = $derived(events.some((e) => e.type === 'MILI'));
 
   const eventPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
@@ -290,6 +295,9 @@
     if (!showBuri) list.push({ id: 'buri', label: 'Bestattung', activate: () => (showBuri = true) });
     if (!hasOccu) list.push({ id: 'occu', label: 'Beruf', activate: () => addEventOfType('OCCU') });
     if (!hasResi) list.push({ id: 'resi', label: 'Wohnort', activate: () => addEventOfType('RESI') });
+    if (!hasEmig) list.push({ id: 'emig', label: 'Auswanderung', activate: () => addEventOfType('EMIG') });
+    if (!hasImmi) list.push({ id: 'immi', label: 'Einwanderung', activate: () => addEventOfType('IMMI') });
+    if (!hasMili) list.push({ id: 'mili', label: 'Militärdienst', activate: () => addEventOfType('MILI') });
     return list;
   });
 
