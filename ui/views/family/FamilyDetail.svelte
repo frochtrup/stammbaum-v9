@@ -124,10 +124,7 @@
                     Ort ansehen →
                   </button>
                 {/if}
-              </div>
-              {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
-              {#if ev.citations.length > 0}
-                <div class="family-detail__citations">
+                {#if ev.citations.length > 0}
                   {#each ev.citations as cit, i (i)}
                     <SourceBadge
                       citation={cit}
@@ -135,8 +132,9 @@
                       onSelect={onNavigateToSource}
                     />
                   {/each}
-                </div>
-              {/if}
+                {/if}
+              </div>
+              {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
             </li>
           {/each}
         </ul>
@@ -271,6 +269,12 @@
 
   .family-detail__geo-link {
     font-size: 0.78rem;
+  }
+
+  /* ADR-v9-30 Nachtrag Befund 1: margin-left:auto nur auf :last-child, sonst drängt der
+     Kartenlink einen nachfolgenden Ort-/Hof-Link in eine eigene Zeile (INV-UI-5-Verstoß) —
+     existiert kein weiterer Link danach, bleibt der Kartenlink weiterhin rechtsbündig. */
+  .family-detail__geo-link:last-child {
     margin-left: auto;
   }
 

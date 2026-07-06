@@ -327,6 +327,67 @@ describe('FamilyForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
   });
 });
 
+describe('FamilyForm — Wert-Feld (Event.value, ADR-v9-30 Nachtrag Befund 4)', () => {
+  it('speichert einen Wert für ein generisches events[]-Ereignis und zeigt ihn beim erneuten Öffnen vorbefüllt', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    const { unmount } = render(FamilyForm, { props: { appState, family } });
+
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    const valueInput = screen.getByLabelText('Wert') as HTMLInputElement;
+    await fireEvent.input(valueInput, { target: { value: 'Volkszählung 1900' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@');
+    expect(saved?.events[0]?.value).toBe('Volkszählung 1900');
+    unmount();
+
+    render(FamilyForm, { props: { appState, family: saved! } });
+    const reopened = screen.getByLabelText('Wert') as HTMLInputElement;
+    expect(reopened.value).toBe('Volkszählung 1900');
+  });
+
+  it('zeigt kein "Wert"-Feld bei Heirat/Verlobung (Sonder-Ereignisse)', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByText('+ Verlobung'));
+
+    const marriageSection = screen.getByText('Heirat (MARR)').closest('.family-form__event') as HTMLElement;
+    const engagementSection = screen.getByText('Verlobung (ENGA)').closest('.family-form__event') as HTMLElement;
+    expect(marriageSection.querySelector('label')?.textContent).not.toContain('Wert');
+    expect(Array.from(marriageSection.querySelectorAll('label')).some((l) => l.textContent?.trim() === 'Wert')).toBe(false);
+    expect(Array.from(engagementSection.querySelectorAll('label')).some((l) => l.textContent?.trim() === 'Wert')).toBe(false);
+  });
+});
+
+describe('FamilyForm — "+ Ereignis"-Pill für EVEN (ADR-v9-30 Nachtrag Befund 3)', () => {
+  it('zeigt den "+ Ereignis"-Pill, solange kein EVEN-Ereignis existiert, und aktiviert ein EVEN-Ereignis per Klick', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    expect(screen.getByText('+ Ereignis')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.events.map((e) => e.type)).toEqual(['EVEN']);
+  });
+
+  it('verbirgt den "+ Ereignis"-Pill wieder, sobald ein EVEN-Ereignis existiert', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+
+    expect(screen.queryByText('+ Ereignis')).toBeNull();
+  });
+});
+
 describe('FamilyForm — Familien-Quellen', () => {
   it('fügt eine Quellen-Zitation zur Familie hinzu (sourceId/page/QUAY/Notiz)', async () => {
     const appState = seedThreePersons();
@@ -378,6 +439,26 @@ describe('FamilyForm — Familien-Quellen', () => {
 
     const btn = screen.getAllByText('+ Quelle hinzufügen')[0] as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+
+  it('zeigt keinen "Keine Quellen zugeordnet."-Leerzustandstext (ADR-v9-30 Nachtrag Befund 2)', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    expect(screen.queryByText('Keine Quellen zugeordnet.')).toBeNull();
+  });
+
+  it('zeigt Überschrift und "+ Quelle hinzufügen"-Button in derselben Kopfzeile', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    const head = screen.getByText('Quellen (Familie)').closest('.family-form__citations-head') as HTMLElement;
+    expect(head).toBeTruthy();
+    expect(head.querySelector('button')?.textContent).toContain('+ Quelle hinzufügen');
   });
 });
 

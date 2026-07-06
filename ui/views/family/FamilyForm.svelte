@@ -67,6 +67,7 @@
     key: string;
     type: string;
     eventType: string;
+    value: string;
     dateQualifier: DateQualifier;
     day: number | null;
     month: string | null;
@@ -90,6 +91,7 @@
       key,
       type: ev.type,
       eventType: ev.eventType,
+      value: ev.value,
       dateQualifier: parts?.qualifier ?? 'EXACT',
       day: parts?.day ?? null,
       month: parts?.month ?? null,
@@ -142,6 +144,7 @@
       ...original,
       type: e.type,
       eventType: e.eventType,
+      value: e.value,
       date,
       place,
       addr: e.addr,
@@ -192,7 +195,14 @@
   let eventKeySeq = untrack(() => events.length);
 
   function addEvent() {
-    const fresh = makeEvent(newEventType);
+    addEventOfType(newEventType);
+  }
+
+  /** Fügt sofort ein Ereignis eines festen Typs hinzu (ADR-v9-30 Nachtrag Befund 2:
+   *  "+ Ereignis"-Pill für EVEN) — derselbe Mechanismus wie addEvent(), nur ohne den Umweg
+   *  über Typ-Dropdown + Button-Klick (analog PersonForm.svelte addEventOfType). */
+  function addEventOfType(type: string): void {
+    const fresh = makeEvent(type);
     eventKeySeq += 1;
     events = [...events, toEditable(`new-${eventKeySeq}`, fresh)];
   }
@@ -275,12 +285,16 @@
     activate: () => void;
   }
 
-  /** Familie hat nur EINEN Ereignis-Pill (Verlobung) — kein Beruf/Wohnort-Analogon
-   *  (ADR-v9-30: "das sind Personen-Ereignisse"), trotzdem als Liste analog PersonForm,
-   *  damit künftige Familien-Ereignis-Pills ohne Strukturänderung ergänzbar sind. */
+  /** Familie hat außer Verlobung noch den generischen "+ Ereignis"-Pill für EVEN (ADR-v9-30
+   *  Nachtrag Befund 2, [20 §2](../../../specs/v9/20-Funktionen.md)) — kein Beruf/Wohnort-
+   *  Analogon (das sind Personen-Ereignisse). Sichtbarkeitskriterium für EVEN identisch zu
+   *  PersonForm: erscheint nur, solange kein events[]-Eintrag vom Typ EVEN existiert. */
+  const hasEven = $derived(events.some((e) => e.type === 'EVEN'));
+
   const eventPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
     if (!showEngagement) list.push({ id: 'engagement', label: 'Verlobung', activate: () => (showEngagement = true) });
+    if (!hasEven) list.push({ id: 'even', label: 'Ereignis', activate: () => addEventOfType('EVEN') });
     return list;
   });
 
@@ -389,10 +403,12 @@
 
 {#snippet citationList(ev: EditableEvent, labelPrefix: string)}
   <div class="family-form__citations">
-    <h5>Quellen</h5>
-    {#if ev.citations.length === 0}
-      <p class="family-form__muted">Keine Quellen zugeordnet.</p>
-    {/if}
+    <div class="family-form__citations-head">
+      <h5>Quellen</h5>
+      <button type="button" class="family-form__add-citation-btn" onclick={() => addCitation(ev)} disabled={sources.length === 0}>
+        + Quelle hinzufügen
+      </button>
+    </div>
     {#each ev.citations as cit, i (i)}
       <div class="family-form__citation-row">
         <select
@@ -433,9 +449,6 @@
         <button type="button" class="family-form__remove-btn" onclick={() => removeCitation(ev, i)} aria-label={`${labelPrefix} Quelle ${i + 1} entfernen`}>✕</button>
       </div>
     {/each}
-    <button type="button" class="family-form__add-citation-btn" onclick={() => addCitation(ev)} disabled={sources.length === 0}>
-      + Quelle hinzufügen
-    </button>
   </div>
 {/snippet}
 
@@ -525,6 +538,10 @@
             <input type="text" bind:value={ev.eventType} />
           </label>
         {/if}
+        <label>
+          Wert
+          <input type="text" bind:value={ev.value} />
+        </label>
         {@render dateFields(ev)}
         <label>
           Ort (Freitext)
@@ -595,10 +612,12 @@
       <textarea bind:value={noteText}></textarea>
     </label>
     <div class="family-form__citations">
-      <h5>Quellen (Familie)</h5>
-      {#if citations.length === 0}
-        <p class="family-form__muted">Keine Quellen zugeordnet.</p>
-      {/if}
+      <div class="family-form__citations-head">
+        <h5>Quellen (Familie)</h5>
+        <button type="button" class="family-form__add-citation-btn" onclick={addFamilyCitation} disabled={sources.length === 0}>
+          + Quelle hinzufügen
+        </button>
+      </div>
       {#each citations as cit, i (i)}
         <div class="family-form__citation-row">
           <select
@@ -637,9 +656,6 @@
           <button type="button" class="family-form__remove-btn" onclick={() => removeFamilyCitation(i)} aria-label={`Familie Quelle ${i + 1} entfernen`}>✕</button>
         </div>
       {/each}
-      <button type="button" class="family-form__add-citation-btn" onclick={addFamilyCitation} disabled={sources.length === 0}>
-        + Quelle hinzufügen
-      </button>
     </div>
   </section>
 
@@ -800,7 +816,19 @@
   .family-form__citations h5 {
     font-size: 0.8rem;
     color: var(--stb-text-dim);
-    margin: 0 0 0.3rem;
+    margin: 0;
+  }
+
+  /* ADR-v9-30 Nachtrag Befund 2 (INV-UI-5): Überschrift + "+ Quelle hinzufügen" in einer
+     Zeile statt gestapelt; der Leerzustand-Text entfällt ersatzlos (der Button allein zeigt
+     bereits, dass keine Quelle zugeordnet ist). */
+  .family-form__citations-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.3rem;
   }
 
   .family-form__citation-row {
