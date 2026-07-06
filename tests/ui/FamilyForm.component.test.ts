@@ -83,42 +83,154 @@ describe('FamilyForm — Eltern speichern', () => {
 });
 
 describe('FamilyForm — Heirat (MARR) + Verlobung (ENGA)', () => {
-  it('erfasst ein Heiratsdatum strukturiert (Qualifier + Tag/Monat/Jahr)', async () => {
+  it('erfasst ein Heiratsdatum strukturiert (Qualifier + Tag/Monat/Jahr), keine Checkbox nötig', async () => {
     const appState = seedThreePersons();
     const family = makeFamily('@F1@');
 
     render(FamilyForm, { props: { appState, family } });
 
     const marriageSection = screen.getByText('Heirat (MARR)').closest('.family-form__event') as HTMLElement;
-    await fireEvent.click(marriageSection.querySelector('input[type="checkbox"]')!);
+    expect(marriageSection.querySelector('input[type="checkbox"]')).toBeNull();
     const dayInput = marriageSection.querySelector('input[aria-label="Tag"]') as HTMLInputElement;
     const monthInput = marriageSection.querySelector('input[aria-label="Monat"]') as HTMLInputElement;
     const yearInput = marriageSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
-    await fireEvent.input(dayInput, { target: { value: '5' } });
+    await fireEvent.change(dayInput, { target: { value: '5' } });
     await fireEvent.input(monthInput, { target: { value: 'juni' } });
     await fireEvent.change(monthInput, { target: { value: 'juni' } });
-    await fireEvent.input(yearInput, { target: { value: '1920' } });
+    await fireEvent.change(yearInput, { target: { value: '1920' } });
 
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.marriage.date).toBe('5 JUN 1920');
   });
 
-  it('erfasst ein Verlobungsdatum unabhängig vom Heiratsdatum', async () => {
+  it('erfasst ein Verlobungsdatum unabhängig vom Heiratsdatum, nach Aktivierung des "+ Verlobung"-Pills', async () => {
     const appState = seedThreePersons();
     const family = makeFamily('@F1@');
 
     render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByText('+ Verlobung'));
 
     const engagementSection = screen.getByText('Verlobung (ENGA)').closest('.family-form__event') as HTMLElement;
-    await fireEvent.click(engagementSection.querySelector('input[type="checkbox"]')!);
     const yearInput = engagementSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
-    await fireEvent.input(yearInput, { target: { value: '1919' } });
+    await fireEvent.change(yearInput, { target: { value: '1919' } });
 
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.engagement.date).toBe('1919');
     expect(appState.db.families.get('@F1@')?.marriage.date).toBeNull();
+  });
+});
+
+describe('FamilyForm — Dirty-Tracking Datum (ADR-v9-30 Punkt 1, kein Checkbox-Gate mehr)', () => {
+  it('lässt ein importiertes date:"" (Tag vorhanden, leer) bei Heirat unangetastet, wenn nur ein Kind hinzugefügt wird', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+    family.marriage.date = '';
+    family.marriage.seen = true;
+
+    render(FamilyForm, { props: { appState, family } });
+
+    await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
+    await fireEvent.click(screen.getByText('Karl Bauer'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.date).toBe('');
+  });
+
+  it('lässt marriage.date:null unangetastet, wenn das Datumsformular nicht angefasst wird', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByLabelText('Ehemann'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.date).toBeNull();
+  });
+
+  it('aktives Leeren aller Datumsfelder ergibt null, nie einen leeren String', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+    family.marriage.date = '1920';
+
+    render(FamilyForm, { props: { appState, family } });
+
+    const marriageSection = screen.getByText('Heirat (MARR)').closest('.family-form__event') as HTMLElement;
+    const yearInput = marriageSection.querySelector('input[aria-label="Jahr"]') as HTMLInputElement;
+    await fireEvent.change(yearInput, { target: { value: '' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.date).toBeNull();
+  });
+
+  it('Qualifier-Dropdown und Tag/Monat/Jahr der Heirat sind ohne Checkbox-Klick direkt sichtbar/editierbar', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    expect(screen.queryByText('Datum erfasst')).toBeNull();
+    const marriageSection = screen.getByText('Heirat (MARR)').closest('.family-form__event') as HTMLElement;
+    expect(marriageSection.querySelector('input[aria-label="Tag"]')).toBeTruthy();
+  });
+});
+
+describe('FamilyForm — EINE Überschrift "Ereignisse" (ADR-v9-30 Nachtrag)', () => {
+  it('zeigt genau eine "Ereignisse"-Überschrift, kein "Sonder-Ereignisse"/"Weitere Ereignisse" mehr', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    expect(screen.getByText('Ereignisse')).toBeTruthy();
+    expect(screen.queryByText('Sonder-Ereignisse')).toBeNull();
+    expect(screen.queryByText('Weitere Ereignisse', { selector: 'h4' })).toBeNull();
+  });
+});
+
+describe('FamilyForm — Verlobung als Pill (ADR-v9-30 Punkt 3)', () => {
+  it('Verlobung ist ohne Daten zunächst als Pill dargestellt, nicht inline sichtbar', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    expect(screen.getByText('+ Verlobung')).toBeTruthy();
+    expect(screen.queryByText('Verlobung (ENGA)')).toBeNull();
+  });
+
+  it('Klick auf "+ Verlobung" blendet die Sektion an ihrer kanonischen Position VOR der Heirat ein, Pill verschwindet', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByText('+ Verlobung'));
+
+    expect(screen.getByText('Verlobung (ENGA)')).toBeTruthy();
+    expect(screen.queryByText('+ Verlobung')).toBeNull();
+
+    // Kanonische Reihenfolge: ENGA vor MARR (GEDCOM-Schreibreihenfolge) — Verlobung
+    // erscheint im DOM VOR der Heirat, nicht danach.
+    const section = screen.getByText('Ereignisse').closest('.family-form__section') as HTMLElement;
+    const headings = Array.from(section.querySelectorAll('h4')).map((h) => h.textContent);
+    const engaIdx = headings.indexOf('Verlobung (ENGA)');
+    const marrIdx = headings.indexOf('Heirat (MARR)');
+    expect(engaIdx).toBeGreaterThanOrEqual(0);
+    expect(marrIdx).toBeGreaterThanOrEqual(0);
+    expect(engaIdx).toBeLessThan(marrIdx);
+  });
+
+  it('eine bereits befüllte Verlobung (isEventPresent) ist inline sichtbar, kein Pill', () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+    family.engagement.date = '1919';
+
+    render(FamilyForm, { props: { appState, family } });
+
+    expect(screen.getByText('Verlobung (ENGA)')).toBeTruthy();
+    expect(screen.queryByText('+ Verlobung')).toBeNull();
   });
 });
 
