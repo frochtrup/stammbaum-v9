@@ -36,7 +36,7 @@
 
 <div class="source-list">
   {#if isEmpty}
-    <p class="source-list__empty">Keine Quellen geladen — Datei öffnen, um zu starten.</p>
+    <p class="source-list__empty">Keine Quellen geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
     <div class="source-list__toolbar source-list__toolbar--empty">
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>

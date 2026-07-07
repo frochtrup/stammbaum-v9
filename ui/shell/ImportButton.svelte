@@ -21,8 +21,15 @@
      * dieselbe IDB-Arbeitskopie-Instanz wie das Auto-Load/Auto-Save in App.svelte, statt
      * eine zweite, unabhängige FileService-Instanz lokal zu erzeugen (Auftrag Teil 1). */
     fileService: FileService;
+    /** Meldet den FS-Access-Handle der importierten Datei (falls vorhanden) an App.svelte
+     * zurück, damit SaveButton Tier-1 (in-place) nutzen kann — vorher ging `picked.handle`
+     * beim manuellen "Datei öffnen" verloren (nur der Auto-Load-Pfad in App.svelte setzte
+     * `fileHandle`). Bei "Demo laden" wird explizit `undefined` gemeldet: die Demo-Datei
+     * hat keinen echten Handle, ein zuvor gemerkter Handle einer anderen Datei darf nicht
+     * stehen bleiben (sonst würde "Speichern" versehentlich in die falsche Datei schreiben). */
+    onImported?: (handle: unknown) => void;
   }
-  const { appState, persister, fileService }: Props = $props();
+  const { appState, persister, fileService, onImported }: Props = $props();
 
   let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
@@ -42,6 +49,7 @@
       }
       const result = await loadGedcomText(picked.text, picked.name, appState, persister);
       placesNotice = result.placesNotice;
+      onImported?.(picked.handle);
       status = 'idle';
     } catch (err) {
       status = 'error';
@@ -59,6 +67,7 @@
       const text = await res.text();
       const result = await loadGedcomText(text, 'demo.ged', appState, persister);
       placesNotice = result.placesNotice;
+      onImported?.(undefined);
       status = 'idle';
     } catch (err) {
       status = 'error';

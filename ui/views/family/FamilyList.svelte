@@ -68,7 +68,7 @@
 
 <div class="family-list">
   {#if isEmpty}
-    <p class="family-list__empty">Keine Familien geladen — Datei öffnen, um zu starten.</p>
+    <p class="family-list__empty">Keine Familien geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
     <div class="family-list__toolbar family-list__toolbar--empty">
       <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
     </div>

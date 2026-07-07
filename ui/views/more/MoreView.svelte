@@ -1,8 +1,9 @@
 <script lang="ts">
   // ui/views/more/MoreView.svelte — "Mehr"-Hub (Spec 21 §2 Mobile-Modell: "Mehr = Hub
-  // für die Lenses (Karte / Zeitleiste / Statistik / Story) + Ausgaben + Einstellungen").
+  // für die Lenses (Karte / Zeitleiste / Statistik / Story) + Ausgaben + Einstellungen +
+  // Datei").
   //
-  // Diese Scheibe liefert das Navigations-Gerüst: ein Menü mit sechs Einträgen. "Statistik"
+  // Diese Scheibe liefert das Navigations-Gerüst: ein Menü mit Einträgen. "Statistik"
   // ist echt (Spec 20 §4 "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst
   // KEINE Diagramm-/imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt
   // keinen gemeinsamen Lens-Umschalter und ist ausschließlich über diesen Hub-Eintrag
@@ -18,20 +19,41 @@
   // pflegen. Kein Menü-Sub-Eintrag mehr für "Karte"/"Zeitleiste" — der Klick verlässt
   // den Hub sofort (analog "Statistik" bleibt im Hub, weil Statistik KEINEN zweiten
   // Pfad hat).
+  //
+  // "Datei" (Nachtrag 2026-07-07, Spec 21 §2): Datei öffnen/Demo laden/Speichern zogen
+  // aus einer permanent sichtbaren Leiste in App.svelte hierher um — Nutzer-Fund per
+  // Screenshot, dass diese Aktionen nur am Session-Anfang/-Ende gebraucht werden, nicht
+  // während der laufenden Arbeit an Personen/Familien sichtbar sein müssen (v8-Oracle
+  // bestätigt dasselbe Muster: `☰`-Menü, nicht permanente Topbar). Erster Menüpunkt
+  // (nicht letzter), weil er für Erstnutzer der Einstieg ist, bevor überhaupt Daten da
+  // sind — rendert echte Komponenten (ImportButton/SaveButton), keinen ComingSoonPanel.
   import type { AppState } from '../../shell/app-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
   import StatisticsView from '../stats/StatisticsView.svelte';
+  import ImportButton from '../../shell/ImportButton.svelte';
+  import SaveButton from '../../shell/SaveButton.svelte';
   import type { LensId } from '../../shell/lens-model';
+  import type { FileService } from '../../../services/file';
+  import type { PlacesPersister } from '../../shell/places-persister';
 
   interface Props {
     appState: AppState;
+    /** Geteilte FileService-/Persister-Instanzen aus App.svelte (dieselben, die auch
+     * Auto-Load/Auto-Save beim Start nutzen) — der "Datei"-Menüpunkt hält keine eigene
+     * Instanz. */
+    fileService: FileService;
+    persister: PlacesPersister;
+    /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
+    fileHandle?: unknown;
+    /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
+    onImported?: (handle: unknown) => void;
     /** Verlässt den Hub Richtung Karten-/Zeitleiste-Lens (App.svelte activeTarget=
      * 'map'/'timeline', INV-UI-2). */
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, onNavigateLens }: Props = $props();
+  const { appState, fileService, persister, fileHandle, onImported, onNavigateLens }: Props = $props();
 
-  type MoreEntry = 'stats' | 'story' | 'reports' | 'settings';
+  type MoreEntry = 'file' | 'stats' | 'story' | 'reports' | 'settings';
 
   interface MenuItem {
     id: MoreEntry;
@@ -40,11 +62,13 @@
     implemented: boolean;
   }
 
-  // Reihenfolge folgt Spec 21 §1/§3: erst die verbleibende Lens (Story), dann die
-  // beiden Arbeitsflächen-Einträge, die laut §2 in den "Mehr"-Hub gehören. "Karte" und
-  // "Zeitleiste" sind KEIN Menü-Sub-Eintrag mehr (s. Kommentar oben) — eigene Buttons,
-  // die sofort über onNavigateLens navigieren statt eine Sub-Ansicht im Hub zu öffnen.
+  // Reihenfolge folgt Spec 21 §1/§3: Datei zuerst (Session-Einstieg), dann die
+  // verbleibende Lens (Story), dann die übrigen Arbeitsflächen-Einträge, die laut §2 in
+  // den "Mehr"-Hub gehören. "Karte" und "Zeitleiste" sind KEIN Menü-Sub-Eintrag mehr
+  // (s. Kommentar oben) — eigene Buttons, die sofort über onNavigateLens navigieren
+  // statt eine Sub-Ansicht im Hub zu öffnen.
   const items: MenuItem[] = [
+    { id: 'file', icon: '📁', label: 'Datei', implemented: true },
     { id: 'stats', icon: '📊', label: 'Statistik', implemented: true },
     { id: 'story', icon: '📖', label: 'Story', implemented: false },
     { id: 'reports', icon: '🖨', label: 'Ausgaben', implemented: false },
@@ -74,6 +98,11 @@
     </div>
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
+    {:else if openEntry.id === 'file'}
+      <div class="more-view__file">
+        <ImportButton {appState} {persister} {fileService} {onImported} />
+        <SaveButton {appState} {fileService} handle={fileHandle} />
+      </div>
     {:else}
       <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
     {/if}
@@ -147,6 +176,13 @@
 
   .more-view__sub-header {
     padding: 0.5rem 0.75rem 0;
+  }
+
+  .more-view__file {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem;
   }
 
   .more-view__back {

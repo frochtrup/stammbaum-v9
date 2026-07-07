@@ -33,6 +33,17 @@ const MINI_GED = [
   '',
 ].join('\n');
 
+// Der Dateiname-Indikator (ImportButton) lebt seit dem Nachtrag 2026-07-07 (Spec 21 §2)
+// nicht mehr permanent sichtbar in App.svelte, sondern hinter Mehr -> "📁 Datei" (s.
+// Kommentar bei der SaveButton-Beschreibung unten). Diese Helper-Funktion navigiert
+// genau dorthin, bevor auf den Dateinamen/Speichern-Button zugegriffen wird.
+async function openFileMenu() {
+  const moreBtn = await waitFor(() => screen.getByRole('button', { name: /Mehr/ }));
+  await fireEvent.click(moreBtn);
+  const fileBtn = await waitFor(() => screen.getByRole('button', { name: /Datei/ }));
+  await fireEvent.click(fileBtn);
+}
+
 describe('App — Auto-Load der Arbeitskopie beim Start (Spec 14 §3.1)', () => {
   it('lädt eine vorhandene Arbeitskopie automatisch und zeigt den geladenen Dateinamen', async () => {
     const { adapters } = createMockAdapterSet({
@@ -41,6 +52,7 @@ describe('App — Auto-Load der Arbeitskopie beim Start (Spec 14 §3.1)', () => 
     const fileService = new FileService(adapters);
 
     render(App, { props: { fileService, persister: mockPersister() } });
+    await openFileMenu();
 
     await waitFor(() => {
       expect(screen.getByText('arbeitskopie.ged')).toBeTruthy();
@@ -67,6 +79,7 @@ describe('App — stilles Auto-Save nach Persistenz-Rundlauf (TST-8, Spec 14 §3
     const fileService = new FileService(adapters);
 
     render(App, { props: { fileService, persister: mockPersister() } });
+    await openFileMenu();
 
     await waitFor(() => {
       expect(screen.getByText('arbeitskopie.ged')).toBeTruthy();
@@ -79,11 +92,12 @@ describe('App — stilles Auto-Save nach Persistenz-Rundlauf (TST-8, Spec 14 §3
 });
 
 describe('App — SaveButton: expliziter Export über das eine Rohr (Spec 20 §1.2 [K])', () => {
-  it('ist nicht sichtbar, solange keine Datei geladen ist', () => {
+  it('ist nicht sichtbar, solange keine Datei geladen ist', async () => {
     const { adapters } = createMockAdapterSet({ initialWorkingCopy: null });
     const fileService = new FileService(adapters);
 
     render(App, { props: { fileService, persister: mockPersister() } });
+    await openFileMenu();
 
     expect(screen.queryByRole('button', { name: /^Speichern$/ })).toBeNull();
   });
@@ -97,6 +111,7 @@ describe('App — SaveButton: expliziter Export über das eine Rohr (Spec 20 §1
     const fileService = new FileService(adapters);
 
     render(App, { props: { fileService, persister: mockPersister() } });
+    await openFileMenu();
 
     const saveBtn = await waitFor(() => screen.getByRole('button', { name: /^Speichern$/ }));
     await fireEvent.click(saveBtn);

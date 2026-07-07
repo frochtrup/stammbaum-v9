@@ -1,8 +1,19 @@
 <script lang="ts">
   // app/App.svelte — App-Wurzel dieser Scheibe (Spec 21 §2 Mobile-Modell).
-  // Verdrahtet die EINE ViewState-Instanz + den EINEN AppState mit BottomNav + Import
-  // + Entitäten-Tab (Personen/Familien/Quellen, Segment-Umschalter in EntityTab.svelte).
+  // Verdrahtet die EINE ViewState-Instanz + den EINEN AppState mit BottomNav +
+  // Entitäten-Tab (Personen/Familien/Quellen, Segment-Umschalter in EntityTab.svelte).
   // Desktop-Sidebar/Multi-Pane (Spec 21 §3) ist NICHT Teil dieser Scheibe.
+  //
+  // Datei öffnen/Demo laden/Speichern (ImportButton/SaveButton) leben NICHT mehr als
+  // permanent sichtbare Leiste hier, sondern im "Datei"-Menüpunkt von MoreView.svelte
+  // (Spec 21 §2 Nachtrag 2026-07-07): das sind Session-Rand-Aktionen (Anfang/Ende einer
+  // Bearbeitungssitzung), keine Aktionen, die während der Arbeit an Personen/Familien
+  // dauerhaft sichtbar sein müssen — Nutzer-Fund per Screenshot, v8-Oracle bestätigt
+  // dasselbe Muster (`legacy-v8/UI-DESIGN.md`: Speichern/Backup/neue Datei lagen im
+  // `☰`-Menü, nicht permanent in der Topbar). App.svelte hält `fileService`/`persister`/
+  // `fileHandle` weiterhin selbst (EINE Instanz, Auto-Load/Auto-Save brauchen sie beim
+  // Start unabhängig davon, ob der Nutzer je den Mehr-Hub öffnet) und reicht sie nur
+  // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
@@ -11,8 +22,6 @@
   import { createFileService, type FileService } from '../services/file';
   import { loadGedcomText } from '../ui/shell/load-gedcom-text';
   import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
-  import ImportButton from '../ui/shell/ImportButton.svelte';
-  import SaveButton from '../ui/shell/SaveButton.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
@@ -190,11 +199,6 @@
     <h1 class="app-shell__title">Stammbaum</h1>
   </header>
 
-  <div class="app-shell__file-bar">
-    <ImportButton {appState} {persister} {fileService} />
-    <SaveButton {appState} {fileService} handle={fileHandle} />
-  </div>
-
   {#if placesEditNotice}
     <p class="app-shell__notice" role="status">{placesEditNotice}</p>
   {/if}
@@ -226,7 +230,14 @@
     {:else if activeTarget === 'tasks'}
       <TasksView {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
     {:else if activeTarget === 'more'}
-      <MoreView {appState} onNavigateLens={navigateLens} />
+      <MoreView
+        {appState}
+        {fileService}
+        {persister}
+        {fileHandle}
+        onNavigateLens={navigateLens}
+        onImported={(handle) => (fileHandle = handle)}
+      />
     {/if}
   </main>
 
@@ -256,13 +267,6 @@
     color: var(--stb-text-dim);
     font-size: 0.85rem;
     font-style: italic;
-  }
-
-  .app-shell__file-bar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.6rem;
   }
 
   .app-shell__main {

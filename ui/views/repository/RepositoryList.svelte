@@ -35,7 +35,7 @@
 
 <div class="repository-list">
   {#if isEmpty}
-    <p class="repository-list__empty">Keine Archive geladen — Datei öffnen, um zu starten.</p>
+    <p class="repository-list__empty">Keine Archive geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
     <div class="repository-list__toolbar repository-list__toolbar--empty">
       <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
     </div>
