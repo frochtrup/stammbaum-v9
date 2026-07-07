@@ -391,3 +391,14 @@ function headLinesOf(node: GedNode, depth: number, out: string[]): void {
 }
 
 export { SPECIAL_EVENT_TAGS };
+
+// --- Öffentliche Per-Record-Projektion (für write-back.ts) ---------------------
+// Der Write-Back-Pfad (Spec 13 §2.1) braucht dieselbe Projektion pro Record, um zu
+// erkennen, ob sich ein Record gegenüber seinem Original-GedNode geändert hat. Genau
+// dieselben Funktionen wie parseGedcom sie intern nutzt → garantierte Konsistenz.
+export {
+  parsePerson as parsePersonPublic,
+  parseFamily as parseFamilyPublic,
+  parseSource as parseSourcePublic,
+  parseRepository as parseRepositoryPublic,
+};

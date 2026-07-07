@@ -3,12 +3,16 @@
   // Verdrahtet die EINE ViewState-Instanz + den EINEN AppState mit BottomNav + Import
   // + Entitäten-Tab (Personen/Familien/Quellen, Segment-Umschalter in EntityTab.svelte).
   // Desktop-Sidebar/Multi-Pane (Spec 21 §3) ist NICHT Teil dieser Scheibe.
+  import { onMount } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService } from '../services/places';
-  import { createPlacesPersister } from '../ui/shell/places-persister';
+  import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
+  import { createFileService, type FileService } from '../services/file';
+  import { loadGedcomText } from '../ui/shell/load-gedcom-text';
   import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
   import ImportButton from '../ui/shell/ImportButton.svelte';
+  import SaveButton from '../ui/shell/SaveButton.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
@@ -19,12 +23,25 @@
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
 
-  const viewState = createViewState();
+  interface Props {
+    /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
+     * — Default ist die echte, plattform-adaptierte Instanz. App.svelte hält GENAU EINE
+     * FileService-Instanz und reicht sie an ImportButton/SaveButton/Auto-Load/Auto-Save
+     * durch (Auftrag Teil 1: vorher instanziierte ImportButton eine eigene, zweite Instanz). */
+    fileService?: FileService;
+    /** Injizierbar für Tests (die echte orte.json-IDB-Anbindung wäre in happy-dom ohne
+     * IndexedDB-Polyfill nicht lauffähig, s. tests/ui/App.component.test.ts) — Default ist
+     * die echte Instanz. */
+    persister?: PlacesPersister;
+  }
+  const { fileService = createFileService(), persister = createPlacesPersister(createPlacesSyncService()) }: Props =
+    $props();
 
-  // EIN geteilter Orts-Persister (orte.json-Spiegel) für Import UND Edits — dieselbe
-  // baseRev, damit Orts-/Hof-Edits nach dem Import persistieren (Befund 1 / task_a82678c1).
-  const persister = createPlacesPersister(createPlacesSyncService());
+  const viewState = createViewState();
   let placesEditNotice = $state('');
+  // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
+  // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
+  let fileHandle: unknown = $state(undefined);
   const appState = createAppState({
     persistPlaces: (places, hofs) => {
       // Fire-and-forget: die Edit-Kommandos bleiben synchron; die Persistenz läuft daneben.
@@ -38,6 +55,29 @@
           console.error('persistPlaces', err);
         });
     },
+    persistWorkingCopy: (text) => {
+      // Stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1) — fire-and-forget,
+      // analog persistPlaces oben. Ändert NICHT die echte Datei (das macht erst der
+      // explizite "Speichern"-Button über exportViaOnePipe, s. SaveButton.svelte).
+      fileService.saveWorkingCopy(text, appState.fileName, fileHandle).catch((err) => {
+        console.error('persistWorkingCopy', err);
+      });
+    },
+  });
+
+  // Auto-Load der Arbeitskopie beim Start (Spec 20 §1.2 [K], Spec 14 §3.1/§8 Schritt 4).
+  // Gibt es keine Arbeitskopie, bleibt der Startzustand wie bisher (leere DB, Import-
+  // Buttons sichtbar). Nutzt DIESELBE Lade-Pipeline wie ImportButton/Demo (loadGedcomText)
+  // — EIN Lade-Pfad (INV-UI-4-Lehre), nur die Text-Quelle ist hier die Arbeitskopie statt
+  // Picker/fetch.
+  onMount(() => {
+    void (async () => {
+      const copy = await fileService.loadWorkingCopy();
+      if (!copy) return;
+      fileHandle = copy.handle;
+      const result = await loadGedcomText(copy.text, copy.name, appState, persister);
+      placesEditNotice = result.placesNotice;
+    })();
   });
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
@@ -150,7 +190,10 @@
     <h1 class="app-shell__title">Stammbaum</h1>
   </header>
 
-  <ImportButton {appState} {persister} />
+  <div class="app-shell__file-bar">
+    <ImportButton {appState} {persister} {fileService} />
+    <SaveButton {appState} {fileService} handle={fileHandle} />
+  </div>
 
   {#if placesEditNotice}
     <p class="app-shell__notice" role="status">{placesEditNotice}</p>
@@ -213,6 +256,13 @@
     color: var(--stb-text-dim);
     font-size: 0.85rem;
     font-style: italic;
+  }
+
+  .app-shell__file-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
   }
 
   .app-shell__main {

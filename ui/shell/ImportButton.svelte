@@ -8,25 +8,27 @@
   // Verhaltens-Orakel legacy-v8/storage.js loadDemo() — funktioniert offline, weil
   // demo.ged als Vite-Static-Asset gebündelt ist, s. app/public/demo.ged).
   // GRAMPS-Import ist NICHT Teil dieser Scheibe (nur GEDCOM).
-  import { createFileService } from '../../services/file';
   import { loadGedcomText } from './load-gedcom-text';
   import type { AppState } from './app-state.svelte';
   import type { PlacesPersister } from './places-persister';
+  import type { FileService } from '../../services/file';
 
   interface Props {
     appState: AppState;
     /** Geteilter Orts-Persister (dieselbe Instanz wie app-state, damit baseRev konsistent bleibt). */
     persister: PlacesPersister;
+    /** Geteilte FileService-Instanz (App.svelte hält EINE, analog `persister` oben) —
+     * dieselbe IDB-Arbeitskopie-Instanz wie das Auto-Load/Auto-Save in App.svelte, statt
+     * eine zweite, unabhängige FileService-Instanz lokal zu erzeugen (Auftrag Teil 1). */
+    fileService: FileService;
   }
-  const { appState, persister }: Props = $props();
+  const { appState, persister, fileService }: Props = $props();
 
   let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
   /** Einfacher State-Flag für Konflikt-/Schema-Hinweise (Spec 30 §4 LP-9) — kein Modal,
    * keine eigene Toast-Infrastruktur vorhanden; reicht laut Aufgabenstellung. */
   let placesNotice = $state('');
-
-  const fileService = createFileService();
 
   async function handleClick() {
     status = 'loading-file';

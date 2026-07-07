@@ -26,6 +26,14 @@ export type { GedFormat, SerializeFormat, ParsedGedcom, Clock } from './types';
 export { parseGedcom, parseCoord } from './gedcom-parse';
 export { serializeGedcom, type SerializeOptions } from './gedcom-serialize';
 
+export { applyDatabaseToRoots } from './write-back';
+export {
+  emitPerson,
+  emitFamily,
+  emitSource,
+  emitRepository,
+} from './write-back-emit';
+
 export { transformGed7 } from './ged7-adapter';
 export { stripStrict } from './strict-adapter';
 export { buildLivingSet, anonymizeIndi } from './anonymize';

@@ -40,6 +40,8 @@ import {
   mergePlaceObjects,
   type PlaceContext,
 } from '../../core/places';
+import type { GedNode } from '../../core/interop';
+import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
 import type { TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
 import {
@@ -56,8 +58,30 @@ export interface AppState {
   readonly placeContext: PlaceContext;
   /** Dateiname der zuletzt importierten Datei (leer = noch nichts geladen). */
   readonly fileName: string;
-  /** Kommando: ersetzt die Datenbank (z. B. nach parseGedcom) — der EINE Ladepfad. */
-  loadDatabase(db: Database, fileName: string): void;
+  /**
+   * Kommando: ersetzt die Datenbank (z. B. nach parseGedcom) — der EINE Ladepfad.
+   * `roots` ist der Passthrough-Baum desselben Dokuments (core/interop ParsedGedcom.roots);
+   * optional, weil ältere Aufrufer (Tests, Aufgaben-Kommandos-Setup) ihn nicht immer haben —
+   * fehlt er, bleibt serialize() bei einem leeren Baum (kein Kern-Fallback nötig, s. u.).
+   */
+  loadDatabase(db: Database, fileName: string, roots?: GedNode[]): void;
+  /**
+   * Kommando: projiziert den aktuellen db-Stand zurück in den zuletzt geladenen
+   * Passthrough-Baum (`applyDatabaseToRoots`) und serialisiert ihn zu GEDCOM-5.5.1-Text
+   * (`serializeGedcom`). Übernimmt das PROJIZIERTE `roots`-Ergebnis intern als neuen
+   * aktuellen Baum (s. createAppState-Kommentar WARUM) — ruft man serialize() zweimal
+   * hintereinander ohne zwischenzeitliche Edits, bleibt applyDatabaseToRoots weiterhin
+   * referenzgleich (Struktur-Vergleichs-Kurzschluss, core/interop/write-back.ts Kopf).
+   * Genutzt für die stille Arbeitskopie (Text).
+   */
+  serialize(): string;
+  /**
+   * Kommando: wie `serialize()`, liefert aber das ParsedGedcom-Doc (`{db, roots}`) statt
+   * des fertigen Textes — für den expliziten Export (exportViaOnePipe erwartet ein
+   * `gedcomDoc`, s. services/file/export-pipe.ts, und serialisiert selbst). Teilt sich
+   * denselben internen roots-Projektions-Schritt mit serialize() (kein zweiter Pfad).
+   */
+  buildGedcomDoc(): { db: Database; roots: GedNode[] };
   /** Kommando: Upsert eines PlaceObject (`savePlaceObject(model)`-Muster, Spec 20 §1.7 [K]). */
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
@@ -65,9 +89,9 @@ export interface AppState {
   /**
    * Kommando: Upsert einer Person (`savePerson(model)`-Muster, Spec 20 §2). Bewusst OHNE
    * Relationship-Graph-Seiteneffekte (childOf/parentIn/Family.children/husband/wife) —
-   * Beziehungen bearbeiten ist ein separates Folge-Feature (core/model/commands.ts). Auch
-   * OHNE persistPlaces-artigen Persistenz-Callback: Genealogie-Arbeitskopie/-Export ist
-   * bewusst NICHT Teil dieser Scheibe — Edits bleiben bis zum nächsten Reload in-memory.
+   * Beziehungen bearbeiten ist ein separates Folge-Feature (core/model/commands.ts). Löst
+   * (falls injiziert) den `persistWorkingCopy`-Callback aus — die Genealogie-Arbeitskopie
+   * bleibt dadurch nach jedem Save aktuell (Spec 14 §3.1).
    */
   savePerson(model: Person): void;
   /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
@@ -132,16 +156,49 @@ export interface CreateAppStateOptions {
    * (z. B. in Kern-Tests), bleiben Edits rein in-memory. Der Import-Pfad persistiert separat
    * (load-gedcom-text) — `loadDatabase` löst deshalb bewusst KEIN persistPlaces aus. */
   persistPlaces?: (placeObjects: Database['placeObjects'], hofObjects: Database['hofObjects']) => void;
+  /**
+   * Wird nach jedem Person-/Family-/Source-/Repository-Save- ODER Delete-Kommando
+   * aufgerufen (den vier Entitätsgruppen, die core/interop/write-back.ts bereits
+   * projiziert — Spec 14 §3.1 "stilles Auto-Save"), MIT dem frisch serialisierten Text.
+   * NICHT nach Places/Hof/Tasks-Kommandos (die berühren nur den orte.json-Seitenkanal,
+   * s. persistPlaces oben — applyDatabaseToRoots projiziert sie noch nicht). Fire-and-
+   * forget, analog persistPlaces: die IDB-Arbeitskopie-Anbindung bleibt außerhalb dieser
+   * Datei (App.svelte), damit app-state.svelte.ts frei von FileService/IDB-Wissen bleibt
+   * (INV-ARCH-1, Schale -> Dienste, nicht umgekehrt). Bleibt aus, solange keine Datei
+   * geladen ist (kein fileName) — s. persistWorkingCopyIfLoaded().
+   */
+  persistWorkingCopy?: (text: string) => void;
 }
 
 export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   let db = $state.raw<Database>(makeDatabase());
   let fileName = $state('');
+  // `roots` ist der Passthrough-Baum des zuletzt geladenen/serialisierten Dokuments
+  // (core/interop.ParsedGedcom.roots). Bewusst KEIN Svelte-$state: kein View liest roots
+  // direkt (nur serialize() intern) — eine reaktive Referenz brächte hier keinen Nutzen,
+  // nur unnötigen Proxy-Overhead auf einem potenziell großen Baum (analog `db` selbst,
+  // das ebenfalls $state.raw ist statt tief-reaktiv).
+  let roots: GedNode[] = [];
   const placeContext = $derived.by<PlaceContext>(() => ({
     places: makePlaceRegistry(db.placeObjects),
     hofs: makeHofRegistry(db.hofObjects),
   }));
   const persistPlaces = (): void => opts.persistPlaces?.(db.placeObjects, db.hofObjects);
+  // Serialisiert + persistiert die Arbeitskopie NUR, wenn tatsächlich ein Dokument geladen
+  // ist (fileName gesetzt) — sonst würde ein leerer/sinnloser Working-Copy-Save ausgelöst,
+  // bevor überhaupt importiert/auto-geladen wurde (Auftrag Teil 2, "kein leeres Save").
+  const persistWorkingCopyIfLoaded = (): void => {
+    if (!fileName || !opts.persistWorkingCopy) return;
+    opts.persistWorkingCopy(serializeInternal());
+  };
+  // Gemeinsamer Projektions-Kern für serialize()/buildGedcomDoc()/das interne Auto-Save —
+  // hält `roots` in allen drei Fällen synchron auf dem projizierten Stand (s.
+  // AppState.serialize()-Doku WARUM).
+  const projectRoots = (): GedNode[] => {
+    roots = applyDatabaseToRoots(db, roots);
+    return roots;
+  };
+  const serializeInternal = (): string => serializeGedcom({ db, roots: projectRoots() });
 
   return {
     get db() {
@@ -153,9 +210,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     get fileName() {
       return fileName;
     },
-    loadDatabase(nextDb, nextFileName) {
+    loadDatabase(nextDb, nextFileName, nextRoots) {
       db = nextDb;
       fileName = nextFileName;
+      roots = nextRoots ?? [];
+    },
+    serialize() {
+      return serializeInternal();
+    },
+    buildGedcomDoc() {
+      return { db, roots: projectRoots() };
     },
     savePlace(model) {
       // Bewusst eine plain Map, keine SvelteMap: db ist $state.raw (nicht tief reaktiv) —
@@ -203,12 +267,14 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       const nextIndividuals = new Map(db.individuals);
       savePersonCmd(nextIndividuals, model);
       db = { ...db, individuals: nextIndividuals };
+      persistWorkingCopyIfLoaded();
     },
     deletePerson(id) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextIndividuals = new Map(db.individuals);
       deletePersonCmd(nextIndividuals, id);
       db = { ...db, individuals: nextIndividuals };
+      persistWorkingCopyIfLoaded();
     },
     saveFamily(model) {
       // saveFamilyCmd mutiert db.individuals (childOf/parentIn) UND db.families in-place
@@ -217,35 +283,41 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       saveFamilyCmd(db, model);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       db = { ...db, individuals: new Map(db.individuals), families: new Map(db.families) };
+      persistWorkingCopyIfLoaded();
     },
     deleteFamily(id) {
       deleteFamilyCmd(db, id);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       db = { ...db, families: new Map(db.families) };
+      persistWorkingCopyIfLoaded();
     },
     saveSource(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextSources = new Map(db.sources);
       saveSourceCmd(nextSources, model);
       db = { ...db, sources: nextSources };
+      persistWorkingCopyIfLoaded();
     },
     deleteSource(id) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextSources = new Map(db.sources);
       deleteSourceCmd(nextSources, id);
       db = { ...db, sources: nextSources };
+      persistWorkingCopyIfLoaded();
     },
     saveRepository(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextRepositories = new Map(db.repositories);
       saveRepositoryCmd(nextRepositories, model);
       db = { ...db, repositories: nextRepositories };
+      persistWorkingCopyIfLoaded();
     },
     deleteRepository(id) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextRepositories = new Map(db.repositories);
       deleteRepositoryCmd(nextRepositories, id);
       db = { ...db, repositories: nextRepositories };
+      persistWorkingCopyIfLoaded();
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität

@@ -26,12 +26,21 @@ Grund-Legende: `bug-fix` = v8 war falsch · `by-design` = Format-/Konventions-Gr
   der Modell-getriebene Writer diese Konstrukte aus dem Modell (statt aus dem Baum)
   neu erzeugt (z. B. bei editierten Records), wird die Verbesserung hier als `bug-fix`
   registriert + verriegelt.
-- **Modell-getriebene Record-Ausgabe bei Edits:** Der aktuelle Writer serialisiert primär
-  den Passthrough-Baum (Roundtrip-Treue). Das Zurückprojizieren *editierter* Modellfelder
-  an ihre kanonische Position (Spec 13 §2.1, zweiter Halbsatz) ist noch nicht implementiert
-  — das ist ein Editier-Pfad, kein Roundtrip-Pfad, und gehört in den App-Schritt. Bis dahin
-  ist der Kern-Roundtrip vollständig grün und verlustfrei (siehe „Bewusst offen" im
-  Bau-Bericht).
+- **Modell-getriebene Record-Ausgabe bei Edits — IMPLEMENTIERT (2026-07-07):** Der
+  Write-Back-Pfad (`core/interop/write-back.ts`, `applyDatabaseToRoots(db, roots)`,
+  Spec 13 §2.1 zweiter Halbsatz, ADR-v9-14) projiziert editierte Modellfelder an ihre
+  kanonische Baumposition zurück, OHNE einen neuen Orakel-Diff einzuführen: ein Record,
+  dessen erkannte Modellfelder unverändert sind, kommt als IDENTISCHE GedNode-Referenz aus
+  `roots` zurück (Struktur-Vergleich per Re-Projektion, kein Dirty-Flag) — der
+  nicht-mutierende Roundtrip bleibt damit byte-identisch (`net_delta=0` auf
+  `MeineDaten_ancestris.ged` mit 2811 referenzgleichen Records, verifiziert). Nur editierte
+  Feldgruppen werden neu erzeugt; Passthrough-Zeilen (unbekannte `_`-Tags, tiefe
+  OBJE/MAP-Ketten) bleiben in Reihenfolge/Tiefe erhalten (INV-PT). Damit tritt **kein**
+  bewusster Orakel-Diff auf (kein DEV-NN-Eintrag nötig) — es ist eine neue Fähigkeit, keine
+  Abweichung. Verriegelt durch `tests/core/interop-write-back.test.ts` (16 Tests:
+  unverändert→byte-identisch, Feld-Edit→Passthrough überlebt, Neu-/Löschfälle, GED7/Strict
+  auf synthetisierten Knoten). Scope: INDI/FAM/SOUR/REPO (die vier Typen mit Save-Kommandos);
+  Notes/Places laufen über eigene Kanäle (Spec 11 §2). GRAMPS-Write-Back bleibt offen.
 
 ### Anonymisierung / GRAMPS-Vollprojektion — bewusst offen
 - **`buildLivingSet`/`anonymizeIndi`** sind implementiert + unit-getestet (Spec 13 §7);

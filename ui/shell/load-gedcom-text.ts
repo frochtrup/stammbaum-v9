@@ -54,7 +54,7 @@ export async function loadGedcomText(
     placesNotice = persisted.notice;
   }
 
-  appState.loadDatabase(parsed.db, fileName);
+  appState.loadDatabase(parsed.db, fileName, parsed.roots);
 
   return { placesNotice };
 }

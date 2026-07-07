@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase } from '../../core/model/index';
+import { parseGedcom } from '../../core/interop';
 import type { PlaceObject, HofObject } from '../../core/places';
 
 function place(id: string, patch: Partial<PlaceObject> = {}): PlaceObject {
@@ -294,6 +295,146 @@ describe('AppState.touch — erzwungene Aktualisierung nach In-Place-Event-Mutat
     expect(appState.db).not.toBe(before);
     expect(appState.db.placeObjects).toBe(before.placeObjects); // Maps bleiben identisch (kein unnötiges Klonen)
     expect(appState.db.placeObjects.get('@P1@')?.title).toBe('Ochtrup');
+  });
+});
+
+describe('AppState.loadDatabase/serialize — roots-Passthrough für Genealogie-Arbeitskopie/-Export (Spec 14 §3.1)', () => {
+  it('loadDatabase ohne roots-Argument: serialize() liefert dennoch ein valides GEDCOM (leerer roots-Fallback)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'x.ged');
+    expect(() => appState.serialize()).not.toThrow();
+  });
+
+  it('serialize() projiziert einen editierten Personennamen in den zurückgegebenen Text', () => {
+    const MINI_GED = [
+      '0 HEAD',
+      '1 GEDC',
+      '2 VERS 5.5.1',
+      '2 FORM LINEAGE-LINKED',
+      '1 CHAR UTF-8',
+      '0 @I1@ INDI',
+      '1 NAME Max /Muster/',
+      '1 SEX M',
+      '0 TRLR',
+      '',
+    ].join('\n');
+    const parsed = parseGedcom(MINI_GED);
+    const appState = createAppState();
+    appState.loadDatabase(parsed.db, 'x.ged', parsed.roots);
+
+    const edited = appState.db.individuals.get('@I1@')!;
+    appState.savePerson({ ...edited, given: 'Anna', name: 'Anna /Muster/' });
+
+    const text = appState.serialize();
+    expect(text).toContain('Anna /Muster/');
+  });
+
+  it('buildGedcomDoc() liefert {db, roots} für den expliziten Export (exportViaOnePipe)', () => {
+    const parsed = parseGedcom(
+      ['0 HEAD', '1 GEDC', '2 VERS 5.5.1', '2 FORM LINEAGE-LINKED', '1 CHAR UTF-8', '0 @I1@ INDI', '1 NAME Max /Muster/', '0 TRLR', ''].join(
+        '\n',
+      ),
+    );
+    const appState = createAppState();
+    appState.loadDatabase(parsed.db, 'x.ged', parsed.roots);
+
+    const doc = appState.buildGedcomDoc();
+    expect(doc.db).toBe(appState.db);
+    expect(doc.roots.some((r) => r.tag === 'INDI' && r.xref === '@I1@')).toBe(true);
+  });
+
+  it('zweimaliges serialize() ohne zwischenzeitliche Edits liefert denselben Text (roots bleibt stabil)', () => {
+    const parsed = parseGedcom(
+      ['0 HEAD', '1 GEDC', '2 VERS 5.5.1', '2 FORM LINEAGE-LINKED', '1 CHAR UTF-8', '0 TRLR', ''].join('\n'),
+    );
+    const appState = createAppState();
+    appState.loadDatabase(parsed.db, 'x.ged', parsed.roots);
+
+    const first = appState.serialize();
+    const second = appState.serialize();
+    expect(second).toBe(first);
+  });
+});
+
+describe('AppState.persistWorkingCopy — stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1)', () => {
+  function loadedAppState(persistWorkingCopy: (text: string) => void) {
+    const appState = createAppState({ persistWorkingCopy });
+    const parsed = parseGedcom(
+      [
+        '0 HEAD',
+        '1 GEDC',
+        '2 VERS 5.5.1',
+        '2 FORM LINEAGE-LINKED',
+        '1 CHAR UTF-8',
+        '0 @I1@ INDI',
+        '1 NAME Max /Muster/',
+        '1 SEX M',
+        '0 @F1@ FAM',
+        '0 @S1@ SOUR',
+        '1 TITL Kirchenbuch',
+        '0 @R1@ REPO',
+        '1 NAME Landesarchiv',
+        '0 TRLR',
+        '',
+      ].join('\n'),
+    );
+    appState.loadDatabase(parsed.db, 'x.ged', parsed.roots);
+    return appState;
+  }
+
+  it('wird nach savePerson/deletePerson aufgerufen', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.savePerson(makePerson('@I2@', { given: 'Neu' }));
+    appState.deletePerson('@I2@');
+    expect(calls).toBe(2);
+  });
+
+  it('wird nach saveFamily/deleteFamily aufgerufen', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.saveFamily(makeFamily('@F1@'));
+    appState.deleteFamily('@F1@');
+    expect(calls).toBe(2);
+  });
+
+  it('wird nach saveSource/deleteSource aufgerufen', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.saveSource(makeSource('@S1@', { title: 'Neu' }));
+    appState.deleteSource('@S1@');
+    expect(calls).toBe(2);
+  });
+
+  it('wird nach saveRepository/deleteRepository aufgerufen', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.saveRepository(makeRepository('@R1@', { name: 'Neu' }));
+    appState.deleteRepository('@R1@');
+    expect(calls).toBe(2);
+  });
+
+  it('wird NICHT nach savePlace/saveHof/addTask aufgerufen (nur persistPlaces, s. o.)', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.saveHof(hof('@H1@', '@P1@'));
+    appState.addTask('person', '@I1@', 't1', 'x', 'Kirchenbuch', '2026-07-07');
+    expect(calls).toBe(0);
+  });
+
+  it('wird NICHT aufgerufen, solange noch keine Datei geladen ist (kein leeres Working-Copy-Save)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistWorkingCopy: () => (calls += 1) });
+    appState.savePerson(makePerson('@I1@'));
+    expect(calls).toBe(0);
+  });
+
+  it('übergibt den aktuellen serialisierten Text (enthält den editierten Namen)', () => {
+    let lastText = '';
+    const appState = loadedAppState((text) => (lastText = text));
+    appState.savePerson(makePerson('@I1@', { given: 'Anna', surname: 'Bauer', name: 'Anna /Bauer/' }));
+    expect(lastText).toContain('Anna /Bauer/');
   });
 });
 

@@ -1,0 +1,343 @@
+// core/interop/write-back.ts — Writer-Write-Back: projiziert ein editiertes Domänenmodell
+// (`db`) zurück in den Passthrough-Baum (`roots`), den serializeGedcom dann wie gewohnt
+// verbatim schreibt (Spec 13 §2.1, zweiter Halbsatz; ADR-v9-14 "Offen, App-Schritt").
+//
+// ── Design (WARUM, nicht WAS) ────────────────────────────────────────────────────────
+// Der Baum ist die ALLEINIGE Quelle der Roundtrip-Treue (ADR-v9-14, INV-PT). Ein voll-
+// rekonstruktiver Writer (jedes Feld jedes Records aus dem Modell neu erzeugen) driftet
+// unvermeidlich byte-weise ab (Feldreihenfolge, Formatnuancen, unmodellierte Tags) und
+// reproduziert genau die v8-Altlast, die der Neuaufsatz auflöst. Deshalb gilt hier strikt:
+//
+//   1. Ein Record, dessen Modell-Felder UNVERÄNDERT sind, bleibt der IDENTISCHE
+//      GedNode aus `roots` — keine Neuerzeugung. Das garantiert RT-1/RT-2 (net_delta=0,
+//      out1===out2) für jeden nicht-editierten Record weiter strukturell.
+//   2. „Unverändert" wird per STRUKTUR-VERGLEICH erkannt, NICHT per Dirty-Flag: die
+//      Original-`GedNode` wird erneut ins Modell projiziert (identische parse-Funktion)
+//      und Feld-für-Feld gegen die aktuelle db-Entität verglichen. Kein Zusatz-Tracking-
+//      State nötig — funktioniert auch, wenn ein Aufrufer `db` direkt mutiert, statt über
+//      ein Save-Kommando zu gehen (robuster als ein `lastChanged`/Dirty-Flag, das nur
+//      greift, wenn JEDER Schreibpfad es diszipliniert setzt — die v8-Falle).
+//   3. Ein GEÄNDERTER bestehender Record behält alle NICHT erkannten (Passthrough-)
+//      Kind-Zeilen an Ort und Stelle; nur die erkannten Feldgruppen werden aus dem Modell
+//      neu erzeugt und an ihre kanonische Position gesetzt (INV-PT bleibt gewahrt).
+//   4. NEUE Records (ID nicht in `roots`) werden vollständig aus dem Modell synthetisiert —
+//      hier gibt es nichts zu bewahren; roundtrip-stabil AB der Neuanlage (Re-Parse ergibt
+//      exakt dasselbe Modell-Feld).
+//   5. GELÖSCHTE Records (in `roots`, nicht in `db`) werden als Level-0-Knoten entfernt.
+//      Hängende Refs (FAMS/FAMC/CHIL/SOUR-Zitate in anderen Records) werden NICHT
+//      aufgeräumt — konsistent mit deletePerson/deleteFamily/deleteSource/deleteRepository
+//      (core/model/commands.ts), die verwaiste Refs bewusst findOrphanRefs überlassen.
+//
+// Reine Funktion, DOM-/Plattform-frei (INV-ARCH-1).
+
+import type {
+  Citation,
+  Database,
+  Event,
+  Family,
+  MediaRef,
+  Person,
+  Repository,
+  Source,
+} from '../model/types';
+import type { GedNode } from './gedcom-tree';
+import {
+  parsePersonPublic,
+  parseFamilyPublic,
+  parseSourcePublic,
+  parseRepositoryPublic,
+} from './gedcom-parse';
+import {
+  emitPerson,
+  emitFamily,
+  emitSource,
+  emitRepository,
+} from './write-back-emit';
+
+/** Tags, die der jeweilige Entitätstyp ins Modell projiziert (= „erkannt"). Alles andere
+ *  bleibt Passthrough. Muss mit gedcom-parse.ts konsistent sein. */
+const RECOGNIZED_PERSON = new Set([
+  'NAME', 'SEX', 'TITL', 'RELI', 'RESN', 'EMAIL', 'WWW', '_UID',
+  'BIRT', 'CHR', 'DEAT', 'BURI', 'FAMC', 'FAMS', 'ALIA', 'ASSO', 'OBJE',
+  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA',
+  'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
+  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
+]);
+const RECOGNIZED_FAMILY = new Set([
+  'HUSB', 'WIFE', 'CHIL', 'MARR', 'ENGA', 'NOTE', 'SOUR',
+  'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
+  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'DIV',
+]);
+const RECOGNIZED_SOURCE = new Set([
+  'ABBR', 'TITL', 'AUTH', 'DATE', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
+]);
+const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL']);
+
+/**
+ * Projiziert ein editiertes `db` zurück in den Passthrough-Baum. Liefert einen NEUEN
+ * roots-Array: unveränderte Records bleiben die identische GedNode-Referenz aus `roots`,
+ * geänderte werden feldweise aktualisiert (Passthrough erhalten), neue synthetisiert,
+ * gelöschte entfernt. HEAD/TRLR/unbekannte Level-0-Records bleiben unangetastet.
+ *
+ * serializeGedcom(doc mit diesem roots) schreibt das Ergebnis wie gewohnt verbatim.
+ */
+export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] {
+  const out: GedNode[] = [];
+  // Welche IDs sind bereits im Baum vertreten? (für Neu-Erkennung)
+  const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>() };
+  let trlrIndex = -1;
+
+  for (const rec of roots) {
+    switch (rec.tag) {
+      case 'INDI': {
+        const id = rec.xref ?? '';
+        seen.INDI.add(id);
+        const cur = db.individuals.get(id);
+        if (!cur) break; // gelöscht → weglassen
+        out.push(personNode(rec, cur));
+        break;
+      }
+      case 'FAM': {
+        const id = rec.xref ?? '';
+        seen.FAM.add(id);
+        const cur = db.families.get(id);
+        if (!cur) break;
+        out.push(familyNode(rec, cur));
+        break;
+      }
+      case 'SOUR': {
+        // Nur Level-0-SOUR-Records (xref gesetzt); `1 SOUR @Sx@`-Zitate haben kein xref
+        // und tauchen hier ohnehin nicht als roots-Element auf.
+        const id = rec.xref ?? '';
+        seen.SOUR.add(id);
+        const cur = db.sources.get(id);
+        if (!cur) break;
+        out.push(sourceNode(rec, cur));
+        break;
+      }
+      case 'REPO': {
+        const id = rec.xref ?? '';
+        seen.REPO.add(id);
+        const cur = db.repositories.get(id);
+        if (!cur) break;
+        out.push(repoNode(rec, cur));
+        break;
+      }
+      case 'TRLR':
+        trlrIndex = out.length;
+        out.push(rec);
+        break;
+      default:
+        out.push(rec); // HEAD, NOTE-Records, SUBM, Unbekanntes: unangetastet
+        break;
+    }
+  }
+
+  // Neue Records (im Modell, nicht im Baum) vor TRLR (bzw. am Ende) einfügen.
+  const additions: GedNode[] = [];
+  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p));
+  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f));
+  for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s));
+  for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
+
+  if (additions.length) {
+    if (trlrIndex >= 0) out.splice(trlrIndex, 0, ...additions);
+    else out.push(...additions);
+  }
+  return out;
+}
+
+// ── Pro-Entität: unverändert? → Original-Knoten. Sonst feldweise aktualisieren. ─────────
+
+function personNode(orig: GedNode, cur: Person): GedNode {
+  const projected = parsePersonPublic(orig);
+  if (personEqual(projected, cur)) return orig; // byte-identisch bewahren
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, emitPerson);
+}
+function familyNode(orig: GedNode, cur: Family): GedNode {
+  const projected = parseFamilyPublic(orig);
+  if (familyEqual(projected, cur)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, emitFamily);
+}
+function sourceNode(orig: GedNode, cur: Source): GedNode {
+  const projected = parseSourcePublic(orig);
+  if (sourceEqual(projected, cur)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, emitSource);
+}
+function repoNode(orig: GedNode, cur: Repository): GedNode {
+  const projected = parseRepositoryPublic(orig);
+  if (repoEqual(projected, cur)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository);
+}
+
+/**
+ * Baut den Knoten eines GEÄNDERTEN Records: die aus dem Modell frisch synthetisierten
+ * erkannten Feldgruppen ERSETZEN die alten erkannten Kind-Zeilen an ihrer ersten Position;
+ * alle NICHT erkannten (Passthrough-)Kind-Zeilen bleiben in Reihenfolge/Tiefe unangetastet
+ * (INV-PT). Die erkannten Kinder werden an der Stelle des ersten alten erkannten Kindes
+ * wieder eingesetzt (kanonische Position bleibt lokal stabil); ist keins vorhanden (neuer
+ * Feldwert), landen sie vor dem ersten Passthrough-Kind bzw. am Ende.
+ */
+function mergeRecord<T>(
+  orig: GedNode,
+  cur: T,
+  recognized: Set<string>,
+  emit: (m: T) => GedNode,
+): GedNode {
+  const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
+  const recognizedChildren = fresh.children; // alle erkannten Feldgruppen, kanonische Reihenfolge
+
+  const children: GedNode[] = [];
+  let inserted = false;
+  for (const c of orig.children) {
+    if (recognized.has(c.tag)) {
+      if (!inserted) {
+        children.push(...recognizedChildren);
+        inserted = true;
+      }
+      // altes erkanntes Kind fällt weg (durch fresh ersetzt)
+    } else {
+      children.push(c); // Passthrough: verbatim, an Ort und Stelle
+    }
+  }
+  if (!inserted) children.push(...recognizedChildren); // Record hatte nur Passthrough-Kinder
+  return { level: orig.level, xref: orig.xref, tag: orig.tag, value: orig.value, children };
+}
+
+// ── Struktur-Vergleich: „hat sich das erkannte Modell-Feld geändert?" ──────────────────
+// Verglichen wird NUR, was der Writer aus dem Modell erzeugt (die erkannten Felder).
+// Nicht modellierte Passthrough-Zeilen sind an der Original-Projektion nicht beteiligt und
+// überleben ohnehin — sie dürfen den Gleichheits-Vergleich nicht beeinflussen.
+
+function eventEqual(a: Event, b: Event): boolean {
+  return (
+    a.seen === b.seen &&
+    a.type === b.type &&
+    a.value === b.value &&
+    a.eventType === b.eventType &&
+    a.date === b.date &&
+    a.place === b.place &&
+    a.addr === b.addr &&
+    a.note === b.note &&
+    a.lati === b.lati &&
+    a.long === b.long &&
+    citationsEqual(a.citations, b.citations) &&
+    mediaEqual(a.media, b.media)
+  );
+}
+
+function citationsEqual(a: Citation[], b: Citation[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (
+      x.sourceId !== y.sourceId || x.page !== y.page || x.quay !== y.quay ||
+      x.note !== y.note || !mediaEqual(x.media, y.media)
+    ) return false;
+  }
+  return true;
+}
+
+function mediaEqual(a: MediaRef[], b: MediaRef[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].file !== b[i].file || a[i].title !== b[i].title) return false;
+  }
+  return true;
+}
+
+function arrEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function personEqual(a: Person, b: Person): boolean {
+  return (
+    a.name === b.name && a.given === b.given && a.surname === b.surname &&
+    a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
+    a.sex === b.sex && a.title === b.title && a.religion === b.religion &&
+    a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
+    a.uid === b.uid && a.cause === b.cause &&
+    eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&
+    eventEqual(a.death, b.death) && eventEqual(a.buri, b.buri) &&
+    eventsEqual(a.events, b.events) &&
+    childOfEqual(a.childOf, b.childOf) &&
+    arrEqual(a.parentIn, b.parentIn) &&
+    arrEqual(a.aliases, b.aliases) && arrEqual(a.aliaNames, b.aliaNames) &&
+    associationsEqual(a.associations, b.associations) &&
+    mediaEqual(a.media, b.media) &&
+    a.noteText === b.noteText && arrEqual(a.noteRefs, b.noteRefs) &&
+    citationsEqual(a.topLevelCitations, b.topLevelCitations) &&
+    citationsEqual(a.nameCitations, b.nameCitations) &&
+    exidsEqual(a.exids, b.exids) &&
+    a.lastChanged === b.lastChanged && a.createdDate === b.createdDate
+  );
+}
+
+function eventsEqual(a: Event[], b: Event[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i])) return false;
+  return true;
+}
+
+function childOfEqual(a: Person['childOf'], b: Person['childOf']): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (
+      x.familyId !== y.familyId || x.pedigree !== y.pedigree ||
+      x.fatherRel !== y.fatherRel || x.motherRel !== y.motherRel ||
+      x.fatherRelSeen !== y.fatherRelSeen || x.motherRelSeen !== y.motherRelSeen
+    ) return false;
+  }
+  return true;
+}
+
+function associationsEqual(a: Person['associations'], b: Person['associations']): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.personRef !== y.personRef || x.role !== y.role || x.note !== y.note ||
+      !citationsEqual(x.citations, y.citations)) return false;
+  }
+  return true;
+}
+
+function exidsEqual(a: { value: string; type: string }[], b: { value: string; type: string }[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].value !== b[i].value || a[i].type !== b[i].type) return false;
+  }
+  return true;
+}
+
+function familyEqual(a: Family, b: Family): boolean {
+  return (
+    a.husband === b.husband && a.wife === b.wife &&
+    arrEqual(a.children, b.children) &&
+    eventEqual(a.marriage, b.marriage) && eventEqual(a.engagement, b.engagement) &&
+    eventsEqual(a.events, b.events) &&
+    a.noteText === b.noteText &&
+    citationsEqual(a.citations, b.citations) &&
+    a.lastChanged === b.lastChanged
+  );
+}
+
+function sourceEqual(a: Source, b: Source): boolean {
+  return (
+    a.abbr === b.abbr && a.title === b.title && a.author === b.author &&
+    a.date === b.date && a.publisher === b.publisher && a.text === b.text &&
+    a.repo === b.repo && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
+    exidsEqual(a.externalRefs, b.externalRefs) &&
+    mediaEqual(a.media, b.media) && a.lastChanged === b.lastChanged
+  );
+}
+
+function repoEqual(a: Repository, b: Repository): boolean {
+  return (
+    a.name === b.name && a.type === b.type && a.address === b.address &&
+    a.phone === b.phone && a.www === b.www && a.email === b.email &&
+    a.findingAid === b.findingAid && a.lastChanged === b.lastChanged
+  );
+}
