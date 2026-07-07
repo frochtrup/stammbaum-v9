@@ -414,13 +414,45 @@ describe('AppState.persistWorkingCopy — stilles Auto-Save der Genealogie-Arbei
     expect(calls).toBe(2);
   });
 
-  it('wird NICHT nach savePlace/saveHof/addTask aufgerufen (nur persistPlaces, s. o.)', () => {
+  it('wird NICHT nach savePlace/saveHof aufgerufen (nur persistPlaces, s. o.)', () => {
     let calls = 0;
     const appState = loadedAppState(() => (calls += 1));
     appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
     appState.saveHof(hof('@H1@', '@P1@'));
-    appState.addTask('person', '@I1@', 't1', 'x', 'Kirchenbuch', '2026-07-07');
     expect(calls).toBe(0);
+  });
+
+  it('wird nach touch() aufgerufen (deckt linkEventToPlace-Reprojektion von ev.place ab, Nachtrag 2026-07-07)', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    const person = appState.db.individuals.get('@I1@')!;
+    person.birth.place = 'Ochtrup, Steinfurt, NRW, Deutschland'; // simuliert linkEventToPlace-Reprojektion
+    appState.touch();
+    expect(calls).toBe(1);
+  });
+
+  it('wird NICHT nach touch() aufgerufen, solange noch keine Datei geladen ist', () => {
+    let calls = 0;
+    const appState = createAppState({ persistWorkingCopy: () => (calls += 1) });
+    appState.touch();
+    expect(calls).toBe(0);
+  });
+
+  it('wird nach addTask/updateTask/setTaskStatus/deleteTask aufgerufen (Nachtrag 2026-07-07, _TASK-Write-Back)', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.addTask('person', '@I1@', 't1', 'Kirchenbuch prüfen', 'Kirchenbuch', '2026-07-07');
+    appState.updateTask('person', '@I1@', 't1', 'Kirchenbuch prüfen (aktualisiert)', 'Kirchenbuch');
+    appState.setTaskStatus('person', '@I1@', 't1', 'done');
+    appState.deleteTask('person', '@I1@', 't1');
+    expect(calls).toBe(4);
+  });
+
+  it('serialisierter Text nach addTask enthält den _TASK-Block', () => {
+    let lastText = '';
+    const appState = loadedAppState((text) => (lastText = text));
+    appState.addTask('person', '@I1@', 't1', 'Kirchenbuch prüfen', 'Kirchenbuch', '2026-07-07');
+    expect(lastText).toContain('_TASK Kirchenbuch prüfen');
   });
 
   it('wird NICHT aufgerufen, solange noch keine Datei geladen ist (kein leeres Working-Copy-Save)', () => {

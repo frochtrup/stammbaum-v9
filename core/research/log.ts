@@ -10,5 +10,6 @@ export function makeLogEntry(patch: Partial<LogEntry> = {}): LogEntry {
     query: patch.query ?? '',
     result: patch.result ?? 'pending',
     note: patch.note ?? '',
+    taskId: patch.taskId ?? '',
   };
 }

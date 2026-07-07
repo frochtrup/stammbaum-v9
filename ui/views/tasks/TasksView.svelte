@@ -51,9 +51,13 @@
 
   let formText = $state('');
   let formCategory = $state('');
+  /** optionaler Quellen-Bezug (ResearchTask.sourceRef, ADR-v9-36 — v8-Parität `t.sid`). */
+  let formSourceRef = $state('');
   let formKind = $state<TaskEntityKind>('person');
   let formEntityQuery = $state('');
   let formEntityId = $state('');
+
+  const sources = $derived(Array.from(appState.db.sources.values()));
 
   const allTasks = $derived(collectAllTasks(appState.db));
   const filteredTasks = $derived(filterTasks(allTasks, filter));
@@ -88,6 +92,7 @@
     editing = null;
     formText = '';
     formCategory = '';
+    formSourceRef = '';
     formKind = 'person';
     formEntityQuery = '';
     formEntityId = '';
@@ -98,6 +103,7 @@
     editing = { kind: entry.kind, entityId: entry.entityId, taskId: entry.task.id };
     formText = entry.task.text;
     formCategory = entry.task.category;
+    formSourceRef = entry.task.sourceRef;
     formKind = entry.kind;
     formEntityQuery = '';
     formEntityId = entry.entityId;
@@ -112,11 +118,11 @@
   function saveForm() {
     if (!formText.trim()) return;
     if (editing) {
-      appState.updateTask(editing.kind, editing.entityId, editing.taskId, formText, formCategory);
+      appState.updateTask(editing.kind, editing.entityId, editing.taskId, formText, formCategory, formSourceRef);
     } else {
       if (!formEntityId) return;
       const today = new Date().toISOString().slice(0, 10);
-      appState.addTask(formKind, formEntityId, newTaskId(), formText, formCategory, today);
+      appState.addTask(formKind, formEntityId, newTaskId(), formText, formCategory, today, formSourceRef);
     }
     closeForm();
   }
@@ -217,6 +223,16 @@
           <button type="button" class="tasks-view__chip" onclick={() => (formCategory = preset)}>{preset}</button>
         {/each}
       </div>
+
+      <label class="tasks-view__form-field">
+        Quelle (optional)
+        <select value={formSourceRef} onchange={(e) => (formSourceRef = e.currentTarget.value)} aria-label="Quelle">
+          <option value="">– keine Quelle –</option>
+          {#each sources as s (s.id)}
+            <option value={s.id}>{s.abbr || s.title || s.id}</option>
+          {/each}
+        </select>
+      </label>
 
       {#if !editing}
         <fieldset class="tasks-view__form-field tasks-view__entity-picker">
@@ -440,13 +456,15 @@
   }
 
   .tasks-view__form-field input[type='text'],
-  .tasks-view__form-field input[type='search'] {
+  .tasks-view__form-field input[type='search'],
+  .tasks-view__form-field select {
     background: var(--stb-surface-2);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.4rem 0.6rem;
     font-size: 0.9rem;
+    font-family: inherit;
   }
 
   .tasks-view__preset-chips {

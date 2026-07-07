@@ -27,7 +27,7 @@
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
-  import TasksView from '../ui/views/tasks/TasksView.svelte';
+  import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
@@ -228,7 +228,7 @@
         onNavigateToHof={openHofFromSearch}
       />
     {:else if activeTarget === 'tasks'}
-      <TasksView {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
+      <ResearchTab {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
     {:else if activeTarget === 'more'}
       <MoreView
         {appState}

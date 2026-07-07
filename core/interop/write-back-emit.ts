@@ -21,6 +21,7 @@ import type {
   Repository,
   Source,
 } from '../model/types';
+import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import type { GedNode } from './gedcom-tree';
 
 /** Knoten-Konstruktor (level dient nur der Diagnose; writeNode leitet Tiefe aus dem Baum ab). */
@@ -87,6 +88,63 @@ function eventNode(ev: Event): GedNode {
   for (const c of ev.citations) kids.push(citationNode(c));
   for (const m of ev.media) kids.push(mediaNode(m));
   return N(ev.type, ev.value, kids);
+}
+
+/**
+ * Forschungsaufgabe (ResearchTask) → `1 _TASK`-Block (Spec 12 §1, Wire-Format 13 §2.3).
+ * parseTask (gedcom-parse.ts) ist die Umkehr. Reihenfolge/Tags nach v8-Oracle
+ * (`gedcom-writer.js` `_writeINDIExt`): `_CAT`, `_DONE` (IMMER, 0/1), `_TSTAT`, `_DATE`,
+ * `_ID`, `SOUR`. `_DONE` wird mitgeschrieben (Spec nennt den Tag), obwohl es beim Lesen
+ * aus `_TSTAT` abgeleitet wird — reine Redundanz für fremde Leser.
+ */
+function taskNode(t: ResearchTask): GedNode {
+  const kids: GedNode[] = [];
+  if (t.category) kids.push(N('_CAT', t.category));
+  kids.push(N('_DONE', t.done ? '1' : '0'));
+  kids.push(N('_TSTAT', t.status));
+  if (t.created) kids.push(N('_DATE', t.created));
+  if (t.id) kids.push(N('_ID', t.id));
+  if (t.sourceRef) kids.push(N('SOUR', t.sourceRef));
+  return N('_TASK', t.text, kids);
+}
+
+/**
+ * Forschungsprotokoll-Eintrag (LogEntry) → `1 _RLOG`-Block (Spec 12 §2, Wire-Format 13 §2.3).
+ * parseLogEntry ist die Umkehr. Reihenfolge nach v8-Oracle: DATE (Standard-Tag, NICHT `_DATE`),
+ * REPO, SOUR, `_QUERY`, `_RESULT`, NOTE (CONT-fähig), `_TASKID` (v9-Erweiterung). LogEntry hat
+ * keine eigene id (Reihenfolge im Array = Reihenfolge in der Datei).
+ */
+function logEntryNode(l: LogEntry): GedNode {
+  const kids: GedNode[] = [];
+  if (l.date) kids.push(N('DATE', l.date));
+  if (l.repoRef) kids.push(N('REPO', l.repoRef));
+  if (l.sourceRef) kids.push(N('SOUR', l.sourceRef));
+  if (l.query) kids.push(N('_QUERY', l.query));
+  kids.push(N('_RESULT', l.result));
+  if (l.note) kids.push(textNode('NOTE', l.note));
+  if (l.taskId) kids.push(N('_TASKID', l.taskId));
+  return N('_RLOG', '', kids);
+}
+
+/**
+ * Hypothese (Hypothesis) → `1 _HYPO`-Block (Spec 12 §4, Wire-Format 13 §2.3).
+ * parseHypothesis ist die Umkehr. Reihenfolge nach v8-Oracle: `_ID`, `_HSTAT`, `_HWGT`,
+ * `_DATE` (eigener Tag, wie bei _TASK), dann je evidence[]-Item ein `2 SOUR` (+ optional
+ * `3 PAGE`), zuletzt `_RATIO`/`_CONCL` (beide CONT-fähig).
+ */
+function hypothesisNode(h: Hypothesis): GedNode {
+  const kids: GedNode[] = [];
+  if (h.id) kids.push(N('_ID', h.id));
+  kids.push(N('_HSTAT', h.status));
+  kids.push(N('_HWGT', h.weight));
+  if (h.created) kids.push(N('_DATE', h.created));
+  for (const e of h.evidence) {
+    const ekids = e.page ? [N('PAGE', e.page)] : [];
+    kids.push(N('SOUR', e.sourceId, ekids));
+  }
+  if (h.rationale) kids.push(textNode('_RATIO', h.rationale));
+  if (h.conclusion) kids.push(textNode('_CONCL', h.conclusion));
+  return N('_HYPO', h.text, kids);
 }
 
 // --- Person (INDI) ----------------------------------------------------------------------
@@ -157,6 +215,10 @@ export function emitPerson(p: Person): GedNode {
   if (p.createdDate) kids.push(N('CREA', '', [N('DATE', p.createdDate)]));
   if (p.lastChanged) kids.push(chanNode(p.lastChanged));
 
+  for (const t of p.tasks) kids.push(taskNode(t));
+  for (const l of p.researchLog) kids.push(logEntryNode(l));
+  for (const h of p.hypotheses) kids.push(hypothesisNode(h));
+
   return N('INDI', '', kids, p.id);
 }
 
@@ -186,6 +248,9 @@ export function emitFamily(f: Family): GedNode {
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
   for (const c of f.citations) kids.push(citationNode(c));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));
+  for (const t of f.tasks) kids.push(taskNode(t));
+  for (const l of f.researchLog) kids.push(logEntryNode(l));
+  for (const h of f.hypotheses) kids.push(hypothesisNode(h));
   return N('FAM', '', kids, f.id);
 }
 

@@ -12,7 +12,7 @@
 // Kein DOM/I/O hier — reine Datenmutation, die Zeitstempel-Injektion (`created`, TST-3)
 // erfolgt über einen übergebenen `now`-Wert, nie über direkten `Date.now()`-Aufruf im
 // Kommando selbst (Aufrufer entscheidet die Uhrzeit, testbar ohne Wall-Clock-Mocking).
-import type { Database, FamilyId, PersonId } from '../../../core/model/types';
+import type { Database, FamilyId, PersonId, SourceId } from '../../../core/model/types';
 import { makeTask } from '../../../core/research/index';
 import type { TaskStatus } from '../../../core/research/types';
 import type { TaskEntityKind } from './tasks-model';
@@ -36,14 +36,15 @@ export function addTask(
   text: string,
   category: string,
   now: string,
+  sourceRef: SourceId | '' = '',
 ): boolean {
   const arr = tasksArrayOf(db, kind, entityId);
   if (!arr) return false;
-  arr.push(makeTask(taskId, { text: text.trim(), category, created: now }));
+  arr.push(makeTask(taskId, { text: text.trim(), category, created: now, sourceRef }));
   return true;
 }
 
-/** Kommando: ersetzt Text/Kategorie einer bestehenden Aufgabe vollständig (Bearbeiten-Formular). */
+/** Kommando: ersetzt Text/Kategorie/Quellen-Bezug einer bestehenden Aufgabe vollständig (Bearbeiten-Formular). */
 export function updateTask(
   db: Database,
   kind: TaskEntityKind,
@@ -51,12 +52,14 @@ export function updateTask(
   taskId: string,
   text: string,
   category: string,
+  sourceRef: SourceId | '' = '',
 ): boolean {
   const arr = tasksArrayOf(db, kind, entityId);
   const t = arr?.find((x) => x.id === taskId);
   if (!t) return false;
   t.text = text.trim();
   t.category = category;
+  t.sourceRef = sourceRef;
   return true;
 }
 

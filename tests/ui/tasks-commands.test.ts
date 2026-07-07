@@ -43,6 +43,17 @@ describe('addTask — legt eine Aufgabe an Person oder Familie an', () => {
     const db = makeDatabase();
     expect(addTask(db, 'person', '@I999@', 't1', 'x', 'Kirchenbuch', '2026-07-04')).toBe(false);
   });
+
+  it('setzt sourceRef, falls übergeben (v8-Parität t.sid, ADR-v9-36) — Default bleibt leer', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@'));
+
+    addTask(db, 'person', '@I1@', 't1', 'x', 'Kirchenbuch', '2026-07-04', '@S1@');
+    expect(db.individuals.get('@I1@')!.tasks[0]!.sourceRef).toBe('@S1@');
+
+    addTask(db, 'person', '@I1@', 't2', 'y', 'Urkunde', '2026-07-04');
+    expect(db.individuals.get('@I1@')!.tasks[1]!.sourceRef).toBe('');
+  });
 });
 
 describe('updateTask — Text/Kategorie einer bestehenden Aufgabe ersetzen', () => {
@@ -63,6 +74,18 @@ describe('updateTask — Text/Kategorie einer bestehenden Aufgabe ersetzen', () 
     const db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
     expect(updateTask(db, 'person', '@I1@', 'missing', 'x', 'y')).toBe(false);
+  });
+
+  it('aktualisiert sourceRef (setzen UND wieder auf leer zurücksetzen)', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@'));
+    addTask(db, 'person', '@I1@', 't1', 'x', 'Kirchenbuch', '2026-07-04');
+
+    updateTask(db, 'person', '@I1@', 't1', 'x', 'Kirchenbuch', '@S1@');
+    expect(db.individuals.get('@I1@')!.tasks[0]!.sourceRef).toBe('@S1@');
+
+    updateTask(db, 'person', '@I1@', 't1', 'x', 'Kirchenbuch');
+    expect(db.individuals.get('@I1@')!.tasks[0]!.sourceRef).toBe('');
   });
 });
 

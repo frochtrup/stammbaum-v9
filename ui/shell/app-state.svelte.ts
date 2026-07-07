@@ -42,7 +42,7 @@ import {
 } from '../../core/places';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
-import type { TaskStatus } from '../../core/research/types';
+import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
 import {
   addTask as addTaskCmd,
@@ -50,6 +50,16 @@ import {
   setTaskStatusById,
   deleteTask as deleteTaskCmd,
 } from '../views/tasks/tasks-commands';
+import {
+  addLogEntry as addLogEntryCmd,
+  updateLogEntry as updateLogEntryCmd,
+  deleteLogEntry as deleteLogEntryCmd,
+} from '../views/research-log/log-commands';
+import {
+  addHypothesis as addHypothesisCmd,
+  updateHypothesis as updateHypothesisCmd,
+  deleteHypothesis as deleteHypothesisCmd,
+} from '../views/hypotheses/hypothesis-commands';
 
 export interface AppState {
   /** Aktuell geladene Datenbank (leer, bis eine Datei importiert wurde). */
@@ -128,7 +138,18 @@ export interface AppState {
    * Kommando: erzwingt eine Reaktivitäts-Aktualisierung nach einer In-Place-Mutation an
    * Event-Feldern (z. B. `linkEventToPlace`, das Person-/Family-Events mutiert, die NICHT
    * über eine eigene Map-Struktur laufen wie placeObjects/hofObjects). Ein Kommando →
-   * Chokepoints neu lesen → Views aktualisieren sich (Spec 02 §3, EIN Pfad).
+   * Chokepoints neu lesen → Views aktualisieren sich (Spec 02 §3, EIN Pfad). Löst (falls
+   * injiziert) auch `persistWorkingCopy` aus (Nachtrag 2026-07-07): `linkEventToPlace`
+   * (PlaceDetail.svelte "Ortszuordnung") reprojiziert `ev.place` sofort im Kommando
+   * (ADR-v9-19) — ein GEDCOM-relevantes Feld, das der bestehende Write-Back (ADR-v9-32)
+   * bereits über `eventEqual`/`emitPerson`/`emitFamily` abdeckt. Ohne diesen Aufruf ging
+   * die Reprojektion beim nächsten Reload/Export verloren, obwohl sie in-memory korrekt
+   * war. Die Hof-Review-Aktionen (`hof-review-actions.ts`) rufen `touch()` ebenfalls auf,
+   * mutieren aber nur `event.hofId`/`event.placeId` (laufzeit-only, Spec 11 §2 — werden
+   * beim nächsten `resolveEvents()` neu abgeleitet, NICHT persistiert) — für sie ist der
+   * zusätzliche Aufruf ein no-op (kein `ev.place`/`ev.addr`-Unterschied), aber ein
+   * einheitlicher `touch()`-Pfad ist einfacher als zwei Varianten je nach Aufrufer-Kontext
+   * zu unterscheiden.
    */
   touch(): void;
   /**
@@ -136,13 +157,54 @@ export interface AppState {
    * `taskId`/`now` werden vom Aufrufer injiziert (TST-3, analog `newTaskId()`/Uhrzeit in
    * TasksView.svelte) — kein Date.now()/Math.random() innerhalb dieses Kommandos selbst.
    */
-  addTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, text: string, category: string, now: string): void;
-  /** Kommando: ersetzt Text/Kategorie einer bestehenden Aufgabe vollständig. */
-  updateTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, text: string, category: string): void;
+  addTask(
+    kind: TaskEntityKind,
+    entityId: PersonId | FamilyId,
+    taskId: string,
+    text: string,
+    category: string,
+    now: string,
+    sourceRef?: SourceId | '',
+  ): void;
+  /** Kommando: ersetzt Text/Kategorie/Quellen-Bezug einer bestehenden Aufgabe vollständig. */
+  updateTask(
+    kind: TaskEntityKind,
+    entityId: PersonId | FamilyId,
+    taskId: string,
+    text: string,
+    category: string,
+    sourceRef?: SourceId | '',
+  ): void;
   /** Kommando: setzt den Kanban-Status einer Aufgabe (hält `done` synchron). */
   setTaskStatus(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string, status: TaskStatus): void;
   /** Kommando: entfernt eine Aufgabe. */
   deleteTask(kind: TaskEntityKind, entityId: PersonId | FamilyId, taskId: string): void;
+  /**
+   * Kommando: fügt einen Forschungsprotokoll-Eintrag an einer Person ODER Familie an
+   * (Spec 12 §2, Spec 20 §1.11 [S]). LogEntry ist index-adressiert (kein `id`) — der
+   * Aufrufer übergibt ein vollständiges LogEntry-Objekt (`makeLogEntry`-Muster).
+   */
+  addLogEntry(kind: TaskEntityKind, entityId: PersonId | FamilyId, entry: LogEntry): void;
+  /** Kommando: ersetzt einen Protokoll-Eintrag an `index` vollständig. */
+  updateLogEntry(kind: TaskEntityKind, entityId: PersonId | FamilyId, index: number, entry: LogEntry): void;
+  /** Kommando: entfernt einen Protokoll-Eintrag an `index`. */
+  deleteLogEntry(kind: TaskEntityKind, entityId: PersonId | FamilyId, index: number): void;
+  /**
+   * Kommando: legt eine neue Hypothese an einer Person ODER Familie an (Spec 12 §4,
+   * Spec 20 §1.11 [S]). `id`/`now` werden vom Aufrufer injiziert (TST-3, analog
+   * `newHypothesisId()`/Uhrzeit in HypothesesView.svelte).
+   */
+  addHypothesis(
+    kind: TaskEntityKind,
+    entityId: PersonId | FamilyId,
+    id: string,
+    patch: Partial<Omit<Hypothesis, 'id'>>,
+    now: string,
+  ): void;
+  /** Kommando: ersetzt eine bestehende Hypothese vollständig. */
+  updateHypothesis(kind: TaskEntityKind, entityId: PersonId | FamilyId, id: string, patch: Partial<Omit<Hypothesis, 'id'>>): void;
+  /** Kommando: entfernt eine Hypothese. */
+  deleteHypothesis(kind: TaskEntityKind, entityId: PersonId | FamilyId, id: string): void;
 }
 
 /**
@@ -160,9 +222,17 @@ export interface CreateAppStateOptions {
    * Wird nach jedem Person-/Family-/Source-/Repository-Save- ODER Delete-Kommando
    * aufgerufen (den vier Entitätsgruppen, die core/interop/write-back.ts bereits
    * projiziert — Spec 14 §3.1 "stilles Auto-Save"), MIT dem frisch serialisierten Text.
-   * NICHT nach Places/Hof/Tasks-Kommandos (die berühren nur den orte.json-Seitenkanal,
-   * s. persistPlaces oben — applyDatabaseToRoots projiziert sie noch nicht). Fire-and-
-   * forget, analog persistPlaces: die IDB-Arbeitskopie-Anbindung bleibt außerhalb dieser
+   * AUCH nach `touch()` (Nachtrag 2026-07-07): deckt `linkEventToPlace`-Reprojektionen von
+   * `ev.place` ab (PlaceDetail.svelte) — ein GEDCOM-relevantes Person-/Family-Feld, das
+   * write-back.ts bereits kennt. Reine `savePlace`/`saveHof`/`mergePlace`-Kommandos lösen
+   * es weiterhin NICHT aus (die berühren nur den orte.json-Seitenkanal, s. persistPlaces
+   * oben — `applyDatabaseToRoots` projiziert PlaceObject/HofObject selbst nicht, nur
+   * Person-/Family-Felder, die davon abgeleitet werden). AUCH nach den vier Aufgaben-
+   * Kommandos (`addTask`/`updateTask`/`setTaskStatus`/`deleteTask`, Nachtrag 2026-07-07):
+   * `Person.tasks`/`Family.tasks` sind jetzt Teil des Write-Back (`_TASK`-Wire-Format,
+   * `core/interop/write-back.ts`/`write-back-emit.ts`) — vorher gingen Aufgaben-Edits beim
+   * Reload/Export spurlos verloren, obwohl die UI sie dauerhaft anzeigte. Fire-and-forget, analog
+   * persistPlaces: die IDB-Arbeitskopie-Anbindung bleibt außerhalb dieser
    * Datei (App.svelte), damit app-state.svelte.ts frei von FileService/IDB-Wissen bleibt
    * (INV-ARCH-1, Schale -> Dienste, nicht umgekehrt). Bleibt aus, solange keine Datei
    * geladen ist (kein fileName) — s. persistWorkingCopyIfLoaded().
@@ -324,24 +394,59 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // auszulösen (Referenzänderung), ohne die Map-Identitäten (individuals/families/…)
       // unnötig zu klonen.
       db = { ...db };
+      persistWorkingCopyIfLoaded();
     },
-    addTask(kind, entityId, taskId, text, category, now) {
+    addTask(kind, entityId, taskId, text, category, now, sourceRef) {
       // Kommando mutiert Person/Family.tasks[] in-place (analog linkEventToPlace oben) —
       // die abschließende Reassign-Zeile löst Svelte's Reaktivität aus (EIN Pfad, Spec 02 §3).
-      addTaskCmd(db, kind, entityId, taskId, text, category, now);
+      addTaskCmd(db, kind, entityId, taskId, text, category, now, sourceRef);
       db = { ...db };
+      persistWorkingCopyIfLoaded();
     },
-    updateTask(kind, entityId, taskId, text, category) {
-      updateTaskCmd(db, kind, entityId, taskId, text, category);
+    updateTask(kind, entityId, taskId, text, category, sourceRef) {
+      updateTaskCmd(db, kind, entityId, taskId, text, category, sourceRef);
       db = { ...db };
+      persistWorkingCopyIfLoaded();
     },
     setTaskStatus(kind, entityId, taskId, status) {
       setTaskStatusById(db, kind, entityId, taskId, status);
       db = { ...db };
+      persistWorkingCopyIfLoaded();
     },
     deleteTask(kind, entityId, taskId) {
       deleteTaskCmd(db, kind, entityId, taskId);
       db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    addLogEntry(kind, entityId, entry) {
+      addLogEntryCmd(db, kind, entityId, entry);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    updateLogEntry(kind, entityId, index, entry) {
+      updateLogEntryCmd(db, kind, entityId, index, entry);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    deleteLogEntry(kind, entityId, index) {
+      deleteLogEntryCmd(db, kind, entityId, index);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    addHypothesis(kind, entityId, id, patch, now) {
+      addHypothesisCmd(db, kind, entityId, id, patch, now);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    updateHypothesis(kind, entityId, id, patch) {
+      updateHypothesisCmd(db, kind, entityId, id, patch);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
+    },
+    deleteHypothesis(kind, entityId, id) {
+      deleteHypothesisCmd(db, kind, entityId, id);
+      db = { ...db };
+      persistWorkingCopyIfLoaded();
     },
   };
 }

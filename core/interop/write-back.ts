@@ -40,6 +40,7 @@ import type {
   Repository,
   Source,
 } from '../model/types';
+import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import type { GedNode } from './gedcom-tree';
 import {
   parsePersonPublic,
@@ -59,12 +60,12 @@ import {
 const RECOGNIZED_PERSON = new Set([
   'NAME', 'SEX', 'TITL', 'RELI', 'RESN', 'EMAIL', 'WWW', '_UID',
   'BIRT', 'CHR', 'DEAT', 'BURI', 'FAMC', 'FAMS', 'ALIA', 'ASSO', 'OBJE',
-  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA',
+  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
 ]);
 const RECOGNIZED_FAMILY = new Set([
-  'HUSB', 'WIFE', 'CHIL', 'MARR', 'ENGA', 'NOTE', 'SOUR',
+  'HUSB', 'WIFE', 'CHIL', 'MARR', 'ENGA', 'NOTE', 'SOUR', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'DIV',
 ]);
@@ -252,6 +253,55 @@ function arrEqual(a: readonly string[], b: readonly string[]): boolean {
   return true;
 }
 
+/** Task-Vergleich: Reihenfolge UND alle Felder (inkl. done/created) — sonst wird z. B. eine
+ *  reine Statusänderung nicht als Änderung erkannt und der Record bleibt fälschlich verbatim. */
+function tasksEqual(a: ResearchTask[], b: ResearchTask[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (
+      x.id !== y.id || x.text !== y.text || x.category !== y.category ||
+      x.status !== y.status || x.done !== y.done || x.created !== y.created ||
+      x.sourceRef !== y.sourceRef
+    ) return false;
+  }
+  return true;
+}
+
+/** Log-Vergleich: Reihenfolge UND alle Felder (inkl. taskId) — sonst wird eine
+ *  reine Feldänderung nicht als Änderung erkannt und der Record bleibt fälschlich verbatim. */
+function researchLogEqual(a: LogEntry[], b: LogEntry[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (
+      x.date !== y.date || x.repoRef !== y.repoRef || x.sourceRef !== y.sourceRef ||
+      x.query !== y.query || x.result !== y.result || x.note !== y.note ||
+      x.taskId !== y.taskId
+    ) return false;
+  }
+  return true;
+}
+
+/** Hypothesen-Vergleich: Reihenfolge, alle Felder + evidence[]-Array (sourceId+page, Reihenfolge). */
+function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (
+      x.id !== y.id || x.text !== y.text || x.status !== y.status ||
+      x.weight !== y.weight || x.created !== y.created ||
+      x.rationale !== y.rationale || x.conclusion !== y.conclusion
+    ) return false;
+    if (x.evidence.length !== y.evidence.length) return false;
+    for (let j = 0; j < x.evidence.length; j++) {
+      if (x.evidence[j].sourceId !== y.evidence[j].sourceId ||
+        x.evidence[j].page !== y.evidence[j].page) return false;
+    }
+  }
+  return true;
+}
+
 function personEqual(a: Person, b: Person): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
@@ -271,6 +321,9 @@ function personEqual(a: Person, b: Person): boolean {
     citationsEqual(a.topLevelCitations, b.topLevelCitations) &&
     citationsEqual(a.nameCitations, b.nameCitations) &&
     exidsEqual(a.exids, b.exids) &&
+    tasksEqual(a.tasks, b.tasks) &&
+    researchLogEqual(a.researchLog, b.researchLog) &&
+    hypothesesEqual(a.hypotheses, b.hypotheses) &&
     a.lastChanged === b.lastChanged && a.createdDate === b.createdDate
   );
 }
@@ -320,6 +373,9 @@ function familyEqual(a: Family, b: Family): boolean {
     eventsEqual(a.events, b.events) &&
     a.noteText === b.noteText &&
     citationsEqual(a.citations, b.citations) &&
+    tasksEqual(a.tasks, b.tasks) &&
+    researchLogEqual(a.researchLog, b.researchLog) &&
+    hypothesesEqual(a.hypotheses, b.hypotheses) &&
     a.lastChanged === b.lastChanged
   );
 }
