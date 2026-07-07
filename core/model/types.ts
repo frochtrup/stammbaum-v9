@@ -1,5 +1,10 @@
 // core/model/types.ts — reine Typdefinitionen des Domänenkerns (Spec 10).
 // DOM-frei, framework-frei (INV-ARCH-1). Keine Laufzeit-Logik hier.
+import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
+
+// Konkrete Orts-/Hof-Form kommt aus dem Orts-Kern (Spec 11). Type-only-Import →
+// unter isolatedModules erased, kein Laufzeit-Zyklus (Model ↔ Places, gleiche Schicht).
+import type { PlaceObject as PlaceObjectT, HofObject as HofObjectT } from '../places/types';
 
 // --- ID-Typen (GEDCOM-Konvention @Ixx@/@Fxx@/@Sxx@/@Rxx@/@Nxx@) ---
 export type PersonId = string;
@@ -17,13 +22,15 @@ export type DateValue = string;
 
 // --- Evidenz (3-Achsen-Modell, Detail in Spec 12 §3) ---
 export type EvidenceSource = 'original' | 'derivative' | 'authored' | '';
-export type EvidenceInformation = 'primary' | 'secondary' | 'indeterminate' | '';
+export type EvidenceInformation = 'primary' | 'secondary' | 'undetermined' | '';
 export type EvidenceEvidenceKind = 'direct' | 'indirect' | 'negative' | '';
 
 export interface EvidenceEval {
   source: EvidenceSource;
   information: EvidenceInformation;
   evidence: EvidenceEvidenceKind;
+  /** Informant (optional, `_INFM`, Spec 12 §3): Freitext oder Person-Xref. */
+  informant?: string;
 }
 
 export interface MediaRef {
@@ -152,10 +159,10 @@ export interface Person {
   exids: ExternalId[];
   createdDate: string;
 
-  // Forschung (Spec 12) — als opake Referenzen; Modell-Kern rührt sie nicht an.
-  tasks: unknown[];
-  researchLog: unknown[];
-  hypotheses: unknown[];
+  // Forschung (Spec 12) — Form definiert in core/research/types.ts.
+  tasks: ResearchTask[];
+  researchLog: LogEntry[];
+  hypotheses: Hypothesis[];
 
   lastChanged: string;
 }
@@ -170,9 +177,9 @@ export interface Family {
   events: Event[];
   noteText: string;
   citations: Citation[];
-  tasks: unknown[];
-  researchLog: unknown[];
-  hypotheses: unknown[];
+  tasks: ResearchTask[];
+  researchLog: LogEntry[];
+  hypotheses: Hypothesis[];
   lastChanged: string;
 }
 
@@ -228,10 +235,9 @@ export interface Database {
   sources: Map<SourceId, Source>;
   repositories: Map<RepoId, Repository>;
   notes: Map<NoteId, Note>;
-  // placeObjects/hofObjects (Spec 11) sind hier bewusst opak typisiert —
-  // der Orts-Kern (places-builder) definiert ihre Form. Modell-Kern hält nur die Map.
-  placeObjects: Map<PlaceId, unknown>;
-  hofObjects: Map<HofId, unknown>;
+  // placeObjects/hofObjects (Spec 11): konkrete Form aus dem Orts-Kern.
+  placeObjects: Map<PlaceId, PlaceObjectT>;
+  hofObjects: Map<HofId, HofObjectT>;
   placForm: string;
   gedVersion: 'unknown' | '5.5.1' | '7.0';
   header: HeaderMeta;

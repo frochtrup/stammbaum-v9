@@ -1,0 +1,54 @@
+/* ui/islands/map/svg-fallback-map.css — Styling des SVG-Offline-Weltumriss-Fallbacks.
+   Bewusst plain CSS (kein Svelte-Scoping) — die Insel baut ihr DOM framework-frei
+   selbst auf (Spec 02 §5), Klassen sind global unter `.map-fallback`. */
+
+.map-fallback {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  display: flex;
+}
+
+.map-fallback__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.map-fallback__ocean {
+  fill: #16202b;
+}
+
+.map-fallback__continent {
+  fill: #33404d;
+  stroke: #4a5a68;
+  stroke-width: 1;
+}
+
+.map-fallback__marker {
+  fill: #c8a84a;
+  stroke: #1a140a;
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.map-fallback__marker--hof {
+  fill: #7fb0d8;
+}
+
+.map-fallback__marker--bio {
+  fill: #e8a33a;
+}
+
+.map-fallback__migr-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+
+.map-fallback__bio-line {
+  fill: none;
+  stroke: #c8a84a;
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  opacity: 0.6;
+}

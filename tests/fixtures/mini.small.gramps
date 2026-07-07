@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2026-04-11" version="6.0.6"/>
+    <researcher>
+      <resname>Franz Decker</resname>
+    </researcher>
+  </header>
+  <people>
+    <person handle="_p1" change="1" id="I0001">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Max</first>
+        <surname>Muster</surname>
+      </name>
+      <_customtag foo="bar"/>
+    </person>
+  </people>
+  <sources>
+    <source handle="_s1" change="1" id="S0001">
+      <stitle>Kirchenbuch &amp; Register &gt; 1900</stitle>
+    </source>
+  </sources>
+  <notes>
+    <note handle="_n1" change="1" id="N0000" type="GEDCOM-Import">
+      <text>Zeile eins
+Zeile zwei mit "Quote"
+</text>
+      <style name="fontface" value="Monospace">
+        <range start="0" end="10"/>
+      </style>
+    </note>
+  </notes>
+</database>

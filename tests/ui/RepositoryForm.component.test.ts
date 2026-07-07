@@ -1,0 +1,48 @@
+// @vitest-environment happy-dom
+// tests/ui/RepositoryForm.component.test.ts — Archiv-Editor (Spec 20 §2 Formular-
+// Feldtabelle "Archiv"). Repository ist ein flaches Modell (keine Tristate-/Dirty-
+// Tracking-Logik nötig, s. RepositoryForm.svelte Kopfkommentar).
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/svelte';
+import RepositoryForm from '../../ui/views/repository/RepositoryForm.svelte';
+import { createAppState } from '../../ui/shell/app-state.svelte';
+import { makeRepository } from '../../core/model';
+
+describe('RepositoryForm — Speichern/Vorbefüllung', () => {
+  it('speichert geänderte Felder über appState.saveRepository als vollständiges Objekt', async () => {
+    const appState = createAppState();
+    const repository = makeRepository('@R1@', { name: 'Landesarchiv NRW' });
+    const onSaved = vi.fn();
+
+    render(RepositoryForm, { props: { appState, repository, onSaved } });
+
+    await fireEvent.input(screen.getByLabelText('Telefon'), { target: { value: '0251-123456' } });
+    await fireEvent.input(screen.getByLabelText('Findbuch-URL'), { target: { value: 'https://archive.example/findbuch' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.repositories.get('@R1@')?.name).toBe('Landesarchiv NRW');
+    expect(appState.db.repositories.get('@R1@')?.phone).toBe('0251-123456');
+    expect(appState.db.repositories.get('@R1@')?.findingAid).toBe('https://archive.example/findbuch');
+    expect(onSaved).toHaveBeenCalledWith('@R1@');
+  });
+
+  it('zeigt "Neues Archiv" für ein leeres Archiv, "Archiv bearbeiten" für ein befülltes', () => {
+    const appState = createAppState();
+    const { unmount } = render(RepositoryForm, { props: { appState, repository: makeRepository('@R1@') } });
+    expect(screen.getByText('Neues Archiv')).toBeTruthy();
+    unmount();
+
+    render(RepositoryForm, { props: { appState, repository: makeRepository('@R2@', { name: 'Bestehend' }) } });
+    expect(screen.getByText('Archiv bearbeiten')).toBeTruthy();
+  });
+
+  it('Abbrechen ruft onCancel, speichert nichts', async () => {
+    const appState = createAppState();
+    const onCancel = vi.fn();
+    render(RepositoryForm, { props: { appState, repository: makeRepository('@R1@'), onCancel } });
+
+    await fireEvent.click(screen.getByText('Abbrechen'));
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(appState.db.repositories.has('@R1@')).toBe(false);
+  });
+});

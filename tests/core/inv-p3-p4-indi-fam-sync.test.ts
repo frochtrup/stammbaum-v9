@@ -10,6 +10,7 @@ import {
   addChildToFamily,
   addParentToFamily,
   removeChildFromFamily,
+  removeParentFromFamily,
   checkIndiFamConsistency,
 } from '../../core/model/index';
 
@@ -66,6 +67,22 @@ describe('INV-P3: INDI↔FAM wechselseitig konsistent', () => {
     father.parentIn.push(fam.id); // nur INDI-Seite
     const issues = checkIndiFamConsistency(db);
     expect(issues.some((i) => i.side === 'indi-only' && i.personId === '@I1@')).toBe(true);
+  });
+
+  it('removeParentFromFamily leert den Slot und löst parentIn (beide Seiten konsistent)', () => {
+    const { db, father, fam } = seed();
+    addParentToFamily(db, fam.id, father.id, 'husband');
+    removeParentFromFamily(db, fam.id, 'husband');
+    expect(fam.husband).toBeNull();
+    expect(father.parentIn).not.toContain(fam.id);
+    expect(checkIndiFamConsistency(db)).toEqual([]);
+  });
+
+  it('removeParentFromFamily ist idempotent (leerer Slot bleibt leer)', () => {
+    const { db, fam } = seed();
+    removeParentFromFamily(db, fam.id, 'wife');
+    expect(fam.wife).toBeNull();
+    expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('addChildToFamily ist idempotent (kein Duplikat auf beiden Seiten)', () => {

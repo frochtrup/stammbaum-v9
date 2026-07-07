@@ -23,6 +23,14 @@ export {
 } from './factory';
 export { isEventPresent } from './event';
 export {
+  parseDateValue,
+  formatDateValue,
+  normalizeMonth,
+  type DateParts,
+  type DateQualifier,
+} from './gedcom-date';
+export { savePerson, deletePerson } from './commands';
+export {
   dedupeCitations,
   setCitationQuay,
   suggestQuayFromEval,
@@ -34,6 +42,14 @@ export {
   addChildToFamily,
   removeChildFromFamily,
   addParentToFamily,
+  removeParentFromFamily,
   type OrphanRef,
   type ConsistencyIssue,
 } from './integrity';
+export { saveFamily, deleteFamily } from './commands';
+export {
+  saveSource,
+  deleteSource,
+  saveRepository,
+  deleteRepository,
+} from './commands';

@@ -1,0 +1,164 @@
+/* ui/islands/tree/hourglass-tree.css — Styling der imperativen Sanduhr-Insel.
+   Bewusst plain CSS (kein Svelte-`<style>`-Scoping) — die Insel baut ihr DOM
+   framework-frei selbst auf (Spec 02 §5), Klassen sind global unter `.tree-island`. */
+
+.tree-island {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--stb-bg);
+}
+
+.tree-island--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+}
+
+.tree-island__scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  cursor: grab;
+}
+
+.tree-island__wrap {
+  position: relative;
+}
+
+.tree-island__svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.tree-island__line {
+  stroke: var(--stb-surface-3);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.tree-island__line--half {
+  stroke: var(--stb-gold-dim);
+}
+
+.tree-island__card {
+  position: absolute;
+  background: var(--stb-surface-1);
+  border: 1px solid var(--stb-surface-3);
+  border-radius: var(--stb-radius-control);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  color: var(--stb-text);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.tree-island__card[data-sex='M'] {
+  border-left: 3px solid var(--stb-sex-m);
+}
+
+.tree-island__card[data-sex='F'] {
+  border-left: 3px solid var(--stb-sex-f);
+}
+
+.tree-island__card--center {
+  background: var(--stb-surface-2);
+  border-color: var(--stb-gold);
+  border-width: 2px;
+  font-weight: 700;
+}
+
+.tree-island__card--half {
+  border-style: dashed;
+  border-color: var(--stb-gold-dim);
+}
+
+.tree-island__card--sibling {
+  background: var(--stb-surface-1);
+}
+
+.tree-island__card--empty {
+  opacity: 0.25;
+  border-style: dashed;
+  cursor: default;
+}
+
+.tree-island__card--peek {
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.tree-island__name {
+  font-family: var(--stb-font-body);
+  line-height: 1.15;
+}
+
+.tree-island__year {
+  font-size: 0.62rem;
+  color: var(--stb-text-dim);
+}
+
+.tree-island__kekule {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--stb-gold-dim);
+}
+
+.tree-island__half-badge {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: 0.65rem;
+  color: var(--stb-gold-dim);
+}
+
+.tree-island__marr-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 0.6rem;
+  color: var(--stb-gold-light);
+}
+
+.tree-island__marr-btn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--stb-gold-light);
+  z-index: 6;
+}
+
+/* „…"-Kappungs-Indikator der horizontalen Geschwisterzeile (Orakel: `tree-sib-more`). */
+.tree-island__sib-more {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--stb-text-dim);
+  font-size: 0.85rem;
+  border: 1px dashed var(--stb-surface-3);
+  border-radius: var(--stb-radius-control);
+  background: var(--stb-surface-1);
+}
+
+/* Geschwisterzähler-Badge am Proband-Kartenrand (Peek-Stapel-Fallback, Orakel:
+   `tree-half-badge--sib-count`) — unten-links, kein Konflikt mit ⚭/Kekule oben. */
+.tree-island__sib-count-badge {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  font-size: 0.65rem;
+  color: var(--stb-gold-dim);
+}
