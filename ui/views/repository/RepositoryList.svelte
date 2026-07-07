@@ -1,15 +1,22 @@
 <script lang="ts">
   // ui/views/repository/RepositoryList.svelte — Archiv-Picker (Spec 20 §1.6 [K]:
   // "Archive (Repository): Picker, Detail mit verlinkten Quellen, Signatur").
+  //
+  // "＋ Neues Archiv" (Spec 20 §2): legt ein leeres Archiv mit einer kollisionsfreien id
+  // an (allocatorFromDatabase, Spec ADR-v9-11) und meldet die neue id über onCreate an
+  // den Aufrufer (EntityTab), der Auswahl + Editor-Öffnung übernimmt.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { makeRepository, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildRepositoryRows } from './repository-list-model';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Nach dem Anlegen eines neuen Archivs aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
+    onCreate?: (repoId: string) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onCreate }: Props = $props();
 
   const rows = $derived(buildRepositoryRows(appState.db));
   const isEmpty = $derived(appState.db.repositories.size === 0);
@@ -17,12 +24,25 @@
   function selectRepository(id: string) {
     viewState.setCurrent('repository', id);
   }
+
+  function createRepository() {
+    const alloc = allocatorFromDatabase(appState.db);
+    const id = nextId(alloc, 'R');
+    appState.saveRepository(makeRepository(id));
+    onCreate?.(id);
+  }
 </script>
 
 <div class="repository-list">
   {#if isEmpty}
     <p class="repository-list__empty">Keine Archive geladen — Datei öffnen, um zu starten.</p>
+    <div class="repository-list__toolbar repository-list__toolbar--empty">
+      <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
+    </div>
   {:else}
+    <div class="repository-list__toolbar">
+      <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
+    </div>
     <ul class="repository-list__rows">
       {#each rows as row (row.id)}
         <li>
@@ -47,6 +67,39 @@
   .repository-list__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
+  }
+
+  .repository-list__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--stb-surface-2);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .repository-list__toolbar--empty {
+    position: static;
+    justify-content: flex-start;
+  }
+
+  .repository-list__new-btn {
+    margin-left: auto;
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    font-weight: 600;
+    border: 1px solid var(--stb-gold);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .repository-list__toolbar--empty .repository-list__new-btn {
+    margin-left: 0;
   }
 
   .repository-list__rows {

@@ -139,10 +139,28 @@
     viewState.setCurrent('source', id);
   }
 
+  /** "＋ Neue Quelle" (Spec 20 §2): SourceList hat die Quelle bereits per
+   *  appState.saveSource angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
+  let createdSourceId = $state<string | null>(null);
+
+  function createSource(id: string) {
+    createdSourceId = id;
+    navigateToSource(id);
+  }
+
   function navigateToRepository(id: string) {
     activeSegment = 'source';
     sourceSubView = 'repositories';
     viewState.setCurrent('repository', id);
+  }
+
+  /** "＋ Neues Archiv" (Spec 20 §2): RepositoryList hat das Archiv bereits per
+   *  appState.saveRepository angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
+  let createdRepositoryId = $state<string | null>(null);
+
+  function createRepository(id: string) {
+    createdRepositoryId = id;
+    navigateToRepository(id);
   }
 
   function navigateToPlace(id: string) {
@@ -163,13 +181,6 @@
   const selectedPlaceId = $derived(viewState.getCurrent('place'));
   const selectedHofId = $derived(viewState.getCurrent('hof'));
 
-  const showBack = $derived(
-    (activeSegment === 'person' && !!selectedPersonId) ||
-      (activeSegment === 'family' && !!selectedFamilyId) ||
-      (activeSegment === 'source' && (!!selectedSourceId || !!selectedRepositoryId)) ||
-      (activeSegment === 'place' && !!selectedPlaceId) ||
-      (activeSegment === 'hof' && !!selectedHofId && !hofReviewOpen),
-  );
 </script>
 
 <div class="entity-tab">
@@ -230,12 +241,6 @@
     </div>
   {/if}
 
-  {#if showBack && activeSegment === 'source'}
-    <div class="entity-tab__detail-header">
-      <button type="button" class="entity-tab__back" onclick={backToList}>← Zur Liste</button>
-    </div>
-  {/if}
-
   {#if activeSegment === 'person'}
     {#if selectedPersonId}
       <PersonDetail
@@ -270,9 +275,15 @@
   {:else if activeSegment === 'source'}
     {#if sourceSubView === 'repositories'}
       {#if selectedRepositoryId}
-        <RepositoryDetail {appState} {viewState} onNavigateToSource={navigateToSource} />
+        <RepositoryDetail
+          {appState}
+          {viewState}
+          onNavigateToSource={navigateToSource}
+          onBack={backToList}
+          startInEdit={selectedRepositoryId === createdRepositoryId}
+        />
       {:else}
-        <RepositoryList {appState} {viewState} />
+        <RepositoryList {appState} {viewState} onCreate={createRepository} />
       {/if}
     {:else if selectedSourceId}
       <SourceDetail
@@ -281,9 +292,11 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onNavigateToRepository={navigateToRepository}
+        onBack={backToList}
+        startInEdit={selectedSourceId === createdSourceId}
       />
     {:else}
-      <SourceList {appState} {viewState} />
+      <SourceList {appState} {viewState} onCreate={createSource} />
     {/if}
   {:else if activeSegment === 'place'}
     {#if selectedPlaceId}
@@ -335,15 +348,6 @@
 
   .entity-tab__detail-header {
     padding: 0.5rem 0.75rem 0;
-  }
-
-  .entity-tab__back {
-    background: transparent;
-    border: none;
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    font: inherit;
-    padding: 0;
   }
 
   .entity-tab__review-toggle {

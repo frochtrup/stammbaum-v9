@@ -3,7 +3,7 @@
 // Directive gesetzt (läuft mit dem globalen 'node'-Environment, s. vitest.config.ts).
 import { describe, expect, it } from 'vitest';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makePerson, makeFamily, makeDatabase } from '../../core/model/index';
+import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase } from '../../core/model/index';
 import type { PlaceObject, HofObject } from '../../core/places';
 
 function place(id: string, patch: Partial<PlaceObject> = {}): PlaceObject {
@@ -220,6 +220,66 @@ describe('AppState.saveFamily/deleteFamily — Familien-Editor-Kommandos (Spec 2
   it('deleteFamily ist ein No-Op bei unbekannter id (kein Fehler)', () => {
     const appState = createAppState();
     expect(() => appState.deleteFamily('@F-gone@')).not.toThrow();
+  });
+});
+
+describe('AppState.saveSource/deleteSource — Quellen-Editor-Kommandos (Spec 20 §2)', () => {
+  it('saveSource fügt eine Quelle hinzu, die über db sichtbar wird', () => {
+    const appState = createAppState();
+    appState.saveSource(makeSource('@S1@', { title: 'Kirchenbuch Ochtrup' }));
+
+    expect(appState.db.sources.get('@S1@')?.title).toBe('Kirchenbuch Ochtrup');
+  });
+
+  it('saveSource ersetzt eine bestehende Quelle vollständig (Upsert per id)', () => {
+    const appState = createAppState();
+    appState.saveSource(makeSource('@S1@', { title: 'Alt' }));
+    appState.saveSource(makeSource('@S1@', { title: 'Neu' }));
+
+    expect(appState.db.sources.get('@S1@')?.title).toBe('Neu');
+  });
+
+  it('deleteSource entfernt eine Quelle', () => {
+    const appState = createAppState();
+    appState.saveSource(makeSource('@S1@'));
+    appState.deleteSource('@S1@');
+
+    expect(appState.db.sources.has('@S1@')).toBe(false);
+  });
+
+  it('deleteSource ist ein No-Op bei unbekannter id (kein Fehler)', () => {
+    const appState = createAppState();
+    expect(() => appState.deleteSource('@S-gone@')).not.toThrow();
+  });
+});
+
+describe('AppState.saveRepository/deleteRepository — Archiv-Editor-Kommandos (Spec 20 §2)', () => {
+  it('saveRepository fügt ein Archiv hinzu, das über db sichtbar wird', () => {
+    const appState = createAppState();
+    appState.saveRepository(makeRepository('@R1@', { name: 'Landesarchiv NRW' }));
+
+    expect(appState.db.repositories.get('@R1@')?.name).toBe('Landesarchiv NRW');
+  });
+
+  it('saveRepository ersetzt ein bestehendes Archiv vollständig (Upsert per id)', () => {
+    const appState = createAppState();
+    appState.saveRepository(makeRepository('@R1@', { name: 'Alt' }));
+    appState.saveRepository(makeRepository('@R1@', { name: 'Neu' }));
+
+    expect(appState.db.repositories.get('@R1@')?.name).toBe('Neu');
+  });
+
+  it('deleteRepository entfernt ein Archiv', () => {
+    const appState = createAppState();
+    appState.saveRepository(makeRepository('@R1@'));
+    appState.deleteRepository('@R1@');
+
+    expect(appState.db.repositories.has('@R1@')).toBe(false);
+  });
+
+  it('deleteRepository ist ein No-Op bei unbekannter id (kein Fehler)', () => {
+    const appState = createAppState();
+    expect(() => appState.deleteRepository('@R-gone@')).not.toThrow();
   });
 });
 

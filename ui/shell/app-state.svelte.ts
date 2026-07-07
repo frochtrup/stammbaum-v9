@@ -5,7 +5,19 @@
 // Spec 02 §3) — die Schale liest ihn über die definierten Chokepoints und hält eine
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
-import type { Database, PlaceId, HofId, PersonId, FamilyId, Person, Family } from '../../core/model/types';
+import type {
+  Database,
+  PlaceId,
+  HofId,
+  PersonId,
+  FamilyId,
+  Person,
+  Family,
+  SourceId,
+  RepoId,
+  Source,
+  Repository,
+} from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
 import {
   makeDatabase,
@@ -13,6 +25,10 @@ import {
   deletePerson as deletePersonCmd,
   saveFamily as saveFamilyCmd,
   deleteFamily as deleteFamilyCmd,
+  saveSource as saveSourceCmd,
+  deleteSource as deleteSourceCmd,
+  saveRepository as saveRepositoryCmd,
+  deleteRepository as deleteRepositoryCmd,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -66,6 +82,18 @@ export interface AppState {
   saveFamily(model: Family): void;
   /** Kommando: entfernt eine Familie (per id, keine Kaskade — analog deleteFamily im Kern). */
   deleteFamily(id: FamilyId): void;
+  /**
+   * Kommando: Upsert einer Quelle (`saveSource(model)`-Muster, Spec 20 §2). Source ist ein
+   * FLACHES Modell ohne Beziehungs-Graph (Spec 10 §4) — reines Whole-Object-Upsert, analog
+   * savePlace, KEINE Sync-Logik wie bei saveFamily nötig.
+   */
+  saveSource(model: Source): void;
+  /** Kommando: entfernt eine Quelle (per id, keine Kaskade — analog deletePlace). */
+  deleteSource(id: SourceId): void;
+  /** Kommando: Upsert eines Archivs (`saveRepository(model)`-Muster, Spec 20 §2). */
+  saveRepository(model: Repository): void;
+  /** Kommando: entfernt ein Archiv (per id, keine Kaskade). */
+  deleteRepository(id: RepoId): void;
   /** Kommando: Dubletten-Merge — führt `mergedId` in `survivorId` zusammen (Spec 20 §1.7 [K]). */
   mergePlace(survivorId: PlaceId, mergedId: PlaceId): void;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
@@ -194,6 +222,30 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       deleteFamilyCmd(db, id);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       db = { ...db, families: new Map(db.families) };
+    },
+    saveSource(model) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextSources = new Map(db.sources);
+      saveSourceCmd(nextSources, model);
+      db = { ...db, sources: nextSources };
+    },
+    deleteSource(id) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextSources = new Map(db.sources);
+      deleteSourceCmd(nextSources, id);
+      db = { ...db, sources: nextSources };
+    },
+    saveRepository(model) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextRepositories = new Map(db.repositories);
+      saveRepositoryCmd(nextRepositories, model);
+      db = { ...db, repositories: nextRepositories };
+    },
+    deleteRepository(id) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextRepositories = new Map(db.repositories);
+      deleteRepositoryCmd(nextRepositories, id);
+      db = { ...db, repositories: nextRepositories };
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität
