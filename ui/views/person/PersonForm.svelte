@@ -18,9 +18,13 @@
   // Checkbox mehr); seltene Felder/Sonder-Ereignisse erscheinen als "+ Label"-Pill, wenn
   // sie leer sind, und an ihrer kanonischen Formularposition, sobald aktiviert.
   //
-  // Ort ist in DIESER Scheibe bewusst NUR Freitext (Spec-Aufgabe: "6-Felder-Toggle NICHT
-  // im Scope"). Evidenz-Achsen (eval) sind auskommentiert (TODO Folgeschritt) — siehe
-  // Kommentar unten bei der Quellen-Sektion.
+  // Ort/Adresse bleiben Freitext (Roundtrip-Fidelity, freies Weitertippen immer möglich)
+  // — ADR-v9-42 ergänzt aber `EventPlaceField`/`EventAddrField`: ein Picker-Icon neben dem
+  // Textfeld erlaubt zusätzlich, ein bestehendes PlaceObject/HofObject zu wählen ODER
+  // inline neu anzulegen; Auswahl/Anlage verknüpft SOFORT über `linkEventToPlace`/
+  // `linkEventToHof` (ID + Text atomar reprojiziert, kein zweiter Zuordnungsweg neben
+  // `resolveEvents()`). Evidenz-Achsen (eval) sind auskommentiert (TODO Folgeschritt) —
+  // siehe Kommentar unten bei der Quellen-Sektion.
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person, Event, Citation, Quay } from '../../../core/model/types';
@@ -28,6 +32,10 @@
   import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../../core/model/gedcom-date';
   import { setCitationQuay } from '../../../core/model/citation';
   import { isEventPresent } from '../../../core/model';
+  import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
+  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import EventPlaceField from '../../shell/EventPlaceField.svelte';
+  import EventAddrField from '../../shell/EventAddrField.svelte';
 
   interface Props {
     appState: AppState;
@@ -80,6 +88,11 @@
     place: string;
     originalPlace: string | null;
     placeDirty: boolean;
+    /** ADR-v9-42: über EventPlaceField/EventAddrField per Picker gesetzt (linkEventToPlace/
+     *  linkEventToHof) — anders als Datum/Ort-Freitext kein Tristate-Dirty-Tracking nötig,
+     *  weil das Setzen IMMER explizit über eine Nutzerauswahl passiert (nie stiller Reset). */
+    placeId: string | null;
+    hofId: string | null;
     addr: string;
     note: string;
     cause: string;
@@ -105,6 +118,8 @@
       place: ev.place ?? '',
       originalPlace: ev.place,
       placeDirty: false,
+      placeId: ev.placeId,
+      hofId: ev.hofId,
       addr: ev.addr,
       note: ev.note,
       cause,
@@ -118,29 +133,81 @@
     ev.dateDirty = true;
   }
 
+  /** Baut den Roh-Datumsstring aus dem strukturierten Teilformular (Tristate beachtet,
+   *  ADR-v9-30 Punkt 1): unberührt (`!dateDirty`) -> Rohwert unverändert; sonst neu
+   *  zusammengesetzt (leer -> null = "kein Datum"). Gemeinsam genutzt von `fromEditable`
+   *  (Speichern) UND `liveEventFrom` (Picker-Verknüpfung braucht das aktuell angezeigte
+   *  Datum für die Jahres-Ableitung, `eventYear`/`buildPlacForGedcom`, ohne DRY zu
+   *  verletzen). */
+  function computeDate(e: EditableEvent): string | null {
+    if (!e.dateDirty) return e.originalDate;
+    const formatted = formatDateValue({
+      qualifier: e.dateQualifier,
+      day: e.day,
+      month: e.month,
+      year: e.year,
+      day2: e.day2,
+      month2: e.month2,
+      year2: e.year2,
+    });
+    return formatted === '' ? null : formatted;
+  }
+
+  /** Baut ein Event-Objekt aus dem AKTUELLEN Formularzustand (nicht nur dem gespeicherten
+   *  Original) — für `linkEventToPlace`/`linkEventToHof`, die den vollen Event-Kontext
+   *  (Typ/Datum/Ort/Adresse) für die Jahres-Ableitung + Reprojektion brauchen. Felder
+   *  ohne Formular-Entsprechung (lati/long/datePhrase/media/seen) sind hier neutral
+   *  belegt — sie fließen weder in die Jahres-Ableitung noch in buildPlacForGedcom ein. */
+  function liveEventFrom(e: EditableEvent): Event {
+    return {
+      type: e.type,
+      value: e.value,
+      eventType: e.eventType,
+      date: computeDate(e),
+      datePhrase: '',
+      place: e.place === '' ? null : e.place,
+      placeId: e.placeId,
+      hofId: e.hofId,
+      lati: null,
+      long: null,
+      addr: e.addr,
+      note: e.note,
+      citations: e.citations,
+      media: [],
+      seen: true,
+    };
+  }
+
+  /** Picker-Auswahl/-Neuanlage eines Ortes (EventPlaceField.onPick, ADR-v9-42): verknüpft
+   *  über den Kern-Chokepoint `linkEventToPlace` (ID + Text SOFORT atomar reprojiziert)
+   *  und übernimmt das Ergebnis zurück ins Formularfeld (placeDirty, damit `fromEditable`
+   *  beim Speichern den reprojizierten Text — nicht den alten Rohwert — verwendet). */
+  function pickPlaceFor(target: EditableEvent, placeId: string): void {
+    const live = liveEventFrom(target);
+    linkEventToPlace(live, placeId, appState.placeContext);
+    target.place = live.place ?? '';
+    target.placeId = live.placeId;
+    target.placeDirty = true;
+  }
+
+  /** Picker-Auswahl/-Neuanlage eines Hofes (EventAddrField.onPick, ADR-v9-42): analog
+   *  pickPlaceFor, aber über `linkEventToHof` — reprojiziert `place` UND füllt `addr`
+   *  (nur wenn bisher leer, s. Kommentar an linkEventToHof). */
+  function pickHofFor(target: EditableEvent, hofId: string): void {
+    const live = liveEventFrom(target);
+    linkEventToHof(live, hofId, appState.placeContext);
+    target.place = live.place ?? '';
+    target.addr = live.addr;
+    target.hofId = live.hofId;
+    target.placeDirty = true;
+  }
+
   /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet,
-   *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId bleiben
-   *  unangetastet (Scope-Grenze: 6-Felder-Ort-Eingabe ist NICHT Teil dieser Scheibe).
-   *  Dirty-Tracking (ADR-v9-30 Punkt 1): rührt der Nutzer das jeweilige Teilformular
-   *  nicht an, wird der ursprüngliche Rohwert unverändert übernommen (null/''/Wert bleibt
-   *  erhalten). Nur bei aktivem dirty-Flag wird neu berechnet; ergibt die Neuberechnung
-   *  einen leeren String, wird daraus explizit null (aktives Leeren = "kein Datum/Ort"). */
+   *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId werden jetzt
+   *  aus dem Formularzustand übernommen (ADR-v9-42 — Picker kann sie SOFORT setzen,
+   *  s. pickPlaceFor/pickHofFor), nicht mehr blind vom Original übernommen. */
   function fromEditable(original: Event, e: EditableEvent): Event {
-    let date: string | null;
-    if (!e.dateDirty) {
-      date = e.originalDate;
-    } else {
-      const formatted = formatDateValue({
-        qualifier: e.dateQualifier,
-        day: e.day,
-        month: e.month,
-        year: e.year,
-        day2: e.day2,
-        month2: e.month2,
-        year2: e.year2,
-      });
-      date = formatted === '' ? null : formatted;
-    }
+    const date = computeDate(e);
     const place = !e.placeDirty ? e.originalPlace : (e.place === '' ? null : e.place);
     return {
       ...original,
@@ -149,6 +216,8 @@
       eventType: e.eventType,
       date,
       place,
+      placeId: e.placeId,
+      hofId: e.hofId,
       addr: e.addr,
       note: e.note,
       citations: e.citations,
@@ -429,15 +498,12 @@
     </div>
     {#each ev.citations as cit, i (i)}
       <div class="person-form__citation-row">
-        <select
-          aria-label={`${labelPrefix} Quelle ${i + 1}`}
+        <SourcePicker
+          {appState}
           value={cit.sourceId}
-          onchange={(e) => setCitationSource(ev, i, (e.currentTarget as HTMLSelectElement).value)}
-        >
-          {#each sources as s (s.id)}
-            <option value={s.id}>{s.abbr || s.title || s.id}</option>
-          {/each}
-        </select>
+          onChange={(id) => setCitationSource(ev, i, id ?? '')}
+          label={`${labelPrefix} Quelle ${i + 1}`}
+        />
         <input
           type="text"
           placeholder="Seite"
@@ -476,20 +542,28 @@
     {@render dateFields(ev)}
     <label>
       Ort (Freitext)
-      <input
-        type="text"
+      <EventPlaceField
+        {appState}
         value={ev.place}
-        onchange={(e) => {
-          const v = (e.currentTarget as HTMLInputElement).value;
+        onTextChange={(v) => {
           ev.place = v;
           ev.placeDirty = true;
         }}
+        onPick={(placeId) => pickPlaceFor(ev, placeId)}
+        label={`${title2} Ort`}
       />
     </label>
     {#if showAddr}
       <label>
         Adresse
-        <input type="text" bind:value={ev.addr} />
+        <EventAddrField
+          {appState}
+          value={ev.addr}
+          onTextChange={(v) => (ev.addr = v)}
+          onPick={(hofId) => pickHofFor(ev, hofId)}
+          villageId={ev.placeId}
+          label={`${title2} Adresse`}
+        />
       </label>
     {/if}
     {#if showCause}
@@ -626,20 +700,28 @@
         {@render dateFields(ev)}
         <label>
           Ort (Freitext)
-          <input
-            type="text"
+          <EventPlaceField
+            {appState}
             value={ev.place}
-            onchange={(e) => {
-              const v = (e.currentTarget as HTMLInputElement).value;
+            onTextChange={(v) => {
               ev.place = v;
               ev.placeDirty = true;
             }}
+            onPick={(placeId) => pickPlaceFor(ev, placeId)}
+            label={`${ev.type} Ort`}
           />
         </label>
-        {#if ev.type === 'RESI'}
+        {#if HOF_EVENT_TYPES.has(ev.type)}
           <label>
             Adresse
-            <input type="text" bind:value={ev.addr} />
+            <EventAddrField
+              {appState}
+              value={ev.addr}
+              onTextChange={(v) => (ev.addr = v)}
+              onPick={(hofId) => pickHofFor(ev, hofId)}
+              villageId={ev.placeId}
+              label={`${ev.type} Adresse`}
+            />
           </label>
         {/if}
         <label>

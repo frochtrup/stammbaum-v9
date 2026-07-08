@@ -86,3 +86,50 @@ describe('applyChooseHof — "Hof wählen" (Klasse C, mehrdeutig)', () => {
     expect(ev.hofId).toBe('_hof_a');
   });
 });
+
+// Drift-Fix (ADR-v9-42): die drei Aktionen reprojizieren ev.place/ev.addr SOFORT über
+// linkEventToHof — NICHT erst "beim nächsten Laden". Kein Zwischenzustand mit gesetztem
+// hofId und veraltetem/leerem ev.place.
+describe('Sofort-Reprojektion (ADR-v9-42, INV-PLACE) — kein "erst beim nächsten Laden"', () => {
+  it('applyCreateHof reprojiziert ev.place sofort (Hof-Blatt + Dorf), nicht erst beim Laden', () => {
+    const appState = seedAppStateWithVillage();
+    const ev = makeEvent('DEAT', { addr: 'Wall 33', place: '' });
+
+    applyCreateHof(appState, ev, '@OCHTRUP@');
+
+    // Ohne erneutes resolveEvents(): ev.place trägt bereits die Projektion.
+    expect(ev.place).toBe('Wall 33, Ochtrup');
+  });
+
+  it('applyAddVariant reprojiziert ev.place sofort auf den Ziel-Hof', () => {
+    const appState = seedAppStateWithVillage();
+    const seedEv = makeEvent('RESI', { addr: 'Wall 33' });
+    applyCreateHof(appState, seedEv, '@OCHTRUP@');
+    const hofId = seedEv.hofId!;
+
+    const driftEv = makeEvent('DEAT', { addr: 'Wal 33', place: '' });
+    applyAddVariant(appState, driftEv, hofId);
+
+    // Sofort projiziert (Konvention α: Hof-Blatt vor dem Dorf). ev.place trägt die
+    // KANONISCHE Hof-Adresse aus dem Modell (resolveAddrAsOf), nicht die rohe Drift-
+    // Variante — genau das ist der Sinn der Reprojektion (ev.place = Modell-Wahrheit).
+    expect(driftEv.place).toBe('Wall 33, Ochtrup');
+    // Die explizit gesetzte ev.addr bleibt byte-identisch (Wire-ADDR-Roundtrip).
+    expect(driftEv.addr).toBe('Wal 33');
+  });
+
+  it('applyChooseHof reprojiziert ev.place sofort auf den gewählten, existierenden Hof', () => {
+    const appState = seedAppStateWithVillage();
+    const seedEv = makeEvent('RESI', { addr: 'Wall 33' });
+    applyCreateHof(appState, seedEv, '@OCHTRUP@');
+    const hofId = seedEv.hofId!;
+
+    const target = makeEvent('RESI', { addr: '', place: 'roher String' });
+    applyChooseHof(appState, target, hofId);
+
+    expect(target.hofId).toBe(hofId);
+    expect(target.place).toBe('Wall 33, Ochtrup');
+    // ev.addr wird sofort aus dem Hof gefüllt (war leer).
+    expect(target.addr).toBe('Wall 33');
+  });
+});

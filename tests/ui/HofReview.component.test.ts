@@ -61,7 +61,7 @@ describe('HofReview — Klasse C: "Hof wählen"', () => {
   });
 });
 
-describe('HofReview — Klasse D: "Variante zum Hof" (value/onchange-Select, kein bind:value)', () => {
+describe('HofReview — Klasse D: "Variante zum Hof" (generischer Picker, ADR-v9-40)', () => {
   it('hängt die Adresse als Variante an den gewählten Ziel-Hof', async () => {
     const appState = createAppState();
     appState.savePlace(place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' }));
@@ -79,9 +79,8 @@ describe('HofReview — Klasse D: "Variante zum Hof" (value/onchange-Select, kei
     render(HofReview, { props: { appState } });
 
     expect(screen.getByText('Klasse D')).toBeTruthy();
-    const select = screen.getByLabelText('Ziel-Hof für Variante') as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: '_hof_existing' } });
-    expect(select.value).toBe('_hof_existing');
+    await fireEvent.click(screen.getByLabelText('Ziel-Hof für Variante'));
+    await fireEvent.click(screen.getByText('Oster 5'));
     await fireEvent.click(screen.getByText('Variante zum Hof'));
 
     expect(appState.db.hofObjects.get('_hof_existing')?.addrs.map((a) => a.value)).toContain('Wall 33');

@@ -89,7 +89,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     expect(appState.db.hofObjects.get('@H1@')?.addrs.map((a) => a.value)).toEqual(['Wall 33', 'Wallstraße 33']);
   });
 
-  it('setzt Vorgänger-/Nachfolger-Hof über die Lebenszyklus-Selects (value/onchange-Muster, kein bind:value)', async () => {
+  it('setzt Vorgänger-/Nachfolger-Hof über den generischen Picker', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
@@ -101,12 +101,35 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
 
     render(HofDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    const predecessorSelect = screen.getByLabelText('Vorgänger-Hof') as HTMLSelectElement;
-    await fireEvent.change(predecessorSelect, { target: { value: '@H2@' } });
-    expect(predecessorSelect.value).toBe('@H2@');
+    await fireEvent.click(screen.getByLabelText('Vorgänger-Hof'));
+    await fireEvent.click(screen.getByText('Oster 5'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.hofObjects.get('@H1@')?.predecessor).toBe('@H2@');
+  });
+
+  it('legt einen neuen Vorgänger-Hof über "+ neuen Hof anlegen" inline an (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByLabelText('Vorgänger-Hof'));
+    await fireEvent.click(screen.getByText('+ neuen Hof anlegen …'));
+
+    await fireEvent.input(screen.getByLabelText('Adresse des neuen Vorgänger-Hofs'), { target: { value: 'Oster 5' } });
+    await fireEvent.click(screen.getByText('Anlegen'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const created = Array.from(appState.db.hofObjects.values()).find((h) => h.addrs[0]?.value === 'Oster 5');
+    expect(created).toBeTruthy();
+    expect(created?.villageId).toBe('@P1@');
+    expect(appState.db.hofObjects.get('@H1@')?.predecessor).toBe(created!.id);
   });
 });
 

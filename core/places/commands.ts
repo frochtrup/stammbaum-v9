@@ -110,6 +110,37 @@ export function linkEventToPlace(ev: Event, placeId: PlaceId, ctx: PlaceContext)
 }
 
 /**
+ * Kommando (ADR-v9-42, Spec 20 §1.7 [K] "String→HofObject verknüpfen"): setzt `ev.hofId`
+ * auf ein bestehendes HofObject UND reprojiziert sofort (Spec 11 §3 INV-PLACE, ADR-v9-19).
+ * Exakt analog `linkEventToPlace`, aber für den Hof-Pfad — es gibt keinen Zwischenzustand,
+ * in dem `hofId` gesetzt, `ev.place`/`ev.addr` aber veraltet sind (der frühere Drift in
+ * hof-review-actions.ts, „Reprojektion erst beim nächsten Laden", widersprach ADR-v9-19).
+ *
+ * Reprojiziert IDENTISCH zum `reproject()`-Wrapper in resolve.ts (Spec 11 §4.1):
+ *   - `ev.place` = periodengerechte Projektion via `buildPlacForGedcom` (Hof-Adresse,
+ *     Komma-geschützt via Konvention α, + Dorf-Hierarchie). Nur setzen wenn Projektion
+ *     != null (fehlt das HofObject, bleibt der Rohstring — kein Overwrite mit null).
+ *   - `ev.addr` NUR füllen wenn leer — der volle Hof-Adresswert (mit evtl. Komma) aus
+ *     `resolveAddrAsOf`. Eine bereits gesetzte, explizite `ev.addr` bleibt byte-identisch
+ *     (Wire-ADDR-Roundtrip, LP-1). ADDR trägt den vollen Wert; beim Re-Import findet
+ *     Pfad B (ADDR-basiert) den Hof wieder.
+ *
+ * Reine Kern-Logik, INV-ARCH-1-konform — KEINE UI-/DOM-Referenz; die Schale reicht nur
+ * den `PlaceContext` (Chokepoints, Spec 11 §5) herein. Mutiert das Event in-place
+ * (analog `linkEventToPlace`). Persistiert wird nur `hofId`, nie `ev.place` (Spec 11 §2).
+ */
+export function linkEventToHof(ev: Event, hofId: HofId, ctx: PlaceContext): void {
+  ev.hofId = hofId;
+  const year = eventYear(ev);
+  const proj = buildPlacForGedcom(ev, year, ctx);
+  if (proj != null) ev.place = proj;
+  if (!ev.addr) {
+    const a = ctx.hofs.resolveAddrAsOf(hofId, year);
+    if (a) ev.addr = a;
+  }
+}
+
+/**
  * Kommando: Dubletten-Merge (Spec 20 §1.7 [K] „Dubletten-Merge, verlustfrei"). Führt das
  * PlaceObject `mergedId` in `survivorId` zusammen und entfernt `mergedId`. VERLUSTFREI:
  * Titel + `pnames` des zusammengeführten Orts überleben als Namensvarianten (dedupliziert

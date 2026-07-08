@@ -62,9 +62,8 @@ describe('HypothesesView — Hypothese hinzufügen (inkl. Evidenz)', () => {
 
     await fireEvent.input(screen.getByPlaceholderText('Was wird vermutet?'), { target: { value: 'Neue Vermutung' } });
 
-    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
-    const firstOption = select.querySelector('option') as HTMLOptionElement;
-    await fireEvent.change(select, { target: { value: firstOption.value } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
@@ -78,11 +77,12 @@ describe('HypothesesView — Hypothese hinzufügen (inkl. Evidenz)', () => {
     await fireEvent.input(screen.getByPlaceholderText('Was wird vermutet?'), { target: { value: 'Mit Beleg' } });
 
     await fireEvent.click(screen.getByRole('button', { name: '+ Beleg hinzufügen' }));
+    await fireEvent.click(screen.getByLabelText('Evidenz-Quelle 1'));
+    await fireEvent.click(screen.getByText('Kirchenbuch Musterstadt'));
     await fireEvent.change(screen.getByLabelText('Evidenz-Seite 1'), { target: { value: 'S. 12' } });
 
-    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
-    const firstOption = select.querySelector('option') as HTMLOptionElement;
-    await fireEvent.change(select, { target: { value: firstOption.value } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     const saved = [...appState.db.individuals.values()].flatMap((p) => p.hypotheses).find((h) => h.text === 'Mit Beleg')!;

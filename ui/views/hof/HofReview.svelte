@@ -4,6 +4,8 @@
   // mit den drei Aktionstypen. "Quelle schärfen" navigiert zur Person/Familie (Event-
   // Edit-Formular existiert in dieser Scheibe noch nicht — Navigations-Stub, s. Auftrag).
   import type { AppState } from '../../shell/app-state.svelte';
+  import Picker from '../../shell/Picker.svelte';
+  import type { HofObject } from '../../../core/places/types';
   import { buildHofReview, type HofReviewRow } from './hof-review-model';
   import { applyCreateHof, applyAddVariant, applyChooseHof } from './hof-review-actions';
 
@@ -60,6 +62,18 @@
     if (row.ownerKind === 'person') onNavigateToPerson?.(row.ownerId);
     else onNavigateToFamily?.(row.ownerId);
   }
+
+  function hofLabel(h: HofObject): string {
+    return h.addrs[0]?.value ?? h.id;
+  }
+
+  function hofMatches(h: HofObject, query: string): boolean {
+    return hofLabel(h).toLowerCase().includes(query.trim().toLowerCase());
+  }
+
+  function variantCandidates(row: HofReviewRow): HofObject[] {
+    return Array.from(appState.db.hofObjects.values()).filter((h) => h.villageId === row.villageId);
+  }
 </script>
 
 <div class="hof-review">
@@ -100,16 +114,18 @@
             {#if row.klass === 'D'}
               <button type="button" onclick={() => createHof(row)}>+ Hof anlegen</button>
               <div class="hof-review__variant-picker">
-                <select
-                  value={variantTargets[row.index]}
-                  onchange={(e) => (variantTargets[row.index] = e.currentTarget.value)}
-                  aria-label="Ziel-Hof für Variante"
-                >
-                  <option value="">Ziel-Hof wählen…</option>
-                  {#each Array.from(appState.db.hofObjects.values()).filter((h) => h.villageId === row.villageId) as h (h.id)}
-                    <option value={h.id}>{h.addrs[0]?.value ?? h.id}</option>
-                  {/each}
-                </select>
+                <!-- Kein "+ neu anlegen"-Slot (ADR-v9-13/28/29, ADR-v9-40): Höfe entstehen
+                     ausschließlich über die kuratierte Auflösung, nicht aus diesem Picker. -->
+                <Picker
+                  items={variantCandidates(row)}
+                  getId={(h) => h.id}
+                  getLabel={hofLabel}
+                  matches={hofMatches}
+                  value={variantTargets[row.index] ?? null}
+                  onChange={(id) => (variantTargets[row.index] = id ?? '')}
+                  label="Ziel-Hof für Variante"
+                  placeholder="Ziel-Hof wählen…"
+                />
                 <button type="button" onclick={() => addVariant(row)}>Variante zum Hof</button>
               </div>
             {/if}
@@ -235,15 +251,8 @@
 
   .hof-review__variant-picker {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.4rem;
     align-items: center;
-  }
-
-  .hof-review__variant-picker select {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.5rem;
   }
 </style>

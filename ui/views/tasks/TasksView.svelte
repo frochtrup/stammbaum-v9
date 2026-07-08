@@ -5,15 +5,14 @@
   // exportTasksMd) — Liste ⇄ Kanban-Board-Umschalter, Filter alle/offen/erledigt,
   // Kategorien-Gruppierung, Tap-to-Advance im Board, MD-Export.
   //
-  // Ziel-Entitäts-Auswahl beim Hinzufügen (Design-Entscheidung, da die Spec hier keine
-  // feste Form vorgibt): Person/Familie per Radio wählen, danach eine gefilterte
-  // Auswahlliste (Textfeld + <select>) aus den bereits geladenen Personen/Familien —
-  // bewusst keine neue Suchkomponente (die globale Suche ist für Navigation gedacht,
-  // nicht für Formular-Zielauswahl); ein einfacher <select>, gefiltert per Textfeld,
-  // reicht für die erwartete Datenmenge (kein Overengineering).
+  // Ziel-Entitäts-Auswahl beim Hinzufügen: Person/Familie per Radio wählen, danach
+  // PersonPicker/FamilyPicker (ADR-v9-40, INV-UI-4 — EIN Entitäts-Picker-Muster statt
+  // einer eigenen Text+<select>-Handkonstruktion). Quelle (optional) ebenso über
+  // SourcePicker statt eines flachen <select>.
   import type { AppState } from '../../shell/app-state.svelte';
-  import { displayName } from '../../shell/person-display';
-  import { familyLabelFor } from '../source/family-label';
+  import PersonPicker from '../../shell/PersonPicker.svelte';
+  import FamilyPicker from '../../shell/FamilyPicker.svelte';
+  import SourcePicker from '../../shell/SourcePicker.svelte';
   import {
     collectAllTasks,
     filterTasks,
@@ -54,31 +53,12 @@
   /** optionaler Quellen-Bezug (ResearchTask.sourceRef, ADR-v9-36 — v8-Parität `t.sid`). */
   let formSourceRef = $state('');
   let formKind = $state<TaskEntityKind>('person');
-  let formEntityQuery = $state('');
   let formEntityId = $state('');
-
-  const sources = $derived(Array.from(appState.db.sources.values()));
 
   const allTasks = $derived(collectAllTasks(appState.db));
   const filteredTasks = $derived(filterTasks(allTasks, filter));
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
-
-  const personOptions = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !formEntityQuery.trim() || displayName(p).toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .map((p) => ({ id: p.id, label: displayName(p) }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const familyOptions = $derived(
-    Array.from(appState.db.families.keys())
-      .map((id) => ({ id, label: familyLabelFor(appState.db, id) }))
-      .filter((row) => !formEntityQuery.trim() || row.label.toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const entityOptions = $derived(formKind === 'person' ? personOptions : familyOptions);
 
   function switchFilter(f: TaskFilter) {
     filter = f;
@@ -94,7 +74,6 @@
     formCategory = '';
     formSourceRef = '';
     formKind = 'person';
-    formEntityQuery = '';
     formEntityId = '';
     showAddForm = true;
   }
@@ -105,7 +84,6 @@
     formCategory = entry.task.category;
     formSourceRef = entry.task.sourceRef;
     formKind = entry.kind;
-    formEntityQuery = '';
     formEntityId = entry.entityId;
     showAddForm = true;
   }
@@ -226,12 +204,14 @@
 
       <label class="tasks-view__form-field">
         Quelle (optional)
-        <select value={formSourceRef} onchange={(e) => (formSourceRef = e.currentTarget.value)} aria-label="Quelle">
-          <option value="">– keine Quelle –</option>
-          {#each sources as s (s.id)}
-            <option value={s.id}>{s.abbr || s.title || s.id}</option>
-          {/each}
-        </select>
+        <SourcePicker
+          {appState}
+          value={formSourceRef || null}
+          onChange={(id) => (formSourceRef = id ?? '')}
+          allowNone={true}
+          noneLabel="– keine Quelle –"
+          label="Quelle"
+        />
       </label>
 
       {#if !editing}
@@ -259,23 +239,23 @@
               Familie
             </label>
           </div>
-          <input
-            type="search"
-            placeholder="Suchen…"
-            aria-label="Ziel-Entität durchsuchen"
-            bind:value={formEntityQuery}
-          />
-          <select
-            value={formEntityId}
-            onchange={(e) => (formEntityId = e.currentTarget.value)}
-            aria-label="Ziel-Entität wählen"
-            required
-            size="5"
-          >
-            {#each entityOptions as opt (opt.id)}
-              <option value={opt.id}>{opt.label}</option>
-            {/each}
-          </select>
+          {#if formKind === 'person'}
+            <PersonPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => (formEntityId = id ?? '')}
+              label="Ziel-Person"
+              placeholder="Person wählen…"
+            />
+          {:else}
+            <FamilyPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => (formEntityId = id ?? '')}
+              label="Ziel-Familie"
+              placeholder="Familie wählen…"
+            />
+          {/if}
         </fieldset>
       {/if}
 
@@ -455,9 +435,7 @@
     color: var(--stb-text-dim);
   }
 
-  .tasks-view__form-field input[type='text'],
-  .tasks-view__form-field input[type='search'],
-  .tasks-view__form-field select {
+  .tasks-view__form-field input[type='text'] {
     background: var(--stb-surface-2);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -501,15 +479,6 @@
     margin-bottom: 0.4rem;
     font-size: 0.85rem;
     color: var(--stb-text);
-  }
-
-  .tasks-view__entity-picker select {
-    width: 100%;
-    margin-top: 0.4rem;
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
   }
 
   .tasks-view__form-actions {

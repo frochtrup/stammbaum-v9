@@ -10,6 +10,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyForm from '../../ui/views/family/FamilyForm.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makeFamily, makePerson, makeSource, makeCitation } from '../../core/model';
+import { place } from '../core/places-fixtures';
 
 function seedThreePersons() {
   const appState = createAppState();
@@ -48,7 +49,7 @@ describe('FamilyForm — Eltern speichern', () => {
     render(FamilyForm, { props: { appState, family: appState.db.families.get('@F1@')! } });
 
     await fireEvent.click(screen.getByLabelText('Ehemann'));
-    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.person-picker__result--none' }));
+    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.stb-picker__result--none' }));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.husband).toBeNull();
@@ -257,7 +258,7 @@ describe('FamilyForm — Kinder (± Liste)', () => {
     render(FamilyForm, { props: { appState, family: appState.db.families.get('@F1@')! } });
 
     await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
-    expect(screen.queryByText('Otto Bauer', { selector: '.person-picker__result-name' })).toBeNull();
+    expect(screen.queryByText('Otto Bauer', { selector: '.stb-picker__result-name' })).toBeNull();
   });
 
   it('entfernt ein Kind wieder (kein Diffing im UI nötig — volle Zielliste wird gebaut)', async () => {
@@ -324,6 +325,70 @@ describe('FamilyForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.events).toHaveLength(0);
+  });
+});
+
+describe('FamilyForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
+  it('wählt einen bestehenden Ort über den Picker bei der Heirat, verknüpft placeId', async () => {
+    const appState = seedThreePersons();
+    const db = appState.db;
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const family = makeFamily('@F1@');
+    db.families.set('@F1@', family);
+
+    render(FamilyForm, { props: { appState, family: db.families.get('@F1@')! } });
+
+    await fireEvent.click(screen.getByLabelText('Heirat (MARR) Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByText('Ochtrup'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@')!.marriage;
+    expect(saved.placeId).toBe('@P1@');
+    expect(saved.place).toBe('Ochtrup');
+  });
+
+  it('TST-9-Fund (ADR-v9-42): FamilyForm hatte für CENS/PROP GAR KEIN Adresse-Feld — jetzt vorhanden', async () => {
+    const appState = seedThreePersons();
+    const family = makeFamily('@F1@');
+
+    render(FamilyForm, { props: { appState, family } });
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'CENS' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    expect(screen.getByLabelText('CENS Adresse')).toBeTruthy();
+
+    await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    expect(screen.getByLabelText('PROP Adresse')).toBeTruthy();
+  });
+
+  it('legt über die Adresse-Picker-Anlage einen neuen Hof an und verknüpft ihn (villageId aus dem zuvor gewählten Ort)', async () => {
+    const appState = seedThreePersons();
+    const db = appState.db;
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const family = makeFamily('@F1@');
+    db.families.set('@F1@', family);
+
+    render(FamilyForm, { props: { appState, family: db.families.get('@F1@')! } });
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    await fireEvent.click(screen.getByLabelText('PROP Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByText('Ochtrup'));
+
+    await fireEvent.change(screen.getByLabelText('PROP Adresse'), { target: { value: 'Hof Meyer' } });
+    await fireEvent.click(screen.getByLabelText('PROP Adresse aus Liste wählen'));
+    await fireEvent.click(screen.getByText(/\+ Hof „Hof Meyer" anlegen/));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const createdHof = Array.from(appState.db.hofObjects.values()).find((h) => h.addrs[0]?.value === 'Hof Meyer');
+    expect(createdHof).toBeTruthy();
+    expect(createdHof?.villageId).toBe('@P1@');
+    const savedEvent = appState.db.families.get('@F1@')!.events.find((e) => e.type === 'PROP');
+    expect(savedEvent?.hofId).toBe(createdHof!.id);
   });
 });
 

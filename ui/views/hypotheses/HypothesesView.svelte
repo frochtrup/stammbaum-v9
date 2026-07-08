@@ -9,8 +9,9 @@
   // evidence[]-Array selbst zusammen und übergibt es beim Speichern als vollständiges
   // Patch-Objekt (Kommando-Muster "vollständige Objekte", nicht Feld-für-Feld-Setter).
   import type { AppState } from '../../shell/app-state.svelte';
-  import { displayName } from '../../shell/person-display';
-  import { familyLabelFor } from '../source/family-label';
+  import PersonPicker from '../../shell/PersonPicker.svelte';
+  import FamilyPicker from '../../shell/FamilyPicker.svelte';
+  import SourcePicker from '../../shell/SourcePicker.svelte';
   import {
     collectAllHypotheses,
     filterHypotheses,
@@ -43,29 +44,10 @@
   let formRationale = $state('');
   let formConclusion = $state('');
   let formKind = $state<TaskEntityKind>('person');
-  let formEntityQuery = $state('');
   let formEntityId = $state('');
 
   const allEntries = $derived(collectAllHypotheses(appState.db));
   const filteredEntries = $derived(filterHypotheses(allEntries, filter));
-
-  const sources = $derived(Array.from(appState.db.sources.values()));
-
-  const personOptions = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !formEntityQuery.trim() || displayName(p).toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .map((p) => ({ id: p.id, label: displayName(p) }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const familyOptions = $derived(
-    Array.from(appState.db.families.keys())
-      .map((id) => ({ id, label: familyLabelFor(appState.db, id) }))
-      .filter((row) => !formEntityQuery.trim() || row.label.toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const entityOptions = $derived(formKind === 'person' ? personOptions : familyOptions);
 
   const FILTERS: { key: HypothesisFilter; label: string }[] = [
     { key: 'all', label: 'Alle' },
@@ -86,7 +68,6 @@
     formRationale = '';
     formConclusion = '';
     formKind = 'person';
-    formEntityQuery = '';
     formEntityId = '';
   }
 
@@ -105,7 +86,6 @@
     formRationale = entry.hypothesis.rationale;
     formConclusion = entry.hypothesis.conclusion;
     formKind = entry.kind;
-    formEntityQuery = '';
     formEntityId = entry.entityId;
     showForm = true;
   }
@@ -116,7 +96,7 @@
   }
 
   function addEvidenceRow() {
-    formEvidence = [...formEvidence, { sourceId: sources[0]?.id ?? '', page: '' }];
+    formEvidence = [...formEvidence, { sourceId: '', page: '' }];
   }
 
   function removeEvidenceRow(index: number) {
@@ -225,21 +205,18 @@
       <div class="hyp-view__evidence">
         <div class="hyp-view__evidence-head">
           <h5>Evidenz</h5>
-          <button type="button" class="hyp-view__add-evidence-btn" onclick={addEvidenceRow} disabled={sources.length === 0}>
+          <button type="button" class="hyp-view__add-evidence-btn" onclick={addEvidenceRow}>
             + Beleg hinzufügen
           </button>
         </div>
         {#each formEvidence as ev, i (i)}
           <div class="hyp-view__evidence-row">
-            <select
-              aria-label={`Evidenz-Quelle ${i + 1}`}
-              value={ev.sourceId}
-              onchange={(e) => setEvidenceSource(i, (e.currentTarget as HTMLSelectElement).value)}
-            >
-              {#each sources as s (s.id)}
-                <option value={s.id}>{s.abbr || s.title || s.id}</option>
-              {/each}
-            </select>
+            <SourcePicker
+              {appState}
+              value={ev.sourceId || null}
+              onChange={(id) => setEvidenceSource(i, id ?? '')}
+              label={`Evidenz-Quelle ${i + 1}`}
+            />
             <input
               type="text"
               placeholder="Seite"
@@ -287,18 +264,23 @@
               Familie
             </label>
           </div>
-          <input type="search" placeholder="Suchen…" aria-label="Ziel-Entität durchsuchen" bind:value={formEntityQuery} />
-          <select
-            value={formEntityId}
-            onchange={(e) => (formEntityId = e.currentTarget.value)}
-            aria-label="Ziel-Entität wählen"
-            required
-            size="5"
-          >
-            {#each entityOptions as opt (opt.id)}
-              <option value={opt.id}>{opt.label}</option>
-            {/each}
-          </select>
+          {#if formKind === 'person'}
+            <PersonPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => (formEntityId = id ?? '')}
+              label="Ziel-Person"
+              placeholder="Person wählen…"
+            />
+          {:else}
+            <FamilyPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => (formEntityId = id ?? '')}
+              label="Ziel-Familie"
+              placeholder="Familie wählen…"
+            />
+          {/if}
         </fieldset>
       {/if}
 
@@ -426,7 +408,6 @@
     color: var(--stb-text-dim);
   }
 
-  .hyp-view__form-field input[type='search'],
   .hyp-view__form-field select,
   .hyp-view__form-field textarea {
     background: var(--stb-surface-2);
@@ -466,26 +447,11 @@
     cursor: pointer;
   }
 
-  .hyp-view__add-evidence-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .hyp-view__evidence-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.3rem;
     align-items: center;
-  }
-
-  .hyp-view__evidence-row select {
-    flex: 2;
-    min-width: 0;
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.4rem;
-    font-size: 0.85rem;
   }
 
   .hyp-view__evidence-row input {
@@ -526,11 +492,6 @@
     margin-bottom: 0.4rem;
     font-size: 0.85rem;
     color: var(--stb-text);
-  }
-
-  .hyp-view__entity-picker select {
-    width: 100%;
-    margin-top: 0.4rem;
   }
 
   .hyp-view__form-actions {

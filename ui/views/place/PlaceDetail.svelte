@@ -12,8 +12,11 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import Picker from '../../shell/Picker.svelte';
+  import type { PlaceObject } from '../../../core/places/types';
   import { linkEventToPlace, withAddedPname, withRemovedPname, withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
   import { buildPlaceDetail } from './place-detail-model';
+  import PlaceForm from './PlaceForm.svelte';
 
   interface Props {
     appState: AppState;
@@ -45,6 +48,23 @@
   let newEnclosedTo = $state<number | null>(null);
   let mergeTargetId = $state('');
   let mergeError = $state('');
+
+  /** Inline-Neuanlage eines übergeordneten Ortes (ADR-v9-42 Punkt 4 — der einzige Picker
+   *  hier, der eine Anlage-Option bekommt; das Merge-Ziel bleibt bewusst ohne, s. u.). */
+  let creatingEnclosedParent = $state(false);
+
+  function beginCreateEnclosedParent() {
+    creatingEnclosedParent = true;
+  }
+
+  function onEnclosedParentCreated(id: string) {
+    creatingEnclosedParent = false;
+    newEnclosedParent = id;
+  }
+
+  function cancelCreateEnclosedParent() {
+    creatingEnclosedParent = false;
+  }
 
   function startEdit() {
     if (!detail) return;
@@ -120,6 +140,14 @@
 
   function placeTitleFor(id: string): string {
     return appState.db.placeObjects.get(id)?.title ?? id;
+  }
+
+  function placeLabel(p: PlaceObject): string {
+    return p.title || p.id;
+  }
+
+  function placeMatches(p: PlaceObject, query: string): boolean {
+    return placeLabel(p).toLowerCase().includes(query.trim().toLowerCase());
   }
 
   /**
@@ -205,21 +233,32 @@
           </li>
         {/each}
       </ul>
-      {#if editing && otherPlaces.length > 0}
+      {#if editing}
         <div class="place-detail__add-row">
-          <select
-            value={newEnclosedParent}
-            onchange={(e) => (newEnclosedParent = e.currentTarget.value)}
-            aria-label="Übergeordneter Ort"
-          >
-            <option value="">Übergeordneten Ort wählen…</option>
-            {#each otherPlaces as p (p.id)}
-              <option value={p.id}>{p.title || p.id}</option>
-            {/each}
-          </select>
-          <input type="number" placeholder="von" bind:value={newEnclosedFrom} aria-label="Gültig von (Jahr)" />
-          <input type="number" placeholder="bis" bind:value={newEnclosedTo} aria-label="Gültig bis (Jahr)" />
-          <button type="button" onclick={addEnclosedBy}>+ Hinzufügen</button>
+          {#if creatingEnclosedParent}
+            <!-- ADR-v9-42 (ersetzt die ADR-v9-40-Ausnahme "Ort/Hof bekommen nie eine
+                 Anlage-Option"): eine einzelne, bewusste Nutzerhandlung im Editier-Modus
+                 ist strukturell identisch zu "+ Neue Person/Familie/Quelle/Archiv
+                 anlegen" — die Kurations-Sorge betrifft nur automatische Massenanlage
+                 beim Import (ADR-v9-28/29), nicht diesen Einzelfall. -->
+            <PlaceForm {appState} onSaved={onEnclosedParentCreated} onCancel={cancelCreateEnclosedParent} />
+          {:else}
+            <Picker
+              items={otherPlaces}
+              getId={(p) => p.id}
+              getLabel={placeLabel}
+              matches={placeMatches}
+              value={newEnclosedParent || null}
+              onChange={(id) => (newEnclosedParent = id ?? '')}
+              label="Übergeordneter Ort"
+              placeholder="Übergeordneten Ort wählen…"
+              createLabel="+ neuen Ort anlegen …"
+              onCreateRequested={beginCreateEnclosedParent}
+            />
+            <input type="number" placeholder="von" bind:value={newEnclosedFrom} aria-label="Gültig von (Jahr)" />
+            <input type="number" placeholder="bis" bind:value={newEnclosedTo} aria-label="Gültig bis (Jahr)" />
+            <button type="button" onclick={addEnclosedBy}>+ Hinzufügen</button>
+          {/if}
         </div>
       {/if}
     </section>
@@ -267,16 +306,23 @@
           <p class="place-detail__muted">Kein weiterer Ort vorhanden, um damit zusammenzuführen.</p>
         {:else}
           <div class="place-detail__add-row">
-            <select
-              aria-label="Ziel-Ort für Merge"
-              value={mergeTargetId}
-              onchange={(e) => (mergeTargetId = (e.currentTarget as HTMLSelectElement).value)}
-            >
-              <option value="">Ziel-Ort wählen…</option>
-              {#each otherPlaces as p (p.id)}
-                <option value={p.id}>{p.title || p.id} ({p.id})</option>
-              {/each}
-            </select>
+            <!-- Kein "+ neu anlegen"-Slot — bewusst die EINZIGE verbleibende Ausnahme
+                 (ADR-v9-42, semantisch statt kategorisch: ein frisch angelegter leerer
+                 Ort als Merge-Ziel ist bedeutungslos, man führt nichts in gerade erst
+                 Erzeugtes zusammen). Andere Orts-/Hof-Picker (enclosedBy oben,
+                 event.place/addr, HofDetail Vorgänger/Nachfolger) haben die Anlage-Option
+                 inzwischen alle. -->
+            <Picker
+              items={otherPlaces}
+              getId={(p) => p.id}
+              getLabel={placeLabel}
+              getSubLabel={(p) => p.id}
+              matches={placeMatches}
+              value={mergeTargetId || null}
+              onChange={(id) => (mergeTargetId = id ?? '')}
+              label="Ziel-Ort für Merge"
+              placeholder="Ziel-Ort wählen…"
+            />
             <button type="button" class="place-detail__merge-btn" onclick={mergeIntoTarget} disabled={!mergeTargetId}>
               In Ziel-Ort zusammenführen
             </button>
@@ -486,8 +532,7 @@
     margin-top: 0.5rem;
   }
 
-  .place-detail__add-row input,
-  .place-detail__add-row select {
+  .place-detail__add-row input {
     background: var(--stb-surface-2);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);

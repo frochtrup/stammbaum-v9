@@ -5,13 +5,20 @@
   // Liste, Formular, MD-Export) — LogEntry ist aber index-adressiert (kein `id`,
   // Spec 12 §2), daher Bearbeiten/Löschen über {kind, entityId, index} statt {..., id}.
   //
-  // Ziel-Entitäts-Auswahl beim Hinzufügen: identisches Muster wie TasksView (Person/
-  // Familie per Radio, gefilterte <select>-Auswahlliste) — EIN kanonischer Weg für
-  // "an welcher Entität hänge ich diesen Forschungsartefakt an" (INV-UI-2), nicht pro
-  // Formular neu erfunden.
+  // Ziel-Entitäts-Auswahl beim Hinzufügen: identisches Muster wie TasksView — PersonPicker/
+  // FamilyPicker (ADR-v9-40, INV-UI-4) statt einer eigenen Text+<select>-Handkonstruktion —
+  // EIN kanonischer Weg für "an welcher Entität hänge ich diesen Forschungsartefakt an"
+  // (INV-UI-2), nicht pro Formular neu erfunden. Archiv/Quelle ebenso über
+  // RepositoryPicker/SourcePicker statt flacher <select>s. Der "Aufgaben-Bezug"
+  // (ResearchTask der Zielentität) nutzt die generische Picker-Shell DIREKT (kein eigener
+  // TaskPicker-Wrapper — die Kandidatenmenge ist strukturell klein: offene Aufgaben EINER
+  // Entität, keine Inline-Neuanlage nötig, Aufgaben entstehen im Aufgaben-Tab).
   import type { AppState } from '../../shell/app-state.svelte';
-  import { displayName } from '../../shell/person-display';
-  import { familyLabelFor } from '../source/family-label';
+  import PersonPicker from '../../shell/PersonPicker.svelte';
+  import FamilyPicker from '../../shell/FamilyPicker.svelte';
+  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
+  import Picker from '../../shell/Picker.svelte';
   import {
     collectAllLogEntries,
     filterLogEntries,
@@ -46,33 +53,14 @@
   let formNote = $state('');
   let formTaskId = $state('');
   let formKind = $state<TaskEntityKind>('person');
-  let formEntityQuery = $state('');
   let formEntityId = $state('');
 
   const allEntries = $derived(collectAllLogEntries(appState.db));
   const filteredEntries = $derived(filterLogEntries(allEntries, filter));
 
-  const repositories = $derived(Array.from(appState.db.repositories.values()));
-  const sources = $derived(Array.from(appState.db.sources.values()));
-
-  const personOptions = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !formEntityQuery.trim() || displayName(p).toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .map((p) => ({ id: p.id, label: displayName(p) }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const familyOptions = $derived(
-    Array.from(appState.db.families.keys())
-      .map((id) => ({ id, label: familyLabelFor(appState.db, id) }))
-      .filter((row) => !formEntityQuery.trim() || row.label.toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const entityOptions = $derived(formKind === 'person' ? personOptions : familyOptions);
-
   // Offene Aufgaben derselben Zielentität (Auftrags-Vorgabe: "ein einfaches <select>
-  // über die offenen Aufgaben derselben Zielentität") — nur sinnvoll befüllt, sobald
+  // über die offenen Aufgaben derselben Zielentität", jetzt über die generische
+  // Picker-Shell direkt statt eines flachen <select>) — nur sinnvoll befüllt, sobald
   // eine Zielentität gewählt ist.
   const targetTasks = $derived.by(() => {
     if (!formEntityId) return [];
@@ -100,7 +88,6 @@
     formNote = '';
     formTaskId = '';
     formKind = 'person';
-    formEntityQuery = '';
     formEntityId = '';
   }
 
@@ -120,7 +107,6 @@
     formNote = row.entry.note;
     formTaskId = row.entry.taskId;
     formKind = row.kind;
-    formEntityQuery = '';
     formEntityId = row.entityId;
     showForm = true;
   }
@@ -221,22 +207,26 @@
 
       <label class="log-view__form-field">
         Archiv
-        <select value={formRepoRef} onchange={(e) => (formRepoRef = e.currentTarget.value)} aria-label="Archiv">
-          <option value="">– kein Archiv –</option>
-          {#each repositories as r (r.id)}
-            <option value={r.id}>{r.name}</option>
-          {/each}
-        </select>
+        <RepositoryPicker
+          {appState}
+          value={formRepoRef || null}
+          onChange={(id) => (formRepoRef = id ?? '')}
+          allowNone={true}
+          noneLabel="– kein Archiv –"
+          label="Archiv"
+        />
       </label>
 
       <label class="log-view__form-field">
         Quelle
-        <select value={formSourceRef} onchange={(e) => (formSourceRef = e.currentTarget.value)} aria-label="Quelle">
-          <option value="">– keine Quelle –</option>
-          {#each sources as s (s.id)}
-            <option value={s.id}>{s.abbr || s.title || s.id}</option>
-          {/each}
-        </select>
+        <SourcePicker
+          {appState}
+          value={formSourceRef || null}
+          onChange={(id) => (formSourceRef = id ?? '')}
+          allowNone={true}
+          noneLabel="– keine Quelle –"
+          label="Quelle"
+        />
       </label>
 
       <label class="log-view__form-field">
@@ -274,30 +264,41 @@
               Familie
             </label>
           </div>
-          <input type="search" placeholder="Suchen…" aria-label="Ziel-Entität durchsuchen" bind:value={formEntityQuery} />
-          <select
-            value={formEntityId}
-            onchange={(e) => { formEntityId = e.currentTarget.value; formTaskId = ''; }}
-            aria-label="Ziel-Entität wählen"
-            required
-            size="5"
-          >
-            {#each entityOptions as opt (opt.id)}
-              <option value={opt.id}>{opt.label}</option>
-            {/each}
-          </select>
+          {#if formKind === 'person'}
+            <PersonPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => { formEntityId = id ?? ''; formTaskId = ''; }}
+              label="Ziel-Person"
+              placeholder="Person wählen…"
+            />
+          {:else}
+            <FamilyPicker
+              {appState}
+              value={formEntityId || null}
+              onChange={(id) => { formEntityId = id ?? ''; formTaskId = ''; }}
+              label="Ziel-Familie"
+              placeholder="Familie wählen…"
+            />
+          {/if}
         </fieldset>
       {/if}
 
       {#if formEntityId}
         <label class="log-view__form-field">
           Aufgaben-Bezug (optional)
-          <select value={formTaskId} onchange={(e) => (formTaskId = e.currentTarget.value)} aria-label="Aufgaben-Bezug">
-            <option value="">– keine Aufgabe –</option>
-            {#each targetTasks as t (t.id)}
-              <option value={t.id}>{t.text}</option>
-            {/each}
-          </select>
+          <Picker
+            items={targetTasks}
+            getId={(t) => t.id}
+            getLabel={(t) => t.text}
+            matches={(t, q) => t.text.toLowerCase().includes(q.trim().toLowerCase())}
+            value={formTaskId || null}
+            onChange={(id) => (formTaskId = id ?? '')}
+            allowNone={true}
+            noneLabel="– keine Aufgabe –"
+            label="Aufgaben-Bezug"
+            placeholder="Aufgabe wählen…"
+          />
         </label>
       {/if}
 
@@ -432,7 +433,6 @@
   }
 
   .log-view__form-field input[type='text'],
-  .log-view__form-field input[type='search'],
   .log-view__form-field input[type='date'],
   .log-view__form-field select,
   .log-view__form-field textarea {
@@ -463,11 +463,6 @@
     margin-bottom: 0.4rem;
     font-size: 0.85rem;
     color: var(--stb-text);
-  }
-
-  .log-view__entity-picker select {
-    width: 100%;
-    margin-top: 0.4rem;
   }
 
   .log-view__form-actions {

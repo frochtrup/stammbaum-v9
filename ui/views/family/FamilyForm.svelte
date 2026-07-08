@@ -27,8 +27,12 @@
   import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../../core/model/gedcom-date';
   import { setCitationQuay } from '../../../core/model/citation';
   import { isEventPresent } from '../../../core/model';
+  import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
   import { displayName } from '../../shell/person-display';
   import PersonPicker from '../../shell/PersonPicker.svelte';
+  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import EventPlaceField from '../../shell/EventPlaceField.svelte';
+  import EventAddrField from '../../shell/EventAddrField.svelte';
 
   interface Props {
     appState: AppState;
@@ -80,6 +84,10 @@
     place: string;
     originalPlace: string | null;
     placeDirty: boolean;
+    /** ADR-v9-42: über EventPlaceField/EventAddrField per Picker gesetzt (linkEventToPlace/
+     *  linkEventToHof) — analog PersonForm.svelte. */
+    placeId: string | null;
+    hofId: string | null;
     addr: string;
     note: string;
     citations: Citation[];
@@ -104,6 +112,8 @@
       place: ev.place ?? '',
       originalPlace: ev.place,
       placeDirty: false,
+      placeId: ev.placeId,
+      hofId: ev.hofId,
       addr: ev.addr,
       note: ev.note,
       citations: ev.citations.map((c) => ({ ...c })),
@@ -116,29 +126,71 @@
     ev.dateDirty = true;
   }
 
+  /** Baut den Roh-Datumsstring aus dem strukturierten Teilformular (analog PersonForm.svelte
+   *  computeDate) — gemeinsam genutzt von fromEditable (Speichern) UND liveEventFrom
+   *  (Picker-Verknüpfung braucht das aktuell angezeigte Datum für die Jahres-Ableitung). */
+  function computeDate(e: EditableEvent): string | null {
+    if (!e.dateDirty) return e.originalDate;
+    const formatted = formatDateValue({
+      qualifier: e.dateQualifier,
+      day: e.day,
+      month: e.month,
+      year: e.year,
+      day2: e.day2,
+      month2: e.month2,
+      year2: e.year2,
+    });
+    return formatted === '' ? null : formatted;
+  }
+
+  /** Baut ein Event-Objekt aus dem AKTUELLEN Formularzustand (analog PersonForm.svelte) —
+   *  für linkEventToPlace/linkEventToHof. */
+  function liveEventFrom(e: EditableEvent): Event {
+    return {
+      type: e.type,
+      value: e.value,
+      eventType: e.eventType,
+      date: computeDate(e),
+      datePhrase: '',
+      place: e.place === '' ? null : e.place,
+      placeId: e.placeId,
+      hofId: e.hofId,
+      lati: null,
+      long: null,
+      addr: e.addr,
+      note: e.note,
+      citations: e.citations,
+      media: [],
+      seen: true,
+    };
+  }
+
+  /** Picker-Auswahl/-Neuanlage eines Ortes (EventPlaceField.onPick, ADR-v9-42, analog
+   *  PersonForm.svelte). */
+  function pickPlaceFor(target: EditableEvent, placeId: string): void {
+    const live = liveEventFrom(target);
+    linkEventToPlace(live, placeId, appState.placeContext);
+    target.place = live.place ?? '';
+    target.placeId = live.placeId;
+    target.placeDirty = true;
+  }
+
+  /** Picker-Auswahl/-Neuanlage eines Hofes (EventAddrField.onPick, ADR-v9-42, analog
+   *  PersonForm.svelte). */
+  function pickHofFor(target: EditableEvent, hofId: string): void {
+    const live = liveEventFrom(target);
+    linkEventToHof(live, hofId, appState.placeContext);
+    target.place = live.place ?? '';
+    target.addr = live.addr;
+    target.hofId = live.hofId;
+    target.placeDirty = true;
+  }
+
   /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet,
-   *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId bleiben
-   *  unangetastet (Scope-Grenze: 6-Felder-Ort-Eingabe ist NICHT Teil dieser Scheibe).
-   *  Dirty-Tracking (ADR-v9-30 Punkt 1): rührt der Nutzer das jeweilige Teilformular
-   *  nicht an, wird der ursprüngliche Rohwert unverändert übernommen (null/''/Wert bleibt
-   *  erhalten). Nur bei aktivem dirty-Flag wird neu berechnet; ergibt die Neuberechnung
-   *  einen leeren String, wird daraus explizit null (aktives Leeren = "kein Datum/Ort"). */
+   *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId kommen jetzt
+   *  aus dem Formularzustand (ADR-v9-42 — Picker kann sie SOFORT setzen). */
   function fromEditable(original: Event, e: EditableEvent): Event {
-    let date: string | null;
-    if (!e.dateDirty) {
-      date = e.originalDate;
-    } else {
-      const formatted = formatDateValue({
-        qualifier: e.dateQualifier,
-        day: e.day,
-        month: e.month,
-        year: e.year,
-        day2: e.day2,
-        month2: e.month2,
-        year2: e.year2,
-      });
-      date = formatted === '' ? null : formatted;
-    }
+    const date = computeDate(e);
     const place = !e.placeDirty ? e.originalPlace : (e.place === '' ? null : e.place);
     return {
       ...original,
@@ -147,6 +199,8 @@
       value: e.value,
       date,
       place,
+      placeId: e.placeId,
+      hofId: e.hofId,
       addr: e.addr,
       note: e.note,
       citations: e.citations,
@@ -411,15 +465,12 @@
     </div>
     {#each ev.citations as cit, i (i)}
       <div class="family-form__citation-row">
-        <select
-          aria-label={`${labelPrefix} Quelle ${i + 1}`}
+        <SourcePicker
+          {appState}
           value={cit.sourceId}
-          onchange={(e) => setCitationSource(ev, i, (e.currentTarget as HTMLSelectElement).value)}
-        >
-          {#each sources as s (s.id)}
-            <option value={s.id}>{s.abbr || s.title || s.id}</option>
-          {/each}
-        </select>
+          onChange={(id) => setCitationSource(ev, i, id ?? '')}
+          label={`${labelPrefix} Quelle ${i + 1}`}
+        />
         <input
           type="text"
           placeholder="Seite"
@@ -458,14 +509,15 @@
     {@render dateFields(ev)}
     <label>
       Ort (Freitext)
-      <input
-        type="text"
+      <EventPlaceField
+        {appState}
         value={ev.place}
-        onchange={(e) => {
-          const v = (e.currentTarget as HTMLInputElement).value;
+        onTextChange={(v) => {
           ev.place = v;
           ev.placeDirty = true;
         }}
+        onPick={(placeId) => pickPlaceFor(ev, placeId)}
+        label={`${title2} Ort`}
       />
     </label>
     <label>
@@ -545,16 +597,33 @@
         {@render dateFields(ev)}
         <label>
           Ort (Freitext)
-          <input
-            type="text"
+          <EventPlaceField
+            {appState}
             value={ev.place}
-            onchange={(e) => {
-              const v = (e.currentTarget as HTMLInputElement).value;
+            onTextChange={(v) => {
               ev.place = v;
               ev.placeDirty = true;
             }}
+            onPick={(placeId) => pickPlaceFor(ev, placeId)}
+            label={`${ev.type} Ort`}
           />
         </label>
+        {#if HOF_EVENT_TYPES.has(ev.type)}
+          <!-- ADR-v9-41-Fund/TST-9: FamilyForm hatte für CENS/PROP (beide in
+               HOF_EVENT_TYPES, Spec 11 §3) BISHER GAR KEIN Adresse-Feld — geschlossen
+               im selben Zug wie die generalisierte Picker-Verdrahtung (ADR-v9-42). -->
+          <label>
+            Adresse
+            <EventAddrField
+              {appState}
+              value={ev.addr}
+              onTextChange={(v) => (ev.addr = v)}
+              onPick={(hofId) => pickHofFor(ev, hofId)}
+              villageId={ev.placeId}
+              label={`${ev.type} Adresse`}
+            />
+          </label>
+        {/if}
         <label>
           Notiz
           <textarea bind:value={ev.note}></textarea>
@@ -620,15 +689,12 @@
       </div>
       {#each citations as cit, i (i)}
         <div class="family-form__citation-row">
-          <select
-            aria-label={`Familie Quelle ${i + 1}`}
+          <SourcePicker
+            {appState}
             value={cit.sourceId}
-            onchange={(e) => setFamilyCitationSource(i, (e.currentTarget as HTMLSelectElement).value)}
-          >
-            {#each sources as s (s.id)}
-              <option value={s.id}>{s.abbr || s.title || s.id}</option>
-            {/each}
-          </select>
+            onChange={(id) => setFamilyCitationSource(i, id ?? '')}
+            label={`Familie Quelle ${i + 1}`}
+          />
           <input
             type="text"
             placeholder="Seite"

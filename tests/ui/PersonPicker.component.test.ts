@@ -87,7 +87,7 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     });
 
     await fireEvent.click(screen.getByLabelText('Ehemann'));
-    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.person-picker__result--none' }));
+    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.stb-picker__result--none' }));
 
     expect(onChange).toHaveBeenCalledWith(null);
   });
@@ -101,8 +101,8 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
 
     expect(screen.getByText('Anna Klein')).toBeTruthy();
-    expect(screen.queryByText('Otto Bauer', { selector: '.person-picker__result-name' })).toBeNull();
-    expect(screen.queryByText('Karl Bauer', { selector: '.person-picker__result-name' })).toBeNull();
+    expect(screen.queryByText('Otto Bauer', { selector: '.stb-picker__result-name' })).toBeNull();
+    expect(screen.queryByText('Karl Bauer', { selector: '.stb-picker__result-name' })).toBeNull();
   });
 
   it('viele dicht benannte Kandidaten bleiben bedienbar (TST-7 Überlauf-Fall) — Liste wird gekappt, Hinweistext zeigt den Rest', async () => {
@@ -117,7 +117,7 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     render(PersonPicker, { props: { appState, value: null, onChange: vi.fn(), label: 'Ehemann' } });
     await fireEvent.click(screen.getByLabelText('Ehemann'));
 
-    const results = document.querySelectorAll('.person-picker__result-name');
+    const results = document.querySelectorAll('.stb-picker__result-name');
     expect(results.length).toBeLessThan(40);
     expect(screen.getByText(/weitere/)).toBeTruthy();
 

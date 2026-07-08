@@ -10,15 +10,15 @@
   // Archiv (repo): Source.repo ist `RepoId | string` (Spec 10 §4) — entweder eine gueltige
   // @Rxx@-Referenz auf ein Repository ODER Legacy-Freitext (Roundtrip-Fidelity fuer Altbestand
   // ohne strukturiertes REPO, s. source-detail-model.ts `db.repositories.get(source.repo)`).
-  // Das <select> bietet "— kein Archiv —" + alle bekannten Archive; ist der aktuelle Wert
-  // ein Freitext (kein Treffer in appState.db.repositories), wird er als zusaetzliche,
-  // vorausgewaehlte Option angehaengt, damit er beim OEFFNEN des Formulars nicht klammheimlich
-  // verloren geht (er bleibt erhalten, bis der Nutzer aktiv ein anderes Archiv waehlt oder
-  // "— kein Archiv —" waehlt). Ein durchsuchbarer Picker (wie PersonPicker) ist hier NICHT
-  // gerechtfertigt (Spec-Auftrag: Archive sind eine Handvoll, keine hunderte Personen).
+  // RepositoryPicker (ADR-v9-40, INV-UI-4 — EIN Entitäts-Picker-Muster statt eines
+  // eigenen flachen <select>, allowNone weil "— kein Archiv —" ein gueltiger Zustand ist)
+  // zeigt einen unbekannten Freitext-Wert unveraendert als Feldinhalt an (Picker.svelte-
+  // Fallback: value ohne Treffer in items -> Rohwert statt "nichts ausgewaehlt") — bleibt
+  // erhalten, bis der Nutzer aktiv ein anderes Archiv waehlt oder "— kein Archiv —" waehlt.
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Source } from '../../../core/model/types';
+  import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
 
   interface Props {
     appState: AppState;
@@ -41,14 +41,6 @@
   let publisher = $state(untrack(() => source.publisher));
   let callNumber = $state(untrack(() => source.callNumber));
   let text = $state(untrack(() => source.text));
-
-  const repositories = $derived(Array.from(appState.db.repositories.values()));
-
-  /** Ist der aktuelle repo-Wert eine bekannte Repository-id? Wenn nicht (Freitext ODER
-   *  leer), muss die Freitext-Option separat im <select> auftauchen, damit sie beim
-   *  Öffnen nicht verschwindet (s. Kommentar oben). */
-  const repoIsKnownId = $derived(source.repo !== '' && appState.db.repositories.has(source.repo));
-  const repoIsFreetext = $derived(source.repo !== '' && !repoIsKnownId);
 
   let repo = $state(untrack(() => source.repo));
 
@@ -103,15 +95,14 @@
     </label>
     <label>
       Archiv
-      <select value={repo} onchange={(e) => (repo = (e.currentTarget as HTMLSelectElement).value)}>
-        <option value="">— kein Archiv —</option>
-        {#if repoIsFreetext}
-          <option value={source.repo}>{source.repo}</option>
-        {/if}
-        {#each repositories as r (r.id)}
-          <option value={r.id}>{r.name || r.id}</option>
-        {/each}
-      </select>
+      <RepositoryPicker
+        {appState}
+        value={repo || null}
+        onChange={(id) => (repo = id ?? '')}
+        allowNone={true}
+        noneLabel="— kein Archiv —"
+        label="Archiv"
+      />
     </label>
   </div>
 
@@ -150,7 +141,6 @@
   }
 
   .source-form input,
-  .source-form select,
   .source-form textarea {
     background: var(--stb-surface-2);
     color: var(--stb-text);

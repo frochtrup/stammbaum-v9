@@ -10,6 +10,7 @@ import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonForm from '../../ui/views/person/PersonForm.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makePerson, makeSource, makeCitation } from '../../core/model';
+import { place } from '../core/places-fixtures';
 
 describe('PersonForm — Identität speichern', () => {
   it('speichert geänderte Identitätsfelder über appState.savePerson als vollständiges Objekt', async () => {
@@ -172,6 +173,113 @@ describe('PersonForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.individuals.get('@I1@')?.events).toHaveLength(12);
+  });
+});
+
+describe('PersonForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
+  it('wählt einen bestehenden Ort über den Picker, verknüpft placeId und reprojiziert den Freitext', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const person = makePerson('@I1@');
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PersonForm, { props: { appState, person: db.individuals.get('@I1@')! } });
+
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByText('Ochtrup'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.individuals.get('@I1@')!.birth;
+    expect(saved.placeId).toBe('@P1@');
+    expect(saved.place).toBe('Ochtrup');
+  });
+
+  it('legt über "+ neuen Ort anlegen …" inline einen neuen Ort an und verknüpft ihn sofort', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+    await fireEvent.click(screen.getByText('+ Beruf'));
+
+    await fireEvent.click(screen.getByLabelText('OCCU Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByText('+ neuen Ort anlegen …'));
+
+    const placeFormEl = screen.getByText('Neuer Ort').closest('.place-form') as HTMLElement;
+    await fireEvent.input(within(placeFormEl).getByLabelText('Name (neuer Ort)'), { target: { value: 'Steinfurt' } });
+    await fireEvent.click(within(placeFormEl).getByText('Speichern'));
+
+    // Panel schließt sich sofort nach der Anlage — kein Rest-Formular sichtbar.
+    expect(screen.queryByText('Neuer Ort')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const created = Array.from(appState.db.placeObjects.values()).find((p) => p.title === 'Steinfurt');
+    expect(created).toBeTruthy();
+    const savedEvent = appState.db.individuals.get('@I1@')!.events.find((e) => e.type === 'OCCU');
+    expect(savedEvent?.placeId).toBe(created!.id);
+    expect(savedEvent?.place).toBe('Steinfurt');
+  });
+
+  it('TST-9-Fund (ADR-v9-41/-42): PROP/CENS zeigen jetzt ein Adresse-Feld (vorher hartcodiert nur RESI)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'CENS' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    expect(screen.getByLabelText('CENS Adresse')).toBeTruthy();
+
+    await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    expect(screen.getByLabelText('PROP Adresse')).toBeTruthy();
+  });
+
+  it('Adresse-Feld deaktiviert "+ neuen Hof anlegen" mit Hinweistext, solange kein Ort zugeordnet ist', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+    await fireEvent.click(screen.getByText('+ Wohnort'));
+    await fireEvent.click(screen.getByLabelText('RESI Adresse aus Liste wählen'));
+
+    expect(screen.getByText('Zuerst Ort zuordnen, um einen neuen Hof anzulegen.')).toBeTruthy();
+    expect(screen.queryByText(/^\+ Hof/)).toBeNull();
+  });
+
+  it('verknüpft Ort dann Hof am selben Ereignis — Adresse via "+ Hof anlegen" reprojiziert den vollen Ort-Text', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const person = makePerson('@I1@');
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PersonForm, { props: { appState, person: db.individuals.get('@I1@')! } });
+    await fireEvent.click(screen.getByText('+ Wohnort'));
+
+    await fireEvent.click(screen.getByLabelText('RESI Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByText('Ochtrup'));
+
+    // EventAddrField bindet onchange (nicht oninput) an den Freitext.
+    await fireEvent.change(screen.getByLabelText('RESI Adresse'), { target: { value: 'Bauernschaft 5' } });
+    await fireEvent.click(screen.getByLabelText('RESI Adresse aus Liste wählen'));
+    // Der Button-Text ist durch die {value.trim()}-Interpolation auf mehrere Textknoten
+    // verteilt — Regex-Matcher statt exaktem String (TestingLibrary "text broken up").
+    await fireEvent.click(screen.getByText(/\+ Hof „Bauernschaft 5" anlegen/));
+
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const createdHof = Array.from(appState.db.hofObjects.values()).find((h) => h.addrs[0]?.value === 'Bauernschaft 5');
+    expect(createdHof).toBeTruthy();
+    expect(createdHof?.villageId).toBe('@P1@');
+    const savedEvent = appState.db.individuals.get('@I1@')!.events.find((e) => e.type === 'RESI');
+    expect(savedEvent?.hofId).toBe(createdHof!.id);
+    expect(savedEvent?.place).toBe('Bauernschaft 5, Ochtrup');
   });
 });
 

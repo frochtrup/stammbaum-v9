@@ -159,12 +159,11 @@ button {
    einer umrandeten Box. Ursprünglich nur in PersonPicker.svelte (.person-picker__field)
    umgesetzt; FamilyDetail.svelte übernimmt hier dieselbe Klasse für die Eltern-Boxen
    (Ehemann/Ehefrau), statt einen zweiten, optisch abweichenden Box-Stil zu schreiben.
-   PersonPicker.svelte selbst bleibt (Stand dieser Änderung) bei seinen eigenen
-   `.person-picker__field`-Regeln — dieselbe visuelle Wirkung, aber PersonPicker hat
-   zusätzliche interaktive Zustände (Fokus/Öffnen-Panel) und wird bewusst nicht
-   angefasst, um keine Regression an einer bereits fertigen, getesteten Komponente zu
-   riskieren (siehe Kommentar dort). Künftige Konsumenten sollten `.stb-person-box`
-   verwenden statt einen dritten Stil zu erfinden. */
+   Seit ADR-v9-40 nutzt auch die generische Picker-Shell (`ui/shell/Picker.svelte`, von
+   PersonPicker/SourcePicker/RepositoryPicker/FamilyPicker/PlaceDetail/HofDetail geteilt)
+   diese Klasse für ihr geschlossenes Feld — EIN Stil für JEDEN Entitäts-Picker, nicht
+   mehr dupliziert. Künftige Konsumenten verwenden `.stb-person-box` statt einen eigenen
+   Box-Stil zu erfinden. */
 .stb-person-box {
   display: flex;
   flex-direction: column;

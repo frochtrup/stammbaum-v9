@@ -82,7 +82,11 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.input(screen.getByLabelText('Neue Namensvariante'), { target: { value: 'Sassenbergk' } });
-    await fireEvent.click(screen.getByText('+ Hinzufügen'));
+    // Zwei "+ Hinzufügen"-Buttons existieren jetzt (enclosedBy + pnames, ADR-v9-42: die
+    // enclosedBy-Zeile ist nicht mehr an otherPlaces.length>0 gebunden) — auf die
+    // pnames-add-row scopen statt den ersten Treffer blind zu nehmen.
+    const pnamesRow = screen.getByLabelText('Neue Namensvariante').closest('.place-detail__add-row') as HTMLElement;
+    await fireEvent.click(within(pnamesRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.pnames.map((p) => p.value)).toEqual(['Sassenbergk']);
   });
@@ -107,7 +111,7 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
 });
 
 describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => {
-  it('fügt eine neue enclosedBy-Zugehörigkeit über den Eltern-Select hinzu (value/onchange-Muster, kein bind:value)', async () => {
+  it('fügt eine neue enclosedBy-Zugehörigkeit über den generischen Picker hinzu', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -119,16 +123,46 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
 
-    const select = screen.getByLabelText('Übergeordneter Ort') as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: '@P2@' } });
-    // Reaktion des value/onchange-Musters direkt am DOM belegen (das war unter happy-dom
-    // mit bind:value unbemerkt still verschluckt worden).
-    expect(select.value).toBe('@P2@');
+    await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
+    await fireEvent.click(screen.getByText('Kreis Steinfurt'));
 
-    const addRow = select.closest('.place-detail__add-row') as HTMLElement;
+    // Zwei "Gültig von (Jahr)"-Felder existieren (enclosedBy + pnames) — enclosedBy
+    // steht als Sektion zuerst im DOM.
+    const addRow = screen.getAllByLabelText('Gültig von (Jahr)')[0]!.closest('.place-detail__add-row') as HTMLElement;
     await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual(['@P2@']);
+  });
+
+  it('bietet "+ neuen Ort anlegen" im enclosedBy-Picker an (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
+    await fireEvent.click(screen.getByText('+ neuen Ort anlegen …'));
+
+    // PlaceDetails eigenes Bearbeiten-Formular hat ebenfalls einen "Speichern"-Button —
+    // auf den PlaceForm-Container scopen (analog SourcePicker.component.test.ts-Muster).
+    const placeFormEl = screen.getByText('Neuer Ort').closest('.place-form') as HTMLElement;
+    expect(placeFormEl).toBeTruthy();
+    await fireEvent.input(screen.getByLabelText('Name (neuer Ort)'), { target: { value: 'Kreis Steinfurt' } });
+    await fireEvent.click(within(placeFormEl).getByText('Speichern'));
+
+    // Neu angelegter Ort ist sofort persistiert UND im Picker als Auswahl übernommen.
+    const created = Array.from(appState.db.placeObjects.values()).find((p) => p.title === 'Kreis Steinfurt');
+    expect(created).toBeTruthy();
+    expect(screen.queryByText('Neuer Ort')).toBeNull();
+
+    const addRow = screen.getAllByLabelText('Gültig von (Jahr)')[0]!.closest('.place-detail__add-row') as HTMLElement;
+    await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual([created!.id]);
   });
 });
 
@@ -144,11 +178,10 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByLabelText('Ziel-Ort für Merge'));
 
-    const select = screen.getByLabelText('Ziel-Ort für Merge') as HTMLSelectElement;
-    const optionValues = Array.from(select.options).map((o) => o.value);
-    expect(optionValues).toContain('@P2@');
-    expect(optionValues).not.toContain('@P1@');
+    expect(screen.getByText('Ochtrupp (Schreibvariante)')).toBeTruthy();
+    expect(screen.queryByText('Ochtrup', { selector: '.stb-picker__result-name' })).toBeNull();
   });
 
   it('führt den aktuellen Ort per appState.mergePlace in den gewählten Ziel-Ort zusammen und navigiert dorthin', async () => {
@@ -162,7 +195,8 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Ziel-Ort für Merge'), { target: { value: '@P2@' } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Ort für Merge'));
+    await fireEvent.click(screen.getByText('Ochtrupp'));
     await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
 
     // Dublette ist verschwunden, Überlebender hat die Variante aufgenommen (verlustfrei).
@@ -183,7 +217,8 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Ziel-Ort für Merge'), { target: { value: '@P2@' } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Ort für Merge'));
+    await fireEvent.click(screen.getByText('Ochtrupp'));
     await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
 
     expect(screen.getByText('Ochtrupp')).toBeTruthy(); // Ziel-Titel im Steckbrief
@@ -241,11 +276,14 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByLabelText('Ziel-Ort für Merge'));
 
-    const select = screen.getByLabelText('Ziel-Ort für Merge') as HTMLSelectElement;
-    // 60 Ziel-Orte + der "wählen…"-Platzhalter, aktueller Ort fehlt weiterhin.
-    expect(select.options.length).toBe(61);
-    expect(Array.from(select.options).map((o) => o.value)).not.toContain('@P0@');
+    // Ergebnisliste ist gekappt (MAX_VISIBLE_RESULTS), Hinweistext zeigt den Rest —
+    // der aktuelle Ort selbst ist unter den sichtbaren Kandidaten nicht dabei.
+    const results = document.querySelectorAll('.stb-picker__result-name');
+    expect(results.length).toBeLessThan(60);
+    expect(screen.getByText(/weitere/)).toBeTruthy();
+    expect(screen.queryByText('Ochtrup', { selector: '.stb-picker__result-name' })).toBeNull();
   });
 });
 

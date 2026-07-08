@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import LogView from '../../ui/views/research-log/LogView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
-import { makeLogEntry } from '../../core/research/index';
+import { makeDatabase, makePerson, makeRepository, makeSource } from '../../core/model';
+import { makeLogEntry, makeTask } from '../../core/research/index';
 
 function seedDb() {
   const db = makeDatabase();
@@ -56,14 +56,44 @@ describe('LogView — Eintrag hinzufügen', () => {
 
     await fireEvent.input(screen.getByPlaceholderText('Wonach wurde gesucht?'), { target: { value: 'Neuer Sucheintrag' } });
 
-    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
-    const firstOption = select.querySelector('option') as HTMLOptionElement;
-    await fireEvent.change(select, { target: { value: firstOption.value } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     const allQueries = [...appState.db.individuals.values()].flatMap((p) => p.researchLog.map((e) => e.query));
     expect(allQueries).toContain('Neuer Sucheintrag');
+  });
+
+  it('setzt Archiv/Quelle über RepositoryPicker/SourcePicker und einen Aufgaben-Bezug über die generische Picker-Shell (ADR-v9-40)', async () => {
+    const db = seedDb();
+    db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Pfarrarchiv Musterdorf' }));
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Musterdorf' }));
+    const p1 = db.individuals.get('@I1@')!;
+    p1.tasks.push(makeTask('t1', { text: 'Taufeintrag suchen', status: 'todo', created: '2026-01-01' }));
+    const { appState } = renderView(db);
+
+    await fireEvent.click(screen.getByRole('button', { name: '+ Eintrag' }));
+    await fireEvent.input(screen.getByPlaceholderText('Wonach wurde gesucht?'), { target: { value: 'Mit Archiv/Quelle' } });
+
+    await fireEvent.click(screen.getByLabelText('Archiv'));
+    await fireEvent.click(screen.getByText('Pfarrarchiv Musterdorf'));
+
+    await fireEvent.click(screen.getByLabelText('Quelle'));
+    await fireEvent.click(screen.getByText('KB Musterdorf'));
+
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+
+    await fireEvent.click(screen.getByLabelText('Aufgaben-Bezug'));
+    await fireEvent.click(screen.getByText('Taufeintrag suchen'));
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    const saved = appState.db.individuals.get('@I1@')!.researchLog.find((e) => e.query === 'Mit Archiv/Quelle');
+    expect(saved?.repoRef).toBe('@R1@');
+    expect(saved?.sourceRef).toBe('@S1@');
+    expect(saved?.taskId).toBe('t1');
   });
 
   it('Abbrechen schließt das Formular ohne Eintrag anzulegen', async () => {
