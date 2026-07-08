@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MIGRATION_EPOCHS,
   MIGRATION_EPOCH_FALLBACK_COLOR,
+  escapeHtml,
   migrationEpochColor,
   migrationLines,
   personBiographyPoints,
@@ -259,5 +260,27 @@ describe('migrationLines — Migrations-Modus (Orakel: _buildMigrLines)', () => 
 
     const ctx = contextFor(db);
     expect(migrationLines(db, ctx)).toEqual(migrationLines(db, ctx));
+  });
+});
+
+describe('escapeHtml — HTML-Escaping für Leaflet-Tooltip-Interpolation (ADR-v9-39 Nebenfund)', () => {
+  it('escaped alle fünf HTML-Sonderzeichen', () => {
+    expect(escapeHtml(`<img src=x onerror="alert(1)">&'`)).toBe(
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&amp;&#39;',
+    );
+  });
+
+  it('lässt Klartext ohne Sonderzeichen unverändert', () => {
+    expect(escapeHtml('Ochtrup, Steinfurt')).toBe('Ochtrup, Steinfurt');
+  });
+
+  it('escaped einen als Personennamen getarnten Inline-Handler (Kern-Szenario der Lücke)', () => {
+    // "onerror=alert" bleibt als harmloser Text stehen — entscheidend ist, dass kein
+    // echtes <img>-Tag mehr entsteht (< und > sind escaped), der Handler also nie an
+    // ein reales DOM-Element gebunden wird.
+    const malicious = 'Anna <img src=x onerror=alert(1)> Winkelmann';
+    const escaped = escapeHtml(malicious);
+    expect(escaped).not.toContain('<img');
+    expect(escaped).toContain('&lt;img');
   });
 });

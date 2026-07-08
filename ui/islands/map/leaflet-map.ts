@@ -15,6 +15,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MigrationLine, PlacePoint, BiographyPoint } from './map-model';
+import { escapeHtml } from './map-model';
 
 export type MapMode = 'orte' | 'person' | 'migr';
 
@@ -104,7 +105,7 @@ export function mountLeafletMap(
             opacity: 1,
             fillOpacity: 0.85,
           });
-      marker.bindTooltip(`${p.title} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`, {
+      marker.bindTooltip(`${escapeHtml(p.title)} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`, {
         direction: 'top',
         offset: [0, -6],
       });
@@ -122,7 +123,7 @@ export function mountLeafletMap(
       const line = lines[i];
       const latLngs = line.points.map((pt) => [pt.lat, pt.long] as [number, number]);
       const poly = L.polyline(latLngs, { color: line.color, weight: 1.5, opacity: 0.55 });
-      poly.bindTooltip(line.personName, { sticky: true });
+      poly.bindTooltip(escapeHtml(line.personName), { sticky: true });
       poly.addTo(lineLayer);
       const last = latLngs[latLngs.length - 1];
       L.circleMarker(last, {
@@ -150,10 +151,10 @@ export function mountLeafletMap(
         iconAnchor: [11, 11],
       });
       const marker = L.marker([pt.lat, pt.long], { icon });
-      marker.bindTooltip(`<b>${i + 1}. ${pt.role}</b><br>${pt.title}${pt.date ? '<br>' + pt.date : ''}`, {
-        direction: 'top',
-        offset: [0, -12],
-      });
+      marker.bindTooltip(
+        `<b>${i + 1}. ${escapeHtml(pt.role)}</b><br>${escapeHtml(pt.title)}${pt.date ? '<br>' + escapeHtml(pt.date) : ''}`,
+        { direction: 'top', offset: [0, -12] },
+      );
       marker.addTo(markerLayer);
       if (i > 0) {
         const prev = points[i - 1];
