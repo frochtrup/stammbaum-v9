@@ -12,7 +12,8 @@
     "test:round": "vitest run tests/roundtrip",
     "test:watch": "vitest",
     "lint": "eslint . && tsc --noEmit",
-    "check:arch": "node tests/arch-boundary/check-arch-boundary.mjs"
+    "check:arch": "node tests/arch-boundary/check-arch-boundary.mjs",
+    "check:csp": "node tests/csp/check-csp.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

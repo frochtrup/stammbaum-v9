@@ -19,6 +19,7 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run check:arch
+      - run: npm run check:csp
       - run: npm run lint
       - run: npm test
 
