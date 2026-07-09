@@ -184,7 +184,7 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     expect(withAB).toBeTruthy();
   });
 
-  it('Kriterium 1 GUARD (ADR-v9-29): gleicher Name, UNVERträgliche Eltern → KEINE Gruppe', () => {
+  it('Kriterium 1 GUARD (ADR-v9-29): gleicher Name, UNVERträgliche Eltern → KEINE Gruppe (auch Kriterium 4 greift nicht, da Ketten VÖLLIG fremd — kein gemeinsamer Vorfahre)', () => {
     const places = placeMap(
       place('@NS@', { title: 'Oldenburg', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
       place('@US@', { title: 'Oldenburg', enclosedBy: [{ placeId: '@USA@', from: null, to: null }] }),
@@ -194,6 +194,39 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     const groups = findPlaceDuplicates(places, 'places');
     const bad = groups.find((g) => g.ids.includes('@NS@') && g.ids.includes('@US@'));
     expect(bad).toBeFalsy();
+  });
+
+  it('Kriterium 4 (ADR-v9-50, Spec 11 §8 Restklasse 3 „Arpke"): gleicher Name, unmittelbare Eltern widersprüchlich, ABER gemeinsamer Vorfahre weiter oben (Region) → Gruppe MIT conflict:true', () => {
+    const places = placeMap(
+      // Arpke gehörte laut Quelle A zu Burgdorf, laut Quelle B zu Uetze — beides real
+      // (Gebiets-/Kreisreform), beide Ketten enden aber gemeinsam in derselben Region.
+      place('@A@', {
+        title: 'Arpke',
+        enclosedBy: [{ placeId: '@BURGDORF@', from: null, to: null }],
+      }),
+      place('@B@', {
+        title: 'Arpke',
+        enclosedBy: [{ placeId: '@UETZE@', from: null, to: null }],
+      }),
+      place('@BURGDORF@', { title: 'Burgdorf', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }),
+      place('@UETZE@', { title: 'Uetze', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }),
+      place('@REGION@', { title: 'Region Hannover' }),
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@A@') && x.ids.includes('@B@'));
+    expect(g).toBeTruthy();
+    expect(g?.conflict).toBe(true);
+  });
+
+  it('Kriterium 1 (verträglich) erzeugt KEIN conflict-Flag', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
+      place('@B@', { title: 'Ochtrup' }),
+      place('@DE@', { title: 'Deutschland' }),
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@A@') && x.ids.includes('@B@'));
+    expect(g?.conflict).toBeFalsy();
   });
 
   it('Kriterium 2: gleicher Titel-Fold, unverträgliche Eltern, ABER Koordinaten ≤ toleranceKm → Gruppe', () => {

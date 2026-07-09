@@ -69,8 +69,13 @@
   {:else}
     <ul class="place-dedup__groups">
       {#each groups as group (group.key)}
-        <li class="place-dedup__group">
-          <h3>{group.members.length} mutmaßliche Dubletten</h3>
+        <li class="place-dedup__group" class:place-dedup__group--conflict={group.conflict}>
+          <h3>
+            {group.members.length} mutmaßliche Dubletten
+            {#if group.conflict}
+              <span class="place-dedup__conflict-badge" title="Die Verwaltungszugehörigkeit der Einträge widerspricht sich — bitte die volle Namenskette vergleichen, bevor zusammengeführt wird (Spec 11 §8 Restklasse 3).">⚠ abweichende Verwaltungszugehörigkeit — prüfen</span>
+            {/if}
+          </h3>
           <ul class="place-dedup__members">
             {#each group.members as m (m.id)}
               <li>
@@ -82,7 +87,7 @@
                     checked={winnerFor(group.key, group.suggestedWinnerId) === m.id}
                     onchange={() => chooseWinner(group.key, m.id)}
                   />
-                  {m.title}
+                  {m.fullName}
                   {#if m.id === group.suggestedWinnerId}
                     <span class="place-dedup__suggested">(Vorschlag)</span>
                   {/if}
@@ -154,6 +159,19 @@
     border-radius: var(--stb-radius-card);
     padding: 0.75rem 0.9rem;
     margin-bottom: 0.7rem;
+  }
+
+  .place-dedup__group--conflict {
+    border: 1px solid var(--stb-quay-1);
+  }
+
+  .place-dedup__conflict-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--stb-quay-1);
+    vertical-align: middle;
   }
 
   .place-dedup__group h3 {

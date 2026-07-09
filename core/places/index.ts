@@ -26,7 +26,7 @@ export { makePlaceRegistry, type PlaceRegistry, type EnclosureMeta } from './pla
 export { makeHofRegistry, type HofRegistry } from './hof-registry';
 
 // Chokepoint 4 (Spec 11 §5): PLAC-Bau + Kontext-Typ.
-export { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
+export { buildPlacForGedcom, buildFormString, buildFullPlaceName, eventYear, type PlaceContext } from './build-plac';
 
 // Chokepoints 1–3 (Spec 11 §5): die einzigen erlaubten Reads.
 export { eventPlaceId, eventHofId, eventCoords, type Coords } from './chokepoints';

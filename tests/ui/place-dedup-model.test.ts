@@ -52,6 +52,34 @@ describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () 
     expect(groups[0].suggestedWinnerId).toBe('@B@');
   });
 
+  it('ADR-v9-50: gleicher Name, widersprüchliche Eltern, gemeinsamer Vorfahre → Gruppe mit conflict:true UND voller Namenskette pro Mitglied', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Arpke', enclosedBy: [{ placeId: '@BURGDORF@', from: null, to: null }] }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Arpke', enclosedBy: [{ placeId: '@UETZE@', from: null, to: null }] }));
+    db.placeObjects.set('@BURGDORF@', place('@BURGDORF@', { title: 'Burgdorf', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }));
+    db.placeObjects.set('@UETZE@', place('@UETZE@', { title: 'Uetze', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }));
+    db.placeObjects.set('@REGION@', place('@REGION@', { title: 'Region Hannover' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].conflict).toBe(true);
+    const names = groups[0].members.map((m) => m.fullName).sort();
+    expect(names).toEqual(['Arpke, Burgdorf, Region Hannover', 'Arpke, Uetze, Region Hannover']);
+  });
+
+  it('verträgliche Namens-Varianten → conflict:false, fullName weiterhin gefüllt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@DE@', place('@DE@', { title: 'Deutschland' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups[0].conflict).toBe(false);
+    expect(groups[0].members.every((m) => m.fullName.startsWith('Ochtrup'))).toBe(true);
+  });
+
   it('TST-7 Kapazitätsfall: viele überlappende Gruppen gleichzeitig, deterministisch', () => {
     const db = makeDatabase();
     for (let i = 0; i < 20; i++) {

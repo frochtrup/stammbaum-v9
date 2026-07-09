@@ -5,13 +5,16 @@
 // Pendant über `pickWinnerId`, ui/shell/curation-dedup.ts) — der Nutzer kann den
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
-import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { findPlaceDuplicates, eventPlaceId } from '../../../core/places';
+import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
+import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
 export interface PlaceDedupMember {
   id: PlaceId;
   title: string;
+  /** Volle Verwaltungskette (ADR-v9-50) — bei `conflict`-Gruppen der einzige Weg, gleichnamige
+   * Orte für den Nutzer unterscheidbar zu machen (z. B. „Arpke, Burgdorf, …" vs. „Arpke, Uetze, …"). */
+  fullName: string;
 }
 
 export interface PlaceDedupGroup {
@@ -20,6 +23,10 @@ export interface PlaceDedupGroup {
   members: PlaceDedupMember[];
   /** Gewinner-VORSCHLAG (Heuristik) — der Nutzer wählt das tatsächliche Ziel selbst aus. */
   suggestedWinnerId: PlaceId;
+  /** ADR-v9-50/Spec 11 §8 Restklasse 3: Mitglieder haben widersprüchliche Elternketten —
+   * Gruppe kam nur über den gelockerten „gemeinsamer Vorfahre"-Pfad zustande, kein
+   * automatischer Gewinner-Vorschlag ohne dass der Nutzer die volle Namenskette gesehen hat. */
+  conflict: boolean;
 }
 
 /** Verwendungszahl je PlaceId — wie oft `eventPlaceId(ev, ctx) === id` über alle Events. */
@@ -39,7 +46,9 @@ function usageCounts(ids: readonly PlaceId[], events: readonly Event[], ctx: Pla
  */
 export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: readonly Event[]): PlaceDedupGroup[] {
   const groups = findPlaceDuplicates(db.placeObjects, 'places');
-  const labelOf = (id: PlaceId): string => db.placeObjects.get(id)?.title || id;
+  const reg: PlaceRegistry = ctx.places;
+  const titleOf = (id: PlaceId): string => db.placeObjects.get(id)?.title || id;
+  const fullNameOf = (id: PlaceId): string => buildFullPlaceName(reg, id) || titleOf(id);
 
   return groups
     .map((g) => {
@@ -59,12 +68,13 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         }),
       );
       const members: PlaceDedupMember[] = ids
-        .map((id) => ({ id, title: labelOf(id) }))
-        .sort((a, b) => a.title.localeCompare(b.title, 'de'));
+        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id) }))
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));
       return {
         key: ids.slice().sort()[0],
         members,
         suggestedWinnerId: pickWinnerId(ids, meta),
+        conflict: g.conflict === true,
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));

@@ -86,9 +86,19 @@ export function hasReference(id: PlaceId | HofId, events: readonly Event[], ctx:
 
 export type DedupKind = 'places' | 'farms' | 'all';
 
-/** Eine Kandidatengruppe (≥2 Mitglieder) wahrscheinlicher Dubletten. */
+/**
+ * Eine Kandidatengruppe (≥2 Mitglieder) wahrscheinlicher Dubletten.
+ * `conflict` (nur bei Places, ADR-v9-50/Spec 11 §8 Restklasse 3): mindestens ein Mitglieder-
+ * Paar hat WIDERSPRÜCHLICHE Elternketten (nicht `parentsCompatible`) — die Gruppe kam nur
+ * zustande, weil Kriterium 4 (gleicher Name + mind. ein gemeinsamer Vorfahre irgendwo in
+ * beiden Ketten) sie verbunden hat, nicht weil alle Mitglieder wechselseitig verträglich
+ * wären. UI MUSS in diesem Fall die volle Namenskette zeigen (nicht nur den bloßen Titel)
+ * und darf KEINEN Gewinner vorauswählen, ohne dass der Nutzer die abweichende Herkunft
+ * gesehen hat — die Zusammenführung bleibt eine bewusste menschliche Entscheidung.
+ */
 export interface DuplicateGroup {
   ids: (PlaceId | HofId)[];
+  conflict?: boolean;
 }
 
 const EARTH_R_KM = 6371;
@@ -245,7 +255,44 @@ function findPlaceObjectDuplicates(
     }
   }
 
-  return collectGroups(order, find);
+  // Kriterium 4 (NEU, ADR-v9-50 — Spec 11 §8 Restklasse 3 „Arpke"): gleicher Name, Eltern
+  // WIDERSPRÜCHLICH (Kriterium 1 hat übersprungen), aber die Ketten teilen irgendwo
+  // mindestens einen gemeinsamen Vorfahren (z. B. dieselbe Region/dasselbe Land trotz
+  // abweichender unmittelbarer Zugehörigkeit — Gebiets-/Kreisreform, uneinheitliche
+  // Quellenkonvention, real derselbe Ort). Wird als CONFLICT-Kandidat gruppiert (Flag unten),
+  // NIE automatisch vorausgewählt — der Nutzer entscheidet mit voller Namenskette sichtbar.
+  // Völlig FREMDE Ketten (kein gemeinsamer Vorfahre auf irgendeiner Ebene, z. B.
+  // verschiedene Länder — Oldenburg/Niedersachsen vs. Oldenburg/USA) bleiben unverändert
+  // ausgeschlossen: das schützt den ADR-v9-29-Zweck exakt wie zuvor (s. Test-Guard).
+  for (const ids of byName.values()) {
+    if (ids.length < 2) continue;
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        if (find(ids[i]) === find(ids[j])) continue;
+        const pa = parentsNorm(ids[i]);
+        const pb = parentsNorm(ids[j]);
+        if (pa.length === 0 || pb.length === 0) continue; // schon durch Kriterium 1 abgedeckt
+        if (pa.some((x) => pb.includes(x))) union(ids[i], ids[j]);
+      }
+    }
+  }
+
+  const groups = collectGroups(order, find);
+  // Conflict-Flag post-hoc je Gruppe: gibt es IRGENDEIN Mitglieder-Paar mit unverträglichen
+  // Elternketten, kam die Gruppe nur durch Kriterium 2/4 (nicht durch strikte Kriterium-1-
+  // Verträglichkeit) zustande — UI muss das sichtbar machen (volle Namenskette, kein Auto-Winner).
+  for (const g of groups) {
+    const pids = g.ids as PlaceId[];
+    outer: for (let i = 0; i < pids.length; i++) {
+      for (let j = i + 1; j < pids.length; j++) {
+        if (!parentsCompatible(parentsNorm(pids[i]), parentsNorm(pids[j]))) {
+          g.conflict = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return groups;
 }
 
 /** Alle normalisierten Adress-Schlüssel eines Hofs (Read-Tolerance nutzt der Resolver separat). */

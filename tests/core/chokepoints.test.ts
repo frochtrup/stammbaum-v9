@@ -6,6 +6,7 @@ import {
   eventHofId,
   eventCoords,
   buildPlacForGedcom,
+  buildFullPlaceName,
   makePlaceRegistry,
   makeHofRegistry,
   eventYear,
@@ -87,5 +88,17 @@ describe('buildPlacForGedcom — welcher PLAC würde geschrieben?', () => {
     const kctx: PlaceContext = { places: makePlaceRegistry(places), hofs: makeHofRegistry(kommaHofs) };
     const e = ev('RESI', { hofId: '_hof_k', date: '1900' });
     expect(buildPlacForGedcom(e, eventYear(e), kctx)).toBe('Oster 82a, Ochtrup, Deutschland');
+  });
+});
+
+describe('buildFullPlaceName — periodenunabhängige volle Namenskette (ADR-v9-50, Massen-Dedup-Anzeige)', () => {
+  it('volle Kette, nicht nur der atomare Einzelname (Unterschied zu buildFormString bei year=null)', () => {
+    expect(buildFullPlaceName(ctx.places, '@OCHTRUP@')).toBe('Ochtrup, Deutschland');
+  });
+  it('Top-Level-Ort ohne Eltern → nur der eigene Name', () => {
+    expect(buildFullPlaceName(ctx.places, '@DE@')).toBe('Deutschland');
+  });
+  it('null placeId → null', () => {
+    expect(buildFullPlaceName(ctx.places, null)).toBeNull();
   });
 });

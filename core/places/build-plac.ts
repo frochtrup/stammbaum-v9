@@ -35,6 +35,21 @@ export function buildFormString(
 }
 
 /**
+ * Vollständige Namenskette eines Orts, periodenunabhängig (nutzt `enclosureChainAsOf`
+ * direkt mit `year=null` — anders als `buildFormString`, das bei `year=null` bewusst nur
+ * den atomaren Einzelnamen liefert). Für Kuration/Anzeige OHNE Event-/Jahres-Kontext,
+ * z. B. Massen-Dedup (Spec 11 §9.2, ADR-v9-50) — dort sollen mehrere gleichnamige Orte
+ * anhand ihrer vollen Verwaltungskette unterscheidbar sein. NICHT für den Wire-Bau
+ * (dafür `buildFormString`/`buildPlacForGedcom` mit echtem Jahr). Reine Funktion, kein
+ * Wall-Clock (TST-3).
+ */
+export function buildFullPlaceName(reg: PlaceRegistry, placeId: PlaceId | null): string | null {
+  if (!placeId) return null;
+  const chain = reg.enclosureChainAsOf(placeId, null).map(atomic).filter(Boolean);
+  return chain.length ? chain.join(', ') : null;
+}
+
+/**
  * Chokepoint (Spec 11 §5): welcher PLAC-String würde für dieses Event geschrieben?
  * Zwei orthogonale Pfade:
  *   1. hofId gesetzt → Hof-Adresse (periodengerecht, Komma-geschützt via Konvention α)

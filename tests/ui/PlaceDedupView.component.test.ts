@@ -19,6 +19,23 @@ describe('PlaceDedupView — Gruppen-Vorschlag + Zusammenführen', () => {
     expect(screen.getByText('Keine Dubletten-Kandidaten gefunden.')).toBeTruthy();
   });
 
+  it('ADR-v9-50: widersprüchliche Elternketten → Konflikt-Badge + volle, unterscheidbare Namensketten statt bloßem Titel', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Arpke', enclosedBy: [{ placeId: '@BURGDORF@', from: null, to: null }] }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Arpke', enclosedBy: [{ placeId: '@UETZE@', from: null, to: null }] }));
+    db.placeObjects.set('@BURGDORF@', place('@BURGDORF@', { title: 'Burgdorf', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }));
+    db.placeObjects.set('@UETZE@', place('@UETZE@', { title: 'Uetze', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }));
+    db.placeObjects.set('@REGION@', place('@REGION@', { title: 'Region Hannover' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+
+    expect(screen.getByText(/abweichende Verwaltungszugehörigkeit/)).toBeTruthy();
+    expect(screen.getByText(/Arpke, Burgdorf, Region Hannover/)).toBeTruthy();
+    expect(screen.getByText(/Arpke, Uetze, Region Hannover/)).toBeTruthy();
+  });
+
   it('zeigt eine Gruppe mit Gewinner-Vorschlag markiert', () => {
     const appState = createAppState();
     const db = makeDatabase();
