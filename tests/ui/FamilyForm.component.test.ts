@@ -537,3 +537,37 @@ describe('FamilyForm — Neue Familie (leeres Gerüst)', () => {
     expect(screen.getByText('Neue Familie')).toBeTruthy();
   });
 });
+
+describe('FamilyForm — Live-Anfangswert des Ort-Feldes (ADR-v9-47 Punkt 3, Spec 20 §2, analog PersonForm)', () => {
+  it('bei gesetzter placeId zeigt das Ort-Feld den LIVE-Titel des PlaceObject, nicht den veralteten Rohwert', () => {
+    const appState = seedThreePersons();
+    const db = appState.db;
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const family = makeFamily('@F1@');
+    family.marriage.place = 'Ochtrupp';
+    family.marriage.placeId = '@P1@';
+    db.families.set('@F1@', family);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(FamilyForm, { props: { appState, family } });
+
+    const input = screen.getByLabelText('Heirat (MARR) Ort') as HTMLInputElement;
+    expect(input.value).toBe('Ochtrup');
+  });
+
+  it('Tristate-Erhaltung bleibt intakt: unberührtes Feld speichert weiterhin den ROHEN Ursprungswert', async () => {
+    const appState = seedThreePersons();
+    const db = appState.db;
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const family = makeFamily('@F1@');
+    family.marriage.place = 'Ochtrupp';
+    family.marriage.placeId = '@P1@';
+    db.families.set('@F1@', family);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(FamilyForm, { props: { appState, family } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.place).toBe('Ochtrupp');
+  });
+});

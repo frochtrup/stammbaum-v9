@@ -1,11 +1,16 @@
 <script lang="ts">
   // ui/views/place/PlaceList.svelte — Orte-Tab-Liste (Spec 20 §1.7 [K]). Typ-Badge,
   // Koordinaten-Indikator, Typ-Filter, Admin-Filter, Gruppen-Modus (pnames-Varianten
-  // unter dem Titel). Suche über Titel + pnames.
+  // unter dem Titel). Suche über Titel + pnames. Anreicherungs-Pille (ADR-v9-44) +
+  // Referenz-Filter (ADR-v9-46, Spec 11 §9.3): die Hauptliste zeigt nur referenzierte
+  // Orte, ein Segment-Umschalter (`.stb-segment-row`, INV-UI-4) wechselt zum separaten
+  // "Ohne Bezug"-Abschnitt — dort bleiben Orte voll editierbar/löschbar (Klick navigiert
+  // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { collectAllEvents } from '../../shell/all-events';
   import {
-    buildPlaceRows,
+    buildPlaceListSections,
     defaultPlaceFilters,
     knownPlaceTypes,
     type PlaceFilters,
@@ -21,8 +26,11 @@
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
   let showFilters = $state(false);
   let groupMode = $state(false);
+  let section = $state<'referenced' | 'unreferenced'>('referenced');
 
-  const rows = $derived(buildPlaceRows(appState.db, query, filters));
+  const events = $derived(collectAllEvents(appState.db));
+  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
+  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const types = $derived(knownPlaceTypes(appState.db));
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
 
@@ -86,8 +94,33 @@
       </div>
     {/if}
 
+    <div class="stb-segment-row place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={section === 'referenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'referenced'}
+        onclick={() => (section = 'referenced')}
+      >
+        Orte ({sections.referenced.length})
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={section === 'unreferenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'unreferenced'}
+        onclick={() => (section = 'unreferenced')}
+      >
+        Ohne Bezug ({sections.unreferenced.length})
+      </button>
+    </div>
+
     {#if rows.length === 0}
-      <p class="place-list__empty">Keine Orte gefunden.</p>
+      <p class="place-list__empty">
+        {section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
+      </p>
     {:else}
       <ul class="place-list__rows">
         {#each rows as row (row.id)}
@@ -96,6 +129,9 @@
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
                 {#if row.type}<span class="place-list__type-badge">{row.type}</span>{/if}
+                {#if !row.enriched}
+                  <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>
+                {/if}
                 <span
                   class="place-list__coord-indicator"
                   class:place-list__coord-indicator--missing={!row.hasCoords}
@@ -123,6 +159,12 @@
   .place-list__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
+  }
+
+  /* Segment-Pillen selbst kommen aus design-system.css (.stb-segment-row/-btn, INV-UI-4)
+     — hier nur die lokale Trennlinie unter der Reihe. */
+  .place-list__sections {
+    border-bottom: 1px solid var(--stb-surface-3);
   }
 
   .place-list__toolbar {

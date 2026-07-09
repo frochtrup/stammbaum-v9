@@ -74,4 +74,18 @@ export {
   linkEventToPlace,
   linkEventToHof,
   mergePlaceObjects,
+  mergeHofObjects,
+  type MergeResult,
 } from './commands';
+
+// Kurations-Layer (Spec 11 §9, ADR-v9-44/45/46): reine Anzeige-/Dedup-Prädikate über
+// orte.json (kein Schreibgate, kein persistierter Zustand). Anreicherungs-Prädikat (§9.1),
+// Referenz-Sichtbarkeit (§9.3), Massen-Dedup-Finder (§9.2).
+export {
+  isEnrichedPlace,
+  isEnrichedHof,
+  hasReference,
+  findPlaceDuplicates,
+  type DedupKind,
+  type DuplicateGroup,
+} from './curation';

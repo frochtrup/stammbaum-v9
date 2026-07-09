@@ -1,8 +1,9 @@
 // ui/views/hof/hof-list-model.ts — reine Aufbereitung der Höfe-Liste (Spec 20 §1.8
 // [K]: "Hof-Liste (aus Events aufgelöst, numerisch sortiert), Detail mit Bewohnern
 // chronologisch"). Liest AUSSCHLIESSLICH db.hofObjects + db.placeObjects (id-basiert).
-import type { Database, PlaceId, HofId } from '../../../core/model/types';
-import type { HofObject } from '../../../core/places';
+import type { Database, Event, PlaceId, HofId } from '../../../core/model/types';
+import type { HofObject, PlaceContext } from '../../../core/places';
+import { isEnrichedHof, hasReference } from '../../../core/places';
 
 export interface HofRow {
   id: HofId;
@@ -12,6 +13,14 @@ export interface HofRow {
   villageId: PlaceId;
   villageTitle: string;
   hasCoords: boolean;
+  /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille). */
+  enriched: boolean;
+}
+
+/** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.8 [K] Referenz-Filter, ADR-v9-46). */
+export interface HofListSections {
+  referenced: HofRow[];
+  unreferenced: HofRow[];
 }
 
 /**
@@ -33,6 +42,7 @@ export function toRow(h: HofObject, db: Database): HofRow {
     villageId: h.villageId,
     villageTitle: village?.title || h.villageId,
     hasCoords: h.lat != null && h.long != null,
+    enriched: isEnrichedHof(h),
   };
 }
 
@@ -59,4 +69,24 @@ export function buildHofRows(db: Database, query = ''): HofRow[] {
       if (na !== nb) return na - nb;
       return a.addr.localeCompare(b.addr, 'de');
     });
+}
+
+/**
+ * Referenz-Filter (Spec 20 §1.8 [K], ADR-v9-46) — analog `buildPlaceListSections`:
+ * partitioniert die Zeilen nach `hasReference` in Hauptliste (`referenced`) und
+ * separaten "Ohne Bezug"-Abschnitt (`unreferenced`, weiterhin voll editierbar/löschbar).
+ */
+export function buildHofListSections(
+  db: Database,
+  ctx: PlaceContext,
+  events: readonly Event[],
+  query = '',
+): HofListSections {
+  const rows = buildHofRows(db, query);
+  const referenced: HofRow[] = [];
+  const unreferenced: HofRow[] = [];
+  for (const row of rows) {
+    (hasReference(row.id, events, ctx) ? referenced : unreferenced).push(row);
+  }
+  return { referenced, unreferenced };
 }

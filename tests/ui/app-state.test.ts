@@ -84,6 +84,36 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     // Chokepoint-Kontext passt zur neuen db: die zusammengeführte Variante findet jetzt @A@.
     expect(appState.placeContext.places.findByName('Ochtorp')).toBe('@A@');
   });
+
+  it('mergePlace akzeptiert ein Array von Verlierern (Massen-Dedup, §9.2) und gibt ein MergeResult zurück', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.savePlace(place('@C@', { title: 'Ochtrupe' }));
+
+    const result = appState.mergePlace('@A@', ['@B@', '@C@']);
+
+    expect(appState.db.placeObjects.has('@B@')).toBe(false);
+    expect(appState.db.placeObjects.has('@C@')).toBe(false);
+    expect(result.hofsMerged).toBe(0);
+    expect(result.villageId).toBeNull();
+  });
+
+  it('mergePlace meldet den automatischen Hof-Nachlauf im MergeResult (ADR-v9-45 Nachtrag 2026-07-10)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.saveHof(hof('_h1', '@A@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.saveHof(hof('_h2', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    const result = appState.mergePlace('@A@', '@B@');
+
+    expect(result.hofsMerged).toBe(1);
+    expect(result.villageId).toBe('@A@');
+    // Genau einer der beiden Höfe überlebt unter dem Gewinner-Dorf.
+    const survivingHofs = Array.from(appState.db.hofObjects.values()).filter((h) => h.villageId === '@A@');
+    expect(survivingHofs).toHaveLength(1);
+  });
 });
 
 describe('AppState.persistPlaces — Orts-/Hof-Edits lösen Persistenz aus (Befund 1 / task_a82678c1)', () => {
@@ -136,6 +166,52 @@ describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', 
     appState.deleteHof('@H1@');
 
     expect(appState.db.hofObjects.has('@H1@')).toBe(false);
+  });
+
+  it('mergeHof führt Dubletten zusammen (Array von Verlierern, Massen-Dedup §9.2)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.saveHof(hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.saveHof(hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33a', from: null, to: null }] }));
+
+    appState.mergeHof('@H1@', ['@H2@']);
+
+    expect(appState.db.hofObjects.has('@H2@')).toBe(false);
+    expect(appState.db.hofObjects.get('@H1@')?.addrs.map((a) => a.value)).toContain('Wall 33a');
+  });
+
+  it('mergeHof: persistPlaces wird ausgelöst (TST-8-Anschluss: Persistenz-Kommando nicht vergessen)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.saveHof(hof('@H1@', '@P1@'));
+    appState.saveHof(hof('@H2@', '@P1@'));
+    calls = 0;
+    appState.mergeHof('@H1@', ['@H2@']);
+    expect(calls).toBe(1);
+  });
+});
+
+describe('AppState.mergePlace/mergeHof — Persistenz-Rundlauf (TST-8: speichern -> "neu laden" -> noch da)', () => {
+  it('nach mergePlace bleibt der konsolidierte Stand über einen simulierten Reload (persistPlaces-Snapshot) erhalten', () => {
+    let persisted: { places: Map<string, PlaceObject>; hofs: Map<string, HofObject> } | null = null;
+    const appState = createAppState({
+      persistPlaces: (places, hofs) => {
+        persisted = { places: new Map(places), hofs: new Map(hofs) };
+      },
+    });
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.mergePlace('@A@', '@B@');
+
+    // Simulierter Reload: eine frische AppState-Instanz übernimmt NUR den persistierten Snapshot.
+    const reloaded = createAppState();
+    const db2 = makeDatabase();
+    for (const [id, po] of persisted!.places) db2.placeObjects.set(id, po);
+    for (const [id, h] of persisted!.hofs) db2.hofObjects.set(id, h);
+    reloaded.loadDatabase(db2, 'reload.ged');
+
+    expect(reloaded.db.placeObjects.has('@B@')).toBe(false);
+    expect(reloaded.db.placeObjects.get('@A@')?.pnames.map((p) => p.value)).toContain('Ochtorp');
   });
 });
 

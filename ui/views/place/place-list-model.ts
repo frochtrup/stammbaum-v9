@@ -4,9 +4,9 @@
 // Liest AUSSCHLIESSLICH db.placeObjects (ID-basiert, Spec 11 §5 "Aggregatoren sind
 // id-basiert, nicht string-basiert") — KEIN eigenes String-Aggregat über ev.place, das
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
-import type { Database, PlaceId } from '../../../core/model/types';
-import type { PlaceObject } from '../../../core/places';
-import { placeTypeRank } from '../../../core/places';
+import type { Database, Event, PlaceId } from '../../../core/model/types';
+import type { PlaceContext, PlaceObject } from '../../../core/places';
+import { placeTypeRank, isEnrichedPlace, hasReference } from '../../../core/places';
 
 export interface PlaceRow {
   id: PlaceId;
@@ -15,6 +15,17 @@ export interface PlaceRow {
   hasCoords: boolean;
   /** String-Varianten (pnames) für den Gruppen-Modus — leer, wenn keine erfasst sind. */
   variants: string[];
+  /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille) — reines
+   *  Inhalts-Prädikat, KEINE Herkunfts-Aussage (s. Modul-Kommentar der Kern-Funktion). */
+  enriched: boolean;
+}
+
+/** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.7 [K] Referenz-Filter, ADR-v9-46). */
+export interface PlaceListSections {
+  /** Von mind. einem Event der geladenen Datei referenziert — die eigentliche Hauptliste. */
+  referenced: PlaceRow[];
+  /** `hasReference === false` — separater Abschnitt, weiterhin voll editierbar/löschbar. */
+  unreferenced: PlaceRow[];
 }
 
 export interface PlaceFilters {
@@ -43,6 +54,7 @@ function toRow(pl: PlaceObject): PlaceRow {
     type: pl.type,
     hasCoords: pl.lat != null && pl.long != null,
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
+    enriched: isEnrichedPlace(pl),
   };
 }
 
@@ -83,4 +95,27 @@ export function buildPlaceRows(
     .filter((pl) => matchesSearch(pl, query) && matchesFilters(pl, filters))
     .map(toRow)
     .sort((a, b) => a.title.localeCompare(b.title, 'de'));
+}
+
+/**
+ * Referenz-Filter (Spec 20 §1.7 [K], ADR-v9-46): partitioniert die (bereits Such-/Typ-
+ * gefilterten) Zeilen nach `hasReference` — die Hauptliste zeigt nur `referenced`,
+ * `unreferenced` füllt den separaten "Ohne Bezug"-Abschnitt (weiterhin voll editierbar/
+ * löschbar, keine automatische Löschung). Baut auf `buildPlaceRows` auf (kein zweiter
+ * Aufbereitungs-Pfad) — reine Zusatz-Partitionierung.
+ */
+export function buildPlaceListSections(
+  db: Database,
+  ctx: PlaceContext,
+  events: readonly Event[],
+  query = '',
+  filters: PlaceFilters = defaultPlaceFilters(),
+): PlaceListSections {
+  const rows = buildPlaceRows(db, query, filters);
+  const referenced: PlaceRow[] = [];
+  const unreferenced: PlaceRow[] = [];
+  for (const row of rows) {
+    (hasReference(row.id, events, ctx) ? referenced : unreferenced).push(row);
+  }
+  return { referenced, unreferenced };
 }

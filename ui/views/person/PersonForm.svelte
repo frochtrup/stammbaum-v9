@@ -33,6 +33,7 @@
   import { setCitationQuay } from '../../../core/model/citation';
   import { isEventPresent } from '../../../core/model';
   import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
+  import { eventPlaceLabel } from '../../shell/person-display';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
   import EventAddrField from '../../shell/EventAddrField.svelte';
@@ -115,7 +116,13 @@
       year2: parts?.year2 ?? null,
       originalDate: ev.date,
       dateDirty: false,
-      place: ev.place ?? '',
+      // ADR-v9-47 Punkt 3: bei gesetzter placeId/hofId LIVE aus dem Modell seeden
+      // (derselbe Chokepoint-Pfad wie die Listen-Anzeige) statt den ggf. veralteten
+      // Cache-Rohwert zu zeigen — NUR der initiale Anzeigewert, s. Modul-Kommentar oben
+      // "Live-Anfangswert". Tristate-Erhaltung bleibt unverändert: originalPlace bleibt
+      // der ROHE ev.place-Wert, den ein unberührtes Feld beim Speichern unangetastet
+      // zurückgibt (Save-Time-No-Op, unschädlich weil Writer/Dirty-Check ohnehin live lesen).
+      place: ev.placeId != null || ev.hofId != null ? eventPlaceLabel(ev, appState.placeContext) : (ev.place ?? ''),
       originalPlace: ev.place,
       placeDirty: false,
       placeId: ev.placeId,

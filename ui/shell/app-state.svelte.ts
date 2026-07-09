@@ -38,10 +38,13 @@ import {
   saveHofObject,
   deleteHofObject,
   mergePlaceObjects,
+  mergeHofObjects,
   type PlaceContext,
+  type MergeResult,
 } from '../../core/places';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
+import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
 import {
@@ -128,12 +131,23 @@ export interface AppState {
   saveRepository(model: Repository): void;
   /** Kommando: entfernt ein Archiv (per id, keine Kaskade). */
   deleteRepository(id: RepoId): void;
-  /** Kommando: Dubletten-Merge — führt `mergedId` in `survivorId` zusammen (Spec 20 §1.7 [K]). */
-  mergePlace(survivorId: PlaceId, mergedId: PlaceId): void;
+  /**
+   * Kommando: Dubletten-Merge — führt EINEN ODER MEHRERE `mergedIds` in `survivorId`
+   * zusammen (Spec 20 §1.7 [K] paarweiser Merge; §9.2 Massen-Dedup, ADR-v9-45). Gibt
+   * `MergeResult` zurück (`hofsMerged`/`villageId`) — Grundlage für den Toast über den
+   * automatischen Hof-Nachlauf (ADR-v9-45 Nachtrag 2026-07-10), falls einer stattfand.
+   */
+  mergePlace(survivorId: PlaceId, mergedIds: PlaceId | readonly PlaceId[]): MergeResult;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
   saveHof(model: HofObject): void;
   /** Kommando: entfernt ein HofObject. */
   deleteHof(id: HofId): void;
+  /**
+   * Kommando: Hof-Dubletten-Merge — führt EINEN ODER MEHRERE `mergedIds` in `survivorId`
+   * zusammen (Spec 20 §1.8 [K], §9.2 Massen-Dedup). Analog `mergePlace`, aber ohne
+   * automatischen Nachlauf (der ist nur für Dorf-Merges definiert, ADR-v9-45).
+   */
+  mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
   /**
    * Kommando: erzwingt eine Reaktivitäts-Aktualisierung nach einer In-Place-Mutation an
    * Event-Feldern (z. B. `linkEventToPlace`, das Person-/Family-Events mutiert, die NICHT
@@ -308,15 +322,20 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = { ...db, placeObjects: nextPlaces };
       persistPlaces();
     },
-    mergePlace(survivorId, mergedId) {
+    mergePlace(survivorId, mergedIds): MergeResult {
       // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
+      // `events` versorgt NUR die Gewinner-Heuristik des automatischen Hof-Nachlaufs
+      // (ADR-v9-45 Nachtrag) — die Events selbst werden in-place mutiert (event.hofId
+      // umgehängt), sie leben unverändert in db.individuals/db.families weiter.
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextPlaces = new Map(db.placeObjects);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
-      mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedId);
+      const events = collectAllEvents(db);
+      const result = mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedIds, events);
       db = { ...db, placeObjects: nextPlaces, hofObjects: nextHofs };
       persistPlaces();
+      return result;
     },
     saveHof(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -329,6 +348,14 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       deleteHofObject(nextHofs, id);
+      db = { ...db, hofObjects: nextHofs };
+      persistPlaces();
+    },
+    mergeHof(survivorId, mergedIds) {
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextHofs = new Map(db.hofObjects);
+      const events = collectAllEvents(db);
+      mergeHofObjects(nextHofs, survivorId, mergedIds, events);
       db = { ...db, hofObjects: nextHofs };
       persistPlaces();
     },

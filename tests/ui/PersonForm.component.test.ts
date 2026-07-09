@@ -714,3 +714,49 @@ describe('PersonForm — Neue Person (leeres Gerüst)', () => {
     expect(screen.getByText('Neue Person')).toBeTruthy();
   });
 });
+
+describe('PersonForm — Live-Anfangswert des Ort-Feldes (ADR-v9-47 Punkt 3, Spec 20 §2)', () => {
+  it('bei gesetzter placeId zeigt das Ort-Feld den LIVE-Titel des PlaceObject, nicht den veralteten Rohwert', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' })); // zwischenzeitlich umbenannt
+    const person = makePerson('@I1@');
+    person.birth.place = 'Ochtrupp'; // veralteter Cache-Rohwert (Tippfehler, längst korrigiert)
+    person.birth.placeId = '@P1@';
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PersonForm, { props: { appState, person } });
+
+    const input = screen.getByLabelText('Geburt (BIRT) Ort') as HTMLInputElement;
+    expect(input.value).toBe('Ochtrup');
+  });
+
+  it('ohne placeId/hofId bleibt der rohe Freitext unverändert (kein Live-Lesen ohne Verknüpfung)', () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+    person.birth.place = 'Irgendwo';
+
+    render(PersonForm, { props: { appState, person } });
+
+    const input = screen.getByLabelText('Geburt (BIRT) Ort') as HTMLInputElement;
+    expect(input.value).toBe('Irgendwo');
+  });
+
+  it('Tristate-Erhaltung bleibt intakt: unberührtes Feld speichert weiterhin den ROHEN Ursprungswert, nicht den Live-Anzeigewert', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const person = makePerson('@I1@');
+    person.birth.place = 'Ochtrupp';
+    person.birth.placeId = '@P1@';
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PersonForm, { props: { appState, person } });
+    // Feld wird NICHT angefasst — nur speichern.
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.place).toBe('Ochtrupp');
+  });
+});

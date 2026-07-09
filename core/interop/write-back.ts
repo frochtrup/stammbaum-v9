@@ -41,6 +41,13 @@ import type {
   Source,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
+import {
+  buildPlacForGedcom,
+  eventYear,
+  makePlaceRegistry,
+  makeHofRegistry,
+  type PlaceContext,
+} from '../places';
 import type { GedNode } from './gedcom-tree';
 import {
   parsePersonPublic,
@@ -84,6 +91,14 @@ const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE
  */
 export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] {
   const out: GedNode[] = [];
+  // PlaceContext INTERN aus db.placeObjects/db.hofObjects gebaut (ADR-v9-47): der Writer
+  // UND der Dirty-Check leiten den PLAC-String bei gesetzter placeId/hofId LIVE ab, statt
+  // dem möglicherweise veralteten ev.place-Cache zu vertrauen (INV-PLACE Mechanismus 2).
+  // Kein neuer externer Parameter nötig — `db` enthält alles (Vereinfachen vor Erfinden).
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(db.placeObjects),
+    hofs: makeHofRegistry(db.hofObjects),
+  };
   // Welche IDs sind bereits im Baum vertreten? (für Neu-Erkennung)
   const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>() };
   let trlrIndex = -1;
@@ -95,7 +110,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur));
+        out.push(personNode(rec, cur, ctx));
         break;
       }
       case 'FAM': {
@@ -103,7 +118,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur));
+        out.push(familyNode(rec, cur, ctx));
         break;
       }
       case 'SOUR': {
@@ -136,8 +151,8 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
   // Neue Records (im Modell, nicht im Baum) vor TRLR (bzw. am Ende) einfügen.
   const additions: GedNode[] = [];
-  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p));
-  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f));
+  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, ctx));
+  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, ctx));
   for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s));
   for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
 
@@ -150,15 +165,15 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
 // ── Pro-Entität: unverändert? → Original-Knoten. Sonst feldweise aktualisieren. ─────────
 
-function personNode(orig: GedNode, cur: Person): GedNode {
+function personNode(orig: GedNode, cur: Person, ctx: PlaceContext): GedNode {
   const projected = parsePersonPublic(orig);
-  if (personEqual(projected, cur)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, emitPerson);
+  if (personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx));
 }
-function familyNode(orig: GedNode, cur: Family): GedNode {
+function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext): GedNode {
   const projected = parseFamilyPublic(orig);
-  if (familyEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, emitFamily);
+  if (familyEqual(projected, cur, ctx)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, ctx));
 }
 function sourceNode(orig: GedNode, cur: Source): GedNode {
   const projected = parseSourcePublic(orig);
@@ -210,14 +225,32 @@ function mergeRecord<T>(
 // Nicht modellierte Passthrough-Zeilen sind an der Original-Projektion nicht beteiligt und
 // überleben ohnehin — sie dürfen den Gleichheits-Vergleich nicht beeinflussen.
 
-function eventEqual(a: Event, b: Event): boolean {
+/**
+ * Live-PLAC eines Events für den Dirty-Check (ADR-v9-47): ist `placeId`/`hofId` gesetzt,
+ * ist der PLAC-String der LIVE berechnete Wert, nicht der `ev.place`-Cache — sonst hielte
+ * der Vergleich einen Datensatz für „unverändert", obwohl sich die Projektion (z. B. eine
+ * neue datierte `enclosedBy`-Periode) geändert hat, und der Writer synthetisierte ihn nie
+ * neu. GUARD-Fallback (Live == null) → letzter bekannter `ev.place` (siehe placValue).
+ */
+function livePlace(ev: Event, ctx: PlaceContext): string | null {
+  if (ev.placeId !== null || ev.hofId !== null) {
+    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
+    if (live !== null) return live;
+  }
+  return ev.place;
+}
+
+// `a` = Original aus der Datei re-geparst (`a.place` = was buchstäblich in der Datei stand),
+// `b` = aktuelle db-Entität. Verglichen wird `a.place` gegen den LIVE-Wert von `b` — nicht
+// mehr `a.place === b.place` roh (ADR-v9-47). ADDR bleibt roh (bewusst asymmetrisch, §7).
+function eventEqual(a: Event, b: Event, ctx: PlaceContext): boolean {
   return (
     a.seen === b.seen &&
     a.type === b.type &&
     a.value === b.value &&
     a.eventType === b.eventType &&
     a.date === b.date &&
-    a.place === b.place &&
+    a.place === livePlace(b, ctx) &&
     a.addr === b.addr &&
     a.note === b.note &&
     a.lati === b.lati &&
@@ -302,16 +335,16 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
   return true;
 }
 
-function personEqual(a: Person, b: Person): boolean {
+function personEqual(a: Person, b: Person, ctx: PlaceContext): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
     a.sex === b.sex && a.title === b.title && a.religion === b.religion &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
     a.uid === b.uid && a.cause === b.cause &&
-    eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&
-    eventEqual(a.death, b.death) && eventEqual(a.buri, b.buri) &&
-    eventsEqual(a.events, b.events) &&
+    eventEqual(a.birth, b.birth, ctx) && eventEqual(a.chr, b.chr, ctx) &&
+    eventEqual(a.death, b.death, ctx) && eventEqual(a.buri, b.buri, ctx) &&
+    eventsEqual(a.events, b.events, ctx) &&
     childOfEqual(a.childOf, b.childOf) &&
     arrEqual(a.parentIn, b.parentIn) &&
     arrEqual(a.aliases, b.aliases) && arrEqual(a.aliaNames, b.aliaNames) &&
@@ -328,9 +361,9 @@ function personEqual(a: Person, b: Person): boolean {
   );
 }
 
-function eventsEqual(a: Event[], b: Event[]): boolean {
+function eventsEqual(a: Event[], b: Event[], ctx: PlaceContext): boolean {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i])) return false;
+  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i], ctx)) return false;
   return true;
 }
 
@@ -365,12 +398,12 @@ function exidsEqual(a: { value: string; type: string }[], b: { value: string; ty
   return true;
 }
 
-function familyEqual(a: Family, b: Family): boolean {
+function familyEqual(a: Family, b: Family, ctx: PlaceContext): boolean {
   return (
     a.husband === b.husband && a.wife === b.wife &&
     arrEqual(a.children, b.children) &&
-    eventEqual(a.marriage, b.marriage) && eventEqual(a.engagement, b.engagement) &&
-    eventsEqual(a.events, b.events) &&
+    eventEqual(a.marriage, b.marriage, ctx) && eventEqual(a.engagement, b.engagement, ctx) &&
+    eventsEqual(a.events, b.events, ctx) &&
     a.noteText === b.noteText &&
     citationsEqual(a.citations, b.citations) &&
     tasksEqual(a.tasks, b.tasks) &&

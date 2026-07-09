@@ -22,6 +22,7 @@ import type {
   Source,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
+import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
 
 /** Knoten-Konstruktor (level dient nur der Diagnose; writeNode leitet Tiefe aus dem Baum ab). */
@@ -67,8 +68,24 @@ function citationNode(c: Citation): GedNode {
   return N('SOUR', c.sourceId, kids);
 }
 
+/**
+ * PLAC-Wert für ein Event (INV-PLACE Mechanismus 2, ADR-v9-47): ist `placeId`/`hofId`
+ * gesetzt, ist `ev.place` nur Projektions-Cache — der Writer liest ihn NICHT roh, sondern
+ * berechnet den periodengerechten String LIVE über `buildPlacForGedcom`. Nur wenn kein
+ * `ctx` vorliegt oder die Live-Berechnung null liefert (z. B. `hofId` gesetzt, HofObject
+ * fehlt/stale — GUARD in build-plac.ts), fällt er auf den letzten bekannten `ev.place`
+ * zurück. Ohne gesetzte `placeId`/`hofId` ist `ev.place` die Wire-Wahrheit (unverändert).
+ */
+function placValue(ev: Event, ctx?: PlaceContext): string {
+  if (ctx && (ev.placeId !== null || ev.hofId !== null)) {
+    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
+    if (live !== null) return live;
+  }
+  return ev.place ?? '';
+}
+
 /** Ereignis-Knoten (BIRT/OCCU/…) — parseEvent ist die Umkehr; nur „seen" Ereignisse. */
-function eventNode(ev: Event): GedNode {
+function eventNode(ev: Event, ctx?: PlaceContext): GedNode {
   const kids: GedNode[] = [];
   if (ev.eventType) kids.push(N('TYPE', ev.eventType));
   if (ev.date !== null) kids.push(N('DATE', ev.date));
@@ -81,8 +98,10 @@ function eventNode(ev: Event): GedNode {
       if (ev.long !== null) mapKids.push(N('LONG', coordValue(ev.long, 'LONG')));
       placKids.push(N('MAP', '', mapKids));
     }
-    kids.push(N('PLAC', ev.place, placKids));
+    kids.push(N('PLAC', placValue(ev, ctx), placKids));
   }
+  // ADDR bleibt bewusst byte-identisch (Fill-if-empty-Regel, §7/§4.2 REPROJECT) — NICHT
+  // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
   if (ev.addr) kids.push(textNode('ADDR', ev.addr));
   if (ev.note) kids.push(textNode('NOTE', ev.note));
   for (const c of ev.citations) kids.push(citationNode(c));
@@ -149,8 +168,10 @@ function hypothesisNode(h: Hypothesis): GedNode {
 
 // --- Person (INDI) ----------------------------------------------------------------------
 
-/** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI). */
-export function emitPerson(p: Person): GedNode {
+/** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI).
+ *  `ctx` (optional): PlaceContext für die Live-PLAC-Berechnung (ADR-v9-47). Ohne ctx
+ *  fällt die PLAC-Emission auf den `ev.place`-Cache zurück. */
+export function emitPerson(p: Person, ctx?: PlaceContext): GedNode {
   const kids: GedNode[] = [];
 
   if (p.name || p.given || p.surname || p.prefix || p.suffix || p.nick || p.nameCitations.length) {
@@ -171,15 +192,15 @@ export function emitPerson(p: Person): GedNode {
   if (p.www) kids.push(N('WWW', p.www));
   if (p.uid) kids.push(N('_UID', p.uid));
 
-  if (p.birth.seen) kids.push(eventNode(p.birth));
-  if (p.chr.seen) kids.push(eventNode(p.chr));
+  if (p.birth.seen) kids.push(eventNode(p.birth, ctx));
+  if (p.chr.seen) kids.push(eventNode(p.chr, ctx));
   if (p.death.seen) {
-    const dn = eventNode(p.death);
+    const dn = eventNode(p.death, ctx);
     if (p.cause) dn.children.push(N('CAUS', p.cause));
     kids.push(dn);
   }
-  if (p.buri.seen) kids.push(eventNode(p.buri));
-  for (const ev of p.events) kids.push(eventNode(ev));
+  if (p.buri.seen) kids.push(eventNode(p.buri, ctx));
+  for (const ev of p.events) kids.push(eventNode(ev, ctx));
 
   for (const link of p.childOf) {
     const fkids: GedNode[] = [];
@@ -237,14 +258,14 @@ function chanNode(lastChanged: string): GedNode {
 
 // --- Family (FAM) -----------------------------------------------------------------------
 
-export function emitFamily(f: Family): GedNode {
+export function emitFamily(f: Family, ctx?: PlaceContext): GedNode {
   const kids: GedNode[] = [];
   if (f.husband) kids.push(N('HUSB', f.husband));
   if (f.wife) kids.push(N('WIFE', f.wife));
   for (const cid of f.children) kids.push(N('CHIL', cid));
-  if (f.marriage.seen) kids.push(eventNode(f.marriage));
-  if (f.engagement.seen) kids.push(eventNode(f.engagement));
-  for (const ev of f.events) kids.push(eventNode(ev));
+  if (f.marriage.seen) kids.push(eventNode(f.marriage, ctx));
+  if (f.engagement.seen) kids.push(eventNode(f.engagement, ctx));
+  for (const ev of f.events) kids.push(eventNode(ev, ctx));
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
   for (const c of f.citations) kids.push(citationNode(c));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));

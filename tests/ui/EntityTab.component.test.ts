@@ -63,6 +63,8 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    // ADR-v9-46: die Hauptliste zeigt nur referenzierte Orte — referenzierendes Event nötig.
+    db.individuals.get('@I1@')!.birth.placeId = '@P1@';
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
@@ -81,6 +83,8 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    // ADR-v9-46: die Hauptliste zeigt nur referenzierte Höfe — referenzierendes Event nötig.
+    db.individuals.get('@I1@')!.birth.hofId = '@H1@';
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
@@ -206,6 +210,46 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('person')).toBe('@I1@');
+  });
+
+  it('Orte-Segment: Toggle öffnet die Massen-Dedup-Ansicht (Spec 20 §1.7 [K], ADR-v9-45)', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Orte/ }));
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(screen.getByText('Orte — Massen-Dedup')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('← Zur Orte-Liste'));
+    expect(screen.queryByText('Orte — Massen-Dedup')).toBeNull();
+  });
+
+  it('Höfe-Segment: Review- und Dedup-Toggle sind gegenseitig exklusiv', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Town' }));
+    const husband = db.individuals.get('@I1@')!;
+    husband.death.place = 'Ochtrup';
+    husband.death.addr = 'Wall 33';
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
+    await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
+
+    expect(screen.getByText('Klasse A')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(screen.getByText('Höfe — Massen-Dedup')).toBeTruthy();
+    expect(screen.queryByText('Klasse A')).toBeNull();
   });
 
   it('"＋ Neue Person" wählt die neue Person aus UND öffnet den Editor sofort (Spec 20 §2)', async () => {

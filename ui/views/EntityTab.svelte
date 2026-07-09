@@ -22,9 +22,11 @@
   import RepositoryDetail from './repository/RepositoryDetail.svelte';
   import PlaceList from './place/PlaceList.svelte';
   import PlaceDetail from './place/PlaceDetail.svelte';
+  import PlaceDedupView from './place/PlaceDedupView.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
   import HofReview from './hof/HofReview.svelte';
+  import HofDedupView from './hof/HofDedupView.svelte';
 
   interface Props {
     appState: AppState;
@@ -85,6 +87,11 @@
   // des Höfe-Segments, kein eigener Segment-Button (INV-UI-2: ein kanonischer Weg zu
   // Höfe-nahen Daten bleibt "Höfe" — der Review ist ein Werkzeug darin, kein Ziel).
   let hofReviewOpen = $state(false);
+  // "Massen-Dedup" (Spec 20 §1.7/§1.8 [K], Spec 11 §9.2) ist analog ein Overlay innerhalb
+  // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
+  // wie beim Hof-Review-Toggle oben (INV-UI-2).
+  let placeDedupOpen = $state(false);
+  let hofDedupOpen = $state(false);
 
   function selectSegment(segment: SegmentDef) {
     if (!segment.implemented) return;
@@ -165,13 +172,31 @@
 
   function navigateToPlace(id: string) {
     activeSegment = 'place';
+    placeDedupOpen = false;
     viewState.setCurrent('place', id);
   }
 
   function navigateToHof(id: string) {
     activeSegment = 'hof';
     hofReviewOpen = false;
+    hofDedupOpen = false;
     viewState.setCurrent('hof', id);
+  }
+
+  /** Beide Höfe-Overlays (Review/Dedup) sind gegenseitig exklusiv — jeweils nur EIN
+   *  Werkzeug gleichzeitig sichtbar (INV-VS-Analog: eine aktive Overlay-Auswahl). */
+  function toggleHofReview() {
+    hofDedupOpen = false;
+    hofReviewOpen = !hofReviewOpen;
+  }
+
+  function toggleHofDedup() {
+    hofReviewOpen = false;
+    hofDedupOpen = !hofDedupOpen;
+  }
+
+  function togglePlaceDedup() {
+    placeDedupOpen = !placeDedupOpen;
   }
 
   const selectedPersonId = $derived(viewState.getCurrent('person'));
@@ -233,10 +258,21 @@
     </div>
   {/if}
 
+  {#if activeSegment === 'place' && !selectedPlaceId}
+    <div class="entity-tab__detail-header">
+      <button type="button" class="entity-tab__review-toggle" onclick={togglePlaceDedup}>
+        {placeDedupOpen ? '← Zur Orte-Liste' : 'Massen-Dedup'}
+      </button>
+    </div>
+  {/if}
+
   {#if activeSegment === 'hof' && !selectedHofId}
     <div class="entity-tab__detail-header">
-      <button type="button" class="entity-tab__review-toggle" onclick={() => (hofReviewOpen = !hofReviewOpen)}>
+      <button type="button" class="entity-tab__review-toggle" onclick={toggleHofReview}>
         {hofReviewOpen ? '← Zur Hof-Liste' : 'Hof-Zuweisungen prüfen'}
+      </button>
+      <button type="button" class="entity-tab__review-toggle" onclick={toggleHofDedup}>
+        {hofDedupOpen ? '← Zur Hof-Liste' : 'Massen-Dedup'}
       </button>
     </div>
   {/if}
@@ -299,7 +335,9 @@
       <SourceList {appState} {viewState} onCreate={createSource} />
     {/if}
   {:else if activeSegment === 'place'}
-    {#if selectedPlaceId}
+    {#if placeDedupOpen && !selectedPlaceId}
+      <PlaceDedupView {appState} />
+    {:else if selectedPlaceId}
       <PlaceDetail
         {appState}
         {viewState}
@@ -317,6 +355,8 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
       />
+    {:else if hofDedupOpen && !selectedHofId}
+      <HofDedupView {appState} />
     {:else if selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
@@ -348,6 +388,9 @@
 
   .entity-tab__detail-header {
     padding: 0.5rem 0.75rem 0;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .entity-tab__review-toggle {

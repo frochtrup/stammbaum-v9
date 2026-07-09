@@ -1,9 +1,11 @@
 <script lang="ts">
   // ui/views/hof/HofList.svelte — Höfe-Tab-Liste (Spec 20 §1.8 [K]: "Hof-Liste
-  // (aus Events aufgelöst, numerisch sortiert), Zugehöriges Dorf anzeigen").
+  // (aus Events aufgelöst, numerisch sortiert), Zugehöriges Dorf anzeigen"). Anreicherungs-
+  // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import { buildHofRows } from './hof-list-model';
+  import { collectAllEvents } from '../../shell/all-events';
+  import { buildHofListSections } from './hof-list-model';
 
   interface Props {
     appState: AppState;
@@ -12,8 +14,11 @@
   const { appState, viewState }: Props = $props();
 
   let query = $state('');
+  let section = $state<'referenced' | 'unreferenced'>('referenced');
 
-  const rows = $derived(buildHofRows(appState.db, query));
+  const events = $derived(collectAllEvents(appState.db));
+  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query));
+  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const isEmpty = $derived(appState.db.hofObjects.size === 0);
 
   function selectHof(id: string) {
@@ -38,14 +43,42 @@
       </div>
     </div>
 
+    <div class="stb-segment-row hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={section === 'referenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'referenced'}
+        onclick={() => (section = 'referenced')}
+      >
+        Höfe ({sections.referenced.length})
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={section === 'unreferenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'unreferenced'}
+        onclick={() => (section = 'unreferenced')}
+      >
+        Ohne Bezug ({sections.unreferenced.length})
+      </button>
+    </div>
+
     {#if rows.length === 0}
-      <p class="hof-list__empty">Keine Höfe gefunden.</p>
+      <p class="hof-list__empty">
+        {section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
+      </p>
     {:else}
       <ul class="hof-list__rows">
         {#each rows as row (row.id)}
           <li>
             <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
               <span class="hof-list__addr">{row.addr || row.id}</span>
+              {#if !row.enriched}
+                <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
+              {/if}
               <span class="hof-list__meta">
                 <span>{row.villageTitle}</span>
                 <span
@@ -72,6 +105,11 @@
   .hof-list__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
+  }
+
+  /* Segment-Pillen selbst kommen aus design-system.css (.stb-segment-row/-btn, INV-UI-4). */
+  .hof-list__sections {
+    border-bottom: 1px solid var(--stb-surface-3);
   }
 
   .hof-list__toolbar {

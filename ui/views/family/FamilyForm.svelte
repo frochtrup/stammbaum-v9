@@ -28,7 +28,7 @@
   import { setCitationQuay } from '../../../core/model/citation';
   import { isEventPresent } from '../../../core/model';
   import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
-  import { displayName } from '../../shell/person-display';
+  import { displayName, eventPlaceLabel } from '../../shell/person-display';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
@@ -109,7 +109,9 @@
       year2: parts?.year2 ?? null,
       originalDate: ev.date,
       dateDirty: false,
-      place: ev.place ?? '',
+      // ADR-v9-47 Punkt 3 (analog PersonForm.svelte): Live-Anfangswert bei gesetzter
+      // placeId/hofId, Tristate-Erhaltung bleibt unverändert (originalPlace bleibt roh).
+      place: ev.placeId != null || ev.hofId != null ? eventPlaceLabel(ev, appState.placeContext) : (ev.place ?? ''),
       originalPlace: ev.place,
       placeDirty: false,
       placeId: ev.placeId,

@@ -2,8 +2,14 @@
 // "Hof-Liste (aus Events aufgelöst, numerisch sortiert)"). Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
 import { makeDatabase } from '../../core/model';
-import { place, hof } from '../core/places-fixtures';
-import { buildHofRows, houseNumberOf } from '../../ui/views/hof/hof-list-model';
+import { place, hof, ev } from '../core/places-fixtures';
+import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
+import type { PlaceContext } from '../../core/places';
+import { buildHofRows, buildHofListSections, houseNumberOf } from '../../ui/views/hof/hof-list-model';
+
+function ctxOf(db: ReturnType<typeof makeDatabase>): PlaceContext {
+  return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+}
 
 describe('houseNumberOf — Hausnummer-Anteil als numerischer Sortierschlüssel', () => {
   it('extrahiert eine führende Zahl', () => {
@@ -73,5 +79,52 @@ describe('buildHofRows — Sammlung + numerische Sortierung', () => {
 
     expect(buildHofRows(db, 'wall').map((r) => r.id)).toEqual(['@H1@']);
     expect(buildHofRows(db, 'münster').map((r) => r.id)).toEqual(['@H2@']);
+  });
+});
+
+describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile', () => {
+  it('plain (1 undatierte Adresse) → enriched=false', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    expect(buildHofRows(db)[0].enriched).toBe(false);
+  });
+
+  it('angereichert (z. B. Notiz gesetzt) → enriched=true', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set(
+      '@H1@',
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'Hof am Bach' }),
+    );
+
+    expect(buildHofRows(db)[0].enriched).toBe(true);
+  });
+});
+
+describe('buildHofListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => {
+  it('referenzierter Hof landet in "referenced", referenzloser in "unreferenced"', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Verwaist 1', from: null, to: null }] }));
+    const events = [ev('RESI', { hofId: '@H1@' })];
+
+    const sections = buildHofListSections(db, ctxOf(db), events);
+
+    expect(sections.referenced.map((r) => r.id)).toEqual(['@H1@']);
+    expect(sections.unreferenced.map((r) => r.id)).toEqual(['@H2@']);
+  });
+
+  it('keine Events → alle Höfe landen in "unreferenced"', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
+
+    const sections = buildHofListSections(db, ctxOf(db), []);
+
+    expect(sections.referenced).toEqual([]);
+    expect(sections.unreferenced.map((r) => r.id)).toEqual(['@H1@']);
   });
 });

@@ -57,8 +57,11 @@ function adminChain(ev: Event, segs: string[]): string[] {
  * Eltern-Verträglichkeit (ADR-v9-29): zwei Elternketten sind verträglich, wenn eine ein
  * Präfix der anderen ist (an jeder gemeinsamen Position gleich). Widerspruch an einer
  * gemeinsamen Position → unverträglich (distinkte Orte).
+ *
+ * Exportiert, damit der Massen-Dedup (`findPlaceDuplicates`, §9.2, ADR-v9-45) exakt
+ * dieselbe Verträglichkeits-Regel benutzt wie der Seed-Dedup — NICHT neu erfinden.
  */
-function parentsCompatible(a: readonly string[], b: readonly string[]): boolean {
+export function parentsCompatible(a: readonly string[], b: readonly string[]): boolean {
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) if (a[i] !== b[i]) return false;
   return true;

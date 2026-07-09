@@ -1,0 +1,69 @@
+// tests/ui/place-dedup-model.test.ts — Massen-Dedup-Modell für Orte (Spec 20 §1.7 [K],
+// Spec 11 §9.2, ADR-v9-45). Reine Funktion (TST-5), inkl. TST-7-Kapazitätsfall.
+import { describe, expect, it } from 'vitest';
+import { makeDatabase } from '../../core/model';
+import { place, ev } from '../core/places-fixtures';
+import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
+import type { PlaceContext } from '../../core/places';
+import { buildPlaceDedupGroups } from '../../ui/views/place/place-dedup-model';
+
+function ctxOf(db: ReturnType<typeof makeDatabase>): PlaceContext {
+  return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+}
+
+describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () => {
+  it('gruppiert Namens-Varianten (gleicher Leitname, verträgliche Eltern)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].members.map((m) => m.id).sort()).toEqual(['@A@', '@B@']);
+  });
+
+  it('kein Duplikat → leere Gruppen-Liste', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Völlig Anders' }));
+
+    expect(buildPlaceDedupGroups(db, ctxOf(db), [])).toEqual([]);
+  });
+
+  it('Gewinner-Vorschlag: höhere Verwendungszahl gewinnt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    const events = [ev('BIRT', { placeId: '@B@' }), ev('DEAT', { placeId: '@B@' })];
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), events);
+
+    expect(groups[0].suggestedWinnerId).toBe('@B@');
+  });
+
+  it('Gewinner-Vorschlag: bei gleicher Verwendungszahl gewinnen Koordinaten', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups[0].suggestedWinnerId).toBe('@B@');
+  });
+
+  it('TST-7 Kapazitätsfall: viele überlappende Gruppen gleichzeitig, deterministisch', () => {
+    const db = makeDatabase();
+    for (let i = 0; i < 20; i++) {
+      db.placeObjects.set(`@A${i}@`, place(`@A${i}@`, { title: `Ort${i}` }));
+      db.placeObjects.set(`@B${i}@`, place(`@B${i}@`, { title: `Ort${i}` }));
+    }
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups).toHaveLength(20);
+    for (const g of groups) expect(g.members).toHaveLength(2);
+    // Determinismus: zweiter Lauf liefert identisches Ergebnis.
+    expect(JSON.stringify(buildPlaceDedupGroups(db, ctxOf(db), []))).toBe(JSON.stringify(groups));
+  });
+});
