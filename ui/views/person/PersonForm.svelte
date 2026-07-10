@@ -763,16 +763,9 @@
     margin-top: 0.4rem;
   }
 
-  .person-form input,
-  .person-form select,
-  .person-form textarea {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.5rem;
-    font: inherit;
-  }
+  /* Basis-Optik (Hintergrund/Border/Padding/Font) kommt jetzt aus dem globalen
+     `input, select, textarea`-Grundstil (design-system.css, INV-UI-4) — hier nur
+     noch, wo dieses Formular wirklich abweicht (s. Breiten-Overrides unten). */
 
   /* Schnellauswahl-Pills (ADR-v9-30 Punkt 3): eigener Stil, bewusst NICHT .stb-pill
      (design-system.css) wiederverwendet — .stb-pill ist ein entfernbarer Chip/Tag
