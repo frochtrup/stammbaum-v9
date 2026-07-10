@@ -196,14 +196,16 @@
           Typ
           <input type="text" bind:value={formType} placeholder="z. B. Village, City, County…" />
         </label>
-        <label>
-          Breitengrad
-          <input type="number" step="any" bind:value={formLat} />
-        </label>
-        <label>
-          Längengrad
-          <input type="number" step="any" bind:value={formLong} />
-        </label>
+        <div class="place-detail__coord-row">
+          <label>
+            Breitengrad
+            <input type="number" step="any" bind:value={formLat} />
+          </label>
+          <label>
+            Längengrad
+            <input type="number" step="any" bind:value={formLong} />
+          </label>
+        </div>
         <label>
           Notiz
           <textarea bind:value={formNote}></textarea>
@@ -218,9 +220,13 @@
     <section class="place-detail__section">
       <h3>Verwaltungszugehörigkeit</h3>
       {#if detail.enclosureChain.length > 1}
+        <p class="place-detail__hint">Volle Kette, berechnet aus den Zugehörigkeiten unten UND deren jeweils eigenen übergeordneten Orten:</p>
         <p class="place-detail__chain">{detail.enclosureChain.join(' › ')}</p>
       {:else}
         <p class="place-detail__muted">Keine übergeordnete Zugehörigkeit erfasst.</p>
+      {/if}
+      {#if detail.place.enclosedBy.length}
+        <p class="place-detail__hint">Direkt zugeordnet (hier bearbeitbar — ihre eigene weitere Zugehörigkeit wird bei ihnen selbst gepflegt):</p>
       {/if}
       <ul class="place-detail__enclosed-list">
         {#each detail.place.enclosedBy as enc, i (i)}
@@ -443,8 +449,20 @@
     font-size: 0.85rem;
   }
 
+  .place-detail__hint {
+    color: var(--stb-text-dim);
+    font-size: 0.78rem;
+    margin: 0.6rem 0 0.2rem;
+  }
+
   .place-detail__chain {
     font-size: 0.9rem;
+  }
+
+  .place-detail__coord-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
   }
 
   .place-detail__form {
