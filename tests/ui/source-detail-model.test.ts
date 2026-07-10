@@ -93,5 +93,56 @@ describe('buildSourceDetail — Referenzen inkl. PAGE/QUAY + verlinktes Archiv',
     const detail = buildSourceDetail(db, '@S1@')!;
 
     expect(detail.references).toEqual([]);
+    expect(detail.referencesByType).toEqual([]);
+  });
+});
+
+describe('buildSourceDetail — referencesByType (Spec 21 §10b, Gruppierung nach Kontext-Typ)', () => {
+  it('gruppiert Referenzen nach ihrem Kontext-Label (Geburt/Tod/Heirat/…), alphabetisch (de)', () => {
+    const db = makeDatabase();
+    const p1 = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p1.birth.citations.push(makeCitation('@S1@'));
+    p1.death.citations.push(makeCitation('@S1@'));
+    const p2 = makePerson('@I2@', { given: 'Otto', surname: 'Klein' });
+    p2.birth.citations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', p1);
+    db.individuals.set('@I2@', p2);
+    db.sources.set('@S1@', makeSource('@S1@'));
+
+    const detail = buildSourceDetail(db, '@S1@')!;
+
+    expect(detail.referencesByType.map((g) => g.type)).toEqual(['Geburt', 'Tod']);
+    expect(detail.referencesByType.find((g) => g.type === 'Geburt')?.rows).toHaveLength(2);
+    expect(detail.referencesByType.find((g) => g.type === 'Tod')?.rows).toHaveLength(1);
+  });
+
+  it('jede Referenzzeile hat einen stabilen, eindeutigen key (mehrere gleichartige Zitate derselben Person)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.nameCitations.push(makeCitation('@S1@'));
+    p.nameCitations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S1@', makeSource('@S1@'));
+
+    const detail = buildSourceDetail(db, '@S1@')!;
+
+    const keys = detail.references.map((r) => r.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('TST-7 Kapazitäts-Fall: viele Referenzen desselben Typs landen in einer Gruppe', () => {
+    const db = makeDatabase();
+    for (let i = 0; i < 45; i++) {
+      const p = makePerson(`@I${i}@`, { given: `P${i}`, surname: 'Bauer' });
+      p.birth.citations.push(makeCitation('@S1@'));
+      db.individuals.set(`@I${i}@`, p);
+    }
+    db.sources.set('@S1@', makeSource('@S1@'));
+
+    const detail = buildSourceDetail(db, '@S1@')!;
+
+    expect(detail.references).toHaveLength(45);
+    expect(detail.referencesByType).toHaveLength(1);
+    expect(detail.referencesByType[0].rows).toHaveLength(45);
   });
 });

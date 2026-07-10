@@ -212,7 +212,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('person')).toBe('@I1@');
   });
 
-  it('Orte-Segment: Toggle öffnet die Massen-Dedup-Ansicht (Spec 20 §1.7 [K], ADR-v9-45)', async () => {
+  it('Orte-Segment: "Massen-Dedup" (aus der PlaceList-eigenen Toolbar, Spec 21 §10c) öffnet die Massen-Dedup-Ansicht', async () => {
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
@@ -226,11 +226,14 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     expect(screen.getByText('Orte — Massen-Dedup')).toBeTruthy();
 
-    await fireEvent.click(screen.getByText('← Zur Orte-Liste'));
+    // Schließen läuft jetzt über PlaceDedupView's eigenen "✕ Schließen" (Spec 21 §10c:
+    // der öffnende Button lebt in PlaceList, das beim Öffnen des Overlays unmountet —
+    // ein Toggle auf demselben Button ist also nicht mehr möglich).
+    await fireEvent.click(screen.getByText('✕ Schließen'));
     expect(screen.queryByText('Orte — Massen-Dedup')).toBeNull();
   });
 
-  it('Höfe-Segment: Review- und Dedup-Toggle sind gegenseitig exklusiv', async () => {
+  it('Höfe-Segment: Review- und Dedup-Werkzeug sind gegenseitig exklusiv (Schließen vor Öffnen des anderen, Spec 21 §10c)', async () => {
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Town' }));
@@ -245,6 +248,12 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
 
     expect(screen.getByText('Klasse A')).toBeTruthy();
+    // HofList (und damit sein "Massen-Dedup"-Button, Toolbar-Ownership) ist unmountet,
+    // solange das Review-Overlay offen ist — erst "✕ Schließen" bringt die Liste zurück.
+    expect(screen.queryByText('Massen-Dedup')).toBeNull();
+
+    await fireEvent.click(screen.getByText('✕ Schließen'));
+    expect(screen.queryByText('Klasse A')).toBeNull();
 
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 

@@ -86,6 +86,12 @@
   // "Hof-Zuweisungen prüfen" (Spec 20 §1.8 [K], Spec 11 §6) ist ein Overlay innerhalb
   // des Höfe-Segments, kein eigener Segment-Button (INV-UI-2: ein kanonischer Weg zu
   // Höfe-nahen Daten bleibt "Höfe" — der Review ist ein Werkzeug darin, kein Ziel).
+  //
+  // Toolbar-Ownership (Spec 21 §10c): die Buttons, die diese Overlays ÖFFNEN, leben
+  // seit dem Listen-/Detail-Primitiven-Bauabschnitt in der jeweiligen Listen-eigenen
+  // Toolbar (PlaceList/HofList) statt in dieser gemeinsamen EntityTab-Kopfzeile —
+  // EntityTab bleibt aber die Stelle, die entscheidet, WELCHE Komponente rendert
+  // (Liste vs. Overlay), sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
   let hofReviewOpen = $state(false);
   // "Massen-Dedup" (Spec 20 §1.7/§1.8 [K], Spec 11 §9.2) ist analog ein Overlay innerhalb
   // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
@@ -184,19 +190,36 @@
   }
 
   /** Beide Höfe-Overlays (Review/Dedup) sind gegenseitig exklusiv — jeweils nur EIN
-   *  Werkzeug gleichzeitig sichtbar (INV-VS-Analog: eine aktive Overlay-Auswahl). */
-  function toggleHofReview() {
+   *  Werkzeug gleichzeitig sichtbar (INV-VS-Analog: eine aktive Overlay-Auswahl).
+   *  "open"/"close" statt "toggle", weil der öffnende Button jetzt in HofList sitzt
+   *  (Toolbar-Ownership, Spec 21 §10c) — HofList verschwindet aus dem DOM, sobald das
+   *  Overlay rendert, ein Toggle-Button könnte sich also nicht mehr selbst umschalten.
+   *  Das Schließen übernimmt stattdessen der onClose der jeweiligen Overlay-Komponente
+   *  (HofReview/HofDedupView/PlaceDedupView haben bereits einen eigenen "✕ Schließen"). */
+  function openHofReview() {
     hofDedupOpen = false;
-    hofReviewOpen = !hofReviewOpen;
+    hofReviewOpen = true;
   }
 
-  function toggleHofDedup() {
+  function closeHofReview() {
     hofReviewOpen = false;
-    hofDedupOpen = !hofDedupOpen;
   }
 
-  function togglePlaceDedup() {
-    placeDedupOpen = !placeDedupOpen;
+  function openHofDedup() {
+    hofReviewOpen = false;
+    hofDedupOpen = true;
+  }
+
+  function closeHofDedup() {
+    hofDedupOpen = false;
+  }
+
+  function openPlaceDedup() {
+    placeDedupOpen = true;
+  }
+
+  function closePlaceDedup() {
+    placeDedupOpen = false;
   }
 
   const selectedPersonId = $derived(viewState.getCurrent('person'));
@@ -254,25 +277,6 @@
         }}
       >
         Archive
-      </button>
-    </div>
-  {/if}
-
-  {#if activeSegment === 'place' && !selectedPlaceId}
-    <div class="entity-tab__detail-header">
-      <button type="button" class="entity-tab__review-toggle" onclick={togglePlaceDedup}>
-        {placeDedupOpen ? '← Zur Orte-Liste' : 'Massen-Dedup'}
-      </button>
-    </div>
-  {/if}
-
-  {#if activeSegment === 'hof' && !selectedHofId}
-    <div class="entity-tab__detail-header">
-      <button type="button" class="entity-tab__review-toggle" onclick={toggleHofReview}>
-        {hofReviewOpen ? '← Zur Hof-Liste' : 'Hof-Zuweisungen prüfen'}
-      </button>
-      <button type="button" class="entity-tab__review-toggle" onclick={toggleHofDedup}>
-        {hofDedupOpen ? '← Zur Hof-Liste' : 'Massen-Dedup'}
       </button>
     </div>
   {/if}
@@ -336,7 +340,7 @@
     {/if}
   {:else if activeSegment === 'place'}
     {#if placeDedupOpen && !selectedPlaceId}
-      <PlaceDedupView {appState} />
+      <PlaceDedupView {appState} onClose={closePlaceDedup} />
     {:else if selectedPlaceId}
       <PlaceDetail
         {appState}
@@ -346,7 +350,7 @@
         onBack={backToList}
       />
     {:else}
-      <PlaceList {appState} {viewState} />
+      <PlaceList {appState} {viewState} onOpenDedup={openPlaceDedup} />
     {/if}
   {:else if activeSegment === 'hof'}
     {#if hofReviewOpen && !selectedHofId}
@@ -354,13 +358,14 @@
         {appState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
+        onClose={closeHofReview}
       />
     {:else if hofDedupOpen && !selectedHofId}
-      <HofDedupView {appState} />
+      <HofDedupView {appState} onClose={closeHofDedup} />
     {:else if selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
-      <HofList {appState} {viewState} />
+      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} />
     {/if}
   {/if}
 </div>
@@ -384,22 +389,5 @@
   .entity-tab__subsegments--dashed {
     padding-top: 0;
     border-bottom-style: dashed;
-  }
-
-  .entity-tab__detail-header {
-    padding: 0.5rem 0.75rem 0;
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .entity-tab__review-toggle {
-    background: var(--stb-surface-3);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-text);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.8rem;
   }
 </style>

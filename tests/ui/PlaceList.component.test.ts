@@ -4,7 +4,7 @@
 // ADR-v9-46 zeigt die Hauptliste (Segment "Orte") NUR referenzierte PlaceObjects — die
 // Fixtures hängen darum ein referenzierendes Event an, wo ein Ort in der Hauptliste
 // erwartet wird (analog einem echten, aus einem Import geseedeten Ort).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PlaceList from '../../ui/views/place/PlaceList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -194,5 +194,35 @@ describe('PlaceList — Referenz-Filter (ADR-v9-46, Spec 11 §9.3)', () => {
 
     expect(screen.getByText('Ohne Bezug (30)')).toBeTruthy();
     expect(screen.getByText('Orte (0)')).toBeTruthy();
+  });
+});
+
+describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () => {
+  it('rendert den Button NICHT, wenn kein onOpenDedup übergeben wird', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PlaceList, { props: { appState, viewState } });
+
+    expect(screen.queryByText('Massen-Dedup')).toBeNull();
+  });
+
+  it('rendert "Massen-Dedup" in der eigenen Toolbar und ruft onOpenDedup bei Klick auf', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    const onOpenDedup = vi.fn();
+
+    render(PlaceList, { props: { appState, viewState, onOpenDedup } });
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(onOpenDedup).toHaveBeenCalledOnce();
   });
 });

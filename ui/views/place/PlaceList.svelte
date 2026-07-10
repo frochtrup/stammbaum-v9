@@ -9,6 +9,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { collectAllEvents } from '../../shell/all-events';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import {
     buildPlaceListSections,
     defaultPlaceFilters,
@@ -19,15 +21,19 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** "Massen-Dedup" (Spec 20 §1.7 [K], Spec 21 §10c): der Button lebt in der eigenen
+     *  Toolbar dieser Liste (Toolbar-Ownership), die eigentliche Ansichts-Umschaltung
+     *  bleibt bei EntityTab (das entscheidet, ob PlaceList oder PlaceDedupView rendert). */
+    onOpenDedup?: () => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onOpenDedup }: Props = $props();
 
   let query = $state('');
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
-  let showFilters = $state(false);
   let groupMode = $state(false);
   let section = $state<'referenced' | 'unreferenced'>('referenced');
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultPlaceFilters()));
   const events = $derived(collectAllEvents(appState.db));
   const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
@@ -65,34 +71,30 @@
         <input type="checkbox" bind:checked={groupMode} />
         Varianten gruppiert
       </label>
-      <button
-        type="button"
-        class="place-list__filter-toggle"
-        aria-expanded={showFilters}
-        onclick={() => (showFilters = !showFilters)}
-      >
-        Filter
-      </button>
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="place-list__filters">
+          <label>
+            Typ
+            <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
+              <option value="">alle</option>
+              {#each types as t (t)}
+                <option value={t}>{t}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="place-list__checkbox">
+            <input type="checkbox" bind:checked={filters.hideAdmin} />
+            Verwaltungseinheiten ausblenden
+          </label>
+          <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+        </div>
+      </FilterBar>
+      {#if onOpenDedup}
+        <div class="place-list__bulk-actions">
+          <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+        </div>
+      {/if}
     </div>
-
-    {#if showFilters}
-      <div class="place-list__filters">
-        <label>
-          Typ
-          <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
-            <option value="">alle</option>
-            {#each types as t (t)}
-              <option value={t}>{t}</option>
-            {/each}
-          </select>
-        </label>
-        <label class="place-list__checkbox">
-          <input type="checkbox" bind:checked={filters.hideAdmin} />
-          Verwaltungseinheiten ausblenden
-        </label>
-        <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
-      </div>
-    {/if}
 
     <div class="stb-segment-row place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
       <button
@@ -179,8 +181,8 @@
     z-index: 1;
   }
 
-  .place-list__filter-toggle,
-  .place-list__filter-reset {
+  .place-list__filter-reset,
+  .place-list__dedup-btn {
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -190,9 +192,17 @@
     font-size: 0.85rem;
   }
 
-  .place-list__filter-toggle:hover,
-  .place-list__filter-reset:hover {
+  .place-list__filter-reset:hover,
+  .place-list__dedup-btn:hover {
     border-color: var(--stb-gold);
+  }
+
+  /* Bulk-Aktionen (Massen-Dedup) rechtsbündig, sofern Platz in der Zeile ist. margin-left:
+     auto ist hier sicher (TST-11), weil dieser Block IMMER das letzte Element der
+     Toolbar-Zeile ist, wenn er überhaupt gerendert wird (kein Geschwister danach). */
+  .place-list__bulk-actions {
+    display: flex;
+    margin-left: auto;
   }
 
   .place-list__toggle {
@@ -233,8 +243,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-1);
     align-items: flex-end;
   }
 

@@ -10,8 +10,13 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** "Hof-Zuweisungen prüfen"/"Massen-Dedup" (Spec 20 §1.8 [K], Spec 21 §10c): beide
+     *  Buttons leben in der eigenen Toolbar dieser Liste (Toolbar-Ownership) — die
+     *  Ansichts-Umschaltung (welches Overlay rendert) bleibt bei EntityTab. */
+    onOpenReview?: () => void;
+    onOpenDedup?: () => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onOpenReview, onOpenDedup }: Props = $props();
 
   let query = $state('');
   let section = $state<'referenced' | 'unreferenced'>('referenced');
@@ -33,6 +38,18 @@
 <div class="hof-list">
   {#if isEmpty}
     <p class="hof-list__empty">Keine Höfe erfasst — werden aus RESI/PROP-Ereignissen automatisch aufgelöst.</p>
+    {#if onOpenReview || onOpenDedup}
+      <div class="hof-list__toolbar hof-list__toolbar--empty">
+        <div class="hof-list__bulk-actions">
+          {#if onOpenReview}
+            <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
+          {/if}
+          {#if onOpenDedup}
+            <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+          {/if}
+        </div>
+      </div>
+    {/if}
   {:else}
     <div class="hof-list__toolbar">
       <div class="hof-list__search">
@@ -41,6 +58,16 @@
           <button type="button" class="hof-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
+      {#if onOpenReview || onOpenDedup}
+        <div class="hof-list__bulk-actions">
+          {#if onOpenReview}
+            <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
+          {/if}
+          {#if onOpenDedup}
+            <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <div class="stb-segment-row hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
@@ -114,6 +141,7 @@
 
   .hof-list__toolbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     align-items: center;
     padding: 0.5rem 1rem;
@@ -123,11 +151,41 @@
     z-index: 1;
   }
 
+  .hof-list__toolbar--empty {
+    position: static;
+    justify-content: flex-end;
+  }
+
   .hof-list__search {
     position: relative;
     flex: 1 1 160px;
     display: flex;
     align-items: center;
+  }
+
+  /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in
+     der Zeile ist. margin-left:auto ist hier sicher (TST-11), weil dieser Block IMMER
+     das letzte Element der Toolbar-Zeile ist, wenn er überhaupt gerendert wird. */
+  .hof-list__bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  .hof-list__review-btn {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .hof-list__review-btn:hover {
+    border-color: var(--stb-gold);
   }
 
   .hof-list__search input[type='search'] {

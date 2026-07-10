@@ -11,6 +11,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -36,8 +38,8 @@
   let sortMode = $state<PersonSortMode>('name');
   let query = $state('');
   let filters = $state<PersonFilters>(defaultPersonFilters());
-  let showFilters = $state(false);
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultPersonFilters()));
   const groups = $derived(buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters));
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
@@ -82,64 +84,55 @@
           <button type="button" class="person-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
-      <button
-        type="button"
-        class="person-list__filter-toggle"
-        aria-expanded={showFilters}
-        onclick={() => (showFilters = !showFilters)}
-      >
-        Filter
-      </button>
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="person-list__filters">
+          <fieldset class="person-list__sex-filter">
+            <legend>Geschlecht</legend>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="" />
+              Alle
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="M" />
+              Männlich
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="F" />
+              Weiblich
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="U" />
+              Unbekannt
+            </label>
+          </fieldset>
+          <label>
+            Geburtsjahr von
+            <input type="number" bind:value={filters.birthYearFrom} placeholder="von" />
+          </label>
+          <label>
+            Geburtsjahr bis
+            <input type="number" bind:value={filters.birthYearTo} placeholder="bis" />
+          </label>
+          <label>
+            Geburtsort
+            <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noDeathDate} />
+            kein Sterbedatum
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noSources} />
+            keine Quellen
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noParents} />
+            keine Eltern
+          </label>
+          <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+        </div>
+      </FilterBar>
     </div>
-
-    {#if showFilters}
-      <div class="person-list__filters">
-        <fieldset class="person-list__sex-filter">
-          <legend>Geschlecht</legend>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="" />
-            Alle
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="M" />
-            Männlich
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="F" />
-            Weiblich
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="U" />
-            Unbekannt
-          </label>
-        </fieldset>
-        <label>
-          Geburtsjahr von
-          <input type="number" bind:value={filters.birthYearFrom} placeholder="von" />
-        </label>
-        <label>
-          Geburtsjahr bis
-          <input type="number" bind:value={filters.birthYearTo} placeholder="bis" />
-        </label>
-        <label>
-          Geburtsort
-          <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noDeathDate} />
-          kein Sterbedatum
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noSources} />
-          keine Quellen
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noParents} />
-          keine Eltern
-        </label>
-        <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
-      </div>
-    {/if}
 
     {#if !hasResults}
       <p class="person-list__empty">Keine Personen gefunden.</p>
@@ -198,7 +191,6 @@
   }
 
   .person-list__sort-toggle,
-  .person-list__filter-toggle,
   .person-list__filter-reset,
   .person-list__new-btn {
     background: var(--stb-surface-3);
@@ -211,7 +203,6 @@
   }
 
   .person-list__new-btn {
-    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     font-weight: 600;
@@ -219,7 +210,6 @@
   }
 
   .person-list__sort-toggle:hover,
-  .person-list__filter-toggle:hover,
   .person-list__filter-reset:hover {
     border-color: var(--stb-gold);
   }
@@ -254,8 +244,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-1);
     align-items: flex-end;
   }
 

@@ -3,7 +3,7 @@
 // Spec 20 §1.8 [K]). Seit ADR-v9-46 zeigt die Hauptliste (Segment "Höfe") NUR
 // referenzierte HofObjects — Fixtures hängen darum ein referenzierendes Event an, wo ein
 // Hof in der Hauptliste erwartet wird.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import HofList from '../../ui/views/hof/HofList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -128,5 +128,36 @@ describe('HofList — Referenz-Filter (ADR-v9-46, Spec 11 §9.3)', () => {
 
     expect(screen.getByText('Ohne Bezug (30)')).toBeTruthy();
     expect(screen.getByText('Höfe (0)')).toBeTruthy();
+  });
+});
+
+describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup" (Spec 21 §10c)', () => {
+  it('rendert keinen der beiden Buttons ohne Callback-Props', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    render(HofList, { props: { appState, viewState } });
+
+    expect(screen.queryByText('Hof-Zuweisungen prüfen')).toBeNull();
+    expect(screen.queryByText('Massen-Dedup')).toBeNull();
+  });
+
+  it('rendert beide Buttons in der eigenen Toolbar und ruft die jeweiligen Callbacks bei Klick auf', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    const onOpenReview = vi.fn();
+    const onOpenDedup = vi.fn();
+
+    render(HofList, { props: { appState, viewState, onOpenReview, onOpenDedup } });
+    await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(onOpenReview).toHaveBeenCalledOnce();
+    expect(onOpenDedup).toHaveBeenCalledOnce();
   });
 });

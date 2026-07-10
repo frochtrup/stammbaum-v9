@@ -11,6 +11,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeFamily, allocatorFromDatabase, nextId } from '../../../core/model';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import {
     buildFamilyRows,
     defaultFamilyFilters,
@@ -43,8 +45,8 @@
   let sortMode = $state<FamilySortMode>('husbandSurname');
   let query = $state('');
   let filters = $state<FamilyFilters>(defaultFamilyFilters());
-  let showFilters = $state(false);
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultFamilyFilters()));
   const rows = $derived(buildFamilyRows(appState.db, appState.placeContext, sortMode, query, filters));
   const isEmpty = $derived(appState.db.families.size === 0);
 
@@ -89,45 +91,36 @@
           <button type="button" class="family-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
-      <button
-        type="button"
-        class="family-list__filter-toggle"
-        aria-expanded={showFilters}
-        onclick={() => (showFilters = !showFilters)}
-      >
-        Filter
-      </button>
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="family-list__filters">
+          <label>
+            Heiratsjahr von
+            <input type="number" bind:value={filters.marriageYearFrom} placeholder="von" />
+          </label>
+          <label>
+            Heiratsjahr bis
+            <input type="number" bind:value={filters.marriageYearTo} placeholder="bis" />
+          </label>
+          <label>
+            Heiratsort
+            <input type="text" bind:value={filters.marriagePlace} placeholder="Ort…" />
+          </label>
+          <label class="family-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noMarriageDate} />
+            kein Heiratsdatum
+          </label>
+          <label class="family-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noSources} />
+            keine Quellen
+          </label>
+          <label class="family-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noChildren} />
+            keine Kinder
+          </label>
+          <button type="button" class="family-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+        </div>
+      </FilterBar>
     </div>
-
-    {#if showFilters}
-      <div class="family-list__filters">
-        <label>
-          Heiratsjahr von
-          <input type="number" bind:value={filters.marriageYearFrom} placeholder="von" />
-        </label>
-        <label>
-          Heiratsjahr bis
-          <input type="number" bind:value={filters.marriageYearTo} placeholder="bis" />
-        </label>
-        <label>
-          Heiratsort
-          <input type="text" bind:value={filters.marriagePlace} placeholder="Ort…" />
-        </label>
-        <label class="family-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noMarriageDate} />
-          kein Heiratsdatum
-        </label>
-        <label class="family-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noSources} />
-          keine Quellen
-        </label>
-        <label class="family-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noChildren} />
-          keine Kinder
-        </label>
-        <button type="button" class="family-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
-      </div>
-    {/if}
 
     {#if rows.length === 0}
       <p class="family-list__empty">Keine Familien gefunden.</p>
@@ -177,7 +170,6 @@
   }
 
   .family-list__sort-toggle,
-  .family-list__filter-toggle,
   .family-list__filter-reset,
   .family-list__new-btn {
     background: var(--stb-surface-3);
@@ -190,7 +182,6 @@
   }
 
   .family-list__new-btn {
-    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     font-weight: 600;
@@ -198,7 +189,6 @@
   }
 
   .family-list__sort-toggle:hover,
-  .family-list__filter-toggle:hover,
   .family-list__filter-reset:hover {
     border-color: var(--stb-gold);
   }
@@ -233,8 +223,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-1);
     align-items: flex-end;
   }
 
