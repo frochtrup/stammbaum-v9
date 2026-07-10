@@ -89,12 +89,11 @@ export type DedupKind = 'places' | 'farms' | 'all';
 /**
  * Eine Kandidatengruppe (≥2 Mitglieder) wahrscheinlicher Dubletten.
  * `conflict` (nur bei Places, ADR-v9-50/Spec 11 §8 Restklasse 3): mindestens ein Mitglieder-
- * Paar hat WIDERSPRÜCHLICHE Elternketten (nicht `parentsCompatible`) — die Gruppe kam nur
- * zustande, weil Kriterium 4 (gleicher Name + mind. ein gemeinsamer Vorfahre irgendwo in
- * beiden Ketten) sie verbunden hat, nicht weil alle Mitglieder wechselseitig verträglich
- * wären. UI MUSS in diesem Fall die volle Namenskette zeigen (nicht nur den bloßen Titel)
- * und darf KEINEN Gewinner vorauswählen, ohne dass der Nutzer die abweichende Herkunft
- * gesehen hat — die Zusammenführung bleibt eine bewusste menschliche Entscheidung.
+ * Paar hat WIDERSPRÜCHLICHE Elternketten (nicht `parentsCompatible`) — Namensgleichheit allein
+ * hat die Gruppe verbunden, nicht wechselseitige Verträglichkeit ALLER Mitglieder. UI MUSS
+ * in diesem Fall die volle Namenskette zeigen (nicht nur den bloßen Titel) — Zusammenführen
+ * bleibt in JEDEM Fall eine bewusste menschliche Entscheidung, `conflict` ist reine
+ * Zusatz-Information, kein Gate.
  */
 export interface DuplicateGroup {
   ids: (PlaceId | HofId)[];
@@ -141,14 +140,29 @@ function makeUnionFind(ids: readonly string[]): { find: (x: string) => string; u
  * Findet Kandidatengruppen wahrscheinlicher Dubletten (Spec 11 §9.2, reine Funktion).
  * `items` ist `placeObjects` für `kind ∈ {'places','all'}`, `hofObjects` für `kind='farms'`.
  *
- * Drei Kriterien (Union-Find), kind-abhängig:
- *   1. Verträglichkeits-Key-Kollision —
- *      Places: gleicher normalisierter Leitname (title/pnames) UND verträgliche Elternketten
- *              (ADR-v9-29, NICHT roher Fold-Key — Oldenburg/NS ≠ Oldenburg/USA).
- *      Farms:  gleiche normalisierte Adresse (Konvention α, §4.4) UND gleiches villageId.
- *   2. Koordinaten-Nähe (≤ toleranceKm) bei gleichem Name-Fold — alle kind.
- *   3. Bare↔reich Cross-Achse — NUR Places: plain PO ohne enclosedBy/pnames mit Komma-Titel
- *      gegen reiches PO, dessen Titel dem Leitsegment entspricht. Bei Farms übersprungen.
+ * Places: ZWEI Kriterien (Union-Find) —
+ *   1. Name-Fold-Kollision (title/pnames) — ALLE gleichnamigen Orte werden vorgeschlagen,
+ *      UNABHÄNGIG von Eltern-Verträglichkeit (ADR-v9-50, Korrektur von ADR-v9-45/29-
+ *      Übernahme). Der ADR-v9-29-Verträglichkeits-Guard bleibt für den Event-Resolver/
+ *      Seed-Dedup (`resolve.ts`/`seed.ts`) unverändert bindend — dort wird STILL/AUTOMATISCH
+ *      entschieden, ein falscher Guard-Verzicht würde `Oldenburg, USA` an den deutschen
+ *      Oldenburg binden. Massen-Dedup dagegen führt NIE automatisch zusammen (§9.2) — hier
+ *      ist die Verträglichkeits-Frage keine Algorithmus-, sondern eine Menschen-Entscheidung:
+ *      „Ochtrup, Amt Ochtrup, Königreich Preußen, Deutsches Reich" und „Ochtrup, Kreis
+ *      Steinfurt, Nordrhein-Westfalen, Deutschland" sind derselbe Ort trotz komplett
+ *      fremder Ketten — strukturell nicht von Oldenburg/NDS vs. Oldenburg/USA unterscheidbar,
+ *      aber inhaltlich das Gegenteil. Kein Heuristik-Kompromiss (z. B. „teilt einen
+ *      Vorfahren") kann diese Fälle zuverlässig trennen — der Mensch entscheidet, mit voller
+ *      Namenskette sichtbar (`conflict`-Flag unten, `buildFullPlaceName`).
+ *      Farms: gleiche normalisierte Adresse (Konvention α, §4.4) UND gleiches `villageId` —
+ *      Hof-Identität läuft über Adresse+Dorf, keine Namens-Hierarchie-Frage, Guard bleibt hier
+ *      ohnehin nicht einschlägig.
+ *   2. Bare↔reich Cross-Achse — NUR Places: plain PO ohne enclosedBy/pnames mit Komma-Titel
+ *      gegen reiches PO, dessen Titel dem Leitsegment entspricht (kein Name-Fold-Treffer,
+ *      da unterschiedliche Titel-Strings — eigenes Kriterium nötig). Bei Farms übersprungen.
+ *
+ * `conflict: true` markiert Gruppen mit mindestens einem unverträglichen Mitglieder-Paar
+ * (Elternketten widersprechen sich) — UI-Pflicht: volle Namenskette statt bloßem Titel zeigen.
  *
  * Deterministisch: Gruppen- und Mitglieder-Reihenfolge folgen der Map-Iterationsordnung.
  */
@@ -161,7 +175,7 @@ export function findPlaceDuplicates(
 ): DuplicateGroup[] {
   return kind === 'farms'
     ? findHofDuplicates(items as HofObjects, toleranceKm)
-    : findPlaceObjectDuplicates(items as PlaceObjects, kind, toleranceKm);
+    : findPlaceObjectDuplicates(items as PlaceObjects, kind);
 }
 
 /** Sammelt die Cluster (≥2) einer Union-Find über die gegebene Iterationsordnung. */
@@ -178,11 +192,7 @@ function collectGroups(order: readonly string[], find: (x: string) => string): D
   return out;
 }
 
-function findPlaceObjectDuplicates(
-  places: PlaceObjects,
-  kind: 'places' | 'all',
-  toleranceKm: number,
-): DuplicateGroup[] {
+function findPlaceObjectDuplicates(places: PlaceObjects, kind: 'places' | 'all'): DuplicateGroup[] {
   // 'places' schließt (defensiv) Farm/Building-Typen aus — v9-PlaceObjects tragen diese Typen
   // nie (Höfe sind separate Entität), der Filter ist damit i. d. R. no-op. 'all' nimmt alles.
   const inScope = (po: PlaceObject): boolean =>
@@ -195,8 +205,9 @@ function findPlaceObjectDuplicates(
   const parentsNorm = (id: PlaceId): string[] =>
     reg.enclosureChainAsOf(id, null).slice(1).map(normPlaceName);
 
-  // Kriterium 1: Name-Fold (title + pnames) gruppieren, dann paarweise NUR bei verträglichen
-  // Elternketten unieren (ADR-v9-29-Guard statt rohem Fold-Key-Vergleich).
+  // Kriterium 1 (ADR-v9-50): Name-Fold (title + pnames) gruppieren — ALLE gleichnamigen Orte
+  // werden unioniert, UNABHÄNGIG von Eltern-Verträglichkeit. Kein Koordinaten-Fangnetz mehr
+  // nötig (entfiel mit dem alten, kompatibilitätsgegateten Kriterium 1 — s. Docstring oben).
   const byName = new Map<string, PlaceId[]>();
   for (const po of entries) {
     const keys = new Set<string>();
@@ -215,29 +226,13 @@ function findPlaceObjectDuplicates(
   for (const ids of byName.values()) {
     if (ids.length < 2) continue;
     for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        if (find(ids[i]) === find(ids[j])) continue;
-        if (parentsCompatible(parentsNorm(ids[i]), parentsNorm(ids[j]))) union(ids[i], ids[j]);
-      }
+      for (let j = i + 1; j < ids.length; j++) union(ids[i], ids[j]);
     }
   }
 
-  // Kriterium 2: Koordinaten-Nähe (≤ toleranceKm) bei gleichem Titel-Fold. Fängt gleichnamige
-  // Orte, die Kriterium 1 wegen unverträglicher Eltern übersprungen hat, aber physisch identisch
-  // sind (Koordinaten beweisen es).
-  for (let i = 0; i < entries.length; i++) {
-    for (let j = i + 1; j < entries.length; j++) {
-      const a = entries[i];
-      const b = entries[j];
-      if (find(a.id) === find(b.id)) continue;
-      if (a.lat == null || a.long == null || b.lat == null || b.long == null) continue;
-      if (normPlaceName(a.title) !== normPlaceName(b.title)) continue;
-      if (distKm(a.lat, a.long, b.lat, b.long) <= toleranceKm) union(a.id, b.id);
-    }
-  }
-
-  // Kriterium 3 (bare↔reich Cross-Achse): plain PO ohne enclosedBy mit Komma-Titel gegen ein
+  // Kriterium 2 (bare↔reich Cross-Achse): plain PO ohne enclosedBy mit Komma-Titel gegen ein
   // reiches PO (mit enclosedBy), dessen Titel dem Leitsegment des Komma-Titels entspricht.
+  // Kein Name-Fold-Treffer (unterschiedliche Titel-Strings) — eigenes Kriterium nötig.
   for (const bare of entries) {
     if (bare.enclosedBy.length) continue;
     if (!bare.title.includes(',')) continue;
@@ -255,32 +250,10 @@ function findPlaceObjectDuplicates(
     }
   }
 
-  // Kriterium 4 (NEU, ADR-v9-50 — Spec 11 §8 Restklasse 3 „Arpke"): gleicher Name, Eltern
-  // WIDERSPRÜCHLICH (Kriterium 1 hat übersprungen), aber die Ketten teilen irgendwo
-  // mindestens einen gemeinsamen Vorfahren (z. B. dieselbe Region/dasselbe Land trotz
-  // abweichender unmittelbarer Zugehörigkeit — Gebiets-/Kreisreform, uneinheitliche
-  // Quellenkonvention, real derselbe Ort). Wird als CONFLICT-Kandidat gruppiert (Flag unten),
-  // NIE automatisch vorausgewählt — der Nutzer entscheidet mit voller Namenskette sichtbar.
-  // Völlig FREMDE Ketten (kein gemeinsamer Vorfahre auf irgendeiner Ebene, z. B.
-  // verschiedene Länder — Oldenburg/Niedersachsen vs. Oldenburg/USA) bleiben unverändert
-  // ausgeschlossen: das schützt den ADR-v9-29-Zweck exakt wie zuvor (s. Test-Guard).
-  for (const ids of byName.values()) {
-    if (ids.length < 2) continue;
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        if (find(ids[i]) === find(ids[j])) continue;
-        const pa = parentsNorm(ids[i]);
-        const pb = parentsNorm(ids[j]);
-        if (pa.length === 0 || pb.length === 0) continue; // schon durch Kriterium 1 abgedeckt
-        if (pa.some((x) => pb.includes(x))) union(ids[i], ids[j]);
-      }
-    }
-  }
-
   const groups = collectGroups(order, find);
   // Conflict-Flag post-hoc je Gruppe: gibt es IRGENDEIN Mitglieder-Paar mit unverträglichen
-  // Elternketten, kam die Gruppe nur durch Kriterium 2/4 (nicht durch strikte Kriterium-1-
-  // Verträglichkeit) zustande — UI muss das sichtbar machen (volle Namenskette, kein Auto-Winner).
+  // Elternketten, ist die Namensgleichheit die einzige Klammer, nicht wechselseitige
+  // Verträglichkeit ALLER Mitglieder — UI muss das sichtbar machen (volle Namenskette).
   for (const g of groups) {
     const pids = g.ids as PlaceId[];
     outer: for (let i = 0; i < pids.length; i++) {

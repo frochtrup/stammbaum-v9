@@ -184,7 +184,12 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     expect(withAB).toBeTruthy();
   });
 
-  it('Kriterium 1 GUARD (ADR-v9-29): gleicher Name, UNVERträgliche Eltern → KEINE Gruppe (auch Kriterium 4 greift nicht, da Ketten VÖLLIG fremd — kein gemeinsamer Vorfahre)', () => {
+  it('ADR-v9-50: gleicher Name, VÖLLIG fremde Eltern (Oldenburg/Niedersachsen vs. Oldenburg/USA) → TROTZDEM eine Gruppe, aber conflict:true — der Mensch entscheidet, nicht der Algorithmus', () => {
+    // Massen-Dedup führt NIE automatisch zusammen (§9.2) — der frühere Guard (Kriterium 1
+    // gated auf parentsCompatible, ADR-v9-45) übertrug die Import-Zeit-Interpretation
+    // (ADR-v9-29, dort weiterhin bindend für resolve.ts/seed.ts) unnötig auf den
+    // Kurations-Kontext. Ob zwei gleichnamige Orte real derselbe sind, ist hier immer eine
+    // Menschen-Entscheidung — mit voller Namenskette sichtbar (buildFullPlaceName, UI-Ebene).
     const places = placeMap(
       place('@NS@', { title: 'Oldenburg', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
       place('@US@', { title: 'Oldenburg', enclosedBy: [{ placeId: '@USA@', from: null, to: null }] }),
@@ -192,33 +197,31 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
       place('@USA@', { title: 'USA' }),
     );
     const groups = findPlaceDuplicates(places, 'places');
-    const bad = groups.find((g) => g.ids.includes('@NS@') && g.ids.includes('@US@'));
-    expect(bad).toBeFalsy();
-  });
-
-  it('Kriterium 4 (ADR-v9-50, Spec 11 §8 Restklasse 3 „Arpke"): gleicher Name, unmittelbare Eltern widersprüchlich, ABER gemeinsamer Vorfahre weiter oben (Region) → Gruppe MIT conflict:true', () => {
-    const places = placeMap(
-      // Arpke gehörte laut Quelle A zu Burgdorf, laut Quelle B zu Uetze — beides real
-      // (Gebiets-/Kreisreform), beide Ketten enden aber gemeinsam in derselben Region.
-      place('@A@', {
-        title: 'Arpke',
-        enclosedBy: [{ placeId: '@BURGDORF@', from: null, to: null }],
-      }),
-      place('@B@', {
-        title: 'Arpke',
-        enclosedBy: [{ placeId: '@UETZE@', from: null, to: null }],
-      }),
-      place('@BURGDORF@', { title: 'Burgdorf', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }),
-      place('@UETZE@', { title: 'Uetze', enclosedBy: [{ placeId: '@REGION@', from: null, to: null }] }),
-      place('@REGION@', { title: 'Region Hannover' }),
-    );
-    const groups = findPlaceDuplicates(places, 'places');
-    const g = groups.find((x) => x.ids.includes('@A@') && x.ids.includes('@B@'));
+    const g = groups.find((x) => x.ids.includes('@NS@') && x.ids.includes('@US@'));
     expect(g).toBeTruthy();
     expect(g?.conflict).toBe(true);
   });
 
-  it('Kriterium 1 (verträglich) erzeugt KEIN conflict-Flag', () => {
+  it('ADR-v9-50: gleicher Name, komplett verschiedene historische Verwaltungsketten (Ochtrup/Preußen vs. Ochtrup/NRW — real derselbe Ort) → Gruppe MIT conflict:true', () => {
+    // Genau der Fall, an dem die „gemeinsamer Vorfahre"-Zwischenlösung noch scheiterte:
+    // JEDE Ebene wurde umbenannt (keine textuelle Überlappung), strukturell nicht von
+    // Oldenburg/USA unterscheidbar — aber real derselbe Ort. Deshalb keine Heuristik mehr,
+    // nur noch Namensgleichheit + sichtbares conflict-Flag.
+    const places = placeMap(
+      place('@ALT@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@PREUSSEN@', from: null, to: null }] }),
+      place('@NEU@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@NRW@', from: null, to: null }] }),
+      place('@PREUSSEN@', { title: 'Königreich Preußen', enclosedBy: [{ placeId: '@REICH@', from: null, to: null }] }),
+      place('@REICH@', { title: 'Deutsches Reich' }),
+      place('@NRW@', { title: 'Nordrhein-Westfalen', enclosedBy: [{ placeId: '@BRD@', from: null, to: null }] }),
+      place('@BRD@', { title: 'Deutschland' }),
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@ALT@') && x.ids.includes('@NEU@'));
+    expect(g).toBeTruthy();
+    expect(g?.conflict).toBe(true);
+  });
+
+  it('Kriterium 1 (verträgliche Eltern) erzeugt KEIN conflict-Flag', () => {
     const places = placeMap(
       place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
       place('@B@', { title: 'Ochtrup' }),
@@ -229,31 +232,7 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     expect(g?.conflict).toBeFalsy();
   });
 
-  it('Kriterium 2: gleicher Titel-Fold, unverträgliche Eltern, ABER Koordinaten ≤ toleranceKm → Gruppe', () => {
-    const places = placeMap(
-      place('@NS@', { title: 'Oldenburg', lat: 53.14, long: 8.21, enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
-      place('@US@', { title: 'Oldenburg', lat: 53.1401, long: 8.2101, enclosedBy: [{ placeId: '@USA@', from: null, to: null }] }),
-      place('@DE@', { title: 'Deutschland' }),
-      place('@USA@', { title: 'USA' }),
-    );
-    const groups = findPlaceDuplicates(places, 'places', 1);
-    const g = groups.find((x) => x.ids.includes('@NS@') && x.ids.includes('@US@'));
-    expect(g).toBeTruthy();
-  });
-
-  it('Kriterium 2: weit entfernte Koordinaten → KEINE Gruppe', () => {
-    const places = placeMap(
-      place('@NS@', { title: 'Oldenburg', lat: 53.14, long: 8.21, enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
-      place('@US@', { title: 'Oldenburg', lat: 39.17, long: -76.62, enclosedBy: [{ placeId: '@USA@', from: null, to: null }] }),
-      place('@DE@', { title: 'Deutschland' }),
-      place('@USA@', { title: 'USA' }),
-    );
-    const groups = findPlaceDuplicates(places, 'places', 1);
-    const g = groups.find((x) => x.ids.includes('@NS@') && x.ids.includes('@US@'));
-    expect(g).toBeFalsy();
-  });
-
-  it('Kriterium 3 (bare↔reich Cross-Achse): plain Komma-Titel-PO + reiches PO mit Leitsegment-Titel → Gruppe', () => {
+  it('Kriterium 2 (bare↔reich Cross-Achse): plain Komma-Titel-PO + reiches PO mit Leitsegment-Titel → Gruppe', () => {
     const places = placeMap(
       place('@BARE@', { title: 'Dolgen, Stadt Sehnde, Region Hannover' }), // plain, Komma-Titel, keine enclosedBy
       place('@RICH@', { title: 'Dolgen', type: 'Village', enclosedBy: [{ placeId: '@SEHNDE@', from: null, to: null }] }),
