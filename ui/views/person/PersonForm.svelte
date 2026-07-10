@@ -34,7 +34,7 @@
   import { isEventPresent } from '../../../core/model';
   import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
   import { eventPlaceLabel } from '../../shell/person-display';
-  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import SourceCitationRow from '../../shell/SourceCitationRow.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
   import EventAddrField from '../../shell/EventAddrField.svelte';
 
@@ -504,41 +504,17 @@
       </button>
     </div>
     {#each ev.citations as cit, i (i)}
-      <div class="person-form__citation-row">
-        <SourcePicker
-          {appState}
-          value={cit.sourceId}
-          onChange={(id) => setCitationSource(ev, i, id ?? '')}
-          label={`${labelPrefix} Quelle ${i + 1}`}
-        />
-        <input
-          type="text"
-          placeholder="Seite"
-          aria-label={`${labelPrefix} Seite ${i + 1}`}
-          value={cit.page}
-          onchange={(e) => setCitationPage(ev, i, (e.currentTarget as HTMLInputElement).value)}
-        />
-        <select
-          aria-label={`${labelPrefix} Zuverlässigkeit ${i + 1}`}
-          value={String(cit.quay)}
-          onchange={(e) => setCitationQuayAt(ev, i, Number((e.currentTarget as HTMLSelectElement).value) as Quay)}
-        >
-          <option value="0">QUAY 0</option>
-          <option value="1">QUAY 1</option>
-          <option value="2">QUAY 2</option>
-          <option value="3">QUAY 3</option>
-        </select>
-        <input
-          type="text"
-          placeholder="Notiz"
-          aria-label={`${labelPrefix} Notiz ${i + 1}`}
-          value={cit.note}
-          onchange={(e) => setCitationNote(ev, i, (e.currentTarget as HTMLInputElement).value)}
-        />
-        <!-- TODO Folgeschritt: Evidenz-Achsen (eval: source/information/evidence) — nicht
-             hart erforderlich für diese Scheibe (Spec 20 §2). -->
-        <button type="button" class="person-form__remove-btn" onclick={() => removeCitation(ev, i)} aria-label={`${labelPrefix} Quelle ${i + 1} entfernen`}>✕</button>
-      </div>
+      <SourceCitationRow
+        {appState}
+        citation={cit}
+        index={i}
+        {labelPrefix}
+        onSourceChange={(id) => setCitationSource(ev, i, id)}
+        onPageChange={(page) => setCitationPage(ev, i, page)}
+        onQuayChange={(quay) => setCitationQuayAt(ev, i, quay)}
+        onNoteChange={(note) => setCitationNote(ev, i, note)}
+        onRemove={() => removeCitation(ev, i)}
+      />
     {/each}
   </div>
 {/snippet}
@@ -925,14 +901,6 @@
     font-size: 0.8rem;
     color: var(--stb-text-dim);
     margin: 0;
-  }
-
-  .person-form__citation-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    align-items: center;
-    margin-bottom: 0.35rem;
   }
 
   .person-form__remove-btn {
