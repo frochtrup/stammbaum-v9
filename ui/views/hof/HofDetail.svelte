@@ -7,7 +7,6 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import Picker from '../../shell/Picker.svelte';
-  import EventsByType from '../../shell/EventsByType.svelte';
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
   import type { HofObject } from '../../../core/places/types';
@@ -126,6 +125,7 @@
 </script>
 
 {#snippet residentRow(row: HofResidentRow)}
+  <span class="stb-role-label">{row.role}</span>
   <button type="button" class="hof-detail__resident-link" onclick={() => onNavigateToPerson?.(row.personId)}>
     {row.personName}
   </button>
@@ -271,11 +271,15 @@
     </section>
 
     <section class="hof-detail__section">
-      <h3>Ereignisse</h3>
-      {#if detail.residentGroups.length === 0}
+      <h3>Bewohner &amp; Eigentümer</h3>
+      {#if detail.residents.length === 0}
         <p class="hof-detail__muted">Keine Bewohner-/Eigentümer-Ereignisse an diesem Hof erfasst.</p>
       {:else}
-        <EventsByType groups={detail.residentGroups} row={residentRow} />
+        <ul class="hof-detail__residents">
+          {#each detail.residents as row (row.key)}
+            <li>{@render residentRow(row)}</li>
+          {/each}
+        </ul>
       {/if}
     </section>
   {/if}
@@ -459,5 +463,23 @@
     padding: 0;
     font: inherit;
     text-decoration: underline;
+  }
+
+  /* Bewohner/Eigentümer: EINE zeitlich integrierte Liste (Nachtrag 2026-07-10,
+     Spec 21 §10j) — Differenzierung über .stb-role-label je Zeile, nicht über
+     getrennte Sektionen. */
+  .hof-detail__residents {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .hof-detail__residents li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--stb-surface-2);
+    flex-wrap: wrap;
   }
 </style>

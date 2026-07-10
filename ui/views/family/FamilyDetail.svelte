@@ -145,7 +145,7 @@
             class="stb-person-box family-detail__parent-box"
             onclick={() => onNavigateToPerson(member.personId)}
           >
-            <span class="family-detail__parent-role">{roleLabel[member.role]}</span>
+            <span class="stb-role-label">{roleLabel[member.role]}</span>
             <span class="stb-person-box__name">{member.name}</span>
             {#if member.summary}<span class="stb-person-box__meta">{member.summary}</span>{/if}
           </button>
@@ -259,12 +259,8 @@
     gap: 0.5rem;
   }
 
-  .family-detail__parent-role {
-    font-size: 0.68rem;
-    color: var(--stb-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
+  /* .family-detail__parent-role entfällt — Rollen-Label kommt jetzt aus dem
+     geteilten .stb-role-label (design-system.css, INV-UI-4). */
 
   /* Kinder — kompakte, anklickbare Einzeiler (INV-UI-5): Name + Geburtsjahr in Klammern,
      kein voller .stb-person-box-Kasten nötig (Nachtrag 2026-07-06 [20 §1.5]). */

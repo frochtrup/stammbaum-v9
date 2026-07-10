@@ -100,6 +100,18 @@ textarea::placeholder {
   color: var(--stb-text-muted);
 }
 
+/* Rollen-Label (INV-UI-4): kleine, GROSSGESCHRIEBENE Vorsatz-Beschriftung vor einem
+   Namen/Wert, wo die ROLLE einer Zeile disambiguiert werden muss (Ehemann/Ehefrau in
+   FamilyDetail, Eigene Familie/Herkunftsfamilie in PersonDetail, Bewohner/Eigentümer
+   in HofDetail — drittes unabhängiges Auftreten desselben Musters, 2026-07-10,
+   konsolidiert statt erneut lokal dupliziert). */
+.stb-role-label {
+  font-size: 0.7rem;
+  color: var(--stb-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 /* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
    zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
    Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung

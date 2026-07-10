@@ -52,8 +52,8 @@ describe('HofDetail — Steckbrief (read-only Teile)', () => {
   });
 });
 
-describe('HofDetail — Bewohner/Eigentümer getrennt statt vermischt (Spec 21 §10j)', () => {
-  it('zeigt PROP-Ereignisse unter "Eigentümer", nicht fälschlich unter "Bewohner"', async () => {
+describe('HofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j, Nachtrag 2026-07-10)', () => {
+  it('zeigt Bewohner UND Eigentümer in EINER chronologischen Liste, je Zeile mit Rollen-Label markiert', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -74,11 +74,14 @@ describe('HofDetail — Bewohner/Eigentümer getrennt statt vermischt (Spec 21 �
 
     render(HofDetail, { props: { appState, viewState, onNavigateToPerson } });
 
-    expect(screen.getByText('Bewohner (1)')).toBeTruthy();
-    expect(screen.getByText('Eigentümer (1)')).toBeTruthy();
-    // Keine gemeinsame, fachlich falsche "Bewohner (chronologisch)"-Überschrift mehr,
-    // die auch Eigentümer einschloss.
-    expect(screen.queryByText('Bewohner (chronologisch)')).toBeNull();
+    // Keine getrennten Gruppen-Überschriften mehr (Nachtrag 2026-07-10) — eine
+    // gemeinsame chronologische Liste, Rollen-Differenzierung über das Label je Zeile.
+    expect(screen.queryByText('Bewohner (1)')).toBeNull();
+    expect(screen.queryByText('Eigentümer (1)')).toBeNull();
+    expect(screen.getByText('Bewohner')).toBeTruthy();
+    expect(screen.getByText('Eigentümer')).toBeTruthy();
+    expect(screen.getByText('Anna Meyer')).toBeTruthy();
+    expect(screen.getByText('Bernd Schulze')).toBeTruthy();
 
     await fireEvent.click(screen.getByText('Bernd Schulze'));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I2@');

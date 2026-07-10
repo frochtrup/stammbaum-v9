@@ -1,13 +1,16 @@
 <script lang="ts" generics="T extends { key: string }">
   // ui/shell/EventsByType.svelte — DIE EINE Darstellung für "Ereignis-Reihen, gruppiert
-  // nach einem Schlüssel, mit Anzahl im Untertitel" (INV-UI-4, Spec 21 §6b Nachtrag /
-  // §10j). Vorher zweimal unabhängig gebaut: PlaceDetail.svelte's "Ereignisse nach Typ"
-  // (h4 "RESI (3)") und — nur strukturell verwandt, nie tatsächlich gruppiert —
-  // HofDetail.svelte's "Bewohner (chronologisch)", die RESI/CENS (Bewohner) und PROP
-  // (Eigentümer) fälschlich in einer flachen Liste vermischte. Beide Views liefern jetzt
-  // ihre Zeilen bereits fertig gruppiert (`ui/shell/event-grouping.ts`, `groupByKey`) und
-  // reichen nur noch Gruppen + eine Zeilen-Snippet rein — die eigentliche "Untertitel +
-  // Liste"-Optik lebt hier EINMAL.
+  // nach einem Schlüssel, mit Anzahl im Untertitel" (INV-UI-4, Spec 21 §6b Nachtrag).
+  // Genutzt von PlaceDetail.svelte ("Ereignisse nach Typ", h4 "RESI (3)") und
+  // SourceDetail.svelte (Referenzen nach Ereignistyp). HofDetail.svelte nutzte dies
+  // vorübergehend ebenfalls (Bewohner/Eigentümer als getrennte Gruppen), wurde aber
+  // per Nutzer-Nachtrag 2026-07-10 (Spec 21 §10j) auf EINE zeitlich integrierte Liste
+  // zurückgestellt — dort differenziert jetzt `.stb-role-label` je Zeile statt einer
+  // Gruppierung, weil Bewohner/Eigentümer-Wechsel eine zusammenhängende Zeiterzählung
+  // sind, keine unabhängigen Kategorien wie Ereignistypen. Views, die ihre Zeilen
+  // bereits fertig gruppiert liefern (`ui/shell/event-grouping.ts`, `groupByKey`),
+  // reichen nur noch Gruppen + eine Zeilen-Snippet rein — die "Untertitel + Liste"-
+  // Optik lebt hier EINMAL.
   import type { Snippet } from 'svelte';
   import type { EventGroup } from './event-grouping';
 

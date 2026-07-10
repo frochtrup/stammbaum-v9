@@ -1,20 +1,15 @@
 // tests/ui/hof-detail-model.test.ts — Hof-Steckbrief (Spec 20 §1.8 [K]: Bewohner
-// chronologisch; Spec 21 §10j: RESI/CENS = "Bewohner", PROP = "Eigentümer", getrennt
-// statt fachlich falsch vermischt). Reine Funktion (TST-5).
+// chronologisch; Spec 21 §10j, Nachtrag 2026-07-10: Bewohner UND Eigentümer in EINER
+// zeitlich integrierten Liste, Differenzierung über `row.role`, nicht über getrennte
+// Sektionen). Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
 import { makeDatabase, makePerson, makeEvent } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { place, hof } from '../core/places-fixtures';
-import { buildHofDetail, type HofResidentRow } from '../../ui/views/hof/hof-detail-model';
+import { buildHofDetail } from '../../ui/views/hof/hof-detail-model';
 
 function ctxFor(db: ReturnType<typeof makeDatabase>): PlaceContext {
   return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
-}
-
-/** Alle Zeilen über alle Gruppen hinweg, in Gruppen-Reihenfolge — für Assertions, die
- *  sich (noch) nicht für die Bewohner-/Eigentümer-Trennung interessieren. */
-function allRows(groups: { rows: HofResidentRow[] }[]): HofResidentRow[] {
-  return groups.flatMap((g) => g.rows);
 }
 
 describe('buildHofDetail — Bewohner chronologisch', () => {
@@ -33,12 +28,11 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
 
     expect(detail).not.toBeNull();
     expect(detail!.villageTitle).toBe('Ochtrup');
-    const rows = allRows(detail!.residentGroups);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].personName).toBe('Otto Bauer');
+    expect(detail!.residents).toHaveLength(1);
+    expect(detail!.residents[0].personName).toBe('Otto Bauer');
   });
 
-  it('sortiert Bewohner chronologisch, undatierte ans Ende', () => {
+  it('sortiert Bewohner UND Eigentümer gemeinsam chronologisch, undatierte ans Ende', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
@@ -59,15 +53,7 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
 
-    // Alle drei sind Lebens-Ereignisse (BIRT/DEAT) -> eine gemeinsame "Bewohner"-Gruppe,
-    // intern weiterhin chronologisch (undatiert ans Ende).
-    expect(detail!.residentGroups).toHaveLength(1);
-    expect(detail!.residentGroups[0].type).toBe('Bewohner');
-    expect(detail!.residentGroups[0].rows.map((r) => r.personName)).toEqual([
-      'A Früher',
-      'B Später',
-      'C Undatiert',
-    ]);
+    expect(detail!.residents.map((r) => r.personName)).toEqual(['A Früher', 'B Später', 'C Undatiert']);
   });
 
   it('gibt null zurück, wenn die id nicht existiert', () => {
@@ -88,8 +74,8 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
   });
 });
 
-describe('buildHofDetail — Bewohner/Eigentümer getrennt (Spec 21 §10j)', () => {
-  it('gruppiert RESI/CENS als "Bewohner" und PROP als "Eigentümer", nicht vermischt', () => {
+describe('buildHofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j, Nachtrag 2026-07-10)', () => {
+  it('markiert RESI/CENS als "Bewohner" und PROP als "Eigentümer", in EINER chronologischen Liste', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
@@ -104,12 +90,15 @@ describe('buildHofDetail — Bewohner/Eigentümer getrennt (Spec 21 §10j)', () 
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
 
-    const byType = new Map(detail!.residentGroups.map((g) => [g.type, g.rows.map((r) => r.personName)]));
-    expect(byType.get('Bewohner')).toEqual(['Anna Meyer']);
-    expect(byType.get('Eigentümer')).toEqual(['Bernd Schulze']);
+    // Eine gemeinsame, chronologische Liste (nicht nach Rolle gruppiert) — Anna (1900)
+    // vor Bernd (1905), jeweils mit ihrer eigenen Rolle markiert.
+    expect(detail!.residents.map((r) => [r.personName, r.role])).toEqual([
+      ['Anna Meyer', 'Bewohner'],
+      ['Bernd Schulze', 'Eigentümer'],
+    ]);
   });
 
-  it('liefert je Gruppe weiterhin chronologische Reihenfolge', () => {
+  it('mischt Bewohner- und Eigentümer-Zeilen chronologisch, statt sie nach Rolle zu trennen', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
@@ -118,13 +107,14 @@ describe('buildHofDetail — Bewohner/Eigentümer getrennt (Spec 21 §10j)', () 
     laterOwner.events.push(makeEvent('PROP', { date: '1950', hofId: '@H1@' }));
     db.individuals.set('@I1@', laterOwner);
 
-    const earlierOwner = makePerson('@I2@', { given: 'Früher', surname: 'Eigner' });
-    earlierOwner.events.push(makeEvent('PROP', { date: '1900', hofId: '@H1@' }));
-    db.individuals.set('@I2@', earlierOwner);
+    const earlierResident = makePerson('@I2@', { given: 'Früher', surname: 'Bewohner' });
+    earlierResident.events.push(makeEvent('RESI', { date: '1900', hofId: '@H1@' }));
+    db.individuals.set('@I2@', earlierResident);
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
 
-    const owners = detail!.residentGroups.find((g) => g.type === 'Eigentümer')!;
-    expect(owners.rows.map((r) => r.personName)).toEqual(['Früher Eigner', 'Später Eigner']);
+    // Chronologisch (1900 vor 1950), NICHT nach Rolle gruppiert (sonst stünde
+    // "Später Eigner" trotz höherem Jahr vor "Früher Bewohner").
+    expect(detail!.residents.map((r) => r.personName)).toEqual(['Früher Bewohner', 'Später Eigner']);
   });
 });

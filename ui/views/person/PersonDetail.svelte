@@ -147,7 +147,7 @@
         <ul class="person-detail__families">
           {#each detail.families as fam (fam.familyId + fam.role)}
             <li>
-              <span class="person-detail__family-role">
+              <span class="stb-role-label">
                 {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
               </span>
               {#if fam.members.length === 0}
@@ -319,12 +319,8 @@
     flex-wrap: wrap;
   }
 
-  .person-detail__family-role {
-    font-size: 0.72rem;
-    color: var(--stb-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
+  /* .person-detail__family-role entfällt — Rollen-Label kommt jetzt aus dem
+     geteilten .stb-role-label (design-system.css, INV-UI-4). */
 
   .person-detail__family-label {
     color: var(--stb-text-dim);

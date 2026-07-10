@@ -7,7 +7,8 @@ import type { HofObject, PlaceContext } from '../../../core/places';
 import { eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName } from '../../shell/person-display';
-import { groupByKey, type EventGroup } from '../../shell/event-grouping';
+
+export type HofResidentRole = 'Bewohner' | 'Eigentümer';
 
 export interface HofResidentRow {
   key: string;
@@ -16,13 +17,17 @@ export interface HofResidentRow {
   eventType: string;
   label: string;
   year: number | null;
+  role: HofResidentRole;
 }
 
-/** PROP-Ereignisse sind Eigentums-, keine Bewohner-Nachweise (Spec 21 §10j-Aufarbeitung:
- *  die frühere "Bewohner (chronologisch)"-Sektion mischte beides unter einem fachlich
- *  falschen Titel für PROP-Zeilen). Alle anderen HOF_EVENT_TYPES (RESI/CENS) sowie
- *  Lebens-Ereignisse mit hofId/addr (BIRT/CHR/DEAT/BURI) gelten als "Bewohner". */
-function hofBucketLabel(eventType: string): string {
+/** PROP-Ereignisse sind Eigentums-, keine Bewohner-Nachweise. Alle anderen
+ *  HOF_EVENT_TYPES (RESI/CENS) sowie Lebens-Ereignisse mit hofId/addr
+ *  (BIRT/CHR/DEAT/BURI) gelten als "Bewohner". Nachtrag 2026-07-10 (Spec 21 §10j,
+ *  revidiert): getrennte Bewohner-/Eigentümer-SEKTIONEN rissen die zeitliche
+ *  Erzählung eines Hofes auseinander (wer wohnte wann neben wem, wer besaß ihn zu
+ *  welcher Zeit) — jetzt EINE chronologische Liste, Differenzierung nur noch über
+ *  das `role`-Feld je Zeile (Format, nicht Gruppierung). */
+function hofRole(eventType: string): HofResidentRole {
   return eventType === 'PROP' ? 'Eigentümer' : 'Bewohner';
 }
 
@@ -30,9 +35,10 @@ export interface HofDetailModel {
   hof: HofObject;
   villageId: string;
   villageTitle: string;
-  /** "Bewohner"/"Eigentümer", je intern chronologisch (undatiert ans Ende) sortiert
-   *  (Spec 21 §10j: RESI/CENS vs. PROP getrennt, nicht mehr eine vermischte Liste). */
-  residentGroups: EventGroup<HofResidentRow>[];
+  /** EINE zeitlich integrierte Liste (Bewohner UND Eigentümer gemeinsam
+   *  chronologisch, undatiert ans Ende) — Differenzierung über `row.role`,
+   *  nicht über getrennte Sektionen (Nachtrag 2026-07-10, Spec 21 §10j). */
+  residents: HofResidentRow[];
   predecessorLabel: string | null;
   successorLabel: string | null;
 }
@@ -57,13 +63,15 @@ function collectResident(
   if (!isEventPresent(ev)) return;
   if (eventHofId(ev, ctx) !== hofId) return;
   const p = db.individuals.get(person.id);
+  const eventType = ev.eventType || ev.type || label;
   out.push({
     key,
     personId: person.id,
     personName: p ? displayName(p) : '(unbekannt)',
-    eventType: ev.eventType || ev.type || label,
+    eventType,
     label,
     year: eventYear(ev),
+    role: hofRole(eventType),
   });
 }
 
@@ -96,11 +104,6 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
     return a.personName.localeCompare(b.personName, 'de');
   });
 
-  // Gruppierung NACH der chronologischen Sortierung (nicht vorher) — jede Gruppe bleibt
-  // dadurch intern chronologisch, wie gefordert (Spec 21 §10j), statt die Reihenfolge
-  // durch die Gruppierung selbst zu verlieren.
-  const residentGroups = groupByKey(rows, (row) => hofBucketLabel(row.eventType));
-
   const predecessor = hof.predecessor ? db.hofObjects.get(hof.predecessor) : null;
   const successor = hof.successor ? db.hofObjects.get(hof.successor) : null;
 
@@ -108,7 +111,7 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
     hof,
     villageId: hof.villageId,
     villageTitle: village?.title || hof.villageId,
-    residentGroups,
+    residents: rows,
     predecessorLabel: predecessor ? predecessor.addrs[0]?.value ?? predecessor.id : null,
     successorLabel: successor ? successor.addrs[0]?.value ?? successor.id : null,
   };
