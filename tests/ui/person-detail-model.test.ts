@@ -272,4 +272,27 @@ describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-
     const beruf = detail.eventGroups.find((g) => g.type === 'Beruf')!;
     expect(beruf.rows.map((r) => r.label)).toEqual(['Beruf', 'Beschäftigung']);
   });
+
+  it('Beruf-Kategorie: OCCU steht IMMER vor Beschäftigung, unabhängig von der Einfüge-Reihenfolge; Beschäftigung-Zeilen chronologisch (Nutzer-Vorgabe 2026-07-10)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Klaus', surname: 'Decker' });
+    // Bewusst OCCU ZULETZT eingefügt, und Beschäftigung-Daten NICHT chronologisch
+    // eingefügt — die Sortierung muss beides selbst herstellen, nicht die
+    // Einfüge-Reihenfolge übernehmen (anders als jede andere Kategorie).
+    const b2015 = makeEvent('EVEN', { date: '2015', value: 'Integration Manager' });
+    b2015.eventType = 'Beschäftigung';
+    p.events.push(b2015);
+    const b2007 = makeEvent('EVEN', { date: '2007', value: 'Team Leader' });
+    b2007.eventType = 'Beschäftigung';
+    p.events.push(b2007);
+    p.events.push(makeEvent('OCCU', { value: 'Luft- und Raumfahrtingenieur' }));
+
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const beruf = detail.eventGroups.find((g) => g.type === 'Beruf')!;
+    expect(beruf.rows.map((r) => r.label)).toEqual(['Beruf', 'Beschäftigung', 'Beschäftigung']);
+    expect(beruf.rows.map((r) => r.year)).toEqual([null, 2007, 2015]);
+  });
 });

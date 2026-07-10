@@ -4,7 +4,7 @@
 // keine Mutation, keine Feld-Interpretation, die eigentlich in den Kern gehört.
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
-import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
+import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
@@ -13,8 +13,15 @@ import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 export interface EventRow {
   key: string;
   label: string;
+  /** REALER GEDCOM-Tag (nicht der übersetzte `label`-Text) — für Sortier-/Gruppierungs-
+   *  Entscheidungen, die den echten Typ brauchen (z. B. "OCCU vor Beschäftigung
+   *  innerhalb Beruf", Nutzer-Vorgabe 2026-07-10), analog `HofResidentRow.eventType`. */
+  tag: string;
   /** Kategorie für die gruppierte Anzeige (Nutzer-Vorgabe 2026-07-10, `event-labels.ts`). */
   category: string;
+  /** Jahr für die Sortierung innerhalb einer Kategorie (`sortWithinCategory`) — undatiert
+   *  = `null`, sortiert ans Ende. */
+  year: number | null;
   summary: string;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
@@ -51,7 +58,9 @@ export interface PersonDetailModel {
   /** `events`, gruppiert in feste Kategorien (Nutzer-Vorgabe 2026-07-10: "primär/
    *  Lebensdaten, educ und grad, dann occu und beschäftigung, dann resi und prop sowie
    *  weitere") — s. `event-labels.ts` `EVENT_CATEGORY_ORDER`. Reihenfolge INNERHALB einer
-   *  Kategorie bleibt die GEDCOM-Schreibreihenfolge aus `events` (keine Neusortierung). */
+   *  Kategorie bleibt normalerweise die GEDCOM-Schreibreihenfolge aus `events` (keine
+   *  Neusortierung) — AUSSER "Beruf": dort OCCU vor allen anderen (z. B. "Beschäftigung"),
+   *  danach chronologisch (`sortWithinCategory`, Nutzer-Vorgabe 2026-07-10). */
   eventGroups: EventGroup<EventRow>[];
   families: FamilyNavRow[];
 }
@@ -73,7 +82,9 @@ function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): Eve
   return {
     key,
     label: ev.eventType || eventTypeLabel(tag),
+    tag,
     category: eventCategory(tag, ev.eventType),
+    year: eventYear(ev),
     summary: yearPlaceSummary(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -83,6 +94,25 @@ function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): Eve
     placeId: eventPlaceId(ev, ctx),
     hofId: eventHofId(ev, ctx),
   };
+}
+
+/** Innerhalb der Kategorie "Beruf": OCCU-Zeilen vor allen anderen (z. B. "Beschäftigung"-
+ *  Synonym-Zeilen, ADR-v9-58), danach chronologisch (Jahr, undatiert ans Ende) — Nutzer-
+ *  Vorgabe 2026-07-10. Andere Kategorien behalten ihre bestehende Reihenfolge
+ *  unverändert (Lebensdaten: kanonische GEDCOM-Position; alle übrigen: Einfüge-
+ *  Reihenfolge aus `person.events[]`) — nur für "Beruf" explizit angefragt.
+ */
+function sortWithinCategory(category: string, rows: EventRow[]): EventRow[] {
+  if (category !== 'Beruf') return rows;
+  return [...rows].sort((a, b) => {
+    const aOccu = a.tag === 'OCCU' ? 0 : 1;
+    const bOccu = b.tag === 'OCCU' ? 0 : 1;
+    if (aOccu !== bOccu) return aOccu - bOccu;
+    if (a.year == null && b.year == null) return 0;
+    if (a.year == null) return 1;
+    if (b.year == null) return -1;
+    return a.year - b.year;
+  });
 }
 
 function familyLabel(f: Family, db: Database): string {
@@ -150,7 +180,10 @@ export function buildPersonDetail(
     families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
   }
 
-  const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER);
+  const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER).map((group) => ({
+    ...group,
+    rows: sortWithinCategory(group.type, group.rows),
+  }));
 
   return { person, events, eventGroups, families };
 }
