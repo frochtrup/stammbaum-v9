@@ -31,6 +31,17 @@ function hofRole(eventType: string): HofResidentRole {
   return eventType === 'PROP' ? 'Eigentümer' : 'Bewohner';
 }
 
+/** Bei gleichem Jahr (oder beide undatiert) steht Eigentümer (PROP) vor Bewohner
+ *  (RESI/CENS/Lebens-Ereignis) — Nutzer-Vorgabe 2026-07-10: ein Eigentumswechsel ist
+ *  der strukturell vorausgehende Fakt (man wird Eigentümer, dann/dabei Bewohner),
+ *  nicht umgekehrt. Innerhalb derselben Rolle bleibt der Name der Tie-Breaker. */
+const ROLE_ORDER: Record<HofResidentRole, number> = { Eigentümer: 0, Bewohner: 1 };
+
+function compareByRoleThenName(a: HofResidentRow, b: HofResidentRow): number {
+  if (a.role !== b.role) return ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
+  return a.personName.localeCompare(b.personName, 'de');
+}
+
 export interface HofDetailModel {
   hof: HofObject;
   villageId: string;
@@ -97,11 +108,11 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
   }
 
   rows.sort((a, b) => {
-    if (a.year == null && b.year == null) return a.personName.localeCompare(b.personName, 'de');
+    if (a.year == null && b.year == null) return compareByRoleThenName(a, b);
     if (a.year == null) return 1;
     if (b.year == null) return -1;
     if (a.year !== b.year) return a.year - b.year;
-    return a.personName.localeCompare(b.personName, 'de');
+    return compareByRoleThenName(a, b);
   });
 
   const predecessor = hof.predecessor ? db.hofObjects.get(hof.predecessor) : null;

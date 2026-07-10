@@ -125,7 +125,7 @@
 </script>
 
 {#snippet residentRow(row: HofResidentRow)}
-  <span class="stb-role-label">{row.role}</span>
+  <span class="stb-role-label" class:hof-detail__role--owner={row.role === 'Eigentümer'}>{row.role}</span>
   <button type="button" class="hof-detail__resident-link" onclick={() => onNavigateToPerson?.(row.personId)}>
     {row.personName}
   </button>
@@ -277,7 +277,7 @@
       {:else}
         <ul class="hof-detail__residents">
           {#each detail.residents as row (row.key)}
-            <li>{@render residentRow(row)}</li>
+            <li class:hof-detail__resident--owner={row.role === 'Eigentümer'}>{@render residentRow(row)}</li>
           {/each}
         </ul>
       {/if}
@@ -478,8 +478,23 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.3rem 0;
+    padding: 0.3rem 0 0.3rem 0.5rem;
     border-bottom: 1px solid var(--stb-surface-2);
+    border-left: 3px solid transparent;
     flex-wrap: wrap;
+  }
+
+  /* Optische Differenzierung Bewohner/Eigentümer (Nutzer-Fund 2026-07-10, Nachtrag zu
+     ADR-v9-56): ein reines Textlabel allein ("BEWOHNER"/"EIGENTÜMER") reicht nicht als
+     "optisch differenziert" — Eigentümer-Zeilen bekommen einen Gold-Akzent (Rand +
+     Label-Farbe), analog dem bereits etablierten "besonderes Ereignis"-Randmuster
+     (PersonForm.svelte's .person-form__event--special), statt einer neuen Farbe. */
+  .hof-detail__resident--owner {
+    border-left-color: var(--stb-gold-dim);
+  }
+
+  .hof-detail__role--owner {
+    color: var(--stb-gold-light);
+    font-weight: 700;
   }
 </style>

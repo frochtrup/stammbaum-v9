@@ -5,7 +5,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { collectAllEvents } from '../../shell/all-events';
-  import { buildHofListSections } from './hof-list-model';
+  import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
+  import EventsByType from '../../shell/EventsByType.svelte';
 
   interface Props {
     appState: AppState;
@@ -24,6 +25,7 @@
   const events = $derived(collectAllEvents(appState.db));
   const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query));
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
+  const groups = $derived(groupHofRowsByVillage(rows));
   const isEmpty = $derived(appState.db.hofObjects.size === 0);
 
   function selectHof(id: string) {
@@ -34,6 +36,24 @@
     query = '';
   }
 </script>
+
+{#snippet hofRow(row: HofRow)}
+  <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
+    <span class="hof-list__title-line">
+      <span class="hof-list__addr">{row.addr || row.id}</span>
+      <span
+        class="hof-list__coord-indicator"
+        class:hof-list__coord-indicator--missing={!row.hasCoords}
+        title={row.hasCoords ? 'Koordinaten vorhanden' : 'Koordinaten fehlen'}
+      >
+        {row.hasCoords ? '◎' : '◌'}
+      </span>
+      {#if !row.enriched}
+        <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
+      {/if}
+    </span>
+  </button>
+{/snippet}
 
 <div class="hof-list">
   {#if isEmpty}
@@ -98,28 +118,12 @@
         {section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
       </p>
     {:else}
-      <ul class="hof-list__rows">
-        {#each rows as row (row.id)}
-          <li>
-            <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
-              <span class="hof-list__addr">{row.addr || row.id}</span>
-              {#if !row.enriched}
-                <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
-              {/if}
-              <span class="hof-list__meta">
-                <span>{row.villageTitle}</span>
-                <span
-                  class="hof-list__coord-indicator"
-                  class:hof-list__coord-indicator--missing={!row.hasCoords}
-                  title={row.hasCoords ? 'Koordinaten vorhanden' : 'Koordinaten fehlen'}
-                >
-                  {row.hasCoords ? '◎' : '◌'}
-                </span>
-              </span>
-            </button>
-          </li>
-        {/each}
-      </ul>
+      <!-- Gruppiert nach Dorf (Nutzer-Vorgabe 2026-07-10) — DIE EINE Gruppen+Header-
+           Darstellung (EventsByType.svelte, INV-UI-4), bereits für PlaceDetail/
+           SourceDetail etabliert, hier wiederverwendet statt eigens neu gebaut. Der
+           Dorf-Name steht dadurch nur noch im Gruppen-Header, nicht mehr redundant in
+           jeder Zeile (analog der Eigene-Seite-Redundanz-Regel, Spec 21 §10h). -->
+      <EventsByType groups={groups} row={hofRow} />
     {/if}
   {/if}
 </div>
@@ -207,21 +211,15 @@
     cursor: pointer;
   }
 
-  .hof-list__rows {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
+  /* .hof-list__rows entfällt — die Liste wird jetzt von EventsByType.svelte
+     gerendert (gruppiert nach Dorf), kein eigenes <ul> mehr nötig. Kein eigener
+     border-bottom mehr auf .hof-list__row: EventsByType's <li> zeichnet die
+     Trennlinie bereits (sonst Doppel-Rand). */
   .hof-list__row {
     width: 100%;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--stb-surface-2);
     padding: 0.55rem 1rem;
     text-align: left;
     cursor: pointer;
@@ -233,16 +231,22 @@
     background: var(--stb-surface-2);
   }
 
-  .hof-list__addr {
-    font-weight: 600;
+  /* Adresse/Pill/Ort+Koordinaten in EINEM flex-wrap-Fluss statt drei erzwungenen
+     Zeilen (Nutzer-Fund 2026-07-10, INV-UI-5) — .hof-list__row's `flex-direction:
+     column` stapelte bisher jedes Geschwisterelement einzeln, unabhängig davon, ob
+     die Breite gereicht hätte. Analog PlaceList.svelte's bereits korrektem
+     `.place-list__title-line`-Muster (INV-UI-4), hier zusätzlich mit explizitem
+     `flex-wrap` (dort fehlt es, bislang folgenlos nur weil der Inhalt dort stets
+     passte). */
+  .hof-list__title-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
   }
 
-  .hof-list__meta {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    font-size: 0.78rem;
-    color: var(--stb-text-dim);
+  .hof-list__addr {
+    font-weight: 600;
   }
 
   .hof-list__coord-indicator {

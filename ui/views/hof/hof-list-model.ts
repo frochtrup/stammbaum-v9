@@ -4,9 +4,14 @@
 import type { Database, Event, PlaceId, HofId } from '../../../core/model/types';
 import type { HofObject, PlaceContext } from '../../../core/places';
 import { isEnrichedHof, hasReference } from '../../../core/places';
+import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
 export interface HofRow {
   id: HofId;
+  /** = `id` — für `EventsByType.svelte`s generischen `{key: string}`-Zeilen-Kontrakt
+   *  (INV-UI-4, dieselbe Komponente wie PlaceDetail/SourceDetail, kein eigener
+   *  Gruppen+Header-Renderer für die Höfe-Liste). */
+  key: HofId;
   /** Aktuellste/erste Adressbezeichnung (Formular-Anzeige — Periodengerechtheit ist
    * Sache des Steckbriefs, hier reicht die Listen-Kurzform). */
   addr: string;
@@ -24,13 +29,24 @@ export interface HofListSections {
 }
 
 /**
- * Numerischer Sortier-Schlüssel: die führende Zahl (Hausnummer) einer Adresse, sonst
- * +Infinity (Adressen ohne führende Zahl sortieren ans Ende, s. Spec 20 §1.8 "numerisch
- * sortiert" — gemeint ist die Hausnummer, nicht der komplette String alphabetisch).
+ * Numerischer Sortier-Schlüssel: die erste Zahl (Hausnummer) einer Adresse, sonst
+ * +Infinity (Adressen ohne Zahl sortieren ans Ende).
  */
 export function houseNumberOf(addr: string): number {
   const m = addr.match(/^\D*(\d+)/);
   return m ? parseInt(m[1], 10) : Number.POSITIVE_INFINITY;
+}
+
+/** Straßenname-Anteil (Adresse ohne die Hausnummer und alles danach), getrimmt — der
+ *  alphabetische Sortier-/Gruppierungsschlüssel VOR der Hausnummer (Nutzer-Vorgabe
+ *  2026-07-10: erst alphabetisch nach Straße, dann numerisch nach Hausnummer, nicht
+ *  umgekehrt). Adressen ohne führenden Nicht-Zahl-Anteil (z. B. "9 Hauptstraße") liefern
+ *  die volle Adresse als Schlüssel — es gibt dort keinen sinnvollen "Straßenname vor der
+ *  Zahl" zu isolieren. */
+export function streetNameOf(addr: string): string {
+  const m = addr.match(/^(\D*)\d/);
+  const name = m ? m[1].trim() : '';
+  return name || addr.trim();
 }
 
 export function toRow(h: HofObject, db: Database): HofRow {
@@ -38,6 +54,7 @@ export function toRow(h: HofObject, db: Database): HofRow {
   const addr = h.addrs[0]?.value ?? '';
   return {
     id: h.id,
+    key: h.id,
     addr,
     villageId: h.villageId,
     villageTitle: village?.title || h.villageId,
@@ -58,17 +75,32 @@ export function matchesSearch(row: HofRow, query: string): boolean {
   return `${row.addr} ${row.villageTitle}`.toLowerCase().includes(q);
 }
 
-/** Baut + sortiert die Hof-Zeilen: numerisch nach Hausnummer, dann alphabetisch nach Adresse. */
+/** Baut + sortiert die Hof-Zeilen: alphabetisch nach Straßenname, dann numerisch nach
+ *  Hausnummer (Nutzer-Vorgabe 2026-07-10 — vorher umgekehrt: numerisch zuerst, was
+ *  gleiche Hausnummern verschiedener Straßen nebeneinander stellte, statt Straßen
+ *  zusammenzuhalten). Voller Adress-String bleibt als letzter Tie-Breaker. */
 export function buildHofRows(db: Database, query = ''): HofRow[] {
   return Array.from(db.hofObjects.values())
     .map((h) => toRow(h, db))
     .filter((row) => matchesSearch(row, query))
     .sort((a, b) => {
+      const streetCmp = streetNameOf(a.addr).localeCompare(streetNameOf(b.addr), 'de');
+      if (streetCmp !== 0) return streetCmp;
       const na = houseNumberOf(a.addr);
       const nb = houseNumberOf(b.addr);
       if (na !== nb) return na - nb;
       return a.addr.localeCompare(b.addr, 'de');
     });
+}
+
+/**
+ * Gruppiert bereits sortierte Hof-Zeilen nach Dorf (Nutzer-Fund 2026-07-10) — nutzt DIE
+ * EINE Gruppierungs-Funktion (`groupByKey`, INV-UI-4, bereits für PlaceDetail/SourceDetail
+ * etabliert) statt eine eigene zu bauen. Dörfer alphabetisch (de), Höfe je Dorf bleiben in
+ * ihrer bestehenden Reihenfolge (numerisch nach Hausnummer, s. `buildHofRows`).
+ */
+export function groupHofRowsByVillage(rows: HofRow[]): EventGroup<HofRow>[] {
+  return groupByKey(rows, (row) => row.villageTitle);
 }
 
 /**

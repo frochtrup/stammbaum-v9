@@ -117,4 +117,27 @@ describe('buildHofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 �
     // "Später Eigner" trotz höherem Jahr vor "Früher Bewohner").
     expect(detail!.residents.map((r) => r.personName)).toEqual(['Früher Bewohner', 'Später Eigner']);
   });
+
+  it('stellt bei GLEICHEM Jahr Eigentümer (PROP) vor Bewohner (Nutzer-Vorgabe 2026-07-10)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
+
+    const resident = makePerson('@I1@', { given: 'Anna', surname: 'Bewohnerin' });
+    resident.events.push(makeEvent('RESI', { date: '1950', hofId: '@H1@' }));
+    db.individuals.set('@I1@', resident);
+
+    const owner = makePerson('@I2@', { given: 'Zeno', surname: 'Eigentümer' });
+    owner.events.push(makeEvent('PROP', { date: '1950', hofId: '@H1@' }));
+    db.individuals.set('@I2@', owner);
+
+    const detail = buildHofDetail(db, ctxFor(db), '@H1@');
+
+    // Beide 1950 — "Zeno Eigentümer" käme alphabetisch NACH "Anna Bewohnerin",
+    // steht aber durch die Rollen-Priorität (Eigentümer vor Bewohner) trotzdem zuerst.
+    expect(detail!.residents.map((r) => [r.personName, r.role])).toEqual([
+      ['Zeno Eigentümer', 'Eigentümer'],
+      ['Anna Bewohnerin', 'Bewohner'],
+    ]);
+  });
 });

@@ -17,8 +17,8 @@ function withReferencingPerson(db: ReturnType<typeof makeDatabase>, personId: st
   db.individuals.set(personId, p);
 }
 
-describe('HofList — Sammlung, Dorf-Anzeige, Klick-Navigation', () => {
-  it('rendert eine Zeile je referenziertem Hof mit zugehörigem Dorf', () => {
+describe('HofList — Sammlung, Dorf-Gruppierung, Klick-Navigation', () => {
+  it('rendert eine Zeile je referenziertem Hof, gruppiert unter dem Dorf-Namen als Header', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -30,7 +30,9 @@ describe('HofList — Sammlung, Dorf-Anzeige, Klick-Navigation', () => {
     render(HofList, { props: { appState, viewState } });
 
     expect(screen.getByText('Wall 33')).toBeTruthy();
-    expect(screen.getByText('Ochtrup')).toBeTruthy();
+    // Dorf-Name steht als Gruppen-Header ("Ochtrup (1)"), nicht mehr redundant in
+    // jeder Zeile (Nutzer-Vorgabe 2026-07-10, EventsByType.svelte, Spec 21 §10h).
+    expect(screen.getByText('Ochtrup (1)')).toBeTruthy();
   });
 
   it('Klick auf eine Zeile setzt die ViewState-Auswahl "hof"', async () => {

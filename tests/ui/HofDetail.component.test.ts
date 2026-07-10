@@ -83,6 +83,18 @@ describe('HofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j,
     expect(screen.getByText('Anna Meyer')).toBeTruthy();
     expect(screen.getByText('Bernd Schulze')).toBeTruthy();
 
+    // Optische Differenzierung (Nutzer-Fund 2026-07-10): das Textlabel allein reicht
+    // nicht — Eigentümer-Zeilen bekommen einen eigenen Akzent-Klassen-Satz, Bewohner
+    // nicht (Gold-Rand + hervorgehobenes Label statt zweier optisch identischer Zeilen).
+    const ownerLabel = screen.getByText('Eigentümer');
+    expect(ownerLabel.className).toContain('hof-detail__role--owner');
+    const residentLabel = screen.getByText('Bewohner');
+    expect(residentLabel.className).not.toContain('hof-detail__role--owner');
+    const ownerRow = ownerLabel.closest('li')!;
+    expect(ownerRow.className).toContain('hof-detail__resident--owner');
+    const residentRow = residentLabel.closest('li')!;
+    expect(residentRow.className).not.toContain('hof-detail__resident--owner');
+
     await fireEvent.click(screen.getByText('Bernd Schulze'));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I2@');
   });
