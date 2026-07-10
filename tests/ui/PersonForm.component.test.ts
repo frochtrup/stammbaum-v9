@@ -142,7 +142,7 @@ describe('PersonForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
     });
 
     render(PersonForm, { props: { appState, person } });
-    await fireEvent.click(screen.getByLabelText('Ereignis OCCU entfernen'));
+    await fireEvent.click(screen.getByLabelText('Ereignis Beruf entfernen'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.individuals.get('@I1@')?.events).toHaveLength(0);
@@ -158,6 +158,26 @@ describe('PersonForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
     expect(screen.getByText('Typ-Freitext (TYPE)')).toBeTruthy();
+  });
+
+  it('Karten-Header übernimmt einen freien TYPE-Text sofort (analog PersonDetail, Nutzer-Fund 2026-07-10)', async () => {
+    const appState = createAppState();
+    const person = makePerson('@I1@');
+
+    render(PersonForm, { props: { appState, person } });
+    const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
+    await fireEvent.change(typeSelect, { target: { value: 'EVEN' } });
+    await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
+
+    // Vor Eingabe: generische Übersetzung ("Ereignis").
+    expect(screen.getByText('Ereignis', { selector: 'strong' })).toBeTruthy();
+
+    const typeTextInput = screen.getByLabelText('Typ-Freitext (TYPE)') as HTMLInputElement;
+    await fireEvent.input(typeTextInput, { target: { value: 'Beschäftigung' } });
+
+    // Nach Eingabe: freier Text hat Priorität vor der generischen Übersetzung.
+    expect(screen.getByText('Beschäftigung', { selector: 'strong' })).toBeTruthy();
+    expect(screen.queryByText('Ereignis', { selector: 'strong' })).toBeNull();
   });
 
   it('viele Ereignisse gleichzeitig bleiben unabhängig editierbar (TST-7 Überlauf-Fall)', async () => {
@@ -203,7 +223,7 @@ describe('PersonForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
     render(PersonForm, { props: { appState, person } });
     await fireEvent.click(screen.getByText('+ Beruf'));
 
-    await fireEvent.click(screen.getByLabelText('OCCU Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByLabelText('Beruf Ort aus Liste wählen'));
     await fireEvent.click(screen.getByText('+ neuen Ort anlegen …'));
 
     const placeFormEl = screen.getByText('Neuer Ort').closest('.place-form') as HTMLElement;
@@ -231,12 +251,12 @@ describe('PersonForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
     await fireEvent.change(typeSelect, { target: { value: 'CENS' } });
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
-    expect(screen.getByLabelText('CENS Adresse')).toBeTruthy();
+    expect(screen.getByLabelText('Volkszählung Adresse')).toBeTruthy();
 
     await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
-    expect(screen.getByLabelText('PROP Adresse')).toBeTruthy();
+    expect(screen.getByLabelText('Eigentum Adresse')).toBeTruthy();
   });
 
   it('Adresse-Feld deaktiviert "+ neuen Hof anlegen" mit Hinweistext, solange kein Ort zugeordnet ist', async () => {
@@ -245,7 +265,7 @@ describe('PersonForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
 
     render(PersonForm, { props: { appState, person } });
     await fireEvent.click(screen.getByText('+ Wohnort'));
-    await fireEvent.click(screen.getByLabelText('RESI Adresse aus Liste wählen'));
+    await fireEvent.click(screen.getByLabelText('Wohnort Adresse aus Liste wählen'));
 
     expect(screen.getByText('Zuerst Ort zuordnen, um einen neuen Hof anzulegen.')).toBeTruthy();
     expect(screen.queryByText(/^\+ Hof/)).toBeNull();
@@ -262,12 +282,12 @@ describe('PersonForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
     render(PersonForm, { props: { appState, person: db.individuals.get('@I1@')! } });
     await fireEvent.click(screen.getByText('+ Wohnort'));
 
-    await fireEvent.click(screen.getByLabelText('RESI Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByLabelText('Wohnort Ort aus Liste wählen'));
     await fireEvent.click(screen.getByText('Ochtrup'));
 
     // EventAddrField bindet onchange (nicht oninput) an den Freitext.
-    await fireEvent.change(screen.getByLabelText('RESI Adresse'), { target: { value: 'Bauernschaft 5' } });
-    await fireEvent.click(screen.getByLabelText('RESI Adresse aus Liste wählen'));
+    await fireEvent.change(screen.getByLabelText('Wohnort Adresse'), { target: { value: 'Bauernschaft 5' } });
+    await fireEvent.click(screen.getByLabelText('Wohnort Adresse aus Liste wählen'));
     // Der Button-Text ist durch die {value.trim()}-Interpolation auf mehrere Textknoten
     // verteilt — Regex-Matcher statt exaktem String (TestingLibrary "text broken up").
     await fireEvent.click(screen.getByText(/\+ Hof „Bauernschaft 5" anlegen/));
@@ -477,11 +497,13 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3)', () => {
     expect(screen.getByText('Taufe (CHR)')).toBeTruthy();
     expect(screen.getByText('Tod (DEAT)')).toBeTruthy();
     expect(screen.getByText('Bestattung (BURI)')).toBeTruthy();
-    expect(screen.getAllByText('OCCU').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('RESI').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('EMIG').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('IMMI').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('MILI').length).toBeGreaterThan(0);
+    // Event-Card-Header zeigen jetzt deutsche Labels (event-labels.ts, Nutzer-Fund
+    // 2026-07-10), keine rohen Tags mehr.
+    expect(screen.getAllByText('Beruf').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Wohnort').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Auswanderung').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Einwanderung').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Militärdienst').length).toBeGreaterThan(0);
   });
 
   it('Identitäts- und Ereignis-Pills sind zwei getrennte Reihen (ADR-v9-30 Nachtrag "zwei Gruppen")', () => {
@@ -516,9 +538,9 @@ describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)'
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('OCCU', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Beruf', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Beruf'));
-    expect(screen.getByText('OCCU', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Beruf', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Beruf')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -531,9 +553,9 @@ describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)'
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('RESI', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Wohnort', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Wohnort'));
-    expect(screen.getByText('RESI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Wohnort', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Wohnort')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -551,7 +573,7 @@ describe('PersonForm — Beruf-/Wohnort-Pills (ADR-v9-30 Nachtrag, Spec 20 §2)'
     render(PersonForm, { props: { appState, person } });
 
     expect(screen.queryByText('+ Beruf')).toBeNull();
-    expect(screen.getAllByText('OCCU', { selector: 'strong' })).toHaveLength(1);
+    expect(screen.getAllByText('Beruf', { selector: 'strong' })).toHaveLength(1);
 
     const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
     await fireEvent.change(typeSelect, { target: { value: 'OCCU' } });
@@ -612,9 +634,9 @@ describe('PersonForm — "+ Ereignis" (EVEN)-Pill (ADR-v9-30 Nachtrag 2026-07-06
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('EVEN', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Ereignis', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Ereignis'));
-    expect(screen.getByText('EVEN', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Ereignis', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Ereignis')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -632,7 +654,7 @@ describe('PersonForm — "+ Ereignis" (EVEN)-Pill (ADR-v9-30 Nachtrag 2026-07-06
     render(PersonForm, { props: { appState, person } });
 
     expect(screen.queryByText('+ Ereignis')).toBeNull();
-    expect(screen.getAllByText('EVEN', { selector: 'strong' })).toHaveLength(1);
+    expect(screen.getAllByText('Ereignis', { selector: 'strong' })).toHaveLength(1);
   });
 });
 
@@ -643,9 +665,9 @@ describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('EMIG', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Auswanderung', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Auswanderung'));
-    expect(screen.getByText('EMIG', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Auswanderung', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Auswanderung')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -658,9 +680,9 @@ describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('IMMI', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Einwanderung', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Einwanderung'));
-    expect(screen.getByText('IMMI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Einwanderung', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Einwanderung')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -673,9 +695,9 @@ describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v
 
     render(PersonForm, { props: { appState, person } });
 
-    expect(screen.queryByText('MILI', { selector: 'strong' })).toBeNull();
+    expect(screen.queryByText('Militärdienst', { selector: 'strong' })).toBeNull();
     await fireEvent.click(screen.getByText('+ Militärdienst'));
-    expect(screen.getByText('MILI', { selector: 'strong' })).toBeTruthy();
+    expect(screen.getByText('Militärdienst', { selector: 'strong' })).toBeTruthy();
     expect(screen.queryByText('+ Militärdienst')).toBeNull();
 
     await fireEvent.click(screen.getByText('Speichern'));
@@ -693,7 +715,7 @@ describe('PersonForm — Auswanderung-/Einwanderung-/Militärdienst-Pills (ADR-v
     render(PersonForm, { props: { appState, person } });
 
     expect(screen.queryByText('+ Auswanderung')).toBeNull();
-    expect(screen.getAllByText('EMIG', { selector: 'strong' })).toHaveLength(1);
+    expect(screen.getAllByText('Auswanderung', { selector: 'strong' })).toHaveLength(1);
 
     const typeSelect = screen.getByLabelText('Neuer Ereignis-Typ') as HTMLSelectElement;
     await fireEvent.change(typeSelect, { target: { value: 'EMIG' } });

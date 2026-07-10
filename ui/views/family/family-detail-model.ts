@@ -7,11 +7,7 @@ import type { Coords, PlaceContext } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
-
-const SPECIAL_LABELS: Record<string, string> = {
-  MARR: 'Heirat',
-  ENGA: 'Verlobung',
-};
+import { eventTypeLabel } from '../../shell/event-labels';
 
 export interface FamilyMemberRow {
   personId: string;
@@ -61,11 +57,14 @@ function memberRow(
   return { personId: id, name: displayName(p), role, summary: yearPlaceSummary(p.birth, ctx) };
 }
 
-function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): FamilyEventRow | null {
+/** `tag` ist der reale GEDCOM-Tag — Label-Fallback via `eventTypeLabel` (`ui/shell/
+ *  event-labels.ts`, INV-UI-4, DIE EINE deutsche Übersetzung), `ev.eventType` (freier
+ *  TYPE-Text) hat Priorität, falls gesetzt — analog `person-detail-model.ts`. */
+function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): FamilyEventRow | null {
   if (!isEventPresent(ev)) return null;
   return {
     key,
-    label,
+    label: ev.eventType || eventTypeLabel(tag),
     summary: yearPlaceSummary(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -99,16 +98,16 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
   const label = [husband?.name, wife?.name].filter(Boolean).join(' ⚭ ') || 'Unbekannte Familie';
 
   const events: FamilyEventRow[] = [];
-  const special: [string, string, Event][] = [
-    ['ENGA', SPECIAL_LABELS.ENGA, family.engagement],
-    ['MARR', SPECIAL_LABELS.MARR, family.marriage],
+  const special: [string, Event][] = [
+    ['ENGA', family.engagement],
+    ['MARR', family.marriage],
   ];
-  for (const [tag, evLabel, ev] of special) {
-    const row = toEventRow(tag, evLabel, ev, ctx);
+  for (const [tag, ev] of special) {
+    const row = toEventRow(tag, tag, ev, ctx);
     if (row) events.push(row);
   }
   family.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.eventType || ev.type || 'Ereignis', ev, ctx);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx);
     if (row) events.push(row);
   });
 

@@ -96,48 +96,51 @@
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
-      {#if detail.events.length === 0}
+      {#if detail.eventGroups.length === 0}
         <p class="person-detail__muted">Keine Ereignisse erfasst.</p>
       {:else}
-        <ul class="person-detail__events">
-          {#each detail.events as ev (ev.key)}
-            <li class="person-detail__event">
-              <div class="person-detail__event-head">
-                <span class="person-detail__event-label">{ev.label}</span>
-                {#if ev.value}<span class="person-detail__event-value">{ev.value}</span>{/if}
-                {#if ev.addr}<span class="person-detail__event-value">{ev.addr}</span>{/if}
-                {#if ev.summary}<span class="person-detail__event-summary">{ev.summary}</span>{/if}
-                {#if ev.coords}
-                  <a
-                    class="person-detail__geo-link"
-                    href={geoHref(ev.coords)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Karte ↗
-                  </a>
-                {/if}
-                {#if ev.hofId && onNavigateToHof}
-                  <button type="button" class="person-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
-                    Hof ansehen →
-                  </button>
-                {:else if ev.placeId && onNavigateToPlace}
-                  <button type="button" class="person-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
-                    Ort ansehen →
-                  </button>
-                {/if}
-                {#each ev.citations as cit, i (i)}
-                  <SourceBadge
-                    citation={cit}
-                    source={appState.db.sources.get(cit.sourceId)}
-                    onSelect={onNavigateToSource}
-                  />
-                {/each}
-              </div>
-              {#if ev.note}<p class="person-detail__event-note">{ev.note}</p>{/if}
-            </li>
-          {/each}
-        </ul>
+        {#each detail.eventGroups as group (group.type)}
+          <h4 class="person-detail__event-category">{group.type}</h4>
+          <ul class="person-detail__events">
+            {#each group.rows as ev (ev.key)}
+              <li class="person-detail__event">
+                <div class="person-detail__event-head">
+                  <span class="person-detail__event-label">{ev.label}</span>
+                  {#if ev.value}<span class="person-detail__event-value">{ev.value}</span>{/if}
+                  {#if ev.addr}<span class="person-detail__event-value">{ev.addr}</span>{/if}
+                  {#if ev.summary}<span class="person-detail__event-summary">{ev.summary}</span>{/if}
+                  {#if ev.coords}
+                    <a
+                      class="person-detail__geo-link"
+                      href={geoHref(ev.coords)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Karte ↗
+                    </a>
+                  {/if}
+                  {#if ev.hofId && onNavigateToHof}
+                    <button type="button" class="person-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
+                      Hof ansehen →
+                    </button>
+                  {:else if ev.placeId && onNavigateToPlace}
+                    <button type="button" class="person-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
+                      Ort ansehen →
+                    </button>
+                  {/if}
+                  {#each ev.citations as cit, i (i)}
+                    <SourceBadge
+                      citation={cit}
+                      source={appState.db.sources.get(cit.sourceId)}
+                      onSelect={onNavigateToSource}
+                    />
+                  {/each}
+                </div>
+                {#if ev.note}<p class="person-detail__event-note">{ev.note}</p>{/if}
+              </li>
+            {/each}
+          </ul>
+        {/each}
       {/if}
     </section>
 
@@ -247,11 +250,32 @@
     padding: 0;
   }
 
+  /* Kategorie-Header (Nutzer-Vorgabe 2026-07-10: Lebensdaten/Bildung/Beruf/Wohnen &
+     Eigentum/Weitere Ereignisse, event-labels.ts EVENT_CATEGORY_ORDER) — visuell
+     angeglichen an EventsByType.svelte's Gruppen-Header (INV-UI-4-Stil), hier nicht die
+     Komponente selbst wiederverwendet, weil eine Ereigniszeile HIER zweiteilig ist
+     (Kopfzeile + optionale Notiz-Zeile) — EventsByType's <li> ist als reine `flex-row`
+     ausgelegt (passt für PlaceDetail/SourceDetail's einzeiligen Zeilen, nicht hier). */
+  .person-detail__event-category {
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0.6rem 0 0.3rem;
+  }
+
+  .person-detail__event-category:first-of-type {
+    margin-top: 0;
+  }
+
+  /* Kompakteres Padding/Abstand (Nutzer-Fund 2026-07-10, "Kompaktheit ist das Ziel") —
+     vorher 0.6rem/0.8rem Padding + 0.5rem Margin wirkte pro Ereignis überproportional
+     groß neben den schlanken Identitäts-Feldern. */
   .person-detail__event {
     background: var(--stb-surface-1);
     border-radius: var(--stb-radius-card);
-    padding: 0.6rem 0.8rem;
-    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.65rem;
+    margin-bottom: 0.3rem;
   }
 
   .person-detail__event-head {

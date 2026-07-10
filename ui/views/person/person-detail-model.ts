@@ -7,18 +7,14 @@ import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
-
-/** Deutsche Kurzlabels für die fest modellierten Sonder-Ereignisse (Spec 10 §5.1). */
-const SPECIAL_LABELS: Record<string, string> = {
-  BIRT: 'Geburt',
-  CHR: 'Taufe',
-  DEAT: 'Tod',
-  BURI: 'Bestattung',
-};
+import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
+import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
 export interface EventRow {
   key: string;
   label: string;
+  /** Kategorie für die gruppierte Anzeige (Nutzer-Vorgabe 2026-07-10, `event-labels.ts`). */
+  category: string;
   summary: string;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
@@ -52,14 +48,32 @@ export interface FamilyNavRow {
 export interface PersonDetailModel {
   person: Person;
   events: EventRow[];
+  /** `events`, gruppiert in feste Kategorien (Nutzer-Vorgabe 2026-07-10: "primär/
+   *  Lebensdaten, educ und grad, dann occu und beschäftigung, dann resi und prop sowie
+   *  weitere") — s. `event-labels.ts` `EVENT_CATEGORY_ORDER`. Reihenfolge INNERHALB einer
+   *  Kategorie bleibt die GEDCOM-Schreibreihenfolge aus `events` (keine Neusortierung). */
+  eventGroups: EventGroup<EventRow>[];
   families: FamilyNavRow[];
 }
 
-function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): EventRow | null {
+/**
+ * `tag` ist der REALE GEDCOM-Tag (z. B. "GRAD", "EDUC", "BIRT") — Quelle für Kategorie
+ * UND Label-Fallback. `ev.eventType` (aus dem `TYPE`-Sub-Tag beim Parsen befüllt, s.
+ * `core/interop/gedcom-parse.ts::parseEvent`) ist ein freier Anzeige-Text (z. B. "Schule"
+ * bei einem `EDUC`/`EVEN`-Ereignis mit `2 TYPE Schule`) und hat PRIORITÄT vor der
+ * generischen Übersetzung, wenn gesetzt. Für die Kategorie gilt: ein Tag mit EIGENER
+ * Bedeutung (EDUC/GRAD/OCCU/…) entscheidet immer — ein `EDUC`-Ereignis mit TYPE "Schule"
+ * bleibt "Bildung". NUR bei kategorie-losen Tags (EVEN/FACT) prüft `eventCategory`
+ * zusätzlich den freien Text gegen bekannte Synonyme (Nutzer-Vorgabe 2026-07-10: ein
+ * `EVEN`-Ereignis mit TYPE "Beschäftigung" gehört fachlich zu "Beruf", wie ein
+ * OCCU-Ereignis — `event-labels.ts::CATEGORY_BY_CUSTOM_TEXT`).
+ */
+function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): EventRow | null {
   if (!isEventPresent(ev)) return null;
   return {
     key,
-    label,
+    label: ev.eventType || eventTypeLabel(tag),
+    category: eventCategory(tag, ev.eventType),
     summary: yearPlaceSummary(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -102,11 +116,11 @@ export function buildPersonDetail(
     ['BURI', person.buri],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, SPECIAL_LABELS[tag], ev, ctx);
+    const row = toEventRow(tag, tag, ev, ctx);
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.eventType || ev.type || 'Ereignis', ev, ctx);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx);
     if (row) events.push(row);
   });
 
@@ -136,5 +150,7 @@ export function buildPersonDetail(
     families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
   }
 
-  return { person, events, families };
+  const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER);
+
+  return { person, events, eventGroups, families };
 }

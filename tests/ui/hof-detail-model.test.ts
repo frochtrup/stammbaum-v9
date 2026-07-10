@@ -140,4 +140,22 @@ describe('buildHofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 �
       ['Anna Bewohnerin', 'Bewohner'],
     ]);
   });
+
+  it('übersetzt das Label (RESI/PROP erscheinen nicht mehr roh, Nutzer-Fund 2026-07-10)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@'));
+
+    const resident = makePerson('@I1@', { given: 'Anna', surname: 'Meyer' });
+    resident.events.push(makeEvent('RESI', { date: '1950', hofId: '@H1@' }));
+    db.individuals.set('@I1@', resident);
+
+    const owner = makePerson('@I2@', { given: 'Bernd', surname: 'Schulze' });
+    owner.events.push(makeEvent('PROP', { date: '1960', hofId: '@H1@' }));
+    db.individuals.set('@I2@', owner);
+
+    const detail = buildHofDetail(db, ctxFor(db), '@H1@');
+
+    expect(detail!.residents.map((r) => r.label)).toEqual(['Wohnort', 'Eigentum']);
+  });
 });

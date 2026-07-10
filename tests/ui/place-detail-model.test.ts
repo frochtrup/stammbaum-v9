@@ -28,9 +28,11 @@ describe('buildPlaceDetail — Ereignisse gruppiert nach Typ', () => {
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
     expect(detail).not.toBeNull();
+    // Gruppen-Header deutsch übersetzt (event-labels.ts, Nutzer-Fund 2026-07-10) — "BIRT"/
+    // "MARR" erscheinen nicht mehr roh.
     const types = detail!.eventsByType.map((g) => g.type).sort();
-    expect(types).toEqual(['BIRT', 'MARR']);
-    const birtGroup = detail!.eventsByType.find((g) => g.type === 'BIRT')!;
+    expect(types).toEqual(['Geburt', 'Heirat']);
+    const birtGroup = detail!.eventsByType.find((g) => g.type === 'Geburt')!;
     expect(birtGroup.rows[0].ownerLabel).toBe('Otto Bauer');
   });
 

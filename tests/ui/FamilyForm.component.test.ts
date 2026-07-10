@@ -321,7 +321,7 @@ describe('FamilyForm — weitere Ereignisse (events[]) hinzufügen/entfernen', (
     });
 
     render(FamilyForm, { props: { appState, family } });
-    await fireEvent.click(screen.getByLabelText('Ereignis CENS entfernen'));
+    await fireEvent.click(screen.getByLabelText('Ereignis Volkszählung entfernen'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.families.get('@F1@')?.events).toHaveLength(0);
@@ -356,12 +356,12 @@ describe('FamilyForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
     await fireEvent.change(typeSelect, { target: { value: 'CENS' } });
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
-    expect(screen.getByLabelText('CENS Adresse')).toBeTruthy();
+    expect(screen.getByLabelText('Volkszählung Adresse')).toBeTruthy();
 
     await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
-    expect(screen.getByLabelText('PROP Adresse')).toBeTruthy();
+    expect(screen.getByLabelText('Eigentum Adresse')).toBeTruthy();
   });
 
   it('legt über die Adresse-Picker-Anlage einen neuen Hof an und verknüpft ihn (villageId aus dem zuvor gewählten Ort)', async () => {
@@ -376,11 +376,11 @@ describe('FamilyForm — Ort-/Hof-Picker am Ereignis (ADR-v9-42)', () => {
     await fireEvent.change(typeSelect, { target: { value: 'PROP' } });
     await fireEvent.click(screen.getByText('+ Ereignis hinzufügen'));
 
-    await fireEvent.click(screen.getByLabelText('PROP Ort aus Liste wählen'));
+    await fireEvent.click(screen.getByLabelText('Eigentum Ort aus Liste wählen'));
     await fireEvent.click(screen.getByText('Ochtrup'));
 
-    await fireEvent.change(screen.getByLabelText('PROP Adresse'), { target: { value: 'Hof Meyer' } });
-    await fireEvent.click(screen.getByLabelText('PROP Adresse aus Liste wählen'));
+    await fireEvent.change(screen.getByLabelText('Eigentum Adresse'), { target: { value: 'Hof Meyer' } });
+    await fireEvent.click(screen.getByLabelText('Eigentum Adresse aus Liste wählen'));
     await fireEvent.click(screen.getByText(/\+ Hof „Hof Meyer" anlegen/));
     await fireEvent.click(screen.getByText('Speichern'));
 

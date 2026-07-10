@@ -44,7 +44,8 @@ describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
 
     render(PlaceDetail, { props: { appState, viewState, onNavigateToPerson } });
 
-    expect(screen.getByText('BIRT (1)')).toBeTruthy();
+    // Gruppen-Header deutsch übersetzt (event-labels.ts, Nutzer-Fund 2026-07-10).
+    expect(screen.getByText('Geburt (1)')).toBeTruthy();
     await fireEvent.click(screen.getByText('Otto Bauer'));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
   });

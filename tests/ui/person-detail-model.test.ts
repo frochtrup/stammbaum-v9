@@ -63,9 +63,11 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    const occu = detail.events.find((e) => e.label === 'OCCU')!;
+    // Labels sind jetzt deutsch übersetzt (event-labels.ts, Nutzer-Fund 2026-07-10) —
+    // "OCCU"/"RESI" erscheinen nicht mehr roh.
+    const occu = detail.events.find((e) => e.label === 'Beruf')!;
     expect(occu.value).toBe('Landwirt');
-    const resi = detail.events.find((e) => e.label === 'RESI')!;
+    const resi = detail.events.find((e) => e.label === 'Wohnort')!;
     expect(resi.addr).toBe('Nienborger Damm 1');
   });
 
@@ -184,5 +186,90 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
 
     const origin = detail.families.find((f) => f.role === 'childOf')!;
     expect(origin.children).toEqual([]);
+  });
+});
+
+describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-Fund 2026-07-10)', () => {
+  it('übersetzt generische Ereignistypen (GRAD/EDUC/OCCU) statt sie roh zu zeigen', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('GRAD', { value: 'Dipl.-Ing.' }));
+    p.events.push(makeEvent('EDUC', { date: '1975' }));
+    p.events.push(makeEvent('OCCU', { value: 'Ingenieurin' }));
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.events.map((e) => e.label)).toEqual(['Abschluss', 'Ausbildung', 'Beruf']);
+  });
+
+  it('bevorzugt einen freien TYPE-Text (ev.eventType) vor der generischen Übersetzung', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    const educ = makeEvent('EDUC', {});
+    educ.eventType = 'Schule';
+    p.events.push(educ);
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.events[0].label).toBe('Schule');
+  });
+
+  it('gruppiert Ereignisse in feste Kategorien (Lebensdaten → Bildung → Beruf → Wohnen & Eigentum → Weitere)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    // Bewusst NICHT in Kategorie-Reihenfolge hinzugefügt — die Gruppierung muss die
+    // feste Reihenfolge selbst herstellen, nicht die Einfüge-Reihenfolge übernehmen.
+    p.events.push(makeEvent('EMIG', { date: '1955' }));
+    p.events.push(makeEvent('OCCU', { value: 'Landwirt' }));
+    p.events.push(makeEvent('GRAD', { date: '1970' }));
+    p.events.push(makeEvent('RESI', { addr: 'Wall 33' }));
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.eventGroups.map((g) => g.type)).toEqual([
+      'Lebensdaten',
+      'Bildung',
+      'Beruf',
+      'Wohnen & Eigentum',
+      'Weitere Ereignisse',
+    ]);
+    expect(detail.eventGroups.find((g) => g.type === 'Lebensdaten')!.rows.map((r) => r.label)).toEqual(['Geburt']);
+    expect(detail.eventGroups.find((g) => g.type === 'Weitere Ereignisse')!.rows.map((r) => r.label)).toEqual([
+      'Auswanderung',
+    ]);
+  });
+
+  it('ein EDUC-Ereignis mit freiem TYPE-Text bleibt trotzdem in Kategorie "Bildung"', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    const educ = makeEvent('EDUC', {});
+    educ.eventType = 'Schule';
+    p.events.push(educ);
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const bildung = detail.eventGroups.find((g) => g.type === 'Bildung');
+    expect(bildung?.rows.map((r) => r.label)).toEqual(['Schule']);
+  });
+
+  it('OCCU und EVEN mit TYPE "Beschäftigung" landen in DERSELBEN Gruppe "Beruf" (Nutzer-Vorgabe 2026-07-10)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Klaus', surname: 'Decker' });
+    p.events.push(makeEvent('OCCU', { value: 'Luft- und Raumfahrtingenieur' }));
+    const beschaeftigung = makeEvent('EVEN', { date: '2007', value: 'Team Leader' });
+    beschaeftigung.eventType = 'Beschäftigung';
+    p.events.push(beschaeftigung);
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.eventGroups.map((g) => g.type)).toEqual(['Beruf']);
+    const beruf = detail.eventGroups.find((g) => g.type === 'Beruf')!;
+    expect(beruf.rows.map((r) => r.label)).toEqual(['Beruf', 'Beschäftigung']);
   });
 });

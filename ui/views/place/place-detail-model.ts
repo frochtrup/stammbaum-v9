@@ -12,6 +12,7 @@ import { eventPlaceId, normPlaceName } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, eventYearLabel } from '../../shell/person-display';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
+import { eventTypeLabel } from '../../shell/event-labels';
 
 export interface PlaceEventRow {
   key: string;
@@ -100,18 +101,6 @@ function collectEvent(
   });
 }
 
-const PERSON_SPECIAL_LABELS: Record<string, string> = {
-  BIRT: 'Geburt',
-  CHR: 'Taufe',
-  DEAT: 'Tod',
-  BURI: 'Bestattung',
-};
-
-const FAMILY_SPECIAL_LABELS: Record<string, string> = {
-  ENGA: 'Verlobung',
-  MARR: 'Heirat',
-};
-
 function collectUnlinked(
   ev: Event,
   key: string,
@@ -131,7 +120,7 @@ function collectUnlinked(
     ownerId,
     ownerKind,
     ownerLabel: ownerLabelFor(db, ownerKind, ownerId),
-    eventType: ev.eventType || ev.type || 'Ereignis',
+    eventType: ev.eventType || eventTypeLabel(ev.type || 'EVEN'),
     placeText: ev.place,
   });
 }
@@ -147,24 +136,29 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
   const rows: PlaceEventRow[] = [];
 
   for (const p of db.individuals.values()) {
-    collectEvent(p.birth, `${p.id}-BIRT`, PERSON_SPECIAL_LABELS.BIRT, 'person', p.id, db, ctx, placeId, rows);
-    collectEvent(p.chr, `${p.id}-CHR`, PERSON_SPECIAL_LABELS.CHR, 'person', p.id, db, ctx, placeId, rows);
-    collectEvent(p.death, `${p.id}-DEAT`, PERSON_SPECIAL_LABELS.DEAT, 'person', p.id, db, ctx, placeId, rows);
-    collectEvent(p.buri, `${p.id}-BURI`, PERSON_SPECIAL_LABELS.BURI, 'person', p.id, db, ctx, placeId, rows);
+    collectEvent(p.birth, `${p.id}-BIRT`, eventTypeLabel('BIRT'), 'person', p.id, db, ctx, placeId, rows);
+    collectEvent(p.chr, `${p.id}-CHR`, eventTypeLabel('CHR'), 'person', p.id, db, ctx, placeId, rows);
+    collectEvent(p.death, `${p.id}-DEAT`, eventTypeLabel('DEAT'), 'person', p.id, db, ctx, placeId, rows);
+    collectEvent(p.buri, `${p.id}-BURI`, eventTypeLabel('BURI'), 'person', p.id, db, ctx, placeId, rows);
     p.events.forEach((ev, i) => {
-      collectEvent(ev, `${p.id}-ev-${i}`, ev.eventType || ev.type || 'Ereignis', 'person', p.id, db, ctx, placeId, rows);
+      collectEvent(ev, `${p.id}-ev-${i}`, ev.eventType || eventTypeLabel(ev.type || 'EVEN'), 'person', p.id, db, ctx, placeId, rows);
     });
   }
 
   for (const f of db.families.values()) {
-    collectEvent(f.engagement, `${f.id}-ENGA`, FAMILY_SPECIAL_LABELS.ENGA, 'family', f.id, db, ctx, placeId, rows);
-    collectEvent(f.marriage, `${f.id}-MARR`, FAMILY_SPECIAL_LABELS.MARR, 'family', f.id, db, ctx, placeId, rows);
+    collectEvent(f.engagement, `${f.id}-ENGA`, eventTypeLabel('ENGA'), 'family', f.id, db, ctx, placeId, rows);
+    collectEvent(f.marriage, `${f.id}-MARR`, eventTypeLabel('MARR'), 'family', f.id, db, ctx, placeId, rows);
     f.events.forEach((ev, i) => {
-      collectEvent(ev, `${f.id}-ev-${i}`, ev.eventType || ev.type || 'Ereignis', 'family', f.id, db, ctx, placeId, rows);
+      collectEvent(ev, `${f.id}-ev-${i}`, ev.eventType || eventTypeLabel(ev.type || 'EVEN'), 'family', f.id, db, ctx, placeId, rows);
     });
   }
 
-  const eventsByType = groupByKey(rows, (row) => row.eventType);
+  // Gruppen-Header übersetzt (Nutzer-Fund 2026-07-10, INV-UI-4, event-labels.ts): ein
+  // bekannter Roh-Tag ("RESI") wird zum deutschen Wort ("Wohnort"); ein bereits freier
+  // TYPE-Text (z. B. "Schule", nicht in EVENT_TYPE_LABELS) kommt unverändert durch
+  // (eventTypeLabel ist ein Passthrough-Fallback) — die GRUPPIERUNG selbst (welche Zeilen
+  // zusammengehören) bleibt unverändert, nur die ANZEIGE des Gruppenschlüssels ändert sich.
+  const eventsByType = groupByKey(rows, (row) => eventTypeLabel(row.eventType));
 
   // Quellen: alle Zitate der Events, die diesen Ort referenzieren, dedupliziert per sourceId.
   const citationsBySource = new Map<string, Citation>();

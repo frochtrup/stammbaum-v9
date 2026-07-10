@@ -29,6 +29,7 @@
   import { isEventPresent } from '../../../core/model';
   import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
   import { displayName, eventPlaceLabel } from '../../shell/person-display';
+  import { eventTypeLabel } from '../../shell/event-labels';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import SourceCitationRow from '../../shell/SourceCitationRow.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
@@ -349,8 +350,8 @@
 
   const eventPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
-    if (!showEngagement) list.push({ id: 'engagement', label: 'Verlobung', activate: () => (showEngagement = true) });
-    if (!hasEven) list.push({ id: 'even', label: 'Ereignis', activate: () => addEventOfType('EVEN') });
+    if (!showEngagement) list.push({ id: 'engagement', label: eventTypeLabel('ENGA'), activate: () => (showEngagement = true) });
+    if (!hasEven) list.push({ id: 'even', label: eventTypeLabel('EVEN'), activate: () => addEventOfType('EVEN') });
     return list;
   });
 
@@ -559,8 +560,8 @@
     {#each events as ev (ev.key)}
       <div class="family-form__event">
         <div class="family-form__event-head">
-          <strong>{ev.type}</strong>
-          <button type="button" class="family-form__remove-btn" onclick={() => removeEvent(ev.key)} aria-label={`Ereignis ${ev.type} entfernen`}>✕ Entfernen</button>
+          <strong>{ev.eventType || eventTypeLabel(ev.type)}</strong>
+          <button type="button" class="family-form__remove-btn" onclick={() => removeEvent(ev.key)} aria-label={`Ereignis ${ev.eventType || eventTypeLabel(ev.type)} entfernen`}>✕ Entfernen</button>
         </div>
         {#if ev.type === 'EVEN' || ev.type === 'FACT'}
           <label>
@@ -583,7 +584,7 @@
               ev.placeDirty = true;
             }}
             onPick={(placeId) => pickPlaceFor(ev, placeId)}
-            label={`${ev.type} Ort`}
+            label={`${eventTypeLabel(ev.type)} Ort`}
           />
         </label>
         {#if HOF_EVENT_TYPES.has(ev.type)}
@@ -598,7 +599,7 @@
               onTextChange={(v) => (ev.addr = v)}
               onPick={(hofId) => pickHofFor(ev, hofId)}
               villageId={ev.placeId}
-              label={`${ev.type} Adresse`}
+              label={`${eventTypeLabel(ev.type)} Adresse`}
             />
           </label>
         {/if}
@@ -612,7 +613,7 @@
     <div class="family-form__add-row">
       <select aria-label="Neuer Ereignis-Typ" value={newEventType} onchange={(e) => (newEventType = (e.currentTarget as HTMLSelectElement).value)}>
         {#each EVENT_TYPE_OPTIONS as t (t)}
-          <option value={t}>{t}</option>
+          <option value={t}>{eventTypeLabel(t)}</option>
         {/each}
       </select>
       <button type="button" onclick={addEvent}>+ Ereignis hinzufügen</button>

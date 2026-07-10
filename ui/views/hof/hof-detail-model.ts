@@ -7,6 +7,7 @@ import type { HofObject, PlaceContext } from '../../../core/places';
 import { eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName } from '../../shell/person-display';
+import { eventTypeLabel } from '../../shell/event-labels';
 
 export type HofResidentRole = 'Bewohner' | 'Eigentümer';
 
@@ -26,9 +27,11 @@ export interface HofResidentRow {
  *  revidiert): getrennte Bewohner-/Eigentümer-SEKTIONEN rissen die zeitliche
  *  Erzählung eines Hofes auseinander (wer wohnte wann neben wem, wer besaß ihn zu
  *  welcher Zeit) — jetzt EINE chronologische Liste, Differenzierung nur noch über
- *  das `role`-Feld je Zeile (Format, nicht Gruppierung). */
-function hofRole(eventType: string): HofResidentRole {
-  return eventType === 'PROP' ? 'Eigentümer' : 'Bewohner';
+ *  das `role`-Feld je Zeile (Format, nicht Gruppierung). NIMMT den REALEN Tag (nicht
+ *  die übersetzte Anzeige) — die Rollen-Klassifikation darf sich nicht durch die
+ *  Übersetzung ändern. */
+function hofRole(tag: string): HofResidentRole {
+  return tag === 'PROP' ? 'Eigentümer' : 'Bewohner';
 }
 
 /** Bei gleichem Jahr (oder beide undatiert) steht Eigentümer (PROP) vor Bewohner
@@ -54,17 +57,13 @@ export interface HofDetailModel {
   successorLabel: string | null;
 }
 
-const PERSON_SPECIAL_LABELS: Record<string, string> = {
-  BIRT: 'Geburt',
-  CHR: 'Taufe',
-  DEAT: 'Tod',
-  BURI: 'Bestattung',
-};
-
+/** `tag` ist der REALE GEDCOM-Tag — Quelle für Rollen-Klassifikation (`hofRole`) UND
+ *  Label-Übersetzung (`eventTypeLabel`, INV-UI-4). `ev.eventType` (freier TYPE-Text)
+ *  hat Priorität für das Label, ändert aber NIE die Rolle. */
 function collectResident(
   ev: Event,
   key: string,
-  label: string,
+  tag: string,
   person: { id: string },
   db: Database,
   ctx: PlaceContext,
@@ -74,15 +73,14 @@ function collectResident(
   if (!isEventPresent(ev)) return;
   if (eventHofId(ev, ctx) !== hofId) return;
   const p = db.individuals.get(person.id);
-  const eventType = ev.eventType || ev.type || label;
   out.push({
     key,
     personId: person.id,
     personName: p ? displayName(p) : '(unbekannt)',
-    eventType,
-    label,
+    eventType: tag,
+    label: ev.eventType || eventTypeLabel(tag),
     year: eventYear(ev),
-    role: hofRole(eventType),
+    role: hofRole(tag),
   });
 }
 
@@ -98,12 +96,12 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
 
   const rows: HofResidentRow[] = [];
   for (const p of db.individuals.values()) {
-    collectResident(p.birth, `${p.id}-BIRT`, PERSON_SPECIAL_LABELS.BIRT, p, db, ctx, hofId, rows);
-    collectResident(p.chr, `${p.id}-CHR`, PERSON_SPECIAL_LABELS.CHR, p, db, ctx, hofId, rows);
-    collectResident(p.death, `${p.id}-DEAT`, PERSON_SPECIAL_LABELS.DEAT, p, db, ctx, hofId, rows);
-    collectResident(p.buri, `${p.id}-BURI`, PERSON_SPECIAL_LABELS.BURI, p, db, ctx, hofId, rows);
+    collectResident(p.birth, `${p.id}-BIRT`, 'BIRT', p, db, ctx, hofId, rows);
+    collectResident(p.chr, `${p.id}-CHR`, 'CHR', p, db, ctx, hofId, rows);
+    collectResident(p.death, `${p.id}-DEAT`, 'DEAT', p, db, ctx, hofId, rows);
+    collectResident(p.buri, `${p.id}-BURI`, 'BURI', p, db, ctx, hofId, rows);
     p.events.forEach((ev, i) => {
-      collectResident(ev, `${p.id}-ev-${i}`, ev.eventType || ev.type || 'Ereignis', p, db, ctx, hofId, rows);
+      collectResident(ev, `${p.id}-ev-${i}`, ev.type || 'EVEN', p, db, ctx, hofId, rows);
     });
   }
 

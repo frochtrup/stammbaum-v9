@@ -34,6 +34,7 @@
   import { isEventPresent } from '../../../core/model';
   import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
   import { eventPlaceLabel } from '../../shell/person-display';
+  import { eventTypeLabel } from '../../shell/event-labels';
   import SourceCitationRow from '../../shell/SourceCitationRow.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
   import EventAddrField from '../../shell/EventAddrField.svelte';
@@ -370,15 +371,15 @@
 
   const eventPills = $derived.by<FieldPill[]>(() => {
     const list: FieldPill[] = [];
-    if (!showChr) list.push({ id: 'chr', label: 'Taufe', activate: () => (showChr = true) });
-    if (!showDeath) list.push({ id: 'death', label: 'Tod', activate: () => (showDeath = true) });
-    if (!showBuri) list.push({ id: 'buri', label: 'Bestattung', activate: () => (showBuri = true) });
-    if (!hasOccu) list.push({ id: 'occu', label: 'Beruf', activate: () => addEventOfType('OCCU') });
-    if (!hasResi) list.push({ id: 'resi', label: 'Wohnort', activate: () => addEventOfType('RESI') });
-    if (!hasEmig) list.push({ id: 'emig', label: 'Auswanderung', activate: () => addEventOfType('EMIG') });
-    if (!hasImmi) list.push({ id: 'immi', label: 'Einwanderung', activate: () => addEventOfType('IMMI') });
-    if (!hasMili) list.push({ id: 'mili', label: 'Militärdienst', activate: () => addEventOfType('MILI') });
-    if (!hasEven) list.push({ id: 'even', label: 'Ereignis', activate: () => addEventOfType('EVEN') });
+    if (!showChr) list.push({ id: 'chr', label: eventTypeLabel('CHR'), activate: () => (showChr = true) });
+    if (!showDeath) list.push({ id: 'death', label: eventTypeLabel('DEAT'), activate: () => (showDeath = true) });
+    if (!showBuri) list.push({ id: 'buri', label: eventTypeLabel('BURI'), activate: () => (showBuri = true) });
+    if (!hasOccu) list.push({ id: 'occu', label: eventTypeLabel('OCCU'), activate: () => addEventOfType('OCCU') });
+    if (!hasResi) list.push({ id: 'resi', label: eventTypeLabel('RESI'), activate: () => addEventOfType('RESI') });
+    if (!hasEmig) list.push({ id: 'emig', label: eventTypeLabel('EMIG'), activate: () => addEventOfType('EMIG') });
+    if (!hasImmi) list.push({ id: 'immi', label: eventTypeLabel('IMMI'), activate: () => addEventOfType('IMMI') });
+    if (!hasMili) list.push({ id: 'mili', label: eventTypeLabel('MILI'), activate: () => addEventOfType('MILI') });
+    if (!hasEven) list.push({ id: 'even', label: eventTypeLabel('EVEN'), activate: () => addEventOfType('EVEN') });
     return list;
   });
 
@@ -667,8 +668,8 @@
     {#each events as ev (ev.key)}
       <div class="person-form__event">
         <div class="person-form__event-head">
-          <strong>{ev.type}</strong>
-          <button type="button" class="person-form__remove-btn" onclick={() => removeEvent(ev.key)} aria-label={`Ereignis ${ev.type} entfernen`}>✕ Entfernen</button>
+          <strong>{ev.eventType || eventTypeLabel(ev.type)}</strong>
+          <button type="button" class="person-form__remove-btn" onclick={() => removeEvent(ev.key)} aria-label={`Ereignis ${ev.eventType || eventTypeLabel(ev.type)} entfernen`}>✕ Entfernen</button>
         </div>
         {#if ev.type === 'EVEN' || ev.type === 'FACT'}
           <label>
@@ -691,7 +692,7 @@
               ev.placeDirty = true;
             }}
             onPick={(placeId) => pickPlaceFor(ev, placeId)}
-            label={`${ev.type} Ort`}
+            label={`${eventTypeLabel(ev.type)} Ort`}
           />
         </label>
         {#if HOF_EVENT_TYPES.has(ev.type)}
@@ -703,7 +704,7 @@
               onTextChange={(v) => (ev.addr = v)}
               onPick={(hofId) => pickHofFor(ev, hofId)}
               villageId={ev.placeId}
-              label={`${ev.type} Adresse`}
+              label={`${eventTypeLabel(ev.type)} Adresse`}
             />
           </label>
         {/if}
@@ -717,7 +718,7 @@
     <div class="person-form__add-row">
       <select aria-label="Neuer Ereignis-Typ" value={newEventType} onchange={(e) => (newEventType = (e.currentTarget as HTMLSelectElement).value)}>
         {#each EVENT_TYPE_OPTIONS as t (t)}
-          <option value={t}>{t}</option>
+          <option value={t}>{eventTypeLabel(t)}</option>
         {/each}
       </select>
       <button type="button" onclick={addEvent}>+ Ereignis hinzufügen</button>
