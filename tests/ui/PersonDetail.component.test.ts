@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent } from '../../core/model';
 
 describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   it('rendert eine §N-Badge mit QUAY-Farbklasse und Quellentitel als Tooltip', () => {
@@ -134,6 +134,29 @@ describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06
 
     const badge = screen.getByText('§42');
     expect(badge.closest('.person-detail__event-head')).toBeTruthy();
+  });
+});
+
+describe('PersonDetail — Ereigniszeile-Inhaltshierarchie (INV-UI-7, ADR-v9-53)', () => {
+  it('addr steht vor der Datum/Ort-Summary, in derselben Klasse wie value (kein Dimmen/Kursiv)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Franz', surname: 'Ransmann' });
+    p.events.push(makeEvent('RESI', { date: '1950', place: 'Ochtrup', addr: 'Nienborger Damm 1' }));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    const addr = screen.getByText('Nienborger Damm 1');
+    const summary = screen.getByText(/1950, Ochtrup/);
+    expect(addr.className).toContain('person-detail__event-value');
+    expect(addr.className).not.toContain('event-addr');
+    const head = addr.closest('.person-detail__event-head')!;
+    const children = Array.from(head.children);
+    expect(children.indexOf(addr)).toBeLessThan(children.indexOf(summary));
   });
 });
 

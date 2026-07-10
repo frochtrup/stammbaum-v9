@@ -86,6 +86,8 @@
   <li class="family-detail__event">
     <div class="family-detail__event-head">
       <span class="family-detail__event-label">{ev.label}</span>
+      {#if ev.value}<span class="family-detail__event-value">{ev.value}</span>{/if}
+      {#if ev.addr}<span class="family-detail__event-value">{ev.addr}</span>{/if}
       {#if ev.summary}<span class="family-detail__event-summary">{ev.summary}</span>{/if}
       {#if ev.coords}
         <a
@@ -327,6 +329,11 @@
 
   .family-detail__event-summary {
     color: var(--stb-text-dim);
+    font-size: 0.85rem;
+  }
+
+  .family-detail__event-value {
+    color: var(--stb-text);
     font-size: 0.85rem;
   }
 

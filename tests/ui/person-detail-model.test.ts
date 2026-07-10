@@ -2,7 +2,7 @@
 // Ereignisse, Quellen-Zitate, Geo-Koordinaten, Familien-Navigationszeilen. Reine
 // Funktion, deshalb Unit statt Component-Test (TST-5).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeFamily, makeCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeCitation, makeEvent } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { buildPersonDetail } from '../../ui/views/person/person-detail-model';
 
@@ -52,6 +52,21 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
     expect(detail.events[0].coords).toEqual({ lat: 52.1, long: 7.6 });
+  });
+
+  it('reicht value (z. B. Beruf bei OCCU) und addr (Adresse bei RESI/PROP) durch, statt sie stillschweigend zu verwerfen', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('OCCU', { value: 'Landwirt' }));
+    p.events.push(makeEvent('RESI', { date: '1950', addr: 'Nienborger Damm 1' }));
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const occu = detail.events.find((e) => e.label === 'OCCU')!;
+    expect(occu.value).toBe('Landwirt');
+    const resi = detail.events.find((e) => e.label === 'RESI')!;
+    expect(resi.addr).toBe('Nienborger Damm 1');
   });
 
   it('liefert keine Koordinaten, wenn weder Event noch Ort/Hof welche tragen', () => {
@@ -122,6 +137,25 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
     expect(own.members.map((m) => m.personId)).toEqual(['@I2@']);
     expect(own.children.map((c) => c.personId)).toEqual(['@I3@', '@I4@']);
     expect(own.children.map((c) => c.name)).toEqual(['Julius Bauer', 'Elisabeth Bauer']);
+  });
+
+  it('zeigt bei Kindern das Geburtsjahr zur Namensgleichheits-Disambiguierung (INV-UI-6, gleicher Mechanismus wie FamilyDetail)', () => {
+    const db = makeDatabase();
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    const child = makePerson('@I3@', { given: 'Julius', surname: 'Bauer' });
+    child.birth.date = '1955';
+
+    const famOwn = makeFamily('@F1@', { husband: '@I1@', children: ['@I3@'] });
+    person.parentIn.push('@F1@');
+
+    db.individuals.set('@I1@', person);
+    db.individuals.set('@I3@', child);
+    db.families.set('@F1@', famOwn);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const own = detail.families.find((f) => f.role === 'parentIn')!;
+    expect(own.children[0].summary).toBe('1955');
   });
 
   it('liefert bei der Herkunftsfamilie (childOf) keine Kinder (nur Eltern, Geschwister bleiben außen vor)', () => {

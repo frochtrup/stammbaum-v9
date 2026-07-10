@@ -104,6 +104,8 @@
             <li class="person-detail__event">
               <div class="person-detail__event-head">
                 <span class="person-detail__event-label">{ev.label}</span>
+                {#if ev.value}<span class="person-detail__event-value">{ev.value}</span>{/if}
+                {#if ev.addr}<span class="person-detail__event-value">{ev.addr}</span>{/if}
                 {#if ev.summary}<span class="person-detail__event-summary">{ev.summary}</span>{/if}
                 {#if ev.coords}
                   <a
@@ -172,7 +174,7 @@
                       class="person-detail__family-link"
                       onclick={() => goToPerson(child.personId)}
                     >
-                      {child.name}
+                      {child.name}{#if child.summary}<span class="person-detail__family-children-summary">({child.summary})</span>{/if}
                     </button>{#if i < fam.children.length - 1}<span class="person-detail__family-children-sep">,</span>{/if}
                   {/each}
                 </span>
@@ -270,6 +272,11 @@
     font-size: 0.85rem;
   }
 
+  .person-detail__event-value {
+    color: var(--stb-text);
+    font-size: 0.85rem;
+  }
+
   .person-detail__geo-link {
     font-size: 0.78rem;
   }
@@ -350,6 +357,13 @@
   .person-detail__family-children-sep {
     color: var(--stb-text-dim);
     margin-right: -0.15rem;
+  }
+
+  .person-detail__family-children-summary {
+    color: var(--stb-text-dim);
+    font-size: 0.82rem;
+    text-decoration: none;
+    margin-left: 0.2rem;
   }
 
   .person-detail__family-detail-link {

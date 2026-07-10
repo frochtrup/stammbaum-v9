@@ -28,6 +28,10 @@ export interface FamilyEventRow {
   key: string;
   label: string;
   summary: string;
+  /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
+  value: string;
+  /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
+  addr: string;
   note: string;
   citations: Citation[];
   coords: Coords | null;
@@ -63,6 +67,8 @@ function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): F
     key,
     label,
     summary: yearPlaceSummary(ev, ctx),
+    value: ev.value,
+    addr: ev.addr,
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),

@@ -41,6 +41,9 @@ export default defineConfig(({ command, isPreview }) => ({
     cspPlugin()
   ],
   root: 'app',
+  server: {
+    port: process.env.PORT ? Number(process.env.PORT) : 5173
+  },
   build: {
     outDir: '../dist',
     emptyOutDir: true

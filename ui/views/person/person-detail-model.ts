@@ -20,6 +20,10 @@ export interface EventRow {
   key: string;
   label: string;
   summary: string;
+  /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
+  value: string;
+  /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
+  addr: string;
   note: string;
   citations: Citation[];
   coords: Coords | null;
@@ -38,8 +42,11 @@ export interface FamilyNavRow {
   /** Nur bei role==='parentIn': Kinder dieser eigenen Familie, ebenfalls anklickbar
    *  (ADR-v9-30 Punkt 6/Nachtrag — "wesentliche Beziehungen" zeigte bisher nur den
    *  Ehepartner, keine Kinder). Bei role==='childOf' immer leer (Geschwister sind
-   *  NICHT Teil dieser Zeile — nur Eltern, unverändert). */
-  children: { personId: string; name: string }[];
+   *  NICHT Teil dieser Zeile — nur Eltern, unverändert). `summary` (Geburtsjahr, via
+   *  denselben yearPlaceSummary-Mechanismus wie family-detail-model.ts's Kinder-Zeile,
+   *  Nachtrag 2026-07-06 [20 §1.5]) zur eindeutigen Identifikation bei Namensgleichheit —
+   *  fehlte hier bisher, obwohl FamilyDetail dieselben Kinder bereits so anzeigt. */
+  children: { personId: string; name: string; summary: string }[];
 }
 
 export interface PersonDetailModel {
@@ -54,6 +61,8 @@ function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): E
     key,
     label,
     summary: yearPlaceSummary(ev, ctx),
+    value: ev.value,
+    addr: ev.addr,
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),
@@ -110,7 +119,10 @@ export function buildPersonDetail(
       .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
       .filter((m) => m.name);
     const children = f.children
-      .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
+      .map((id) => {
+        const child = db.individuals.get(id)!;
+        return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
+      })
       .filter((c) => c.name);
     families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children });
   }

@@ -2,7 +2,7 @@
 // anklickbare Mitglieder, Ereignisse, Quellen-Zitate. Reine Funktion, deshalb Unit statt
 // Component-Test (TST-5).
 import { describe, expect, it } from 'vitest';
-import { makeCitation, makeDatabase, makeFamily, makePerson } from '../../core/model';
+import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { buildFamilyDetail } from '../../ui/views/family/family-detail-model';
 
@@ -31,6 +31,18 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
     expect(detail.members.map((m) => m.role)).toEqual(['husband', 'wife', 'child']);
     expect(detail.members.map((m) => m.name)).toEqual(['Otto Bauer', 'Anna Klein', 'Karl Bauer']);
     expect(detail.label).toBe('Otto Bauer ⚭ Anna Klein');
+  });
+
+  it('reicht value/addr eines generischen Ereignisses durch, statt sie stillschweigend zu verwerfen', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    const family = makeFamily('@F1@', { husband: '@I1@' });
+    family.events.push(makeEvent('RESI', { date: '1950', addr: 'Nienborger Damm 1' }));
+    db.families.set('@F1@', family);
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    expect(detail.events[0].addr).toBe('Nienborger Damm 1');
   });
 
   it('liefert je Mitgliedszeile eine yearPlaceSummary aus der Geburt (Nachtrag 2026-07-06 [20 §1.5])', () => {
