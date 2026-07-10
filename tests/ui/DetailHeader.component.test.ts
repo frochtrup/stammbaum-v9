@@ -51,3 +51,22 @@ describe('DetailHeader — eine gemeinsame Kopfzeile (Spec 21 §6b, INV-UI-4)', 
     expect(row?.contains(treeBtn)).toBe(true);
   });
 });
+
+describe('DetailHeader — compact-Modus (Spec 21 §10e)', () => {
+  it('rendert den Titel klein IN der Kopfzeile statt als eigene große zweite Zeile', () => {
+    const { container } = render(DetailHeader, { props: { title: 'Otto Bauer ⚭ Anna Klein', onBack: vi.fn(), compact: true } });
+
+    expect(container.querySelector('.detail-header__title')).toBeNull();
+    const row = container.querySelector('.detail-header__row');
+    const compactTitle = container.querySelector('.detail-header__compact-title');
+    expect(compactTitle?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
+    expect(row?.contains(compactTitle)).toBe(true);
+  });
+
+  it('ohne compact bleibt das bisherige Verhalten (große Titelzeile, kein compact-title)', () => {
+    const { container } = render(DetailHeader, { props: { title: 'Anna Bauer', onBack: vi.fn() } });
+
+    expect(container.querySelector('.detail-header__compact-title')).toBeNull();
+    expect(container.querySelector('.detail-header__title')?.textContent).toBe('Anna Bauer');
+  });
+});

@@ -13,9 +13,11 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import Picker from '../../shell/Picker.svelte';
+  import SourceBadge from '../../shell/SourceBadge.svelte';
+  import EventsByType from '../../shell/EventsByType.svelte';
   import type { PlaceObject } from '../../../core/places/types';
   import { linkEventToPlace, withAddedPname, withRemovedPname, withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
-  import { buildPlaceDetail } from './place-detail-model';
+  import { buildPlaceDetail, type PlaceEventRow } from './place-detail-model';
   import PlaceForm from './PlaceForm.svelte';
 
   interface Props {
@@ -25,11 +27,21 @@
     onNavigateToPerson?: (personId: string) => void;
     /** Cross-Tab-Navigation zu einer Familie. */
     onNavigateToFamily?: (familyId: string) => void;
+    /** Cross-Tab-Navigation zur Quellen-Detailseite (optional, analog Person-/FamilyDetail). */
+    onNavigateToSource?: (sourceId: string) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onBack }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack }: Props = $props();
+
+  /** Info-Tooltip-Text für die Verwaltungszugehörigkeit (Spec 21 §10g): ersetzt zwei
+   *  permanente Fließtext-Sätze durch ein ⓘ neben der Überschrift statt sie stets
+   *  einzublenden. */
+  const ENCLOSURE_INFO =
+    'Volle Kette: berechnet aus den Zugehörigkeiten unten UND deren jeweils eigenen ' +
+    'übergeordneten Orten. Direkt zugeordnet: hier bearbeitbar — ihre eigene weitere ' +
+    'Zugehörigkeit wird bei ihnen selbst gepflegt.';
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
@@ -170,6 +182,16 @@
   }
 </script>
 
+{#snippet placeEventRow(row: PlaceEventRow)}
+  <button type="button" class="place-detail__owner-link" onclick={() => navigateToOwner(row.ownerKind, row.ownerId)}>
+    {row.ownerLabel}
+  </button>
+  {#if row.year}<span class="place-detail__muted">{row.year}</span>{/if}
+  {#each row.citations as cit, i (i)}
+    <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
+  {/each}
+{/snippet}
+
 <div class="place-detail">
   {#if !placeId}
     <p class="place-detail__empty">Kein Ort ausgewählt.</p>
@@ -218,15 +240,18 @@
     {/if}
 
     <section class="place-detail__section">
-      <h3>Verwaltungszugehörigkeit</h3>
+      <h3>
+        Verwaltungszugehörigkeit
+        <span class="place-detail__info-icon" title={ENCLOSURE_INFO}>ⓘ</span>
+      </h3>
       {#if detail.enclosureChain.length > 1}
-        <p class="place-detail__hint">Volle Kette, berechnet aus den Zugehörigkeiten unten UND deren jeweils eigenen übergeordneten Orten:</p>
+        <p class="place-detail__hint">Volle Kette:</p>
         <p class="place-detail__chain">{detail.enclosureChain.join(' › ')}</p>
       {:else}
         <p class="place-detail__muted">Keine übergeordnete Zugehörigkeit erfasst.</p>
       {/if}
       {#if detail.place.enclosedBy.length}
-        <p class="place-detail__hint">Direkt zugeordnet (hier bearbeitbar — ihre eigene weitere Zugehörigkeit wird bei ihnen selbst gepflegt):</p>
+        <p class="place-detail__hint">Direkt zugeordnet:</p>
       {/if}
       <ul class="place-detail__enclosed-list">
         {#each detail.place.enclosedBy as enc, i (i)}
@@ -269,31 +294,31 @@
       {/if}
     </section>
 
-    <section class="place-detail__section">
-      <h3>Namens-Varianten <span class="place-detail__muted">(Herkunfts-Pillen)</span></h3>
-      {#if detail.variants.length === 0}
-        <p class="place-detail__muted">Keine Namensvarianten erfasst.</p>
-      {:else}
-        <div class="stb-pill-row" aria-label="Namensvarianten">
-          {#each detail.variants as v, i (i)}
-            <span class="stb-pill" title={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
-              {v.value}
-              {#if editing}
-                <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
-              {/if}
-            </span>
-          {/each}
-        </div>
-      {/if}
-      {#if editing}
-        <div class="place-detail__add-row">
-          <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
-          <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
-          <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
-          <button type="button" onclick={addPname}>+ Hinzufügen</button>
-        </div>
-      {/if}
-    </section>
+    {#if detail.variants.length > 0 || editing}
+      <section class="place-detail__section">
+        <h3>Namens-Varianten</h3>
+        {#if detail.variants.length > 0}
+          <div class="stb-pill-row" aria-label="Namensvarianten">
+            {#each detail.variants as v, i (i)}
+              <span class="stb-pill" title={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
+                {v.value}
+                {#if editing}
+                  <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+                {/if}
+              </span>
+            {/each}
+          </div>
+        {/if}
+        {#if editing}
+          <div class="place-detail__add-row">
+            <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
+            <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
+            <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
+            <button type="button" onclick={addPname}>+ Hinzufügen</button>
+          </div>
+        {/if}
+      </section>
+    {/if}
 
     {#if editing}
       <!-- Dubletten-Merge bewusst ebenfalls hinter den Bearbeiten-Modus gestellt (ADR-v9-30
@@ -365,36 +390,18 @@
       {#if detail.eventsByType.length === 0}
         <p class="place-detail__muted">Keine Ereignisse an diesem Ort erfasst.</p>
       {:else}
-        {#each detail.eventsByType as group (group.type)}
-          <div class="place-detail__event-group">
-            <h4>{group.type} ({group.rows.length})</h4>
-            <ul>
-              {#each group.rows as row (row.key)}
-                <li>
-                  <button
-                    type="button"
-                    class="place-detail__owner-link"
-                    onclick={() => navigateToOwner(row.ownerKind, row.ownerId)}
-                  >
-                    {row.ownerLabel}
-                  </button>
-                  {#if row.summary}<span class="place-detail__muted">{row.summary}</span>{/if}
-                </li>
-              {/each}
-            </ul>
-          </div>
-        {/each}
+        <EventsByType groups={detail.eventsByType} row={placeEventRow} />
       {/if}
     </section>
 
     {#if detail.citations.length > 0}
       <section class="place-detail__section">
         <h3>Quellen ({detail.citations.length})</h3>
-        <ul class="place-detail__citation-list">
+        <div class="place-detail__citations">
           {#each detail.citations as cit (cit.sourceId)}
-            <li>{appState.db.sources.get(cit.sourceId)?.abbr || appState.db.sources.get(cit.sourceId)?.title || cit.sourceId}</li>
+            <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
           {/each}
-        </ul>
+        </div>
       </section>
     {/if}
   {/if}
@@ -436,12 +443,6 @@
     font-size: 0.95rem;
     color: var(--stb-gold-light);
     margin-bottom: 0.4rem;
-  }
-
-  .place-detail__section h4 {
-    font-size: 0.85rem;
-    color: var(--stb-text-dim);
-    margin: 0.6rem 0 0.2rem;
   }
 
   .place-detail__muted {
@@ -516,23 +517,34 @@
   }
 
   .place-detail__enclosed-list,
-  .place-detail__citation-list,
-  .place-detail__unlinked ul,
-  .place-detail__event-group ul {
+  .place-detail__unlinked ul {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
   .place-detail__enclosed-list li,
-  .place-detail__unlinked li,
-  .place-detail__event-group li {
+  .place-detail__unlinked li {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--stb-surface-2);
     flex-wrap: wrap;
+  }
+
+  .place-detail__citations {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+
+  /* Info-Affordance (Spec 21 §10g): ⓘ neben einer Überschrift statt permanenten
+     Erklär-Fließtexts — native title-Tooltip, keine neue Abhängigkeit. */
+  .place-detail__info-icon {
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
+    cursor: help;
   }
 
   .place-detail__remove-btn {

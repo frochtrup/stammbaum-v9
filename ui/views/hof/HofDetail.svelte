@@ -7,8 +7,9 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import Picker from '../../shell/Picker.svelte';
+  import EventsByType from '../../shell/EventsByType.svelte';
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
-  import { buildHofDetail } from './hof-detail-model';
+  import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
   import type { HofObject } from '../../../core/places/types';
 
   interface Props {
@@ -123,6 +124,13 @@
     return hofLabel(h).toLowerCase().includes(query.trim().toLowerCase());
   }
 </script>
+
+{#snippet residentRow(row: HofResidentRow)}
+  <button type="button" class="hof-detail__resident-link" onclick={() => onNavigateToPerson?.(row.personId)}>
+    {row.personName}
+  </button>
+  <span class="hof-detail__muted">{row.label}{row.year ? `, ${row.year}` : ''}</span>
+{/snippet}
 
 <div class="hof-detail">
   {#if !hofId}
@@ -263,24 +271,11 @@
     </section>
 
     <section class="hof-detail__section">
-      <h3>Bewohner (chronologisch)</h3>
-      {#if detail.residents.length === 0}
-        <p class="hof-detail__muted">Keine Bewohner-Ereignisse an diesem Hof erfasst.</p>
+      <h3>Ereignisse</h3>
+      {#if detail.residentGroups.length === 0}
+        <p class="hof-detail__muted">Keine Bewohner-/Eigentümer-Ereignisse an diesem Hof erfasst.</p>
       {:else}
-        <ul class="hof-detail__residents">
-          {#each detail.residents as row (row.key)}
-            <li>
-              <button
-                type="button"
-                class="hof-detail__resident-link"
-                onclick={() => onNavigateToPerson?.(row.personId)}
-              >
-                {row.personName}
-              </button>
-              <span class="hof-detail__muted">{row.label}{row.year ? `, ${row.year}` : ''}</span>
-            </li>
-          {/each}
-        </ul>
+        <EventsByType groups={detail.residentGroups} row={residentRow} />
       {/if}
     </section>
   {/if}
@@ -375,15 +370,13 @@
     color: var(--stb-text);
   }
 
-  .hof-detail__addr-list,
-  .hof-detail__residents {
+  .hof-detail__addr-list {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
-  .hof-detail__addr-list li,
-  .hof-detail__residents li {
+  .hof-detail__addr-list li {
     display: flex;
     align-items: center;
     gap: 0.5rem;

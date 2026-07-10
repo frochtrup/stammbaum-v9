@@ -130,7 +130,7 @@
   {:else if editing}
     <FamilyForm {appState} family={detail.family} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <DetailHeader title={detail.label} onBack={onBack ?? (() => {})}>
+    <DetailHeader title={detail.label} onBack={onBack ?? (() => {})} compact>
       {#snippet actions()}
         <button type="button" class="family-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
       {/snippet}
@@ -166,11 +166,9 @@
       </section>
     {/if}
 
-    <section class="family-detail__section">
-      <h3>Kinder</h3>
-      {#if children.length === 0}
-        <p class="family-detail__muted">Keine Kinder zugeordnet.</p>
-      {:else}
+    {#if children.length > 0}
+      <section class="family-detail__section">
+        <h3>Kinder</h3>
         <ul class="family-detail__children">
           {#each children as child (child.personId)}
             <li>
@@ -185,21 +183,19 @@
             </li>
           {/each}
         </ul>
-      {/if}
-    </section>
+      </section>
+    {/if}
 
-    <section class="family-detail__section">
-      <h3>Weitere Ereignisse</h3>
-      {#if otherEvents.length === 0}
-        <p class="family-detail__muted">Keine weiteren Ereignisse erfasst.</p>
-      {:else}
+    {#if otherEvents.length > 0}
+      <section class="family-detail__section">
+        <h3>Weitere Ereignisse</h3>
         <ul class="family-detail__events">
           {#each otherEvents as ev (ev.key)}
             {@render eventRow(ev)}
           {/each}
         </ul>
-      {/if}
-    </section>
+      </section>
+    {/if}
 
     {#if detail.citations.length > 0}
       <section class="family-detail__section">

@@ -10,13 +10,17 @@ import type { Citation, Database, Event, PlaceId } from '../../../core/model/typ
 import type { PlaceContext, PlaceObject } from '../../../core/places';
 import { eventPlaceId, normPlaceName } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
-import { displayName, yearPlaceSummary } from '../../shell/person-display';
+import { displayName, eventYearLabel } from '../../shell/person-display';
+import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
 export interface PlaceEventRow {
   key: string;
   eventType: string;
   label: string;
-  summary: string;
+  /** NUR das Jahr — der Ortsname wird bewusst NICHT wiederholt: diese Seite IST der Ort
+   *  (Spec 21 §10h, "eigene Identität nicht dreifach zurückspiegeln"). */
+  year: string;
+  citations: Citation[];
   ownerId: string;
   ownerKind: 'person' | 'family';
   ownerLabel: string;
@@ -47,7 +51,7 @@ export interface UnlinkedEventRow {
 export interface PlaceDetailModel {
   place: PlaceObject;
   /** Ereignisse, gruppiert nach Typ-Schlüssel (BIRT/DEAT/RESI/…), je periodengerecht sortiert. */
-  eventsByType: { type: string; rows: PlaceEventRow[] }[];
+  eventsByType: EventGroup<PlaceEventRow>[];
   citations: Citation[];
   variants: PlaceVariantRow[];
   /** [Ort, übergeordnet, …] periodengerecht — Fallback ohne Jahr: undatierte Kette. */
@@ -88,7 +92,8 @@ function collectEvent(
     key,
     eventType: ev.eventType || ev.type || label,
     label,
-    summary: yearPlaceSummary(ev, ctx),
+    year: eventYearLabel(ev),
+    citations: ev.citations,
     ownerId,
     ownerKind,
     ownerLabel: ownerLabelFor(db, ownerKind, ownerId),
@@ -159,15 +164,7 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
     });
   }
 
-  const byType = new Map<string, PlaceEventRow[]>();
-  for (const row of rows) {
-    const list = byType.get(row.eventType);
-    if (list) list.push(row);
-    else byType.set(row.eventType, [row]);
-  }
-  const eventsByType = Array.from(byType.entries())
-    .map(([type, typeRows]) => ({ type, rows: typeRows }))
-    .sort((a, b) => a.type.localeCompare(b.type, 'de'));
+  const eventsByType = groupByKey(rows, (row) => row.eventType);
 
   // Quellen: alle Zitate der Events, die diesen Ort referenzieren, dedupliziert per sourceId.
   const citationsBySource = new Map<string, Citation>();

@@ -187,8 +187,55 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
   });
 });
 
+describe('FamilyDetail — leere optionale Abschnitte verschwinden vollständig (Spec 21 §10f)', () => {
+  it('zeigt WEDER "Kinder"-Überschrift NOCH eine "Keine Kinder"-Zeile, wenn die Familie keine Kinder hat', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.queryByText('Kinder')).toBeNull();
+    expect(screen.queryByText(/Keine Kinder/)).toBeNull();
+  });
+
+  it('zeigt WEDER "Weitere Ereignisse"-Überschrift NOCH eine "Keine weiteren Ereignisse"-Zeile, wenn keine vorhanden sind', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.queryByText('Weitere Ereignisse')).toBeNull();
+    expect(screen.queryByText(/Keine weiteren Ereignisse/)).toBeNull();
+  });
+
+  it('zeigt "Kinder" wieder, sobald welche vorhanden sind', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Julius', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { children: ['@I3@'] }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.getByText('Kinder')).toBeTruthy();
+    expect(screen.getByText('Julius Bauer')).toBeTruthy();
+  });
+});
+
 describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', async () => {
+  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile; der Titel läuft kompakt in DERSELBEN Zeile statt als große zweite Zeile (Spec 21 §10e — redundant zu den Eltern-Boxen darunter)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -202,11 +249,14 @@ describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     const { container } = render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn(), onBack } });
 
     const row = container.querySelector('.detail-header__row');
-    const title = container.querySelector('.detail-header__title');
+    // Keine große eigene Titelzeile mehr (Spec 21 §10e) — nur der kompakte Titel IN der
+    // Kopfzeile selbst.
+    expect(container.querySelector('.detail-header__title')).toBeNull();
+    const compactTitle = container.querySelector('.detail-header__compact-title');
+    expect(compactTitle?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
+    expect(row?.contains(compactTitle)).toBe(true);
     expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
     expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
-    expect(title?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
-    expect(row?.contains(title)).toBe(false);
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
     expect(onBack).toHaveBeenCalledOnce();

@@ -232,6 +232,22 @@ describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
   });
 });
 
+describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig (Spec 21 §10f)', () => {
+  it('zeigt WEDER "Familien"-Überschrift NOCH eine "Keine Familienverknüpfung"-Zeile ohne Familienbezug', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.queryByText('Familien')).toBeNull();
+    expect(screen.queryByText(/Keine Familienverknüpfung/)).toBeNull();
+  });
+});
+
 describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
   it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
     const appState = createAppState();

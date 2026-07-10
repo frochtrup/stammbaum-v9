@@ -24,20 +24,34 @@
     /** View-spezifische Aktions-Buttons (Bearbeiten, Im Baum anzeigen, …), rechts neben
      *  "Zur Liste" in derselben Zeile. */
     actions?: Snippet;
+    /** Kompakt-Modus (Spec 21 §10e-Aufarbeitung): der Titel läuft klein in der Kopfzeile
+     *  selbst statt als eigene große zweite Zeile darunter — für Views, deren Titel bereits
+     *  redundant zu strukturell reicherem Inhalt weiter unten ist (z. B. FamilyDetail's
+     *  "Ehemann ⚭ Ehefrau", das die Eltern-Boxen unten mit Name+Geburtsjahr/-ort ohnehin
+     *  wiederholen). Default false — PersonDetail/PlaceDetail/HofDetail behalten ihre
+     *  bisherige große Titelzeile. */
+    compact?: boolean;
   }
-  const { title, onBack, actions }: Props = $props();
+  const { title, onBack, actions, compact = false }: Props = $props();
 </script>
 
 <div class="detail-header">
   <div class="detail-header__row">
-    <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+    <div class="detail-header__left">
+      <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+      {#if compact}
+        <span class="detail-header__compact-title">{title}</span>
+      {/if}
+    </div>
     {#if actions}
       <div class="detail-header__actions">
         {@render actions()}
       </div>
     {/if}
   </div>
-  <h2 class="detail-header__title">{title}</h2>
+  {#if !compact}
+    <h2 class="detail-header__title">{title}</h2>
+  {/if}
 </div>
 
 <style>
@@ -61,6 +75,25 @@
     font: inherit;
     padding: 0;
     white-space: nowrap;
+  }
+
+  /* Linke Gruppe (Zurück + optionaler Kompakt-Titel) — eigenes Flex-Item, damit
+     `.detail-header__row`s `justify-content: space-between` weiterhin nur zwischen ZWEI
+     Kindern (links/rechts) wirkt statt einen dritten mittigen Titel unvorhersehbar
+     einzuquetschen (TST-11-Lehre). */
+  .detail-header__left {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .detail-header__compact-title {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .detail-header__actions {

@@ -34,6 +34,39 @@ describe('buildPlaceDetail — Ereignisse gruppiert nach Typ', () => {
     expect(birtGroup.rows[0].ownerLabel).toBe('Otto Bauer');
   });
 
+  it('liefert NUR das Jahr, nicht die Ortskette (Spec 21 §10h: die Seite IST der Ort)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.birth.placeId = '@P1@';
+    person.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', person);
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    const row = detail!.eventsByType[0]!.rows[0]!;
+    expect(row.year).toBe('1900');
+    expect(row.year).not.toContain('Ochtrup');
+    expect(row.year).not.toContain('Kreis Steinfurt');
+  });
+
+  it('liefert die Zitate je Ereigniszeile (für Quellen-Badges pro Zeile)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    const person = makePerson('@I1@');
+    person.birth.placeId = '@P1@';
+    person.birth.citations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', person);
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.eventsByType[0]!.rows[0]!.citations.map((c) => c.sourceId)).toEqual(['@S1@']);
+  });
+
   it('ignoriert Ereignisse an einem ANDEREN Ort', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));

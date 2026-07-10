@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import HofDetail from '../../ui/views/hof/HofDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeEvent } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
 
 describe('HofDetail — Steckbrief (read-only Teile)', () => {
@@ -49,6 +49,39 @@ describe('HofDetail — Steckbrief (read-only Teile)', () => {
     expect(screen.getByText('Ochtrup')).toBeTruthy();
     await fireEvent.click(screen.getByText('Otto Bauer'));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+  });
+});
+
+describe('HofDetail — Bewohner/Eigentümer getrennt statt vermischt (Spec 21 §10j)', () => {
+  it('zeigt PROP-Ereignisse unter "Eigentümer", nicht fälschlich unter "Bewohner"', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    const resident = makePerson('@I1@', { given: 'Anna', surname: 'Meyer' });
+    resident.events.push(makeEvent('RESI', { date: '1900', hofId: '@H1@' }));
+    db.individuals.set('@I1@', resident);
+
+    const owner = makePerson('@I2@', { given: 'Bernd', surname: 'Schulze' });
+    owner.events.push(makeEvent('PROP', { date: '1905', hofId: '@H1@' }));
+    db.individuals.set('@I2@', owner);
+
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+    const onNavigateToPerson = vi.fn();
+
+    render(HofDetail, { props: { appState, viewState, onNavigateToPerson } });
+
+    expect(screen.getByText('Bewohner (1)')).toBeTruthy();
+    expect(screen.getByText('Eigentümer (1)')).toBeTruthy();
+    // Keine gemeinsame, fachlich falsche "Bewohner (chronologisch)"-Überschrift mehr,
+    // die auch Eigentümer einschloss.
+    expect(screen.queryByText('Bewohner (chronologisch)')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Bernd Schulze'));
+    expect(onNavigateToPerson).toHaveBeenCalledWith('@I2@');
   });
 });
 

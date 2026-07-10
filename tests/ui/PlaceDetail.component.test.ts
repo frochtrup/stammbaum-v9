@@ -7,7 +7,7 @@ import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeCitation, makeSource } from '../../core/model';
 import { place } from '../core/places-fixtures';
 
 describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
@@ -366,6 +366,127 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
     expect(screen.getByLabelText('Neue Namensvariante')).toBeTruthy();
     expect(screen.getByLabelText('Übergeordneter Ort')).toBeTruthy();
     expect(screen.getByLabelText('Ziel-Ort für Merge')).toBeTruthy();
+  });
+});
+
+describe('PlaceDetail — leere Namens-Varianten verschwinden vollständig (Spec 21 §10f/g)', () => {
+  it('zeigt WEDER "Namens-Varianten"-Überschrift NOCH eine "Keine Namensvarianten"-Zeile ohne pnames, außerhalb des Bearbeiten-Modus', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.queryByText('Namens-Varianten')).toBeNull();
+    expect(screen.queryByText(/Keine Namensvarianten/)).toBeNull();
+  });
+
+  it('nennt die Überschrift nur noch "Namens-Varianten", ohne "(Herkunfts-Pillen)"-Jargon', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Sassenberg', pnames: [{ value: 'Sassenbergk', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Namens-Varianten')).toBeTruthy();
+    expect(screen.queryByText(/Herkunfts-Pillen/)).toBeNull();
+  });
+});
+
+describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affordance (Spec 21 §10g)', () => {
+  it('zeigt kompakte Labels statt der früheren Fließtext-Sätze', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Volle Kette:')).toBeTruthy();
+    expect(screen.getByText('Direkt zugeordnet:')).toBeTruthy();
+    expect(screen.queryByText(/berechnet aus den Zugehörigkeiten unten/)).toBeNull();
+    expect(screen.queryByText(/ihre eigene weitere Zugehörigkeit wird bei ihnen selbst gepflegt/)).toBeNull();
+  });
+
+  it('bietet ein ⓘ-Affordance neben der Überschrift mit der vollen Erklärung', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    const infoIcon = container.querySelector('.place-detail__info-icon');
+    expect(infoIcon).toBeTruthy();
+    expect(infoIcon?.getAttribute('title')).toContain('berechnet aus den Zugehörigkeiten');
+  });
+});
+
+describe('PlaceDetail — Ereigniszeilen zeigen NICHT die eigene Ortskette (Spec 21 §10h)', () => {
+  it('zeigt bei "Ereignisse nach Typ" nur Name + Jahr, nicht die volle enclosedBy-Kette dieser Seite', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.birth.placeId = '@P1@';
+    person.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('1900')).toBeTruthy();
+    expect(screen.queryByText(/1900, Ochtrup/)).toBeNull();
+    // "Kreis Steinfurt" darf nur einmal auftauchen (in der Verwaltungszugehörigkeit oben),
+    // nicht ein zweites Mal in der Ereigniszeile.
+    expect(screen.getAllByText('Kreis Steinfurt')).toHaveLength(1);
+  });
+});
+
+describe('PlaceDetail — Quellen als §N-Badges (Spec 21 §10i, INV-UI-4)', () => {
+  it('rendert die Quellen als SourceBadge (§N + QUAY-Farbklasse) statt als reinen Text', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    const person = makePerson('@I1@');
+    person.birth.placeId = '@P1@';
+    person.birth.citations.push(makeCitation('@S42@', { quay: 3 }));
+    db.individuals.set('@I1@', person);
+    db.sources.set('@S42@', makeSource('@S42@', { abbr: 'KB Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    // Das Zitat erscheint zweimal (Spec 21 §10h: pro Ereigniszeile UND — dedupliziert —
+    // in der zusammenfassenden Quellen-Sektion). Auf die Quellen-Sektion scopen.
+    const citationsSection = container.querySelector('.place-detail__citations') as HTMLElement;
+    const badge = within(citationsSection).getByText('§42');
+    expect(badge.className).toContain('src-badge--q3');
   });
 });
 

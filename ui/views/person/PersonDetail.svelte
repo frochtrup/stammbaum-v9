@@ -141,11 +141,9 @@
       {/if}
     </section>
 
-    <section class="person-detail__section">
-      <h3>Familien</h3>
-      {#if detail.families.length === 0}
-        <p class="person-detail__muted">Keine Familienverknüpfung.</p>
-      {:else}
+    {#if detail.families.length > 0}
+      <section class="person-detail__section">
+        <h3>Familien</h3>
         <ul class="person-detail__families">
           {#each detail.families as fam (fam.familyId + fam.role)}
             <li>
@@ -192,8 +190,8 @@
             </li>
           {/each}
         </ul>
-      {/if}
-    </section>
+      </section>
+    {/if}
   {/if}
 </div>
 
