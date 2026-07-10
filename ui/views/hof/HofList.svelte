@@ -215,12 +215,16 @@
      gerendert (gruppiert nach Dorf), kein eigenes <ul> mehr nötig. Kein eigener
      border-bottom mehr auf .hof-list__row: EventsByType's <li> zeichnet die
      Trennlinie bereits (sonst Doppel-Rand). */
+  /* Nur noch horizontales Padding (Nutzer-Fund 2026-07-10: Zeilenabstände wirkten
+     "immer noch groß") — vertikales Padding kam bisher DOPPELT zustande (dieses
+     0.55rem PLUS EventsByType's <li> 0.3rem, macht zusammen ~27px), jetzt EINE
+     Quelle (das <li>). */
   .hof-list__row {
     width: 100%;
     display: flex;
     background: transparent;
     border: none;
-    padding: 0.55rem 1rem;
+    padding: 0 1rem;
     text-align: left;
     cursor: pointer;
     color: var(--stb-text);
@@ -229,6 +233,17 @@
   .hof-list__row:hover,
   .hof-list__row:focus-visible {
     background: var(--stb-surface-2);
+  }
+
+  /* EventsByType's Gruppen-Header (<h4>, geteilte Komponente) hat selbst kein
+     horizontales Padding — in PlaceDetail/SourceDetail korrekt, weil deren
+     Container bereits `padding: 1rem` trägt. .hof-list hat KEIN Container-Padding
+     (Zeilen/Toolbar bringen ihr eigenes, für randlose Hover-Flächen) — ohne diese
+     gezielte :global()-Ergänzung säße der Dorf-Name-Header exakt auf der linken
+     Bildschirmkante (Nutzer-Fund 2026-07-10: "Ortsangabe genau auf dem Rand"),
+     während die Zeilen darunter korrekt um 1rem eingerückt sind. */
+  .hof-list :global(.events-by-type__group h4) {
+    padding: 0 1rem;
   }
 
   /* Adresse/Pill/Ort+Koordinaten in EINEM flex-wrap-Fluss statt drei erzwungenen
