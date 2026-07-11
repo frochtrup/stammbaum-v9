@@ -201,6 +201,46 @@ describe('EventEditModal — Quellen-Widget', () => {
   });
 });
 
+describe('EventEditModal — Neu-Anlage-Modus (mode="create", ADR-v9-63)', () => {
+  it('zeigt "<Label> anlegen" statt "<Label> bearbeiten", wenn mode="create"', () => {
+    const appState = createAppState();
+    const ev = makeEvent('RESI');
+
+    render(EventEditModal, {
+      props: { appState, event: ev, label: 'Wohnort', mode: 'create', onSave: vi.fn(), onClose: vi.fn() },
+    });
+
+    expect(screen.getByText('Wohnort anlegen')).toBeTruthy();
+    expect(screen.queryByText('Wohnort bearbeiten')).toBeNull();
+  });
+
+  it('zeigt weiterhin "<Label> bearbeiten", wenn mode weggelassen wird (Default "edit")', () => {
+    const appState = createAppState();
+    const ev = makeEvent('OCCU');
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Beruf', onSave: vi.fn(), onClose: vi.fn() } });
+
+    expect(screen.getByText('Beruf bearbeiten')).toBeTruthy();
+  });
+
+  it('speichert ein frisch angelegtes Event (makeEvent(tag)) über denselben onSave-Chokepoint wie beim Editieren', async () => {
+    const appState = createAppState();
+    const fresh = makeEvent('RESI');
+    const onSave = vi.fn();
+
+    render(EventEditModal, {
+      props: { appState, event: fresh, label: 'Wohnort', mode: 'create', onSave, onClose: vi.fn() },
+    });
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Ochtrup 12' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const [updated] = onSave.mock.calls[0];
+    expect(updated.type).toBe('RESI');
+    expect(updated.value).toBe('Ochtrup 12');
+  });
+});
+
 describe('EventEditModal — Modal-Schale (Backdrop/Escape)', () => {
   it('Klick auf den Backdrop ruft onClose auf', async () => {
     const appState = createAppState();

@@ -137,11 +137,11 @@
   }
 
   /** "＋ Neue Familie" (Spec 20 §2): FamilyList hat die Familie bereits per
-   *  appState.saveFamily angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
-  let createdFamilyId = $state<string | null>(null);
-
+   *  appState.saveFamily angelegt — hier nur Auswahl. Kein Editor-Sofort-Öffnen mehr
+   *  nötig (ADR-v9-63): `FamilyDetail` hat kein Toggle-Formular mehr, ein frisches
+   *  Familien-Gerüst ist direkt auf der Detail-Ansicht editierbar (Eltern-/Kind-Slots,
+   *  Ereignis-Pills). */
   function createFamily(id: string) {
-    createdFamilyId = id;
     navigateToFamily(id);
   }
 
@@ -307,7 +307,6 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         onBack={backToList}
-        startInEdit={selectedFamilyId === createdFamilyId}
       />
     {:else}
       <FamilyList {appState} {viewState} onCreate={createFamily} />

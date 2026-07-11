@@ -9,14 +9,18 @@
   // model.ts, dieselbe Match-Logik wie die globale Suche), familyLabelFor (source/
   // family-label.ts — bewusst NICHT verschoben, s. Auftrag), allocatorFromDatabase/
   // nextId (core/model/ids.ts) + makeFamily (core/model/factory.ts) für die ID-Vergabe
-  // (exakt das FamilyList.svelte-"＋ Neue Familie"-Muster), und FamilyForm.svelte selbst
-  // für die Inline-Neuanlage.
+  // (exakt das FamilyList.svelte-"＋ Neue Familie"-Muster).
+  //
+  // Neuanlage ist SOFORT, kein Inline-Formular mehr (ADR-v9-63): `FamilyForm.svelte`
+  // entfällt komplett — Familie hat keine eigenen Skalarfelder, ein frisch angelegtes
+  // Gerüst (`makeFamily`) ist bereits vollständig speicherbar, ohne dass der Nutzer
+  // irgendetwas ausfüllen müsste (Eltern/Kinder/Ereignisse sind direkte Picker-/Modal-
+  // Aktionen auf `FamilyDetail.svelte`, nicht Teil dieser Anlage-Geste).
   import type { AppState } from './app-state.svelte';
   import type { Family, FamilyId } from '../../core/model/types';
   import { makeFamily, allocatorFromDatabase, nextId } from '../../core/model';
   import { matchesSearch } from '../views/family/family-list-model';
   import { familyLabelFor } from '../views/source/family-label';
-  import FamilyForm from '../views/family/FamilyForm.svelte';
   import Picker from './Picker.svelte';
 
   interface Props {
@@ -52,64 +56,37 @@
     return matchesSearch(appState.db, f, query);
   }
 
-  /** Frisches Familien-Gerüst mit kollisionsfreier id — exakt das FamilyList.svelte-Muster. */
-  function draftFamily(): Family {
+  /** Frisches Familien-Gerüst mit kollisionsfreier id — exakt das FamilyList.svelte-Muster.
+   *  Speichert SOFORT (kein Inline-Formular, s. Modul-Kommentar) und meldet die neue id
+   *  direkt an den Aufrufer — kein Kontextverlust, kein Zwischenschritt. */
+  function beginCreate() {
     const alloc = allocatorFromDatabase(appState.db);
     const id = nextId(alloc, 'F');
-    return makeFamily(id);
-  }
-
-  let creating = $state(false);
-  let draft = $state<Family | null>(null);
-
-  function beginCreate() {
-    draft = draftFamily();
-    creating = true;
-  }
-
-  function onFamilyCreated(id: string) {
-    creating = false;
-    draft = null;
+    const family = makeFamily(id);
+    appState.saveFamily(family);
     onChange(id);
-  }
-
-  function cancelCreate() {
-    creating = false;
-    draft = null;
   }
 </script>
 
 <div class="family-picker">
-  {#if creating && draft}
-    <div class="family-picker__create">
-      <FamilyForm {appState} family={draft} onSaved={onFamilyCreated} onCancel={cancelCreate} />
-    </div>
-  {:else}
-    <Picker
-      {items}
-      getId={(f) => f.id}
-      {getLabel}
-      {matches}
-      {value}
-      {onChange}
-      {allowNone}
-      {noneLabel}
-      {placeholder}
-      {label}
-      createLabel="+ Neue Familie anlegen …"
-      onCreateRequested={beginCreate}
-    />
-  {/if}
+  <Picker
+    {items}
+    getId={(f) => f.id}
+    {getLabel}
+    {matches}
+    {value}
+    {onChange}
+    {allowNone}
+    {noneLabel}
+    {placeholder}
+    {label}
+    createLabel="+ Neue Familie anlegen …"
+    onCreateRequested={beginCreate}
+  />
 </div>
 
 <style>
   .family-picker {
     min-width: 200px;
-  }
-
-  .family-picker__create {
-    background: var(--stb-surface-1);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-card);
   }
 </style>

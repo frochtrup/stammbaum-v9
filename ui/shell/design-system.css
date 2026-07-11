@@ -193,6 +193,38 @@ textarea::placeholder {
   color: var(--stb-text);
 }
 
+/* Aktivierungs-Pill (Spec 20 §2 "Progressive Offenlegung", ADR-v9-63): DER EINE Stil für
+   einen "+ Label"-Aktivierungs-Button, der ein Feld/eine Sektion einblendet ODER (seit
+   ADR-v9-63) direkt eine Kommando-/Neuanlage-Aktion auslöst (z. B. "+ Wohnort" auf
+   PersonDetail, "+ Ehemann wählen" auf FamilyDetail) — bewusst NICHT `.stb-pill`
+   wiederverwendet (das ist ein entfernbarer Chip/Tag mit ✕-Slot, semantisch etwas
+   anderes, s. Kommentar dort). Vorher als `.person-form__pill`/`.family-form__pill`
+   unabhängig in PersonForm.svelte UND FamilyForm.svelte dupliziert (identischer Stil) —
+   jetzt EINE Quelle, seit PersonDetail/FamilyDetail denselben Aktivierungs-Pill-
+   Mechanismus direkt auf der Detail-Ansicht brauchen (ADR-v9-63 verlagert Ereignis-Pills
+   vom Formular auf die Detail-Seite), nicht mehr nur im (schrumpfenden) PersonForm. */
+.stb-activation-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.stb-activation-pill {
+  background: var(--stb-surface-2);
+  border: 1px dashed var(--stb-gold-dim);
+  color: var(--stb-gold-light);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.stb-activation-pill:hover,
+.stb-activation-pill:focus-visible {
+  border-style: solid;
+}
+
 /* Personen-Box (Spec 21 §6 INV-UI-4, Nachtrag 2026-07-06/[20 §1.5]): DER EINE Stil für
    eine kompakte, informative Personen-Anzeige — Name fett + Sekundärzeile Jahr+Ort in
    einer umrandeten Box. Ursprünglich nur in PersonPicker.svelte (.person-picker__field)

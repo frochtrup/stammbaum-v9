@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, isEventPresent } from '../../core/model';
 
 describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   it('rendert eine §N-Badge mit QUAY-Farbklasse und Quellentitel als Tooltip', () => {
@@ -361,6 +361,268 @@ describe('PersonDetail — Einzel-Ereignis bearbeiten (✎-Icon, Bau-Auftrag)', 
   });
 });
 
+describe('PersonDetail — Tod: zweistufig (ADR-v9-62/63)', () => {
+  it('zeigt "☠ Verstorben markieren", solange death nicht vorhanden ist; Klick setzt seen/value SOFORT, kein Modal', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('☠ Verstorben markieren')).toBeTruthy();
+    await fireEvent.click(screen.getByText('☠ Verstorben markieren'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.death.seen).toBe(true);
+    expect(saved.death.value).toBe('Y');
+    // Kein Modal geöffnet — Direkt-Kommando, kein Umweg.
+    expect(screen.queryByText('Tod bearbeiten')).toBeNull();
+    expect(screen.queryByText('Tod anlegen')).toBeNull();
+  });
+
+  it('zeigt nach "Verstorben markieren" die kompakte "✓ Verstorben"-Zeile mit "+ Datum/Ort ergänzen"-Pill statt der vollen Struktur', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('☠ Verstorben markieren'));
+
+    expect(screen.getByText('✓ Verstorben')).toBeTruthy();
+    expect(screen.queryByText('☠ Verstorben markieren')).toBeNull();
+    expect(screen.getByText('+ Datum/Ort ergänzen')).toBeTruthy();
+  });
+
+  it('"+ Datum/Ort ergänzen" öffnet EventEditModal im Edit-Modus für das bestehende death-Event', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.seen = true;
+    p.death.value = 'Y';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('+ Datum/Ort ergänzen'));
+    expect(screen.getByText('Tod bearbeiten')).toBeTruthy();
+
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1955' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.death.date).toBe('1955');
+  });
+
+  it('zeigt die volle Ereigniszeile (kein kompakter Modus) sobald ein echtes Sterbedatum/-ort vorliegt', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.date = '1950';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.queryByText('✓ Verstorben')).toBeNull();
+    expect(screen.queryByText('+ Datum/Ort ergänzen')).toBeNull();
+    expect(screen.getByLabelText('Tod bearbeiten')).toBeTruthy();
+  });
+
+  it('zeigt das "✕ Zurücknehmen"-Control NUR solange death das bloße Flag trägt (kompakter Modus) — nicht bei echtem Datum/Ort/Todesursache/Quellen', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+
+    // Fall A: bloßes Flag (kompakt) — Control MUSS da sein.
+    const flagOnly = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    flagOnly.death.seen = true;
+    flagOnly.death.value = 'Y';
+    db.individuals.set('@I1@', flagOnly);
+
+    // Fall B: echtes Datum — Control DARF NICHT da sein.
+    const withDate = makePerson('@I2@', { given: 'Otto', surname: 'Bauer' });
+    withDate.death.date = '1950';
+    db.individuals.set('@I2@', withDate);
+
+    // Fall C: nur Todesursache (kein Datum/Ort) — zählt als "echte Daten", Control
+    // DARF NICHT da sein (deathHasDetails prüft explizit auch person.cause).
+    const withCause = makePerson('@I3@', { given: 'Elsa', surname: 'Bauer' });
+    withCause.death.seen = true;
+    withCause.death.value = 'Y';
+    withCause.cause = 'Typhus';
+    db.individuals.set('@I3@', withCause);
+
+    appState.loadDatabase(db, 'test.ged');
+
+    viewState.setCurrent('person', '@I1@');
+    const { unmount: unmount1 } = render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.getByLabelText('Verstorben-Markierung zurücknehmen')).toBeTruthy();
+    unmount1();
+
+    viewState.setCurrent('person', '@I2@');
+    const { unmount: unmount2 } = render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.queryByLabelText('Verstorben-Markierung zurücknehmen')).toBeNull();
+    unmount2();
+
+    viewState.setCurrent('person', '@I3@');
+    render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.queryByLabelText('Verstorben-Markierung zurücknehmen')).toBeNull();
+  });
+
+  it('"✕ Zurücknehmen" setzt death SOFORT (kein Modal) auf den unbefüllten Ausgangszustand zurück — Pill-Reihe zeigt danach wieder "☠ Verstorben markieren"', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.seen = true;
+    p.death.value = 'Y';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Verstorben-Markierung zurücknehmen'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(isEventPresent(saved.death)).toBe(false);
+    expect(saved.death.seen).toBe(false);
+    expect(saved.death.value).toBe('');
+    expect(saved.death.date).toBeNull();
+
+    // Reaktiv, kein Reload: Pill-Reihe zeigt wieder den Ausgangs-Button.
+    expect(screen.getByText('☠ Verstorben markieren')).toBeTruthy();
+    expect(screen.queryByText('✓ Verstorben')).toBeNull();
+    // Kein Modal geöffnet — Direkt-Kommando, gleiches Muster wie "Verstorben markieren".
+    expect(screen.queryByText('Tod bearbeiten')).toBeNull();
+  });
+});
+
+describe('PersonDetail — Wohnort-Standing-Pill (ADR-v9-62/63)', () => {
+  it('"+ Wohnort" ist IMMER sichtbar (Standing-Pill) — Klick legt sofort ein RESI-Event an und öffnet den Neu-Modus', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push({
+      type: 'RESI', value: '', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+    });
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    // Bleibt sichtbar, obwohl bereits ein RESI-Event existiert (Standing-Pill, kein
+    // "gefüllt schlägt selten"-Ausblenden wie bei Taufe/Bestattung).
+    expect(screen.getByText('+ Wohnort')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('+ Wohnort'));
+    expect(screen.getByText('Wohnort anlegen')).toBeTruthy();
+
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Ochtrup 12' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events).toHaveLength(2);
+    expect(saved.events[1].type).toBe('RESI');
+    expect(saved.events[1].value).toBe('Ochtrup 12');
+  });
+});
+
+describe('PersonDetail — "+ Ereignis"-Sammel-Menü (ADR-v9-62/63)', () => {
+  it('zeigt Taufe/Beruf/Bestattung zuerst, dann Ereignis/Eigentum/Auswanderung/Abschluss/Ausbildung', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+
+    const items = Array.from(document.querySelectorAll('.stb-event-menu__item')).map((el) => el.textContent?.trim());
+    expect(items).toEqual(['Taufe', 'Beruf', 'Bestattung', 'Ereignis', 'Eigentum', 'Auswanderung', 'Abschluss', 'Ausbildung']);
+  });
+
+  it('Klick auf "Taufe" legt das CHR-Sonderereignis an (Neu-Modus) und verschwindet danach aus dem Menü', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    await fireEvent.click(screen.getByText('Taufe', { selector: '.stb-event-menu__item' }));
+
+    expect(screen.getByText('Taufe anlegen')).toBeTruthy();
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1901' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.chr.date).toBe('1901');
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    expect(screen.queryByText('Taufe', { selector: '.stb-event-menu__item' })).toBeNull();
+  });
+
+  it('IMMI/MILI/CENS/NATU/ADOP/FACT bleiben über den "Anderer Ereignistyp"-Fallback erreichbar, ohne eigenen Menüplatz', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+
+    expect(screen.queryByText('Militärdienst', { selector: '.stb-event-menu__item' })).toBeNull();
+    await fireEvent.change(screen.getByLabelText('Anderer Ereignistyp'), { target: { value: 'MILI' } });
+    await fireEvent.click(screen.getByText('Hinzufügen'));
+
+    expect(screen.getByText('Militärdienst anlegen')).toBeTruthy();
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['MILI']);
+  });
+
+  it('legt ein zweites OCCU-Event über den "Anderer Typ"-Fallback an, obwohl bereits ein OCCU existiert (Berufswechsel)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push({
+      type: 'OCCU', value: 'Bauer', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+    });
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    // "Beruf" (OCCU) ist schon vorhanden -> kein eigener Menüplatz mehr.
+    expect(screen.queryByText('Beruf', { selector: '.stb-event-menu__item' })).toBeNull();
+
+    await fireEvent.change(screen.getByLabelText('Anderer Ereignistyp'), { target: { value: 'OCCU' } });
+    await fireEvent.click(screen.getByText('Hinzufügen'));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.events.map((e) => e.type)).toEqual(['OCCU', 'OCCU']);
+  });
+});
+
 describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig (Spec 21 §10f)', () => {
   it('zeigt WEDER "Familien"-Überschrift NOCH eine "Keine Familienverknüpfung"-Zeile ohne Familienbezug', () => {
     const appState = createAppState();
@@ -410,5 +672,155 @@ describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     await fireEvent.click(screen.getByText('← Zur Liste'));
 
     expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert")', () => {
+  it('Taufe (CHR) — nur `seen`-Flag, keine echten Daten: ✕ ist sichtbar; Klick setzt chr zurück, Pill "Taufe" erscheint wieder im Menü', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.chr.seen = true; // z. B. importiertes `1 CHR` ohne Sub-Tags, ODER via ✎ wieder geleert
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.getByLabelText('Taufe zurücknehmen')).toBeTruthy();
+
+    await fireEvent.click(screen.getByLabelText('Taufe zurücknehmen'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(isEventPresent(saved.chr)).toBe(false);
+    expect(saved.chr.seen).toBe(false);
+    // Reaktiv, kein Reload: Zeile ist weg, "Taufe" ist wieder im Sammel-Menü erreichbar.
+    expect(screen.queryByLabelText('Taufe zurücknehmen')).toBeNull();
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    expect(screen.getByText('Taufe', { selector: '.stb-event-menu__item' })).toBeTruthy();
+  });
+
+  it('Taufe (CHR) mit echtem Datum: KEIN ✕-Control', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.chr.date = '1901';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.queryByLabelText('Taufe zurücknehmen')).toBeNull();
+  });
+
+  it('Bestattung (BURI) — nur `seen`-Flag: ✕ setzt buri direkt (kein Modal) zurück', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.buri.seen = true;
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Bestattung zurücknehmen'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(isEventPresent(saved.buri)).toBe(false);
+    // Kein Modal geöffnet — Direkt-Kommando, gleiches Muster wie bei Tod/Taufe.
+    expect(screen.queryByText('Bestattung bearbeiten')).toBeNull();
+  });
+
+  it('ein leer angelegtes generisches Ereignis (events[]) verschwindet NICHT unsichtbar, sondern zeigt sich mit ✕ — Klick entfernt GENAU diesen Eintrag aus events[]', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    // Echtes OCCU-Event UND ein "leer gespeichertes" EVEN-Event (der ursprüngliche
+    // Bug-Befund: per Pill/"+ Ereignis" angelegt, dann ohne Eingabe gespeichert).
+    p.events.push(makeEvent('OCCU', { value: 'Landwirt', date: '1920', seen: true }));
+    p.events.push(makeEvent('EVEN'));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    // Das leere Ereignis ist sichtbar (nicht länger unsichtbar-aber-persistiert) UND
+    // zeigt genau EIN ✕-Control; das echte OCCU-Event zeigt keins.
+    const retractButtons = screen.getAllByTitle('Zurücknehmen');
+    expect(retractButtons).toHaveLength(1);
+
+    await fireEvent.click(retractButtons[0]);
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events).toHaveLength(1);
+    expect(saved.events[0].type).toBe('OCCU');
+    expect(saved.events[0].value).toBe('Landwirt'); // unangetastet
+  });
+
+  it('ein generisches Ereignis mit NUR Typ-Freitext (eventType) gilt NICHT als leer — kein ✕ (Datenverlust-Vermeidung)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('EVEN', { eventType: 'Hochzeitsreise' }));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.queryByTitle('Zurücknehmen')).toBeNull();
+  });
+
+  it('Tod (DEAT) im kompakten Modus zeigt weiterhin NUR sein eigenes "Verstorben-Markierung zurücknehmen"-Control, nicht das generische ✕ zusätzlich', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.seen = true;
+    p.death.value = 'Y';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    // Genau EIN Rücknahme-Control insgesamt (Tod), nicht zusätzlich noch ein generisches.
+    expect(screen.getAllByTitle('Zurücknehmen')).toHaveLength(1);
+    expect(screen.getByLabelText('Verstorben-Markierung zurücknehmen')).toBeTruthy();
+  });
+
+  it('mehrere dicht liegende leere/gefüllte generische Ereignisse (TST-7 Überlauf-Fall) — jedes ✕ entfernt unabhängig NUR seinen eigenen Index', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    // Abwechselnd leer/gefüllt, 10 Einträge insgesamt (5 leer, 5 gefüllt).
+    for (let i = 0; i < 10; i += 1) {
+      p.events.push(
+        i % 2 === 0
+          ? makeEvent('EVEN')
+          : makeEvent('CENS', { value: `Zählung ${i}`, date: String(1900 + i), seen: true }),
+      );
+    }
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    expect(screen.getAllByTitle('Zurücknehmen')).toHaveLength(5);
+
+    // Entfernt den ✕ an Index 6 (drittes leeres Event, ursprünglich events[6]).
+    await fireEvent.click(screen.getAllByTitle('Zurücknehmen')[2]);
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events).toHaveLength(9);
+    expect(saved.events.filter((e) => e.type === 'EVEN')).toHaveLength(4);
+    // Alle übrigen Zählung-Werte bleiben erhalten, unverändert.
+    expect(saved.events.filter((e) => e.type === 'CENS').map((e) => e.value)).toEqual([
+      'Zählung 1', 'Zählung 3', 'Zählung 5', 'Zählung 7', 'Zählung 9',
+    ]);
   });
 });

@@ -21,7 +21,7 @@ export {
   makeNote,
   makeCitation,
 } from './factory';
-export { isEventPresent } from './event';
+export { isEventPresent, isEventEmpty } from './event';
 export {
   parseDateValue,
   formatDateValue,

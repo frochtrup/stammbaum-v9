@@ -37,6 +37,14 @@
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
     label?: string;
+    /** Mountet die Shell direkt im offenen Panel-Zustand (Picker.svelte's `startOpen`,
+     *  ADR-v9-42-Muster wie EventPlaceField/EventAddrField) — für Aufrufer, die den
+     *  Picker selbst hinter einem eigenen Auslöser einbetten (z. B. FamilyDetail.svelte's
+     *  Eltern-Slots: ein Klick auf "+ Ehemann wählen"/"✎ ändern" mountet PersonPicker
+     *  NEU über ein `{#if}` — ein zweiter Klick auf ein redundantes geschlossenes Feld
+     *  wäre unnötige Reibung). Nur beim Mount gelesen, kein fortlaufendes Re-Sync.
+     *  Default false (bestehende Aufrufer unverändert). */
+    startOpen?: boolean;
   }
   const {
     appState,
@@ -47,6 +55,7 @@
     excludeIds = [],
     placeholder = 'Person wählen…',
     label = 'Person auswählen',
+    startOpen = false,
   }: Props = $props();
 
   const items = $derived(Array.from(appState.db.individuals.values()));
@@ -104,6 +113,7 @@
       {label}
       createLabel="+ Neue Person anlegen …"
       onCreateRequested={beginCreate}
+      {startOpen}
     />
   {/if}
 </div>

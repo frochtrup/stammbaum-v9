@@ -20,6 +20,15 @@
   // Pattern). `cause` (Todesursache) lebt auf Person.cause, NICHT am Event
   // (core/model/types.ts) — nur bei Person+DEAT gesetzt (s. `cause`-Prop), sonst leer.
   //
+  // Neu-Anlage-Modus (ADR-v9-63, `mode="create"`): derselbe Editor, zwei Aufrufarten —
+  // der Aufrufer übergibt entweder ein bestehendes Event (Edit, Default) ODER ein frisch
+  // erzeugtes `makeEvent(tag)` (core/model/factory.ts, KEINE neue Factory) als `event`-
+  // Prop; `mode` steuert nur die Kopfzeile ("bearbeiten" vs. "anlegen"), keine Logik
+  // ändert sich sonst. Ob das Save-Ergebnis ein bestehendes Feld ersetzt oder neu zu
+  // `events[]` hinzugefügt wird, entscheidet AUSSCHLIESSLICH der Aufrufer (PersonDetail/
+  // FamilyDetail) in seinem `onSave`-Handler — dieses Modal kennt keine Person-/Family-
+  // Struktur.
+  //
   // Modal-Schale (Backdrop + Panel + Schließen) ist NEU — im Repo existierte bisher kein
   // wiederverwendbares Overlay-Muster (geprüft: PlaceDedupView/HofDedupView sind volle
   // Ansichten ohne Backdrop, kein `<dialog>`/Modal-Baustein vorhanden). Künftige Einzel-
@@ -59,13 +68,18 @@
     /** Todesursache (Person.cause) — NUR bei Person + DEAT gesetzt, sonst undefined/null
      *  (Feld bleibt dann ausgeblendet, s. Modul-Kommentar). */
     cause?: string | null;
+    /** "edit" (Default) = bestehendes Event ändern ("<Label> bearbeiten"); "create" =
+     *  frisch angelegtes Event ("<Label> anlegen") — reine Kopfzeilen-/aria-label-
+     *  Unterscheidung, s. Modul-Kommentar. */
+    mode?: 'edit' | 'create';
     /** Vollständiges, aktualisiertes Event-Objekt + (ggf. leere) Todesursache — der
      *  Aufrufer baut daraus das volle Person-/Family-Objekt und ruft
      *  appState.savePerson/saveFamily(model) auf (kein Speichern hier im Modal). */
     onSave: (updatedEvent: Event, cause: string) => void;
     onClose: () => void;
   }
-  const { appState, event, label, cause = null, onSave, onClose }: Props = $props();
+  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose }: Props = $props();
+  const headingVerb = $derived(mode === 'create' ? 'anlegen' : 'bearbeiten');
 
   // Formular-Zustand wird NUR beim Mount aus dem übergebenen Event initialisiert (analog
   // PersonForm/FamilyForm's untrack(...)-Muster, TST-10) — kein fortlaufendes Re-Sync,
@@ -139,10 +153,10 @@
     role="dialog"
     tabindex="-1"
     aria-modal="true"
-    aria-label={`${label} bearbeiten`}
+    aria-label={`${label} ${headingVerb}`}
   >
     <div class="event-edit-modal__head">
-      <h3>{label} bearbeiten</h3>
+      <h3>{label} {headingVerb}</h3>
       <button type="button" class="event-edit-modal__close-btn" onclick={onClose} aria-label="Schließen">✕</button>
     </div>
 

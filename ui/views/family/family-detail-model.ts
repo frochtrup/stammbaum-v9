@@ -5,7 +5,7 @@
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { Coords, PlaceContext } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
-import { isEventPresent } from '../../../core/model';
+import { isEventPresent, isEventEmpty } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
 
@@ -35,6 +35,11 @@ export interface FamilyEventRow {
   placeId: string | null;
   /** Für "Hof ansehen"-Link (Cross-Tab-Navigation zum Höfe-Tab). */
   hofId: string | null;
+  /** `isEventEmpty(ev)` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert") — steuert die
+   *  generalisierte ✕-Rücknahme: FamilyDetail.svelte zeigt für Verlobung UND jeden
+   *  generischen `events[]`-Eintrag ein Rücknahme-Control, SOLANGE dieses Feld `true` ist.
+   *  Heirat bleibt außen vor (Spec: "immer offen", keine Rücknahme). */
+  empty: boolean;
 }
 
 export interface FamilyDetailModel {
@@ -60,8 +65,19 @@ function memberRow(
 /** `tag` ist der reale GEDCOM-Tag — Label-Fallback via `eventTypeLabel` (`ui/shell/
  *  event-labels.ts`, INV-UI-4, DIE EINE deutsche Übersetzung), `ev.eventType` (freier
  *  TYPE-Text) hat Priorität, falls gesetzt — analog `person-detail-model.ts`. */
-function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): FamilyEventRow | null {
-  if (!isEventPresent(ev)) return null;
+/**
+ * `alwaysShow` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert", analog
+ * person-detail-model.ts): generische `events[]`-Einträge werden IMMER projiziert, auch
+ * wenn `!isEventPresent(ev)` — anders als ENGA/MARR (weiterhin isEventPresent-gated).
+ */
+function toEventRow(
+  key: string,
+  tag: string,
+  ev: Event,
+  ctx: PlaceContext,
+  alwaysShow = false,
+): FamilyEventRow | null {
+  if (!alwaysShow && !isEventPresent(ev)) return null;
   return {
     key,
     label: ev.eventType || eventTypeLabel(tag),
@@ -73,6 +89,7 @@ function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): Fam
     coords: eventCoords(ev, ctx),
     placeId: eventPlaceId(ev, ctx),
     hofId: eventHofId(ev, ctx),
+    empty: isEventEmpty(ev),
   };
 }
 
@@ -107,7 +124,7 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
     if (row) events.push(row);
   }
   family.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true);
     if (row) events.push(row);
   });
 

@@ -5,7 +5,7 @@
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
-import { isEventPresent } from '../../../core/model';
+import { isEventPresent, isEventEmpty } from '../../../core/model';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
@@ -34,6 +34,12 @@ export interface EventRow {
   placeId: string | null;
   /** Für "Hof ansehen"-Link (Cross-Tab-Navigation zum Höfe-Tab). */
   hofId: string | null;
+  /** `isEventEmpty(ev)` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert") — steuert die
+   *  generalisierte ✕-Rücknahme: PersonDetail.svelte zeigt für Taufe/Bestattung UND jeden
+   *  generischen `events[]`-Eintrag ein Rücknahme-Control, SOLANGE dieses Feld `true` ist.
+   *  Tod bleibt bewusst außen vor (eigene, bereits bestehende Death-spezifische Prüfung
+   *  — `value='Y'` zählt dort NICHT als „echte Daten", hier schon). */
+  empty: boolean;
 }
 
 export interface FamilyNavRow {
@@ -77,8 +83,25 @@ export interface PersonDetailModel {
  * `EVEN`-Ereignis mit TYPE "Beschäftigung" gehört fachlich zu "Beruf", wie ein
  * OCCU-Ereignis — `event-labels.ts::CATEGORY_BY_CUSTOM_TEXT`).
  */
-function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): EventRow | null {
-  if (!isEventPresent(ev)) return null;
+/**
+ * `alwaysShow` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert"): generische
+ * `events[]`-Einträge werden IMMER projiziert, auch wenn `!isEventPresent(ev)` — anders
+ * als die vier Sonder-Felder (BIRT/CHR/DEAT/BURI, weiterhin isEventPresent-gated, „nie
+ * aktiviert" bleibt unsichtbar). Grund: ein per Pill/„+ Ereignis"-Menü frisch angelegtes,
+ * dann leer gespeichertes Event landet in `events[]` (Array-Append, PersonDetail.svelte's
+ * `saveModal`) — OHNE diese Ausnahme wäre der Eintrag unsichtbar UND unentfernbar (der
+ * ursprüngliche Bug-Befund: „verschwindet nur scheinbar aus der Ansicht, bleibt aber als
+ * leerer events[]-Eintrag bestehen"). Mit `alwaysShow` wird die Zeile stattdessen
+ * sichtbar+leer gerendert (PersonDetail.svelte's `ev.empty`-Zweig), mit ✕-Rücknahme.
+ */
+function toEventRow(
+  key: string,
+  tag: string,
+  ev: Event,
+  ctx: PlaceContext,
+  alwaysShow = false,
+): EventRow | null {
+  if (!alwaysShow && !isEventPresent(ev)) return null;
   return {
     key,
     label: ev.eventType || eventTypeLabel(tag),
@@ -93,6 +116,7 @@ function toEventRow(key: string, tag: string, ev: Event, ctx: PlaceContext): Eve
     coords: eventCoords(ev, ctx),
     placeId: eventPlaceId(ev, ctx),
     hofId: eventHofId(ev, ctx),
+    empty: isEventEmpty(ev),
   };
 }
 
@@ -150,7 +174,7 @@ export function buildPersonDetail(
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true);
     if (row) events.push(row);
   });
 

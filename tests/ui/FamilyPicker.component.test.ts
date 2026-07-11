@@ -2,7 +2,9 @@
 // tests/ui/FamilyPicker.component.test.ts — durchsuchbares Familien-Auswahlfeld
 // (ADR-v9-40, generalisiert ADR-v9-30/PersonPicker.svelte, INV-UI-4). Deckt Filtern
 // (matchesSearch aus family-list-model.ts), Auswahl/onChange, allowNone sowie die
-// Inline-Neuanlage über FamilyForm ab (onSaved -> onChange mit der neuen id).
+// SOFORTIGE Neuanlage ab (ADR-v9-63: `FamilyForm` entfällt, ein frisches Familien-
+// Gerüst hat keine eigenen Skalarfelder und wird direkt gespeichert -> onChange mit der
+// neuen id, kein Inline-Formular-Zwischenschritt mehr).
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyPicker from '../../ui/shell/FamilyPicker.svelte';
@@ -78,37 +80,21 @@ describe('FamilyPicker — Filtern + Auswahl', () => {
   });
 });
 
-describe('FamilyPicker — Inline-Neuanlage ("+ Neue Familie anlegen …")', () => {
-  it('öffnet FamilyForm inline, speichert die neue Familie, ruft onChange mit der neuen id auf', async () => {
+describe('FamilyPicker — sofortige Neuanlage ("+ Neue Familie anlegen …", ADR-v9-63)', () => {
+  it('legt sofort eine neue, leere Familie an und ruft onChange mit der neuen id auf — kein Inline-Formular', async () => {
     const appState = seedTwoFamilies();
     const onChange = vi.fn();
     render(FamilyPicker, { props: { appState, value: null, onChange, label: 'Familie' } });
 
     await fireEvent.click(screen.getByLabelText('Familie'));
     await fireEvent.click(screen.getByText('+ Neue Familie anlegen …'));
-
-    // Inline-Formular ist da (FamilyForm-Feld), das Picker-Suchfeld ist es nicht mehr.
-    expect(screen.getByText('Neue Familie')).toBeTruthy();
-    expect(screen.queryByLabelText('Familie durchsuchen')).toBeNull();
-
-    await fireEvent.click(screen.getByText('Speichern'));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const newId = onChange.mock.calls[0][0] as string;
     expect(appState.db.families.has(newId)).toBe(true);
+    // Kein Inline-Formular-Zwischenschritt (FamilyForm ist entfallen) — das Picker-
+    // Panel ist einfach zu (onChange schließt es wie jede andere Auswahl).
     expect(screen.queryByText('Neue Familie')).toBeNull();
-  });
-
-  it('Abbrechen der Inline-Neuanlage verwirft das Gerüst wieder (kein onChange-Aufruf)', async () => {
-    const appState = seedTwoFamilies();
-    const onChange = vi.fn();
-    render(FamilyPicker, { props: { appState, value: null, onChange, label: 'Familie' } });
-
-    await fireEvent.click(screen.getByLabelText('Familie'));
-    await fireEvent.click(screen.getByText('+ Neue Familie anlegen …'));
-    await fireEvent.click(screen.getByText('Abbrechen'));
-
-    expect(onChange).not.toHaveBeenCalled();
-    expect(screen.queryByText('Neue Familie')).toBeNull();
+    expect(screen.queryByLabelText('Ehemann')).toBeNull();
   });
 });

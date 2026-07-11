@@ -7,7 +7,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyDetail from '../../ui/views/family/FamilyDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson, makeSource } from '../../core/model';
+import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson, makeSource, isEventPresent } from '../../core/model';
 
 describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)', () => {
   it('rendert Mitgliederzeilen, die per Klick onNavigateToPerson mit der Person-Id aufrufen', async () => {
@@ -235,7 +235,7 @@ describe('FamilyDetail — leere optionale Abschnitte verschwinden vollständig 
 });
 
 describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile; der Titel läuft kompakt in DERSELBEN Zeile statt als große zweite Zeile (Spec 21 §10e — redundant zu den Eltern-Boxen darunter)', async () => {
+  it('"← Zur Liste" steht in der Kopfzeile; der Titel läuft kompakt in DERSELBEN Zeile statt als große zweite Zeile (Spec 21 §10e — redundant zu den Eltern-Boxen darunter). KEIN "✎ Bearbeiten"-Button mehr (ADR-v9-63 — FamilyForm entfällt)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -256,10 +256,175 @@ describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     expect(compactTitle?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
     expect(row?.contains(compactTitle)).toBe(true);
     expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
-    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(screen.queryByText('✎ Bearbeiten')).toBeNull();
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('FamilyDetail — Eltern-Wechsel als direkte Picker-Aktion (ADR-v9-63, FamilyForm entfällt)', () => {
+  it('zeigt "+ Ehemann wählen"/"+ Ehefrau wählen" für leere Slots — Klick öffnet den PersonPicker direkt', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.getByText('+ Ehemann wählen')).toBeTruthy();
+    expect(screen.getByText('+ Ehefrau wählen')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('+ Ehemann wählen'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+
+    expect(appState.db.families.get('@F1@')?.husband).toBe('@I1@');
+    // INV-P3: die INDI-Seite (parentIn) wird vom Kern nachgeführt.
+    expect(appState.db.individuals.get('@I1@')?.parentIn).toContain('@F1@');
+  });
+
+  it('"✎ ändern" neben einer besetzten Eltern-Box öffnet den Picker zum Wechseln (Box-Klick bleibt Navigation)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Meyer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+    const onNavigateToPerson = vi.fn();
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson } });
+
+    // Box-Klick navigiert weiterhin (unverändertes Verhalten). Selektor nötig, da der
+    // kompakte Familien-Titel bei nur einem Elternteil zufällig denselben Text trägt.
+    await fireEvent.click(screen.getByText('Otto Bauer', { selector: '.stb-person-box__name' }));
+    expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+
+    await fireEvent.click(screen.getByLabelText('Ehemann ändern'));
+    await fireEvent.click(screen.getByText('Karl Meyer'));
+
+    expect(appState.db.families.get('@F1@')?.husband).toBe('@I3@');
+  });
+
+  it('"— kein Elternteil —" setzt husband zurück auf null', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    await fireEvent.click(screen.getByLabelText('Ehemann ändern'));
+    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.stb-picker__result--none' }));
+
+    expect(appState.db.families.get('@F1@')?.husband).toBeNull();
+  });
+});
+
+describe('FamilyDetail — Kinder ± als direkte Picker-Aktion (ADR-v9-63)', () => {
+  it('fügt ein Kind per Picker hinzu — sofort gespeichert, kein Formular-Umweg', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
+    await fireEvent.click(screen.getByText('Karl Bauer'));
+
+    expect(appState.db.families.get('@F1@')?.children).toEqual(['@I3@']);
+    expect(appState.db.individuals.get('@I3@')?.childOf.map((c) => c.familyId)).toContain('@F1@');
+  });
+
+  it('entfernt ein Kind wieder per ✕-Button, sofort gespeichert', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Bauer' }));
+    db.families.set('@F1@', makeFamily('@F1@', { children: ['@I3@'] }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Kind Karl Bauer entfernen'));
+
+    expect(appState.db.families.get('@F1@')?.children).toEqual([]);
+  });
+
+  it('viele Kinder gleichzeitig bleiben unabhängig entfernbar (TST-7 Überlauf-Fall)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    const childIds: string[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const id = `@I${i}@`;
+      db.individuals.set(id, makePerson(id, { given: `Kind${i}` }));
+      childIds.push(id);
+    }
+    db.families.set('@F1@', makeFamily('@F1@', { children: childIds }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Kind Kind3 entfernen'));
+
+    const saved = appState.db.families.get('@F1@')?.children ?? [];
+    expect(saved).toHaveLength(9);
+    expect(saved).not.toContain('@I3@');
+  });
+});
+
+describe('FamilyDetail — Verlobung-Pill + "+ Ereignis"-Sammel-Menü (ADR-v9-62/63)', () => {
+  it('zeigt "+ Verlobung" nur, solange keine Verlobung vorhanden ist; Klick legt sie an und öffnet EventEditModal im Neu-Modus', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.families.set('@F1@', makeFamily('@F1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    expect(screen.getByText('+ Verlobung')).toBeTruthy();
+    await fireEvent.click(screen.getByText('+ Verlobung'));
+
+    expect(screen.getByText('Verlobung anlegen')).toBeTruthy();
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1919' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.engagement.date).toBe('1919');
+    expect(screen.queryByText('+ Verlobung')).toBeNull();
+  });
+
+  it('"+ Ereignis"-Menü zeigt EVEN/Volkszählung/Eigentum/Sonstiges, Klick legt sofort ein Event an', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.families.set('@F1@', makeFamily('@F1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    expect(screen.getByText('Ereignis', { selector: '.stb-event-menu__item' })).toBeTruthy();
+    await fireEvent.click(screen.getByText('Ereignis', { selector: '.stb-event-menu__item' }));
+
+    expect(screen.getByText('Ereignis anlegen')).toBeTruthy();
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.events.map((e) => e.type)).toEqual(['EVEN']);
   });
 });
 
@@ -386,5 +551,84 @@ describe('FamilyDetail — Einzel-Ereignis bearbeiten (✎-Icon, Bau-Auftrag)', 
     expect(saved.events[5].value).toBe('Geändert');
     expect(saved.events[4].value).toBe('Zählung 4');
     expect(saved.events[6].value).toBe('Zählung 6');
+  });
+});
+
+describe('FamilyDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert")', () => {
+  it('Verlobung (ENGA) — nur `seen`-Flag, keine echten Daten: ✕ ist sichtbar; Klick setzt engagement direkt (kein Modal) zurück, Pill "+ Verlobung" erscheint wieder', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.engagement.seen = true; // z. B. importiertes `1 ENGA` ohne Sub-Tags
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    expect(screen.getByLabelText('Verlobung zurücknehmen')).toBeTruthy();
+
+    await fireEvent.click(screen.getByLabelText('Verlobung zurücknehmen'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(isEventPresent(saved.engagement)).toBe(false);
+    expect(saved.engagement.seen).toBe(false);
+    // Reaktiv, kein Reload: Zeile ist weg, "+ Verlobung"-Pill ist wieder da; kein Modal.
+    expect(screen.queryByLabelText('Verlobung zurücknehmen')).toBeNull();
+    expect(screen.getByText('+ Verlobung')).toBeTruthy();
+    expect(screen.queryByText('Verlobung anlegen')).toBeNull();
+  });
+
+  it('Verlobung (ENGA) mit echtem Datum: KEIN ✕-Control', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.engagement.date = '1919';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    expect(screen.queryByLabelText('Verlobung zurücknehmen')).toBeNull();
+  });
+
+  it('Heirat (MARR) im bloßen `seen`-Zustand zeigt KEIN ✕ — Heirat bleibt "immer offen", nicht rücknehmbar', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.seen = true;
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    expect(screen.queryByTitle('Zurücknehmen')).toBeNull();
+    expect(screen.getByLabelText('Heirat bearbeiten')).toBeTruthy();
+  });
+
+  it('ein leer angelegtes generisches Ereignis (events[]) zeigt sich mit ✕ statt unsichtbar-aber-persistiert zu bleiben — Klick entfernt GENAU diesen Eintrag', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900', seen: true }));
+    f.events.push(makeEvent('EVEN')); // der ursprüngliche Bug-Befund: leer gespeichert
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    const retractButtons = screen.getAllByTitle('Zurücknehmen');
+    expect(retractButtons).toHaveLength(1);
+
+    await fireEvent.click(retractButtons[0]);
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(saved.events).toHaveLength(1);
+    expect(saved.events[0].type).toBe('CENS');
+    expect(saved.events[0].value).toBe('Zählung 1900'); // unangetastet
   });
 });
