@@ -39,6 +39,9 @@ export default tseslint.config(
     // analog Verhaltens-Orakel legacy-v8/storage.js loadDemo()).
     // `HTMLInputElement` ergänzt für PersonForm (Spec 20 §2: value/onchange-Muster auf
     // <input>-Feldern, analog dem bereits erlaubten HTMLSelectElement).
+    // `KeyboardEvent` ergänzt für EventEditModal.svelte (Escape-Taste schließt das Modal,
+    // `svelte:window onkeydown` — analog der bereits erlaubten HTMLInputElement/-Select-
+    // Element-Ergänzung).
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
@@ -52,6 +55,7 @@ export default tseslint.config(
         HTMLElement: 'readonly',
         HTMLSelectElement: 'readonly',
         HTMLInputElement: 'readonly',
+        KeyboardEvent: 'readonly',
         fetch: 'readonly'
       }
     }

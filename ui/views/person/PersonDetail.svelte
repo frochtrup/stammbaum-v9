@@ -6,9 +6,11 @@
   // außerhalb dieser Scheibe.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import EventEditModal from '../../shell/EventEditModal.svelte';
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -68,6 +70,59 @@
 
   function afterSave() {
     editing = false;
+  }
+
+  // --- Einzel-Ereignis-Editor (✎-Icon je Zeile, Bau-Auftrag "Ereignis direkt aus der
+  // Detail-Ansicht bearbeiten") — öffnet EventEditModal statt des GESAMTEN PersonForm.
+  // `editingEventKey` ist derselbe Row-`key` wie in person-detail-model.ts's toEventRow
+  // ('BIRT'/'CHR'/'DEAT'/'BURI' für die Sonder-Ereignisse, `ev-${i}` für person.events[i])
+  // — EINE Indexierung, nicht neu erfunden (Bau-Auftrag-Vorgabe).
+  let editingEventKey = $state<string | null>(null);
+
+  /** Liest das rohe Event-Objekt aus der Person für einen Row-key (Kehrseite von
+   *  toEventRow's key-Vergabe). */
+  function eventForKey(p: Person, key: string): Event {
+    if (key === 'BIRT') return p.birth;
+    if (key === 'CHR') return p.chr;
+    if (key === 'DEAT') return p.death;
+    if (key === 'BURI') return p.buri;
+    return p.events[Number(key.slice(3))];
+  }
+
+  const editingRow = $derived(
+    detail && editingEventKey != null ? (detail.events.find((r) => r.key === editingEventKey) ?? null) : null,
+  );
+
+  function openEventEdit(key: string) {
+    editingEventKey = key;
+  }
+
+  function closeEventEdit() {
+    editingEventKey = null;
+  }
+
+  /** Speichert EIN Event zurück — klont die Person, ersetzt NUR das betroffene Feld
+   *  (Sonder-Ereignis-Feld ODER events[Index]) und ruft appState.savePerson(model) mit
+   *  dem VOLLSTÄNDIGEN Objekt auf (Spec 02 §3 Kommando-Chokepoint, kein Feld-Setter-
+   *  Pattern). `cause` (Todesursache) wird nur bei key==='DEAT' übernommen (lebt auf
+   *  Person.cause, nicht am Event). */
+  function saveEvent(updated: Event, cause: string) {
+    if (!detail || editingEventKey == null) return;
+    const key = editingEventKey;
+    const p = detail.person;
+    const next: Person = { ...p };
+    if (key === 'BIRT') next.birth = updated;
+    else if (key === 'CHR') next.chr = updated;
+    else if (key === 'DEAT') {
+      next.death = updated;
+      next.cause = cause;
+    } else if (key === 'BURI') next.buri = updated;
+    else {
+      const idx = Number(key.slice(3));
+      next.events = p.events.map((e, i) => (i === idx ? updated : e));
+    }
+    appState.savePerson(next);
+    editingEventKey = null;
   }
 </script>
 
@@ -135,6 +190,14 @@
                       onSelect={onNavigateToSource}
                     />
                   {/each}
+                  <button
+                    type="button"
+                    class="person-detail__event-edit-btn"
+                    onclick={() => openEventEdit(ev.key)}
+                    aria-label={`${ev.label} bearbeiten`}
+                  >
+                    ✎
+                  </button>
                 </div>
                 {#if ev.note}<p class="person-detail__event-note">{ev.note}</p>{/if}
               </li>
@@ -143,6 +206,17 @@
         {/each}
       {/if}
     </section>
+
+    {#if editingRow && editingEventKey != null}
+      <EventEditModal
+        {appState}
+        event={eventForKey(detail.person, editingEventKey)}
+        label={editingRow.label}
+        cause={editingEventKey === 'DEAT' ? detail.person.cause : null}
+        onSave={saveEvent}
+        onClose={closeEventEdit}
+      />
+    {/if}
 
     {#if detail.families.length > 0}
       <section class="person-detail__section">
@@ -303,14 +377,6 @@
     font-size: 0.78rem;
   }
 
-  /* ADR-v9-30 Nachtrag 2026-07-06 Befund 1 (INV-UI-5): margin-left:auto nur auf
-     :last-child, sonst drückt es einen nachfolgenden Ort-/Hof-Link aus der Zeile heraus,
-     obwohl beide Links zusammen mit Label/Datum/Ort umbruchfrei in eine Zeile passen
-     würden. */
-  .person-detail__geo-link:last-child {
-    margin-left: auto;
-  }
-
   .person-detail__place-link {
     background: transparent;
     border: none;
@@ -320,6 +386,30 @@
     font: inherit;
     font-size: 0.78rem;
     text-decoration: underline;
+  }
+
+  /* ✎-Bearbeiten-Icon (Bau-Auftrag "Ereignis direkt aus der Detail-Ansicht bearbeiten"):
+     IMMER das letzte Kind der Kopfzeile (unconditionally nach allen anderen Elementen
+     gerendert) — deshalb margin-left:auto direkt hier statt auf :last-child eines
+     bedingt vorhandenen Geschwisters (TST-11-Lehre: margin-left:auto nur auf ein
+     Element, das garantiert das letzte in der Flex-Zeile ist). Ersetzt das vormalige
+     `.person-detail__geo-link:last-child`-Muster, das jetzt nie mehr zutrifft, weil
+     dieser Button immer danach folgt. */
+  .person-detail__event-edit-btn {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    padding: 0 0 0 0.3rem;
+    font-size: 0.85rem;
+    line-height: 1;
+    flex: 0 0 auto;
+  }
+
+  .person-detail__event-edit-btn:hover,
+  .person-detail__event-edit-btn:focus-visible {
+    color: var(--stb-gold-light);
   }
 
   .person-detail__event-note {

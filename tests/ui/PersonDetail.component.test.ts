@@ -232,6 +232,135 @@ describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
   });
 });
 
+describe('PersonDetail — Einzel-Ereignis bearbeiten (✎-Icon, Bau-Auftrag)', () => {
+  it('✎ an einer Sonder-Ereignis-Zeile (Geburt) öffnet das fokussierte Modal statt des gesamten Formulars', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Geburt bearbeiten'));
+
+    expect(screen.getByText('Geburt bearbeiten')).toBeTruthy();
+    // Das VOLLE Formular (Identitätsfelder) ist NICHT offen.
+    expect(screen.queryByLabelText('Vorname')).toBeNull();
+  });
+
+  it('speichert eine Änderung an einem Sonder-Ereignis (Geburt) über savePerson mit dem vollen Objekt', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1900';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Geburt bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1901' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBe('1901');
+    // Modal schließt sich nach dem Speichern.
+    expect(screen.queryByText('Geburt bearbeiten')).toBeNull();
+  });
+
+  it('speichert eine Änderung an einem generischen Ereignis (events[i]) am richtigen Index', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('OCCU', { value: 'Bauer' }));
+    p.events.push(makeEvent('RESI', { date: '1950' }));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    // Zweite Zeile (RESI/Wohnort) bearbeiten — der Index MUSS stimmen, nicht der erste
+    // gefundene ✎-Button.
+    await fireEvent.click(screen.getByLabelText('Wohnort bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Ochtrup' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events[0].value).toBe('Bauer'); // OCCU unangetastet
+    expect(saved.events[1].value).toBe('Ochtrup'); // RESI aktualisiert
+  });
+
+  it('Tod-Ereignis: Todesursache wird mit übernommen (person.cause, nicht am Event)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.date = '1950';
+    p.cause = 'Altersschwäche';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Tod bearbeiten'));
+    const causeInput = screen.getByText('Todesursache').querySelector('input') as HTMLInputElement;
+    expect(causeInput.value).toBe('Altersschwäche');
+    await fireEvent.input(causeInput, { target: { value: 'Typhus' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.get('@I1@')?.cause).toBe('Typhus');
+  });
+
+  it('Abbrechen im Modal speichert nichts und schließt es wieder', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1900';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByLabelText('Geburt bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1999' } });
+    await fireEvent.click(screen.getByText('Abbrechen'));
+
+    expect(appState.db.individuals.get('@I1@')?.birth.date).toBe('1900');
+    expect(screen.queryByText('Geburt bearbeiten')).toBeNull();
+  });
+
+  it('viele Ereigniszeilen bleiben unabhängig einzeln editierbar (TST-7 Überlauf-Fall)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    for (let i = 0; i < 8; i += 1) {
+      p.events.push(makeEvent('OCCU', { value: `Beruf ${i}`, date: String(1900 + i) }));
+    }
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+    const editButtons = screen.getAllByLabelText('Beruf bearbeiten');
+    expect(editButtons).toHaveLength(8);
+
+    await fireEvent.click(editButtons[5]);
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Geändert' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events[5].value).toBe('Geändert');
+    expect(saved.events[4].value).toBe('Beruf 4');
+    expect(saved.events[6].value).toBe('Beruf 6');
+  });
+});
+
 describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig (Spec 21 §10f)', () => {
   it('zeigt WEDER "Familien"-Überschrift NOCH eine "Keine Familienverknüpfung"-Zeile ohne Familienbezug', () => {
     const appState = createAppState();

@@ -6,8 +6,10 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { Family, Event } from '../../../core/model/types';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import EventEditModal from '../../shell/EventEditModal.svelte';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
   import FamilyForm from './FamilyForm.svelte';
 
@@ -80,6 +82,51 @@
   function afterSave() {
     editing = false;
   }
+
+  // --- Einzel-Ereignis-Editor (✎-Icon je Zeile, Bau-Auftrag "Ereignis direkt aus der
+  // Detail-Ansicht bearbeiten") — öffnet EventEditModal statt des GESAMTEN FamilyForm.
+  // `editingEventKey` ist derselbe Row-`key` wie in family-detail-model.ts's toEventRow
+  // ('ENGA'/'MARR' für die Sonder-Ereignisse, `ev-${i}` für family.events[i]) — EINE
+  // Indexierung, nicht neu erfunden (Bau-Auftrag-Vorgabe). Familie kennt kein cause-
+  // Äquivalent (nur Person hat Person.cause) — EventEditModal bekommt hier nie `cause`.
+  let editingEventKey = $state<string | null>(null);
+
+  function eventForKey(f: Family, key: string): Event {
+    if (key === 'ENGA') return f.engagement;
+    if (key === 'MARR') return f.marriage;
+    return f.events[Number(key.slice(3))];
+  }
+
+  const editingRow = $derived(
+    detail && editingEventKey != null ? (detail.events.find((r) => r.key === editingEventKey) ?? null) : null,
+  );
+
+  function openEventEdit(key: string) {
+    editingEventKey = key;
+  }
+
+  function closeEventEdit() {
+    editingEventKey = null;
+  }
+
+  /** Speichert EIN Event zurück — klont die Familie, ersetzt NUR das betroffene Feld
+   *  (Sonder-Ereignis-Feld ODER events[Index]) und ruft appState.saveFamily(model) mit
+   *  dem VOLLSTÄNDIGEN Objekt auf (Spec 02 §3 Kommando-Chokepoint, kein Feld-Setter-
+   *  Pattern). */
+  function saveEvent(updated: Event) {
+    if (!detail || editingEventKey == null) return;
+    const key = editingEventKey;
+    const f = detail.family;
+    const next: Family = { ...f };
+    if (key === 'ENGA') next.engagement = updated;
+    else if (key === 'MARR') next.marriage = updated;
+    else {
+      const idx = Number(key.slice(3));
+      next.events = f.events.map((e, i) => (i === idx ? updated : e));
+    }
+    appState.saveFamily(next);
+    editingEventKey = null;
+  }
 </script>
 
 {#snippet eventRow(ev: FamilyEventRow)}
@@ -117,6 +164,14 @@
           />
         {/each}
       {/if}
+      <button
+        type="button"
+        class="family-detail__event-edit-btn"
+        onclick={() => openEventEdit(ev.key)}
+        aria-label={`${ev.label} bearbeiten`}
+      >
+        ✎
+      </button>
     </div>
     {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
   </li>
@@ -210,6 +265,16 @@
           {/each}
         </div>
       </section>
+    {/if}
+
+    {#if editingRow && editingEventKey != null}
+      <EventEditModal
+        {appState}
+        event={eventForKey(detail.family, editingEventKey)}
+        label={editingRow.label}
+        onSave={saveEvent}
+        onClose={closeEventEdit}
+      />
     {/if}
   {/if}
 </div>
@@ -333,13 +398,6 @@
     font-size: 0.78rem;
   }
 
-  /* ADR-v9-30 Nachtrag Befund 1: margin-left:auto nur auf :last-child, sonst drängt der
-     Kartenlink einen nachfolgenden Ort-/Hof-Link in eine eigene Zeile (INV-UI-5-Verstoß) —
-     existiert kein weiterer Link danach, bleibt der Kartenlink weiterhin rechtsbündig. */
-  .family-detail__geo-link:last-child {
-    margin-left: auto;
-  }
-
   .family-detail__place-link {
     background: transparent;
     border: none;
@@ -349,6 +407,28 @@
     font: inherit;
     font-size: 0.78rem;
     text-decoration: underline;
+  }
+
+  /* ✎-Bearbeiten-Icon (Bau-Auftrag "Ereignis direkt aus der Detail-Ansicht bearbeiten"):
+     IMMER das letzte Kind der Kopfzeile — deshalb margin-left:auto direkt hier statt auf
+     :last-child eines bedingt vorhandenen Geschwisters (TST-11-Lehre, analog
+     PersonDetail.svelte). Ersetzt das vormalige `.family-detail__geo-link:last-child`-
+     Muster, das jetzt nie mehr zutrifft, weil dieser Button immer danach folgt. */
+  .family-detail__event-edit-btn {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    padding: 0 0 0 0.3rem;
+    font-size: 0.85rem;
+    line-height: 1;
+    flex: 0 0 auto;
+  }
+
+  .family-detail__event-edit-btn:hover,
+  .family-detail__event-edit-btn:focus-visible {
+    color: var(--stb-gold-light);
   }
 
   .family-detail__event-note {

@@ -7,7 +7,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyDetail from '../../ui/views/family/FamilyDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeCitation, makeDatabase, makeFamily, makePerson, makeSource } from '../../core/model';
+import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson, makeSource } from '../../core/model';
 
 describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)', () => {
   it('rendert Mitgliederzeilen, die per Klick onNavigateToPerson mit der Person-Id aufrufen', async () => {
@@ -260,5 +260,131 @@ describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('FamilyDetail — Einzel-Ereignis bearbeiten (✎-Icon, Bau-Auftrag)', () => {
+  it('✎ an der Heirats-Zeile öffnet das fokussierte Modal statt des gesamten Formulars', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1 JUN 1920';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Heirat bearbeiten'));
+
+    expect(screen.getByText('Heirat bearbeiten')).toBeTruthy();
+    // Das volle Formular (Eltern-Picker) ist NICHT offen.
+    expect(screen.queryByLabelText('Ehemann')).toBeNull();
+  });
+
+  it('speichert eine Änderung an der Heirat über saveFamily mit dem vollen Objekt', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1920';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Heirat bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1921' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.date).toBe('1921');
+    expect(screen.queryByText('Heirat bearbeiten')).toBeNull();
+  });
+
+  it('speichert eine Änderung an einem generischen Ereignis (events[i]) am richtigen Index', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900' }));
+    f.events.push(makeEvent('PROP', { value: 'Hof', date: '1905' }));
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Eigentum bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Geändert' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(saved.events[0].value).toBe('Zählung 1900'); // CENS unangetastet
+    expect(saved.events[1].value).toBe('Geändert'); // PROP aktualisiert
+  });
+
+  it('Verlobung (ENGA) lässt sich unabhängig von der Heirat bearbeiten', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.engagement.date = '1919';
+    f.marriage.date = '1920';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Verlobung bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1918' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(saved.engagement.date).toBe('1918');
+    expect(saved.marriage.date).toBe('1920'); // unangetastet
+  });
+
+  it('Abbrechen im Modal speichert nichts und schließt es wieder', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1920';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    await fireEvent.click(screen.getByLabelText('Heirat bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1999' } });
+    await fireEvent.click(screen.getByText('Abbrechen'));
+
+    expect(appState.db.families.get('@F1@')?.marriage.date).toBe('1920');
+    expect(screen.queryByText('Heirat bearbeiten')).toBeNull();
+  });
+
+  it('viele generische Ereigniszeilen bleiben unabhängig einzeln editierbar (TST-7 Überlauf-Fall)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    for (let i = 0; i < 8; i += 1) {
+      f.events.push(makeEvent('CENS', { value: `Zählung ${i}`, date: String(1900 + i) }));
+    }
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+    const editButtons = screen.getAllByLabelText('Volkszählung bearbeiten');
+    expect(editButtons).toHaveLength(8);
+
+    await fireEvent.click(editButtons[5]);
+    await fireEvent.input(screen.getByLabelText('Wert'), { target: { value: 'Geändert' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(saved.events[5].value).toBe('Geändert');
+    expect(saved.events[4].value).toBe('Zählung 4');
+    expect(saved.events[6].value).toBe('Zählung 6');
   });
 });

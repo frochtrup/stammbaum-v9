@@ -24,16 +24,26 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Family, Event, Citation, Quay, PersonId } from '../../../core/model/types';
   import { makeEvent, makeCitation } from '../../../core/model/factory';
-  import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../../core/model/gedcom-date';
+  import type { DateQualifier } from '../../../core/model/gedcom-date';
   import { setCitationQuay } from '../../../core/model/citation';
   import { isEventPresent } from '../../../core/model';
-  import { HOF_EVENT_TYPES, linkEventToPlace, linkEventToHof } from '../../../core/places';
-  import { displayName, eventPlaceLabel } from '../../shell/person-display';
+  import { HOF_EVENT_TYPES } from '../../../core/places';
+  import { displayName } from '../../shell/person-display';
   import { eventTypeLabel } from '../../shell/event-labels';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import SourceCitationRow from '../../shell/SourceCitationRow.svelte';
   import EventPlaceField from '../../shell/EventPlaceField.svelte';
   import EventAddrField from '../../shell/EventAddrField.svelte';
+  import {
+    toEditable as buildEditable,
+    markDateDirty,
+    fromEditable,
+    pickPlaceFor as sharedPickPlaceFor,
+    pickHofFor as sharedPickHofFor,
+    onMonthBlur,
+    QUALIFIER_OPTIONS,
+    type EditableEvent,
+  } from '../../shell/event-edit';
 
   interface Props {
     appState: AppState;
@@ -49,165 +59,23 @@
   /** Gängige GEDCOM-Event-Tags für "weitere Ereignisse hinzufügen" (Spec 20 §2, FAM-Ebene). */
   const EVENT_TYPE_OPTIONS = ['EVEN', 'CENS', 'PROP', 'FACT'] as const;
 
-  const QUALIFIER_OPTIONS: { value: DateQualifier; label: string }[] = [
-    { value: 'EXACT', label: 'exakt' },
-    { value: 'ABT', label: 'ca. (ABT)' },
-    { value: 'CAL', label: 'errechnet (CAL)' },
-    { value: 'EST', label: 'geschätzt (EST)' },
-    { value: 'BEF', label: 'vor (BEF)' },
-    { value: 'AFT', label: 'nach (AFT)' },
-    { value: 'BET', label: 'zwischen (BET…AND…)' },
-    { value: 'FROM', label: 'Zeitraum (FROM…TO…)' },
-  ];
-
-  /** Editierbarer Ereignis-Zustand: strukturiertes Datum statt roher Raw-String, damit
-   *  die Qualifier/Tag/Monat/Jahr-Felder direkt daran binden können (analog PersonForm).
-   *  ADR-v9-30 Punkt 1: KEIN hasDate/hasPlace-Gate mehr — stattdessen originalDate/
-   *  originalPlace (roher Ursprungswert, Tristate-treu) + dateDirty/placeDirty (wird von
-   *  JEDEM Change-Handler am jeweiligen Teilformular gesetzt). Nur wenn der Nutzer das
-   *  Teilformular tatsächlich anfasst, wird beim Speichern neu berechnet — sonst bleibt
-   *  der Rohwert (null/''/Wert) unangetastet durchgereicht (Roundtrip-Erhaltung,
-   *  [10 §5.1](../../../specs/v9/10-Domaenenmodell.md)). */
-  interface EditableEvent {
-    key: string;
-    type: string;
-    eventType: string;
-    value: string;
-    dateQualifier: DateQualifier;
-    day: number | null;
-    month: string | null;
-    year: number | null;
-    day2: number | null;
-    month2: string | null;
-    year2: number | null;
-    originalDate: string | null;
-    dateDirty: boolean;
-    place: string;
-    originalPlace: string | null;
-    placeDirty: boolean;
-    /** ADR-v9-42: über EventPlaceField/EventAddrField per Picker gesetzt (linkEventToPlace/
-     *  linkEventToHof) — analog PersonForm.svelte. */
-    placeId: string | null;
-    hofId: string | null;
-    addr: string;
-    note: string;
-    citations: Citation[];
-  }
-
+  // Datum-Parsing/-Dirty-Tracking, Ort-/Hof-Picker-Reprojektion + Tristate-Erhaltung
+  // (EditableEvent, toEditable/fromEditable/computeDate/liveEventFrom/pickPlaceFor/
+  // pickHofFor/markDateDirty/onMonthBlur/QUALIFIER_OPTIONS) leben jetzt in
+  // ui/shell/event-edit.ts — identischer Code war zuvor hier UND in PersonForm.svelte
+  // dupliziert (ADR-v9-30 Punkt 1), jetzt auch von EventEditModal.svelte genutzt
+  // (Einzel-Ereignis-Bearbeitung, INV-UI-4). Dünne lokale Wrapper binden appState an,
+  // wo die geteilte Funktion appState braucht.
   function toEditable(key: string, ev: Event): EditableEvent {
-    const parts = ev.date != null ? parseDateValue(ev.date) : null;
-    return {
-      key,
-      type: ev.type,
-      eventType: ev.eventType,
-      value: ev.value,
-      dateQualifier: parts?.qualifier ?? 'EXACT',
-      day: parts?.day ?? null,
-      month: parts?.month ?? null,
-      year: parts?.year ?? null,
-      day2: parts?.day2 ?? null,
-      month2: parts?.month2 ?? null,
-      year2: parts?.year2 ?? null,
-      originalDate: ev.date,
-      dateDirty: false,
-      // ADR-v9-47 Punkt 3 (analog PersonForm.svelte): Live-Anfangswert bei gesetzter
-      // placeId/hofId, Tristate-Erhaltung bleibt unverändert (originalPlace bleibt roh).
-      place: ev.placeId != null || ev.hofId != null ? eventPlaceLabel(ev, appState.placeContext) : (ev.place ?? ''),
-      originalPlace: ev.place,
-      placeDirty: false,
-      placeId: ev.placeId,
-      hofId: ev.hofId,
-      addr: ev.addr,
-      note: ev.note,
-      citations: ev.citations.map((c) => ({ ...c })),
-    };
+    return buildEditable(key, ev, appState.placeContext);
   }
 
-  /** Markiert das Datums-Teilformular als angefasst — von JEDEM Qualifier/Tag/Monat/Jahr
-   *  (inkl. der zweiten BET/FROM-Grenze)-Change-Handler aufgerufen (ADR-v9-30 Punkt 1). */
-  function markDateDirty(ev: EditableEvent): void {
-    ev.dateDirty = true;
-  }
-
-  /** Baut den Roh-Datumsstring aus dem strukturierten Teilformular (analog PersonForm.svelte
-   *  computeDate) — gemeinsam genutzt von fromEditable (Speichern) UND liveEventFrom
-   *  (Picker-Verknüpfung braucht das aktuell angezeigte Datum für die Jahres-Ableitung). */
-  function computeDate(e: EditableEvent): string | null {
-    if (!e.dateDirty) return e.originalDate;
-    const formatted = formatDateValue({
-      qualifier: e.dateQualifier,
-      day: e.day,
-      month: e.month,
-      year: e.year,
-      day2: e.day2,
-      month2: e.month2,
-      year2: e.year2,
-    });
-    return formatted === '' ? null : formatted;
-  }
-
-  /** Baut ein Event-Objekt aus dem AKTUELLEN Formularzustand (analog PersonForm.svelte) —
-   *  für linkEventToPlace/linkEventToHof. */
-  function liveEventFrom(e: EditableEvent): Event {
-    return {
-      type: e.type,
-      value: e.value,
-      eventType: e.eventType,
-      date: computeDate(e),
-      datePhrase: '',
-      place: e.place === '' ? null : e.place,
-      placeId: e.placeId,
-      hofId: e.hofId,
-      lati: null,
-      long: null,
-      addr: e.addr,
-      note: e.note,
-      citations: e.citations,
-      media: [],
-      seen: true,
-    };
-  }
-
-  /** Picker-Auswahl/-Neuanlage eines Ortes (EventPlaceField.onPick, ADR-v9-42, analog
-   *  PersonForm.svelte). */
   function pickPlaceFor(target: EditableEvent, placeId: string): void {
-    const live = liveEventFrom(target);
-    linkEventToPlace(live, placeId, appState.placeContext);
-    target.place = live.place ?? '';
-    target.placeId = live.placeId;
-    target.placeDirty = true;
+    sharedPickPlaceFor(appState, target, placeId);
   }
 
-  /** Picker-Auswahl/-Neuanlage eines Hofes (EventAddrField.onPick, ADR-v9-42, analog
-   *  PersonForm.svelte). */
   function pickHofFor(target: EditableEvent, hofId: string): void {
-    const live = liveEventFrom(target);
-    linkEventToHof(live, hofId, appState.placeContext);
-    target.place = live.place ?? '';
-    target.addr = live.addr;
-    target.hofId = live.hofId;
-    target.placeDirty = true;
-  }
-
-  /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet,
-   *  Spec 10 §5.1 "date/place unterscheiden null/''/Wert"). placeId/hofId kommen jetzt
-   *  aus dem Formularzustand (ADR-v9-42 — Picker kann sie SOFORT setzen). */
-  function fromEditable(original: Event, e: EditableEvent): Event {
-    const date = computeDate(e);
-    const place = !e.placeDirty ? e.originalPlace : (e.place === '' ? null : e.place);
-    return {
-      ...original,
-      type: e.type,
-      eventType: e.eventType,
-      value: e.value,
-      date,
-      place,
-      placeId: e.placeId,
-      hofId: e.hofId,
-      addr: e.addr,
-      note: e.note,
-      citations: e.citations,
-    };
+    sharedPickHofFor(appState, target, hofId);
   }
 
   // Formular-Zustand wird NUR beim Mount aus der übergebenen Familie initialisiert (analog
@@ -323,11 +191,6 @@
 
   function setFamilyCitationQuay(index: number, quay: Quay) {
     citations = citations.map((c, i) => (i === index ? setCitationQuay(c, quay) : c));
-  }
-
-  function onMonthBlur(target: EditableEvent, field: 'month' | 'month2', raw: string) {
-    target[field] = normalizeMonth(raw);
-    markDateDirty(target);
   }
 
   // --- Schnellauswahl-Pills (ADR-v9-30 Punkt 3) ---------------------------------------
