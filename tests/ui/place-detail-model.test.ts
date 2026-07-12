@@ -145,6 +145,30 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
 
     expect(detail!.enclosureChain).toEqual(['Ochtrup', 'Kreis Steinfurt']);
   });
+
+  // Bugfix 2026-07-12: "Aktuell:" muss die tatsächlich HEUTE gültige Kette zeigen, nicht
+  // enclosedBy[0] (reine Merge-/Einfüge-Reihenfolge). Nachgebaut nach dem realen
+  // _po_ochtrup-Muster: mehrere gemergte, datierte enclosedBy-Perioden, deren offenes
+  // (aktuelles) Ende NICHT an Index 0 steht.
+  it('"Aktuell:" folgt der heute gültigen datierten Periode, nicht enclosedBy[0] (Merge-Reihenfolge)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@KREIS@', from: 1816, to: 1934 }, // Index 0, aber historisch — nicht mehr aktuell
+          { placeId: '@AMT@', from: 1934, to: null }, // Index 1, offenes Ende — heute gültig
+        ],
+      }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.enclosureChain).toEqual(['Ochtrup', 'Amt Ochtrup']);
+  });
 });
 
 describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", volle Kette, v8-Vorbild)', () => {

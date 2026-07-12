@@ -284,10 +284,13 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
 
   const variants: PlaceVariantRow[] = place.pnames.map((pn) => ({ value: pn.value, from: pn.from, to: pn.to }));
 
-  // Undatierte (aktuelle) enclosedBy-Kette — die volle periodengerechte Zeitleiste je
-  // Ereignisjahr ist Teil der ausgeklammerten SVG-Zeitleiste (Spec 20 §1.9/§1.10,
-  // anderer Bauabschnitt); hier der einfache "Ort, übergeordnet, …"-Steckbrief-Fallback.
-  const enclosureChain = ctx.places.enclosureChainAsOf(placeId, null);
+  // "Aktuell:"-Kette bewusst zum heutigen Kalenderjahr aufgelöst, NICHT year=null —
+  // year=null würde in einer periodenkorrekten Registry lediglich enclosedBy[0] (reine
+  // Einfüge-/Merge-Reihenfolge) liefern, nicht die tatsächlich zum heutigen Datum gültige
+  // Kette (Bugfix 2026-07-12: bei mehrfach gemergten Orten mit mehreren datierten
+  // enclosedBy-Perioden wich "Aktuell" dadurch von der letzten Zeile der vollen
+  // Jahres-Zeitleiste unten ab — beide MÜSSEN für das jeweils aktuelle Jahr übereinstimmen).
+  const enclosureChain = ctx.places.enclosureChainAsOf(placeId, new Date().getFullYear());
   const hierarchyTimeline = buildHierarchyTimeline(ctx, placeId, place);
 
   // String→PlaceObject-Kandidaten: Events, deren rohes ev.place zum Titel ODER einer
