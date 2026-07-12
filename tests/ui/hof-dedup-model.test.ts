@@ -47,6 +47,20 @@ describe('buildHofDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () =>
     expect(groups[0].suggestedWinnerId).toBe('@H2@');
   });
 
+  it('A1: enriched-Kennzeichen pro Mitglied (kuratiert vs. Bootstrap-Rohzustand)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));
+    // @H1@ kuratiert (Koordinaten) → enriched; @H2@ blanker Bootstrap-Rohzustand → nicht enriched.
+    db.hofObjects.set('@H1@', hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.2 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@V@', { addrs: [{ value: 'wall 33', from: null, to: null }] }));
+
+    const groups = buildHofDedupGroups(db, ctxOf(db), []);
+    const byId = new Map(groups[0].members.map((m) => [m.id, m.enriched]));
+
+    expect(byId.get('@H1@')).toBe(true);
+    expect(byId.get('@H2@')).toBe(false);
+  });
+
   it('TST-7 Kapazitätsfall: viele überlappende Gruppen gleichzeitig, deterministisch', () => {
     const db = makeDatabase();
     db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));

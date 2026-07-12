@@ -68,6 +68,19 @@ describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () 
     expect(names).toEqual(['Arpke, Burgdorf, Region Hannover', 'Arpke, Uetze, Region Hannover']);
   });
 
+  it('A1: enriched-Kennzeichen pro Mitglied (kuratiert vs. Seed-Rohzustand)', () => {
+    const db = makeDatabase();
+    // @A@ kuratiert (hat Koordinaten) → enriched; @B@ blanker Seed-Rohzustand → nicht enriched.
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+    const byId = new Map(groups[0].members.map((m) => [m.id, m.enriched]));
+
+    expect(byId.get('@A@')).toBe(true);
+    expect(byId.get('@B@')).toBe(false);
+  });
+
   it('verträgliche Namens-Varianten → conflict:false, fullName weiterhin gefüllt', () => {
     const db = makeDatabase();
     db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }));

@@ -247,6 +247,25 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     const places = placeMap(place('@A@', { title: 'Einzigartig' }), place('@B@', { title: 'AndersEinzig' }));
     expect(findPlaceDuplicates(places, 'places')).toEqual([]);
   });
+
+  // Symptom-3-Grenze (Bugreport 2026-07-12): Der Nutzer wünschte, Orte mit „identischer
+  // Verwaltungshierarchie" zu gruppieren. Am echten Datensatz verifiziert: das ist UNSICHER
+  // und wurde in ADR-v9-50-Nachtrag bereits als (verworfenes) „Kriterium 4 (gemeinsamer
+  // Vorfahre)" durchgespielt — mehrere UNTERSCHIEDLICHE Dörfer teilen dieselbe Elternkette
+  // (Ahlten/Aligse/Sehnde unter „Großes Freies"). Namensgleichheit gruppiert (ADR-v9-50),
+  // Hierarchie-Gleichheit DARF NICHT gruppieren. Dieser Test verriegelt die Grenze.
+  it('Symptom 3: verschiedene Dörfer mit IDENTISCHER Elternkette werden NICHT gruppiert (ADR-v9-50-Nachtrag)', () => {
+    const places = placeMap(
+      place('@AHLTEN@', { title: 'Ahlten', type: 'Village', enclosedBy: [{ placeId: '@GF@', from: null, to: null }] }),
+      place('@ALIGSE@', { title: 'Aligse', type: 'Village', enclosedBy: [{ placeId: '@GF@', from: null, to: null }] }),
+      place('@SEHNDE@', { title: 'Sehnde', type: 'Town', enclosedBy: [{ placeId: '@GF@', from: null, to: null }] }),
+      place('@GF@', { title: 'Großes Freies', type: 'Region' }),
+    );
+    const groups = findPlaceDuplicates(places, 'all');
+    // Kein Cluster fasst zwei der drei Dörfer zusammen (nur der Region-Single bliebe, wird
+    // aber als Single nicht gemeldet) → gar keine Gruppe.
+    expect(groups).toEqual([]);
+  });
 });
 
 describe('findPlaceDuplicates — kind=farms (§9.2)', () => {

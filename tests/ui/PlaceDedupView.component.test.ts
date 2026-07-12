@@ -98,6 +98,72 @@ describe('PlaceDedupView — Gruppen-Vorschlag + Zusammenführen', () => {
     expect(appState.db.hofObjects.size).toBe(1);
   });
 
+  it('A1: kuratierte vs. blanke Mitglieder erkennbar — „ohne Zusatzangaben"-Pille nur am Seed-Rohzustand', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // @A@ kuratiert (Koordinaten) → keine Pille; @B@ blank → Pille.
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+
+    // Genau eine Pille (für den blanken @B@), nicht zwei.
+    expect(screen.getAllByText('ohne Zusatzangaben')).toHaveLength(1);
+  });
+
+  it('A3: abgewähltes Mitglied wird NICHT mitgemergt (bleibt im Bestand)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // Drei Dubletten: @A@ (Gewinner-Vorschlag via Koordinaten), @B@, @C@.
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@C@', place('@C@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+
+    // Eine aktive (nicht-Gewinner) „einbeziehen"-Checkbox abwählen — das Ziel @A@ bleibt disabled.
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    const activeBox = checkboxes.find((c) => !c.disabled && c.checked);
+    await fireEvent.click(activeBox!);
+    await fireEvent.click(screen.getByText('Zusammenführen'));
+
+    // Gewinner @A@ überlebt; das abgewählte Mitglied bleibt zusätzlich erhalten → 2 Orte.
+    expect(appState.db.placeObjects.has('@A@')).toBe(true);
+    expect(appState.db.placeObjects.size).toBe(2);
+  });
+
+  it('A3: ohne Abwahl wird die GESAMTE Gruppe gemergt (Standard: alle ausgewählt)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@C@', place('@C@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+    await fireEvent.click(screen.getByText('Zusammenführen'));
+
+    expect(appState.db.placeObjects.size).toBe(1);
+    expect(appState.db.placeObjects.has('@A@')).toBe(true);
+  });
+
+  it('A3: Gewinner-Checkbox ist deaktiviert (Ziel, nicht abwählbar)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    const disabled = checkboxes.filter((c) => c.disabled);
+    // Genau ein Ziel (Gewinner) ist deaktiviert.
+    expect(disabled).toHaveLength(1);
+  });
+
   it('TST-7 Kapazitätsfall: viele gleichzeitige Gruppen rendern ohne Fehler', () => {
     const appState = createAppState();
     const db = makeDatabase();

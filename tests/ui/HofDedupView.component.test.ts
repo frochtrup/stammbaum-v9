@@ -66,6 +66,52 @@ describe('HofDedupView — Gruppen-Vorschlag + Zusammenführen', () => {
     expect(appState.db.hofObjects.has('@H2@')).toBe(true);
   });
 
+  it('A1: kuratierte vs. blanke Mitglieder erkennbar — „ohne Zusatzangaben"-Pille nur am Bootstrap-Rohzustand', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.2 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@V@', { addrs: [{ value: 'wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(HofDedupView, { props: { appState } });
+
+    expect(screen.getAllByText('ohne Zusatzangaben')).toHaveLength(1);
+  });
+
+  it('A3: abgewähltes Mitglied wird NICHT mitgemergt (bleibt im Bestand)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.2 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@V@', { addrs: [{ value: 'wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H3@', hof('@H3@', '@V@', { addrs: [{ value: 'WALL 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(HofDedupView, { props: { appState } });
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    const activeBox = checkboxes.find((c) => !c.disabled && c.checked);
+    await fireEvent.click(activeBox!);
+    await fireEvent.click(screen.getByText('Zusammenführen'));
+
+    // Gewinner @H1@ überlebt; das abgewählte Mitglied bleibt zusätzlich erhalten → 2 Höfe.
+    expect(appState.db.hofObjects.has('@H1@')).toBe(true);
+    expect(appState.db.hofObjects.size).toBe(2);
+  });
+
+  it('A3: Gewinner-Checkbox ist deaktiviert (Ziel, nicht abwählbar)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.2 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@V@', { addrs: [{ value: 'wall 33', from: null, to: null }] }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(HofDedupView, { props: { appState } });
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(checkboxes.filter((c) => c.disabled)).toHaveLength(1);
+  });
+
   it('TST-7 Kapazitätsfall: viele gleichzeitige Gruppen rendern ohne Fehler', () => {
     const appState = createAppState();
     const db = makeDatabase();

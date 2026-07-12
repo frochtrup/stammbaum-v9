@@ -26,6 +26,11 @@
   const groups = $derived(buildPlaceDedupGroups(appState.db, appState.placeContext, events));
 
   let chosenWinner = $state<Record<string, string>>({});
+  // A3: pro Gruppe die ABGEWÄHLTEN Mitglieder (Standard: leer = alle ausgewählt). Der Nutzer
+  // kann Mitglieder aus dem konkreten Merge herausnehmen; sie bleiben im Bestand und tauchen
+  // beim nächsten Aufbau der Dedup-Liste ggf. erneut auf (reine `findPlaceDuplicates`-Neu-
+  // berechnung — keine eigene Zwischenzustands-Logik).
+  let deselected = $state<Record<string, string[]>>({});
   let statusMessage = $state('');
 
   function winnerFor(groupKey: string, suggested: string): string {
@@ -36,9 +41,21 @@
     chosenWinner = { ...chosenWinner, [groupKey]: id };
   }
 
+  /** Ist ein Mitglied im Merge enthalten? Der Gewinner ist immer enthalten (Ziel, nicht abwählbar). */
+  function isSelected(groupKey: string, id: string, winnerId: string): boolean {
+    if (id === winnerId) return true;
+    return !(deselected[groupKey] ?? []).includes(id);
+  }
+
+  function toggleMember(groupKey: string, id: string) {
+    const cur = deselected[groupKey] ?? [];
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    deselected = { ...deselected, [groupKey]: next };
+  }
+
   function merge(groupKey: string, memberIds: string[], suggested: string) {
     const winnerId = winnerFor(groupKey, suggested);
-    const loserIds = memberIds.filter((id) => id !== winnerId);
+    const loserIds = memberIds.filter((id) => id !== winnerId && isSelected(groupKey, id, winnerId));
     if (loserIds.length === 0) return;
     const winnerTitle = appState.db.placeObjects.get(winnerId)?.title || winnerId;
     const result = appState.mergePlace(winnerId, loserIds);
@@ -46,9 +63,12 @@
       result.hofsMerged > 0
         ? `${loserIds.length + 1} Orte zu „${winnerTitle}" zusammengeführt — ${result.hofsMerged} Hof-Dubletten unter „${winnerTitle}" automatisch mit zusammengeführt.`
         : `${loserIds.length + 1} Orte zu „${winnerTitle}" zusammengeführt.`;
-    const next = { ...chosenWinner };
-    delete next[groupKey];
-    chosenWinner = next;
+    const nextWinner = { ...chosenWinner };
+    delete nextWinner[groupKey];
+    chosenWinner = nextWinner;
+    const nextDesel = { ...deselected };
+    delete nextDesel[groupKey];
+    deselected = nextDesel;
   }
 </script>
 
@@ -78,19 +98,33 @@
           </h3>
           <ul class="place-dedup__members">
             {#each group.members as m (m.id)}
-              <li>
+              {@const winnerId = winnerFor(group.key, group.suggestedWinnerId)}
+              {@const isWinner = m.id === winnerId}
+              <li class="place-dedup__member-row">
                 <label class="place-dedup__member">
                   <input
                     type="radio"
                     name={`place-dedup-winner-${group.key}`}
                     value={m.id}
-                    checked={winnerFor(group.key, group.suggestedWinnerId) === m.id}
+                    checked={isWinner}
                     onchange={() => chooseWinner(group.key, m.id)}
                   />
                   {m.fullName}
                   {#if m.id === group.suggestedWinnerId}
                     <span class="place-dedup__suggested">(Vorschlag)</span>
                   {/if}
+                  {#if !m.enriched}
+                    <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>
+                  {/if}
+                </label>
+                <label class="place-dedup__include" title={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected(group.key, m.id, winnerId)}
+                    disabled={isWinner}
+                    onchange={() => toggleMember(group.key, m.id)}
+                  />
+                  <span>einbeziehen</span>
                 </label>
               </li>
             {/each}
@@ -186,12 +220,29 @@
     padding: 0;
   }
 
+  .place-dedup__member-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
   .place-dedup__member {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     padding: 0.2rem 0;
     font-size: 0.88rem;
+    flex: 1;
+  }
+
+  .place-dedup__include {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+    white-space: nowrap;
+    cursor: pointer;
   }
 
   .place-dedup__suggested {

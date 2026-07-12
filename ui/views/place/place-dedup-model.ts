@@ -6,7 +6,7 @@
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
-import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName } from '../../../core/places';
+import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName, isEnrichedPlace } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
 export interface PlaceDedupMember {
@@ -15,6 +15,10 @@ export interface PlaceDedupMember {
   /** Volle Verwaltungskette (ADR-v9-50) — bei `conflict`-Gruppen der einzige Weg, gleichnamige
    * Orte für den Nutzer unterscheidbar zu machen (z. B. „Arpke, Burgdorf, …" vs. „Arpke, Uetze, …"). */
   fullName: string;
+  /** ADR-v9-44/Spec 11 §9.1: `true` = kuratiert/angereichert (weicht vom Seed-Rohzustand ab);
+   * `false` → „ohne Zusatzangaben"-Pille, damit der Nutzer im Dedup-Dialog erkennt, welches
+   * Mitglied kuratiert ist (Kennzeichnung, kein Einfluss auf die Gewinner-Heuristik, A1). */
+  enriched: boolean;
 }
 
 export interface PlaceDedupGroup {
@@ -67,8 +71,12 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
           ];
         }),
       );
+      const enrichedOf = (id: PlaceId): boolean => {
+        const po = db.placeObjects.get(id);
+        return po ? isEnrichedPlace(po) : false;
+      };
       const members: PlaceDedupMember[] = ids
-        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id) }))
+        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id), enriched: enrichedOf(id) }))
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));
       return {
         key: ids.slice().sort()[0],

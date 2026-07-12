@@ -3,12 +3,15 @@
 // `findPlaceDuplicates(items, 'farms')` aufbauend.
 import type { Database, Event, HofId } from '../../../core/model/types';
 import type { PlaceContext, HofObject } from '../../../core/places';
-import { findPlaceDuplicates, eventHofId } from '../../../core/places';
+import { findPlaceDuplicates, eventHofId, isEnrichedHof } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
 export interface HofDedupMember {
   id: HofId;
   addr: string;
+  /** ADR-v9-44/Spec 11 §9.1: `true` = kuratiert/angereichert; `false` → „ohne Zusatzangaben"-
+   * Pille im Dedup-Dialog (Kennzeichnung, kein Einfluss auf die Gewinner-Heuristik, A1). */
+  enriched: boolean;
 }
 
 export interface HofDedupGroup {
@@ -50,8 +53,12 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
           ];
         }),
       );
+      const enrichedOf = (id: HofId): boolean => {
+        const h = db.hofObjects.get(id);
+        return h ? isEnrichedHof(h) : false;
+      };
       const members: HofDedupMember[] = ids
-        .map((id) => ({ id, addr: addrOf(id) }))
+        .map((id) => ({ id, addr: addrOf(id), enriched: enrichedOf(id) }))
         .sort((a, b) => a.addr.localeCompare(b.addr, 'de'));
       const firstVillageId = db.hofObjects.get(ids[0])?.villageId;
       const villageTitle = (firstVillageId && db.placeObjects.get(firstVillageId)?.title) || firstVillageId || '';
