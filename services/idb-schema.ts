@@ -18,10 +18,13 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
+/** Eigenes FS-Handle für den orte.json-Datei-Ein-/Ausgang (ADR-v9-70) — GETRENNT von der
+ * Genealogie-Arbeitskopie (STORE_WORKING_COPY): eigener Store, eigener Key, eigenes Handle. */
+export const STORE_PLACES_FILE_HANDLE = 'places-file-handle';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -37,6 +40,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_PLACES_MIRROR)) {
           db.createObjectStore(STORE_PLACES_MIRROR);
+        }
+        if (!db.objectStoreNames.contains(STORE_PLACES_FILE_HANDLE)) {
+          db.createObjectStore(STORE_PLACES_FILE_HANDLE);
         }
       };
       req.onsuccess = () => resolve(req.result);

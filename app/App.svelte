@@ -17,7 +17,7 @@
   import { onMount } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
-  import { createPlacesSyncService } from '../services/places';
+  import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
   import { createFileService, type FileService } from '../services/file';
   import { loadGedcomText } from '../ui/shell/load-gedcom-text';
@@ -42,9 +42,15 @@
      * IndexedDB-Polyfill nicht lauffähig, s. tests/ui/App.component.test.ts) — Default ist
      * die echte Instanz. */
     persister?: PlacesPersister;
+    /** Injizierbar für Tests (analog fileService/persister) — eigener orte.json-Datei-IO
+     * (eigenes FS-Handle, eigener Picker, ADR-v9-70). Default ist die echte Instanz. */
+    placesFileIO?: PlacesFileIO;
   }
-  const { fileService = createFileService(), persister = createPlacesPersister(createPlacesSyncService()) }: Props =
-    $props();
+  const {
+    fileService = createFileService(),
+    persister = createPlacesPersister(createPlacesSyncService()),
+    placesFileIO = createPlacesFileIO(),
+  }: Props = $props();
 
   const viewState = createViewState();
   let placesEditNotice = $state('');
@@ -234,6 +240,7 @@
         {appState}
         {fileService}
         {persister}
+        {placesFileIO}
         {fileHandle}
         onNavigateLens={navigateLens}
         onImported={(handle) => (fileHandle = handle)}

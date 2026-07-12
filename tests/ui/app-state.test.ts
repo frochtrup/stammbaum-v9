@@ -191,6 +191,80 @@ describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', 
   });
 });
 
+const MINI_GED_WITH_PLAC = `0 HEAD
+1 SOUR TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Max /Muster/
+2 GIVN Max
+2 SURN Muster
+1 SEX M
+1 BIRT
+2 DATE 1 JAN 1900
+2 PLAC Ochtrup, Steinfurt, Deutschland
+0 TRLR
+`;
+
+describe('AppState.replacePlacesAndHofs — orte.json-Datei-Import ersetzt die Maps UND reklassifiziert (ADR-v9-70 + Nachtrag)', () => {
+  it('ersetzt placeObjects/hofObjects vollständig, sichtbar über db UND placeContext', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@ALT@', { title: 'Wird ersetzt' }));
+
+    const nextPlaces = new Map([['@NEU@', place('@NEU@', { title: 'Importiert' })]]);
+    const nextHofs = new Map([['@H1@', hof('@H1@', '@NEU@')]]);
+    appState.replacePlacesAndHofs(nextPlaces, nextHofs);
+
+    expect(appState.db.placeObjects.has('@ALT@')).toBe(false);
+    expect(appState.db.placeObjects.get('@NEU@')?.title).toBe('Importiert');
+    expect(appState.db.hofObjects.has('@H1@')).toBe(true);
+    expect(appState.placeContext.places.findByName('Importiert')).toBe('@NEU@');
+  });
+
+  it('löst KEIN persistPlaces aus, wenn die Reklassifikation den Bestand NICHT wachsen lässt (leere db, keine Events)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.replacePlacesAndHofs(new Map([['@P@', place('@P@')]]), new Map());
+    expect(calls).toBe(0);
+  });
+
+  it('rührt individuals/families als Maps nicht an (keine Personen verschwinden/entstehen)', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@', { given: 'Max' }));
+    appState.replacePlacesAndHofs(new Map([['@P@', place('@P@')]]), new Map());
+    expect(appState.db.individuals.has('@I1@')).toBe(true);
+  });
+
+  it('reklassifiziert bestehende Events gegen den neu importierten Orts-Bestand — der eigentliche Zweck des Imports (Nachtrag, s. Interface-Doku)', () => {
+    const appState = createAppState();
+    const parsed = parseGedcom(MINI_GED_WITH_PLAC);
+    appState.loadDatabase(parsed.db, 'test.ged');
+    expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
+
+    // Leere Maps genügen: applyPlaceResolution seedet "Ochtrup" selbst aus der PLAC-Zeile
+    // (Village-Seed, ADR-v9-28) und verlinkt das Event darauf — exakt wie beim GEDCOM-
+    // (Re-)Import über load-gedcom-text.ts, nur jetzt auch beim orte.json-Import ausgelöst.
+    appState.replacePlacesAndHofs(new Map(), new Map());
+
+    const resolvedPlaceId = appState.db.individuals.get('@I1@')?.birth.placeId ?? null;
+    expect(resolvedPlaceId).not.toBeNull();
+    expect(appState.placeContext.places.byId(resolvedPlaceId!)?.title).toContain('Ochtrup');
+  });
+
+  it('löst persistPlaces AUS, wenn die Reklassifikation selbst den Bestand wachsen lässt (Village-Seed)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    const parsed = parseGedcom(MINI_GED_WITH_PLAC);
+    appState.loadDatabase(parsed.db, 'test.ged');
+
+    appState.replacePlacesAndHofs(new Map(), new Map());
+
+    expect(calls).toBe(1);
+  });
+});
+
 describe('AppState.mergePlace/mergeHof — Persistenz-Rundlauf (TST-8: speichern -> "neu laden" -> noch da)', () => {
   it('nach mergePlace bleibt der konsolidierte Stand über einen simulierten Reload (persistPlaces-Snapshot) erhalten', () => {
     let persisted: { places: Map<string, PlaceObject>; hofs: Map<string, HofObject> } | null = null;

@@ -5,7 +5,7 @@
 // Plattform-API zu berühren.
 
 import { vi } from 'vitest';
-import type { Clock, DeviceIdProvider, PlacesFileWrapper, PlacesStore } from '../../services/places/types';
+import type { Clock, DeviceIdProvider, PlacesFileHandleStore, PlacesFileWrapper, PlacesStore } from '../../services/places/types';
 
 /** In-Memory-PlacesStore: hält höchstens EINEN Wrapper (spiegelt den festen IDB-Key). */
 export function createMockPlacesStore(initial: PlacesFileWrapper | null = null): PlacesStore & {
@@ -32,5 +32,22 @@ export function createMockClock(initialNow: number): Clock & { advance(byMs: num
     advance(byMs: number) {
       now += byMs;
     }
+  };
+}
+
+/** In-Memory-PlacesFileHandleStore: hält höchstens EIN Handle (ADR-v9-70, s. types.ts). */
+export function createMockPlacesFileHandleStore(initial: unknown | null = null): PlacesFileHandleStore & {
+  _peek(): unknown | null;
+} {
+  let current: unknown | null = initial;
+  return {
+    load: vi.fn(async () => current),
+    save: vi.fn(async (handle: unknown) => {
+      current = handle;
+    }),
+    clear: vi.fn(async () => {
+      current = null;
+    }),
+    _peek: () => current
   };
 }

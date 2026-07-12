@@ -12,6 +12,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createPlacesPersister } from '../../ui/shell/places-persister';
+import { FileService } from '../../services/file/file-service';
+import { PlacesSyncService } from '../../services/places';
+import { createMockAdapterSet } from '../services/mock-adapters';
+import {
+  createMockClock,
+  createMockDeviceId,
+  createMockPlacesFileHandleStore,
+  createMockPlacesStore,
+} from '../services/mock-places-store';
 
 describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   it('zeigt alle sechs Menüeinträge (vier Lenses + Ausgaben + Einstellungen)', () => {
@@ -91,6 +101,43 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
     expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
     expect(screen.getByText(/Keine Daten geladen/)).toBeTruthy(); // StatisticsView-Empty-State (leere AppState)
+  });
+
+  it('"Datei"-Sub-Ansicht zeigt KEINE Orte-Buttons, wenn kein placesFileIO übergeben wird (Rückwärtskompatibilität)', async () => {
+    const fileService = new FileService(createMockAdapterSet().adapters);
+    const persister = createPlacesPersister(
+      new PlacesSyncService(createMockPlacesStore(null), createMockDeviceId('dev-A'), createMockClock(1000)),
+    );
+    render(MoreView, { props: { appState: createAppState(), fileService, persister } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Datei/ }));
+
+    expect(screen.queryByRole('button', { name: /Orte exportieren/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Orte importieren/ })).toBeNull();
+  });
+
+  it('"Datei"-Sub-Ansicht zeigt die Orte-Buttons zusätzlich zu Import/Speichern, wenn placesFileIO übergeben wird (ADR-v9-70)', async () => {
+    const fileService = new FileService(createMockAdapterSet().adapters);
+    const placesStore = createMockPlacesStore(null);
+    const handleStore = createMockPlacesFileHandleStore(null);
+    const persister = createPlacesPersister(
+      new PlacesSyncService(placesStore, createMockDeviceId('dev-A'), createMockClock(1000)),
+    );
+    render(MoreView, {
+      props: {
+        appState: createAppState(),
+        fileService,
+        persister,
+        placesFileIO: { placesStore, handleStore, picker: { pick: async () => null } },
+      },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Datei/ }));
+
+    expect(screen.getByRole('button', { name: /Orte exportieren/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Orte importieren/ })).toBeTruthy();
+    // Bestehende Genealogie-Datei-Aktionen bleiben unverändert vorhanden (kein Verdrängen).
+    expect(screen.getByRole('button', { name: /Datei öffnen/ })).toBeTruthy();
   });
 
   it('"Zurück zum Menü" aus der Sub-Ansicht bringt wieder alle sechs Einträge', async () => {

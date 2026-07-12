@@ -53,22 +53,31 @@ describe('IndexedDB-Schema — genau EIN zentraler Öffner (Regressionstest)', (
     expect(offenders).toEqual([]);
   });
 
-  it('IdbWorkingCopyStore und IdbPlacesStore importieren beide openStammbaumDb aus dem geteilten Schema', () => {
+  it('IdbWorkingCopyStore, IdbPlacesStore und IdbPlacesFileHandleStore importieren alle openStammbaumDb aus dem geteilten Schema', () => {
     const workingCopySrc = readFileSync(join(SERVICES_DIR, 'file/idb-working-copy-store.ts'), 'utf8');
     const placesSrc = readFileSync(join(SERVICES_DIR, 'places/idb-places-store.ts'), 'utf8');
+    const placesHandleSrc = readFileSync(join(SERVICES_DIR, 'places/idb-places-file-handle-store.ts'), 'utf8');
 
     expect(workingCopySrc).toMatch(/from ['"]\.\.\/idb-schema['"]/);
     expect(workingCopySrc).toMatch(/openStammbaumDb/);
     expect(placesSrc).toMatch(/from ['"]\.\.\/idb-schema['"]/);
     expect(placesSrc).toMatch(/openStammbaumDb/);
+    expect(placesHandleSrc).toMatch(/from ['"]\.\.\/idb-schema['"]/);
+    expect(placesHandleSrc).toMatch(/openStammbaumDb/);
   });
 
-  it('idb-schema.ts registriert beide bekannten Object-Stores im selben onupgradeneeded-Handler', () => {
+  it('idb-schema.ts registriert alle drei bekannten Object-Stores im selben onupgradeneeded-Handler', () => {
     const schemaSrc = readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8');
     const upgradeBlockMatch = schemaSrc.match(/onupgradeneeded = \(\) => \{[\s\S]*?\};/);
     expect(upgradeBlockMatch).not.toBeNull();
     const upgradeBlock = upgradeBlockMatch![0];
     expect(upgradeBlock).toMatch(/STORE_WORKING_COPY/);
     expect(upgradeBlock).toMatch(/STORE_PLACES_MIRROR/);
+    expect(upgradeBlock).toMatch(/STORE_PLACES_FILE_HANDLE/);
+  });
+
+  it('STORE_PLACES_FILE_HANDLE ist ein eigener Store-Name, GETRENNT von STORE_WORKING_COPY/STORE_PLACES_MIRROR (ADR-v9-70)', () => {
+    const schemaSrc = readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8');
+    expect(schemaSrc).toMatch(/STORE_PLACES_FILE_HANDLE\s*=\s*'places-file-handle'/);
   });
 });

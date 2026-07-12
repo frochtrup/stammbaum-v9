@@ -44,6 +44,7 @@ import {
 } from '../../core/places';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
+import { applyPlaceResolution } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
@@ -148,6 +149,31 @@ export interface AppState {
    * automatischen Nachlauf (der ist nur für Dorf-Merges definiert, ADR-v9-45).
    */
   mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
+  /**
+   * Kommando: ersetzt placeObjects/hofObjects durch das Ergebnis eines orte.json-Datei-
+   * Imports (ADR-v9-70, Spec 14 §6) UND reklassifiziert im selben Zug ALLE Events der
+   * aktuell geladenen Genealogie gegen den neuen Orts-/Hof-Bestand (`applyPlaceResolution`,
+   * dieselbe volle `resolveEvents()`-Reklassifikation wie beim GEDCOM-(Re-)Import über
+   * `load-gedcom-text.ts` — Spec 11 §3 "Mechanismus 1": ein Massen-Wechsel der Orts-
+   * Identität rechtfertigt einen vollen Lade-Pass). Ohne diesen Schritt würden importierte,
+   * kuratierte Orte nie zur Interpretation der bereits geladenen Events herangezogen —
+   * genau der Zweck des Imports (Nachtrag, gefunden nach Auslieferung: die erste Fassung
+   * ersetzte nur die Registrierung, ohne sie auf die geladenen Events anzuwenden).
+   * `applyPlaceResolution` mutiert Person-/Family-Events IN-PLACE (wie `mergePlace`/
+   * `mergeHof` es bereits mit `event.hofId`/`event.placeId` tun) — die Reaktivität kommt
+   * ausschließlich aus der `db`-Neuzuweisung unten (`$state.raw`).
+   *
+   * Persistenz-Reihenfolge: der Aufrufer (ui/shell/places-file-import.ts) hat den
+   * importierten/gemergten Orts-Stand bereits über `PlacesPersister.persist()` gegen den
+   * IDB-Spiegel abgeglichen UND gespeichert, bevor er dieses Kommando aufruft — deshalb
+   * löst dieses Kommando `persistPlaces()` NUR aus, wenn die Reklassifikation selbst den
+   * Bestand weiter wachsen ließ (Village-Seed/Hof-Bootstrap, `placeObjectsGrew`/
+   * `hofObjectsGrew`), nicht unbedingt (kein doppeltes Schreiben mit veralteter baseRev,
+   * Ein-Invalidierungspfad-Prinzip). `persistWorkingCopy` läuft dagegen immer (falls eine
+   * Datei geladen ist) — die Reklassifikation kann `event.place`/`event.addr` ändern,
+   * GEDCOM-relevante Felder, die der bestehende Write-Back kennt.
+   */
+  replacePlacesAndHofs(placeObjects: Database['placeObjects'], hofObjects: Database['hofObjects']): void;
   /**
    * Kommando: erzwingt eine Reaktivitäts-Aktualisierung nach einer In-Place-Mutation an
    * Event-Feldern (z. B. `linkEventToPlace`, das Person-/Family-Events mutiert, die NICHT
@@ -358,6 +384,20 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       mergeHofObjects(nextHofs, survivorId, mergedIds, events);
       db = { ...db, hofObjects: nextHofs };
       persistPlaces();
+    },
+    replacePlacesAndHofs(placeObjects, hofObjects) {
+      const nextDb = { ...db, placeObjects, hofObjects };
+      // Reklassifiziert ALLE Events der aktuell geladenen Genealogie gegen den neuen
+      // Orts-/Hof-Bestand (mutiert individuals/families IN-PLACE, wie mergePlace/mergeHof
+      // es bereits mit event.hofId/event.placeId tun — s. Interface-Doku oben). Auf einer
+      // leeren db (kein Import geladen) ist dies ein no-op (keine Events zu sammeln).
+      const resolution = applyPlaceResolution(nextDb);
+      db = nextDb;
+      persistWorkingCopyIfLoaded();
+      // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand
+      // bereits gespeichert (s. Interface-Doku). Nur bei Wachstum durch die
+      // Reklassifikation selbst (Village-Seed/Hof-Bootstrap) erneut speichern.
+      if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) persistPlaces();
     },
     savePerson(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity

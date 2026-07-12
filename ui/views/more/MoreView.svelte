@@ -32,9 +32,11 @@
   import StatisticsView from '../stats/StatisticsView.svelte';
   import ImportButton from '../../shell/ImportButton.svelte';
   import SaveButton from '../../shell/SaveButton.svelte';
+  import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
   import type { LensId } from '../../shell/lens-model';
   import type { FileService } from '../../../services/file';
   import type { PlacesPersister } from '../../shell/places-persister';
+  import type { PlacesFileIO } from '../../../services/places';
 
   interface Props {
     appState: AppState;
@@ -43,6 +45,10 @@
      * Instanz. */
     fileService: FileService;
     persister: PlacesPersister;
+    /** Geteilter orte.json-Datei-IO (eigenes FS-Handle/Picker, ADR-v9-70) — optional, damit
+     * bestehende Tests (die diesen Prop nicht kennen) unverändert weiterlaufen; ohne ihn
+     * bleiben die "Orte exportieren/importieren"-Buttons unsichtbar. */
+    placesFileIO?: PlacesFileIO;
     /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
     fileHandle?: unknown;
     /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
@@ -51,7 +57,7 @@
      * 'map'/'timeline', INV-UI-2). */
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, fileService, persister, fileHandle, onImported, onNavigateLens }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, onNavigateLens }: Props = $props();
 
   type MoreEntry = 'file' | 'stats' | 'story' | 'reports' | 'settings';
 
@@ -102,6 +108,9 @@
       <div class="more-view__file">
         <ImportButton {appState} {persister} {fileService} {onImported} />
         <SaveButton {appState} {fileService} handle={fileHandle} />
+        {#if placesFileIO}
+          <PlacesFileButtons {appState} {fileService} {persister} {placesFileIO} />
+        {/if}
       </div>
     {:else}
       <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
