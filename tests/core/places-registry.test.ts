@@ -1,6 +1,7 @@
 // Reine PlaceRegistry + HofRegistry (Read-Tolerance LP-6). Spec 11 §4.4, §5.
 import { describe, it, expect } from 'vitest';
-import { makePlaceRegistry, makeHofRegistry, buildFormString } from '../../core/places/index';
+import { makePlaceRegistry, makeHofRegistry, buildFormString, chainCompatibleAnyPath } from '../../core/places/index';
+import { normPlaceName } from '../../core/places/index';
 import { place, hof, placeMap, hofMap } from './places-fixtures';
 
 describe('PlaceRegistry — Identität, Disambiguierung, Periodengerechtheit', () => {
@@ -87,5 +88,55 @@ describe('HofRegistry — Read-Tolerance (LP-6), Eindeutigkeit', () => {
     const reg = makeHofRegistry(ambiguous);
     expect(reg.findByAddr('Hof 1', null)).toBeNull();
     expect(reg.findAllByAddr('Hof 1', null)).toHaveLength(2);
+  });
+});
+
+// chainCompatibleAnyPath — die gemeinsame, reine Mehrpfad-Verträglichkeit (ADR-v9-72),
+// geteilt von seed.ts (existingParentsCompatible) und resolve.ts (chainCompatible, year==null).
+describe('chainCompatibleAnyPath — Mehrpfad-Eltern-Verträglichkeit (ADR-v9-72)', () => {
+  // Ein gemergter Ort mit ZWEI historischen Ketten (verschiedene Kreise, gleiche Region).
+  const places = placeMap(
+    place('@OCH@', {
+      title: 'Ochtrup',
+      enclosedBy: [
+        { placeId: '@STEINFURT@', from: null, to: null },
+        { placeId: '@AHAUS@', from: null, to: null },
+      ],
+    }),
+    place('@STEINFURT@', { title: 'Kreis Steinfurt', enclosedBy: [{ placeId: '@WESTF@', from: null, to: null }] }),
+    place('@AHAUS@', { title: 'Kreis Ahaus', enclosedBy: [{ placeId: '@WESTF@', from: null, to: null }] }),
+    place('@WESTF@', { title: 'Westfalen' }),
+  );
+  const byId = makePlaceRegistry(places).byId;
+  const norm = (segs: string[]): string[] => segs.map(normPlaceName);
+
+  it('trifft die ERSTE Kette (Index 0)', () => {
+    expect(chainCompatibleAnyPath(byId, '@OCH@', norm(['Kreis Steinfurt', 'Westfalen']))).toBe(true);
+  });
+
+  it('trifft die ZWEITE Kette (Index 1) — der eigentliche Bug', () => {
+    expect(chainCompatibleAnyPath(byId, '@OCH@', norm(['Kreis Ahaus', 'Westfalen']))).toBe(true);
+  });
+
+  it('lehnt eine widersprüchliche Kette ab', () => {
+    expect(chainCompatibleAnyPath(byId, '@OCH@', norm(['USA']))).toBe(false);
+  });
+
+  it('Präfix-Semantik: kürzere Stated-Kette ist verträglich', () => {
+    expect(chainCompatibleAnyPath(byId, '@OCH@', norm(['Kreis Ahaus']))).toBe(true);
+    expect(chainCompatibleAnyPath(byId, '@OCH@', [])).toBe(true);
+  });
+
+  it('lenient bei fehlendem Blatt-Knoten (nicht verifizierbar → verträglich)', () => {
+    expect(chainCompatibleAnyPath(byId, '@FEHLT@', norm(['Westfalen']))).toBe(true);
+  });
+
+  it('matcht Knoten auch über eine PNAME (nicht nur den Titel)', () => {
+    const withPname = placeMap(
+      place('@X@', { title: 'Dorf', enclosedBy: [{ placeId: '@LAND@', from: null, to: null }] }),
+      place('@LAND@', { title: 'Deutschland', pnames: [{ value: 'Deutsches Reich', from: 1871, to: 1945 }] }),
+    );
+    const byId2 = makePlaceRegistry(withPname).byId;
+    expect(chainCompatibleAnyPath(byId2, '@X@', norm(['Deutsches Reich']))).toBe(true);
   });
 });

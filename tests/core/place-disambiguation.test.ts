@@ -121,3 +121,40 @@ describe('Review-Klasse P (1.1c) — Orts-Mehrdeutigkeit wird sichtbar, kein sti
     expect(res.review).toHaveLength(0);
   });
 });
+
+// B1 (ADR-v9-72): für UNDATIERTE Events (year==null) muss der Konsistenz-Guard ALLE
+// undatierten enclosedBy-Ketten eines gemergten Kandidaten durchsuchen — nicht nur
+// enclosedBy[0]. Sonst kippt ein Event, dessen Kette der zweiten (gemergten) Kette
+// entspricht, grundlos in Review-Klasse P (und der Seed legte den Ort neu an, B1-Symptom).
+describe('B1 — undatierter Konsistenz-Guard über mehrere gemergte enclosedBy-Ketten (ADR-v9-72)', () => {
+  // Kuratierter Ochtrup mit ZWEI historischen Ketten (Merge-Ergebnis).
+  const ochtrup = place('@OCH@', {
+    title: 'Ochtrup',
+    type: 'Town',
+    enclosedBy: [
+      { placeId: '@KR_STEINFURT@', from: null, to: null }, // Index 0
+      { placeId: '@KR_AHAUS@', from: null, to: null }, // Index 1
+    ],
+  });
+  const steinfurt = place('@KR_STEINFURT@', { title: 'Kreis Steinfurt', type: 'District', enclosedBy: [{ placeId: '@WESTF@', from: null, to: null }] });
+  const ahaus = place('@KR_AHAUS@', { title: 'Kreis Ahaus', type: 'District', enclosedBy: [{ placeId: '@WESTF@', from: null, to: null }] });
+  const westf = place('@WESTF@', { title: 'Westfalen', type: 'Region' });
+  const places = placeMap(ochtrup, steinfurt, ahaus, westf);
+
+  it('undatiertes Event mit der ZWEITEN Kette → bindet den Überlebenden (kein Review-P)', () => {
+    const res = resolveEvents([ev('BIRT', { place: 'Ochtrup, Kreis Ahaus, Westfalen' })], places, hofMap());
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+    expect(res.events[0].path).toBe('hierarchy-lead');
+    expect(res.review).toHaveLength(0);
+  });
+
+  it('undatiertes Event mit der ERSTEN Kette → bindet ebenfalls (Regression Index 0)', () => {
+    const res = resolveEvents([ev('BIRT', { place: 'Ochtrup, Kreis Steinfurt, Westfalen' })], places, hofMap());
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+  });
+
+  it('undatiertes Event mit widersprüchlicher Kette → weiterhin Veto (kein Fehl-Match)', () => {
+    const res = resolveEvents([ev('BIRT', { place: 'Ochtrup, USA' })], places, hofMap());
+    expect(res.events[0].event.placeId).toBeNull();
+  });
+});

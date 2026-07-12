@@ -22,7 +22,7 @@ export {
   slugify,
 } from './normalize';
 
-export { makePlaceRegistry, type PlaceRegistry, type EnclosureMeta } from './place-registry';
+export { makePlaceRegistry, chainCompatibleAnyPath, type PlaceRegistry, type EnclosureMeta } from './place-registry';
 export { makeHofRegistry, type HofRegistry } from './hof-registry';
 
 // Chokepoint 4 (Spec 11 §5): PLAC-Bau + Kontext-Typ.

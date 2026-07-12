@@ -10,7 +10,7 @@
 // keinen Pfad ohne Reprojektion → Stale-Cache strukturell ausgeschlossen.
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
-import { makePlaceRegistry } from './place-registry';
+import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
 import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
@@ -56,9 +56,18 @@ export interface ResolveResult {
   review: ReviewItem[];
 }
 
-/** Segmentiert einen PLAC-String in getrimmte, nicht-leere Komma-Segmente. */
+/**
+ * Segmentiert einen PLAC-String in getrimmte, NICHT-LEERE Komma-Segmente. Leere Segmente
+ * (führend, innen oder abschließend, z. B. `, Ochtrup, , , NRW, Deutschland` — Ancestris/
+ * MyHeritage schreiben Fixed-Template-PLAC mit Leerfeldern auf nicht belegten Ebenen)
+ * bedeuten „keine Angabe auf dieser Ebene" und werden verworfen — das Leitsegment ist der
+ * erste NICHT-leere Wert, nicht positionsstarr segs[0]. Ohne diese Filterung würde ein
+ * führendes Leerfeld leadSeg='' erzeugen und das Event bliebe unaufgelöst (Symptom 2).
+ * KONSISTENT zum Seed-Vorpass (`seed.ts::segments`), der bereits so filtert — sonst
+ * schattet der Seed die Auflösung (unterschiedliche Segment-Sicht).
+ */
 function placSegments(plac: string): string[] {
-  return plac.split(',').map((s) => s.trim());
+  return plac.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 /**
@@ -90,10 +99,35 @@ function chainCompatible(
   placParents: readonly string[],
   year: Year,
 ): boolean {
-  const modeled = reg.enclosureChainAsOf(candidateId, year).slice(1).map(normPlaceName);
+  // Knoten-ID-Kette, pro Knoten gegen die VOLLE Namensmenge (title + alle pnames) prüfen —
+  // NICHT nur gegen den einen periodenkorrekten Namen: ein PLAC-Segment „Bayern" (Titel-Form)
+  // ist mit dem Knoten kompatibel, dessen im Ereignisjahr gültiger Name „Königreich Bayern"
+  // ist. Ein reiner Namensketten-Vergleich (title vs. pname) vetote hier fälschlich →
+  // eindeutiges Ereignis kippte grundlos in Review-Klasse P (Bugfix 2026-07-12, ADR-v9-71).
+  // Prefix-Semantik: nur die gemeinsame Länge zählt.
   const stated = placParents.map(normPlaceName);
-  const n = Math.min(modeled.length, stated.length);
-  for (let i = 0; i < n; i++) if (modeled[i] !== stated[i]) return false;
+
+  // UNDATIERTES Event (year==null): ALLE undatierten `enclosedBy`-Pfade durchsuchen (nach
+  // einem Merge trägt der Kandidat mehrere gültige Ketten, ADR-v9-72). Deckt sich mit dem
+  // Seed-Dedup (`existingParentsCompatible`) — EINE gemeinsame Funktion, kein zweiter Walk.
+  if (year == null) {
+    return chainCompatibleAnyPath(reg.byId, candidateId, stated);
+  }
+
+  // DATIERTES Event: periodenkorrekte Einzelkette (`enclosureWinnerAsOf` wählt bereits unter
+  // mehreren DATIERTEN Kandidaten den im Jahr gültigen) — hier UNVERÄNDERT.
+  const modeledIds = reg.enclosureIdsAsOf(candidateId, year).slice(1);
+  const n = Math.min(modeledIds.length, stated.length);
+  for (let i = 0; i < n; i++) {
+    const node = reg.byId(modeledIds[i]);
+    if (!node) return false;
+    const names = new Set<string>();
+    for (const nm of [node.title, ...node.pnames.map((p) => p.value)]) {
+      const k = normPlaceName(nm);
+      if (k) names.add(k);
+    }
+    if (!names.has(stated[i])) return false;
+  }
   return true;
 }
 
