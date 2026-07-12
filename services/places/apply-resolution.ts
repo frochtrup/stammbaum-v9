@@ -23,6 +23,8 @@ import {
   seedPlacesFromEvents,
   makePlaceRegistry,
   makeHofRegistry,
+  isEnrichedPlace,
+  isEnrichedHof,
   type ResolveResult,
 } from '../../core/places';
 
@@ -66,6 +68,57 @@ export interface ApplyResolutionResult {
   placeObjectsGrew: boolean;
 }
 
+export interface ApplyResolutionOptions {
+  /**
+   * ADR-v9-74: setzt vor der Auflösung `placeId`/`hofId` auf Events zurück, deren
+   * AKTUELLES Ziel (in `db.placeObjects`/`hofObjects`, wie zu Beginn dieses Aufrufs)
+   * nicht kuratiert ist (`isEnrichedPlace`/`isEnrichedHof` = false). Der reguläre
+   * „bereits gelinkt"-Kurzschluss in `resolveEvents` (Pfad REPROJECT, Spec 11 §4.1)
+   * überspringt sonst jede Neu-Zuordnung für Events, die schon irgendeine — und sei es
+   * nur eine automatisch geratene — `placeId` tragen: ein reiner Re-Resolve-Aufruf
+   * (ohne frischen `parseGedcom()`) verbessert die Zuordnung dann NIE, selbst wenn
+   * gerade reichhaltigere, kuratierte Orte importiert wurden. Kuratierte Ziele bleiben
+   * unangetastet (schützt bewusste `linkEventToPlace`-Entscheidungen). Default `false`
+   * (bestehendes Verhalten beim GEDCOM-Laden — dort sind alle Events ohnehin frisch aus
+   * `parseGedcom()` und tragen noch keine `placeId`, dieser Schritt ist dort ein No-op).
+   */
+  resetUncuratedLinks?: boolean;
+}
+
+/**
+ * Setzt `placeId`/`hofId` auf Events zurück, deren aktuelles Ziel (in `db`, VOR jeder
+ * Mutation durch diesen Aufruf) nicht kuratiert ist — s. `ApplyResolutionOptions`.
+ * Mutiert `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
+ * `applyPlaceResolution` selbst).
+ */
+function resetUncuratedLinks(db: Database): void {
+  const shouldReset = (ev: Event): boolean => {
+    if (ev.hofId != null) {
+      const hof = db.hofObjects.get(ev.hofId);
+      return !hof || !isEnrichedHof(hof);
+    }
+    if (ev.placeId != null) {
+      const place = db.placeObjects.get(ev.placeId);
+      return !place || !isEnrichedPlace(place);
+    }
+    return false;
+  };
+  const reset = (ev: Event): Event => (shouldReset(ev) ? { ...ev, placeId: null, hofId: null } : ev);
+
+  for (const p of db.individuals.values()) {
+    p.birth = reset(p.birth);
+    p.chr = reset(p.chr);
+    p.death = reset(p.death);
+    p.buri = reset(p.buri);
+    p.events = p.events.map(reset);
+  }
+  for (const f of db.families.values()) {
+    f.engagement = reset(f.engagement);
+    f.marriage = reset(f.marriage);
+    f.events = f.events.map(reset);
+  }
+}
+
 /**
  * Löst ALLE Events der Datenbank auf (Schritte 1–4 aus der Aufgabenstellung) und
  * schreibt die Ergebnisse IN-PLACE an ihre ursprüngliche Stelle zurück (Person/Family-
@@ -78,7 +131,8 @@ export interface ApplyResolutionResult {
  * PlaceObjects; `db.hofObjects` wird auf das ggf. durch Hof-Bootstrap gewachsene Ergebnis
  * gesetzt.
  */
-export function applyPlaceResolution(db: Database): ApplyResolutionResult {
+export function applyPlaceResolution(db: Database, opts: ApplyResolutionOptions = {}): ApplyResolutionResult {
+  if (opts.resetUncuratedLinks) resetUncuratedLinks(db);
   const { events, slots } = collectEventSlots(db);
 
   // Schritt 0 (Spec 11 §4.2, ADR-v9-28/-29): Village-Seed VOR der Auflösung — erzeugt die

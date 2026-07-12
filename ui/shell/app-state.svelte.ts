@@ -163,6 +163,16 @@ export interface AppState {
    * `mergeHof` es bereits mit `event.hofId`/`event.placeId` tun) — die Reaktivität kommt
    * ausschließlich aus der `db`-Neuzuweisung unten (`$state.raw`).
    *
+   * `resetUncuratedLinks: true` (ADR-v9-74, Nachtrag nach Nutzerrückfrage): ohne diese
+   * Option greift der reguläre „bereits gelinkt"-Kurzschluss in `resolveEvents`
+   * (Pfad REPROJECT) für JEDES Event, das schon irgendeine — und sei es nur automatisch
+   * geratene — `placeId`/`hofId` trägt, und verhindert eine Neuzuordnung selbst dann,
+   * wenn gerade reichhaltigere, kuratierte Orte importiert wurden (reiner Re-Resolve ohne
+   * frischen `parseGedcom()`-Aufruf, anders als beim GEDCOM-Reload). Mit der Option werden
+   * vor der Auflösung genau die Events zurückgesetzt, deren AKTUELLES Ziel nicht kuratiert
+   * ist (`isEnrichedPlace`/`isEnrichedHof`) — kuratierte, ggf. bewusst per
+   * `linkEventToPlace` bestätigte Ziele bleiben unangetastet.
+   *
    * Persistenz-Reihenfolge: der Aufrufer (ui/shell/places-file-import.ts) hat den
    * importierten/gemergten Orts-Stand bereits über `PlacesPersister.persist()` gegen den
    * IDB-Spiegel abgeglichen UND gespeichert, bevor er dieses Kommando aufruft — deshalb
@@ -391,7 +401,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // Orts-/Hof-Bestand (mutiert individuals/families IN-PLACE, wie mergePlace/mergeHof
       // es bereits mit event.hofId/event.placeId tun — s. Interface-Doku oben). Auf einer
       // leeren db (kein Import geladen) ist dies ein no-op (keine Events zu sammeln).
-      const resolution = applyPlaceResolution(nextDb);
+      // resetUncuratedLinks: setzt vor der Auflösung placeId/hofId nicht-kuratierter
+      // Ziele zurück, damit sie tatsächlich gegen die neu importierten kuratierten Orte
+      // neu geprüft werden (ADR-v9-74) — sonst würde der "bereits gelinkt"-Kurzschluss
+      // in resolveEvents jede Verbesserung verhindern.
+      const resolution = applyPlaceResolution(nextDb, { resetUncuratedLinks: true });
       db = nextDb;
       persistWorkingCopyIfLoaded();
       // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand

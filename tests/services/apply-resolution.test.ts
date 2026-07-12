@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeDatabase, makePerson, makeFamily, makeEvent } from '../../core/model';
 import { applyPlaceResolution } from '../../services/places/apply-resolution';
-import { place } from '../core/places-fixtures';
+import { place, hof } from '../core/places-fixtures';
 
 describe('applyPlaceResolution — sammelt alle Event-Fundstellen', () => {
   it('löst birth/chr/death/buri/events[] einer Person und schreibt sie an die richtige Stelle zurück', () => {
@@ -128,5 +128,81 @@ describe('applyPlaceResolution — sammelt alle Event-Fundstellen', () => {
 
     expect(result.review).toHaveLength(1);
     expect(result.review[0].klass).toBe('A');
+  });
+});
+
+describe('applyPlaceResolution({ resetUncuratedLinks: true }) — ADR-v9-74: nachträglicher orte.json-Import macht bestehende, unkuratierte Zuordnungen wieder prüfbar', () => {
+  it('Event zeigt auf einen NICHT kuratierten (bare Seed-) Ort, gleichnamiger kuratierter Ort kommt hinzu -> wird zurückgesetzt und landet korrekt in Review-Klasse P (ADR-v9-29 bleibt bindend, kein stilles Raten)', () => {
+    const db = makeDatabase();
+    // Bare Seed-Ort (kein type/pnames/note/... -> isEnrichedPlace = false), wie er beim
+    // ersten, dünnen Laden automatisch entstanden wäre.
+    db.placeObjects.set('SEED1', place('SEED1', { title: 'Ochtrup' }));
+    const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'SEED1' }) });
+    db.individuals.set(p.id, p);
+
+    // Ohne die Option: "bereits gelinkt" -> bleibt stur bei SEED1, obwohl jetzt ein
+    // kuratierter Ort mit demselben Namen existiert (reiner Reproject, kein Re-Match).
+    const dbWithoutOption = makeDatabase();
+    dbWithoutOption.placeObjects.set('SEED1', place('SEED1', { title: 'Ochtrup' }));
+    dbWithoutOption.placeObjects.set('CURATED1', place('CURATED1', { title: 'Ochtrup', type: 'Town', note: 'kuratiert' }));
+    const p2 = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'SEED1' }) });
+    dbWithoutOption.individuals.set(p2.id, p2);
+    applyPlaceResolution(dbWithoutOption);
+    expect(dbWithoutOption.individuals.get('I1')!.birth.placeId).toBe('SEED1');
+
+    // Jetzt kommt der frisch importierte kuratierte Ort dazu (gleicher Titel, wie es ein
+    // Massen-Dedup-Kandidat wäre). MIT der Option wird SEED1 zurückgesetzt und neu
+    // geprüft -- aber da SEED1 UND CURATED1 jetzt gleichnamig als Kandidaten dastehen,
+    // ist das GENUINE Mehrdeutigkeit (Spec 11 §4.2 Pfad 3a) -- kein stilles Raten
+    // zugunsten des kuratierten Orts, sondern korrekt Review-Klasse P mit beiden
+    // Kandidaten. Der eigentliche "Ersatz" passiert danach über den Dedup-Merge
+    // (SEED1 -> CURATED1, §9.2) -- das ist die vom Nutzer bestätigte Ausbaustufe.
+    db.placeObjects.set('CURATED1', place('CURATED1', { title: 'Ochtrup', type: 'Town', note: 'kuratiert' }));
+    const result = applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    expect(db.individuals.get('I1')!.birth.placeId).toBeNull();
+    expect(result.review).toHaveLength(1);
+    expect(result.review[0].klass).toBe('P');
+    expect(result.review[0].candidates?.slice().sort()).toEqual(['CURATED1', 'SEED1']);
+  });
+
+  it('Event zeigt bereits auf einen kuratierten Ort -> bleibt unangetastet (schützt bewusste Verknüpfungen)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('CURATED1', place('CURATED1', { title: 'Ochtrup', type: 'Town', note: 'kuratiert' }));
+    db.placeObjects.set('CURATED2', place('CURATED2', { title: 'Ochtrup', type: 'Village', note: 'anderer kuratierter Ort, gleicher Name' }));
+    const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'CURATED1' }) });
+    db.individuals.set(p.id, p);
+
+    applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    // Bleibt bei CURATED1 -- wird NICHT auf CURATED2 umgehängt, obwohl beide "Ochtrup"
+    // heißen und CURATED2 zufällig zuerst in der Map steht.
+    expect(db.individuals.get('I1')!.birth.placeId).toBe('CURATED1');
+  });
+
+  it('Event zeigt auf einen NICHT kuratierten Hof, gleichwertiger kuratierter Hof kommt hinzu -> wird zurückgesetzt und landet korrekt in Review-Klasse C (Hof-Adresse mehrdeutig), Dorf-Zuordnung bleibt erhalten', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
+    // Bare Seed-Hof (genau 1 addrs-Eintrag, keine Daten -> isEnrichedHof = false).
+    db.hofObjects.set('SEEDHOF', hof('SEEDHOF', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const p = makePerson('I1', {
+      events: [makeEvent('RESI', { place: 'Ochtrup', addr: 'Wall 33', placeId: 'V1', hofId: 'SEEDHOF' })],
+    });
+    db.individuals.set(p.id, p);
+
+    // Kuratierter Hof mit angereicherten Daten kommt hinzu (z. B. aus orte.json-Import) —
+    // gleiche Adresse/Dorf wie SEEDHOF, also strukturell dieselbe Hof-Identität, aber ein
+    // eigenes Objekt (Union-Merge legt bei einem Import nichts zusammen, das übernimmt der
+    // Dedup-Merge). Zwei Kandidaten für dieselbe Adresse -> Review-Klasse C, kein stilles
+    // Raten -- die Dorf-Zuordnung (placeId) bleibt davon unberührt, nur der Hof wird strittig.
+    db.hofObjects.set('CURATEDHOF', hof('CURATEDHOF', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'kuratiert' }));
+
+    const result = applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    expect(db.individuals.get('I1')!.events[0].hofId).toBeNull();
+    expect(db.individuals.get('I1')!.events[0].placeId).toBe('V1');
+    expect(result.review).toHaveLength(1);
+    expect(result.review[0].klass).toBe('C');
+    expect(result.review[0].candidates?.slice().sort()).toEqual(['CURATEDHOF', 'SEEDHOF']);
   });
 });
