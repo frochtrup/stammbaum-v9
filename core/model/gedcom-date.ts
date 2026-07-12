@@ -13,6 +13,14 @@
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const;
 const MONTH_SET = new Set<string>(MONTHS);
 
+/** Deutsche Vollnamen je kanonischem Monatscode, für formatDateForDisplay (Spec 10 §5.2).
+ *  Bewusst keine Ableitung aus MONTH_NAME_TO_CODE (dessen Werte sind lowercase/normiert
+ *  fürs Parsen, nicht fürs Anzeigen) — eine kleine, eigene Umkehr-Tabelle ist hier klarer. */
+const MONTH_CODE_TO_LABEL_DE: Record<string, string> = {
+  JAN: 'Januar', FEB: 'Februar', MAR: 'März', APR: 'April', MAY: 'Mai', JUN: 'Juni',
+  JUL: 'Juli', AUG: 'August', SEP: 'September', OCT: 'Oktober', NOV: 'November', DEC: 'Dezember',
+};
+
 export type DateQualifier = 'EXACT' | 'ABT' | 'CAL' | 'EST' | 'BEF' | 'AFT' | 'BET' | 'FROM';
 
 /** Zweistellige Qualifier haben eine zweite Grenze (`BET…AND…`, `FROM…TO…`). */
@@ -174,4 +182,51 @@ export function formatDateValue(parts: DateParts): string {
 
   if (parts.qualifier === 'EXACT') return left;
   return `${parts.qualifier} ${left}`;
+}
+
+/** Baut ein Tag/Monat/Jahr-Tripel als lokalisierte Anzeige-Form zusammen (Spec 10 §5.2):
+ *  Tag+Monat+Jahr → "12. März 1890", nur Monat+Jahr → "März 1890", nur Jahr → "1890".
+ *  Ein nicht übersetzbarer Monat (z. B. defensiver parseDateValue-Fehlerfall) fällt auf
+ *  den rohen Code zurück statt die Information stillschweigend zu verwerfen. */
+function formatTripleForDisplay(day: number | null, month: string | null, year: number | null): string {
+  const monthLabel = month != null ? (MONTH_CODE_TO_LABEL_DE[month] ?? month) : null;
+  if (day != null && monthLabel != null && year != null) return `${day}. ${monthLabel} ${year}`;
+  if (day == null && monthLabel != null && year != null) return `${monthLabel} ${year}`;
+  if (day == null && monthLabel == null && year != null) return String(year);
+  // Degenerierter Rest (z. B. Tag ohne Monat, oder gar kein Jahr) — defensiv, verliert
+  // keine geparsten Teile, statt sie stillschweigend wegzulassen.
+  const parts: string[] = [];
+  if (day != null) parts.push(`${day}.`);
+  if (monthLabel != null) parts.push(monthLabel);
+  if (year != null) parts.push(String(year));
+  return parts.join(' ');
+}
+
+/**
+ * Formatiert einen rohen GEDCOM-Datumsstring als VOLLES, lokalisiertes Anzeige-Datum
+ * (Eigene-Ereignis-Kontext, [21 INV-UI-9](../../../specs/v9/21-UI-UX.md)) — Tag+Monat wo
+ * vorhanden, deutscher Monatsname, Qualifier-Präfix (`ca.`/`errechnet`/`geschätzt`/`vor`/
+ * `nach`), `zwischen X und Y`/`X–Y` bei `BET`/`FROM`. Nutzt denselben `parseDateValue`-
+ * Parser wie das Formular (kein zweiter Parser, INV-UI-4) — nur die Formatierungstiefe
+ * unterscheidet sich von `formatDateValue`/Jahr-only. Für die knappe Disambiguierungs-
+ * Form siehe `ui/shell/person-display.ts::eventYearLabel`.
+ */
+export function formatDateForDisplay(raw: string | null): string {
+  if (raw == null || raw.trim() === '') return '';
+  const parts = parseDateValue(raw);
+  const left = formatTripleForDisplay(parts.day, parts.month, parts.year);
+
+  if (RANGE_QUALIFIERS.has(parts.qualifier)) {
+    const right = formatTripleForDisplay(parts.day2, parts.month2, parts.year2);
+    return parts.qualifier === 'BET' ? `zwischen ${left} und ${right}` : `${left}–${right}`;
+  }
+
+  switch (parts.qualifier) {
+    case 'ABT': return `ca. ${left}`;
+    case 'CAL': return `errechnet ${left}`;
+    case 'EST': return `geschätzt ${left}`;
+    case 'BEF': return `vor ${left}`;
+    case 'AFT': return `nach ${left}`;
+    default: return left;
+  }
 }

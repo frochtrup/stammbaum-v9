@@ -83,6 +83,44 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
     expect(detail.events.map((e) => e.label)).toEqual(['Heirat']);
   });
 
+  it('zeigt bei der EIGENEN Ereigniszeile (Heirat/Verlobung) das VOLLE, lokalisierte Datum, nicht nur das Jahr (INV-UI-9, ADR-v9-64, Regressionstest)', () => {
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '12 MAR 1920';
+    f.engagement.date = 'ABT 1918';
+    db.families.set('@F1@', f);
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    const marriage = detail.events.find((e) => e.label === 'Heirat')!;
+    expect(marriage.summary).toBe('12. März 1920');
+    const engagement = detail.events.find((e) => e.label === 'Verlobung')!;
+    expect(engagement.summary).toBe('ca. 1918');
+  });
+
+  it('generische events[]-Einträge zeigen ebenfalls das volle Datum in der eigenen Ereigniszeile', () => {
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.events.push(makeEvent('RESI', { date: '5 JUN 1950', addr: 'Nienborger Damm 1' }));
+    db.families.set('@F1@', f);
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    expect(detail.events[0].summary).toBe('5. Juni 1950');
+  });
+
+  it('Mitgliederzeilen (Disambiguierung) bleiben bei Jahr-only, auch wenn das Geburtsdatum Tag+Monat trägt', () => {
+    const db = makeDatabase();
+    const husband = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    husband.birth.date = '12 MAR 1900';
+    db.individuals.set('@I1@', husband);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@' }));
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    expect(detail.members[0].summary).toBe('1900');
+  });
+
   it('reicht Familien-Top-Level-Zitate unverändert durch', () => {
     const db = makeDatabase();
     const f = makeFamily('@F1@');

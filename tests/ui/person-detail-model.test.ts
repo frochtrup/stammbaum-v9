@@ -160,6 +160,51 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
     expect(own.children[0].summary).toBe('1955');
   });
 
+  it('zeigt bei der EIGENEN Ereigniszeile das VOLLE, lokalisierte Datum (Tag+Monat+Qualifier), nicht nur das Jahr (INV-UI-9, ADR-v9-64, Regressionstest)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '12 MAR 1890';
+    p.death.date = 'ABT 1960';
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const birth = detail.events.find((e) => e.label === 'Geburt')!;
+    expect(birth.summary).toBe('12. März 1890');
+    const death = detail.events.find((e) => e.label === 'Tod')!;
+    expect(death.summary).toBe('ca. 1960');
+  });
+
+  it('Ereignisse[]-Einträge zeigen ebenfalls das volle Datum in der eigenen Ereigniszeile (nicht nur BIRT/DEAT-Sonderfelder)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('RESI', { date: '5 JUN 1950', addr: 'Nienborger Damm 1' }));
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.events[0].summary).toBe('5. Juni 1950');
+  });
+
+  it('Kinder-Zeile (Disambiguierung, INV-UI-6) bleibt bei Jahr-only, auch wenn das Geburtsdatum Tag+Monat trägt', () => {
+    const db = makeDatabase();
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    const child = makePerson('@I3@', { given: 'Julius', surname: 'Bauer' });
+    child.birth.date = '12 MAR 1955';
+
+    const famOwn = makeFamily('@F1@', { husband: '@I1@', children: ['@I3@'] });
+    person.parentIn.push('@F1@');
+
+    db.individuals.set('@I1@', person);
+    db.individuals.set('@I3@', child);
+    db.families.set('@F1@', famOwn);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    const own = detail.families.find((f) => f.role === 'parentIn')!;
+    expect(own.children[0].summary).toBe('1955');
+  });
+
   it('liefert bei der Herkunftsfamilie (childOf) keine Kinder (nur Eltern, Geschwister bleiben außen vor)', () => {
     const db = makeDatabase();
     const child = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });

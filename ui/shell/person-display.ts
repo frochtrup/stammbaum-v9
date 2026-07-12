@@ -4,6 +4,7 @@
 import type { Person, Event } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
 import { eventPlaceId, buildFormString, eventYear } from '../../core/places';
+import { formatDateForDisplay } from '../../core/model/gedcom-date';
 
 /** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
 export function displayName(p: Person): string {
@@ -66,10 +67,34 @@ export function eventPlaceLabel(ev: Event, ctx: PlaceContext): string {
   return ev.place ?? '';
 }
 
-/** Kombiniertes "Jahr, Ort" für die Listenzeile — leer, wenn beides fehlt. */
+/** Kombiniertes "Jahr, Ort" für die Listenzeile — leer, wenn beides fehlt.
+ *  DISAMBIGUIERUNGS-/Übersichts-Kontext (Kinder-/Ehepartner-/Eltern-Zeilen, Ort-/Hof-
+ *  Listen, Suche, INV-UI-6/[21 §6f] INV-UI-9) — Jahr genügt hier, ein volles Datum wäre
+ *  Rauschen. NICHT für die eigenen Ereigniszeilen einer Detail-Seite verwenden, dafür
+ *  siehe dateSummary(). */
 export function yearPlaceSummary(ev: Event, ctx: PlaceContext): string {
   const year = eventYearLabel(ev);
   const place = eventPlaceLabel(ev, ctx);
   if (year && place) return `${year}, ${place}`;
   return year || place;
+}
+
+/** Volles, lokalisiertes Datum eines Events (Tag+Monat wo vorhanden, deutscher
+ *  Monatsname, Qualifier-Präfix) — Eigene-Ereignis-Kontext, [21 INV-UI-9](
+ *  ../../specs/v9/21-UI-UX.md). Reine Delegation an core/model/gedcom-date.ts (INV-UI-4:
+ *  ein Parser, keine zweite Implementierung). */
+export function fullDateLabel(ev: Event): string {
+  return formatDateForDisplay(ev.date);
+}
+
+/** Kombiniertes "volles Datum, Ort" für die EIGENE Ereigniszeile einer Detail-Seite
+ *  (PersonDetail/FamilyDetail, [21 INV-UI-9](../../specs/v9/21-UI-UX.md)) — leer, wenn
+ *  beides fehlt. Gleiche Orts-Chokepoint-Logik wie yearPlaceSummary(), nur der
+ *  Datums-Teil ist voll statt Jahr-only. NICHT für Disambiguierungs-Listen verwenden,
+ *  dafür bleibt yearPlaceSummary() der kanonische Weg (INV-UI-6). */
+export function dateSummary(ev: Event, ctx: PlaceContext): string {
+  const date = fullDateLabel(ev);
+  const place = eventPlaceLabel(ev, ctx);
+  if (date && place) return `${date}, ${place}`;
+  return date || place;
 }

@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent, isEventEmpty } from '../../../core/model';
-import { displayName, yearPlaceSummary } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, dateSummary } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
@@ -22,6 +22,10 @@ export interface EventRow {
   /** Jahr für die Sortierung innerhalb einer Kategorie (`sortWithinCategory`) — undatiert
    *  = `null`, sortiert ans Ende. */
   year: number | null;
+  /** VOLLES, lokalisiertes Datum + Ort (`dateSummary`, [21 INV-UI-9](
+   *  ../../../specs/v9/21-UI-UX.md), ADR-v9-64) — dies ist die EIGENE Ereigniszeile der
+   *  Person, nicht eine Disambiguierungs-Liste (die bleibt bei yearPlaceSummary/Jahr-only,
+   *  s. FamilyNavRow.children unten). */
   summary: string;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
@@ -108,7 +112,7 @@ function toEventRow(
     tag,
     category: eventCategory(tag, ev.eventType),
     year: eventYear(ev),
-    summary: yearPlaceSummary(ev, ctx),
+    summary: dateSummary(ev, ctx),
     value: ev.value,
     addr: ev.addr,
     note: ev.note,
