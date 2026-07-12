@@ -147,6 +147,101 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
   });
 });
 
+describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", volle Kette, v8-Vorbild)', () => {
+  it('liefert ein leeres Array ohne enclosedBy-Einträge', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toEqual([]);
+  });
+
+  it('zeigt die VOLLE Kette (nicht nur den direkten Elternteil) zum Schlüsseljahr', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@LAND@', place('@LAND@', { title: 'Preußen' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', { title: 'Kreis Steinfurt', enclosedBy: [{ placeId: '@LAND@', from: 1816, to: null }] }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toEqual([{ year: 1816, chainLabel: 'Kreis Steinfurt › Preußen' }]);
+  });
+
+  it('erzeugt eine neue Zeile, wenn sich NUR die Zugehörigkeit einer ÜBERGEORDNETEN Ebene ändert (direkter Elternteil bleibt gleich)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@PREUSSEN@', place('@PREUSSEN@', { title: 'Preußen' }));
+    db.placeObjects.set('@NRW@', place('@NRW@', { title: 'Nordrhein-Westfalen' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis Steinfurt',
+        // Der Kreis selbst wechselt 1946 von Preußen zu NRW — Ochtrups DIREKTER
+        // Elternteil (der Kreis) ändert sich dabei nicht.
+        enclosedBy: [
+          { placeId: '@PREUSSEN@', from: 1816, to: 1945 },
+          { placeId: '@NRW@', from: 1946, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // 1945 (Ende der Preußen-Periode) fällt weg, weil die volle Kette dort identisch mit
+    // 1816 bleibt (Duplikate werden zusammengefasst) — erst 1946 ändert die volle Kette.
+    expect(detail!.hierarchyTimeline).toEqual([
+      { year: 1816, chainLabel: 'Kreis Steinfurt › Preußen' },
+      { year: 1946, chainLabel: 'Kreis Steinfurt › Nordrhein-Westfalen' },
+    ]);
+  });
+
+  it('markiert eine echte Verwaltungslücke als EINE "unbekannt"-Zeile (chainLabel: null), wenn ein Schlüsseljahr in die Lücke fällt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@GRAF@',
+      place('@GRAF@', {
+        title: 'Grafschaft Steinfurt',
+        // Eine zusätzliche pnames-Periode liefert (wie in v8) ein Schlüsseljahr, das
+        // tatsächlich INNERHALB der Lücke 1814-1815 liegt -- ohne ein Schlüsseljahr,
+        // das in die Lücke selbst fällt, gäbe es keine Zeile mitten in der Lücke, nur
+        // davor/danach (nur SCHLÜSSELJAHRE werden geprüft, keine ganzen Zeiträume).
+        pnames: [{ value: 'Grafschaft Steinfurt (Spätform)', from: 1814, to: null }],
+      }),
+    );
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@GRAF@', from: 1300, to: 1813 },
+          { placeId: '@AMT@', from: 1816, to: null },
+        ],
+      }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // 1813 liegt noch INNERHALB der GRAF-Periode (inklusiv) -> identische Kette wie 1300,
+    // wird zusammengefasst. 1814 liegt in der echten Lücke -> "unbekannt". 1816 -> AMT.
+    expect(detail!.hierarchyTimeline).toEqual([
+      { year: 1300, chainLabel: 'Grafschaft Steinfurt' },
+      { year: 1814, chainLabel: null },
+      { year: 1816, chainLabel: 'Amt Ochtrup' },
+    ]);
+  });
+});
+
 describe('buildPlaceDetail — String→PlaceObject-Kandidaten (Spec 20 §1.7 [K])', () => {
   it('listet ein Event mit passendem ev.place, aber ohne placeId', () => {
     const db = makeDatabase();

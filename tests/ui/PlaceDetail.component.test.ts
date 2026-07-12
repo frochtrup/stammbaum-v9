@@ -111,8 +111,8 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
   });
 });
 
-describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => {
-  it('fügt eine neue enclosedBy-Zugehörigkeit über den generischen Picker hinzu', async () => {
+describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege (jetzt im PlaceEnclosureEditModal)', () => {
+  it('fügt eine neue enclosedBy-Zugehörigkeit über den generischen Picker im Bearbeiten-Modal hinzu', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -122,20 +122,18 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => 
     viewState.setCurrent('place', '@P1@');
 
     render(PlaceDetail, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Zugehörigkeit bearbeiten'));
 
     await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
     await fireEvent.click(screen.getByText('Kreis Steinfurt'));
 
-    // Zwei "Gültig von (Jahr)"-Felder existieren (enclosedBy + pnames) — enclosedBy
-    // steht als Sektion zuerst im DOM.
-    const addRow = screen.getAllByLabelText('Gültig von (Jahr)')[0]!.closest('.place-detail__add-row') as HTMLElement;
+    const addRow = screen.getByLabelText('Gültig von (Jahr)').closest('.place-enclosure-modal__add-row') as HTMLElement;
     await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual(['@P2@']);
   });
 
-  it('bietet "+ neuen Ort anlegen" im enclosedBy-Picker an (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme)', async () => {
+  it('bietet "+ neuen Ort anlegen" im enclosedBy-Picker im Bearbeiten-Modal an (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -144,7 +142,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => 
     viewState.setCurrent('place', '@P1@');
 
     render(PlaceDetail, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Zugehörigkeit bearbeiten'));
     await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
     await fireEvent.click(screen.getByText('+ neuen Ort anlegen …'));
 
@@ -160,7 +158,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege', () => 
     expect(created).toBeTruthy();
     expect(screen.queryByText('Neuer Ort')).toBeNull();
 
-    const addRow = screen.getAllByLabelText('Gültig von (Jahr)')[0]!.closest('.place-detail__add-row') as HTMLElement;
+    const addRow = screen.getByLabelText('Gültig von (Jahr)').closest('.place-enclosure-modal__add-row') as HTMLElement;
     await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual([created!.id]);
@@ -330,7 +328,7 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
     const { container } = render(PlaceDetail, { props: { appState, viewState } });
 
     // Lese-Darstellung bleibt sichtbar: Verwaltungskette + Namens-Pille (ohne Remove).
-    expect(screen.getByText('Kreis Steinfurt')).toBeTruthy();
+    expect(screen.getByText('Ochtrup › Kreis Steinfurt')).toBeTruthy();
     expect(screen.getByText('Ochtrupp')).toBeTruthy();
     // Aber keine Mutations-Controls außerhalb des Bearbeiten-Modus.
     expect(container.querySelector('.place-detail__remove-btn')).toBeNull();
@@ -362,11 +360,32 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
     const { container } = render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
 
-    expect(container.querySelector('.place-detail__remove-btn')).toBeTruthy();
+    // Namens-Varianten/Merge bleiben im bestehenden inline-Bearbeiten-Toggle.
     expect(container.querySelector('.stb-pill__remove')).toBeTruthy();
     expect(screen.getByLabelText('Neue Namensvariante')).toBeTruthy();
-    expect(screen.getByLabelText('Übergeordneter Ort')).toBeTruthy();
     expect(screen.getByLabelText('Ziel-Ort für Merge')).toBeTruthy();
+  });
+
+  it('"Zugehörigkeit bearbeiten" öffnet das PlaceEnclosureEditModal unabhängig vom inline-Bearbeiten-Toggle (direkte Zuordnung wandert ins Modal)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@P2@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    // Kein inline-Bearbeiten nötig — der Modal-Öffner steht unabhängig davon bereit.
+    expect(screen.queryByLabelText('Übergeordneter Ort')).toBeNull();
+    await fireEvent.click(screen.getByText('Zugehörigkeit bearbeiten'));
+
+    expect(screen.getByLabelText('Übergeordneter Ort')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Verwaltungszugehörigkeit bearbeiten' })).toBeTruthy();
   });
 });
 
@@ -410,7 +429,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affo
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -418,8 +437,12 @@ describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affo
 
     render(PlaceDetail, { props: { appState, viewState } });
 
-    expect(screen.getByText('Volle Kette:')).toBeTruthy();
-    expect(screen.getByText('Direkt zugeordnet:')).toBeTruthy();
+    expect(screen.getByText('Aktuell:')).toBeTruthy();
+    expect(screen.getByText('Zugehörigkeit nach Jahr (volle Kette):')).toBeTruthy();
+    // Die zunächst zusätzlich gebaute, nur-direkter-Elternteil-Zeitraum-Ansicht wurde
+    // als redundant zur vollen Kette wieder entfernt (Nachtrag ADR-v9-75).
+    expect(screen.queryByText('Verwaltungsgeschichte:')).toBeNull();
+    expect(screen.queryByText('Direkt zugeordnet:')).toBeNull();
     expect(screen.queryByText(/berechnet aus den Zugehörigkeiten unten/)).toBeNull();
     expect(screen.queryByText(/ihre eigene weitere Zugehörigkeit wird bei ihnen selbst gepflegt/)).toBeNull();
   });
@@ -436,7 +459,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affo
 
     const infoIcon = container.querySelector('.place-detail__info-icon');
     expect(infoIcon).toBeTruthy();
-    expect(infoIcon?.getAttribute('title')).toContain('berechnet aus den Zugehörigkeiten');
+    expect(infoIcon?.getAttribute('title')).toContain('volle Verwaltungskette');
   });
 });
 
@@ -461,9 +484,11 @@ describe('PlaceDetail — Ereigniszeilen zeigen NICHT die eigene Ortskette (Spec
 
     expect(screen.getByText('1900')).toBeTruthy();
     expect(screen.queryByText(/1900, Ochtrup/)).toBeNull();
-    // "Kreis Steinfurt" darf nur einmal auftauchen (in der Verwaltungszugehörigkeit oben),
-    // nicht ein zweites Mal in der Ereigniszeile.
-    expect(screen.getAllByText('Kreis Steinfurt')).toHaveLength(1);
+    // "Kreis Steinfurt" darf nur einmal auftauchen (in der Verwaltungszugehörigkeit oben,
+    // als Teil der Ketten-Anzeige), nicht ein zweites Mal in der Ereigniszeile.
+    expect(screen.getByText('Ochtrup › Kreis Steinfurt')).toBeTruthy();
+    const eventSection = screen.getByText('Ereignisse nach Typ').closest('section');
+    expect(eventSection?.textContent).not.toContain('Kreis Steinfurt');
   });
 });
 

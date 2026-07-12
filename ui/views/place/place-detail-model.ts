@@ -34,6 +34,17 @@ export interface PlaceVariantRow {
 }
 
 /**
+ * Eine Zeile der vollständigen Hierarchie-Zeitleiste ("Zugehörigkeit nach Jahr", v8-
+ * Vorbild `_placeDetailHierarchyTimeline`): die VOLLE Kette (alle Ebenen, nicht nur der
+ * direkte Elternteil) zu einem Schlüsseljahr. `chainLabel: null` markiert eine Lücke
+ * (kein Elternteil zu diesem Jahr dokumentiert — v8: "unbekannt").
+ */
+export interface HierarchyTimelineRow {
+  year: number;
+  chainLabel: string | null;
+}
+
+/**
  * Ein Event, dessen `ev.place`-String zwar zum Namen dieses PlaceObject passt (Titel
  * ODER pnames-Variante), das aber noch KEIN `ev.placeId` trägt (String→PlaceObject
  * verknüpfen, Spec 20 §1.7 [K]). Referenz auf das Event selbst (nicht kopiert) — die
@@ -57,6 +68,14 @@ export interface PlaceDetailModel {
   variants: PlaceVariantRow[];
   /** [Ort, übergeordnet, …] periodengerecht — Fallback ohne Jahr: undatierte Kette. */
   enclosureChain: string[];
+  /** Vollständige Verwaltungshierarchie ("Zugehörigkeit nach Jahr") — die Kette ALLER
+   *  Ebenen zu jedem Schlüsseljahr, inkl. Zeitgrenzen, die sich erst aus den Perioden der
+   *  ÜBERGEORDNETEN Ebenen selbst ergeben (v8-Vorbild `_placeDetailHierarchyTimeline`,
+   *  Nutzer-Auftrag "Orts-Detailansicht" — Nachtrag ADR-v9-75, ERSETZT die zunächst
+   *  zusätzlich gebaute, nur-direkter-Elternteil-Zeitraum-Ansicht — vom Nutzer nach
+   *  Ansicht beider Sektionen nebeneinander als redundant erkannt und entfernt, zweiter
+   *  Nachtrag). Leer, wenn `place.enclosedBy` leer ist. */
+  hierarchyTimeline: HierarchyTimelineRow[];
   /** String→PlaceObject-Kandidaten (Spec 20 §1.7 [K], Re-Import-Erkennung). */
   unlinkedEvents: UnlinkedEventRow[];
 }
@@ -126,6 +145,91 @@ function collectUnlinked(
 }
 
 /**
+ * Vollständige Verwaltungshierarchie zu jedem Schlüsseljahr ("Zugehörigkeit nach Jahr",
+ * v8-Vorbild `_placeDetailHierarchyTimeline`, `legacy-v8/ui-views-place.js`). Zeigt die
+ * VOLLE Kette (alle Ebenen, nicht nur der direkte Elternteil) — und die Schlüsseljahre
+ * kommen NICHT nur aus `place.enclosedBy` selbst, sondern rekursiv (BFS über den
+ * gesamten Eltern-Graphen, `place.enclosedBy[].placeId`) auch aus den Perioden JEDER
+ * übergeordneten Ebene (deren eigene `enclosedBy`/`pnames`/
+ * `existsFrom`/`existsTo`) — ein Wechsel drei Ebenen höher erzeugt hier also ebenfalls
+ * eine neue Zeile, auch wenn die direkte Elternschaft dieses Orts unverändert blieb.
+ * Konsekutive Schlüsseljahre mit IDENTISCHER voller Kette werden zu einer Zeile
+ * zusammengefasst; Lücken (kein Elternteil zu diesem Jahr dokumentiert) erzeugen genau
+ * EINE "unbekannt"-Zeile pro Lücke, nicht pro Jahr. Reine Funktion, deterministisch.
+ */
+function buildHierarchyTimeline(
+  ctx: PlaceContext,
+  placeId: PlaceId,
+  place: PlaceObject,
+): HierarchyTimelineRow[] {
+  const encs = place.enclosedBy;
+  if (!encs.length) return [];
+
+  // Schlüsseljahre rekursiv aus dem gesamten Eltern-Graphen sammeln (BFS, Zyklen-sicher).
+  const keyYears = new Set<number>();
+  const visited = new Set<PlaceId>();
+  const collectYears = (pid: PlaceId | null): void => {
+    if (!pid || visited.has(pid)) return;
+    visited.add(pid);
+    const p = ctx.places.byId(pid);
+    if (!p) return;
+    for (const e of p.enclosedBy) {
+      if (e.from != null) keyYears.add(e.from);
+      if (e.to != null) keyYears.add(e.to);
+      collectYears(e.placeId);
+    }
+    for (const pn of p.pnames) {
+      if (pn.from != null) keyYears.add(pn.from);
+      if (pn.to != null) keyYears.add(pn.to);
+    }
+    if (p.existsFrom != null) keyYears.add(p.existsFrom);
+    if (p.existsTo != null) keyYears.add(p.existsTo);
+  };
+  collectYears(placeId);
+
+  // Auf die Existenzdaten DIESES Orts + den dokumentierten enclosedBy-Zeitraum klemmen.
+  const exFrom = place.existsFrom;
+  const exTo = place.existsTo;
+  const withFrom = encs.filter((e) => e.from != null);
+  const docStart = withFrom.length ? Math.min(...withFrom.map((e) => e.from as number)) : null;
+  const hasOpenEnd = encs.some((e) => e.to == null);
+  const docEnd = hasOpenEnd ? null : encs.length ? Math.max(...encs.map((e) => e.to ?? 0)) : null;
+
+  const sortedKeyYears = [...keyYears]
+    .sort((a, b) => a - b)
+    .filter(
+      (y) =>
+        (exFrom == null || y >= exFrom) &&
+        (exTo == null || y <= exTo) &&
+        (docStart == null || y >= docStart) &&
+        (docEnd == null || y <= docEnd),
+    );
+  if (sortedKeyYears.length < 1) return [];
+
+  const rows: HierarchyTimelineRow[] = [];
+  let lastChainStr: string | null = null;
+  let inGap = false;
+  for (const year of sortedKeyYears) {
+    const meta = { truncated: false };
+    const chain = ctx.places.enclosureChainAsOf(placeId, year, meta).slice(1);
+    if (!chain.length) {
+      if (!inGap) {
+        rows.push({ year, chainLabel: null });
+        inGap = true;
+      }
+      lastChainStr = null;
+      continue;
+    }
+    inGap = false;
+    const chainStr = chain.join(' › ') + (meta.truncated ? ' › ?' : '');
+    if (chainStr === lastChainStr) continue;
+    lastChainStr = chainStr;
+    rows.push({ year, chainLabel: chainStr });
+  }
+  return rows;
+}
+
+/**
  * Baut den read-only Steckbrief eines PlaceObject. Gibt null zurück, wenn die id im
  * aktuellen Datenbestand fehlt (definierter Fallback, Spec 21 §5).
  */
@@ -184,6 +288,7 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
   // Ereignisjahr ist Teil der ausgeklammerten SVG-Zeitleiste (Spec 20 §1.9/§1.10,
   // anderer Bauabschnitt); hier der einfache "Ort, übergeordnet, …"-Steckbrief-Fallback.
   const enclosureChain = ctx.places.enclosureChainAsOf(placeId, null);
+  const hierarchyTimeline = buildHierarchyTimeline(ctx, placeId, place);
 
   // String→PlaceObject-Kandidaten: Events, deren rohes ev.place zum Titel ODER einer
   // pnames-Variante dieses PlaceObject normalisiert passt, aber noch ohne placeId sind.
@@ -210,6 +315,7 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
     citations: Array.from(citationsBySource.values()),
     variants,
     enclosureChain,
+    hierarchyTimeline,
     unlinkedEvents,
   };
 }

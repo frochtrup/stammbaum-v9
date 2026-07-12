@@ -9,6 +9,17 @@
   // `appState.mergePlace(survivorId, mergedId)` (Spec 02 §3) — keine Merge-Logik hier.
   // SVG-Namens-Zeitstrahl + Mini-Karte sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative
   // Inseln — anderer Bauabschnitt).
+  //
+  // Verwaltungsgeschichte (Bau-Auftrag "Orts-Detailansicht", Nutzer-Zitat: "die
+  // Herkunftsketten sortiert nach den Zeiträumen … die direkte Zuordnung … wandert in
+  // den Bearbeiten-Modal"; Nachtrag nach Ansicht des ersten Ergebnisses: "die komplette
+  // Verwaltungshierarchie inkl. zeitlicher Abgrenzungen, die sich aus den übergeordneten
+  // Ebenen ergeben"): die LESE-Ansicht zeigt hier NUR `detail.hierarchyTimeline` (volle
+  // Kette je Schlüsseljahr, `place-detail-model.ts`) — die zunächst zusätzlich gebaute,
+  // nur-direkter-Elternteil-Zeitraum-Ansicht war dazu redundant und wurde wieder entfernt
+  // (zweiter Nachtrag). Die BEARBEITUNG der direkten `enclosedBy`-Zuordnung (Picker +
+  // Von/Bis-Jahr) lebt in `PlaceEnclosureEditModal.svelte` (eigenes Overlay, analog
+  // EventEditModal, INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
@@ -16,9 +27,9 @@
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
   import type { PlaceObject } from '../../../core/places/types';
-  import { linkEventToPlace, withAddedPname, withRemovedPname, withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
+  import { linkEventToPlace, withAddedPname, withRemovedPname } from '../../../core/places';
   import { buildPlaceDetail, type PlaceEventRow } from './place-detail-model';
-  import PlaceForm from './PlaceForm.svelte';
+  import PlaceEnclosureEditModal from './PlaceEnclosureEditModal.svelte';
 
   interface Props {
     appState: AppState;
@@ -35,13 +46,13 @@
   }
   const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack }: Props = $props();
 
-  /** Info-Tooltip-Text für die Verwaltungszugehörigkeit (Spec 21 §10g): ersetzt zwei
-   *  permanente Fließtext-Sätze durch ein ⓘ neben der Überschrift statt sie stets
+  /** Info-Tooltip-Text für die Verwaltungszugehörigkeit (Spec 21 §10g): ersetzt einen
+   *  permanenten Fließtext-Satz durch ein ⓘ neben der Überschrift statt ihn stets
    *  einzublenden. */
   const ENCLOSURE_INFO =
-    'Volle Kette: berechnet aus den Zugehörigkeiten unten UND deren jeweils eigenen ' +
-    'übergeordneten Orten. Direkt zugeordnet: hier bearbeitbar — ihre eigene weitere ' +
-    'Zugehörigkeit wird bei ihnen selbst gepflegt.';
+    'Zugehörigkeit nach Jahr: die volle Verwaltungskette (bearbeitbar über ' +
+    '„Zugehörigkeit bearbeiten") zu jedem Jahr, in dem sich die Kette ändert — auch ' +
+    'wenn nur eine übergeordnete Ebene wechselt, nicht die direkte Zugehörigkeit selbst.';
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
@@ -55,27 +66,21 @@
   let newPnameValue = $state('');
   let newPnameFrom = $state<number | null>(null);
   let newPnameTo = $state<number | null>(null);
-  let newEnclosedParent = $state('');
-  let newEnclosedFrom = $state<number | null>(null);
-  let newEnclosedTo = $state<number | null>(null);
   let mergeTargetId = $state('');
   let mergeError = $state('');
 
-  /** Inline-Neuanlage eines übergeordneten Ortes (ADR-v9-42 Punkt 4 — der einzige Picker
-   *  hier, der eine Anlage-Option bekommt; das Merge-Ziel bleibt bewusst ohne, s. u.). */
-  let creatingEnclosedParent = $state(false);
+  /** Steuert PlaceEnclosureEditModal.svelte (Bau-Auftrag "Orts-Detailansicht": die
+   *  direkte enclosedBy-Zuordnung ist "Mittel zum Zweck" und wandert ins Modal, weg von
+   *  der Lesefläche). Nicht an `editing` gekoppelt — ein eigener, unabhängiger
+   *  Bearbeiten-Zugriff analog dem "✎ Bearbeiten"-Button der Kopfzeile. */
+  let enclosureModalOpen = $state(false);
 
-  function beginCreateEnclosedParent() {
-    creatingEnclosedParent = true;
+  function openEnclosureModal() {
+    enclosureModalOpen = true;
   }
 
-  function onEnclosedParentCreated(id: string) {
-    creatingEnclosedParent = false;
-    newEnclosedParent = id;
-  }
-
-  function cancelCreateEnclosedParent() {
-    creatingEnclosedParent = false;
+  function closeEnclosureModal() {
+    enclosureModalOpen = false;
   }
 
   function startEdit() {
@@ -119,20 +124,6 @@
     appState.savePlace(withRemovedPname(detail.place, index));
   }
 
-  function addEnclosedBy() {
-    if (!detail || !newEnclosedParent) return;
-    const next = withAddedEnclosedBy(detail.place, newEnclosedParent, newEnclosedFrom, newEnclosedTo);
-    appState.savePlace(next);
-    newEnclosedParent = '';
-    newEnclosedFrom = null;
-    newEnclosedTo = null;
-  }
-
-  function removeEnclosedBy(index: number) {
-    if (!detail) return;
-    appState.savePlace(withRemovedEnclosedBy(detail.place, index));
-  }
-
   function linkUnlinked(eventKey: string) {
     if (!detail || !placeId) return;
     const row = detail.unlinkedEvents.find((r) => r.key === eventKey);
@@ -149,10 +140,6 @@
   const otherPlaces = $derived(
     detail ? Array.from(appState.db.placeObjects.values()).filter((p) => p.id !== detail.place.id) : [],
   );
-
-  function placeTitleFor(id: string): string {
-    return appState.db.placeObjects.get(id)?.title ?? id;
-  }
 
   function placeLabel(p: PlaceObject): string {
     return p.title || p.id;
@@ -180,6 +167,7 @@
     mergeTargetId = '';
     mergeError = '';
   }
+
 </script>
 
 {#snippet placeEventRow(row: PlaceEventRow)}
@@ -245,54 +233,32 @@
         <span class="place-detail__info-icon" title={ENCLOSURE_INFO}>ⓘ</span>
       </h3>
       {#if detail.enclosureChain.length > 1}
-        <p class="place-detail__hint">Volle Kette:</p>
+        <p class="place-detail__hint">Aktuell:</p>
         <p class="place-detail__chain">{detail.enclosureChain.join(' › ')}</p>
+      {/if}
+      {#if detail.hierarchyTimeline.length > 0}
+        <p class="place-detail__hint">Zugehörigkeit nach Jahr (volle Kette):</p>
+        <ul class="place-detail__timeline-list">
+          {#each detail.hierarchyTimeline as row, i (i)}
+            <li class="place-detail__timeline-row">
+              <span class="place-detail__timeline-span">{row.year}</span>
+              <span class:place-detail__muted={row.chainLabel == null}>{row.chainLabel ?? 'unbekannt'}</span>
+            </li>
+          {/each}
+        </ul>
       {:else}
         <p class="place-detail__muted">Keine übergeordnete Zugehörigkeit erfasst.</p>
       {/if}
-      {#if detail.place.enclosedBy.length}
-        <p class="place-detail__hint">Direkt zugeordnet:</p>
-      {/if}
-      <ul class="place-detail__enclosed-list">
-        {#each detail.place.enclosedBy as enc, i (i)}
-          <li>
-            <span>{placeTitleFor(enc.placeId)}</span>
-            {#if enc.from || enc.to}<span class="place-detail__muted">({enc.from ?? '…'}–{enc.to ?? '…'})</span>{/if}
-            {#if editing}
-              <button type="button" class="place-detail__remove-btn" onclick={() => removeEnclosedBy(i)} aria-label="Zugehörigkeit entfernen">✕</button>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-      {#if editing}
-        <div class="place-detail__add-row">
-          {#if creatingEnclosedParent}
-            <!-- ADR-v9-42 (ersetzt die ADR-v9-40-Ausnahme "Ort/Hof bekommen nie eine
-                 Anlage-Option"): eine einzelne, bewusste Nutzerhandlung im Editier-Modus
-                 ist strukturell identisch zu "+ Neue Person/Familie/Quelle/Archiv
-                 anlegen" — die Kurations-Sorge betrifft nur automatische Massenanlage
-                 beim Import (ADR-v9-28/29), nicht diesen Einzelfall. -->
-            <PlaceForm {appState} onSaved={onEnclosedParentCreated} onCancel={cancelCreateEnclosedParent} />
-          {:else}
-            <Picker
-              items={otherPlaces}
-              getId={(p) => p.id}
-              getLabel={placeLabel}
-              matches={placeMatches}
-              value={newEnclosedParent || null}
-              onChange={(id) => (newEnclosedParent = id ?? '')}
-              label="Übergeordneter Ort"
-              placeholder="Übergeordneten Ort wählen…"
-              createLabel="+ neuen Ort anlegen …"
-              onCreateRequested={beginCreateEnclosedParent}
-            />
-            <input type="number" placeholder="von" bind:value={newEnclosedFrom} aria-label="Gültig von (Jahr)" />
-            <input type="number" placeholder="bis" bind:value={newEnclosedTo} aria-label="Gültig bis (Jahr)" />
-            <button type="button" onclick={addEnclosedBy}>+ Hinzufügen</button>
-          {/if}
-        </div>
-      {/if}
+      <div class="place-detail__enclosure-edit-row">
+        <button type="button" class="place-detail__enclosure-edit-btn" onclick={openEnclosureModal}>
+          Zugehörigkeit bearbeiten
+        </button>
+      </div>
     </section>
+
+    {#if enclosureModalOpen && placeId}
+      <PlaceEnclosureEditModal {appState} {placeId} onClose={closeEnclosureModal} />
+    {/if}
 
     {#if detail.variants.length > 0 || editing}
       <section class="place-detail__section">
@@ -340,9 +306,9 @@
             <!-- Kein "+ neu anlegen"-Slot — bewusst die EINZIGE verbleibende Ausnahme
                  (ADR-v9-42, semantisch statt kategorisch: ein frisch angelegter leerer
                  Ort als Merge-Ziel ist bedeutungslos, man führt nichts in gerade erst
-                 Erzeugtes zusammen). Andere Orts-/Hof-Picker (enclosedBy oben,
-                 event.place/addr, HofDetail Vorgänger/Nachfolger) haben die Anlage-Option
-                 inzwischen alle. -->
+                 Erzeugtes zusammen). Andere Orts-/Hof-Picker (enclosedBy im
+                 PlaceEnclosureEditModal, event.place/addr, HofDetail Vorgänger/Nachfolger)
+                 haben die Anlage-Option inzwischen alle. -->
             <Picker
               items={otherPlaces}
               getId={(p) => p.id}
@@ -516,14 +482,12 @@
     color: var(--stb-text);
   }
 
-  .place-detail__enclosed-list,
   .place-detail__unlinked ul {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
-  .place-detail__enclosed-list li,
   .place-detail__unlinked li {
     display: flex;
     align-items: center;
@@ -531,6 +495,46 @@
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--stb-surface-2);
     flex-wrap: wrap;
+  }
+
+  /* Zugehörigkeit nach Jahr (Bau-Auftrag "Orts-Detailansicht", v8-Vorbild
+     `_placeDetailHierarchyTimeline`): eine Zeile je Schlüsseljahr, an dem sich die volle
+     Verwaltungskette ändert. Grid statt Flex-Wrap: das Jahr behält eine FESTE Spalte,
+     die Kette bekommt eine eigene Spalte mit fester linker Kante — bricht die Kette
+     über mehrere Zeilen um, bleiben ALLE Zeilen konsistent unter der Kette eingerückt,
+     statt (wie bei Flex-Wrap) als eigene, am linken Rand beginnende Zeile umzubrechen. */
+  .place-detail__timeline-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .place-detail__timeline-row {
+    display: grid;
+    grid-template-columns: 3.5rem 1fr;
+    column-gap: 0.6rem;
+    align-items: baseline;
+    border-bottom: 1px solid var(--stb-surface-2);
+    padding: 0.3rem 0;
+  }
+
+  .place-detail__timeline-span {
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
+  }
+
+  .place-detail__enclosure-edit-row {
+    margin-top: 0.6rem;
+  }
+
+  .place-detail__enclosure-edit-btn {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.82rem;
   }
 
   .place-detail__citations {
@@ -545,14 +549,6 @@
     color: var(--stb-text-dim);
     font-size: 0.8rem;
     cursor: help;
-  }
-
-  .place-detail__remove-btn {
-    margin-left: auto;
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
   }
 
   .place-detail__add-row {
