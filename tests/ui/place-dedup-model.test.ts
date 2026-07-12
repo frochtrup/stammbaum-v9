@@ -81,6 +81,30 @@ describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () 
     expect(byId.get('@B@')).toBe(false);
   });
 
+  it('ADR-v9-77: "Stadt X" + "Kreis X" → typeMismatch:true, type pro Mitglied sichtbar', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@STADT@', place('@STADT@', { title: 'Steinfurt', type: 'Town' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Steinfurt', type: 'District' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].typeMismatch).toBe(true);
+    const typeById = new Map(groups[0].members.map((m) => [m.id, m.type]));
+    expect(typeById.get('@STADT@')).toBe('Town');
+    expect(typeById.get('@KREIS@')).toBe('District');
+  });
+
+  it('ADR-v9-77: gleicher type auf beiden Seiten → typeMismatch:false', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', type: 'Town' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup', type: 'Town' }));
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+
+    expect(groups[0].typeMismatch).toBe(false);
+  });
+
   it('verträgliche Namens-Varianten → conflict:false, fullName weiterhin gefüllt', () => {
     const db = makeDatabase();
     db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }));

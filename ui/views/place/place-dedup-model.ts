@@ -19,6 +19,10 @@ export interface PlaceDedupMember {
    * `false` → „ohne Zusatzangaben"-Pille, damit der Nutzer im Dedup-Dialog erkennt, welches
    * Mitglied kuratiert ist (Kennzeichnung, kein Einfluss auf die Gewinner-Heuristik, A1). */
   enriched: boolean;
+  /** ADR-v9-77: `PlaceObject.type` roh (z. B. „Town"/„District"), leer wenn unklassifiziert.
+   * Zeigt dem Nutzer die Kategorisierung jedes Mitglieds direkt im Dedup-Dialog — der häufige
+   * Fall „Stadt X" + „Kreis X" wird sonst nur über den vollen Namen sichtbar, wenn überhaupt. */
+  type: string;
 }
 
 export interface PlaceDedupGroup {
@@ -31,6 +35,9 @@ export interface PlaceDedupGroup {
    * Gruppe kam nur über den gelockerten „gemeinsamer Vorfahre"-Pfad zustande, kein
    * automatischer Gewinner-Vorschlag ohne dass der Nutzer die volle Namenskette gesehen hat. */
   conflict: boolean;
+  /** ADR-v9-77: mindestens ein Mitglieder-Paar trägt zwei verschiedene, beide nicht-leere
+   * `type`-Werte (z. B. „Stadt Steinfurt" vs. „Kreis Steinfurt") — Warnung, kein Gate. */
+  typeMismatch: boolean;
 }
 
 /** Verwendungszahl je PlaceId — wie oft `eventPlaceId(ev, ctx) === id` über alle Events. */
@@ -75,14 +82,16 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         const po = db.placeObjects.get(id);
         return po ? isEnrichedPlace(po) : false;
       };
+      const typeOf = (id: PlaceId): string => db.placeObjects.get(id)?.type ?? '';
       const members: PlaceDedupMember[] = ids
-        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id), enriched: enrichedOf(id) }))
+        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id), enriched: enrichedOf(id), type: typeOf(id) }))
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));
       return {
         key: ids.slice().sort()[0],
         members,
         suggestedWinnerId: pickWinnerId(ids, meta),
         conflict: g.conflict === true,
+        typeMismatch: g.typeMismatch === true,
       };
     })
     .sort((a, b) => a.key.localeCompare(b.key));

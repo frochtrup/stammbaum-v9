@@ -89,11 +89,14 @@
   {:else}
     <ul class="place-dedup__groups">
       {#each groups as group (group.key)}
-        <li class="place-dedup__group" class:place-dedup__group--conflict={group.conflict}>
+        <li class="place-dedup__group" class:place-dedup__group--conflict={group.conflict || group.typeMismatch}>
           <h3>
             {group.members.length} mutmaßliche Dubletten
             {#if group.conflict}
               <span class="place-dedup__conflict-badge" title="Die Verwaltungszugehörigkeit der Einträge widerspricht sich — bitte die volle Namenskette vergleichen, bevor zusammengeführt wird (Spec 11 §8 Restklasse 3).">⚠ abweichende Verwaltungszugehörigkeit — prüfen</span>
+            {/if}
+            {#if group.typeMismatch}
+              <span class="place-dedup__conflict-badge" title="Diese Einträge haben unterschiedliche Orts-Typen (z. B. Stadt und Kreis desselben Namens) — vermutlich KEINE Dublette, bitte vor dem Zusammenführen prüfen.">⚠ unterschiedliche Orts-Typen — prüfen</span>
             {/if}
           </h3>
           <ul class="place-dedup__members">
@@ -112,6 +115,9 @@
                   {m.fullName}
                   {#if m.id === group.suggestedWinnerId}
                     <span class="place-dedup__suggested">(Vorschlag)</span>
+                  {/if}
+                  {#if m.type}
+                    <span class="stb-pill">{m.type}</span>
                   {/if}
                   {#if !m.enriched}
                     <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>

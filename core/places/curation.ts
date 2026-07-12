@@ -98,6 +98,16 @@ export type DedupKind = 'places' | 'farms' | 'all';
 export interface DuplicateGroup {
   ids: (PlaceId | HofId)[];
   conflict?: boolean;
+  /**
+   * Nur Places (ADR-v9-77): mindestens ein Mitglieder-Paar trägt ZWEI verschiedene,
+   * BEIDE nicht-leere `type`-Werte (z. B. „Town" vs. „District") — der häufige Fall
+   * „Stadt X" und „Kreis X" teilen sich einen Namen, sind aber unterschiedliche
+   * Entitäten und sollten NICHT zusammengeführt werden. Ein leerer `type` (Seed-
+   * Rohzustand, noch nicht kategorisiert) triggert KEIN Mismatch — das ist der normale,
+   * unauffällige Fall „ein Mitglied noch nicht klassifiziert". Reine Zusatz-Information
+   * wie `conflict`, kein Gate — Zusammenführen bleibt immer eine bewusste Entscheidung.
+   */
+  typeMismatch?: boolean;
 }
 
 const EARTH_R_KM = 6371;
@@ -254,6 +264,7 @@ function findPlaceObjectDuplicates(places: PlaceObjects, kind: 'places' | 'all')
   // Conflict-Flag post-hoc je Gruppe: gibt es IRGENDEIN Mitglieder-Paar mit unverträglichen
   // Elternketten, ist die Namensgleichheit die einzige Klammer, nicht wechselseitige
   // Verträglichkeit ALLER Mitglieder — UI muss das sichtbar machen (volle Namenskette).
+  const typeOf = (id: PlaceId): string => places.get(id)?.type ?? '';
   for (const g of groups) {
     const pids = g.ids as PlaceId[];
     outer: for (let i = 0; i < pids.length; i++) {
@@ -261,6 +272,20 @@ function findPlaceObjectDuplicates(places: PlaceObjects, kind: 'places' | 'all')
         if (!parentsCompatible(parentsNorm(pids[i]), parentsNorm(pids[j]))) {
           g.conflict = true;
           break outer;
+        }
+      }
+    }
+    // typeMismatch (ADR-v9-77): zwei BEIDE nicht-leere, verschiedene `type`-Werte im
+    // selben Namens-Cluster — z. B. „Stadt Steinfurt" (Town) und „Kreis Steinfurt"
+    // (District) teilen den Namen, sind aber unterschiedliche Verwaltungsebenen.
+    outerType: for (let i = 0; i < pids.length; i++) {
+      const ti = typeOf(pids[i]);
+      if (!ti) continue;
+      for (let j = i + 1; j < pids.length; j++) {
+        const tj = typeOf(pids[j]);
+        if (tj && tj !== ti) {
+          g.typeMismatch = true;
+          break outerType;
         }
       }
     }

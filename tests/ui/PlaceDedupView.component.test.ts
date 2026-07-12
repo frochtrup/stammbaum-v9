@@ -36,6 +36,20 @@ describe('PlaceDedupView — Gruppen-Vorschlag + Zusammenführen', () => {
     expect(screen.getByText(/Arpke, Uetze, Region Hannover/)).toBeTruthy();
   });
 
+  it('ADR-v9-77: "Stadt X" + "Kreis X" → Typ-Mismatch-Badge + type-Pille pro Mitglied', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@STADT@', place('@STADT@', { title: 'Steinfurt', type: 'Town' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Steinfurt', type: 'District' }));
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceDedupView, { props: { appState } });
+
+    expect(screen.getByText(/unterschiedliche Orts-Typen/)).toBeTruthy();
+    expect(screen.getByText('Town')).toBeTruthy();
+    expect(screen.getByText('District')).toBeTruthy();
+  });
+
   it('zeigt eine Gruppe mit Gewinner-Vorschlag markiert', () => {
     const appState = createAppState();
     const db = makeDatabase();

@@ -248,6 +248,39 @@ describe('findPlaceDuplicates — kind=places (§9.2, ADR-v9-45)', () => {
     expect(findPlaceDuplicates(places, 'places')).toEqual([]);
   });
 
+  // typeMismatch (ADR-v9-77): häufiger Fall "Stadt X" + "Kreis X" — Namensgleichheit
+  // gruppiert sie weiterhin (Namensgleichheit ist NIE das Gate, s. o.), aber die Gruppe
+  // muss eine sichtbare Warnung tragen, damit niemand versehentlich Stadt in Kreis mergt.
+  it('typeMismatch: zwei verschiedene, beide nicht-leere type-Werte im Namens-Cluster → true', () => {
+    const places = placeMap(
+      place('@STADT@', { title: 'Steinfurt', type: 'Town' }),
+      place('@KREIS@', { title: 'Steinfurt', type: 'District' }),
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@STADT@') && x.ids.includes('@KREIS@'));
+    expect(g?.typeMismatch).toBe(true);
+  });
+
+  it('typeMismatch: ein Mitglied ohne type (noch unklassifiziert) → KEIN Mismatch', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Steinfurt', type: 'Town' }),
+      place('@B@', { title: 'Steinfurt' }), // type='' — Seed-Rohzustand, nicht klassifiziert
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@A@') && x.ids.includes('@B@'));
+    expect(g?.typeMismatch).toBeFalsy();
+  });
+
+  it('typeMismatch: gleicher type auf beiden Seiten → KEIN Mismatch', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup', type: 'Town' }),
+      place('@B@', { title: 'Ochtrup', type: 'Town' }),
+    );
+    const groups = findPlaceDuplicates(places, 'places');
+    const g = groups.find((x) => x.ids.includes('@A@') && x.ids.includes('@B@'));
+    expect(g?.typeMismatch).toBeFalsy();
+  });
+
   // Symptom-3-Grenze (Bugreport 2026-07-12): Der Nutzer wünschte, Orte mit „identischer
   // Verwaltungshierarchie" zu gruppieren. Am echten Datensatz verifiziert: das ist UNSICHER
   // und wurde in ADR-v9-50-Nachtrag bereits als (verworfenes) „Kriterium 4 (gemeinsamer
