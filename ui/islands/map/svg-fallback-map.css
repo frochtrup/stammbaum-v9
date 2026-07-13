@@ -50,6 +50,18 @@
   stroke-width: 2.5;
 }
 
+/* Ad-hoc-Marker (ADR-v9-78-Nachtrag, Offline-Parität zu leaflet-map.css
+   .map-island__adhoc-marker): Event-Koordinaten ohne kuratierten Orts-/Hof-Marker —
+   Ring statt gefüllter Kreis, dieselbe "präziser Einzelpunkt"-Optik wie der primäre
+   Pfad, nur ohne den dort per Leaflet-Style gesetzten Transparenz-Wert (hier per
+   `fill: none` gelöst, einfacher als ein zweiter Opacity-Wert). */
+.map-fallback__marker--adhoc {
+  fill: none;
+  stroke: #e5c96e;
+  stroke-width: 2.5;
+  stroke-dasharray: 3 2;
+}
+
 .map-fallback__migr-line {
   fill: none;
   stroke-width: 1.5;

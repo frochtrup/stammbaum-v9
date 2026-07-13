@@ -7,27 +7,35 @@
   // `EventLine.svelte`). Bewusst AUSSERHALB der `.stb-pill`-Familie (Spec 21 §10l
   // Punkt 2) — ein Paar-Zustand, IMMER sichtbar, keine reine Präsenz-Meldung.
   //
-  // Klickverhalten (ADR-v9-78 Punkt 4, nur wenn Koordinaten UND eine focusId vorhanden
-  // sind): setzt den geteilten ViewState-Slot `lensPlaceFocus` (view-state.svelte.ts,
-  // NICHT `lensFocus` — der trägt Personen-IDs, s. dortiger Modul-Kommentar) und ruft
+  // Klickverhalten (ADR-v9-78 Punkt 4, präzisiert per Nachtrag): der Sprung ist
+  // IMMER verfügbar, sobald `coords` gesetzt ist — NICHT mehr an eine aufgelöste
+  // `focusId` gekoppelt. Grund (Nutzer-Korrektur nach Ansicht des ersten Ergebnisses):
+  // Event-Koordinaten sind oft präziser als die des zugeordneten Orts/Hofs (z. B. ein
+  // Geburtshaus statt des Dorf-Zentrums, `eventCoords`-Fallback, Spec 11 §5) — die
+  // Karte muss darauf zentrieren können, AUCH wenn kein PlaceObject/HofObject mit
+  // eigenen Koordinaten existiert. Setzt IMMER den Roh-Koordinaten-Slot
+  // `viewState.setMapCoordFocus(coords)`; setzt ZUSÄTZLICH `lensPlaceFocus` (Entitäts-
+  // ID), wenn eine `focusId` vorhanden ist — dient dann NUR noch als optionaler
+  // Hervorhebungs-Hinweis (hebt den kuratierten Marker zusätzlich hervor, falls einer
+  // an dieser Stelle existiert), ist aber für den Sprung selbst nicht mehr nötig. Ruft
   // `onNavigateLens('map')` — DENSELBEN Lens-Umschalter-Mechanismus wie TreeView/
   // MapLensView/TimelineLensView (INV-UI-3, EIN kanonischer Weg). Eine separate Insel
-  // (ui/islands/map/leaflet-map.ts, ui/views/map/MapLensView.svelte) macht diesen Slot
-  // wirksam (zentriert/hebt den Marker hervor) — das ist NICHT Teil dieser Komponente.
+  // (ui/islands/map/leaflet-map.ts, ui/views/map/MapLensView.svelte) macht beide Slots
+  // wirksam (zentriert auf die Koordinate, hebt ggf. zusätzlich den kuratierten Marker
+  // hervor, oder zeichnet einen Ad-hoc-Marker an der genauen Stelle) — das ist NICHT
+  // Teil dieser Komponente.
   //
   // Ohne Koordinaten ist der Glyph reiner, nicht-interaktiver Text (kein Link ohne
-  // Ziel). Mit Koordinaten, aber ohne focusId (z. B. ein Ereignis mit rohen
-  // ev.lati/long-Fallback-Koordinaten, aber ohne aufgelöste placeId/hofId, s.
-  // core/places/chokepoints.ts::eventCoords) bleibt der Glyph ebenfalls
-  // nicht-interaktiv — nur die sekundäre externe OSM-Affordanz bleibt dann verfügbar.
+  // Ziel) — einziger verbleibender nicht-interaktiver Fall.
   import type { ViewState } from './view-state.svelte';
   import type { LensId } from './lens-model';
   import { geoHref } from './geo-link';
 
   interface Props {
     coords: { lat: number; long: number } | null;
-    /** Ziel-Id (Place- oder Hof-Id) für `lensPlaceFocus` — `null`, wenn kein
-     *  aufgelöstes Orts-/Hof-Objekt existiert (dann kein interner Sprung möglich). */
+    /** Ziel-Id (Place- oder Hof-Id) für die ZUSÄTZLICHE Marker-Hervorhebung —
+     *  `null`, wenn kein aufgelöstes Orts-/Hof-Objekt existiert (der Koordinaten-
+     *  Sprung selbst funktioniert trotzdem, s. o.). */
     focusId: string | null;
     viewState: ViewState;
     /** Cross-Tab-Navigation zur Karte-Lens (App.svelte's `navigateLens`, INV-UI-3) —
@@ -37,26 +45,23 @@
   const { coords, focusId, viewState, onNavigateLens }: Props = $props();
 
   function handleClick() {
-    if (!coords || !focusId) return;
-    viewState.setCurrent('lensPlaceFocus', focusId);
+    if (!coords) return;
+    viewState.setMapCoordFocus(coords);
+    if (focusId) viewState.setCurrent('lensPlaceFocus', focusId);
     onNavigateLens?.('map');
   }
 </script>
 
 <span class="stb-coord-indicator">
   {#if coords}
-    {#if focusId}
-      <button
-        type="button"
-        class="stb-coord-indicator__glyph"
-        title="Koordinaten vorhanden"
-        onclick={handleClick}
-      >
-        ◎
-      </button>
-    {:else}
-      <span class="stb-coord-indicator__glyph" title="Koordinaten vorhanden">◎</span>
-    {/if}
+    <button
+      type="button"
+      class="stb-coord-indicator__glyph"
+      title="Koordinaten vorhanden"
+      onclick={handleClick}
+    >
+      ◎
+    </button>
     <a
       class="stb-coord-indicator__osm"
       href={geoHref(coords)}

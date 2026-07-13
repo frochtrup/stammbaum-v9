@@ -259,6 +259,57 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
   });
 });
 
+describe('MapLensView — Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag: Event-Koordinaten sind oft präziser als Orts-Koordinaten)', () => {
+  afterEach(() => setOnline(true));
+
+  it('konsumiert "mapCoordFocus" beim Mount im Orte-Modus, auch OHNE passenden Ort/Hof (Ad-hoc-Marker statt kuratiertem Marker)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+  });
+
+  it('setzt "mapCoordFocus" nach dem Lesen sofort auf null zurück (gleiches Einmal-Konsum-Muster wie lensPlaceFocus)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
+
+    render(MapLensView, { props: { appState, viewState } });
+
+    expect(viewState.getMapCoordFocus()).toBeNull();
+  });
+
+  it('"mapCoordFocus" UND "lensPlaceFocus" können gleichzeitig gesetzt sein (CoordIndicator setzt beide, wenn ein kuratierter Marker existiert) — beide werden konsumiert', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensPlaceFocus', 'P1');
+    viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+    expect(viewState.getMapCoordFocus()).toBeNull();
+  });
+
+  it('ohne gesetztes "mapCoordFocus" mountet der Orte-Modus wie bisher, ohne Crash', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+    expect(viewState.getMapCoordFocus()).toBeNull();
+  });
+});
+
 describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
   afterEach(() => setOnline(true));
 

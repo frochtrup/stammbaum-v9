@@ -175,7 +175,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
     expect(onNavigateLens).toHaveBeenCalledWith('map');
   });
 
-  it('Ereignis mit NUR Fallback-Koordinaten (ev.lati/long, PlaceObject selbst ohne eigene lat/long) zeigt gefüllten Glyph, aber KEINEN internen Karte-Sprung — Regressionstest, s. ADR-v9-78/80-Bau-Nachtrag', async () => {
+  it('Ereignis mit NUR Fallback-Koordinaten (ev.lati/long, PlaceObject selbst ohne eigene lat/long) zentriert TROTZDEM über setMapCoordFocus, unabhängig von einem kuratierten Marker — ADR-v9-78-Nachtrag: Event-Koordinaten sind oft präziser als Orts-Koordinaten (z. B. ein Geburtshaus)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const onNavigateLens = vi.fn();
@@ -207,14 +207,18 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
       },
     });
 
-    // Glyph bleibt gefüllt (ev.coords ist vorhanden) — informativ, aber nicht mehr
-    // als Button (kein Sprungziel, die Karte kann diesen Ort nicht zentrieren/markieren,
-    // da placesWithCoords() nur Orte MIT eigenen Koordinaten als Marker führt).
-    expect(screen.getByText('◎')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: '◎' })).toBeNull();
+    await fireEvent.click(screen.getByText('◎'));
 
-    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
-    expect(onNavigateLens).not.toHaveBeenCalled();
+    // Zentriert auf die exakten Event-Koordinaten (Karte-Insel zeichnet dafür einen
+    // Ad-hoc-Marker, s. leaflet-map.ts/svg-fallback-map.ts) — das ist jetzt der
+    // primäre, IMMER wirksame Sprung. `lensPlaceFocus` wird trotzdem auf `@P1@`
+    // gesetzt (EventLine reicht jede aufgelöste placeId/hofId unconditional durch,
+    // s. dortiger Kommentar) — harmlos: die Karte-Insel findet dafür keinen
+    // kuratierten Marker (kein eigenes `lat`/`long` auf `@P1@`) und hebt schlicht
+    // nichts zusätzlich hervor, zentriert aber trotzdem korrekt über die Koordinate.
+    expect(viewState.getMapCoordFocus()).toEqual({ lat: 52.28, long: 7.43 });
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
   });
 });
 

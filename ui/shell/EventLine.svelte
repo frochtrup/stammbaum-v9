@@ -57,35 +57,18 @@
   // mit sowohl hofId als auch placeId zeigt den Hof-Link, nicht den Orts-Link — der
   // Hof ist die spezifischere Einheit. Derselbe Vorrang gilt für `focusId` unten.
   //
-  // `focusId` (Karte-Sprungziel) ist NICHT einfach `ev.hofId ?? ev.placeId` — Befund
-  // bei der eigenen Verifikation (Bau-Nachtrag ADR-v9-78/80): `ev.coords` kommt über
-  // den vollen `eventCoords`-Chokepoint (PlaceObject/HofObject-Koordinaten ODER
-  // `ev.lati/long`-Fallback, Spec 11 §5) — ein frisch geseedetes/unangereichertes
-  // PlaceObject (ADR-v9-28/44, der Normalfall direkt nach Import) hat i. d. R. KEINE
-  // eigenen Koordinaten, auch wenn EINZELNE Events dafür Fallback-Koordinaten tragen.
-  // Die Karte-Insel (`ui/islands/map/map-model.ts::placesWithCoords`) zeigt bewusst
-  // NUR Orte/Höfe mit EIGENEN Koordinaten als Marker (dieselbe engere Regel wie
-  // `PlaceList.svelte`s Koordinaten-Pille, projektweit konsistent) — kein
-  // Event-Fallback-Marker auf der Orte-Ebene. Ein `focusId`, das trotzdem auf ein
-  // solches Objekt zeigt, ließe den Karte-Sprung (ADR-v9-78 Punkt 4) kommentarlos ins
-  // Leere laufen (Navigation feuert, aber nichts zentriert/markiert sich). Deshalb:
-  // `focusId` nur setzen, wenn das aufgelöste Objekt SELBST `lat`/`long` trägt — sonst
-  // bleibt der Glyph über `coords` weiterhin gefüllt/informativ (der externe
-  // OpenStreetMap-Link nutzt weiterhin die volle Fallback-Kette), nur der interne
-  // Karte-Sprung unterbleibt (CoordIndicator zeigt dann nur den ◎-Text ohne Link,
-  // s. dortiger `focusId`-Guard).
-  const targetHasOwnCoords = $derived.by(() => {
-    if (ev.hofId) {
-      const hof = appState.db.hofObjects.get(ev.hofId);
-      return hof != null && hof.lat != null && hof.long != null;
-    }
-    if (ev.placeId) {
-      const pl = appState.db.placeObjects.get(ev.placeId);
-      return pl != null && pl.lat != null && pl.long != null;
-    }
-    return false;
-  });
-  const focusId = $derived(targetHasOwnCoords ? (ev.hofId ?? ev.placeId ?? null) : null);
+  // `focusId` ist NUR noch ein optionaler Hervorhebungs-Hinweis für `CoordIndicator`
+  // (hebt einen kuratierten PlaceObject-/HofObject-Marker zusätzlich hervor, FALLS
+  // einer an dieser Stelle existiert) — der Koordinaten-Sprung selbst hängt seit dem
+  // ADR-v9-78-Nachtrag nicht mehr davon ab (Event-Koordinaten sind oft präziser als
+  // die des zugeordneten Orts, `CoordIndicator` zentriert direkt auf `ev.coords`).
+  // Ein `focusId`, der auf kein kuratiertes Objekt mit eigenen Koordinaten zeigt, ist
+  // harmlos — die Karte-Insel (`findFocusPoint`) findet dann schlicht keinen Marker
+  // zum Hervorheben und zentriert trotzdem korrekt auf die rohen Koordinaten. Deshalb
+  // hier bewusst EINFACH, keine Objekt-Lookup-Vorprüfung mehr nötig (frühere Fassung
+  // dieses Bau-Nachtrags hatte das noch zur Gating-Bedingung gemacht, war aber nach
+  // der Korrektur unten überflüssig geworden).
+  const focusId = $derived(ev.hofId ?? ev.placeId ?? null);
   const placeClickable = $derived((!!ev.hofId && !!onNavigateToHof) || (!!ev.placeId && !!onNavigateToPlace));
 
   function handlePlaceClick() {

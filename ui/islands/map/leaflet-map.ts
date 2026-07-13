@@ -35,11 +35,23 @@ export interface LeafletMountData {
   /** Animationsfortschritt (0..N) für Personen-/Migrations-Modus; -1 = alles anzeigen (kein Animationslauf). */
   animIndex?: number;
   /**
-   * Orts-/Hof-ID zum Zentrieren+Hervorheben im Orte-Modus (ADR-v9-78 Punkt 4, Spec
-   * 20 §1.9 "Lücke 2"). `null`/`undefined`/unbekannte ID = kein Fokus, unverändertes
-   * Verhalten (alle Orte per `fitBounds`, kein hervorgehobener Marker).
+   * Orts-/Hof-ID zum ZUSÄTZLICHEN Hervorheben eines kuratierten Markers im Orte-Modus
+   * (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2"). `null`/`undefined`/unbekannte ID =
+   * kein zusätzlich hervorgehobener Marker — die Zentrierung selbst hängt seit dem
+   * ADR-v9-78-Nachtrag NICHT mehr hiervon ab, s. `focusCoords`.
    */
   focusPlaceId?: string | null;
+  /**
+   * Roh-Koordinaten zum Zentrieren im Orte-Modus (ADR-v9-78-Nachtrag, 2026-07-14) —
+   * PRIMÄRES Sprungziel, unabhängig davon, ob `focusPlaceId` einen kuratierten Marker
+   * trifft. Existiert bereits ein Marker an (nahezu) dieser Stelle (via `focusPlaceId`
+   * aufgelöst), wird DER hervorgehoben (kein doppelter Marker). Sonst zeichnet die
+   * Insel einen eigenständigen Ad-hoc-Marker an der exakten Koordinate — Event-
+   * Koordinaten (z. B. ein Geburtshaus) sind oft präziser als die des zugeordneten
+   * Orts und verdienen einen eigenen, sofort erkennbaren Zentrierungs-Effekt, auch
+   * ohne kuratiertes PlaceObject/HofObject an dieser Stelle.
+   */
+  focusCoords?: { lat: number; long: number } | null;
 }
 
 export interface LeafletIslandHandle {
@@ -94,7 +106,11 @@ export function mountLeafletMap(
   const markerLayer = L.layerGroup().addTo(map);
   const lineLayer = L.layerGroup().addTo(map);
 
-  function renderOrte(places: PlacePoint[], focusPlaceId: string | null | undefined): void {
+  function renderOrte(
+    places: PlacePoint[],
+    focusPlaceId: string | null | undefined,
+    focusCoords: { lat: number; long: number } | null | undefined,
+  ): void {
     const bounds: [number, number][] = [];
     const focusPoint = findFocusPoint(places, focusPlaceId);
     for (const p of places) {
@@ -131,8 +147,28 @@ export function mountLeafletMap(
     // engere, gezielte setView-Aufruf muss der letzte Zentrierungsbefehl sein, sonst
     // gewinnt die Gesamtansicht). `prefers-reduced-motion` (Spec 21 §6i) entscheidet
     // hier zwischen animiertem Pan/Zoom und direktem Sprung zum Endzustand.
+    //
+    // ADR-v9-78-Nachtrag: `focusPoint` (kuratierter Marker) hat Vorrang — existiert
+    // einer, wird DER zentriert+hervorgehoben (kein doppelter Marker an derselben
+    // Stelle). Sonst zentriert `focusCoords` (rohe Event-Koordinaten) direkt, MIT
+    // einem eigenständigen Ad-hoc-Marker — Event-Koordinaten sind oft präziser als
+    // die des zugeordneten Orts (z. B. ein Geburtshaus) und verdienen eine sichtbare
+    // Zentrierung, auch ohne kuratiertes PlaceObject/HofObject an dieser Stelle.
     if (focusPoint) {
       map.setView([focusPoint.lat, focusPoint.long], FOCUS_ZOOM, { animate: !prefersReducedMotion() });
+    } else if (focusCoords) {
+      L.circleMarker([focusCoords.lat, focusCoords.long], {
+        radius: 8,
+        fillColor: '#e5c96e',
+        color: '#f2e8d4',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.35,
+        className: 'map-island__marker--focused map-island__adhoc-marker',
+      })
+        .bindTooltip('Ereignis-Koordinaten (kein eigener Ortsmarker)', { direction: 'top', offset: [0, -6] })
+        .addTo(markerLayer);
+      map.setView([focusCoords.lat, focusCoords.long], FOCUS_ZOOM, { animate: !prefersReducedMotion() });
     }
   }
 
@@ -195,7 +231,7 @@ export function mountLeafletMap(
     markerLayer.clearLayers();
     lineLayer.clearLayers();
     const animIndex = next.animIndex ?? -1;
-    if (next.mode === 'orte') renderOrte(next.places, next.focusPlaceId);
+    if (next.mode === 'orte') renderOrte(next.places, next.focusPlaceId, next.focusCoords);
     else if (next.mode === 'migr') renderMigr(next.migrations, animIndex);
     else renderPerson(next.biography, animIndex);
   }

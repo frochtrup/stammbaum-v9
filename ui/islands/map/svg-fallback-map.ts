@@ -73,11 +73,18 @@ export interface SvgFallbackMountOptions {
   biography: BiographyPoint[];
   onSelectPlace?: (placeId: string) => void;
   /**
-   * Orts-/Hof-ID zum Zentrieren+Hervorheben im Orte-Modus (ADR-v9-78 Punkt 4, Spec
-   * 20 §1.9 "Lücke 2") — honoriert denselben Fokus wie der primäre Leaflet-Pfad
-   * (Offline-Parität-Disziplin, s. `leaflet-map.ts::LeafletMountData.focusPlaceId`).
+   * Orts-/Hof-ID zum ZUSÄTZLICHEN Hervorheben eines kuratierten Markers im Orte-Modus
+   * (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") — honoriert denselben Fokus wie der
+   * primäre Leaflet-Pfad (Offline-Parität-Disziplin, s.
+   * `leaflet-map.ts::LeafletMountData.focusPlaceId`). Zentrierung hängt seit dem
+   * ADR-v9-78-Nachtrag nicht mehr hiervon ab, s. `focusCoords`.
    */
   focusPlaceId?: string | null;
+  /**
+   * Roh-Koordinaten zum Zentrieren im Orte-Modus (ADR-v9-78-Nachtrag) — Offline-
+   * Parität zu `leaflet-map.ts::LeafletMountData.focusCoords`.
+   */
+  focusCoords?: { lat: number; long: number } | null;
 }
 
 export interface SvgFallbackHandle {
@@ -160,6 +167,21 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
         circle.addEventListener('click', () => opts.onSelectPlace?.(p.placeId));
         content.appendChild(circle);
       }
+      // Ad-hoc-Marker (ADR-v9-78-Nachtrag, Offline-Parität zu leaflet-map.ts) — nur
+      // wenn KEIN kuratierter Marker gefunden wurde (sonst doppelte Hervorhebung an
+      // derselben Stelle).
+      if (!focusPoint && opts.focusCoords) {
+        const { x, y } = project(opts.focusCoords.lat, opts.focusCoords.long);
+        const circle = svgEl('circle');
+        circle.setAttribute('cx', String(x));
+        circle.setAttribute('cy', String(y));
+        circle.setAttribute('r', '5');
+        circle.setAttribute('class', 'map-fallback__marker map-fallback__marker--adhoc');
+        const title = svgEl('title');
+        title.textContent = 'Ereignis-Koordinaten (kein eigener Ortsmarker)';
+        circle.appendChild(title);
+        content.appendChild(circle);
+      }
     } else if (opts.mode === 'migr') {
       // Vereinfacht (Auftrag: "nur Linien ohne Animation"): statische Polylinien,
       // eingefärbt nach Epoche — kein Play/Pause/Loop im Fallback.
@@ -206,8 +228,12 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
     // ein NEUES Element ohne Vorzustand, ein `transition` würde also nie sichtbar
     // animieren; die Zentrierung ist damit von sich aus ein direkter Sprung, erfüllt
     // `prefers-reduced-motion`/Spec 21 §6i ohne zusätzlichen JS-Check).
-    if (focusPoint) {
-      const { x, y } = project(focusPoint.lat, focusPoint.long);
+    // ADR-v9-78-Nachtrag: `focusPoint` (kuratierter Marker) hat Vorrang; sonst
+    // zentriert `focusCoords` (rohe Event-Koordinaten) direkt — Offline-Parität zum
+    // primären Leaflet-Pfad.
+    const centerOn = focusPoint ?? (opts.mode === 'orte' ? opts.focusCoords : null);
+    if (centerOn) {
+      const { x, y } = project(centerOn.lat, centerOn.long);
       const tx = VIEW_W / 2 - x * FOCUS_SCALE;
       const ty = VIEW_H / 2 - y * FOCUS_SCALE;
       content.setAttribute('transform', `translate(${tx}, ${ty}) scale(${FOCUS_SCALE})`);

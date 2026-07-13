@@ -64,6 +64,17 @@
   }
 }
 
+/* Ad-hoc-Marker (ADR-v9-78-Nachtrag): Event-Koordinaten ohne passenden kuratierten
+   Orts-/Hof-Marker (z. B. ein Geburtshaus statt des Dorf-Zentrums). Bewusst optisch
+   von den normalen Orte-/Höfe-Markern UNTERSCHIEDEN (Ring statt gefüllter Kreis/
+   Raute) — signalisiert "präziser Einzelpunkt aus einem Ereignis", nicht "kuratierter
+   Ort/Hof im Bestand". Erbt trotzdem den Gold-Pulse von `.map-island__marker--focused`
+   (dieselbe Hervorhebungs-Sprache), nur die Füllung ist per Leaflet-Style transparent
+   gehalten (s. leaflet-map.ts renderOrte, fillOpacity 0.35) statt hier per CSS. */
+.map-island__adhoc-marker {
+  stroke-dasharray: 3 2;
+}
+
 @keyframes map-island-focus-pulse {
   0%,
   100% {

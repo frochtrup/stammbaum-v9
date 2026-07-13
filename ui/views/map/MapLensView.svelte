@@ -81,6 +81,22 @@
     }
   });
 
+  // Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag) — gleicher EINMALIGER-Konsum-Read/
+  // Zyklus-Guard wie `focusPlaceId` oben, nur über das dedizierte
+  // `setMapCoordFocus`/`getMapCoordFocus`-Paar statt des generischen `ViewTarget`-
+  // Registers (Koordinaten sind keine Entitäts-Auswahl, s. view-state.svelte.ts).
+  // `focusPlaceId` UND `focusCoords` können gleichzeitig gesetzt sein (`CoordIndicator`
+  // setzt beide, wenn ein kuratierter Marker existiert) — die Insel entscheidet selbst,
+  // welcher Vorrang hat (kuratierter Marker vor Ad-hoc-Punkt, s. leaflet-map.ts).
+  let focusCoords = $state<{ lat: number; long: number } | null>(null);
+  const coordFocusFromViewState = $derived(viewState.getMapCoordFocus());
+  $effect(() => {
+    if (mode === 'orte' && coordFocusFromViewState) {
+      focusCoords = coordFocusFromViewState;
+      viewState.setMapCoordFocus(null);
+    }
+  });
+
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: LeafletIslandHandle | SvgFallbackHandle | null = null;
   let usingFallback = $state(!navigator.onLine);
@@ -118,7 +134,7 @@
 
   function mountOrUpdate(): void {
     if (!containerEl) return;
-    const data = { mode, places, migrations, biography, animIndex, focusPlaceId };
+    const data = { mode, places, migrations, biography, animIndex, focusPlaceId, focusCoords };
     if (usingFallback) {
       if (!handle) {
         handle = mountSvgFallbackMap(containerEl, {
@@ -127,6 +143,7 @@
           migrations,
           biography,
           focusPlaceId,
+          focusCoords,
           onSelectPlace: () => {},
         });
       } else {
@@ -136,6 +153,7 @@
           migrations,
           biography,
           focusPlaceId,
+          focusCoords,
           onSelectPlace: () => {},
         });
       }

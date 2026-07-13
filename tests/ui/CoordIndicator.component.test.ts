@@ -32,20 +32,6 @@ describe('CoordIndicator — Glyph-Zustand', () => {
 });
 
 describe('CoordIndicator — interner Karte-Sprung (ADR-v9-78/80)', () => {
-  it('Klick mit Koordinaten + focusId setzt lensPlaceFocus und navigiert zur Karte-Lens', async () => {
-    const viewState = createViewState();
-    const onNavigateLens = vi.fn();
-
-    render(CoordIndicator, {
-      props: { coords: { lat: 52.1, long: 7.6 }, focusId: '@P1@', viewState, onNavigateLens },
-    });
-
-    await fireEvent.click(screen.getByText('◎'));
-
-    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
-    expect(onNavigateLens).toHaveBeenCalledWith('map');
-  });
-
   it('Klick ohne Koordinaten tut nichts — der Glyph ist kein Link/Button', () => {
     const viewState = createViewState();
     const onNavigateLens = vi.fn();
@@ -57,7 +43,7 @@ describe('CoordIndicator — interner Karte-Sprung (ADR-v9-78/80)', () => {
     expect(glyph.closest('button')).toBeNull();
   });
 
-  it('Koordinaten vorhanden, aber keine focusId: Glyph bleibt nicht-interaktiv (kein Sprungziel)', async () => {
+  it('Koordinaten vorhanden, aber keine focusId: Klick zentriert trotzdem über setMapCoordFocus, setzt lensPlaceFocus NICHT (ADR-v9-78-Nachtrag)', async () => {
     const viewState = createViewState();
     const onNavigateLens = vi.fn();
 
@@ -65,9 +51,26 @@ describe('CoordIndicator — interner Karte-Sprung (ADR-v9-78/80)', () => {
       props: { coords: { lat: 52.1, long: 7.6 }, focusId: null, viewState, onNavigateLens },
     });
 
-    const glyph = screen.getByText('◎');
-    expect(glyph.closest('button')).toBeNull();
-    expect(onNavigateLens).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getMapCoordFocus()).toEqual({ lat: 52.1, long: 7.6 });
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
+  });
+
+  it('Klick mit Koordinaten + focusId setzt BEIDE Slots (Zentrierung UND zusätzliche Marker-Hervorhebung)', async () => {
+    const viewState = createViewState();
+    const onNavigateLens = vi.fn();
+
+    render(CoordIndicator, {
+      props: { coords: { lat: 52.1, long: 7.6 }, focusId: '@P1@', viewState, onNavigateLens },
+    });
+
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getMapCoordFocus()).toEqual({ lat: 52.1, long: 7.6 });
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
   });
 });
 

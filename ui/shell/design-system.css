@@ -272,8 +272,22 @@ textarea::placeholder {
    vorher unabhängigen `.family-list__meta`/`.source-list__refcount` (unterschiedliche
    Farben: gedimmt bzw. gold). `PersonList`s Geburts-/Sterbejahr-Zeile bleibt bewusst
    AUSSERHALB dieser Konsolidierung (biografische Kerninfo, kein Zusatz-Zähler). */
+/* Zähl-Elemente in Listenzeilen ("1 Kind", "5× zitiert", Spec 21 §10l Punkt 1,
+   ADR-v9-79-Nachtrag 2026-07-14 — Nutzer-Fund: reiner Text ging in einer langen Liste
+   optisch unter, schnelles Scannen war nicht möglich). Bewusst eine DRITTE, eigene
+   Optik zwischen reinem Text und `.stb-pill` (Nutzer-Wahl unter drei Optionen:
+   "leichter Hintergrund-Chip") — dezente Fläche für Scan-Kontrast, aber OHNE Rahmen
+   und mit engerem Padding/kleinerem Radius als `.stb-pill`, damit Zähl-Elemente (die
+   auf praktisch jeder Zeile vorkommen) nicht dieselbe visuelle Dichte wie die
+   selteneren Präsenz-/Kategorie-Badges erzeugen — genau die Dichte, die ADR-v9-79
+   durch die Ablehnung von "Alles wird Pill" bereits bewusst vermieden hat. */
 .stb-list-stat {
+  display: inline-flex;
+  align-items: center;
   color: var(--stb-text-dim);
+  background: var(--stb-surface-2);
+  border-radius: 5px;
+  padding: 0.1em 0.45em;
 }
 
 /* Koordinaten-Indikator (Spec 21 §10l Punkt 2 / §10m Punkt 2, ADR-v9-79/80): DER EINE

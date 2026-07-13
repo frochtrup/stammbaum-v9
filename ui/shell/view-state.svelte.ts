@@ -51,6 +51,26 @@ export type ViewTarget =
 
 type Listener = (target: ViewTarget, id: string | null) => void;
 
+/**
+ * Roh-Koordinaten-Sprunganweisung für die Karte-Lens (ADR-v9-78-Nachtrag, 2026-07-14
+ * — Nutzer-Korrektur nach Ansicht des ersten `lensPlaceFocus`-Ergebnisses: „wenn ein
+ * event koordinaten hat, sollten diese über das map symbol erreichbar sein (sind
+ * eigentlich wichtiger und relevanter als ortskoordinaten - könnten z. B. ein
+ * geburtshaus statt eines geburtsortes sein)"). `lensPlaceFocus` (oben) trägt eine
+ * ENTITÄTS-ID für den Fall, dass ein PlaceObject/HofObject SELBST einen kuratierten
+ * Marker hat (Highlight-Zweck). Eine Koordinate ist aber KEINE Entitäts-Auswahl —
+ * ein Event kann präzisere Koordinaten tragen als der Ort/Hof, dem es zugeordnet ist
+ * (Fallback-Kette, `eventCoords`, Spec 11 §5), sogar OHNE dass ein PlaceObject mit
+ * eigenen Koordinaten existiert. Deshalb ein eigenes, expliziten typisiertes
+ * Methodenpaar statt einer Zweckentfremdung von `setCurrent`/`getCurrent` (deren
+ * `string | null`-Vertrag für Entitäts-IDs gedacht ist, INV-VS) — bewusst NICHT Teil
+ * des generischen `ViewTarget`-Registers.
+ */
+export interface MapCoordFocus {
+  lat: number;
+  long: number;
+}
+
 export interface ViewState {
   /** Aktuelle Auswahl gemäß Ziel setzen; feuert das Change-Event genau einmal. */
   setCurrent(target: ViewTarget, id: string | null): void;
@@ -58,6 +78,10 @@ export interface ViewState {
   getCurrent(target: ViewTarget): string | null;
   /** Imperativer Konsument (nicht-Svelte / Lifecycle-Hooks): auf Änderungen hören. */
   subscribe(fn: Listener): () => void;
+  /** Einmalige Roh-Koordinaten-Sprunganweisung für die Karte-Lens setzen/löschen. */
+  setMapCoordFocus(coords: MapCoordFocus | null): void;
+  /** Reaktiv lesen (aus Svelte-Komponenten heraus). */
+  getMapCoordFocus(): MapCoordFocus | null;
 }
 
 /**
@@ -80,6 +104,7 @@ export function createViewState(): ViewState {
     tasks: null,
     more: null,
   });
+  let mapCoordFocus = $state<MapCoordFocus | null>(null);
 
   // Bewusst ein reines Buchführungs-Set, kein Teil des reaktiven Graphen (wird nie in
   // einem $derived/Template gelesen) — SvelteSet wäre hier unnötiger Overhead.
@@ -97,6 +122,12 @@ export function createViewState(): ViewState {
     subscribe(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
+    },
+    setMapCoordFocus(coords) {
+      mapCoordFocus = coords;
+    },
+    getMapCoordFocus() {
+      return mapCoordFocus;
     },
   };
 }
