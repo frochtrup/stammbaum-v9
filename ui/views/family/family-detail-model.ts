@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { Coords, PlaceContext } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent, isEventEmpty } from '../../../core/model';
-import { displayName, yearPlaceSummary, dateSummary } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
 
 export interface FamilyMemberRow {
@@ -23,11 +23,15 @@ export interface FamilyMemberRow {
 export interface FamilyEventRow {
   key: string;
   label: string;
-  /** VOLLES, lokalisiertes Datum + Ort (`dateSummary`, [21 INV-UI-9](
+  /** VOLLES, lokalisiertes Datum (`fullDateLabel`, [21 INV-UI-9](
    *  ../../../specs/v9/21-UI-UX.md), ADR-v9-64) — dies ist die EIGENE Ereigniszeile der
    *  Familie (Verlobung/Heirat/generische events[]), nicht eine Disambiguierungs-Liste
-   *  (die bleibt bei yearPlaceSummary/Jahr-only, s. FamilyMemberRow.summary oben). */
-  summary: string;
+   *  (die bleibt bei yearPlaceSummary/Jahr-only, s. FamilyMemberRow.summary oben).
+   *  Getrennt von `placeLabel` (ADR-v9-80 Punkt 1, `EventLine.svelte`). */
+  dateLabel: string;
+  /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
+   *  Text in `EventLine.svelte`. */
+  placeLabel: string;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
   /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
@@ -85,7 +89,8 @@ function toEventRow(
   return {
     key,
     label: ev.eventType || eventTypeLabel(tag),
-    summary: dateSummary(ev, ctx),
+    dateLabel: fullDateLabel(ev),
+    placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
     addr: ev.addr,
     note: ev.note,

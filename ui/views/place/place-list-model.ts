@@ -13,11 +13,16 @@ export interface PlaceRow {
   title: string;
   type: string;
   hasCoords: boolean;
+  coords: { lat: number; long: number } | null;
   /** String-Varianten (pnames) für den Gruppen-Modus — leer, wenn keine erfasst sind. */
   variants: string[];
   /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille) — reines
    *  Inhalts-Prädikat, KEINE Herkunfts-Aussage (s. Modul-Kommentar der Kern-Funktion). */
   enriched: boolean;
+  /** Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — `true`, wenn mind. eine
+   *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `enriched` (ein Ort kann
+   *  eine Kette haben, ohne sonst angereichert zu sein, oder umgekehrt). */
+  hasHierarchy: boolean;
 }
 
 /** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.7 [K] Referenz-Filter, ADR-v9-46). */
@@ -48,13 +53,16 @@ export function isAdminType(type: string | null | undefined): boolean {
 }
 
 function toRow(pl: PlaceObject): PlaceRow {
+  const hasCoords = pl.lat != null && pl.long != null;
   return {
     id: pl.id,
     title: pl.title || pl.id,
     type: pl.type,
-    hasCoords: pl.lat != null && pl.long != null,
+    hasCoords,
+    coords: hasCoords ? { lat: pl.lat as number, long: pl.long as number } : null,
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
     enriched: isEnrichedPlace(pl),
+    hasHierarchy: pl.enclosedBy.length > 0,
   };
 }
 

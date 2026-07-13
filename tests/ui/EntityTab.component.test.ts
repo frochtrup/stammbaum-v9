@@ -173,7 +173,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('repository')).toBeNull();
   });
 
-  it('Person -> Ort: "Ort ansehen" navigiert zur Orte-Detailseite (Spec 20 §1.7)', async () => {
+  it('Person -> Ort: Klick auf den Ortsnamen navigiert zur Orte-Detailseite (Spec 20 §1.7, ADR-v9-80: Ortsname selbst ist der Link)', async () => {
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -185,7 +185,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     render(EntityTab, { props: { appState, viewState } });
 
-    await fireEvent.click(screen.getByText('Ort ansehen →'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Ochtrup' }));
 
     expect(screen.getByRole('tab', { name: /Orte/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('place')).toBe('@P1@');

@@ -26,9 +26,19 @@
  * Lens-Wechsel erhalten"). Baum und die künftige Karte lesen/schreiben DENSELBEN
  * Slot — kein `tree`+`map`-Trio mit eigenem Fokus je Lens (das wäre selbst wieder
  * eine INV-VS-Verletzung, "eine Auswahl-Instanz je Ziel", s. Spec 21 §5/ADR-Log).
+ *
+ * `lensPlaceFocus` (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") ist bewusst ein
+ * EIGENER Slot statt `lensFocus` mitzubenutzen: `lensFocus` ist der dauerhafte
+ * Personen-Fokus (bleibt über Lens-Wechsel hinweg bestehen), `lensPlaceFocus` ist ein
+ * EINMALIGER Sprung-Auftrag aus einem konkreten Orts-/Hof-Klick-Origin (Ereigniszeilen-
+ * Kartenlink/`CoordIndicator`, `PlaceDetail`/`HofDetail`) in den Karte-Lens-Orte-Modus
+ * — die konsumierende Seite (`MapLensView.svelte`) liest ihn EINMAL und setzt ihn
+ * sofort danach zurück auf `null` (kein Dauerzustand wie `lensFocus`, sonst würde ein
+ * späterer, unabhängiger Karte-Besuch erneut auf den alten Ort springen).
  */
 export type ViewTarget =
   | 'lensFocus'
+  | 'lensPlaceFocus'
   | 'person'
   | 'family'
   | 'source'
@@ -59,6 +69,7 @@ export interface ViewState {
 export function createViewState(): ViewState {
   const selection = $state<Record<ViewTarget, string | null>>({
     lensFocus: null,
+    lensPlaceFocus: null,
     person: null,
     family: null,
     source: null,

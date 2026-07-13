@@ -264,3 +264,51 @@ textarea::placeholder {
   font-size: 0.75rem;
   color: var(--stb-text-dim);
 }
+
+/* Zahlen-Fakt-Text (Spec 21 §10l Punkt 1, ADR-v9-79): DER EINE Stil für reine
+   Zählungen in einer Listenzeile (Kinderzahl `FamilyList`, Referenzzähler
+   `SourceList`, künftige analoge Zählungen) — bewusst KEIN `.stb-pill` (Zahlen
+   erscheinen auf praktisch jeder Zeile, ein Pill dafür wäre Rauschen). Ersetzt die
+   vorher unabhängigen `.family-list__meta`/`.source-list__refcount` (unterschiedliche
+   Farben: gedimmt bzw. gold). `PersonList`s Geburts-/Sterbejahr-Zeile bleibt bewusst
+   AUSSERHALB dieser Konsolidierung (biografische Kerninfo, kein Zusatz-Zähler). */
+.stb-list-stat {
+  color: var(--stb-text-dim);
+}
+
+/* Koordinaten-Indikator (Spec 21 §10l Punkt 2 / §10m Punkt 2, ADR-v9-79/80): DER EINE
+   Paar-Zustand-Glyph (◎ vorhanden / ◌ fehlt), von `CoordIndicator.svelte` gerendert.
+   Ersetzt `.place-list__coord-indicator`/`.hof-list__coord-indicator` UND den
+   Text-Link "Karte ↗" in PersonDetail/FamilyDetail (dort über `EventLine.svelte`). */
+.stb-coord-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.stb-coord-indicator__glyph {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--stb-quay-3);
+  cursor: default;
+  line-height: 1;
+}
+
+button.stb-coord-indicator__glyph {
+  cursor: pointer;
+}
+
+button.stb-coord-indicator__glyph:hover,
+button.stb-coord-indicator__glyph:focus-visible {
+  color: var(--stb-gold-light);
+}
+
+.stb-coord-indicator__glyph--missing {
+  color: var(--stb-text-muted);
+}
+
+.stb-coord-indicator__osm {
+  font-size: 0.72rem;
+}

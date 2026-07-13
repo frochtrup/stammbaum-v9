@@ -39,6 +39,17 @@
   fill: #e8a33a;
 }
 
+/* Fokus-Hervorhebung im Orte-Modus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") —
+   dieselbe Gold-Akzentfarbe wie der primäre Leaflet-Pfad (leaflet-map.css
+   .map-island__marker--focused), statisch statt pulsierend: die Fokus-Zentrierung
+   selbst baut die Inhalts-Gruppe bei jedem Update komplett neu auf (kein
+   CSS-transition-fähiger Vorzustand), ein zusätzlicher Animations-Layer würde hier
+   nur Overhead ohne sichtbaren Effekt sein. */
+.map-fallback__marker--focused {
+  stroke: #e5c96e;
+  stroke-width: 2.5;
+}
+
 .map-fallback__migr-line {
   fill: none;
   stroke-width: 1.5;

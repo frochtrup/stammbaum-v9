@@ -170,9 +170,9 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
     const birth = detail.events.find((e) => e.label === 'Geburt')!;
-    expect(birth.summary).toBe('12. März 1890');
+    expect(birth.dateLabel).toBe('12. März 1890');
     const death = detail.events.find((e) => e.label === 'Tod')!;
-    expect(death.summary).toBe('ca. 1960');
+    expect(death.dateLabel).toBe('ca. 1960');
   });
 
   it('Ereignisse[]-Einträge zeigen ebenfalls das volle Datum in der eigenen Ereigniszeile (nicht nur BIRT/DEAT-Sonderfelder)', () => {
@@ -183,7 +183,19 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.events[0].summary).toBe('5. Juni 1950');
+    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
+  });
+
+  it('liefert placeLabel getrennt vom Datum (ADR-v9-80 Punkt 1) — EventLine rendert "Datum, Ort" statt eines vorverknüpften Strings', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.events.push(makeEvent('RESI', { date: '5 JUN 1950', place: 'Ochtrup' }));
+    db.individuals.set('@I1@', p);
+
+    const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
+
+    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
+    expect(detail.events[0].placeLabel).toBe('Ochtrup');
   });
 
   it('Kinder-Zeile (Disambiguierung, INV-UI-6) bleibt bei Jahr-only, auch wenn das Geburtsdatum Tag+Monat trägt', () => {

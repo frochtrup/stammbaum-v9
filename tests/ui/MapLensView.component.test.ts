@@ -167,6 +167,98 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
   });
 });
 
+describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2")', () => {
+  afterEach(() => setOnline(true));
+
+  it('konsumiert den geteilten ViewState-Slot "lensPlaceFocus" beim Mount im Orte-Modus (mountet ohne Crash)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensPlaceFocus', 'P1');
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(screen.getByRole('tab', { name: 'Orte' }).getAttribute('aria-current')).toBe('page');
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+  });
+
+  it('setzt "lensPlaceFocus" nach dem Lesen sofort auf null zurück (kein Dauerzustand wie lensFocus)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensPlaceFocus', 'P1');
+
+    render(MapLensView, { props: { appState, viewState } });
+
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+  });
+
+  it('lässt "lensFocus" (Personen-Fokus) unverändert, wenn nur "lensPlaceFocus" gesetzt ist (zwei unabhängige Slots)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensFocus', '@I1@');
+    viewState.setCurrent('lensPlaceFocus', 'P1');
+
+    render(MapLensView, { props: { appState, viewState } });
+
+    expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+  });
+
+  it('ohne gesetzten "lensPlaceFocus" mountet der Orte-Modus wie bisher, ohne Crash', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+  });
+
+  it('eine unbekannte "lensPlaceFocus"-ID (kein passender Ort/Hof) crasht nicht und wird trotzdem konsumiert', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensPlaceFocus', 'UNBEKANNTE-ID');
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+  });
+
+  it('TST-7: mountet ohne Crash, wenn viele dicht beieinanderliegende Orte/Höfe UND ein Fokus gleichzeitig vorliegen', () => {
+    const appState = createAppState();
+    const db = dbWithPlace();
+    for (let i = 0; i < 40; i++) {
+      savePlaceObject(db.placeObjects, {
+        id: `PX${i}`,
+        title: `Dorf ${i}`,
+        type: 'Village',
+        pnames: [],
+        enclosedBy: [],
+        lat: 51.0 + i * 0.001,
+        long: 10.0 + i * 0.001,
+        note: '',
+        existsFrom: null,
+        existsTo: null,
+        govId: null,
+        govTypes: null,
+      });
+    }
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensPlaceFocus', 'PX23');
+
+    const { container } = render(MapLensView, { props: { appState, viewState } });
+
+    expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
+    expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
+  });
+});
+
 describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
   afterEach(() => setOnline(true));
 

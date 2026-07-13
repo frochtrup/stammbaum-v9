@@ -9,6 +9,7 @@
   // Pill + "+ Ereignis"-Sammel-Menü, ADR-v9-62/63) — kein Tod/Wohnort (Personen-Ereignisse).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import type { Family, Event, PersonId } from '../../../core/model/types';
   import { makeEvent } from '../../../core/model/factory';
   import { isEventPresent } from '../../../core/model';
@@ -16,6 +17,7 @@
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
+  import EventLine from '../../shell/EventLine.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import { eventTypeLabel } from '../../shell/event-labels';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
@@ -31,6 +33,9 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
+     *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
+    onNavigateLens?: (lens: LensId) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
@@ -42,6 +47,7 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
+    onNavigateLens,
     onBack,
   }: Props = $props();
 
@@ -67,10 +73,6 @@
    *  Ereignisse (events[]) bleiben in der generischen Liste am Ende. */
   const marriageEvents = $derived(detail?.events.filter((e) => e.key === 'MARR' || e.key === 'ENGA') ?? []);
   const otherEvents = $derived(detail?.events.filter((e) => e.key !== 'MARR' && e.key !== 'ENGA') ?? []);
-
-  function geoHref(coords: { lat: number; long: number }): string {
-    return `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.long}#map=12/${coords.lat}/${coords.long}`;
-  }
 
   // --- Eltern-Wechsel: direkte Picker-Aktion (ADR-v9-63, kein Formular-Umweg) ---------
   // Klick auf einen leeren Slot ODER den "Ändern"-Knopf neben einer besetzten Box öffnet
@@ -208,64 +210,17 @@
 </script>
 
 {#snippet eventRow(ev: FamilyEventRow)}
-  <li class="family-detail__event">
-    <div class="family-detail__event-head">
-      <span class="family-detail__event-label">{ev.label}</span>
-      {#if ev.value}<span class="family-detail__event-value">{ev.value}</span>{/if}
-      {#if ev.addr}<span class="family-detail__event-value">{ev.addr}</span>{/if}
-      {#if ev.summary}<span class="family-detail__event-summary">{ev.summary}</span>{/if}
-      {#if ev.coords}
-        <a
-          class="family-detail__geo-link"
-          href={geoHref(ev.coords)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Karte ↗
-        </a>
-      {/if}
-      {#if ev.hofId && onNavigateToHof}
-        <button type="button" class="family-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
-          Hof ansehen →
-        </button>
-      {:else if ev.placeId && onNavigateToPlace}
-        <button type="button" class="family-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
-          Ort ansehen →
-        </button>
-      {/if}
-      {#if ev.citations.length > 0}
-        {#each ev.citations as cit, i (i)}
-          <SourceBadge
-            citation={cit}
-            source={appState.db.sources.get(cit.sourceId)}
-            onSelect={onNavigateToSource}
-          />
-        {/each}
-      {/if}
-      <span class="family-detail__event-actions">
-        {#if ev.empty && ev.key !== 'MARR'}
-          <button
-            type="button"
-            class="stb-pill__remove"
-            onclick={() => retractOrRemove(ev.key)}
-            aria-label={`${ev.label} zurücknehmen`}
-            title="Zurücknehmen"
-          >
-            ✕
-          </button>
-        {/if}
-        <button
-          type="button"
-          class="family-detail__event-edit-btn"
-          onclick={() => openEventEdit(ev.key)}
-          aria-label={`${ev.label} bearbeiten`}
-        >
-          ✎
-        </button>
-      </span>
-    </div>
-    {#if ev.note}<p class="family-detail__event-note">{ev.note}</p>{/if}
-  </li>
+  <EventLine
+    {ev}
+    {appState}
+    {viewState}
+    {onNavigateToPlace}
+    {onNavigateToHof}
+    {onNavigateToSource}
+    {onNavigateLens}
+    onRetract={ev.key !== 'MARR' ? retractOrRemove : undefined}
+    onEdit={openEventEdit}
+  />
 {/snippet}
 
 <div class="family-detail">
@@ -535,87 +490,12 @@
     margin-top: 0.5rem;
   }
 
+  /* Die generische Ereigniszeile selbst lebt seit ADR-v9-80 in `EventLine.svelte`
+     (`ui/shell/`, `.event-line__*`-Klassen dort) — hier nur noch der Listen-Container. */
   .family-detail__events {
     list-style: none;
     margin: 0;
     padding: 0;
-  }
-
-  .family-detail__event {
-    background: var(--stb-surface-1);
-    border-radius: var(--stb-radius-card);
-    padding: 0.6rem 0.8rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .family-detail__event-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.5rem;
-  }
-
-  .family-detail__event-label {
-    font-weight: 700;
-  }
-
-  .family-detail__event-summary {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-  }
-
-  .family-detail__event-value {
-    color: var(--stb-text);
-    font-size: 0.85rem;
-  }
-
-  .family-detail__geo-link {
-    font-size: 0.78rem;
-  }
-
-  .family-detail__place-link {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    padding: 0;
-    font: inherit;
-    font-size: 0.78rem;
-    text-decoration: underline;
-  }
-
-  /* Aktions-Gruppe (✕-Rücknahme, Nachtrag 2026-07-12, + ✎-Bearbeiten, ADR-v9-60): IMMER
-     das letzte Kind der Kopfzeile — deshalb margin-left:auto auf DIESEM Wrapper statt auf
-     :last-child eines bedingt vorhandenen Geschwisters (TST-11-Lehre, analog
-     PersonDetail.svelte's `.person-detail__event-actions`). */
-  .family-detail__event-actions {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    flex: 0 0 auto;
-  }
-
-  .family-detail__event-edit-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    padding: 0;
-    font-size: 0.85rem;
-    line-height: 1;
-    flex: 0 0 auto;
-  }
-
-  .family-detail__event-edit-btn:hover,
-  .family-detail__event-edit-btn:focus-visible {
-    color: var(--stb-gold-light);
-  }
-
-  .family-detail__event-note {
-    margin: 0.3rem 0 0;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
   }
 
   .family-detail__citations {

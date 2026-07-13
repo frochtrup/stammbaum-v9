@@ -133,6 +133,42 @@ describe('HofList — Referenz-Filter (ADR-v9-46, Spec 11 §9.3)', () => {
   });
 });
 
+describe('HofList — CoordIndicator (ADR-v9-79 Punkt l, INV-UI-4)', () => {
+  it('Klick auf den gefüllten Glyph setzt lensPlaceFocus und navigiert zur Karte-Lens', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set(
+      '@H1@',
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.1, long: 7.6 }),
+    );
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    const onNavigateLens = vi.fn();
+
+    render(HofList, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@H1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
+  });
+
+  it('zeigt den leeren Glyph, wenn der Hof keine Koordinaten hat', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(HofList, { props: { appState, viewState } });
+
+    expect(screen.getByText('◌')).toBeTruthy();
+  });
+});
+
 describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup" (Spec 21 §10c)', () => {
   it('rendert keinen der beiden Buttons ohne Callback-Props', () => {
     const appState = createAppState();

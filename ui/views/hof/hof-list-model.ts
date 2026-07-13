@@ -18,6 +18,7 @@ export interface HofRow {
   villageId: PlaceId;
   villageTitle: string;
   hasCoords: boolean;
+  coords: { lat: number; long: number } | null;
   /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille). */
   enriched: boolean;
 }
@@ -52,13 +53,15 @@ export function streetNameOf(addr: string): string {
 export function toRow(h: HofObject, db: Database): HofRow {
   const village = db.placeObjects.get(h.villageId);
   const addr = h.addrs[0]?.value ?? '';
+  const hasCoords = h.lat != null && h.long != null;
   return {
     id: h.id,
     key: h.id,
     addr,
     villageId: h.villageId,
     villageTitle: village?.title || h.villageId,
-    hasCoords: h.lat != null && h.long != null,
+    hasCoords,
+    coords: hasCoords ? { lat: h.lat as number, long: h.long as number } : null,
     enriched: isEnrichedHof(h),
   };
 }

@@ -32,7 +32,7 @@ describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-I
     expect(rows[0].type).toBe('City');
   });
 
-  it('markiert hasCoords, wenn lat/long gesetzt sind', () => {
+  it('markiert hasCoords, wenn lat/long gesetzt sind, und liefert die Koordinaten selbst', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Mit Koords', lat: 52.1, long: 7.2 }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Ohne Koords' }));
@@ -40,7 +40,9 @@ describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-I
     const rows = buildPlaceRows(db);
 
     expect(rows.find((r) => r.id === '@P1@')?.hasCoords).toBe(true);
+    expect(rows.find((r) => r.id === '@P1@')?.coords).toEqual({ lat: 52.1, long: 7.2 });
     expect(rows.find((r) => r.id === '@P2@')?.hasCoords).toBe(false);
+    expect(rows.find((r) => r.id === '@P2@')?.coords).toBeNull();
   });
 
   it('fällt auf die id zurück, wenn kein Titel gesetzt ist (kein leeres Label)', () => {
@@ -171,6 +173,34 @@ describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile'
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
 
     expect(buildPlaceRows(db)[0].enriched).toBe(true);
+  });
+});
+
+describe('Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — hasHierarchy-Feld je Zeile', () => {
+  it('PlaceObject mit enclosedBy-Eintrag → hasHierarchy=true', () => {
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
+    );
+
+    expect(buildPlaceRows(db)[0].hasHierarchy).toBe(true);
+  });
+
+  it('PlaceObject ohne enclosedBy-Eintrag → hasHierarchy=false', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    expect(buildPlaceRows(db)[0].hasHierarchy).toBe(false);
+  });
+
+  it('hasHierarchy ist UNABHÄNGIG von enriched — angereichert (Typ gesetzt), aber keine Kette', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+
+    const row = buildPlaceRows(db)[0];
+    expect(row.enriched).toBe(true);
+    expect(row.hasHierarchy).toBe(false);
   });
 });
 

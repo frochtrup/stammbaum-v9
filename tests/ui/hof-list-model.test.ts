@@ -77,7 +77,7 @@ describe('buildHofRows — Sammlung + Sortierung (Straße alphabetisch, dann Hau
     expect(rows.map((r) => r.id)).toEqual(['@H2@', '@H1@']);
   });
 
-  it('markiert hasCoords', () => {
+  it('markiert hasCoords und liefert die Koordinaten selbst', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { lat: 52.1, long: 7.2 }));
@@ -86,7 +86,9 @@ describe('buildHofRows — Sammlung + Sortierung (Straße alphabetisch, dann Hau
     const rows = buildHofRows(db);
 
     expect(rows.find((r) => r.id === '@H1@')?.hasCoords).toBe(true);
+    expect(rows.find((r) => r.id === '@H1@')?.coords).toEqual({ lat: 52.1, long: 7.2 });
     expect(rows.find((r) => r.id === '@H2@')?.hasCoords).toBe(false);
+    expect(rows.find((r) => r.id === '@H2@')?.coords).toBeNull();
   });
 
   it('Suche filtert über Adresse + Dorf-Titel', () => {

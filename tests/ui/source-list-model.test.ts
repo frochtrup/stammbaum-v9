@@ -62,6 +62,23 @@ describe('buildSourceRows — Kurzname/Autor/Datum/Referenzzähler, alphabetisch
   });
 });
 
+describe('Notizen-Badge (ADR-v9-79 Punkt 3/4) — hasNotes-Feld je Zeile', () => {
+  it('Source mit nicht-leerem text → hasNotes=true', () => {
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'Q1', text: 'Zitierter Urtext' }));
+
+    expect(buildSourceRows(db)[0].hasNotes).toBe(true);
+  });
+
+  it('Source ohne text (bzw. nur Whitespace) → hasNotes=false', () => {
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'Q1' }));
+    db.sources.set('@S2@', makeSource('@S2@', { abbr: 'Q2', text: '   ' }));
+
+    expect(buildSourceRows(db).every((r) => r.hasNotes === false)).toBe(true);
+  });
+});
+
 describe('countReferencesBySource — Zitat-Map nach Quellen-Id', () => {
   it('gruppiert Zitate mehrerer Quellen getrennt', () => {
     const db = makeDatabase();

@@ -211,7 +211,7 @@
 
   <main class="app-shell__main">
     {#if activeTarget === 'person'}
-      <EntityTab {appState} {viewState} onNavigateToTree={openTreeFromPersonDetail} />
+      <EntityTab {appState} {viewState} onNavigateToTree={openTreeFromPersonDetail} onNavigateLens={navigateLens} />
     {:else if activeTarget === 'tree'}
       <TreeView
         {appState}

@@ -42,6 +42,10 @@ export interface PersonRow {
   name: string;
   birthSummary: string;
   deathSummary: string;
+  /** 📎-Medien-Badge (Spec 20 §1.4 [K], ADR-v9-79 Punkt 3) — `true` wenn `person.media`
+   *  mind. einen Eintrag hat. Wiederverwendetes 📎-Symbol (Spec 21 §7: "ausschließlich
+   *  Medien/OBJE, nie Quellen"). */
+  hasMedia: boolean;
 }
 
 export interface PersonGroup {
@@ -194,5 +198,6 @@ function toRow(p: Person, ctx: PlaceContext): PersonRow {
     name: displayName(p),
     birthSummary: yearPlaceSummary(p.birth, ctx),
     deathSummary: yearPlaceSummary(p.death, ctx),
+    hasMedia: p.media.length > 0,
   };
 }

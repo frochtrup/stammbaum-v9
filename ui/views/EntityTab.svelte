@@ -12,6 +12,7 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../shell/app-state.svelte';
   import type { ViewState, ViewTarget } from '../shell/view-state.svelte';
+  import type { LensId } from '../shell/lens-model';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
   import FamilyList from './family/FamilyList.svelte';
@@ -39,8 +40,12 @@
      * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
      */
     onNavigateToTree?: (personId: string) => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`/`EventLine`)
+     *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
+     *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateToTree }: Props = $props();
+  const { appState, viewState, onNavigateToTree, onNavigateLens }: Props = $props();
 
   type EntitySegment = 'person' | 'family' | 'source' | 'repository' | 'place' | 'hof';
 
@@ -291,6 +296,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        {onNavigateLens}
         onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
       />
@@ -306,6 +312,7 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
+        {onNavigateLens}
         onBack={backToList}
       />
     {:else}
@@ -349,7 +356,7 @@
         onBack={backToList}
       />
     {:else}
-      <PlaceList {appState} {viewState} onOpenDedup={openPlaceDedup} />
+      <PlaceList {appState} {viewState} onOpenDedup={openPlaceDedup} {onNavigateLens} />
     {/if}
   {:else if activeSegment === 'hof'}
     {#if hofReviewOpen && !selectedHofId}
@@ -364,7 +371,7 @@
     {:else if selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
-      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} />
+      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
     {/if}
   {/if}
 </div>

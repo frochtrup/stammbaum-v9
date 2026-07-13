@@ -46,13 +46,14 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     expect(badge.className).toContain('src-badge--q2');
   });
 
-  it('zeigt Kartenlink UND Ortslink nebeneinander im selben event-head (ADR-v9-30 Nachtrag Befund 1)', () => {
+  it('der Ortsname selbst ist der Link (kein separater "Ort ansehen →"-Button mehr) UND CoordIndicator sitzt im selben event-line__head (ADR-v9-80)', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
     const f = makeFamily('@F1@');
     f.marriage.date = '1 JUN 1920';
     f.marriage.placeId = '@P1@';
+    f.marriage.place = 'Ochtrup';
     f.marriage.lati = 52.1;
     f.marriage.long = 7.1;
     db.families.set('@F1@', f);
@@ -76,15 +77,33 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
 
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn(), onNavigateToPlace } });
 
-    const head = screen.getByText('Heirat').closest('.family-detail__event-head') as HTMLElement;
-    expect(head.querySelector('.family-detail__geo-link')).toBeTruthy();
-    const placeLink = Array.from(head.querySelectorAll('.family-detail__place-link')).find((el) =>
-      el.textContent?.includes('Ort ansehen'),
-    );
-    expect(placeLink).toBeTruthy();
+    expect(screen.queryByText('Ort ansehen →')).toBeNull();
+    const head = screen.getByText('Heirat').closest('.event-line__head') as HTMLElement;
+    const placeLink = screen.getByRole('button', { name: 'Ochtrup' });
+    expect(head.contains(placeLink)).toBe(true);
+    expect(head.querySelector('.stb-coord-indicator')).toBeTruthy();
   });
 
-  it('reiht Quellen-Badges im selben event-head-Flex-Fluss ein, nicht in einem separaten Container darunter', () => {
+  it('Klick auf den Ortsnamen ruft onNavigateToPlace mit der placeId auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1 JUN 1920';
+    f.marriage.placeId = '@P1@';
+    f.marriage.place = 'Ochtrup';
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+    const onNavigateToPlace = vi.fn();
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn(), onNavigateToPlace } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ochtrup' }));
+
+    expect(onNavigateToPlace).toHaveBeenCalledWith('@P1@');
+  });
+
+  it('reiht Quellen-Badges im selben event-line__head-Flex-Fluss ein, nicht in einem separaten Container darunter', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -98,7 +117,7 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
 
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
 
-    const head = screen.getByText('Heirat').closest('.family-detail__event-head') as HTMLElement;
+    const head = screen.getByText('Heirat').closest('.event-line__head') as HTMLElement;
     expect(head.querySelector('.src-badge, [class*="src-badge"]')).toBeTruthy();
   });
 
@@ -184,6 +203,44 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
 
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
+  });
+
+  it('Klick auf den CoordIndicator-Glyph setzt lensPlaceFocus und ruft onNavigateLens("map") auf (ADR-v9-78/80)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1 JUN 1920';
+    f.marriage.placeId = '@P1@';
+    f.marriage.lati = 52.1;
+    f.marriage.long = 7.1;
+    db.families.set('@F1@', f);
+    // Realistische Fixture (Regressionsfund ADR-v9-78/80-Bau-Nachtrag): das
+    // PlaceObject muss SELBST Koordinaten tragen, damit die Karte-Insel
+    // (placesWithCoords) einen Marker dafür führt, s. EventLine.component.test.ts.
+    db.placeObjects.set('@P1@', {
+      id: '@P1@',
+      title: 'Ochtrup',
+      type: '',
+      pnames: [],
+      enclosedBy: [],
+      lat: 52.1,
+      long: 7.1,
+      note: '',
+      existsFrom: null,
+      existsTo: null,
+      govId: null,
+      govTypes: null,
+    });
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+    const onNavigateLens = vi.fn();
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn(), onNavigateLens } });
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
   });
 });
 

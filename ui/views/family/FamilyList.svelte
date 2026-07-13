@@ -132,7 +132,7 @@
               <span class="family-list__parents">{row.parentsLabel}</span>
               <span class="family-list__meta">
                 {#if row.marriageSummary}<span>⚭ {row.marriageSummary}</span>{/if}
-                <span>{row.childCount} {row.childCount === 1 ? 'Kind' : 'Kinder'}</span>
+                <span class="stb-list-stat">{row.childCount} {row.childCount === 1 ? 'Kind' : 'Kinder'}</span>
               </span>
             </button>
           </li>

@@ -4,9 +4,11 @@
   // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
   import EventsByType from '../../shell/EventsByType.svelte';
+  import CoordIndicator from '../../shell/CoordIndicator.svelte';
 
   interface Props {
     appState: AppState;
@@ -16,8 +18,11 @@
      *  Ansichts-Umschaltung (welches Overlay rendert) bleibt bei EntityTab. */
     onOpenReview?: () => void;
     onOpenDedup?: () => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
+     *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onOpenReview, onOpenDedup }: Props = $props();
+  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
 
   let query = $state('');
   let section = $state<'referenced' | 'unreferenced'>('referenced');
@@ -41,13 +46,7 @@
   <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
     <span class="hof-list__title-line">
       <span class="hof-list__addr">{row.addr || row.id}</span>
-      <span
-        class="hof-list__coord-indicator"
-        class:hof-list__coord-indicator--missing={!row.hasCoords}
-        title={row.hasCoords ? 'Koordinaten vorhanden' : 'Koordinaten fehlen'}
-      >
-        {row.hasCoords ? '◎' : '◌'}
-      </span>
+      <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
       {#if !row.enriched}
         <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
       {/if}
@@ -262,13 +261,5 @@
 
   .hof-list__addr {
     font-weight: 600;
-  }
-
-  .hof-list__coord-indicator {
-    color: var(--stb-quay-3);
-  }
-
-  .hof-list__coord-indicator--missing {
-    color: var(--stb-text-muted);
   }
 </style>

@@ -71,4 +71,14 @@ describe('INV-VS — eine zentrale ViewState-Instanz', () => {
     // ...eine künftige Karten-Lens läse denselben Slot, nicht einen eigenen "map"-Topf.
     expect(vs.getCurrent('lensFocus')).toBe('@I1@');
   });
+
+  it('lensPlaceFocus ist ein EIGENER Slot, unabhängig von lensFocus (ADR-v9-78 Punkt 4 — einmaliger Orts-Sprung-Auftrag, kein Dauer-Personen-Fokus)', () => {
+    const vs = createViewState();
+    expect(vs.getCurrent('lensPlaceFocus')).toBeNull();
+
+    vs.setCurrent('lensPlaceFocus', 'P1');
+
+    expect(vs.getCurrent('lensPlaceFocus')).toBe('P1');
+    expect(vs.getCurrent('lensFocus')).toBeNull();
+  });
 });

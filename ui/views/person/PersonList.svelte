@@ -148,7 +148,10 @@
             {#each group.rows as row (row.id)}
               <li>
                 <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
-                  <span class="person-list__name">{row.name}</span>
+                  <span class="person-list__name-line">
+                    <span class="person-list__name">{row.name}</span>
+                    {#if row.hasMedia}<span class="stb-pill" title="Medien vorhanden">📎</span>{/if}
+                  </span>
                   <span class="person-list__meta">
                     {#if row.birthSummary}<span>* {row.birthSummary}</span>{/if}
                     {#if row.deathSummary}<span>† {row.deathSummary}</span>{/if}
@@ -321,6 +324,13 @@
   .person-list__row:hover,
   .person-list__row:focus-visible {
     background: var(--stb-surface-2);
+  }
+
+  .person-list__name-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .person-list__name {

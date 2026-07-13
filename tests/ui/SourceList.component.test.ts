@@ -29,7 +29,10 @@ describe('SourceList — Kurzname/Autor/Referenzzähler (Component)', () => {
 
     expect(screen.getByText('KB Ochtrup')).toBeTruthy();
     expect(screen.getByText('Pfarramt')).toBeTruthy();
-    expect(screen.getByText('2× zitiert')).toBeTruthy();
+    const refCount = screen.getByText('2× zitiert');
+    expect(refCount).toBeTruthy();
+    // Geteilter Zahlen-Fakt-Stil (Spec 21 §10l Punkt 1, ADR-v9-79) statt lokalem CSS.
+    expect(refCount.className).toContain('stb-list-stat');
   });
 
   it('zeigt einen Leerzustand, solange keine Quellen geladen sind', () => {
@@ -50,5 +53,23 @@ describe('SourceList — Kurzname/Autor/Referenzzähler (Component)', () => {
     await fireEvent.click(screen.getByText('KB Ochtrup'));
 
     expect(viewState.getCurrent('source')).toBe('@S1@');
+  });
+});
+
+describe('SourceList — Notizen-Badge (ADR-v9-79 Punkt 3/4)', () => {
+  it('zeigt die "Notizen"-Pille nur, wenn text nicht leer ist', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'Mit Text', text: 'Zitierter Urtext' }));
+    db.sources.set('@S2@', makeSource('@S2@', { abbr: 'Ohne Text' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(SourceList, { props: { appState, viewState } });
+
+    const row1 = screen.getByText('Mit Text').closest('.source-list__row') as HTMLElement;
+    const row2 = screen.getByText('Ohne Text').closest('.source-list__row') as HTMLElement;
+    expect(Array.from(row1.querySelectorAll('.stb-pill')).some((el) => el.textContent === 'Notizen')).toBe(true);
+    expect(Array.from(row2.querySelectorAll('.stb-pill')).some((el) => el.textContent === 'Notizen')).toBe(false);
   });
 });

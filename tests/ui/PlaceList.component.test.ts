@@ -197,6 +197,60 @@ describe('PlaceList — Referenz-Filter (ADR-v9-46, Spec 11 §9.3)', () => {
   });
 });
 
+describe('PlaceList — Hierarchie-Badge (ADR-v9-79 Punkt 3)', () => {
+  it('zeigt die "Hierarchie"-Pille nur, wenn enclosedBy einen Eintrag hat', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Mit Kette', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
+    );
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ohne Kette' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    withReferencingPerson(db, '@I2@', '@P2@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PlaceList, { props: { appState, viewState } });
+
+    const row1 = screen.getByText('Mit Kette').closest('.place-list__row') as HTMLElement;
+    const row2 = screen.getByText('Ohne Kette').closest('.place-list__row') as HTMLElement;
+    expect(Array.from(row1.querySelectorAll('.stb-pill')).some((el) => el.textContent === 'Hierarchie')).toBe(true);
+    expect(Array.from(row2.querySelectorAll('.stb-pill')).some((el) => el.textContent === 'Hierarchie')).toBe(false);
+  });
+});
+
+describe('PlaceList — CoordIndicator (ADR-v9-79 Punkt l, INV-UI-4)', () => {
+  it('Klick auf den gefüllten Glyph setzt lensPlaceFocus und navigiert zur Karte-Lens', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.1, long: 7.6 }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    const onNavigateLens = vi.fn();
+
+    render(PlaceList, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
+  });
+
+  it('zeigt den leeren Glyph, wenn keine Koordinaten gesetzt sind', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PlaceList, { props: { appState, viewState } });
+
+    expect(screen.getByText('◌')).toBeTruthy();
+  });
+});
+
 describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () => {
   it('rendert den Button NICHT, wenn kein onOpenDedup übergeben wird', () => {
     const appState = createAppState();

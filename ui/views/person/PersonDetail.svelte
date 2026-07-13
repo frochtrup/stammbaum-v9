@@ -8,12 +8,13 @@
   // Modal), "+ Wohnort"-Standing-Pill, "+ Ereignis"-Sammel-Menü (`EventTypeMenu.svelte`).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
-  import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
+  import EventLine from '../../shell/EventLine.svelte';
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -34,6 +35,9 @@
     onNavigateToHof?: (hofId: string) => void;
     /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
     onNavigateToTree?: (personId: string) => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
+     *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
+    onNavigateLens?: (lens: LensId) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
@@ -49,6 +53,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateToTree,
+    onNavigateLens,
     onBack,
     startInEdit = false,
   }: Props = $props();
@@ -57,10 +62,6 @@
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
 
   let editing = $state(untrack(() => startInEdit));
-
-  function geoHref(coords: { lat: number; long: number }): string {
-    return `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.long}#map=12/${coords.lat}/${coords.long}`;
-  }
 
   function goToPerson(id: string) {
     viewState.setCurrent('person', id);
@@ -290,53 +291,17 @@
       </div>
     </li>
   {:else}
-    <li class="person-detail__event">
-      <div class="person-detail__event-head">
-        <span class="person-detail__event-label">{ev.label}</span>
-        {#if ev.value}<span class="person-detail__event-value">{ev.value}</span>{/if}
-        {#if ev.addr}<span class="person-detail__event-value">{ev.addr}</span>{/if}
-        {#if ev.summary}<span class="person-detail__event-summary">{ev.summary}</span>{/if}
-        {#if ev.coords}
-          <a class="person-detail__geo-link" href={geoHref(ev.coords)} target="_blank" rel="noopener noreferrer">
-            Karte ↗
-          </a>
-        {/if}
-        {#if ev.hofId && onNavigateToHof}
-          <button type="button" class="person-detail__place-link" onclick={() => onNavigateToHof(ev.hofId!)}>
-            Hof ansehen →
-          </button>
-        {:else if ev.placeId && onNavigateToPlace}
-          <button type="button" class="person-detail__place-link" onclick={() => onNavigateToPlace(ev.placeId!)}>
-            Ort ansehen →
-          </button>
-        {/if}
-        {#each ev.citations as cit, i (i)}
-          <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
-        {/each}
-        <span class="person-detail__event-actions">
-          {#if ev.empty && ev.key !== 'DEAT'}
-            <button
-              type="button"
-              class="stb-pill__remove"
-              onclick={() => retractOrRemove(ev.key)}
-              aria-label={`${ev.label} zurücknehmen`}
-              title="Zurücknehmen"
-            >
-              ✕
-            </button>
-          {/if}
-          <button
-            type="button"
-            class="person-detail__event-edit-btn"
-            onclick={() => openEventEdit(ev.key)}
-            aria-label={`${ev.label} bearbeiten`}
-          >
-            ✎
-          </button>
-        </span>
-      </div>
-      {#if ev.note}<p class="person-detail__event-note">{ev.note}</p>{/if}
-    </li>
+    <EventLine
+      {ev}
+      {appState}
+      {viewState}
+      {onNavigateToPlace}
+      {onNavigateToHof}
+      {onNavigateToSource}
+      {onNavigateLens}
+      onRetract={ev.key !== 'DEAT' ? retractOrRemove : undefined}
+      onEdit={openEventEdit}
+    />
   {/if}
 {/snippet}
 
@@ -552,66 +517,9 @@
     font-weight: 700;
   }
 
-  .person-detail__event-summary {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-  }
-
   .person-detail__event-value {
     color: var(--stb-text);
     font-size: 0.85rem;
-  }
-
-  .person-detail__geo-link {
-    font-size: 0.78rem;
-  }
-
-  .person-detail__place-link {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    padding: 0;
-    font: inherit;
-    font-size: 0.78rem;
-    text-decoration: underline;
-  }
-
-  /* Aktions-Gruppe (✕-Rücknahme, Nachtrag 2026-07-12, + ✎-Bearbeiten, Bau-Auftrag
-     "Ereignis direkt aus der Detail-Ansicht bearbeiten"): IMMER das letzte Kind der
-     Kopfzeile (unconditionally nach allen anderen Elementen gerendert) — deshalb
-     margin-left:auto auf DIESEM Wrapper statt auf :last-child eines bedingt vorhandenen
-     Geschwisters (TST-11-Lehre: margin-left:auto nur auf ein Element, das garantiert das
-     letzte in der Flex-Zeile ist). Das ✕-Control innerhalb des Wrappers ist bedingt
-     (`ev.empty`) — ein zweites eigenes margin-left:auto darauf wäre die TST-11-Falle
-     (zwei Auto-Margins auf derselben Achse teilen sich den Freiraum, statt dass beide
-     Buttons zusammen am Rand kleben) — deshalb EIN Wrapper, normale `gap`-Abstände
-     zwischen ✕ und ✎ darin. Ersetzt das vormalige `.person-detail__geo-link:last-child`-
-     Muster, das nie mehr zutrifft, weil dieser Wrapper immer danach folgt. Gilt genauso
-     für die kompakte Tod-Zeile (`.stb-activation-pill`/`.stb-pill__remove` als
-     letzte/einzige interaktive Kinder dort, kein gemeinsamer Wrapper nötig). */
-  .person-detail__event-actions {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    flex: 0 0 auto;
-  }
-
-  .person-detail__event-edit-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    padding: 0;
-    font-size: 0.85rem;
-    line-height: 1;
-    flex: 0 0 auto;
-  }
-
-  .person-detail__event-edit-btn:hover,
-  .person-detail__event-edit-btn:focus-visible {
-    color: var(--stb-gold-light);
   }
 
   /* Rücknahme-Control der kompakten Tod-Zeile (Nachtrag 2026-07-12): visueller Stil kommt
@@ -619,16 +527,11 @@
      Mechanismus wie PlaceDetail's Namensvarianten-Entfernen), hier nur die Positionierung
      als letztes Kind der Flex-Kopfzeile (TST-11: margin-left:auto NUR auf ein Element, das
      garantiert das letzte in der Zeile ist — hier zutreffend, da unconditionally zuletzt
-     gerendert). */
+     gerendert). Die generische (nicht-kompakte) Ereigniszeile lebt seit ADR-v9-80 in
+     `EventLine.svelte` (`ui/shell/`) — deren `.event-line__*`-Klassen dort, nicht hier. */
   .person-detail__death-retract-btn {
     margin-left: auto;
     flex: 0 0 auto;
-  }
-
-  .person-detail__event-note {
-    margin: 0.3rem 0 0;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
   }
 
   .person-detail__families {

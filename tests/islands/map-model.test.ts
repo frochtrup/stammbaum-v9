@@ -7,6 +7,7 @@ import {
   MIGRATION_EPOCHS,
   MIGRATION_EPOCH_FALLBACK_COLOR,
   escapeHtml,
+  findFocusPoint,
   migrationEpochColor,
   migrationLines,
   personBiographyPoints,
@@ -110,6 +111,67 @@ describe('placesWithCoords — Orte-Modus (Orakel: _renderOrteModus)', () => {
 
     const ctx = contextFor(db);
     expect(placesWithCoords(db, ctx)).toEqual(placesWithCoords(db, ctx));
+  });
+});
+
+describe('findFocusPoint — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2")', () => {
+  it('findet einen Ort anhand seiner placeId', () => {
+    const db = makeDatabase();
+    addPlace(db, 'P1', 'Dorf A', 51.5, 10.0);
+    addPlace(db, 'P2', 'Dorf B', 52.0, 11.0);
+    const points = placesWithCoords(db, contextFor(db));
+
+    const focus = findFocusPoint(points, 'P2');
+
+    expect(focus?.placeId).toBe('P2');
+    expect(focus?.isHof).toBe(false);
+  });
+
+  it('findet einen Hof anhand seiner ID (Hof und Ort teilen denselben placeId-Schlüsselraum)', () => {
+    const db = makeDatabase();
+    addPlace(db, 'P1', 'Dorf A', 51.5, 10.0);
+    addHof(db, 'H1', 'P1', 'Oster 82a', 51.51, 10.01);
+    const points = placesWithCoords(db, contextFor(db));
+
+    const focus = findFocusPoint(points, 'H1');
+
+    expect(focus?.placeId).toBe('H1');
+    expect(focus?.isHof).toBe(true);
+  });
+
+  it('liefert null für eine unbekannte ID (kein Crash)', () => {
+    const db = makeDatabase();
+    addPlace(db, 'P1', 'Dorf A', 51.5, 10.0);
+    const points = placesWithCoords(db, contextFor(db));
+
+    expect(findFocusPoint(points, 'UNBEKANNT')).toBeNull();
+  });
+
+  it('liefert null für null/undefined/leeren String (kein Fokus gesetzt)', () => {
+    const db = makeDatabase();
+    addPlace(db, 'P1', 'Dorf A', 51.5, 10.0);
+    const points = placesWithCoords(db, contextFor(db));
+
+    expect(findFocusPoint(points, null)).toBeNull();
+    expect(findFocusPoint(points, undefined)).toBeNull();
+    expect(findFocusPoint(points, '')).toBeNull();
+  });
+
+  it('TST-7: findet den richtigen Punkt zuverlässig unter vielen dicht beieinanderliegenden Orten/Höfen', () => {
+    const db = makeDatabase();
+    // 40 Dörfer + 40 Höfe, eng benachbart (Bruchteile eines Grads auseinander) —
+    // stresst sowohl die Anzahl als auch die Nähe der Kandidaten.
+    for (let i = 0; i < 40; i++) {
+      addPlace(db, `P${i}`, `Dorf ${i}`, 51.0 + i * 0.001, 10.0 + i * 0.001);
+      addHof(db, `H${i}`, `P${i}`, `Hof ${i}`, 51.0 + i * 0.001 + 0.0001, 10.0 + i * 0.001 + 0.0001);
+    }
+    const points = placesWithCoords(db, contextFor(db));
+    expect(points).toHaveLength(80);
+
+    const focus = findFocusPoint(points, 'H23');
+
+    expect(focus?.placeId).toBe('H23');
+    expect(focus?.isHof).toBe(true);
   });
 });
 

@@ -49,7 +49,10 @@ describe('FamilyList — Elternpaar/Heiratsdatum/Kinderzahl (Component)', () => 
     render(FamilyList, { props: { appState, viewState } });
 
     expect(screen.getByText('Otto Bauer ⚭ Anna Klein')).toBeTruthy();
-    expect(screen.getByText(/1 Kind/)).toBeTruthy();
+    const childCount = screen.getByText(/1 Kind/);
+    expect(childCount).toBeTruthy();
+    // Geteilter Zahlen-Fakt-Stil (Spec 21 §10l Punkt 1, ADR-v9-79) statt lokalem CSS.
+    expect(childCount.className).toContain('stb-list-stat');
   });
 
   it('zeigt einen Leerzustand, solange keine Familien geladen sind (kein Absturz auf leerer DB)', () => {

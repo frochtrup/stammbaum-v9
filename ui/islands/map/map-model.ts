@@ -238,6 +238,20 @@ export function migrationLines(db: Database, ctx: PlaceContext): MigrationLine[]
   return lines;
 }
 
+/**
+ * Findet den fokussierten Punkt (Ort ODER Hof — beide teilen denselben `placeId`-
+ * Schlüsselraum in `PlacePoint`, s. `placesWithCoords` oben) für die Zentrierungs-/
+ * Hervorhebungs-Funktion des Orte-Modus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2").
+ * Reine Lookup-Funktion (Spec 32 §2: Layout-Berechnung ist Modell->Positionen, DOM-
+ * frei, unit-testbar) — die Insel selbst (leaflet-map.ts/svg-fallback-map.ts) ruft
+ * nur noch das Ergebnis ab, statt selbst zu suchen (EINE Quelle für "ist das der
+ * fokussierte Punkt", nicht in jeder Rendering-Schicht neu dupliziert).
+ */
+export function findFocusPoint(places: PlacePoint[], focusId: string | null | undefined): PlacePoint | null {
+  if (!focusId) return null;
+  return places.find((p) => p.placeId === focusId) ?? null;
+}
+
 function personDisplayName(p: Person): string {
   const full = `${p.given} ${p.surname}`.trim();
   return full || p.name || p.id;

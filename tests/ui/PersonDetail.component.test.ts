@@ -30,7 +30,7 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     expect(badge.getAttribute('title')).toBe('KB Ochtrup');
   });
 
-  it('zeigt einen Geo-Link, wenn das Ereignis Koordinaten hat', () => {
+  it('zeigt einen CoordIndicator + OpenStreetMap-Link, wenn das Ereignis Koordinaten hat (ADR-v9-80 Punkt 2)', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -44,12 +44,13 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
 
     render(PersonDetail, { props: { appState, viewState } });
 
-    const link = screen.getByRole('link', { name: /Karte/ });
+    expect(screen.getByText('◎')).toBeTruthy();
+    const link = screen.getByRole('link', { name: /OpenStreetMap/ });
     expect(link.getAttribute('href')).toContain('52.1');
     expect(link.getAttribute('href')).toContain('7.6');
   });
 
-  it('zeigt KEINEN Geo-Link, wenn das Ereignis keine Koordinaten hat', () => {
+  it('zeigt KEINEN OpenStreetMap-Link, wenn das Ereignis keine Koordinaten hat', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -61,7 +62,7 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
 
     render(PersonDetail, { props: { appState, viewState } });
 
-    expect(screen.queryByRole('link', { name: /Karte/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /OpenStreetMap/ })).toBeNull();
   });
 
   it('zeigt einen definierten Leerzustand, wenn die id nicht (mehr) im Datenbestand existiert', () => {
@@ -93,8 +94,8 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   });
 });
 
-describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06 Befund 1, INV-UI-5)', () => {
-  it('Kartenlink UND Ortslink liegen im selben event-head-Container, wenn beide existieren', () => {
+describe('PersonDetail — Ort-Link + CoordIndicator in EINER Ereigniszeile (ADR-v9-80)', () => {
+  it('der Ortsname selbst ist der Link (kein separater "Ort ansehen →"-Button mehr) UND CoordIndicator sitzt im selben event-line__head-Container', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -103,6 +104,7 @@ describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06
     p.birth.lati = 52.1;
     p.birth.long = 7.6;
     p.birth.placeId = '@P1@';
+    p.birth.place = 'Ochtrup';
     db.individuals.set('@I1@', p);
     appState.loadDatabase(db, 'test.ged');
     viewState.setCurrent('person', '@I1@');
@@ -110,15 +112,91 @@ describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06
     const onNavigateToPlace = vi.fn();
     render(PersonDetail, { props: { appState, viewState, onNavigateToPlace } });
 
-    const link = screen.getByRole('link', { name: /Karte/ });
-    const placeLink = screen.getByText('Ort ansehen →');
-    expect(link.closest('.person-detail__event-head')).toBe(placeLink.closest('.person-detail__event-head'));
-    // Kartenlink ist nicht mehr unbedingt margin-left:auto (nur :last-child) — Ortslink
-    // folgt im selben Flex-Fluss statt in eine eigene Zeile zu brechen.
-    expect(link.className).toContain('person-detail__geo-link');
+    // Der alte separate Button ist ersatzlos entfallen (ADR-v9-80 Punkt 1).
+    expect(screen.queryByText('Ort ansehen →')).toBeNull();
+
+    const placeLink = screen.getByRole('button', { name: 'Ochtrup' });
+    const coordGlyph = screen.getByText('◎');
+    expect(placeLink.closest('.event-line__head')).toBe(coordGlyph.closest('.event-line__head'));
   });
 
-  it('Quellen-Badge läuft im selben Flex-Fluss wie event-head statt in einem separaten Container', () => {
+  it('Klick auf den Ortsnamen navigiert intern zum Orte-Tab (onNavigateToPlace)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    p.birth.placeId = '@P1@';
+    p.birth.place = 'Ochtrup';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    const onNavigateToPlace = vi.fn();
+    render(PersonDetail, { props: { appState, viewState, onNavigateToPlace } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ochtrup' }));
+
+    expect(onNavigateToPlace).toHaveBeenCalledWith('@P1@');
+  });
+
+  it('unaufgelöster Freitext-Ort (keine placeId) bleibt unverlinkter Text', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    p.birth.place = 'Irgendwo';
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState, onNavigateToPlace: vi.fn() } });
+
+    expect(screen.queryByRole('button', { name: 'Irgendwo' })).toBeNull();
+    expect(screen.getByText('Irgendwo')).toBeTruthy();
+  });
+
+  it('Klick auf den CoordIndicator-Glyph setzt lensPlaceFocus und ruft onNavigateLens("map") auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1900';
+    p.birth.placeId = '@P1@';
+    p.birth.lati = 52.1;
+    p.birth.long = 7.6;
+    db.individuals.set('@I1@', p);
+    // Realistische Fixture (Regressionsfund ADR-v9-78/80-Bau-Nachtrag): das
+    // PlaceObject muss SELBST Koordinaten tragen, damit die Karte-Insel
+    // (placesWithCoords) einen Marker dafür führt — sonst bleibt der Glyph zwar
+    // gefüllt (ev.lati/long-Fallback), aber ohne internen Karte-Sprung, s. eigener
+    // Regressionstest in EventLine.component.test.ts.
+    db.placeObjects.set('@P1@', {
+      id: '@P1@',
+      title: 'Ochtrup',
+      type: '',
+      pnames: [],
+      enclosedBy: [],
+      lat: 52.1,
+      long: 7.6,
+      note: '',
+      existsFrom: null,
+      existsTo: null,
+      govId: null,
+      govTypes: null,
+    });
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    const onNavigateLens = vi.fn();
+
+    render(PersonDetail, { props: { appState, viewState, onNavigateLens } });
+    await fireEvent.click(screen.getByText('◎'));
+
+    expect(viewState.getCurrent('lensPlaceFocus')).toBe('@P1@');
+    expect(onNavigateLens).toHaveBeenCalledWith('map');
+  });
+
+  it('Quellen-Badge läuft im selben Flex-Fluss wie event-line__head statt in einem separaten Container', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -133,12 +211,12 @@ describe('PersonDetail — kompakte Ereigniszeile (ADR-v9-30 Nachtrag 2026-07-06
     render(PersonDetail, { props: { appState, viewState } });
 
     const badge = screen.getByText('§42');
-    expect(badge.closest('.person-detail__event-head')).toBeTruthy();
+    expect(badge.closest('.event-line__head')).toBeTruthy();
   });
 });
 
 describe('PersonDetail — Ereigniszeile-Inhaltshierarchie (INV-UI-7, ADR-v9-53)', () => {
-  it('addr steht vor der Datum/Ort-Summary, in derselben Klasse wie value (kein Dimmen/Kursiv)', () => {
+  it('addr steht vor der Datum/Ort-Zeile, in derselben Klasse wie value (kein Dimmen/Kursiv)', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -151,12 +229,12 @@ describe('PersonDetail — Ereigniszeile-Inhaltshierarchie (INV-UI-7, ADR-v9-53)
     render(PersonDetail, { props: { appState, viewState } });
 
     const addr = screen.getByText('Nienborger Damm 1');
-    const summary = screen.getByText(/1950, Ochtrup/);
-    expect(addr.className).toContain('person-detail__event-value');
+    const dateLine = screen.getByText(/1950/);
+    expect(addr.className).toContain('event-line__value');
     expect(addr.className).not.toContain('event-addr');
-    const head = addr.closest('.person-detail__event-head')!;
+    const head = addr.closest('.event-line__head')!;
     const children = Array.from(head.children);
-    expect(children.indexOf(addr)).toBeLessThan(children.indexOf(summary));
+    expect(children.indexOf(addr)).toBeLessThan(children.indexOf(dateLine));
   });
 });
 

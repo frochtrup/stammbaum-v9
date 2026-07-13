@@ -17,6 +17,15 @@
   // schreibt den geteilten ViewState-Fokus-Slot `lensFocus` NUR für den Personen-Modus-
   // Default (Spec 21 §4 "Fokus bleibt beim Lens-Wechsel erhalten") — der Fokus selbst
   // wird hier nicht weitergereicht, TreeView bleibt der Owner der Baum-Rezentrierung.
+  //
+  // Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2"): liest den EIGENEN
+  // Slot `lensPlaceFocus` (view-state.svelte.ts) — bewusst NICHT `lensFocus`
+  // mitbenutzt, weil das ein einmaliger Sprung-Auftrag aus einem Orts-/Hof-Klick-
+  // Origin ist (Ereigniszeilen-Kartenlink/`CoordIndicator`, `PlaceDetail`/`HofDetail`),
+  // kein Dauer-Fokus wie bei Personen. Anders als `lensFocus`/`focusId` unten wird der
+  // Slot deshalb SOFORT nach dem Lesen zurückgesetzt (`viewState.setCurrent(
+  // 'lensPlaceFocus', null)`) — sonst würde ein späterer, unabhängiger Karte-Besuch
+  // erneut auf denselben alten Ort springen.
   import { onDestroy } from 'svelte';
   import '../../islands/map/leaflet-map.css';
   import '../../islands/map/svg-fallback-map.css';
@@ -58,6 +67,20 @@
     if (mode === 'person' && personId == null && focusId) personId = focusId;
   });
 
+  // Orte-Modus-Fokus (ADR-v9-78 Punkt 4) — EINMALIGER Konsum-Read, s. Kommentar oben.
+  // Zyklus-Guard: `setCurrent` innerhalb des Effekts ändert `selection.lensPlaceFocus`
+  // erneut, was `placeFocusFromViewState` neu auswertet und den Effekt ein zweites Mal
+  // laufen lässt — die Bedingung ist dann aber falsy (null), der Effekt endet also nach
+  // maximal einem zusätzlichen No-Op-Durchlauf (keine Endlosschleife).
+  let focusPlaceId = $state<string | null>(null);
+  const placeFocusFromViewState = $derived(viewState.getCurrent('lensPlaceFocus'));
+  $effect(() => {
+    if (mode === 'orte' && placeFocusFromViewState) {
+      focusPlaceId = placeFocusFromViewState;
+      viewState.setCurrent('lensPlaceFocus', null);
+    }
+  });
+
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: LeafletIslandHandle | SvgFallbackHandle | null = null;
   let usingFallback = $state(!navigator.onLine);
@@ -95,7 +118,7 @@
 
   function mountOrUpdate(): void {
     if (!containerEl) return;
-    const data = { mode, places, migrations, biography, animIndex };
+    const data = { mode, places, migrations, biography, animIndex, focusPlaceId };
     if (usingFallback) {
       if (!handle) {
         handle = mountSvgFallbackMap(containerEl, {
@@ -103,10 +126,18 @@
           places,
           migrations,
           biography,
+          focusPlaceId,
           onSelectPlace: () => {},
         });
       } else {
-        (handle as SvgFallbackHandle).update({ mode, places, migrations, biography, onSelectPlace: () => {} });
+        (handle as SvgFallbackHandle).update({
+          mode,
+          places,
+          migrations,
+          biography,
+          focusPlaceId,
+          onSelectPlace: () => {},
+        });
       }
     } else {
       if (!handle) {
@@ -128,15 +159,16 @@
   }
 
   $effect(() => {
-    // Re-mount/-update bei jeder relevanten Änderung (Modus/Personen-Fokus/Daten/
-    // Animationsfortschritt/Fallback-Wechsel) — kompletter Neu-Aufbau, kein Fein-
-    // Diffing (Spec 02 §5).
+    // Re-mount/-update bei jeder relevanten Änderung (Modus/Personen-Fokus/Orts-Fokus/
+    // Daten/Animationsfortschritt/Fallback-Wechsel) — kompletter Neu-Aufbau, kein
+    // Fein-Diffing (Spec 02 §5).
     void mode;
     void places;
     void migrations;
     void biography;
     void animIndex;
     void usingFallback;
+    void focusPlaceId;
     mountOrUpdate();
   });
 

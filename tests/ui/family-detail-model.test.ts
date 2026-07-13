@@ -93,9 +93,9 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
     const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
 
     const marriage = detail.events.find((e) => e.label === 'Heirat')!;
-    expect(marriage.summary).toBe('12. März 1920');
+    expect(marriage.dateLabel).toBe('12. März 1920');
     const engagement = detail.events.find((e) => e.label === 'Verlobung')!;
-    expect(engagement.summary).toBe('ca. 1918');
+    expect(engagement.dateLabel).toBe('ca. 1918');
   });
 
   it('generische events[]-Einträge zeigen ebenfalls das volle Datum in der eigenen Ereigniszeile', () => {
@@ -106,7 +106,21 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
 
     const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
 
-    expect(detail.events[0].summary).toBe('5. Juni 1950');
+    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
+  });
+
+  it('liefert placeLabel getrennt vom Datum (ADR-v9-80 Punkt 1) — EventLine rendert "Datum, Ort" statt eines vorverknüpften Strings', () => {
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.marriage.date = '12 MAR 1920';
+    f.marriage.place = 'Ochtrup';
+    db.families.set('@F1@', f);
+
+    const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
+
+    const marriage = detail.events.find((e) => e.label === 'Heirat')!;
+    expect(marriage.dateLabel).toBe('12. März 1920');
+    expect(marriage.placeLabel).toBe('Ochtrup');
   });
 
   it('Mitgliederzeilen (Disambiguierung) bleiben bei Jahr-only, auch wenn das Geburtsdatum Tag+Monat trägt', () => {

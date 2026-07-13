@@ -15,7 +15,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MigrationLine, PlacePoint, BiographyPoint } from './map-model';
-import { escapeHtml } from './map-model';
+import { escapeHtml, findFocusPoint } from './map-model';
+import { prefersReducedMotion } from '../shared/reduced-motion';
 
 export type MapMode = 'orte' | 'person' | 'migr';
 
@@ -33,6 +34,12 @@ export interface LeafletMountData {
   biography: BiographyPoint[];
   /** Animationsfortschritt (0..N) für Personen-/Migrations-Modus; -1 = alles anzeigen (kein Animationslauf). */
   animIndex?: number;
+  /**
+   * Orts-/Hof-ID zum Zentrieren+Hervorheben im Orte-Modus (ADR-v9-78 Punkt 4, Spec
+   * 20 §1.9 "Lücke 2"). `null`/`undefined`/unbekannte ID = kein Fokus, unverändertes
+   * Verhalten (alle Orte per `fitBounds`, kein hervorgehobener Marker).
+   */
+  focusPlaceId?: string | null;
 }
 
 export interface LeafletIslandHandle {
@@ -44,6 +51,9 @@ export interface LeafletIslandHandle {
 
 const DEFAULT_CENTER: [number, number] = [51.5, 10.0];
 const DEFAULT_ZOOM = 6;
+/** Zoom-Stufe für die Fokus-Zentrierung (ADR-v9-78 Punkt 4) — enger als der
+ * `fitBounds`-`maxZoom:10` der Orte-Gesamtansicht, analog `renderPerson`s `maxZoom:13`. */
+const FOCUS_ZOOM = 13;
 
 function circleStyle(count: number): { radius: number; fillColor: string } {
   if (count >= 20) return { radius: 11, fillColor: '#c8a84a' };
@@ -84,26 +94,29 @@ export function mountLeafletMap(
   const markerLayer = L.layerGroup().addTo(map);
   const lineLayer = L.layerGroup().addTo(map);
 
-  function renderOrte(places: PlacePoint[]): void {
+  function renderOrte(places: PlacePoint[], focusPlaceId: string | null | undefined): void {
     const bounds: [number, number][] = [];
+    const focusPoint = findFocusPoint(places, focusPlaceId);
     for (const p of places) {
+      const isFocused = focusPoint != null && p.placeId === focusPoint.placeId;
       const { radius, fillColor } = circleStyle(p.personCount);
       const marker = p.isHof
         ? L.marker([p.lat, p.long], {
             icon: L.divIcon({
               className: '',
-              html: '<div class="map-island__diamond-marker"></div>',
+              html: `<div class="map-island__diamond-marker${isFocused ? ' map-island__diamond-marker--focused' : ''}"></div>`,
               iconSize: [10, 10],
               iconAnchor: [5, 5],
             }),
           })
         : L.circleMarker([p.lat, p.long], {
-            radius,
+            radius: isFocused ? radius + 3 : radius,
             fillColor,
-            color: '#1a140a',
-            weight: 1.5,
+            color: isFocused ? '#e5c96e' : '#1a140a',
+            weight: isFocused ? 3 : 1.5,
             opacity: 1,
             fillOpacity: 0.85,
+            className: isFocused ? 'map-island__marker--focused' : undefined,
           });
       marker.bindTooltip(`${escapeHtml(p.title)} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`, {
         direction: 'top',
@@ -113,7 +126,14 @@ export function mountLeafletMap(
       marker.addTo(markerLayer);
       bounds.push([p.lat, p.long]);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10, animate: !prefersReducedMotion() });
+    // Fokus-Zentrierung LÄUFT NACH der Gesamt-fitBounds (Reihenfolge wichtig: der
+    // engere, gezielte setView-Aufruf muss der letzte Zentrierungsbefehl sein, sonst
+    // gewinnt die Gesamtansicht). `prefers-reduced-motion` (Spec 21 §6i) entscheidet
+    // hier zwischen animiertem Pan/Zoom und direktem Sprung zum Endzustand.
+    if (focusPoint) {
+      map.setView([focusPoint.lat, focusPoint.long], FOCUS_ZOOM, { animate: !prefersReducedMotion() });
+    }
   }
 
   function renderMigr(lines: MigrationLine[], animIndex: number): void {
@@ -136,7 +156,7 @@ export function mountLeafletMap(
       }).addTo(markerLayer);
       bounds.push(...latLngs);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10, animate: !prefersReducedMotion() });
   }
 
   function renderPerson(points: BiographyPoint[], animIndex: number): void {
@@ -168,14 +188,14 @@ export function mountLeafletMap(
       }
       bounds.push([pt.lat, pt.long]);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13, animate: !prefersReducedMotion() });
   }
 
   function render(next: LeafletMountData): void {
     markerLayer.clearLayers();
     lineLayer.clearLayers();
     const animIndex = next.animIndex ?? -1;
-    if (next.mode === 'orte') renderOrte(next.places);
+    if (next.mode === 'orte') renderOrte(next.places, next.focusPlaceId);
     else if (next.mode === 'migr') renderMigr(next.migrations, animIndex);
     else renderPerson(next.biography, animIndex);
   }

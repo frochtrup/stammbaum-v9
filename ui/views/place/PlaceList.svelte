@@ -8,8 +8,10 @@
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import {
     buildPlaceListSections,
@@ -25,8 +27,11 @@
      *  Toolbar dieser Liste (Toolbar-Ownership), die eigentliche Ansichts-Umschaltung
      *  bleibt bei EntityTab (das entscheidet, ob PlaceList oder PlaceDedupView rendert). */
     onOpenDedup?: () => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
+     *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onOpenDedup }: Props = $props();
+  const { appState, viewState, onOpenDedup, onNavigateLens }: Props = $props();
 
   let query = $state('');
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
@@ -130,16 +135,13 @@
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
-                {#if row.type}<span class="place-list__type-badge">{row.type}</span>{/if}
+                {#if row.type}<span class="stb-pill">{row.type}</span>{/if}
+                {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
                 {#if !row.enriched}
                   <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>
                 {/if}
-                <span
-                  class="place-list__coord-indicator"
-                  class:place-list__coord-indicator--missing={!row.hasCoords}
-                  title={row.hasCoords ? 'Koordinaten vorhanden' : 'Koordinaten fehlen'}
-                >
-                  {row.hasCoords ? '◎' : '◌'}
+                <span class="place-list__coord-wrap">
+                  <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
                 </span>
               </span>
               {#if groupMode && row.variants.length > 0}
@@ -294,8 +296,12 @@
     background: var(--stb-surface-2);
   }
 
+  /* flex-wrap (Nutzer-Fund-Analog HofList.svelte, TST-11): mit Hierarchie-Badge PLUS
+     Anreicherungs-Pille PLUS CoordIndicator kann diese Zeile auf 375px (primäre
+     mobile Zielbreite, Spec 21 §2) mehr Inhalt tragen, als in eine Zeile passt. */
   .place-list__title-line {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
   }
@@ -304,21 +310,10 @@
     font-weight: 600;
   }
 
-  .place-list__type-badge {
-    font-size: 0.68rem;
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.05em 0.4em;
-  }
-
-  .place-list__coord-indicator {
+  /* CoordIndicator ist IMMER das letzte Kind dieser Zeile (unconditionally gerendert,
+     kein Geschwister danach) — margin-left:auto ist hier sicher (TST-11). */
+  .place-list__coord-wrap {
     margin-left: auto;
-    color: var(--stb-quay-3);
-  }
-
-  .place-list__coord-indicator--missing {
-    color: var(--stb-text-muted);
   }
 
   .place-list__variants {
