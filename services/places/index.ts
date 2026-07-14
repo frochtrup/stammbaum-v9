@@ -4,7 +4,7 @@
 export { PlacesSyncService } from './places-sync-service';
 export type { LoadedPlaces, ConflictWarning, ReconcileResult } from './places-sync-service';
 export { createPlacesSyncService } from './create-places-sync-service';
-export { applyPlaceResolution } from './apply-resolution';
+export { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from './apply-resolution';
 export type { ApplyResolutionResult } from './apply-resolution';
 export { IdbPlacesStore } from './idb-places-store';
 export { LocalStorageDeviceIdProvider } from './device-id-adapter';

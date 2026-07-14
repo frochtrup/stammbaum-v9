@@ -3,7 +3,7 @@
 // Directive gesetzt (läuft mit dem globalen 'node'-Environment, s. vitest.config.ts).
 import { describe, expect, it } from 'vitest';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase } from '../../core/model/index';
+import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase, makeEvent } from '../../core/model/index';
 import { parseGedcom } from '../../core/interop';
 import type { PlaceObject, HofObject } from '../../core/places';
 
@@ -68,6 +68,17 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     appState.deletePlace('@P1@');
 
     expect(appState.db.placeObjects.has('@P1@')).toBe(false);
+  });
+
+  it('deletePlace räumt hängende event.placeId-Referenzen kaskadierend auf (ADR-v9-78 Punkt 1)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.savePerson(makePerson('@I1@', { birth: makeEvent('BIRT', { placeId: '@P1@' }) }));
+
+    appState.deletePlace('@P1@');
+
+    expect(appState.db.placeObjects.has('@P1@')).toBe(false);
+    expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
   });
 
   it('mergePlace führt Dubletten zusammen: Variante überlebt, Hof-villageId wird umgehängt, Kontext bleibt konsistent', () => {
@@ -166,6 +177,18 @@ describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', 
     appState.deleteHof('@H1@');
 
     expect(appState.db.hofObjects.has('@H1@')).toBe(false);
+  });
+
+  it('deleteHof räumt hängende event.hofId-Referenzen kaskadierend auf (ADR-v9-78 Punkt 1)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.saveHof(hof('@H1@', '@P1@'));
+    appState.savePerson(makePerson('@I1@', { birth: makeEvent('BIRT', { hofId: '@H1@' }) }));
+
+    appState.deleteHof('@H1@');
+
+    expect(appState.db.hofObjects.has('@H1@')).toBe(false);
+    expect(appState.db.individuals.get('@I1@')?.birth.hofId).toBeNull();
   });
 
   it('mergeHof führt Dubletten zusammen (Array von Verlierern, Massen-Dedup §9.2)', () => {

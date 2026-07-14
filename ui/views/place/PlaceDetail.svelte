@@ -63,6 +63,14 @@
   let formLat = $state<number | null>(null);
   let formLong = $state<number | null>(null);
   let formNote = $state('');
+  let formExistsFrom = $state<number | null>(null);
+  let formExistsTo = $state<number | null>(null);
+  let formGovId = $state('');
+  /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext bearbeitet —
+   *  kein etabliertes Array-of-string-Editier-Muster im Projekt gefunden (geprüft:
+   *  PlaceForm.svelte setzt govTypes nur fest auf null bei Neuanlage), deshalb die
+   *  einfachste Lösung analog anderen komma-getrennten Listen. */
+  let formGovTypes = $state('');
   let newPnameValue = $state('');
   let newPnameFrom = $state<number | null>(null);
   let newPnameTo = $state<number | null>(null);
@@ -83,6 +91,16 @@
     enclosureModalOpen = false;
   }
 
+  /** Komma-getrennten Freitext in `govTypes: string[] | null` zurückübersetzen — leere
+   *  Liste wird `null` (Tristate-Default, analog anderen "leer = nicht erfasst"-Feldern). */
+  function parseGovTypes(text: string): string[] | null {
+    const items = text
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    return items.length > 0 ? items : null;
+  }
+
   function startEdit() {
     if (!detail) return;
     formTitle = detail.place.title;
@@ -90,6 +108,10 @@
     formLat = detail.place.lat;
     formLong = detail.place.long;
     formNote = detail.place.note;
+    formExistsFrom = detail.place.existsFrom;
+    formExistsTo = detail.place.existsTo;
+    formGovId = detail.place.govId ?? '';
+    formGovTypes = detail.place.govTypes?.join(', ') ?? '';
     editing = true;
   }
 
@@ -106,6 +128,10 @@
       lat: formLat,
       long: formLong,
       note: formNote,
+      existsFrom: formExistsFrom,
+      existsTo: formExistsTo,
+      govId: formGovId.trim() || null,
+      govTypes: parseGovTypes(formGovTypes),
     });
     editing = false;
   }
@@ -168,6 +194,24 @@
     mergeError = '';
   }
 
+  /**
+   * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()` (kein etabliertes
+   * Bestätigungs-Dialog-Muster im Projekt gefunden — Vereinfachen-vor-Erfinden). Räumt
+   * hängende Event-Referenzen kaskadierend auf (`appState.deletePlace` →
+   * `deletePlaceCascade`, s. app-state.svelte.ts) — hier nur der UI-Trigger + Navigation
+   * zurück zur Liste danach.
+   */
+  function handleDelete() {
+    if (!detail) return;
+    const label = detail.place.title || detail.place.id;
+    if (!window.confirm(`Ort „${label}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Ort werden dabei entfernt (nicht die Ereignisse selbst).`)) {
+      return;
+    }
+    appState.deletePlace(detail.place.id);
+    editing = false;
+    onBack?.();
+  }
+
 </script>
 
 {#snippet placeEventRow(row: PlaceEventRow)}
@@ -220,9 +264,26 @@
           Notiz
           <textarea bind:value={formNote}></textarea>
         </label>
+        <label>
+          Existiert von (Jahr)
+          <input type="number" bind:value={formExistsFrom} />
+        </label>
+        <label>
+          Existiert bis (Jahr)
+          <input type="number" bind:value={formExistsTo} />
+        </label>
+        <label>
+          GOV-ID
+          <input type="text" bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
+        </label>
+        <label>
+          GOV-Typen (kommagetrennt)
+          <input type="text" bind:value={formGovTypes} placeholder="z. B. Stadt, Kreis" />
+        </label>
         <div class="place-detail__form-actions">
           <button type="button" class="place-detail__save-btn" onclick={saveEdit}>Speichern</button>
           <button type="button" class="place-detail__cancel-btn" onclick={cancelEdit}>Abbrechen</button>
+          <button type="button" class="place-detail__delete-btn" onclick={handleDelete}>Ort löschen</button>
         </div>
       </section>
     {/if}
@@ -480,6 +541,24 @@
   .place-detail__cancel-btn {
     background: var(--stb-surface-3);
     color: var(--stb-text);
+  }
+
+  /* Destruktive Aktion — eigener Akzent statt dem regulären Gold-Save-Stil (kein
+     etabliertes Delete-Button-Muster im Projekt, `--stb-danger` ist bereits im
+     Design-System als Fehler-/Warn-Akzent definiert, s. .place-detail__error).
+     `margin-left: auto` auf :last-child statt unbedingt auf der Klasse (TST-11 —
+     nur sicher, wenn das Element garantiert das letzte in der flex-wrap-Zeile ist). */
+  .place-detail__delete-btn {
+    background: transparent;
+    color: var(--stb-danger);
+    border: 1px solid var(--stb-danger);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+  }
+
+  .place-detail__form-actions > :last-child {
+    margin-left: auto;
   }
 
   .place-detail__unlinked ul {

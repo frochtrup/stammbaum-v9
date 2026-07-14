@@ -91,6 +91,35 @@ export function withRemovedHofAddr(hof: HofObject, index: number): HofObject {
 }
 
 /**
+ * Bearbeitet eine BESTEHENDE Adressvariante am angegebenen Index (Formular-Pfad —
+ * u. a. der im Steckbrief angezeigte "Name" eines Hofes, `addrs[0].value`, den es sonst
+ * nur per Löschen+Neu-Anhängen umbenennen ließe; das verlöre die Array-Position).
+ * Ersetzt `addrs[index]` durch `{ value: value.trim(), from, to }` — gleiche Trim-Disziplin
+ * wie `withAddedHofAddr`. No-Op-tolerant: leerer `value.trim()` oder Index außerhalb
+ * `0..addrs.length-1` gibt `hof` unverändert zurück (kein Crash, kein stillschweigendes
+ * Löschen). Reine, unveränderliche Funktion — mutiert weder `hof` noch das `addrs`-Array.
+ *
+ * `hof.id` bleibt UNVERÄNDERT: die Hof-`id` ist deterministisch aus der Adresse bei
+ * ERSTANLAGE (Spec 11 §1, §6) und wird durch nachträgliche Edits nie neu berechnet
+ * (analog `PlaceObject.title`, das sich ohne `id`-Neuberechnung ändern kann). Diese Funktion
+ * ändert nur den Inhalt des Eintrags — kein Re-Resolve. Dass künftige Event-Zuordnungen gegen
+ * `normHofAddr(a.value)` matchen (hof-registry.ts), ist bestehendes, gewolltes Verhalten
+ * (Adressvarianten bestimmen ohnehin, wogegen gematcht wird) — keine Sorge dieser Funktion.
+ */
+export function withUpdatedHofAddr(
+  hof: HofObject,
+  index: number,
+  value: string,
+  from: number | null,
+  to: number | null,
+): HofObject {
+  if (!value.trim()) return hof;
+  if (index < 0 || index >= hof.addrs.length) return hof;
+  const entry: DatedAddress = { value: value.trim(), from, to };
+  return { ...hof, addrs: hof.addrs.map((a, i) => (i === index ? entry : a)) };
+}
+
+/**
  * Kommando (Spec 20 §1.7 [K] "String→PlaceObject verknüpfen"): setzt `ev.placeId` auf
  * ein bestehendes PlaceObject UND reprojiziert `ev.place` sofort (Spec 11 §3 INV-PLACE,
  * ADR-v9-19 — Sofort-Reprojektion im Kommando). Die Reprojektion läuft an ZWEI Stellen,

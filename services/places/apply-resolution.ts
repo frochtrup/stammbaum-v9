@@ -17,7 +17,7 @@
 //
 // core/places bleibt UNVERÄNDERT (INV-ARCH-1) — nur seine öffentliche API wird aufgerufen.
 
-import type { Database, Event } from '../../core/model/types';
+import type { Database, Event, PlaceId, HofId } from '../../core/model/types';
 import {
   resolveEvents,
   seedPlacesFromEvents,
@@ -25,8 +25,12 @@ import {
   makeHofRegistry,
   isEnrichedPlace,
   isEnrichedHof,
+  buildPlacForGedcom,
+  eventYear,
   type ResolveResult,
+  type PlaceContext,
 } from '../../core/places';
+import { deletePlaceObject, deleteHofObject } from '../../core/places/commands';
 
 /** Ein Rückschreib-Ziel: Funktion, die die aufgelöste Event-Kopie an ihrer Stelle einsetzt. */
 type EventSlot = (resolved: Event) => void;
@@ -116,6 +120,121 @@ function resetUncuratedLinks(db: Database): void {
     f.engagement = reset(f.engagement);
     f.marriage = reset(f.marriage);
     f.events = f.events.map(reset);
+  }
+}
+
+/**
+ * Kommando (ADR-v9-78 Punkt 1): löscht ein PlaceObject UND räumt jede darauf zeigende
+ * `event.placeId`-Referenz vorher auf (`null`) — sonst blieben hängende Fremdreferenzen
+ * zurück (`deletePlaceObject` in core/places/commands.ts kennt `db` nicht und fasst nur
+ * die Map an, s. dortiger Kommentar). Gleiche Slot-Iteration wie `resetUncuratedLinks`
+ * (birth/chr/death/buri/events[] bei Person, engagement/marriage/events[] bei Family),
+ * aber simplere Bedingung: „zeigt exakt auf `id`" statt einer Kurations-Heuristik. KEIN
+ * Kaskaden-Löschen von Events/Personen/Familien — nur die Referenz wird `null`. Mutiert
+ * `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
+ * `resetUncuratedLinks`/`applyPlaceResolution`).
+ */
+export function deletePlaceCascade(db: Database, id: PlaceId): void {
+  const reset = (ev: Event): Event => (ev.placeId === id ? { ...ev, placeId: null } : ev);
+
+  for (const p of db.individuals.values()) {
+    p.birth = reset(p.birth);
+    p.chr = reset(p.chr);
+    p.death = reset(p.death);
+    p.buri = reset(p.buri);
+    p.events = p.events.map(reset);
+  }
+  for (const f of db.families.values()) {
+    f.engagement = reset(f.engagement);
+    f.marriage = reset(f.marriage);
+    f.events = f.events.map(reset);
+  }
+
+  deletePlaceObject(db.placeObjects, id);
+}
+
+/**
+ * Kommando (ADR-v9-78 Punkt 1): löscht ein HofObject UND räumt jede darauf zeigende
+ * `event.hofId`-Referenz vorher auf (`null`) — exakt analog `deletePlaceCascade`, aber
+ * für den Hof-Pfad. KEIN Kaskaden-Löschen von Events/Personen/Familien — nur die
+ * Referenz wird `null`.
+ */
+export function deleteHofCascade(db: Database, id: HofId): void {
+  const reset = (ev: Event): Event => (ev.hofId === id ? { ...ev, hofId: null } : ev);
+
+  for (const p of db.individuals.values()) {
+    p.birth = reset(p.birth);
+    p.chr = reset(p.chr);
+    p.death = reset(p.death);
+    p.buri = reset(p.buri);
+    p.events = p.events.map(reset);
+  }
+  for (const f of db.families.values()) {
+    f.engagement = reset(f.engagement);
+    f.marriage = reset(f.marriage);
+    f.events = f.events.map(reset);
+  }
+
+  deleteHofObject(db.hofObjects, id);
+}
+
+/**
+ * Kommando: zieht eine EXPLIZITE Hof-Adress-Umbenennung (Nutzeraktion, z. B. via
+ * `withUpdatedHofAddr`) auf alle referenzierenden Events mit. Der „Name" eines Hofes IST
+ * `addrs[i].value` (HofObject hat kein eigenes `title`-Feld) — der Sinn einer
+ * Umbenennung ist, dass sie durchgängig sichtbar wird. ADR-v9-47 (schützt `ev.addr` als
+ * eingefrorenes, byte-identisches „fill-if-empty"-Feld vor AUTOMATISCHEN/ungewollten
+ * Änderungen, s. `linkEventToHof`) gilt hier NICHT — das ist eine bewusste, explizite
+ * Nutzeraktion auf den Hof selbst, keine automatische Reprojektion.
+ *
+ * Ohne diesen Nachlauf würde eine Umbenennung zwar `PLAC` live ändern (der Writer baut
+ * `PLAC` bei jedem Export frisch aus den aktuellen Hof-`addrs`, s. `write-back-emit.ts`),
+ * aber `ev.addr` bliebe der alte Wert — unsichtbar in der Ereigniszeile (die `ev.addr`
+ * roh anzeigt) UND beim nächsten Laden würde das alte `ADDR` den alten Hof-Namen erneut
+ * bootstrappen (Pfad B, Spec 11 §4.2).
+ *
+ * VORBEDINGUNG: der Aufrufer hat die aktualisierten Hof-`addrs` (mit `newValue`) bereits
+ * in `db.hofObjects` gespeichert, BEVOR diese Funktion gerufen wird — der hier intern
+ * gebaute `PlaceContext` muss den neuen Namen sehen, damit `buildPlacForGedcom` korrekt
+ * mit `newValue` projiziert.
+ *
+ * Trifft NUR Events mit `hofId === hofId` UND `addr === oldValue` (exakter String-
+ * Vergleich, BEIDE Bedingungen) — das ist ein LP-1-Schutz: Events, deren `addr` vom
+ * erwarteten alten Wert abweicht (seltener Altbestand, z. B. eine Komma-Variante wie
+ * „Oster 82a, Wester 141" oder eine Adressbuch-Übernahme), sind kein „sauberer"
+ * Projektions-Cache mehr und bleiben BYTE-IDENTISCH unangetastet (GEDCOM-ADDR-
+ * Roundtrip-Treue). Events mit leerem `addr` matchen den Guard nicht (schreiben ohnehin
+ * kein ADDR, ihr PLAC berechnet sich live) — ebenfalls unangetastet.
+ *
+ * Für jeden Treffer: `addr` wird `newValue`; `place` wird per `buildPlacForGedcom` neu
+ * berechnet, aber NUR übernommen, wenn das Ergebnis `!= null` ist (sonst bleibt `place`
+ * unverändert — analog `linkEventToHof`/`linkEventToPlace`, kein Overwrite mit null).
+ *
+ * Gleiche Slot-Iteration/Mutations-Disziplin wie `deleteHofCascade` (In-Place-Mutation
+ * von `db.individuals`/`db.families`, gleiche Person-/Family-Slots).
+ */
+export function renameHofAddrInEvents(db: Database, hofId: HofId, oldValue: string, newValue: string): void {
+  const ctx: PlaceContext = { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+
+  const rename = (ev: Event): Event => {
+    if (ev.hofId !== hofId || ev.addr !== oldValue) return ev;
+    const next: Event = { ...ev, addr: newValue };
+    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    if (proj != null) next.place = proj;
+    return next;
+  };
+
+  for (const p of db.individuals.values()) {
+    p.birth = rename(p.birth);
+    p.chr = rename(p.chr);
+    p.death = rename(p.death);
+    p.buri = rename(p.buri);
+    p.events = p.events.map(rename);
+  }
+  for (const f of db.families.values()) {
+    f.engagement = rename(f.engagement);
+    f.marriage = rename(f.marriage);
+    f.events = f.events.map(rename);
   }
 }
 

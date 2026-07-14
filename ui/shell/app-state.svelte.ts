@@ -34,17 +34,16 @@ import {
   makePlaceRegistry,
   makeHofRegistry,
   savePlaceObject,
-  deletePlaceObject,
   saveHofObject,
-  deleteHofObject,
   mergePlaceObjects,
   mergeHofObjects,
+  withUpdatedHofAddr,
   type PlaceContext,
   type MergeResult,
 } from '../../core/places';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
-import { applyPlaceResolution } from '../../services/places';
+import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
@@ -141,6 +140,17 @@ export interface AppState {
   mergePlace(survivorId: PlaceId, mergedIds: PlaceId | readonly PlaceId[]): MergeResult;
   /** Kommando: Upsert eines HofObject (Spec 20 §1.8 [K]). */
   saveHof(model: HofObject): void;
+  /**
+   * Kommando: bearbeitet EINE Adressvariante eines Hofes (`addrs[index]`) UND zieht — falls
+   * sich der Wert (`addrs[index].value`) dabei tatsächlich ändert — die Umbenennung auf alle
+   * referenzierenden Events mit (`renameHofAddrInEvents`, Nutzeraktion, ADR-v9-47 gilt hier
+   * NICHT). Der „Name" eines Hofes IST `addrs[0].value` (HofObject hat kein eigenes
+   * `title`-Feld) — ohne diesen Nachlauf würde `ev.addr`/`ev.place` beim nächsten Anzeigen
+   * weiter den alten Namen zeigen (Ereigniszeile) UND beim nächsten Laden den alten Namen
+   * erneut bootstrappen (Pfad B, Spec 11 §4.2). Reine `from`/`to`-Änderungen (Wert bleibt
+   * gleich) propagieren NICHT — nur ein tatsächlicher Namenswechsel ist eine Umbenennung.
+   */
+  updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
   /** Kommando: entfernt ein HofObject. */
   deleteHof(id: HofId): void;
   /**
@@ -352,11 +362,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       persistPlaces();
     },
     deletePlace(id) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextPlaces = new Map(db.placeObjects);
-      deletePlaceObject(nextPlaces, id);
-      db = { ...db, placeObjects: nextPlaces };
+      // deletePlaceCascade (ADR-v9-78 Punkt 1) räumt zuerst jede hängende
+      // event.placeId-Referenz in individuals/families auf (in-place), bevor es das
+      // PlaceObject selbst entfernt (ebenfalls in-place auf db.placeObjects) — deshalb
+      // hier derselbe Mutations-Stil wie replacePlacesAndHofs (nextDb-Shallow-Copy VOR dem
+      // Aufruf, damit die Referenzänderung Svelte's Reaktivität auslöst). Sowohl
+      // placeObjects (orte.json) als auch individuals/families (Event-Referenzen) haben
+      // sich geändert — beide Persistenz-Pfade nötig.
+      const nextDb = { ...db };
+      deletePlaceCascade(nextDb, id);
+      db = nextDb;
       persistPlaces();
+      persistWorkingCopyIfLoaded();
     },
     mergePlace(survivorId, mergedIds): MergeResult {
       // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
@@ -380,12 +397,32 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = { ...db, hofObjects: nextHofs };
       persistPlaces();
     },
-    deleteHof(id) {
+    updateHofAddr(hofId, index, value, from, to) {
+      const hof = db.hofObjects.get(hofId);
+      if (!hof) return;
+      const oldValue = hof.addrs[index]?.value;
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
-      deleteHofObject(nextHofs, id);
-      db = { ...db, hofObjects: nextHofs };
+      saveHofObject(nextHofs, withUpdatedHofAddr(hof, index, value, from, to));
+      const nextDb = { ...db, hofObjects: nextHofs };
+      const newValue = value.trim();
+      // Nur bei tatsächlichem Namenswechsel propagieren — reine from/to-Änderungen
+      // (Wert bleibt gleich) lösen KEINE Event-Umbenennung aus.
+      if (oldValue !== undefined && newValue !== '' && oldValue !== newValue) {
+        renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
+      }
+      db = nextDb;
       persistPlaces();
+      persistWorkingCopyIfLoaded();
+    },
+    deleteHof(id) {
+      // deleteHofCascade (ADR-v9-78 Punkt 1) — analog deletePlace oben, aber für den
+      // Hof-Pfad (event.hofId statt event.placeId).
+      const nextDb = { ...db };
+      deleteHofCascade(nextDb, id);
+      db = nextDb;
+      persistPlaces();
+      persistWorkingCopyIfLoaded();
     },
     mergeHof(survivorId, mergedIds) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity

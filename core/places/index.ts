@@ -71,6 +71,7 @@ export {
   withRemovedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
+  withUpdatedHofAddr,
   linkEventToPlace,
   linkEventToHof,
   mergePlaceObjects,

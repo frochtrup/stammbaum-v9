@@ -13,6 +13,7 @@ import {
   withRemovedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
+  withUpdatedHofAddr,
   linkEventToPlace,
   linkEventToHof,
   mergePlaceObjects,
@@ -125,6 +126,53 @@ describe('withAddedHofAddr/withRemovedHofAddr — Adressvarianten (Formular-Pfad
     });
     const next = withRemovedHofAddr(h, 0);
     expect(next.addrs).toEqual([{ value: 'B', from: null, to: null }]);
+  });
+});
+
+describe('withUpdatedHofAddr — bestehende Adressvariante bearbeiten (Formular-Pfad)', () => {
+  it('ersetzt Wert/from/to an gültigem Index, Rest der Liste unverändert, ohne Original zu mutieren', () => {
+    const h = hof('@H1@', '@P1@', {
+      addrs: [
+        { value: 'Wall 33', from: 1900, to: 1950 },
+        { value: 'Wall 34', from: null, to: null },
+      ],
+    });
+    const next = withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949);
+    expect(next.addrs).toEqual([
+      { value: 'Wall 33a', from: 1901, to: 1949 },
+      { value: 'Wall 34', from: null, to: null },
+    ]);
+    // Original unangetastet (unveränderliche Funktion).
+    expect(h.addrs).toEqual([
+      { value: 'Wall 33', from: 1900, to: 1950 },
+      { value: 'Wall 34', from: null, to: null },
+    ]);
+  });
+
+  it('trimmt den Wert (gleiche Trim-Disziplin wie withAddedHofAddr)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Alt', from: null, to: null }] });
+    const next = withUpdatedHofAddr(h, 0, '  Neu  ', null, null);
+    expect(next.addrs).toEqual([{ value: 'Neu', from: null, to: null }]);
+  });
+
+  it('ignoriert leere/nur-Whitespace Werte (kein stillschweigendes Löschen)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, 0, '', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 0, '   ', null, null)).toBe(h);
+  });
+
+  it('ignoriert Index außerhalb des Arrays (negativ oder >= length)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, -1, 'X', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 1, 'X', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 99, 'X', null, null)).toBe(h);
+  });
+
+  it('lässt die Hof-id in jedem Fall unverändert (id ist deterministisch aus Erstanlage, kein Re-Resolve)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949).id).toBe('@H1@');
+    expect(withUpdatedHofAddr(h, 0, '', null, null).id).toBe('@H1@');
+    expect(withUpdatedHofAddr(h, 5, 'X', null, null).id).toBe('@H1@');
   });
 });
 

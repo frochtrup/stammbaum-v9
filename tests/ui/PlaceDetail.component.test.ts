@@ -71,6 +71,116 @@ describe('PlaceDetail — Bearbeitung (Name, Koordinaten, Typ)', () => {
   });
 });
 
+describe('PlaceDetail — Bearbeitung (existsFrom/existsTo/govId/govTypes, TST-9 Feld-Vollständigkeit)', () => {
+  it('speichert existsFrom/existsTo/govId/govTypes über appState.savePlace und zeigt sie beim erneuten Öffnen wieder', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Existiert von (Jahr)'), { target: { value: '1200' } });
+    await fireEvent.input(screen.getByLabelText('Existiert bis (Jahr)'), { target: { value: '1975' } });
+    await fireEvent.input(screen.getByLabelText('GOV-ID'), { target: { value: 'object_123456' } });
+    await fireEvent.input(screen.getByLabelText('GOV-Typen (kommagetrennt)'), { target: { value: 'Stadt, Kreis' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.existsFrom).toBe(1200);
+    expect(appState.db.placeObjects.get('@P1@')?.existsTo).toBe(1975);
+    expect(appState.db.placeObjects.get('@P1@')?.govId).toBe('object_123456');
+    expect(appState.db.placeObjects.get('@P1@')?.govTypes).toEqual(['Stadt', 'Kreis']);
+
+    // Persistenz-Rundlauf (TST-8): erneut öffnen zeigt die gespeicherten Werte wieder.
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    expect((screen.getByLabelText('Existiert von (Jahr)') as HTMLInputElement).value).toBe('1200');
+    expect((screen.getByLabelText('Existiert bis (Jahr)') as HTMLInputElement).value).toBe('1975');
+    expect((screen.getByLabelText('GOV-ID') as HTMLInputElement).value).toBe('object_123456');
+    expect((screen.getByLabelText('GOV-Typen (kommagetrennt)') as HTMLInputElement).value).toBe('Stadt, Kreis');
+  });
+
+  it('leere GOV-Typen werden zu null statt einer leeren Liste', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', govTypes: ['Stadt'] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('GOV-Typen (kommagetrennt)'), { target: { value: '' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.govTypes).toBeNull();
+  });
+});
+
+describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
+  it('löscht das PlaceObject nach Bestätigung und navigiert per onBack zur Liste', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.birth.placeId = '@P1@';
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    const onBack = vi.fn();
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+
+    render(PlaceDetail, { props: { appState, viewState, onBack } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Ort löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(appState.db.placeObjects.has('@P1@')).toBe(false);
+    // Kaskadierende Referenz-Bereinigung (deletePlaceCascade) — keine hängende placeId.
+    expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
+    expect(onBack).toHaveBeenCalledOnce();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('löscht NICHT, wenn die Bestätigung abgebrochen wird', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    const onBack = vi.fn();
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmSpy);
+
+    render(PlaceDetail, { props: { appState, viewState, onBack } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Ort löschen'));
+
+    expect(appState.db.placeObjects.has('@P1@')).toBe(true);
+    expect(onBack).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('zeigt "Ort löschen" NICHT außerhalb des Bearbeiten-Modus (ADR-v9-30 Punkt 5)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.queryByText('Ort löschen')).toBeNull();
+  });
+});
+
 describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
   it('fügt eine neue pnames-Variante hinzu (nur im Bearbeiten-Modus sichtbar)', async () => {
     const appState = createAppState();
