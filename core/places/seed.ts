@@ -146,6 +146,43 @@ export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext
     chainCompatibleAnyPath(ctx.places.byId, leafId, parentsNorm);
 
   /**
+   * Cluster-Verträglichkeit ZWISCHEN zwei im selben Lauf geseedeten Ketten.
+   *
+   * Wie `parentsCompatible` positionsweise über die gemeinsame Länge (leere/kürzere Kette
+   * bleibt mit allem verträglich — „hunderte Ochtrup, auch atomar+reich gemischt, bleiben
+   * ein Ort", §4.2), ABER pro Position mit KNOTEN-Identität statt rohem String-Vergleich:
+   * zwei verschiedene Schreibweisen können denselben kuratierten Knoten treffen — Segment
+   * „Deutsches Reich" und Segment „Deutschland" lösen beide auf `_po_de` auf (title
+   * „Deutschland", pname „Deutsches Reich" 1871–1945).
+   *
+   * WARUM eine zweite Funktion neben `parentsCompatible` (Befund 2026-07-16): ADR-v9-71
+   * hat exakt dieses Problem bereits gelöst — aber nur für Pfad (a), den Abgleich gegen
+   * KURATIERTE POs (`existingParentsCompatible` oben). Pfad (b), der Abgleich gegen die im
+   * selben Lauf frisch geseedeten Cluster, behielt den nackten String-Vergleich. Folge am
+   * echten Datenbestand: vier Ortspaare (Bremen/Essen/Hildesheim/Bottrop) existierten
+   * doppelt — je `_plac_X__deutsches_reich` UND `_plac_X__deutschland`, BEIDE mit demselben
+   * Elter `_po_de` —, wodurch 23 Ereignisse unbindbar in Review-Klasse P landeten, obwohl
+   * ihr Ort eindeutig war. Spec 11 §4.2 schließt genau das aus: der Dedup-Schlüssel ist
+   * „weder name-only NOCH Voll-Hierarchie-String".
+   *
+   * `parentsCompatible` (exportiert, rein, ohne Registry-Zugriff) bleibt bewusst unangetastet.
+   */
+  const seedParentsCompatible = (a: readonly string[], b: readonly string[]): boolean => {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+      if (a[i] === b[i]) continue;
+      // Verschiedene Schreibweisen, aber derselbe kuratierte Knoten? Nur bei EINDEUTIGER
+      // Auflösung beider Seiten — bei mehreren gleichnamigen Kandidaten wäre die Gleichheit
+      // selbst geraten (genau die Mehrdeutigkeit, die Klasse P dem Menschen vorlegt).
+      const idsA = ctx.places.findAllByName(a[i]);
+      if (idsA.length !== 1) return false;
+      const idsB = ctx.places.findAllByName(b[i]);
+      if (idsB.length !== 1 || idsA[0] !== idsB[0]) return false;
+    }
+    return true;
+  };
+
+  /**
    * Stellt sicher, dass es für die Kette einen Ort gibt (neu oder bestehend) und gibt
    * dessen PlaceId zurück. null, wenn die Kette leer oder (atomar/kurz) mehrdeutig ist.
    */
@@ -165,9 +202,10 @@ export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext
     if (existingCompat.length === 1) return existingCompat[0];
     if (existingCompat.length > 1) return null; // mehrdeutig gegen kuratierte Daten → Klasse P
 
-    // (b) Bereits geseedeten Cluster wiederverwenden (verträglich).
+    // (b) Bereits geseedeten Cluster wiederverwenden (verträglich) — KNOTEN-Identität,
+    //     nicht roher String-Vergleich (s. seedParentsCompatible, Befund 2026-07-16).
     const bucket = clustersByLeaf.get(leafNorm) ?? [];
-    const seedCompat = bucket.filter((c) => parentsCompatible(c.repParentsNorm, parentsNorm));
+    const seedCompat = bucket.filter((c) => seedParentsCompatible(c.repParentsNorm, parentsNorm));
     if (seedCompat.length === 1) return seedCompat[0].id;
     if (seedCompat.length > 1) return null; // atomar/kurz gegen ≥2 Cluster → mehrdeutig → Klasse P
 

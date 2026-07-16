@@ -304,3 +304,64 @@ describe('seedPlacesFromEvents — Auto-Seed (ADR-v9-28)', () => {
     });
   });
 });
+
+describe('seedPlacesFromEvents — Seed-Cluster prüft KNOTEN-Identität, nicht rohe Strings (ADR-v9-71-Lücke)', () => {
+  // Befund am echten Datenbestand 2026-07-16: vier Ortspaare (Bremen/Essen/Hildesheim/
+  // Bottrop) existierten doppelt — je `_plac_X__deutsches_reich` UND `_plac_X__deutschland`,
+  // BEIDE mit demselben Elter `_po_de`. Ursache: der Cluster-Vergleich in `ensure()` (b)
+  // nutzte `parentsCompatible`, das Elternsegmente als rohe Strings vergleicht
+  // ("deutsches reich" !== "deutschland") — obwohl BEIDE über die Namensmenge auf
+  // denselben kuratierten Knoten `_po_de` auflösen (title "Deutschland", pname
+  // "Deutsches Reich" 1871–1945).
+  //
+  // ADR-v9-71 hat exakt dieses Problem bereits gelöst — aber nur im Pfad (a) (Abgleich
+  // gegen KURATIERTE POs, `existingParentsCompatible`/`chainCompatibleAnyPath`). Pfad (b)
+  // (Abgleich gegen im selben Lauf frisch geseedete Cluster) behielt den String-Vergleich.
+  // Spec 11 §4.2 schließt genau das aus: der Dedup-Schlüssel ist "weder name-only NOCH
+  // Voll-Hierarchie-String". Folge am echten Bestand: 23 Ereignisse blieben ungebunden
+  // (Review-Klasse P), obwohl der Ort eindeutig war.
+  const deWithPnames = place('@DE@', {
+    title: 'Deutschland',
+    pnames: [
+      { value: 'Deutsches Reich', from: 1871, to: 1945 },
+      { value: 'Deutschland', from: 1949, to: null },
+    ],
+  });
+
+  it('faltet "Bremen, Deutsches Reich" und "Bremen, Deutschland" zu EINEM Ort (gleicher Knoten via pname)', () => {
+    const ctx = ctxFrom(deWithPnames);
+    const created = seedPlacesFromEvents(
+      [ev('BIRT', { place: 'Bremen, Deutsches Reich', date: '1900' }), ev('DEAT', { place: 'Bremen, Deutschland', date: '1950' })],
+      ctx,
+    );
+
+    const bremen = created.filter((p) => p.title === 'Bremen');
+    expect(bremen).toHaveLength(1);
+    // …und hängt am bestehenden, kuratierten Land — kein neues Land-PO daneben.
+    expect(bremen[0].enclosedBy.map((e) => e.placeId)).toEqual(['@DE@']);
+    expect(created.some((p) => /Deutsch/.test(p.title))).toBe(false);
+  });
+
+  it('hält widersprüchliche Eltern weiterhin auseinander (Oldenburg/Niedersachsen ≠ Oldenburg/USA)', () => {
+    // Gegenprobe: der Fix darf die Veto-Regel (ADR-v9-29) nicht aufweichen.
+    const ctx = ctxFrom(place('@NDS@', { title: 'Niedersachsen' }), place('@USA@', { title: 'USA' }));
+    const created = seedPlacesFromEvents(
+      [ev('BIRT', { place: 'Oldenburg, Niedersachsen', date: '1900' }), ev('DEAT', { place: 'Oldenburg, USA', date: '1900' })],
+      ctx,
+    );
+
+    expect(created.filter((p) => p.title === 'Oldenburg')).toHaveLength(2);
+  });
+
+  it('lässt atomaren PLAC weiterhin an den reichen Cluster binden (Präfix-Semantik unverändert)', () => {
+    // Gegenprobe: leere Elternkette bleibt mit allem verträglich — "hunderte Ochtrup,
+    // auch atomar+reich gemischt, bleiben ein Ort" (Spec 11 §4.2).
+    const ctx = ctxFrom(deWithPnames);
+    const created = seedPlacesFromEvents(
+      [ev('BIRT', { place: 'Ochtrup, Deutschland', date: '1900' }), ev('DEAT', { place: 'Ochtrup', date: '1900' })],
+      ctx,
+    );
+
+    expect(created.filter((p) => p.title === 'Ochtrup')).toHaveLength(1);
+  });
+});
