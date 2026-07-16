@@ -122,7 +122,13 @@
            SourceDetail etabliert, hier wiederverwendet statt eigens neu gebaut. Der
            Dorf-Name steht dadurch nur noch im Gruppen-Header, nicht mehr redundant in
            jeder Zeile (analog der Eigene-Seite-Redundanz-Regel, Spec 21 §10h). -->
-      <EventsByType groups={groups} row={hofRow} />
+      <!-- resetKey={null}: bewusste Wahl, keine Unterlassung (EventsByType erzwingt die
+           Entscheidung seit ADR-v9-78 Punkt 6). Diese Liste HAT keinen wechselnden
+           Gegenstand — sie ist die Liste selbst; beim Sprung ins Hof-Detail und zurück
+           mountet EntityTab sie ohnehin neu. Einklapp-Zustände sollen dagegen ein
+           Filtern/Sortieren überleben (der Nutzer klappt „Dahlhausen" ein und filtert
+           weiter) — genau das leistet ein konstanter Schlüssel. -->
+      <EventsByType groups={groups} row={hofRow} resetKey={null} />
     {/if}
   {/if}
 </div>

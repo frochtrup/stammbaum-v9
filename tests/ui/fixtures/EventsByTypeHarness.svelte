@@ -9,10 +9,12 @@
 
   interface Props {
     groups: EventGroup<HarnessRow>[];
+    /** Hier bewusst optional (Default `null`): die Harness ist kein Produktiv-Aufrufer,
+     *  sondern soll BEIDE Vertragshälften testen können — mit und ohne Schlüssel. */
     resetKey?: string | null;
     onRowClick?: (key: string) => void;
   }
-  const { groups, resetKey, onRowClick }: Props = $props();
+  const { groups, resetKey = null, onRowClick }: Props = $props();
 </script>
 
 <EventsByType {groups} {resetKey}>

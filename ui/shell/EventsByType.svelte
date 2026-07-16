@@ -29,10 +29,16 @@
      *  State-Record ist nach `${resetKey}::${type}` geschlüsselt, ein neuer resetKey
      *  trifft daher automatisch auf einen frischen (fehlenden) Eintrag. Alte Einträge
      *  bleiben harmlos ungenutzt im Record liegen (analog SourceDetail.svelte's
-     *  Vorgänger-Muster `${sourceId}-${type}`, hier generalisiert). Ohne resetKey bleibt
-     *  der Zustand über die Lebensdauer DIESER Komponenten-Instanz hinweg bestehen —
-     *  korrekt für einen Aufrufer, der bei jedem Gegenstandswechsel ohnehin neu mountet. */
-    resetKey?: string | null;
+     *  Vorgänger-Muster `${sourceId}-${type}`, hier generalisiert).
+     *
+     *  BEWUSST PFLICHT (nicht `?`), obwohl `null` erlaubt ist: als optionales Prop wurde
+     *  er von `PlaceDetail` schlicht vergessen — und fiel erst auf, als ADR-v9-78 Punkt 3
+     *  (klickbare Kettenglieder) Ort→Ort-Navigation OHNE Unmount erstmals möglich machte
+     *  und der Einklapp-Zustand des vorherigen Orts in den nächsten leckte. Der Compiler
+     *  erzwingt jetzt an JEDEM Aufrufer eine bewusste Wahl; `null` heißt „dieser Aufrufer
+     *  hat keinen wechselnden Gegenstand und mountet bei Bedarf ohnehin neu" (s.
+     *  HofList.svelte) — eine Entscheidung, keine Unterlassung. */
+    resetKey: string | null;
   }
   const { groups, row, resetKey }: Props = $props();
 
