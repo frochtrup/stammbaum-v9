@@ -26,12 +26,15 @@
     /** "Massen-Dedup" (Spec 20 §1.7 [K], Spec 21 §10c): der Button lebt in der eigenen
      *  Toolbar dieser Liste (Toolbar-Ownership), die eigentliche Ansichts-Umschaltung
      *  bleibt bei EntityTab (das entscheidet, ob PlaceList oder PlaceDedupView rendert). */
+    /** "Orts-Zuweisungen prüfen" (Klasse P, Spec 11 §6) — Overlay-Öffner, analog
+     *  HofList's onOpenReview. EntityTab entscheidet, welche Komponente rendert. */
+    onOpenReview?: () => void;
     onOpenDedup?: () => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
      *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onOpenDedup, onNavigateLens }: Props = $props();
+  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
 
   let query = $state('');
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
@@ -94,9 +97,16 @@
           <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
         </div>
       </FilterBar>
-      {#if onOpenDedup}
+      {#if onOpenReview || onOpenDedup}
+        <!-- Beide Bulk-Aktionen teilen sich EINE Zeile (Spec 21 §10c Toolbar-Ownership,
+             INV-UI-11 Befehlsflächen-Budget) — kein zweiter Slot für den Review-Öffner. -->
         <div class="place-list__bulk-actions">
-          <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+          {#if onOpenReview}
+            <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen</button>
+          {/if}
+          {#if onOpenDedup}
+            <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+          {/if}
         </div>
       {/if}
     </div>

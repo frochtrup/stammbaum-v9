@@ -24,6 +24,7 @@
   import PlaceList from './place/PlaceList.svelte';
   import PlaceDetail from './place/PlaceDetail.svelte';
   import PlaceDedupView from './place/PlaceDedupView.svelte';
+  import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
   import HofReview from './hof/HofReview.svelte';
@@ -98,6 +99,10 @@
   // EntityTab bleibt aber die Stelle, die entscheidet, WELCHE Komponente rendert
   // (Liste vs. Overlay), sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
   let hofReviewOpen = $state(false);
+  // "Orts-Zuweisungen prüfen" (Klasse P, Spec 11 §6) — dasselbe Overlay-Muster im
+  // Orte-Segment. Eigene Ansicht, weil P eine Orts- und keine Hof-Mehrdeutigkeit ist:
+  // die Hof-Aktionen passen darauf nicht (Befund 2026-07-16).
+  let placeReviewOpen = $state(false);
   // "Massen-Dedup" (Spec 20 §1.7/§1.8 [K], Spec 11 §9.2) ist analog ein Overlay innerhalb
   // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
   // wie beim Hof-Review-Toggle oben (INV-UI-2).
@@ -122,6 +127,7 @@
   function navigateToPerson(id: string) {
     activeSegment = 'person';
     hofReviewOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('person', id);
   }
 
@@ -138,6 +144,7 @@
   function navigateToFamily(id: string) {
     activeSegment = 'family';
     hofReviewOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('family', id);
   }
 
@@ -184,6 +191,7 @@
   function navigateToPlace(id: string) {
     activeSegment = 'place';
     placeDedupOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('place', id);
   }
 
@@ -219,7 +227,17 @@
     hofDedupOpen = false;
   }
 
+  function openPlaceReview() {
+    placeDedupOpen = false;
+    placeReviewOpen = true;
+  }
+
+  function closePlaceReview() {
+    placeReviewOpen = false;
+  }
+
   function openPlaceDedup() {
+    placeReviewOpen = false;
     placeDedupOpen = true;
   }
 
@@ -345,7 +363,14 @@
       <SourceList {appState} {viewState} onCreate={createSource} />
     {/if}
   {:else if activeSegment === 'place'}
-    {#if placeDedupOpen && !selectedPlaceId}
+    {#if placeReviewOpen && !selectedPlaceId}
+      <PlaceReview
+        {appState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+        onClose={closePlaceReview}
+      />
+    {:else if placeDedupOpen && !selectedPlaceId}
       <PlaceDedupView {appState} onClose={closePlaceDedup} />
     {:else if selectedPlaceId}
       <PlaceDetail
@@ -356,7 +381,7 @@
         onBack={backToList}
       />
     {:else}
-      <PlaceList {appState} {viewState} onOpenDedup={openPlaceDedup} {onNavigateLens} />
+      <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
     {/if}
   {:else if activeSegment === 'hof'}
     {#if hofReviewOpen && !selectedHofId}

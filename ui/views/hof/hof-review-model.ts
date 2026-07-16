@@ -6,12 +6,10 @@
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { HofObjects, ReviewItem, ReviewClass } from '../../../core/places';
 import { resolveEvents } from '../../../core/places';
-import { displayName } from '../../shell/person-display';
-
-interface OwnerRef {
-  ownerKind: 'person' | 'family';
-  ownerId: string;
-}
+// collectAllEvents/ownerLabelFor/OwnerRef leben seit 2026-07-16 geteilt in ui/shell
+// (INV-UI-4) — die Orts-Review (Klasse P) braucht exakt dieselbe Sammlung, und die
+// review[].index→Event-Invariante darf nur EINE Quelle haben, s. dortiger Kommentar.
+import { collectAllEvents, ownerLabelFor, type OwnerRef } from '../../shell/review-events';
 
 /**
  * Die Hof-Review kennt NUR A/C/D (Spec 20 §1.8) — `P` entsteht ausschließlich im
@@ -50,50 +48,6 @@ export interface HofReviewResult {
    * zurückzuführen (s. applyHofChoice/applyCreateHof/applyAddVariant unten). */
   flatEvents: Event[];
   owners: OwnerRef[];
-}
-
-function ownerLabelFor(db: Database, ref: OwnerRef): string {
-  if (ref.ownerKind === 'person') {
-    const p = db.individuals.get(ref.ownerId);
-    return p ? displayName(p) : '(unbekannte Person)';
-  }
-  const f = db.families.get(ref.ownerId);
-  if (!f) return '(unbekannte Familie)';
-  const names = [f.husband, f.wife]
-    .filter((id): id is string => id != null)
-    .map((id) => db.individuals.get(id))
-    .filter((p): p is NonNullable<typeof p> => p != null)
-    .map(displayName);
-  return names.length ? names.join(' ⚭ ') : 'Familie';
-}
-
-/**
- * Baut die flache, owner-annotierte Event-Liste — MUSS mit derselben Reihenfolge und
- * Auswahl arbeiten wie applyHofReviewAction, sonst laufen review[].index und die echten
- * Event-Referenzen auseinander. Reine Sammel-Funktion, keine Auflösung.
- */
-function collectAllEvents(db: Database): { events: Event[]; owners: OwnerRef[] } {
-  const events: Event[] = [];
-  const owners: OwnerRef[] = [];
-  const push = (ev: Event, ref: OwnerRef) => {
-    events.push(ev);
-    owners.push(ref);
-  };
-
-  for (const p of db.individuals.values()) {
-    push(p.birth, { ownerKind: 'person', ownerId: p.id });
-    push(p.chr, { ownerKind: 'person', ownerId: p.id });
-    push(p.death, { ownerKind: 'person', ownerId: p.id });
-    push(p.buri, { ownerKind: 'person', ownerId: p.id });
-    for (const ev of p.events) push(ev, { ownerKind: 'person', ownerId: p.id });
-  }
-  for (const f of db.families.values()) {
-    push(f.engagement, { ownerKind: 'family', ownerId: f.id });
-    push(f.marriage, { ownerKind: 'family', ownerId: f.id });
-    for (const ev of f.events) push(ev, { ownerKind: 'family', ownerId: f.id });
-  }
-
-  return { events, owners };
 }
 
 function hofLabel(hofObjects: HofObjects, hofId: string): string {
