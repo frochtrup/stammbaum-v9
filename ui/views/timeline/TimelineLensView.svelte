@@ -108,18 +108,21 @@
     !isMulti ? (events.find((e) => e.type === 'birth')?.year ?? null) : null,
   );
 
-  const swimLayout = $derived(mode === 'swim' ? computeSwimLaneLayout(events, histEvents, containerWidth) : null);
-  const decadeLayout = $derived(
-    mode === 'decade' ? computeDecadeLayout(events.filter((e) => e.personIdx === 0), histEvents) : null,
-  );
-
   let containerEl: HTMLDivElement | undefined = $state();
   // `800` ist der Fallback, den `swimLayout` (unten) vor dem ersten Mount/Resize liest
   // (kein toter Wert — false positive von no-useless-assignment mit Svelte-5-Runes,
   // die die spätere Neuzuweisung im ResizeObserver-Effect nicht als "Lesen dazwischen"
   // erkennt, analog svelte/prefer-svelte-reactivity-Ausnahmen in app-state.svelte.ts).
+  // Deklaration steht bewusst VOR `swimLayout`: stand sie darunter, las ein $derived
+  // eine block-scoped Variable vor ihrer Deklaration (TDZ) — dank Lazy-Evaluation der
+  // Runes bislang folgenlos, aber nur zufällig; svelte-check meldet es zu Recht.
   // eslint-disable-next-line no-useless-assignment
   let containerWidth = $state(800);
+
+  const swimLayout = $derived(mode === 'swim' ? computeSwimLaneLayout(events, histEvents, containerWidth) : null);
+  const decadeLayout = $derived(
+    mode === 'decade' ? computeDecadeLayout(events.filter((e) => e.personIdx === 0), histEvents) : null,
+  );
   let handle: TimelineIslandHandle | null = null;
 
   function selectPersonFromChip(personId: string): void {

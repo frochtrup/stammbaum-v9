@@ -13,9 +13,20 @@ interface OwnerRef {
   ownerId: string;
 }
 
+/**
+ * Die Hof-Review kennt NUR A/C/D (Spec 20 §1.8) — `P` entsteht ausschließlich im
+ * PLACE-Pfad (`resolve.ts`: zwei gleichnamige Orte, Event OHNE `addr`, also ohne jeden
+ * Hof-Bezug) und hat hier keine Bedeutung: die angebotenen Hof-Aktionen passen auf ein
+ * Orts-Problem nicht. Bis 2026-07-16 war dieses Feld `ReviewClass` (inkl. `P`) und
+ * `buildHofReview` reichte P-Items ungefiltert durch — sichtbar wurde es erst, als
+ * svelte-check die Lücke im `klassLabel`-Record von `HofReview.svelte` meldete (P fehlte
+ * dort zu Recht, das Label rendert ungeschützt → leere Klassen-Spalte).
+ */
+export type HofReviewClass = Exclude<ReviewClass, 'P'>;
+
 export interface HofReviewRow {
   index: number;
-  klass: ReviewClass;
+  klass: HofReviewClass;
   addr: string;
   eventType: string;
   ownerKind: 'person' | 'family';
@@ -99,7 +110,10 @@ export function buildHofReview(db: Database): HofReviewResult {
   const { events, owners } = collectAllEvents(db);
   const result = resolveEvents(events, db.placeObjects, db.hofObjects);
 
-  const rows: HofReviewRow[] = result.review.map((item: ReviewItem) => {
+  // Klasse P gehört in die Orts-, nicht die Hof-Review (Spec 20 §1.8) — s. HofReviewClass.
+  const hofItems = result.review.filter((item: ReviewItem): item is ReviewItem & { klass: HofReviewClass } => item.klass !== 'P');
+
+  const rows: HofReviewRow[] = hofItems.map((item) => {
     const owner = owners[item.index];
     return {
       index: item.index,

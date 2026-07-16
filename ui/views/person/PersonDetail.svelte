@@ -228,11 +228,16 @@
 
   const modalLabel = $derived.by<string>(() => {
     if (!detail || !modal) return '';
-    if (modal.kind === 'edit') {
-      const row = detail.events.find((r) => r.key === modal.key);
-      return row?.label ?? eventTypeLabel(modal.key);
+    // Lokale Kopie: im `.find()`-Callback verliert TypeScript sonst die Einschränkung
+    // auf `kind === 'edit'` (Closure über eine mutable `let`-Variable — TS muss
+    // annehmen, sie könne sich zwischen Check und Aufruf ändern). Zur Laufzeit
+    // harmlos (`.find` ist synchron), aber svelte-check meldet es zu Recht.
+    const m = modal;
+    if (m.kind === 'edit') {
+      const row = detail.events.find((r) => r.key === m.key);
+      return row?.label ?? eventTypeLabel(m.key);
     }
-    return eventTypeLabel(modal.tag);
+    return eventTypeLabel(m.tag);
   });
 
   const modalCause = $derived(modal?.kind === 'edit' && modal.key === 'DEAT' ? (detail?.person.cause ?? '') : null);

@@ -11,7 +11,8 @@
     "test:core": "vitest run tests/core",
     "test:round": "vitest run tests/roundtrip",
     "test:watch": "vitest",
-    "lint": "eslint . && tsc --noEmit",
+    "lint": "eslint . && tsc --noEmit && npm run check:svelte",
+    "check:svelte": "svelte-check --tsconfig ./tsconfig.check.json --threshold error",
     "check:arch": "node tests/arch-boundary/check-arch-boundary.mjs",
     "check:csp": "node tests/csp/check-csp.mjs"
   },
@@ -26,6 +27,7 @@
     "fast-check": "^4.8.0",
     "happy-dom": "^20.10.6",
     "svelte": "^5.56.4",
+    "svelte-check": "^4.7.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1",
     "vite": "^8.1.3",

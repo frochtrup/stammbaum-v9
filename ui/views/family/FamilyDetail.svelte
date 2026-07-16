@@ -158,11 +158,14 @@
 
   const modalLabel = $derived.by<string>(() => {
     if (!detail || !modal) return '';
-    if (modal.kind === 'edit') {
-      const row = detail.events.find((r) => r.key === modal.key);
-      return row?.label ?? eventTypeLabel(modal.key);
+    // Lokale Kopie — s. identischer Kommentar in PersonDetail.svelte (dieselbe
+    // byte-gleiche Duplikation wie bei den Ereigniszeilen, Spec 21 §6a).
+    const m = modal;
+    if (m.kind === 'edit') {
+      const row = detail.events.find((r) => r.key === m.key);
+      return row?.label ?? eventTypeLabel(m.key);
     }
-    return eventTypeLabel(modal.tag);
+    return eventTypeLabel(m.tag);
   });
 
   /** Speichert EIN Event zurück — klont die Familie, ersetzt NUR das betroffene Feld
