@@ -8,9 +8,9 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { buildSourceDetail } from './source-detail-model';
+  import { buildSourceDetail, type SourceReferenceRow } from './source-detail-model';
   import { quayClassFor } from '../../shell/source-badge';
-  import { pageSlice, DEFAULT_PAGE_SIZE } from '../../shell/pagination';
+  import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
 
   interface Props {
@@ -39,22 +39,6 @@
   const sourceId = $derived(viewState.getCurrent('source'));
   const detail = $derived(sourceId ? buildSourceDetail(appState.db, sourceId) : null);
 
-  // "Referenzen (N)" ist je Typ-Gruppe paginiert (Spec 21 §10b, TST-7 Kapazitäts-Fall:
-  // eine oft zitierte Quelle kann Dutzende Referenzen desselben Typs haben). Schlüssel
-  // ist `${sourceId}-${type}`, nicht nur `type` — beim Quellenwechsel (anderer sourceId)
-  // starten neue Gruppen automatisch wieder bei DEFAULT_PAGE_SIZE, ohne einen expliziten
-  // Reset-Effekt zu brauchen (alte Einträge im Record bleiben harmlos ungenutzt liegen).
-  let shownByGroup = $state<Record<string, number>>({});
-
-  function shownFor(type: string): number {
-    return shownByGroup[`${sourceId}-${type}`] ?? DEFAULT_PAGE_SIZE;
-  }
-
-  function loadMore(type: string) {
-    const key = `${sourceId}-${type}`;
-    shownByGroup = { ...shownByGroup, [key]: shownFor(type) + DEFAULT_PAGE_SIZE };
-  }
-
   let editing = $state(untrack(() => startInEdit));
 
   function startEdit() {
@@ -74,6 +58,21 @@
     else onNavigateToFamily(id);
   }
 </script>
+
+{#snippet refRow(ref: SourceReferenceRow)}
+  <button
+    type="button"
+    class="source-detail__ref-owner"
+    onclick={() => navigateToOwner(ref.ownerKind, ref.ownerId)}
+  >
+    {ref.ownerLabel}
+  </button>
+  <span class="source-detail__ref-context">{ref.context}</span>
+  {#if ref.page}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
+  <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
+    QUAY {ref.quay}
+  </span>
+{/snippet}
 
 <div class="source-detail">
   {#if !sourceId}
@@ -131,35 +130,7 @@
       {#if detail.references.length === 0}
         <p class="source-detail__muted">Keine Zitatstelle referenziert diese Quelle.</p>
       {:else}
-        {#each detail.referencesByType as group (group.type)}
-          {@const paged = pageSlice(group.rows, shownFor(group.type))}
-          <div class="source-detail__ref-group">
-            <h4 class="source-detail__ref-group-title">{group.type} ({group.rows.length})</h4>
-            <ul class="source-detail__refs">
-              {#each paged.visible as ref (ref.key)}
-                <li class="source-detail__ref">
-                  <button
-                    type="button"
-                    class="source-detail__ref-owner"
-                    onclick={() => navigateToOwner(ref.ownerKind, ref.ownerId)}
-                  >
-                    {ref.ownerLabel}
-                  </button>
-                  <span class="source-detail__ref-context">{ref.context}</span>
-                  {#if ref.page}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
-                  <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
-                    QUAY {ref.quay}
-                  </span>
-                </li>
-              {/each}
-            </ul>
-            {#if paged.remaining > 0}
-              <button type="button" class="source-detail__load-more" onclick={() => loadMore(group.type)}>
-                {Math.min(paged.remaining, DEFAULT_PAGE_SIZE)} weitere laden
-              </button>
-            {/if}
-          </div>
-        {/each}
+        <EventsByType groups={detail.referencesByType} row={refRow} resetKey={sourceId} />
       {/if}
     </section>
   {/if}
@@ -238,67 +209,31 @@
     font-size: 0.85rem;
   }
 
-  .source-detail__ref-group {
-    margin-top: 0.5rem;
-  }
-
-  /* Gruppen-Untertitel im selben Stil wie EventsByType.svelte's `.events-by-type__group
-     h4` (INV-UI-4: dasselbe wiederkehrende "Typ (N)"-Untertitel-Muster wie PlaceDetail/
-     HofDetail's "Ereignisse nach Typ"). */
-  .source-detail__ref-group-title {
-    font-size: 0.85rem;
-    color: var(--stb-text-dim);
-    margin: 0.6rem 0 0.2rem;
-  }
-
-  .source-detail__load-more {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.8rem;
-    margin-top: 0.4rem;
-  }
-
-  .source-detail__load-more:hover {
-    border-color: var(--stb-gold);
-  }
-
-  .source-detail__refs {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .source-detail__ref {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--stb-surface-2);
-    font-size: 0.85rem;
-  }
-
+  /* Referenzen-Gruppierung/-Paginierung/-Einklappen kommt jetzt VOLLSTÄNDIG aus
+     EventsByType.svelte (Spec 21 §10b, ADR-v9-78 Punkt 6, INV-UI-4) — kein eigenes
+     Gruppen-/Paginierungs-Markup mehr hier. Die Zeile selbst (refRow-Snippet) setzt
+     ihre Schriftgröße explizit (0.85rem), weil EventsByType's geteiltes `<li>` bewusst
+     KEINE eigene Schriftgröße vorgibt (Konsumenten mit unterschiedlichem Zeileninhalt,
+     analog PlaceDetail.svelte's placeEventRow-Snippet). */
   .source-detail__ref-owner {
     background: transparent;
     border: none;
     color: var(--stb-gold-light);
     cursor: pointer;
     padding: 0;
-    font: inherit;
+    font-size: 0.85rem;
     font-weight: 600;
     text-decoration: underline;
   }
 
   .source-detail__ref-context {
     color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .source-detail__ref-page {
     color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .source-detail__ref-quay {

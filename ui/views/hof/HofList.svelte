@@ -234,14 +234,15 @@
     background: var(--stb-surface-2);
   }
 
-  /* EventsByType's Gruppen-Header (<h4>, geteilte Komponente) hat selbst kein
-     horizontales Padding — in PlaceDetail/SourceDetail korrekt, weil deren
-     Container bereits `padding: 1rem` trägt. .hof-list hat KEIN Container-Padding
-     (Zeilen/Toolbar bringen ihr eigenes, für randlose Hover-Flächen) — ohne diese
-     gezielte :global()-Ergänzung säße der Dorf-Name-Header exakt auf der linken
-     Bildschirmkante (Nutzer-Fund 2026-07-10: "Ortsangabe genau auf dem Rand"),
-     während die Zeilen darunter korrekt um 1rem eingerückt sind. */
-  .hof-list :global(.events-by-type__group h4) {
+  /* EventsByType's Gruppen-Header (jetzt ein <button>, ADR-v9-78 Punkt 6 — vormals
+     <h4>, geteilte Komponente) hat selbst kein horizontales Padding — in
+     PlaceDetail/SourceDetail korrekt, weil deren Container bereits `padding: 1rem`
+     trägt. .hof-list hat KEIN Container-Padding (Zeilen/Toolbar bringen ihr eigenes,
+     für randlose Hover-Flächen) — ohne diese gezielte :global()-Ergänzung säße der
+     Dorf-Name-Header exakt auf der linken Bildschirmkante (Nutzer-Fund 2026-07-10:
+     "Ortsangabe genau auf dem Rand"), während die Zeilen darunter korrekt um 1rem
+     eingerückt sind. */
+  .hof-list :global(.events-by-type__group-header) {
     padding: 0 1rem;
   }
 

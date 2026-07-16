@@ -103,7 +103,7 @@ describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', ()
     expect(screen.getByText('Tod (1)')).toBeTruthy();
   });
 
-  it('TST-7 Kapazitäts-Fall: mehr als 30 Referenzen desselben Typs zeigen zunächst nur 30 + "N weitere laden"', async () => {
+  it('TST-7 Kapazitäts-Fall: mehr als 30 Referenzen desselben Typs zeigen zunächst nur 30 + "N weitere laden" (Gruppe mit >30 Zeilen startet automatisch eingeklappt, Spec 21 §10b/ADR-v9-78 Punkt 6 — erst aufklappen)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -118,7 +118,14 @@ describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', ()
 
     render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
 
-    expect(screen.getByText('Geburt (45)')).toBeTruthy();
+    const groupHeader = screen.getByText('Geburt (45)');
+    expect(groupHeader).toBeTruthy();
+    expect(groupHeader.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryAllByText('Geburt')).toHaveLength(0);
+
+    await fireEvent.click(groupHeader);
+
+    expect(groupHeader.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getAllByText('Geburt')).toHaveLength(30);
     const loadMoreBtn = screen.getByText('15 weitere laden');
     expect(loadMoreBtn).toBeTruthy();

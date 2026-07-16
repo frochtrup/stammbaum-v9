@@ -6,9 +6,9 @@
 // PlaceObject referenzieren, werden durch einmaliges Scannen aller Personen-/Familien-
 // Events ermittelt (kein v8-artiger `collectPlaces`-Cache nötig für diese Scheibe;
 // wird bei Performance-Bedarf ein Folge-Schritt, s. Auftrag "Vereinfachen vor Erfinden").
-import type { Citation, Database, Event, PlaceId } from '../../../core/model/types';
+import type { Citation, Database, Event, HofId, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { eventPlaceId, normPlaceName } from '../../../core/places';
+import { eventHofId, eventPlaceId, eventYear, normPlaceName } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName, eventYearLabel } from '../../shell/person-display';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
@@ -34,14 +34,28 @@ export interface PlaceVariantRow {
 }
 
 /**
+ * Ein klickbares Kettenglied einer Verwaltungshierarchie (ADR-v9-78 Punkt 3): trägt die
+ * Ziel-Id NEBEN dem Anzeigenamen, damit die UI jedes Segment per `goToPlace` navigierbar
+ * machen kann, statt eines zusammengesetzten Text-Strings.
+ */
+export interface ChainSegment {
+  id: PlaceId;
+  label: string;
+}
+
+/**
  * Eine Zeile der vollständigen Hierarchie-Zeitleiste ("Zugehörigkeit nach Jahr", v8-
  * Vorbild `_placeDetailHierarchyTimeline`): die VOLLE Kette (alle Ebenen, nicht nur der
- * direkte Elternteil) zu einem Schlüsseljahr. `chainLabel: null` markiert eine Lücke
- * (kein Elternteil zu diesem Jahr dokumentiert — v8: "unbekannt").
+ * direkte Elternteil, OHNE diesen Ort selbst) zu einem Schlüsseljahr. `chain: null`
+ * markiert eine Lücke (kein Elternteil zu diesem Jahr dokumentiert — v8: "unbekannt").
  */
 export interface HierarchyTimelineRow {
   year: number;
-  chainLabel: string | null;
+  chain: ChainSegment[] | null;
+  /** Die Kette wurde an einer mehrdeutigen/undokumentierten höheren Ebene abgeschnitten
+   *  (`enclosureIdsAsOf`s `meta.truncated`) — kein eigenes Segment (kein Ziel-Ort), nur
+   *  ein „› ?"-Hinweis in der Anzeige. */
+  truncated: boolean;
 }
 
 /**
@@ -66,8 +80,9 @@ export interface PlaceDetailModel {
   eventsByType: EventGroup<PlaceEventRow>[];
   citations: Citation[];
   variants: PlaceVariantRow[];
-  /** [Ort, übergeordnet, …] periodengerecht — Fallback ohne Jahr: undatierte Kette. */
-  enclosureChain: string[];
+  /** [Ort, übergeordnet, …] periodengerecht, inkl. dieses Orts selbst als erstes Segment
+   *  (die UI rendert dieses Segment als reinen Text, kein Selbst-Link, ADR-v9-78 Punkt 3). */
+  enclosureChain: ChainSegment[];
   /** Vollständige Verwaltungshierarchie ("Zugehörigkeit nach Jahr") — die Kette ALLER
    *  Ebenen zu jedem Schlüsseljahr, inkl. Zeitgrenzen, die sich erst aus den Perioden der
    *  ÜBERGEORDNETEN Ebenen selbst ergeben (v8-Vorbild `_placeDetailHierarchyTimeline`,
@@ -207,24 +222,36 @@ function buildHierarchyTimeline(
   if (sortedKeyYears.length < 1) return [];
 
   const rows: HierarchyTimelineRow[] = [];
-  let lastChainStr: string | null = null;
+  let lastKey: string | null = null;
   let inGap = false;
   for (const year of sortedKeyYears) {
     const meta = { truncated: false };
-    const chain = ctx.places.enclosureChainAsOf(placeId, year, meta).slice(1);
-    if (!chain.length) {
+    // Dieselbe periodengerechte ID-Kette wie enclosureChainAsOf (das ist intern nichts
+    // anderes als enclosureIdsAsOf + resolveAsOf pro Knoten, ADR-v9-78 Punkt 3) — hier
+    // direkt über die ID-Variante gebaut, damit jedes Segment eine klickbare Ziel-Id trägt.
+    const ids = ctx.places.enclosureIdsAsOf(placeId, year, meta).slice(1);
+    if (!ids.length) {
       if (!inGap) {
-        rows.push({ year, chainLabel: null });
+        rows.push({ year, chain: null, truncated: false });
         inGap = true;
       }
-      lastChainStr = null;
+      lastKey = null;
       continue;
     }
     inGap = false;
-    const chainStr = chain.join(' › ') + (meta.truncated ? ' › ?' : '');
-    if (chainStr === lastChainStr) continue;
-    lastChainStr = chainStr;
-    rows.push({ year, chainLabel: chainStr });
+    const chain: ChainSegment[] = ids
+      .map((id) => {
+        const label = ctx.places.resolveAsOf(id, year);
+        return label != null ? { id, label } : null;
+      })
+      .filter((s): s is ChainSegment => s != null);
+    // Dedup-Schlüssel spiegelt exakt das, was gerendert würde (id UND periodengerechter
+    // Name je Segment) — identisch zum vormaligen String-Vergleich (chain.join(' › ')),
+    // nur jetzt strukturiert statt als zusammengesetzter Text.
+    const key = chain.map((s) => `${s.id}:${s.label}`).join('|') + (meta.truncated ? '|trunc' : '');
+    if (key === lastKey) continue;
+    lastKey = key;
+    rows.push({ year, chain, truncated: meta.truncated });
   }
   return rows;
 }
@@ -290,7 +317,17 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
   // Kette (Bugfix 2026-07-12: bei mehrfach gemergten Orten mit mehreren datierten
   // enclosedBy-Perioden wich "Aktuell" dadurch von der letzten Zeile der vollen
   // Jahres-Zeitleiste unten ab — beide MÜSSEN für das jeweils aktuelle Jahr übereinstimmen).
-  const enclosureChain = ctx.places.enclosureChainAsOf(placeId, new Date().getFullYear());
+  // Dieselbe periodengerechte ID-Kette wie enclosureChainAsOf (ADR-v9-78 Punkt 3: keine
+  // neue Kern-Berechnung, nur die vorhandenen id-basierten Chokepoints statt der
+  // Namens-Variante genutzt) — inkl. dieses Orts selbst als erstes Segment.
+  const currentYear = new Date().getFullYear();
+  const enclosureChain: ChainSegment[] = ctx.places
+    .enclosureIdsAsOf(placeId, currentYear)
+    .map((id) => {
+      const label = ctx.places.resolveAsOf(id, currentYear);
+      return label != null ? { id, label } : null;
+    })
+    .filter((s): s is ChainSegment => s != null);
   const hierarchyTimeline = buildHierarchyTimeline(ctx, placeId, place);
 
   // String→PlaceObject-Kandidaten: Events, deren rohes ev.place zum Titel ODER einer
@@ -321,4 +358,154 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
     hierarchyTimeline,
     unlinkedEvents,
   };
+}
+
+// ---------------------------------------------------------------------------------------
+// Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5). Erweitert das Hof-Muster
+// "Bewohner UND Eigentümer in EINER zeitlich integrierten, chronologischen Liste"
+// (hof-detail-model.ts) auf die Village-Ebene: eine Zeile je (Person × Ereignis), nicht
+// je Person — dieselbe Körnung wie HofDetailModel.residents, damit Jahrzehnt-Gruppierung
+// und Jahresfenster-Filter über EIN Feld (`year`) funktionieren. Bewusst NICHT Teil von
+// buildPlaceDetail: teuer bei Knotenpunkt-Orten (hunderte/tausende Treffer), läuft daher
+// nur On-Demand, wenn die UI-Sektion tatsächlich geöffnet wird.
+export interface PlaceContemporaryRow {
+  key: string;
+  personId: string;
+  personName: string;
+  year: number | null;
+  label: string;
+  hofId: HofId | null;
+  /** null = Ereignis zeigt direkt auf den Ort (kein Hof-Bezug). */
+  hofLabel: string | null;
+}
+
+/** Zeitfenster-Filter über EREIGNISJAHRE (nicht über geschätzte Lebensspannen — es gibt
+ *  keinen Lebensspannen-Schätzer im Kern). Undatierte Zeilen fallen bei aktivem Filter
+ *  heraus (kein Jahr = nicht im Fenster nachweisbar). */
+export interface PlaceContemporaryFilter {
+  refYear: number;
+  window: number;
+}
+
+export type ContemporaryGroupMode = 'decade' | 'hof' | 'chrono';
+
+function compareContemporaryRows(a: PlaceContemporaryRow, b: PlaceContemporaryRow): number {
+  if (a.year == null && b.year == null) return a.personName.localeCompare(b.personName, 'de');
+  if (a.year == null) return 1;
+  if (b.year == null) return -1;
+  if (a.year !== b.year) return a.year - b.year;
+  return a.personName.localeCompare(b.personName, 'de');
+}
+
+/** `tag` ist der REALE GEDCOM-Tag — Quelle für Label-Übersetzung (`eventTypeLabel`), analog
+ *  hof-detail-model.ts/collectResident. Doppelzählung vermeiden: ein Event, dessen
+ *  `eventHofId` zu einem Hof DIESES Orts aufgelöst wird, zählt als Hof-Zeile — NICHT
+ *  zusätzlich als Ort-Zeile, auch wenn `eventPlaceId` ebenfalls auf diesen Ort zeigt. */
+function collectContemporary(
+  ev: Event,
+  key: string,
+  tag: string,
+  person: { id: string },
+  db: Database,
+  ctx: PlaceContext,
+  placeId: PlaceId,
+  hofLabelsOfPlace: Map<HofId, string>,
+  out: PlaceContemporaryRow[],
+): void {
+  if (!isEventPresent(ev)) return;
+  const hofId = eventHofId(ev, ctx);
+  const hofLabel = hofId != null ? hofLabelsOfPlace.get(hofId) : undefined;
+  if (hofId != null && hofLabel === undefined) {
+    // Hof gehört zu einem ANDEREN Ort — für diesen Ort weder Hof- noch Ort-Zeile.
+    return;
+  }
+  if (hofId == null && eventPlaceId(ev, ctx) !== placeId) return;
+
+  const p = db.individuals.get(person.id);
+  out.push({
+    key,
+    personId: person.id,
+    personName: p ? displayName(p) : '(unbekannt)',
+    year: eventYear(ev),
+    label: ev.eventType || eventTypeLabel(tag),
+    hofId: hofId ?? null,
+    hofLabel: hofLabel ?? null,
+  });
+}
+
+/**
+ * Baut die "Ortszeitgenossen"-Zeilen: alle Personen-Ereignisse, die auf diesen Ort selbst
+ * ODER einen seiner Höfe zeigen, chronologisch (undatiert ans Ende). Nur Personen-Events
+ * (analog hof-detail-model.ts) — Familien-Events sind außer Scope. `filter` (optional)
+ * grenzt auf ein Jahresfenster [refYear-window, refYear+window] ein; undatierte Zeilen
+ * fallen bei aktivem Filter heraus.
+ */
+export function buildPlaceContemporaries(
+  db: Database,
+  ctx: PlaceContext,
+  placeId: PlaceId,
+  filter?: PlaceContemporaryFilter | null,
+): PlaceContemporaryRow[] {
+  const hofLabelsOfPlace = new Map<HofId, string>();
+  for (const h of db.hofObjects.values()) {
+    if (h.villageId === placeId) hofLabelsOfPlace.set(h.id, h.addrs[0]?.value ?? h.id);
+  }
+
+  const rows: PlaceContemporaryRow[] = [];
+  for (const p of db.individuals.values()) {
+    collectContemporary(p.birth, `${p.id}-BIRT`, 'BIRT', p, db, ctx, placeId, hofLabelsOfPlace, rows);
+    collectContemporary(p.chr, `${p.id}-CHR`, 'CHR', p, db, ctx, placeId, hofLabelsOfPlace, rows);
+    collectContemporary(p.death, `${p.id}-DEAT`, 'DEAT', p, db, ctx, placeId, hofLabelsOfPlace, rows);
+    collectContemporary(p.buri, `${p.id}-BURI`, 'BURI', p, db, ctx, placeId, hofLabelsOfPlace, rows);
+    p.events.forEach((ev, i) => {
+      collectContemporary(ev, `${p.id}-ev-${i}`, ev.type || 'EVEN', p, db, ctx, placeId, hofLabelsOfPlace, rows);
+    });
+  }
+
+  rows.sort(compareContemporaryRows);
+
+  if (!filter) return rows;
+  const { refYear, window } = filter;
+  return rows.filter((r) => r.year != null && r.year >= refYear - window && r.year <= refYear + window);
+}
+
+const NO_DECADE_KEY = 'Ohne Jahr';
+const DIRECT_AT_PLACE_KEY = 'Direkt am Ort';
+const CHRONO_KEY = 'Chronologisch';
+
+function decadeKeyOf(row: PlaceContemporaryRow): string {
+  if (row.year == null) return NO_DECADE_KEY;
+  return `${Math.floor(row.year / 10) * 10}er`;
+}
+
+function hofKeyOf(row: PlaceContemporaryRow): string {
+  return row.hofLabel ?? DIRECT_AT_PLACE_KEY;
+}
+
+/**
+ * Wählbare Gruppierung (ADR-v9-78 Punkt 5/6, Spec 21 §10b): Jahrzehnt (Default) · Hof ·
+ * ungruppiert-chronologisch. Reine Erweiterung von `groupByKey` (INV-UI-4) — die
+ * Gruppen-REIHENFOLGE wird jeweils explizit numerisch/fachlich vorgegeben (`order`), sonst
+ * sortierte `groupByKey` alphabetisch als String ("1900er" vor "990er").
+ */
+export function groupContemporaries(
+  rows: PlaceContemporaryRow[],
+  mode: ContemporaryGroupMode,
+): EventGroup<PlaceContemporaryRow>[] {
+  if (mode === 'chrono') {
+    return rows.length > 0 ? [{ type: CHRONO_KEY, rows }] : [];
+  }
+  if (mode === 'hof') {
+    const hofLabels = Array.from(new Set(rows.filter((r) => r.hofLabel != null).map((r) => r.hofLabel as string)));
+    hofLabels.sort((a, b) => a.localeCompare(b, 'de'));
+    const order = [DIRECT_AT_PLACE_KEY, ...hofLabels];
+    return groupByKey(rows, hofKeyOf, order);
+  }
+  // decade
+  const decadeKeys = Array.from(
+    new Set(rows.filter((r) => r.year != null).map((r) => Math.floor((r.year as number) / 10) * 10)),
+  );
+  decadeKeys.sort((a, b) => a - b);
+  const order = [...decadeKeys.map((d) => `${d}er`), NO_DECADE_KEY];
+  return groupByKey(rows, decadeKeyOf, order);
 }

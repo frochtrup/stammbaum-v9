@@ -4,11 +4,12 @@
 // String→PlaceObject-Verknüpfung als tatsächliches DOM-Rendering ab.
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeCitation, makeSource } from '../../core/model';
-import { place } from '../core/places-fixtures';
+import { place, hof } from '../core/places-fixtures';
 
 describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
   it('zeigt einen definierten Leerzustand, wenn kein Ort ausgewählt ist', () => {
@@ -437,8 +438,14 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
 
     const { container } = render(PlaceDetail, { props: { appState, viewState } });
 
-    // Lese-Darstellung bleibt sichtbar: Verwaltungskette + Namens-Pille (ohne Remove).
-    expect(screen.getByText('Ochtrup › Kreis Steinfurt')).toBeTruthy();
+    // Lese-Darstellung bleibt sichtbar: Verwaltungskette (jetzt Segmente, ADR-v9-78 Punkt
+    // 3 — der eigene Ort bleibt reiner Text, der Elternteil ist ein Link) + Namens-Pille
+    // (ohne Remove).
+    const chainEl = container.querySelector('.place-detail__chain') as HTMLElement;
+    expect(chainEl.textContent).toContain('Ochtrup');
+    expect(chainEl.textContent).toContain('Kreis Steinfurt');
+    expect(within(chainEl).getByText('Ochtrup').tagName).toBe('SPAN');
+    expect(within(chainEl).getByText('Kreis Steinfurt').tagName).toBe('BUTTON');
     expect(screen.getByText('Ochtrupp')).toBeTruthy();
     // Aber keine Mutations-Controls außerhalb des Bearbeiten-Modus.
     expect(container.querySelector('.place-detail__remove-btn')).toBeNull();
@@ -590,13 +597,15 @@ describe('PlaceDetail — Ereigniszeilen zeigen NICHT die eigene Ortskette (Spec
     const viewState = createViewState();
     viewState.setCurrent('place', '@P1@');
 
-    render(PlaceDetail, { props: { appState, viewState } });
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
 
     expect(screen.getByText('1900')).toBeTruthy();
     expect(screen.queryByText(/1900, Ochtrup/)).toBeNull();
     // "Kreis Steinfurt" darf nur einmal auftauchen (in der Verwaltungszugehörigkeit oben,
     // als Teil der Ketten-Anzeige), nicht ein zweites Mal in der Ereigniszeile.
-    expect(screen.getByText('Ochtrup › Kreis Steinfurt')).toBeTruthy();
+    const chainEl = container.querySelector('.place-detail__chain') as HTMLElement;
+    expect(chainEl.textContent).toContain('Ochtrup');
+    expect(chainEl.textContent).toContain('Kreis Steinfurt');
     const eventSection = screen.getByText('Ereignisse nach Typ').closest('section');
     expect(eventSection?.textContent).not.toContain('Kreis Steinfurt');
   });
@@ -647,5 +656,384 @@ describe('PlaceDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)',
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
     expect(onBack).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
+  it('navigiert per Klick auf ein Kettenglied der "Aktuell:"-Kette zum jeweiligen Vorfahr-Ort', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('Kreis Steinfurt'));
+
+    expect(viewState.getCurrent('place')).toBe('@KREIS@');
+  });
+
+  it('rendert das Segment, das auf den GERADE ANGEZEIGTEN Ort zeigt, als reinen Text (kein Selbst-Link)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    const chainEl = container.querySelector('.place-detail__chain') as HTMLElement;
+    const selfSeg = within(chainEl).getByText('Ochtrup');
+    expect(selfSeg.tagName).toBe('SPAN');
+    expect(selfSeg.className).toContain('place-detail__chain-seg--self');
+    const parentSeg = within(chainEl).getByText('Kreis Steinfurt');
+    expect(parentSeg.tagName).toBe('BUTTON');
+  });
+
+  it('zeigt eine echte Verwaltungslücke weiterhin als "unbekannt"-Zeile (keine Segmente, kein Button)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@GRAF@',
+      place('@GRAF@', {
+        title: 'Grafschaft Steinfurt',
+        pnames: [{ value: 'Grafschaft Steinfurt (Spätform)', from: 1814, to: null }],
+      }),
+    );
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@GRAF@', from: 1300, to: 1813 },
+          { placeId: '@AMT@', from: 1816, to: null },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('unbekannt')).toBeTruthy();
+  });
+
+  it('zeigt den Abschnitts-Hinweis "?" für eine an einer höheren Ebene abgeschnittene Kette (truncated)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@LAND1@', place('@LAND1@', { title: 'Preußen' }));
+    db.placeObjects.set('@LAND2@', place('@LAND2@', { title: 'Nordrhein-Westfalen' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis Steinfurt',
+        // Echte Lücke in der KREIS-eigenen Zugehörigkeit (1851–1852) — die eigene
+        // Zuordnung von Ochtrup zum KREIS bleibt davon unberührt (durchgängig offen).
+        enclosedBy: [
+          { placeId: '@LAND1@', from: 1816, to: 1850 },
+          { placeId: '@LAND2@', from: 1853, to: null },
+        ],
+        // Erzeugt ein Schlüsseljahr GENAU in der Lücke, damit eine Zeile dort entsteht.
+        pnames: [{ value: 'Kreis Steinfurt (Var)', from: 1851, to: null }],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    const timelineList = container.querySelector('.place-detail__timeline-list') as HTMLElement;
+    expect(timelineList).toBeTruthy();
+    expect(within(timelineList).getByText('?')).toBeTruthy();
+  });
+});
+
+describe('PlaceDetail — Gruppen-Zustand beim Ortswechsel (ADR-v9-78 Punkte 3+6, Integrationslücke)', () => {
+  // Regression: Punkt 3 (klickbare Kettenglieder) und Punkt 6 (einklappbare/paginierte
+  // Gruppen in EventsByType) wurden von zwei parallelen Agenten gebaut, jeder für sich
+  // grün. Erst zusammen entsteht der Fall: ein Kettenglied-Klick wechselt den Ort, OHNE
+  // dass PlaceDetail (und damit die EventsByType-Instanz) neu gemountet wird — ohne
+  // `resetKey` trüge der neue Ort den Einklapp-/Paginierungs-Zustand des vorherigen
+  // weiter (gleicher Gruppenschlüssel, z. B. "Geburt"). Genau der Fall, vor dem
+  // CLAUDE.md warnt: zwei Hälften einer Schnittstelle, jede isoliert korrekt.
+  it('setzt den Einklapp-Zustand beim Wechsel zu einem anderen Ort zurück (resetKey)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Rheine' }));
+    // Je EIN Geburts-Ereignis pro Ort — dieselbe Gruppe ("Geburt (1)") an beiden Orten.
+    const a = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    a.birth.placeId = '@P1@';
+    db.individuals.set('@I1@', a);
+    const b = makePerson('@I2@', { given: 'Emma', surname: 'Meier' });
+    b.birth.placeId = '@P2@';
+    db.individuals.set('@I2@', b);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    // Am ersten Ort die Gruppe explizit einklappen (Header ist das Klick-Ziel).
+    await fireEvent.click(screen.getByText('Geburt (1)'));
+    expect(screen.queryByText('Otto Bauer')).toBeNull();
+
+    // Ortswechsel OHNE Unmount (exakt das, was ein Kettenglied-Klick auslöst).
+    viewState.setCurrent('place', '@P2@');
+    await tick();
+
+    // Der neue Ort startet mit aufgeklappter Gruppe — kein Zustands-Leck vom Vorgänger.
+    expect(screen.getByText('Geburt (1)')).toBeTruthy();
+    expect(screen.getByText('Emma Meier')).toBeTruthy();
+  });
+});
+
+describe('PlaceDetail — Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5)', () => {
+  function dbWithPlaceHofAndPeople() {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    const direct = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    direct.birth.placeId = '@P1@';
+    direct.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', direct);
+
+    const onHof = makePerson('@I2@', { given: 'Anna', surname: 'Meyer' });
+    onHof.birth.hofId = '@H1@';
+    onHof.birth.placeId = '@P1@';
+    onHof.birth.date = '1 JAN 1905';
+    db.individuals.set('@I2@', onHof);
+
+    return db;
+  }
+
+  /** Scopt Queries auf die Ortszeitgenossen-Sektion — "Otto Bauer"/"Anna Meyer" tauchen
+   *  ABSICHTLICH auch in "Ereignisse nach Typ" auf (dieselben Events sind Teil von
+   *  buildPlaceDetail.eventsByType); ein globales `screen.getByText` wäre daher mehrdeutig. */
+  function contemporariesSection(container: HTMLElement): HTMLElement {
+    const heading = within(container).getByText('Ortszeitgenossen');
+    return heading.closest('section') as HTMLElement;
+  }
+
+  it('ist VOR dem Öffnen weder berechnet noch gerendert (On-Demand, kein Hof-Bezug sichtbar)', () => {
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    const section = contemporariesSection(container);
+
+    expect(within(section).getByText('Ortszeitgenossen anzeigen')).toBeTruthy();
+    // "Wall 33" (der Hof-Name) taucht NIRGENDS außer in der Ortszeitgenossen-Sektion auf —
+    // ein sicherer Beleg, dass vor dem Öffnen nichts aus buildPlaceContemporaries gerendert
+    // wurde (nicht nur "keine Personen sichtbar", sondern: die Berechnung lief nicht).
+    expect(within(section).queryByText('Wall 33')).toBeNull();
+    expect(screen.queryByText('Wall 33')).toBeNull();
+  });
+
+  it('öffnet die Sektion per Klick und zeigt sowohl das direkte Orts-Ereignis als auch das Hof-Ereignis', async () => {
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+
+    const section = contemporariesSection(container);
+    expect(within(section).getByText('Otto Bauer')).toBeTruthy();
+    expect(within(section).getByText('Anna Meyer')).toBeTruthy();
+    // Hof-Zuordnung über villageId sichtbar (Rollen-Label-Stil, INV-UI-4).
+    expect(within(section).getByText('Wall 33')).toBeTruthy();
+    expect(within(section).getByText('Ortszeitgenossen ausblenden')).toBeTruthy();
+  });
+
+  it('Klick auf einen Personennamen navigiert (Cross-Tab, wie überall sonst)', async () => {
+    const onNavigateToPerson = vi.fn();
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState, onNavigateToPerson } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    const section = contemporariesSection(container);
+    await fireEvent.click(within(section).getByText('Otto Bauer'));
+
+    expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+  });
+
+  it('Moduswechsel (Jahrzehnt/Hof/Chronologisch) gruppiert um', async () => {
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    const section = contemporariesSection(container);
+
+    // Default: nach Jahrzehnt.
+    expect(within(section).getByText('1900er (2)')).toBeTruthy();
+
+    await fireEvent.click(within(section).getByText('Nach Hof'));
+    expect(within(section).getByText('Direkt am Ort (1)')).toBeTruthy();
+    expect(within(section).getByText('Wall 33 (1)')).toBeTruthy();
+    expect(within(section).queryByText(/1900er/)).toBeNull();
+
+    await fireEvent.click(within(section).getByText('Chronologisch'));
+    expect(within(section).getByText('Chronologisch (2)')).toBeTruthy();
+    expect(within(section).queryByText(/Direkt am Ort/)).toBeNull();
+  });
+
+  it('resetKey umfasst Ort UND Modus (nicht nur Ort) — jeder Modus bekommt einen eigenen Einklapp-/Paginierungs-Namensraum', async () => {
+    // Direkter Beleg statt eines konstruierten Auto-Einklapp-Grenzfalls: EventsByType
+    // schlüsselt seinen internen Zustand über `${resetKey}::${type}` in die
+    // `aria-controls`-id des Gruppen-Headers ein (event-grouping.ts/EventsByType.svelte,
+    // ADR-v9-78 Punkt 6) — die id muss daher SOWOHL placeId ALS AUCH den aktuellen Modus
+    // enthalten, sonst kollidiert der Zustands-Namensraum zweier Modi mit gleichnamigen
+    // Gruppen (genau der Integrationsfehler, den PlaceDetail beim Kettenglied-Klick schon
+    // einmal für den Ort-Wechsel selbst hatte).
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    let section = contemporariesSection(container);
+
+    const decadeHeader = within(section).getByText('1900er (2)');
+    const decadeControls = decadeHeader.getAttribute('aria-controls')!;
+    expect(decadeControls).toContain('P1');
+    expect(decadeControls).toContain('decade');
+
+    await fireEvent.click(within(section).getByText('Chronologisch'));
+    section = contemporariesSection(container);
+    const chronoHeader = within(section).getByText('Chronologisch (2)');
+    const chronoControls = chronoHeader.getAttribute('aria-controls')!;
+    expect(chronoControls).toContain('P1');
+    expect(chronoControls).toContain('chrono');
+    // Zwei verschiedene Modi desselben Orts erzeugen zwei verschiedene Zustands-ids.
+    expect(chronoControls).not.toBe(decadeControls);
+  });
+
+  it('Zeitgenossen-Filter ist per Default AUS — alle Personen sichtbar, auch weit auseinanderliegende Jahre', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const early = makePerson('@I1@', { given: 'Früh', surname: 'Person' });
+    early.birth.placeId = '@P1@';
+    early.birth.date = '1 JAN 1800';
+    db.individuals.set('@I1@', early);
+    const late = makePerson('@I2@', { given: 'Spät', surname: 'Person' });
+    late.birth.placeId = '@P1@';
+    late.birth.date = '1 JAN 1980';
+    db.individuals.set('@I2@', late);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    const section = contemporariesSection(container);
+    await fireEvent.click(within(section).getByText('Chronologisch')); // eine Gruppe, einfacher zu prüfen
+
+    expect(within(section).getByText('Früh Person')).toBeTruthy();
+    expect(within(section).getByText('Spät Person')).toBeTruthy();
+  });
+
+  it('aktivierter Zeitgenossen-Filter grenzt auf das Jahresfenster ein und wirft undatierte Zeilen raus', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const inWindow = makePerson('@I1@', { given: 'Im', surname: 'Fenster' });
+    inWindow.birth.placeId = '@P1@';
+    inWindow.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', inWindow);
+    const outWindow = makePerson('@I2@', { given: 'Außerhalb', surname: 'Fenster' });
+    outWindow.birth.placeId = '@P1@';
+    outWindow.birth.date = '1 JAN 1980';
+    db.individuals.set('@I2@', outWindow);
+    const undated = makePerson('@I3@', { given: 'Undatierte', surname: 'Person' });
+    undated.birth.placeId = '@P1@';
+    db.individuals.set('@I3@', undated);
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    let section = contemporariesSection(container);
+    await fireEvent.click(within(section).getByText('Chronologisch'));
+
+    // Alle drei zunächst sichtbar (Filter aus).
+    section = contemporariesSection(container);
+    expect(within(section).getByText('Im Fenster')).toBeTruthy();
+    expect(within(section).getByText('Außerhalb Fenster')).toBeTruthy();
+    expect(within(section).getByText('Undatierte Person')).toBeTruthy();
+
+    await fireEvent.click(within(section).getByText('Filter'));
+    await fireEvent.click(within(section).getByLabelText('Zeitgenossen-Filter aktivieren'));
+    await fireEvent.input(within(section).getByLabelText('Referenzjahr'), { target: { value: '1900' } });
+    await fireEvent.input(within(section).getByLabelText('Fensterbreite in Jahren'), { target: { value: '10' } });
+
+    section = contemporariesSection(container);
+    expect(within(section).getByText('Im Fenster')).toBeTruthy();
+    expect(within(section).queryByText('Außerhalb Fenster')).toBeNull();
+    expect(within(section).queryByText('Undatierte Person')).toBeNull();
+  });
+  // Befund der eigenen Browser-Verifikation 2026-07-16 (Screenshot, 375px): im Hof-Modus
+  // trug JEDE der 8 Zeilen unter dem Header "Altmetelener Weg 46 (8)" nochmal die Pille
+  // "Altmetelener Weg 46" — achtmal dieselbe Information, die der Gruppen-Header bereits
+  // sagt, und genau dadurch brachen die Zeilen auf der mobilen Zielbreite um. Spec 21
+  // §10h ("eine Zeile wiederholt niemals die Identität, die der Kontext schon trägt"),
+  // hier auf Gruppen- statt Seitenebene. In den ANDEREN Modi (Jahrzehnt/Chronologisch)
+  // ist die Hof-Pille dagegen die einzige Quelle dieser Information — dort MUSS sie
+  // bleiben; genau diese Asymmetrie sichert dieser Test in beide Richtungen ab.
+  it('zeigt die Hof-Pille im Jahrzehnt-Modus, unterdrueckt sie aber im Hof-Modus', async () => {
+    const appState = createAppState();
+    const db = dbWithPlaceHofAndPeople();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(within(contemporariesSection(container)).getByText('Ortszeitgenossen anzeigen'));
+    const section = contemporariesSection(container);
+
+    // Jahrzehnt-Modus: die Zeile ist der EINZIGE Ort, der den Hof nennt — Pille da.
+    const pillsInDecadeMode = section.querySelectorAll('.stb-pill');
+    expect(pillsInDecadeMode.length).toBe(1);
+    expect(pillsInDecadeMode[0].textContent).toContain('Wall 33');
+
+    // Hof-Modus: der Gruppen-Header nennt den Hof bereits — keine Pille je Zeile mehr.
+    await fireEvent.click(within(section).getByText('Nach Hof'));
+    expect(within(section).getByText('Wall 33 (1)')).toBeTruthy(); // Header traegt die Identitaet
+    expect(section.querySelectorAll('.stb-pill').length).toBe(0);
   });
 });

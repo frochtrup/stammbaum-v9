@@ -143,7 +143,10 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    expect(detail!.enclosureChain).toEqual(['Ochtrup', 'Kreis Steinfurt']);
+    expect(detail!.enclosureChain).toEqual([
+      { id: '@P1@', label: 'Ochtrup' },
+      { id: '@KREIS@', label: 'Kreis Steinfurt' },
+    ]);
   });
 
   // Bugfix 2026-07-12: "Aktuell:" muss die tatsächlich HEUTE gültige Kette zeigen, nicht
@@ -167,7 +170,10 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    expect(detail!.enclosureChain).toEqual(['Ochtrup', 'Amt Ochtrup']);
+    expect(detail!.enclosureChain).toEqual([
+      { id: '@P1@', label: 'Ochtrup' },
+      { id: '@AMT@', label: 'Amt Ochtrup' },
+    ]);
   });
 });
 
@@ -195,7 +201,16 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    expect(detail!.hierarchyTimeline).toEqual([{ year: 1816, chainLabel: 'Kreis Steinfurt › Preußen' }]);
+    expect(detail!.hierarchyTimeline).toEqual([
+      {
+        year: 1816,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@LAND@', label: 'Preußen' },
+        ],
+        truncated: false,
+      },
+    ]);
   });
 
   it('erzeugt eine neue Zeile, wenn sich NUR die Zugehörigkeit einer ÜBERGEORDNETEN Ebene ändert (direkter Elternteil bleibt gleich)', () => {
@@ -224,12 +239,26 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     // 1945 (Ende der Preußen-Periode) fällt weg, weil die volle Kette dort identisch mit
     // 1816 bleibt (Duplikate werden zusammengefasst) — erst 1946 ändert die volle Kette.
     expect(detail!.hierarchyTimeline).toEqual([
-      { year: 1816, chainLabel: 'Kreis Steinfurt › Preußen' },
-      { year: 1946, chainLabel: 'Kreis Steinfurt › Nordrhein-Westfalen' },
+      {
+        year: 1816,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@PREUSSEN@', label: 'Preußen' },
+        ],
+        truncated: false,
+      },
+      {
+        year: 1946,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@NRW@', label: 'Nordrhein-Westfalen' },
+        ],
+        truncated: false,
+      },
     ]);
   });
 
-  it('markiert eine echte Verwaltungslücke als EINE "unbekannt"-Zeile (chainLabel: null), wenn ein Schlüsseljahr in die Lücke fällt', () => {
+  it('markiert eine echte Verwaltungslücke als EINE "unbekannt"-Zeile (chain: null), wenn ein Schlüsseljahr in die Lücke fällt', () => {
     const db = makeDatabase();
     db.placeObjects.set(
       '@GRAF@',
@@ -259,9 +288,9 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     // 1813 liegt noch INNERHALB der GRAF-Periode (inklusiv) -> identische Kette wie 1300,
     // wird zusammengefasst. 1814 liegt in der echten Lücke -> "unbekannt". 1816 -> AMT.
     expect(detail!.hierarchyTimeline).toEqual([
-      { year: 1300, chainLabel: 'Grafschaft Steinfurt' },
-      { year: 1814, chainLabel: null },
-      { year: 1816, chainLabel: 'Amt Ochtrup' },
+      { year: 1300, chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false },
+      { year: 1814, chain: null, truncated: false },
+      { year: 1816, chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false },
     ]);
   });
 });
