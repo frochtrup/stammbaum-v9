@@ -576,7 +576,8 @@ describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affo
 
     const infoIcon = container.querySelector('.place-detail__info-icon');
     expect(infoIcon).toBeTruthy();
-    expect(infoIcon?.getAttribute('title')).toContain('volle Verwaltungskette');
+    // Tooltip-Text liegt jetzt auf aria-label (geteilte tooltip-Action statt nativem title).
+    expect(infoIcon?.getAttribute('aria-label')).toContain('volle Verwaltungskette');
   });
 });
 

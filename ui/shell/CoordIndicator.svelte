@@ -30,6 +30,7 @@
   import type { ViewState } from './view-state.svelte';
   import type { LensId } from './lens-model';
   import { geoHref } from './geo-link';
+  import { tooltip } from './tooltip';
 
   interface Props {
     coords: { lat: number; long: number } | null;
@@ -57,7 +58,8 @@
     <button
       type="button"
       class="stb-coord-indicator__glyph"
-      title="Koordinaten vorhanden"
+      aria-label="Koordinaten vorhanden"
+      use:tooltip={'Koordinaten vorhanden'}
       onclick={handleClick}
     >
       ◎
@@ -67,11 +69,15 @@
       href={geoHref(coords)}
       target="_blank"
       rel="noopener noreferrer"
-    >
-      ↗ OpenStreetMap
-    </a>
+      aria-label="Auf OpenStreetMap öffnen"
+      use:tooltip={'Auf OpenStreetMap öffnen'}
+    >↗</a>
   {:else}
-    <span class="stb-coord-indicator__glyph stb-coord-indicator__glyph--missing" title="Koordinaten fehlen">
+    <span
+      class="stb-coord-indicator__glyph stb-coord-indicator__glyph--missing"
+      aria-label="Koordinaten fehlen"
+      use:tooltip={'Koordinaten fehlen'}
+    >
       ◌
     </span>
   {/if}

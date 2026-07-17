@@ -34,6 +34,7 @@ describe('SourceCitationRow — kompakte EIN-Zeilen-Struktur', () => {
         onPageChange: vi.fn(),
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
+        onUrlChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -69,6 +70,7 @@ describe('SourceCitationRow — kompakte EIN-Zeilen-Struktur', () => {
         onPageChange: vi.fn(),
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
+        onUrlChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -95,6 +97,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
         onPageChange,
         onQuayChange,
         onNoteChange,
+        onUrlChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -107,6 +110,36 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
 
     await fireEvent.change(screen.getByLabelText('Heirat (MARR) Notiz 1'), { target: { value: 'geprüft' } });
     expect(onNoteChange).toHaveBeenCalledWith('geprüft');
+  });
+
+  it('zeigt den Weblink der Referenz und ruft onUrlChange bei Änderung auf', async () => {
+    const appState = seedTwoSources();
+    const citation = makeCitation('@S1@', {
+      media: [{ file: 'https://example.org/rec/7', title: '' }],
+    });
+    const onUrlChange = vi.fn();
+
+    render(SourceCitationRow, {
+      props: {
+        appState,
+        citation,
+        index: 0,
+        labelPrefix: 'Heirat (MARR)',
+        onSourceChange: vi.fn(),
+        onPageChange: vi.fn(),
+        onQuayChange: vi.fn(),
+        onNoteChange: vi.fn(),
+        onUrlChange,
+        onRemove: vi.fn(),
+      },
+    });
+
+    const field = screen.getByLabelText('Heirat (MARR) Weblink 1') as HTMLInputElement;
+    // vorhandener Weblink (aus dem Zitat-Medium) wird angezeigt
+    expect(field.value).toBe('https://example.org/rec/7');
+
+    await fireEvent.change(field, { target: { value: 'https://example.org/rec/9' } });
+    expect(onUrlChange).toHaveBeenCalledWith('https://example.org/rec/9');
   });
 
   it('ruft onRemove beim Klick auf ✕ auf', async () => {
@@ -124,6 +157,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
         onPageChange: vi.fn(),
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
+        onUrlChange: vi.fn(),
         onRemove,
       },
     });
@@ -149,6 +183,7 @@ describe('SourceCitationRow — Quelle wechseln/neu anlegen über den Namens-Lin
         onPageChange: vi.fn(),
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
+        onUrlChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -175,6 +210,7 @@ describe('SourceCitationRow — Quelle wechseln/neu anlegen über den Namens-Lin
         onPageChange: vi.fn(),
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
+        onUrlChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -218,6 +254,7 @@ describe('SourceCitationRow — TST-7 Kapazitäts-Fall (mehrere Zitationen bleib
           onPageChange: vi.fn(),
           onQuayChange: vi.fn(),
           onNoteChange: vi.fn(),
+          onUrlChange: vi.fn(),
           onRemove: vi.fn(),
         },
       });

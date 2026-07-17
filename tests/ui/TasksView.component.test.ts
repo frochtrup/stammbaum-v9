@@ -63,7 +63,7 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('wechselt in die Board-Ansicht mit den 3 Spalten Offen/In Arbeit/Erledigt', async () => {
     renderView(seedDb());
     await fireEvent.click(screen.getByRole('button', { name: 'Alle' })); // alle Status sichtbar
-    await fireEvent.click(screen.getByTitle('Kanban-Board'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Kanban-Board' }));
 
     // Spaltenköpfe (nicht der Filter-Button "Offen" oben in der Toolbar) — Selektor über
     // die Board-Spalten-Klasse, damit der Test nicht an der gleichlautenden Filter-
@@ -78,7 +78,7 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('Tap-to-Advance im Board erhöht den Status um eine Stufe', async () => {
     const { appState } = renderView(seedDb());
     await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
-    await fireEvent.click(screen.getByTitle('Kanban-Board'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Kanban-Board' }));
 
     const advanceBtn = screen.getByText('→ In Arbeit'); // t1 ist todo -> next=doing
     await fireEvent.click(advanceBtn);
@@ -189,6 +189,6 @@ describe('TasksView — Status-Wechsel im Listen-Modus + Klick-Navigation zur Tr
 describe('TasksView — MD-Export-Button vorhanden', () => {
   it('rendert den Export-Button (Download wird über den AnchorDownloadAdapter angestoßen)', () => {
     renderView(seedDb());
-    expect(screen.getByTitle('Als Markdown exportieren')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Als Markdown exportieren' })).toBeTruthy();
   });
 });

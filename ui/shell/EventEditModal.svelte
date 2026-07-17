@@ -38,7 +38,7 @@
   import type { AppState } from './app-state.svelte';
   import type { Event, Quay } from '../../core/model/types';
   import { makeCitation } from '../../core/model/factory';
-  import { setCitationQuay } from '../../core/model/citation';
+  import { setCitationQuay, setCitationUrl } from '../../core/model/citation';
   import { HOF_EVENT_TYPES } from '../../core/places';
   import SourceCitationRow from './SourceCitationRow.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
@@ -128,6 +128,10 @@
 
   function setCitationQuayAt(index: number, quay: Quay) {
     editable.citations = editable.citations.map((c, i) => (i === index ? setCitationQuay(c, quay) : c));
+  }
+
+  function setCitationUrlAt(index: number, url: string) {
+    editable.citations = editable.citations.map((c, i) => (i === index ? setCitationUrl(c, url) : c));
   }
 
   function save() {
@@ -309,6 +313,7 @@
           onPageChange={(page) => setCitationPage(i, page)}
           onQuayChange={(quay) => setCitationQuayAt(i, quay)}
           onNoteChange={(note) => setCitationNote(i, note)}
+          onUrlChange={(u) => setCitationUrlAt(i, u)}
           onRemove={() => removeCitation(i)}
         />
       {/each}

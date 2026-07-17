@@ -10,6 +10,7 @@
   // übernimmt — dieselbe Kommando-Disziplin wie appState.savePerson(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
@@ -150,7 +151,7 @@
                 <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
                   <span class="person-list__name-line">
                     <span class="person-list__name">{row.name}</span>
-                    {#if row.hasMedia}<span class="stb-pill" title="Medien vorhanden">📎</span>{/if}
+                    {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
                   </span>
                   <span class="person-list__meta">
                     {#if row.birthSummary}<span>* {row.birthSummary}</span>{/if}

@@ -14,6 +14,7 @@
   // der Merge-Stelle selbst reicht für diesen Zweck (Vereinfachen vor Erfinden).
   import type { AppState } from '../../shell/app-state.svelte';
   import { collectAllEvents } from '../../shell/all-events';
+  import { tooltip } from '../../shell/tooltip';
   import { buildPlaceDedupGroups } from './place-dedup-model';
 
   interface Props {
@@ -93,10 +94,10 @@
           <h3>
             {group.members.length} mutmaßliche Dubletten
             {#if group.conflict}
-              <span class="place-dedup__conflict-badge" title="Die Verwaltungszugehörigkeit der Einträge widerspricht sich — bitte die volle Namenskette vergleichen, bevor zusammengeführt wird (Spec 11 §8 Restklasse 3).">⚠ abweichende Verwaltungszugehörigkeit — prüfen</span>
+              <span class="place-dedup__conflict-badge" use:tooltip={'Die Verwaltungszugehörigkeit der Einträge widerspricht sich — bitte die volle Namenskette vergleichen, bevor zusammengeführt wird (Spec 11 §8 Restklasse 3).'}>⚠ abweichende Verwaltungszugehörigkeit — prüfen</span>
             {/if}
             {#if group.typeMismatch}
-              <span class="place-dedup__conflict-badge" title="Diese Einträge haben unterschiedliche Orts-Typen (z. B. Stadt und Kreis desselben Namens) — vermutlich KEINE Dublette, bitte vor dem Zusammenführen prüfen.">⚠ unterschiedliche Orts-Typen — prüfen</span>
+              <span class="place-dedup__conflict-badge" use:tooltip={'Diese Einträge haben unterschiedliche Orts-Typen (z. B. Stadt und Kreis desselben Namens) — vermutlich KEINE Dublette, bitte vor dem Zusammenführen prüfen.'}>⚠ unterschiedliche Orts-Typen — prüfen</span>
             {/if}
           </h3>
           <ul class="place-dedup__members">
@@ -120,10 +121,10 @@
                     <span class="stb-pill">{m.type}</span>
                   {/if}
                   {#if !m.enriched}
-                    <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>
+                    <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
                   {/if}
                 </label>
-                <label class="place-dedup__include" title={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>
+                <label class="place-dedup__include" use:tooltip={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>
                   <input
                     type="checkbox"
                     checked={isSelected(group.key, m.id, winnerId)}

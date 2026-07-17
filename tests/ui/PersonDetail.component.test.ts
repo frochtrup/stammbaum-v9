@@ -27,7 +27,8 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
 
     const badge = screen.getByText('§42');
     expect(badge.className).toContain('src-badge--q3');
-    expect(badge.getAttribute('title')).toBe('KB Ochtrup');
+    // Tooltip-Text liegt jetzt auf aria-label (geteilter tooltip-Action statt nativem title).
+    expect(badge.getAttribute('aria-label')).toBe('KB Ochtrup');
   });
 
   it('zeigt einen CoordIndicator + OpenStreetMap-Link, wenn das Ereignis Koordinaten hat (ADR-v9-80 Punkt 2)', () => {
@@ -259,6 +260,30 @@ describe('PersonDetail — wesentliche Beziehungen (ADR-v9-30 Punkt 6/Nachtrag)'
     const childLink = screen.getByText('Julius Bauer');
     await fireEvent.click(childLink);
     expect(viewState.getCurrent('person')).toBe('@I3@');
+  });
+
+  it('das Rollen-Label navigiert zur Familien-Detailseite (INV-UI-12); kein separater "Familie ansehen"-Link', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Bauer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Lisa', surname: 'Klein' }));
+    const fam = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' });
+    db.families.set('@F1@', fam);
+    db.individuals.get('@I1@')!.parentIn.push('@F1@');
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    const onNavigateToFamily = vi.fn();
+    render(PersonDetail, { props: { appState, viewState, onNavigateToFamily } });
+
+    // kein separater "Familie ansehen →"-Text mehr (INV-UI-12)
+    expect(screen.queryByText(/Familie ansehen/)).toBeNull();
+
+    // das Rollen-Label selbst ist der Link
+    const roleLink = screen.getByRole('button', { name: 'Eigene Familie' });
+    await fireEvent.click(roleLink);
+    expect(onNavigateToFamily).toHaveBeenCalledWith('@F1@');
   });
 });
 
@@ -828,7 +853,7 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
 
     // Das leere Ereignis ist sichtbar (nicht länger unsichtbar-aber-persistiert) UND
     // zeigt genau EIN ✕-Control; das echte OCCU-Event zeigt keins.
-    const retractButtons = screen.getAllByTitle('Zurücknehmen');
+    const retractButtons = screen.getAllByRole('button', { name: /zurücknehmen/i });
     expect(retractButtons).toHaveLength(1);
 
     await fireEvent.click(retractButtons[0]);
@@ -850,7 +875,7 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     viewState.setCurrent('person', '@I1@');
 
     render(PersonDetail, { props: { appState, viewState } });
-    expect(screen.queryByTitle('Zurücknehmen')).toBeNull();
+    expect(screen.queryByRole('button', { name: /zurücknehmen/i })).toBeNull();
   });
 
   it('Tod (DEAT) im kompakten Modus zeigt weiterhin NUR sein eigenes "Verstorben-Markierung zurücknehmen"-Control, nicht das generische ✕ zusätzlich', async () => {
@@ -866,7 +891,7 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
 
     render(PersonDetail, { props: { appState, viewState } });
     // Genau EIN Rücknahme-Control insgesamt (Tod), nicht zusätzlich noch ein generisches.
-    expect(screen.getAllByTitle('Zurücknehmen')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /zurücknehmen/i })).toHaveLength(1);
     expect(screen.getByLabelText('Verstorben-Markierung zurücknehmen')).toBeTruthy();
   });
 
@@ -888,10 +913,10 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     viewState.setCurrent('person', '@I1@');
 
     render(PersonDetail, { props: { appState, viewState } });
-    expect(screen.getAllByTitle('Zurücknehmen')).toHaveLength(5);
+    expect(screen.getAllByRole('button', { name: /zurücknehmen/i })).toHaveLength(5);
 
     // Entfernt den ✕ an Index 6 (drittes leeres Event, ursprünglich events[6]).
-    await fireEvent.click(screen.getAllByTitle('Zurücknehmen')[2]);
+    await fireEvent.click(screen.getAllByRole('button', { name: /zurücknehmen/i })[2]);
 
     const saved = appState.db.individuals.get('@I1@')!;
     expect(saved.events).toHaveLength(9);

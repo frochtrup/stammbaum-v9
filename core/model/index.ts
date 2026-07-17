@@ -35,6 +35,8 @@ export {
   setCitationQuay,
   suggestQuayFromEval,
   applyEvalToCitation,
+  citationUrl,
+  setCitationUrl,
 } from './citation';
 export {
   findOrphanRefs,

@@ -8,6 +8,7 @@
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -148,7 +149,7 @@
                 {#if row.type}<span class="stb-pill">{row.type}</span>{/if}
                 {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
                 {#if !row.enriched}
-                  <span class="stb-pill" title="Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.">ohne Zusatzangaben</span>
+                  <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
                 {/if}
                 <span class="place-list__coord-wrap">
                   <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />

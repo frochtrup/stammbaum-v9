@@ -661,7 +661,7 @@ describe('FamilyDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     viewState.setCurrent('family', '@F1@');
 
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
-    expect(screen.queryByTitle('Zurücknehmen')).toBeNull();
+    expect(screen.queryByRole('button', { name: /zurücknehmen/i })).toBeNull();
     expect(screen.getByLabelText('Heirat bearbeiten')).toBeTruthy();
   });
 
@@ -678,7 +678,7 @@ describe('FamilyDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
 
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
 
-    const retractButtons = screen.getAllByTitle('Zurücknehmen');
+    const retractButtons = screen.getAllByRole('button', { name: /zurücknehmen/i });
     expect(retractButtons).toHaveLength(1);
 
     await fireEvent.click(retractButtons[0]);

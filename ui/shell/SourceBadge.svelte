@@ -5,7 +5,8 @@
   // Kontexte ohne Quellen-Tab-Zugriff) — INV-UI-2: EIN kanonischer Klick-Weg, kein
   // zweiter Navigations-Pfad daneben.
   import type { Citation, Source } from '../../core/model/types';
-  import { badgeLabel, quayClass, badgeTitle } from './source-badge';
+  import { badgeLabel, quayClass, badgeTitle, badgeLinkHref } from './source-badge';
+  import { tooltip } from './tooltip';
 
   interface Props {
     citation: Citation;
@@ -13,24 +14,64 @@
     onSelect?: (sourceId: string) => void;
   }
   const { citation, source, onSelect }: Props = $props();
+
+  // ↗-Weblink der Quellenreferenz (deepLinkUrl/OBJE-FILE bzw. PAGE-als-URL, analog v8).
+  const href = $derived(badgeLinkHref(citation));
+  const tip = $derived(badgeTitle(citation, source));
 </script>
 
-{#if onSelect}
-  <button
-    type="button"
-    class="src-badge src-badge--clickable {quayClass(citation)}"
-    title={badgeTitle(citation, source)}
-    onclick={() => onSelect(citation.sourceId)}
-  >
-    {badgeLabel(citation)}
-  </button>
-{:else}
-  <span class="src-badge {quayClass(citation)}" title={badgeTitle(citation, source)}>
-    {badgeLabel(citation)}
-  </span>
-{/if}
+<!-- Pille + optionaler ↗ bleiben als EINE Umbruch-Einheit zusammen (INV-UI-5), damit der
+     Link nicht von seiner Pille weg umbricht; nach außen wirkt der Wrapper wie ein Flex-Item. -->
+<span class="src-badge-wrap">
+  {#if onSelect}
+    <button
+      type="button"
+      class="src-badge src-badge--clickable {quayClass(citation)}"
+      aria-label={tip}
+      use:tooltip={tip}
+      onclick={() => onSelect(citation.sourceId)}
+    >
+      {badgeLabel(citation)}
+    </button>
+  {:else}
+    <span class="src-badge {quayClass(citation)}" aria-label={tip} use:tooltip={tip}>
+      {badgeLabel(citation)}
+    </span>
+  {/if}
+  {#if href}
+    <a
+      class="src-badge-link"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Weblink zur Quelle öffnen"
+      use:tooltip={href}
+    >
+      ↗
+    </a>
+  {/if}
+</span>
 
 <style>
+  .src-badge-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2em;
+  }
+
+  .src-badge-link {
+    font-size: 0.72rem;
+    line-height: 1;
+    color: var(--stb-gold-light);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .src-badge-link:hover,
+  .src-badge-link:focus-visible {
+    color: var(--stb-gold);
+  }
+
   .src-badge {
     display: inline-block;
     font-size: 0.62rem;

@@ -4,6 +4,7 @@
   // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
@@ -48,7 +49,7 @@
       <span class="hof-list__addr">{row.addr || row.id}</span>
       <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
       {#if !row.enriched}
-        <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
+        <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
       {/if}
     </span>
   </button>

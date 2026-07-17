@@ -12,6 +12,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import {
     collectAllTasks,
@@ -167,11 +168,18 @@
         class="tasks-view__icon-btn"
         class:tasks-view__icon-btn--active={viewMode === 'board'}
         onclick={toggleBoard}
-        title={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
+        aria-label={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
+        use:tooltip={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
       >
         {viewMode === 'board' ? '☰' : '▦'}
       </button>
-      <button type="button" class="tasks-view__icon-btn" onclick={exportMd} title="Als Markdown exportieren">
+      <button
+        type="button"
+        class="tasks-view__icon-btn"
+        onclick={exportMd}
+        aria-label="Als Markdown exportieren"
+        use:tooltip={'Als Markdown exportieren'}
+      >
         ↓
       </button>
       <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>

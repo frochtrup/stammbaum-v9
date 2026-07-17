@@ -1,7 +1,13 @@
 // tests/ui/source-badge.test.ts — §N-Badge + QUAY-Farbindikator (Spec 21 §7).
 import { describe, expect, it } from 'vitest';
 import { makeCitation, makeSource } from '../../core/model';
-import { badgeLabel, badgeNumber, badgeTitle, quayClass } from '../../ui/shell/source-badge';
+import {
+  badgeLabel,
+  badgeNumber,
+  badgeTitle,
+  badgeLinkHref,
+  quayClass,
+} from '../../ui/shell/source-badge';
 
 describe('badgeNumber/badgeLabel — §N aus dem numerischen ID-Teil', () => {
   it('extrahiert die Zahl aus einer GEDCOM-ID wie @S042@', () => {
@@ -47,5 +53,43 @@ describe('badgeTitle — Tooltip zeigt den Quellentitel, nicht die GEDCOM-ID', (
   it('fällt auf die rohe Quellen-ID zurück, wenn die Quelle nicht (mehr) existiert', () => {
     const cit = makeCitation('@S404@');
     expect(badgeTitle(cit, undefined)).toBe('@S404@');
+  });
+
+  it('hängt die Referenz (PAGE) an, wenn gesetzt', () => {
+    const cit = makeCitation('@S1@', { page: 'S. 42' });
+    const src = makeSource('@S1@', { abbr: 'KB Ochtrup' });
+    expect(badgeTitle(cit, src)).toBe('KB Ochtrup · S. 42');
+  });
+
+  it('zeigt PAGE auch dann, wenn die Quelle fehlt', () => {
+    const cit = makeCitation('@S404@', { page: '12' });
+    expect(badgeTitle(cit, undefined)).toBe('@S404@ · 12');
+  });
+});
+
+describe('badgeLinkHref — ↗-Weblink aus Zitat-Medium bzw. PAGE-als-URL', () => {
+  it('nimmt die erste http(s)-Medien-Datei', () => {
+    const cit = makeCitation('@S1@', {
+      media: [{ file: 'https://example.org/rec/42', title: '' }],
+    });
+    expect(badgeLinkHref(cit)).toBe('https://example.org/rec/42');
+  });
+
+  it('fällt auf deepLinkUrl zurück, wenn dieser eine URL ist', () => {
+    const cit = makeCitation('@S1@', { deepLinkUrl: 'https://example.org/dl' });
+    expect(badgeLinkHref(cit)).toBe('https://example.org/dl');
+  });
+
+  it('erkennt eine URL in PAGE (Altdaten-Fallback)', () => {
+    const cit = makeCitation('@S1@', { page: 'https://example.org/page' });
+    expect(badgeLinkHref(cit)).toBe('https://example.org/page');
+  });
+
+  it('liefert "" bei nicht-URL-Medien und normalem PAGE-Text', () => {
+    const cit = makeCitation('@S1@', {
+      page: 'S. 42',
+      media: [{ file: 'scans/kb.jpg', title: 'Scan' }],
+    });
+    expect(badgeLinkHref(cit)).toBe('');
   });
 });

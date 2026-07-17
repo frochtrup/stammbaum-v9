@@ -19,6 +19,7 @@
   import { onDestroy } from 'svelte';
   import '../../islands/timeline/timeline-view.css';
   import { mountTimelineView, type TimelineIslandHandle, type TimelineMode } from '../../islands/timeline/timeline-view';
+  import { tooltip } from '../../shell/tooltip';
   import {
     ALL_HIST_CATEGORIES,
     MAX_TIMELINE_PERSONS,
@@ -232,7 +233,7 @@
       <button
         type="button"
         class="timeline-lens-view__person-add"
-        title="Person vergleichen"
+        use:tooltip={'Person vergleichen'}
         aria-label="Person hinzufügen"
         onclick={() => (personPickerOpen = true)}
       >

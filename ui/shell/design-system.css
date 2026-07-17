@@ -323,6 +323,35 @@ button.stb-coord-indicator__glyph:focus-visible {
   color: var(--stb-text-muted);
 }
 
+/* Externe OpenStreetMap-Affordanz: kompaktes ↗-Symbol + Tooltip statt ausgeschriebenem
+   Link-Text (INV-UI-12). Monochrom-Gold, passend zum ◎-Glyph daneben. */
 .stb-coord-indicator__osm {
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--stb-gold-light);
+  text-decoration: none;
+}
+
+.stb-coord-indicator__osm:hover,
+.stb-coord-indicator__osm:focus-visible {
+  color: var(--stb-gold);
+}
+
+/* Geteilter Tooltip (ui/shell/tooltip.ts, INV-UI-4). Die Blase lebt im <body> (außerhalb
+   jeder Svelte-Scope-Grenze), deshalb global hier statt komponenten-lokal. position/top/left
+   setzt die Action inline; hier nur Optik + Ein-/Ausblenden. */
+.stb-tooltip {
+  z-index: 1000;
+  max-width: 18rem;
+  width: max-content;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--stb-radius-control);
+  background: var(--stb-surface-1);
+  color: var(--stb-text);
+  border: 1px solid var(--stb-gold-dim);
   font-size: 0.72rem;
+  line-height: 1.3;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: opacity 0.08s ease;
 }

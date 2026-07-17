@@ -109,7 +109,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('person')).toBe('@I1@');
   });
 
-  it('Person -> Familie: "Familie ansehen" navigiert zur Familien-Detailseite', async () => {
+  it('Person -> Familie: das Rollen-Label navigiert zur Familien-Detailseite (INV-UI-12)', async () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
@@ -117,7 +117,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     render(EntityTab, { props: { appState, viewState } });
 
-    await fireEvent.click(screen.getByText('Familie ansehen →'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Eigene Familie' }));
 
     expect(screen.getByRole('tab', { name: /Familien/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('family')).toBe('@F1@');

@@ -22,10 +22,11 @@
   // Setter-Pattern hier).
   import type { AppState } from './app-state.svelte';
   import type { Source, Citation, Quay } from '../../core/model/types';
-  import { makeSource, allocatorFromDatabase, nextId } from '../../core/model';
+  import { makeSource, allocatorFromDatabase, nextId, citationUrl } from '../../core/model';
   import { matchesSearch } from '../views/source/source-list-model';
   import SourceForm from '../views/source/SourceForm.svelte';
   import Picker from './Picker.svelte';
+  import { tooltip } from './tooltip';
 
   interface Props {
     appState: AppState;
@@ -39,6 +40,8 @@
     onPageChange: (page: string) => void;
     onQuayChange: (quay: Quay) => void;
     onNoteChange: (note: string) => void;
+    /** Weblink der Referenz (↗) — als OBJE/FILE-Medium gespeichert, s. core setCitationUrl. */
+    onUrlChange: (url: string) => void;
     onRemove: () => void;
   }
   const {
@@ -50,8 +53,11 @@
     onPageChange,
     onQuayChange,
     onNoteChange,
+    onUrlChange,
     onRemove,
   }: Props = $props();
+
+  const url = $derived(citationUrl(citation));
 
   const sources = $derived(Array.from(appState.db.sources.values()));
   const selectedSource = $derived<Source | undefined>(sources.find((s) => s.id === citation.sourceId));
@@ -114,7 +120,7 @@
     type="button"
     class="source-citation-row__source-link"
     aria-label={`${labelPrefix} Quelle ${index + 1}`}
-    title={displayTitle || undefined}
+    use:tooltip={displayTitle}
     onclick={togglePanel}
   >
     {displayLabel}
@@ -145,6 +151,14 @@
     aria-label={`${labelPrefix} Notiz ${index + 1}`}
     value={citation.note}
     onchange={(e) => onNoteChange((e.currentTarget as HTMLInputElement).value)}
+  />
+  <input
+    type="url"
+    class="source-citation-row__url"
+    placeholder="Weblink (https://…)"
+    aria-label={`${labelPrefix} Weblink ${index + 1}`}
+    value={url}
+    onchange={(e) => onUrlChange((e.currentTarget as HTMLInputElement).value)}
   />
   <!-- TODO Folgeschritt: Evidenz-Achsen (eval: source/information/evidence) — unverändert
        aus PersonForm.svelte/FamilyForm.svelte übernommen, nicht Teil dieser Scheibe
@@ -235,6 +249,11 @@
 
   .source-citation-row__note {
     flex: 1 1 8rem;
+    min-width: 6rem;
+  }
+
+  .source-citation-row__url {
+    flex: 1 1 9rem;
     min-width: 6rem;
   }
 

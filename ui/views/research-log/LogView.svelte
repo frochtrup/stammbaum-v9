@@ -16,6 +16,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
   import Picker from '../../shell/Picker.svelte';
@@ -177,7 +178,7 @@
       {/each}
     </div>
     <div class="log-view__actions">
-      <button type="button" class="log-view__icon-btn" onclick={exportMd} title="Als Markdown exportieren">↓</button>
+      <button type="button" class="log-view__icon-btn" onclick={exportMd} aria-label="Als Markdown exportieren" use:tooltip={'Als Markdown exportieren'}>↓</button>
       <button type="button" class="log-view__add-btn" onclick={openAddForm}>+ Eintrag</button>
     </div>
   </div>

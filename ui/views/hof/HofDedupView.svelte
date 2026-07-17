@@ -4,6 +4,7 @@
   // NUR über appState.mergeHof(survivorId, mergedIds) — keine Merge-Logik hier.
   import type { AppState } from '../../shell/app-state.svelte';
   import { collectAllEvents } from '../../shell/all-events';
+  import { tooltip } from '../../shell/tooltip';
   import { buildHofDedupGroups } from './hof-dedup-model';
 
   interface Props {
@@ -94,10 +95,10 @@
                     <span class="hof-dedup__suggested">(Vorschlag)</span>
                   {/if}
                   {#if !m.enriched}
-                    <span class="stb-pill" title="Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.">ohne Zusatzangaben</span>
+                    <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
                   {/if}
                 </label>
-                <label class="hof-dedup__include" title={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>
+                <label class="hof-dedup__include" use:tooltip={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>
                   <input
                     type="checkbox"
                     checked={isSelected(group.key, m.id, winnerId)}

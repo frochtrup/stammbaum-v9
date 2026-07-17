@@ -22,6 +22,7 @@
   // EventEditModal, INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import Picker from '../../shell/Picker.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
@@ -381,7 +382,7 @@
     <section class="place-detail__section">
       <h3>
         Verwaltungszugehörigkeit
-        <span class="place-detail__info-icon" title={ENCLOSURE_INFO}>ⓘ</span>
+        <span class="place-detail__info-icon" role="note" aria-label={ENCLOSURE_INFO} use:tooltip={ENCLOSURE_INFO}>ⓘ</span>
       </h3>
       {#if detail.enclosureChain.length > 1}
         <p class="place-detail__hint">Aktuell:</p>
@@ -421,7 +422,7 @@
         {#if detail.variants.length > 0}
           <div class="stb-pill-row" aria-label="Namensvarianten">
             {#each detail.variants as v, i (i)}
-              <span class="stb-pill" title={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
+              <span class="stb-pill" use:tooltip={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
                 {v.value}
                 {#if editing}
                   <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>

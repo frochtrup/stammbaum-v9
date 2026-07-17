@@ -15,6 +15,7 @@
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -289,7 +290,7 @@
           class="stb-pill__remove person-detail__death-retract-btn"
           onclick={retractDeath}
           aria-label="Verstorben-Markierung zurücknehmen"
-          title="Zurücknehmen"
+          use:tooltip={'Zurücknehmen'}
         >
           ✕
         </button>
@@ -381,9 +382,23 @@
         <ul class="person-detail__families">
           {#each detail.families as fam (fam.familyId + fam.role)}
             <li>
-              <span class="stb-role-label">
-                {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
-              </span>
+              {#if onNavigateToFamily}
+                <!-- INV-UI-12: die Navigation zur Familien-Detailseite hängt am Rollen-Label
+                     selbst (Herkunftsfamilie/Eigene Familie), statt an einem separaten
+                     „Familie ansehen →"-Text daneben. -->
+                <button
+                  type="button"
+                  class="stb-role-label person-detail__family-role-link"
+                  onclick={() => onNavigateToFamily(fam.familyId)}
+                  use:tooltip={'Familien-Detail öffnen'}
+                >
+                  {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
+                </button>
+              {:else}
+                <span class="stb-role-label">
+                  {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
+                </span>
+              {/if}
               {#if fam.members.length === 0}
                 <span class="person-detail__family-label">{fam.label}</span>
               {:else}
@@ -410,16 +425,6 @@
                     </button>{#if i < fam.children.length - 1}<span class="person-detail__family-children-sep">,</span>{/if}
                   {/each}
                 </span>
-              {/if}
-              {#if onNavigateToFamily}
-                <button
-                  type="button"
-                  class="person-detail__family-detail-link"
-                  onclick={() => onNavigateToFamily(fam.familyId)}
-                  title="Familien-Detail öffnen"
-                >
-                  Familie ansehen →
-                </button>
               {/if}
             </li>
           {/each}
@@ -595,15 +600,22 @@
     margin-left: 0.2rem;
   }
 
-  .person-detail__family-detail-link {
+  /* Rollen-Label als Link zur Familien-Detailseite (INV-UI-12) — behält die
+     .stb-role-label-Optik (klein/GROSS/gedimmt), wird nur klickbar + unterstrichen bei Hover. */
+  .person-detail__family-role-link {
     background: transparent;
     border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
     padding: 0;
-    font: inherit;
-    font-size: 0.78rem;
-    margin-left: auto;
+    /* NUR font-family erben — font-size/transform/letter-spacing/color kommen aus
+       .stb-role-label; das `font`-Shorthand würde deren font-size überschreiben. */
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .person-detail__family-role-link:hover,
+  .person-detail__family-role-link:focus-visible {
+    color: var(--stb-gold-light);
     text-decoration: underline;
   }
 </style>

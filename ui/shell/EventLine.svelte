@@ -21,6 +21,7 @@
   import type { EventLineRow } from './event-line-row';
   import SourceBadge from './SourceBadge.svelte';
   import CoordIndicator from './CoordIndicator.svelte';
+  import { tooltip } from './tooltip';
 
   interface Props {
     ev: EventLineRow;
@@ -109,7 +110,7 @@
           class="stb-pill__remove"
           onclick={() => onRetract(ev.key)}
           aria-label={`${ev.label} zurücknehmen`}
-          title="Zurücknehmen"
+          use:tooltip={'Zurücknehmen'}
         >
           ✕
         </button>

@@ -143,6 +143,6 @@ describe('LogView — Klick-Navigation zur Trägerentität', () => {
 describe('LogView — MD-Export-Button vorhanden', () => {
   it('rendert den Export-Button', () => {
     renderView(seedDb());
-    expect(screen.getByTitle('Als Markdown exportieren')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Als Markdown exportieren' })).toBeTruthy();
   });
 });
