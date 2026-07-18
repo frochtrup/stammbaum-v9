@@ -18,13 +18,16 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
 /** Eigenes FS-Handle für den orte.json-Datei-Ein-/Ausgang (ADR-v9-70) — GETRENNT von der
  * Genealogie-Arbeitskopie (STORE_WORKING_COPY): eigener Store, eigener Key, eigenes Handle. */
 export const STORE_PLACES_FILE_HANDLE = 'places-file-handle';
+/** Regel-Konfiguration der Validierung (Spec 20 §3, ADR-v9-96) — app-lokal, reist NICHT
+ * mit der Genealogie-Datei; der GEDCOM-Writer bleibt damit unberührt (LP-1). */
+export const STORE_VAL_CONFIG = 'val-config';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -43,6 +46,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_PLACES_FILE_HANDLE)) {
           db.createObjectStore(STORE_PLACES_FILE_HANDLE);
+        }
+        if (!db.objectStoreNames.contains(STORE_VAL_CONFIG)) {
+          db.createObjectStore(STORE_VAL_CONFIG);
         }
       };
       req.onsuccess = () => resolve(req.result);

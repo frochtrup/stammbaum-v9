@@ -22,7 +22,9 @@ import svelte from 'eslint-plugin-svelte';
 // dokumentieren.
 const SVELTE_ALTFAELLE = {
   'ui/views/place/PlaceDetail.svelte': 921,
-  'ui/views/tasks/TasksView.svelte': 676,
+  // TasksView.svelte (war 676) ist raus: bei BL-04 inhaltlich angefasst und dabei
+  // zerlegt — das Aufgaben-Formular wurde nach TaskForm.svelte extrahiert, die Datei
+  // liegt jetzt bei 598 Zeilen und läuft gegen die reguläre 600er-Schwelle.
   'ui/views/hof/HofDetail.svelte': 641,
   'ui/views/person/PersonDetail.svelte': 621,
   'ui/views/hypotheses/HypothesesView.svelte': 608

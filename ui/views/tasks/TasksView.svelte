@@ -10,10 +10,8 @@
   // einer eigenen Text+<select>-Handkonstruktion). Quelle (optional) ebenso über
   // SourcePicker statt eines flachen <select>.
   import type { AppState } from '../../shell/app-state.svelte';
-  import PersonPicker from '../../shell/PersonPicker.svelte';
-  import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import { tooltip } from '../../shell/tooltip';
-  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import TaskForm, { type TaskFormValues } from './TaskForm.svelte';
   import {
     collectAllTasks,
     filterTasks,
@@ -28,6 +26,18 @@
   import { newTaskId } from './tasks-commands';
   import type { TaskStatus } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
+  import ValidationPanel from '../validation/ValidationPanel.svelte';
+  import ValConfigSheet from '../validation/ValConfigSheet.svelte';
+  import {
+    runValidation,
+    withoutAlreadyTasked,
+    configFromStored,
+    configToStored,
+    defaultConfig,
+    type Finding,
+    type ValidationConfig,
+  } from '../../../core/validate/index';
+  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
 
   interface Props {
     appState: AppState;
@@ -38,10 +48,6 @@
   }
   const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
 
-  // v8-Presets als Vorschläge (Auftrags-Vorgabe: KEIN geschlossenes Enum in der UI —
-  // Freitext bleibt immer möglich, die drei Labels sind nur ein <datalist>-Vorschlag).
-  const CATEGORY_PRESETS = ['Kirchenbuch', 'Urkunde/Standesamt', 'Online-Recherche'];
-
   let filter = $state<TaskFilter>('open');
   let viewMode = $state<'list' | 'board'>('list');
   let showAddForm = $state(false);
@@ -49,12 +55,10 @@
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
   let editing = $state<{ kind: TaskEntityKind; entityId: string; taskId: string } | null>(null);
 
-  let formText = $state('');
-  let formCategory = $state('');
-  /** optionaler Quellen-Bezug (ResearchTask.sourceRef, ADR-v9-36 — v8-Parität `t.sid`). */
-  let formSourceRef = $state('');
-  let formKind = $state<TaskEntityKind>('person');
-  let formEntityId = $state('');
+  /** Startwerte des Formulars — TaskForm hält den Eingabe-Zustand selbst. */
+  let formInitial = $state<TaskFormValues>({
+    text: '', category: '', sourceRef: '', kind: 'person', entityId: '',
+  });
 
   const allTasks = $derived(collectAllTasks(appState.db));
   const filteredTasks = $derived(filterTasks(allTasks, filter));
@@ -71,21 +75,19 @@
 
   function openAddForm() {
     editing = null;
-    formText = '';
-    formCategory = '';
-    formSourceRef = '';
-    formKind = 'person';
-    formEntityId = '';
+    formInitial = { text: '', category: '', sourceRef: '', kind: 'person', entityId: '' };
     showAddForm = true;
   }
 
   function openEditForm(entry: TaskEntry) {
     editing = { kind: entry.kind, entityId: entry.entityId, taskId: entry.task.id };
-    formText = entry.task.text;
-    formCategory = entry.task.category;
-    formSourceRef = entry.task.sourceRef;
-    formKind = entry.kind;
-    formEntityId = entry.entityId;
+    formInitial = {
+      text: entry.task.text,
+      category: entry.task.category,
+      sourceRef: entry.task.sourceRef,
+      kind: entry.kind,
+      entityId: entry.entityId,
+    };
     showAddForm = true;
   }
 
@@ -94,14 +96,12 @@
     editing = null;
   }
 
-  function saveForm() {
-    if (!formText.trim()) return;
+  function saveForm(v: TaskFormValues) {
     if (editing) {
-      appState.updateTask(editing.kind, editing.entityId, editing.taskId, formText, formCategory, formSourceRef);
+      appState.updateTask(editing.kind, editing.entityId, editing.taskId, v.text, v.category, v.sourceRef);
     } else {
-      if (!formEntityId) return;
       const today = new Date().toISOString().slice(0, 10);
-      appState.addTask(formKind, formEntityId, newTaskId(), formText, formCategory, today, formSourceRef);
+      appState.addTask(v.kind, v.entityId, newTaskId(), v.text, v.category, today, v.sourceRef);
     }
     closeForm();
   }
@@ -132,6 +132,52 @@
   }
 
   const statusLabel: Record<TaskStatus, string> = { todo: 'Offen', doing: 'In Arbeit', done: 'Erledigt' };
+
+  // ─── Validierung (Spec 20 §1.11h) ──────────────────────────────────────────
+  // Der Bericht ist flüchtig: `null` = noch nicht geprüft/ausgeblendet. Er wird NICHT
+  // automatisch beim Öffnen des Tabs erzeugt — „✓ Daten prüfen" ist eine bewusste
+  // Nutzer-Handlung, und bei mehreren tausend Personen ist der Bericht lang.
+  let validationResults = $state<Finding[] | null>(null);
+  let showValConfig = $state(false);
+  let valConfig = $state<ValidationConfig>(defaultConfig());
+  let valConfigLoaded = false;
+
+  const valStore = new IdbValConfigStore();
+
+  /** Konfiguration einmal je Sitzung nachladen — danach lebt sie in `valConfig`. */
+  async function ensureValConfig() {
+    if (valConfigLoaded) return;
+    valConfig = configFromStored(await loadValConfig(valStore));
+    valConfigLoaded = true;
+  }
+
+  async function runCheck() {
+    await ensureValConfig();
+    const findings = runValidation(appState.db, valConfig);
+    // Befunde ausblenden, die bereits als Aufgabe übernommen wurden — sonst bietet
+    // jede Prüfung dieselbe, längst erledigte Lücke erneut an.
+    validationResults = withoutAlreadyTasked(findings, appState.db);
+  }
+
+  async function openValConfig() {
+    await ensureValConfig();
+    showValConfig = true;
+  }
+
+  async function saveValConfig(cfg: ValidationConfig) {
+    valConfig = cfg;
+    showValConfig = false;
+    // Ein fehlgeschlagenes Speichern darf die Prüfung nicht abbrechen — die Änderung
+    // gilt dann für diese Sitzung, nur eben nicht dauerhaft.
+    try {
+      await valStore.save(configToStored(cfg));
+    } catch {
+      /* app-lokaler Speicher nicht verfügbar — Konfiguration bleibt sitzungslokal. */
+    }
+    // Bereits angezeigte Befunde stammen aus der ALTEN Konfiguration und wären nach
+    // dem Speichern irreführend: neu berechnen statt stehen lassen.
+    if (validationResults !== null) await runCheck();
+  }
 </script>
 
 <div class="tasks-view">
@@ -182,96 +228,53 @@
       >
         ↓
       </button>
+      <button
+        type="button"
+        class="tasks-view__icon-btn"
+        onclick={openValConfig}
+        aria-label="Prüfregeln konfigurieren"
+        use:tooltip={'Prüfregeln konfigurieren'}
+      >
+        ⚙
+      </button>
+      <button
+        type="button"
+        class="tasks-view__check-btn"
+        onclick={runCheck}
+        aria-label="Daten prüfen"
+      >
+        ✓ Daten prüfen
+      </button>
       <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
     </div>
   </div>
 
+  {#if validationResults !== null}
+    <ValidationPanel
+      {appState}
+      findings={validationResults}
+      onClose={() => (validationResults = null)}
+      {onNavigateToPerson}
+      {onNavigateToFamily}
+    />
+  {/if}
+
+  {#if showValConfig}
+    <ValConfigSheet
+      config={valConfig}
+      onSave={saveValConfig}
+      onClose={() => (showValConfig = false)}
+    />
+  {/if}
+
   {#if showAddForm}
-    <form class="tasks-view__form" onsubmit={(e) => { e.preventDefault(); saveForm(); }}>
-      <h3 class="tasks-view__form-title">{editing ? 'Aufgabe bearbeiten' : 'Aufgabe hinzufügen'}</h3>
-
-      <label class="tasks-view__form-field">
-        Text
-        <input type="text" bind:value={formText} placeholder="Was ist zu tun?" required />
-      </label>
-
-      <label class="tasks-view__form-field">
-        Kategorie
-        <input type="text" bind:value={formCategory} list="tasks-category-presets" placeholder="frei wählbar…" />
-        <datalist id="tasks-category-presets">
-          {#each CATEGORY_PRESETS as preset (preset)}
-            <option value={preset}></option>
-          {/each}
-        </datalist>
-      </label>
-      <div class="tasks-view__preset-chips">
-        {#each CATEGORY_PRESETS as preset (preset)}
-          <button type="button" class="tasks-view__chip" onclick={() => (formCategory = preset)}>{preset}</button>
-        {/each}
-      </div>
-
-      <label class="tasks-view__form-field">
-        Quelle (optional)
-        <SourcePicker
-          {appState}
-          value={formSourceRef || null}
-          onChange={(id) => (formSourceRef = id ?? '')}
-          allowNone={true}
-          noneLabel="– keine Quelle –"
-          label="Quelle"
-        />
-      </label>
-
-      {#if !editing}
-        <fieldset class="tasks-view__form-field tasks-view__entity-picker">
-          <legend>Ziel</legend>
-          <div class="tasks-view__kind-toggle">
-            <label>
-              <input
-                type="radio"
-                name="tasks-kind"
-                value="person"
-                checked={formKind === 'person'}
-                onchange={() => { formKind = 'person'; formEntityId = ''; }}
-              />
-              Person
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="tasks-kind"
-                value="family"
-                checked={formKind === 'family'}
-                onchange={() => { formKind = 'family'; formEntityId = ''; }}
-              />
-              Familie
-            </label>
-          </div>
-          {#if formKind === 'person'}
-            <PersonPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => (formEntityId = id ?? '')}
-              label="Ziel-Person"
-              placeholder="Person wählen…"
-            />
-          {:else}
-            <FamilyPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => (formEntityId = id ?? '')}
-              label="Ziel-Familie"
-              placeholder="Familie wählen…"
-            />
-          {/if}
-        </fieldset>
-      {/if}
-
-      <div class="tasks-view__form-actions">
-        <button type="button" class="tasks-view__form-cancel" onclick={closeForm}>Abbrechen</button>
-        <button type="submit" class="tasks-view__form-save">Speichern</button>
-      </div>
-    </form>
+    <TaskForm
+      {appState}
+      initial={formInitial}
+      isEditing={editing !== null}
+      onSubmit={saveForm}
+      onCancel={closeForm}
+    />
   {/if}
 
   {#if filteredTasks.length === 0}
@@ -415,103 +418,22 @@
     font-size: 0.82rem;
   }
 
+  /* Sekundär gegenüber „+ Aufgabe": Prüfen ist häufig, aber nicht die Hauptaktion
+     des Tabs — Umriss statt Vollfläche (Spec 21 §3 Hierarchie der Aktionen). */
+  .tasks-view__check-btn {
+    background: transparent;
+    color: var(--stb-gold-light);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
   .tasks-view__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
-  }
-
-  .tasks-view__form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.8rem 1rem;
-    background: var(--stb-surface-1);
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .tasks-view__form-title {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--stb-gold-light);
-  }
-
-  .tasks-view__form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-
-  .tasks-view__form-field input[type='text'] {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-
-  .tasks-view__preset-chips {
-    display: flex;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-  }
-
-  .tasks-view__chip {
-    background: var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: 999px;
-    padding: 0.15rem 0.6rem;
-    font-size: 0.72rem;
-    cursor: pointer;
-  }
-
-  .tasks-view__entity-picker {
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem;
-  }
-
-  .tasks-view__entity-picker legend {
-    font-size: 0.78rem;
-    color: var(--stb-gold-light);
-    padding: 0 0.3rem;
-  }
-
-  .tasks-view__kind-toggle {
-    display: flex;
-    gap: 0.8rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--stb-text);
-  }
-
-  .tasks-view__form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-
-  .tasks-view__form-cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .tasks-view__form-save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
   }
 
   .tasks-view__cat-header {
