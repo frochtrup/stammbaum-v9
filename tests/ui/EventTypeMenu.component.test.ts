@@ -40,7 +40,7 @@ describe('EventTypeMenu — Trigger + Panel', () => {
   });
 
   it('zeigt einen Trenner zwischen mehreren Gruppen, keinen vor der ersten', async () => {
-    const { container } = render(EventTypeMenu, {
+    render(EventTypeMenu, {
       props: {
         groups: [[{ tag: 'CHR', label: 'Taufe' }], [{ tag: 'EVEN', label: 'Ereignis' }]],
         onSelect: vi.fn(),
@@ -49,7 +49,11 @@ describe('EventTypeMenu — Trigger + Panel', () => {
 
     await fireEvent.click(screen.getByText('+ Ereignis'));
 
-    expect(container.querySelectorAll('.stb-event-menu__divider')).toHaveLength(1);
+    // Bewusst `document` statt des Render-`container`: das Panel hängt seit BL-85 per
+    // Portal am <body>, nicht mehr im Teilbaum der Komponente. Genau das IST der Fix —
+    // eine Abfrage über den Container würde hier die Abwesenheit des Klipp-Vorfahren
+    // als Fehler melden.
+    expect(document.querySelectorAll('.stb-event-menu__divider')).toHaveLength(1);
   });
 
   it('eigener triggerLabel wird übernommen', () => {

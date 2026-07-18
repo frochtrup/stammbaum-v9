@@ -13,7 +13,14 @@
   //
   // Von PersonDetail.svelte UND FamilyDetail.svelte genutzt (INV-UI-4) — EIN Mechanismus
   // statt je einer eigenen Popover-Implementierung.
+  //
+  // Das Panel hängt per `use:anchoredTo` am <body>, nicht im eigenen Teilbaum (BL-85):
+  // `.person-detail` ist ein Scroll-Container (`overflow: auto`) und schnitt das Menü an
+  // seiner Unterkante ab — gemessen: Container endete bei y=523, das Menü reichte bis
+  // 630, die unteren Einträge waren nicht anklickbar. Ein höherer z-index hilft dagegen
+  // nicht (ADR-v9-97); nur das Verlassen des Vorfahren.
   import { untrack } from 'svelte';
+  import { portal, anchoredTo } from './portal';
 
   export interface EventMenuItem {
     tag: string;
@@ -41,6 +48,9 @@
   }: Props = $props();
 
   let open = $state(false);
+  /** Bezugspunkt der Platzierung — das Panel kennt seinen Trigger nach dem Portal nicht
+   *  mehr über den DOM-Baum, deshalb als Referenz. */
+  let triggerEl = $state<HTMLElement | undefined>(undefined);
   // TST-10-Muster: nur der Mount-Anfangswert zählt — der Aufrufer übergibt `otherItems`
   // im Normalfall unveränderlich (statische Liste), kein fortlaufendes Re-Sync nötig.
   let otherTag = $state(untrack(() => otherItems[0]?.tag ?? ''));
@@ -64,10 +74,16 @@
 </script>
 
 <div class="stb-event-menu">
-  <button type="button" class="stb-activation-pill" aria-expanded={open} onclick={toggle}>{triggerLabel}</button>
+  <button
+    type="button"
+    class="stb-activation-pill"
+    aria-expanded={open}
+    onclick={toggle}
+    bind:this={triggerEl}
+  >{triggerLabel}</button>
   {#if open}
-    <button type="button" class="stb-event-menu__backdrop" aria-label="Menü schließen" onclick={close}></button>
-    <div class="stb-event-menu__panel" role="menu" aria-label={triggerLabel}>
+    <button type="button" class="stb-event-menu__backdrop" aria-label="Menü schließen" onclick={close} use:portal></button>
+    <div class="stb-event-menu__panel" role="menu" aria-label={triggerLabel} use:anchoredTo={triggerEl}>
       {#each groups as group, gi (gi)}
         {#if gi > 0 && group.length > 0}<div class="stb-event-menu__divider"></div>{/if}
         {#each group as item (item.tag)}
@@ -108,14 +124,23 @@
     border: none;
     padding: 0;
     cursor: default;
-    z-index: 20;
+    /* Geteilte Ebenen-Skala (ADR-v9-97). Erst nach dem Portalieren wirkt sie überhaupt —
+       vorher wurde sie im Stacking-Context des Vorfahren aufgelöst. */
+    z-index: calc(var(--stb-z-modal) - 1);
   }
 
+  /* Position kommt aus `anchoredTo` (ui/shell/portal.ts) als Viewport-Koordinaten: nach
+     dem Umhängen an den <body> gibt es keinen positionierten Vorfahren mehr, auf den
+     sich `absolute` beziehen könnte. */
   .stb-event-menu__panel {
-    position: absolute;
-    top: calc(100% + 0.3rem);
-    left: 0;
-    z-index: 21;
+    position: fixed;
+    top: var(--stb-anchor-top, 0);
+    left: var(--stb-anchor-left, 0);
+    z-index: var(--stb-z-modal);
+    /* Eine Liste, die höher wird als der Viewport, scrollt selbst — sonst bliebe ihr
+       Ende auch nach dem Portal unerreichbar, nur an anderer Stelle. */
+    max-height: 70vh;
+    overflow-y: auto;
     min-width: 12rem;
     max-width: min(90vw, 18rem);
     background: var(--stb-surface-1);

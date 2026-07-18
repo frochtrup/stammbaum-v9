@@ -1001,9 +1001,11 @@ describe('PlaceDetail — Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5
     expect(within(section).getByText('Undatierte Person')).toBeTruthy();
 
     await fireEvent.click(within(section).getByText('Filter'));
-    await fireEvent.click(within(section).getByLabelText('Zeitgenossen-Filter aktivieren'));
-    await fireEvent.input(within(section).getByLabelText('Referenzjahr'), { target: { value: '1900' } });
-    await fireEvent.input(within(section).getByLabelText('Fensterbreite in Jahren'), { target: { value: '10' } });
+    // Der Trigger sitzt in der Sektion, das Panel dahinter hängt seit BL-85 per Portal
+    // am <body> — die Feld-Abfrage geht deshalb über `screen`, nicht über die Sektion.
+    await fireEvent.click(screen.getByLabelText('Zeitgenossen-Filter aktivieren'));
+    await fireEvent.input(screen.getByLabelText('Referenzjahr'), { target: { value: '1900' } });
+    await fireEvent.input(screen.getByLabelText('Fensterbreite in Jahren'), { target: { value: '10' } });
 
     section = contemporariesSection(container);
     expect(within(section).getByText('Im Fenster')).toBeTruthy();

@@ -80,12 +80,11 @@ describe('Überlagerungs-Ordnung (Spec 21 §6, INV-UI-4)', () => {
       }
     }
 
-    // FilterBar/EventTypeMenu stehen hier bewusst NICHT als Ausnahme: ihr Backdrop trägt
-    // zwar 20, ihr Panel liegt aber in einem klippenden/stapelnden Vorfahren — dort
-    // wirkt eine höhere Zahl gar nicht, der Fix ist ein anderer (BL-85). Sie erfüllen
-    // das gesuchte Muster (fixed + inset:0 + rohe Zahl) und würden hier anschlagen,
-    // sobald jemand sie „nur" hochzählt statt sie richtig zu lösen.
-    expect(verstoesse.filter((v) => !/filterbar|event-menu/.test(v))).toEqual([]);
+    // Seit BL-85 gibt es hier KEINE Ausnahme mehr: `FilterBar`/`EventTypeMenu` waren
+    // ausgenommen, solange eine höhere Zahl bei ihnen ohnehin wirkungslos gewesen wäre
+    // (Stacking-/Klipp-Vorfahre). Portaliert liegen sie im Wurzel-Kontext, die Skala
+    // wirkt, und sie gehören wie alle anderen unter diesen Wächter.
+    expect(verstoesse).toEqual([]);
   });
 
   it('das FilterBar-Sheet dockt über der Navigation an, statt um sie zu konkurrieren', () => {
