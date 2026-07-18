@@ -123,6 +123,14 @@ textarea::placeholder {
   gap: 0.3rem;
   padding: 0.5rem 0.75rem;
   overflow-x: auto;
+  /* PFLICHT, nicht kosmetisch: `overflow-x: auto` setzt `min-height: auto` auf 0
+     (CSS-Flexbox §4.5) — in einem Spalten-Flex-Container (EntityTab/ResearchTab:
+     `flex-direction: column; height: 100%`) darf dieser Container dann unter seine
+     Inhaltshöhe schrumpfen. Gemessener Ist-Zustand vor dem Fix: Zeile 17,1 px hoch,
+     Pillen 11,6 px bei Top-Offset 8 px → die Hauptnavigation war bei JEDER Breite
+     unten angeschnitten. `flex-shrink: 0` schützt alle .stb-segment-row-Stellen
+     zugleich (INV-UI-4: ein Mechanismus, eine Korrektur). */
+  flex-shrink: 0;
 }
 
 .stb-segment-btn {

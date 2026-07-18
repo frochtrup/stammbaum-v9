@@ -17,6 +17,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/**/*.test.ts']
+    include: ['tests/**/*.test.ts'],
+    // tests/perf/ läuft NICHT im Standardlauf: die Skalen-Fixture (20.000 Personen,
+    // ~9 MiB) kostet ein Vielfaches der übrigen ~1.700 Tests zusammen und würde die
+    // Pre-Commit-Tauglichkeit zerstören (Spec 32: schneller Kern-Subset vor dem
+    // Commit). Eigener Aufruf: `npm run test:perf`, in CI als separater Schritt.
+    exclude: ['**/node_modules/**', '**/dist/**', 'tests/perf/**']
   }
 });
