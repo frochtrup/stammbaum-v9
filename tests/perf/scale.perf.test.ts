@@ -27,22 +27,35 @@ import { makeScaleGedcom } from './make-scale-gedcom';
 /** Zielgröße aus Spec 30 §1 ("v8 verifiziert bis 20.000 Personen"). */
 const PERSONEN = 20_000;
 
-/** Budgets in ms — deutlich über den v9-Zusicherungen aus [30 §1] (ADR-v9-89), damit
- *  das Gate auf fremder CI-Hardware ein Größenordnungs-Wecker bleibt und kein Prozent-Gate.
- *  Zusicherung ⇄ Budget: Parse < 400 ⇄ 1.200 · Auflösung < 2.000 ⇄ 9.000 · Sort < 400 ⇄ 1.200.
+/** Budgets in ms — RUNNER-TOLERANZEN, KEINE ZIELWERTE (BL-48, ADR-v9-91 + Nachtrag).
+ *  Die verbindlichen Zusicherungen stehen in [30 §1] (ADR-v9-89) und sind hiervon
+ *  unberührt: Parse < 400 · Auflösung < 2.000 · Sort < 400 ms.
  *
- *  DAS BUDGET IST EINE RUNNER-TOLERANZ, KEIN ZIELWERT (BL-48). Der Faktor bemisst sich
- *  am gemessenen IST auf Referenz-Hardware, nicht an der Zusicherung — sonst schrumpft
- *  die CI-Reserve genau dann, wenn eine Implementierung ihre Zusicherung knapp erreicht.
- *  Genau das war hier der Fall: nach BL-47 liegt die Auflösung bei 1.875 ms (94 % der
- *  Zusicherung), die alten 6.000 ms hätten auf einem 2–3× langsameren ubuntu-latest-
- *  Runner sporadisch rot gemeldet — und ein flackerndes Gate wird abgeschaltet.
- *  9.000 ms = 4,8× Reserve auf das Ist. Fängt weiterhin JEDE Größenordnungs-Regression:
- *  der behobene Registry-Neubau lag bei 89.436 ms, also Faktor 10 über dieser Schwelle,
- *  und jede Rückkehr zu superlinearem Wachstum schlägt schon weit darunter an. */
-const BUDGET_PARSE_MS = 1_200; // Zusicherung < 400 ms (Ist 110 ms — 10,9× Reserve)
-const BUDGET_RESOLVE_MS = 9_000; // Zusicherung < 2.000 ms (Ist 1.875 ms — 4,8× Reserve)
-const BUDGET_SORT_MS = 1_200; // Zusicherung < 400 ms (Ist 87 ms — 13,8× Reserve)
+ *  BEMESSUNGSREGEL: ~3× des auf CI GEMESSENEN Werts, aufgerundet. Nicht 3× der
+ *  Zusicherung (dann schrumpft die Reserve, sobald eine Implementierung ihre Zusicherung
+ *  knapp erreicht), und auch nicht 3× des Werts auf REFERENZ-Hardware — das Gate läuft
+ *  auf dem Runner, also muss es dort bemessen werden. Beide Fehlformen sind hier
+ *  nacheinander real aufgetreten, s. u.
+ *
+ *  ECHTE MESSUNG ubuntu-latest vs. Referenz-Mac (2026-07-18, erster Lauf mit sichtbarer
+ *  Ausgabe): parse 100 → 452 ms (4,5×) · Auflösung 1.914 → 5.854 ms (3,1×) ·
+ *  Sort 84 → 281 ms (3,3×). Der Runner ist also 3–4,5× langsamer, nicht 2–3× wie in
+ *  ADR-v9-91 geschätzt.
+ *
+ *  WARUM DIE ZAHLEN ZWEIMAL WANDERTEN — beide Male hätte das Gate sonst geflackert:
+ *   - 6.000 (3× Zusicherung): CI-Ist 5.854 = 97,6 % des Budgets. Münzwurf.
+ *   - 9.000 (4,8× Referenz-Ist): nur 1,54× Reserve auf den CI-Wert. Zu wenig für die
+ *     Schwankung geteilter Runner-Infrastruktur.
+ *  Ein sporadisch rotes Gate wird abgeschaltet und schützt danach gar nichts — deshalb
+ *  ist großzügig hier die konservative Wahl, nicht die bequeme.
+ *
+ *  FÄNGT WEITERHIN, WORAUF ES ANKOMMT: der behobene Registry-Neubau (ADR-v9-88) lag
+ *  lokal bei 89.436 ms, auf dem Runner also bei ~270 s — Faktor 15 über der Schwelle.
+ *  Jede Rückkehr zu superlinearem Wachstum schlägt weit darunter an. NICHT gefangen wird
+ *  eine 2×-Verlangsamung; die ließe sich von Runner-Varianz ohnehin nicht trennen. */
+const BUDGET_PARSE_MS = 1_500; // CI-Ist 452 ms → 3,3× Reserve
+const BUDGET_RESOLVE_MS = 18_000; // CI-Ist 5.854 ms → 3,1× Reserve
+const BUDGET_SORT_MS = 1_200; // CI-Ist 281 ms → 4,3× Reserve (unverändert, schon passend)
 
 function ms(fn: () => void): number {
   const t0 = performance.now();
