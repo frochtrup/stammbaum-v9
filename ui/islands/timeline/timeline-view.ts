@@ -17,6 +17,9 @@
 // nach dem Einhängen per JS-CSSOM (`el.style.xxx = ...`) gesetzt.
 import type { TimelinePersonEvent, SwimLaneResult, DecadeLayoutResult } from './timeline-model';
 import { personColor, SWIM_LANE_LABEL_W, SL_ROW_H, SL_HIST_ROW_H, SL_LANE_PAD } from './timeline-model';
+// Geteilter Tooltip (INV-UI-12/ADR-v9-87), imperativ aufgerufen — s. hourglass-tree.ts.
+// Timeline nutzt natives Scrollen (keine Touch-Gesten-Handler) → keine Kollision möglich.
+import { tooltip } from '../../shell/tooltip';
 
 export type TimelineMode = 'swim' | 'decade';
 
@@ -73,7 +76,7 @@ function buildChipEl(
   const chip = el('div', `tl-chip tl-chip--${ev.type}`);
   if (ev.year === null) chip.classList.add('tl-chip--undated');
   if (isMulti) chip.classList.add(`tl-pc${ev.personIdx}`);
-  chip.title = chipTooltip(ev, birthYear, isMulti, '');
+  tooltip(chip, chipTooltip(ev, birthYear, isMulti, ''));
   if (isMulti) {
     const dot = el('span', `tl-chip-dot tl-pc${ev.personIdx}`);
     chip.appendChild(dot);
@@ -175,7 +178,7 @@ function renderSwimLane(
         const chip = el('div', `tl-hist-evt tl-hist-evt--${hc.cat}`);
         chip.style.left = `${hc.pxLeft}px`;
         chip.style.top = `${histPad + hc.row * SL_HIST_ROW_H}px`;
-        chip.title = `${hc.year}: ${hc.label}`;
+        tooltip(chip, `${hc.year}: ${hc.label}`);
         const yr = el('span', 'tl-y');
         yr.textContent = String(hc.year);
         chip.appendChild(yr);

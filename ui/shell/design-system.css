@@ -351,6 +351,10 @@ button.stb-coord-indicator__glyph:focus-visible {
   border: 1px solid var(--stb-gold-dim);
   font-size: 0.72rem;
   line-height: 1.3;
+  /* Zeilenumbrüche im Text erhalten (natives `title` konnte das; die Zeitleisten-Chips
+     liefern mehrzeilige Tooltips "Datum\nTyp\nOrt") — `pre-line` bricht zusätzlich
+     weiterhin am max-width um. */
+  white-space: pre-line;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   pointer-events: none;
   transition: opacity 0.08s ease;
