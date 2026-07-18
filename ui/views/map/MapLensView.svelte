@@ -26,7 +26,8 @@
   // Slot deshalb SOFORT nach dem Lesen zurückgesetzt (`viewState.setCurrent(
   // 'lensPlaceFocus', null)`) — sonst würde ein späterer, unabhängiger Karte-Besuch
   // erneut auf denselben alten Ort springen.
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
+  import { onlineStatus } from '../../shell/online-status.svelte';
   import '../../islands/map/leaflet-map.css';
   import '../../islands/map/svg-fallback-map.css';
   import { mountLeafletMap, type LeafletIslandHandle, type MapMode } from '../../islands/map/leaflet-map';
@@ -99,7 +100,13 @@
 
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: LeafletIslandHandle | SvgFallbackHandle | null = null;
-  let usingFallback = $state(!navigator.onLine);
+  // Startwert aus dem geteilten Schalen-Zustand statt aus einem zweiten, eigenen
+  // `navigator.onLine`-Aufruf (INV-UI-4, BL-03). Die Sticky-Semantik bleibt unberührt:
+  // gelesen wird NUR beim Mount in einen lokalen `$state`; danach entscheidet allein
+  // `onTileError` (ADR-v9-25, kein Flackern zwischen den Rendering-Pfaden).
+  // `untrack`, damit der Initialwert keine Abhängigkeit aufbaut (TST-10) — ohne das
+  // würde ein späterer Online-Wechsel die Karte doch wieder umschalten.
+  let usingFallback = $state(untrack(() => !onlineStatus.online));
   let offlineBannerVisible = $derived(usingFallback);
 
   const places = $derived(placesWithCoords(appState.db, appState.placeContext));

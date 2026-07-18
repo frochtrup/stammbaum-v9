@@ -36,6 +36,8 @@
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
+  import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
+  import { onlineStatus } from '../ui/shell/online-status.svelte';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -98,6 +100,11 @@
       const result = await loadGedcomText(copy.text, copy.name, appState, persister);
       placesEditNotice = result.placesNotice;
     })();
+
+    // Online-/Offline-Listener der Schale (BL-03). Rückgabewert von onMount ist die
+    // Aufräumfunktion — der Zustand lebt zwar so lange wie die App, aber ein
+    // Listener-Leck in Komponententests (mehrfaches Mounten) wäre real.
+    return onlineStatus.start();
   });
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
@@ -221,7 +228,7 @@
 
 <div class="app-shell">
   <header class="app-shell__header">
-    <h1 class="app-shell__title">Stammbaum</h1>
+    <h1 class="app-shell__title">Stammbaum<OfflineIndicator /></h1>
     <UndoControls {appState} />
   </header>
 
