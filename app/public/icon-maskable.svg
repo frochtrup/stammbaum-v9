@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Stammbaum">
+  <!-- Maskable-Variante (purpose="maskable"): Android/Chrome beschneiden das Icon auf
+       eine plattformeigene Form (Kreis, Squircle, …). Sicher ist nur der zentrierte
+       Kreis mit 40 % Radius — deshalb füllt der Hintergrund die volle Fläche (kein
+       abgerundetes Quadrat, das beim Beschneiden doppelte Ecken zeigt) und die Marke
+       sitzt auf ~72 % skaliert in der Mitte. Gleiche Marke wie icon.svg. -->
+  <rect width="512" height="512" fill="#18140f"/>
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <g stroke="#c8a84a" stroke-width="16" stroke-linecap="round" fill="none">
+      <path d="M168 196 v40 h176 v-40"/>
+      <path d="M256 236 v52"/>
+    </g>
+    <g fill="#c8a84a">
+      <circle cx="168" cy="160" r="40"/>
+      <circle cx="344" cy="160" r="40"/>
+    </g>
+    <circle cx="256" cy="332" r="44" fill="#7a6328"/>
+  </g>
+</svg>

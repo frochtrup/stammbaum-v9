@@ -73,7 +73,12 @@ function scanInfoReport(files) {
 let ok = true;
 
 // --- A) HARD-FAIL ---
-const hardFailFiles = ['app/index.html', ...walk('ui', ['.svelte'])];
+// app/public/**/*.html gehört zur selben Regel: die Offline-Fallback-Seite (BL-02) ist
+// ausgelieferte, vom Nutzer sichtbare HTML wie index.html auch — sie ging nur deshalb
+// nicht durch dieses Gate, weil sie als public/-Datei am Vite-Plugin vorbeiläuft
+// (statt einer zweiten, laxeren Regel für „statische" Seiten: dieselbe Regel, ein
+// Mechanismus).
+const hardFailFiles = ['app/index.html', ...walk('app/public', ['.html']), ...walk('ui', ['.svelte'])];
 const violations = scanHardFail(hardFailFiles);
 if (violations.length) {
   ok = false;

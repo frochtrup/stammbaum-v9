@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { injectCspMeta } from './app/csp-plugin';
+import { serviceWorkerPlugin } from './app/sw-plugin';
 
 // CSP-Meta-Tag (LP-8, Spec 30 §NFR-3): GitHub Pages liefert keine eigenen
 // Response-Header, daher Meta-Tag statt HTTP-Header (wie im v8-Orakel).
@@ -38,7 +39,9 @@ export default defineConfig(({ command, isPreview }) => ({
   base: command === 'build' || isPreview ? '/stammbaum-v9/' : '/',
   plugins: [
     svelte({ configFile: fileURLToPath(new URL('./svelte.config.js', import.meta.url)) }),
-    cspPlugin()
+    cspPlugin(),
+    // Injiziert das Precache-Manifest in dist/sw.js (BL-02) — nur im Build.
+    serviceWorkerPlugin()
   ],
   root: 'app',
   server: {

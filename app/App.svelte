@@ -33,6 +33,9 @@
   import type { LensId } from '../ui/shell/lens-model';
   import UndoControls from '../ui/shell/UndoControls.svelte';
   import { matchShortcut, isEditableTarget } from '../ui/shell/shortcuts';
+  import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
+  import { swUpdate } from '../ui/shell/sw-update.svelte';
+  import { applyUpdate } from './sw-register';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -221,6 +224,8 @@
     <h1 class="app-shell__title">Stammbaum</h1>
     <UndoControls {appState} />
   </header>
+
+  <UpdateBanner visible={swUpdate.ready} onApply={applyUpdate} />
 
   {#if placesEditNotice}
     <p class="app-shell__notice" role="status">{placesEditNotice}</p>

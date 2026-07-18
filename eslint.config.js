@@ -117,6 +117,27 @@ export default tseslint.config(
     }
   },
   {
+    // Service Worker (BL-02): eigener globaler Scope — `self` ist der
+    // ServiceWorkerGlobalScope, `clients`/`caches` gibt es nur hier. Die Datei liegt
+    // in app/public/ und wird verbatim ausgeliefert, ist also klassisches Skript
+    // (kein Modul, keine Imports) — deshalb ein eigener Block statt der Browser-
+    // Globals oben.
+    files: ['app/public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        clients: 'readonly',
+        fetch: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly'
+      }
+    }
+  },
+  {
     // Schwelle für alle .svelte-Dateien (s. Kopf: BL-54).
     files: ['**/*.svelte'],
     rules: maxLinesRule(MAX_LINES_SVELTE)
