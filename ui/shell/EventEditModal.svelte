@@ -29,11 +29,10 @@
   // FamilyDetail) in seinem `onSave`-Handler — dieses Modal kennt keine Person-/Family-
   // Struktur.
   //
-  // Modal-Schale (Backdrop + Panel + Schließen) ist NEU — im Repo existierte bisher kein
-  // wiederverwendbares Overlay-Muster (geprüft: PlaceDedupView/HofDedupView sind volle
-  // Ansichten ohne Backdrop, kein `<dialog>`/Modal-Baustein vorhanden). Künftige Einzel-
-  // Objekt-Bearbeitungs-Fälle können `.event-edit-modal__backdrop`/`__panel` als Vorbild
-  // nehmen statt ein drittes Overlay-Muster zu erfinden (INV-UI-4).
+  // Der Backdrop kommt aus `.stb-modal-backdrop` (design-system.css, INV-UI-4) — das
+  // hiesige lokale Duplikat lag mit `z-index: 100` UNTER der Bottom-Nav (400): das Modal
+  // war nicht modal, die Navigation blieb darüber bedienbar und verdeckte bei hohem Panel
+  // die eigenen Aktionsknöpfe. Nur das Panel bleibt lokal (Breite/Polsterung je Fall).
   import { untrack } from 'svelte';
   import type { AppState } from './app-state.svelte';
   import type { Event, Quay } from '../../core/model/types';
@@ -150,7 +149,7 @@
      Tastatur-taugliche Entsprechung ist der globale Escape-Handler oben (svelte:window),
      nicht ein zweiter Handler auf diesem <div>. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="event-edit-modal__backdrop" onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
   <div
     class="event-edit-modal__panel"
     onclick={(e) => e.stopPropagation()}
@@ -327,18 +326,6 @@
 </div>
 
 <style>
-  .event-edit-modal__backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 1.5rem 1rem;
-    overflow-y: auto;
-    z-index: 100;
-  }
-
   .event-edit-modal__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);

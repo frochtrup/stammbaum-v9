@@ -55,6 +55,13 @@ describe('design-system.css — Flexbox-Schrumpf-Falle bei scrollenden Reihen', 
     const rules = [...css.matchAll(/(\.stb-[a-z0-9-]+)\s*\{([^}]*)\}/g)];
     const unprotected = rules
       .filter(([, , body]) => /overflow(-[xy])?:\s*(auto|scroll)/.test(body))
+      // `position: fixed`/`absolute` nimmt das Element aus dem Fluss — es ist dann KEIN
+      // Flex-Item seines Elternteils, und die Schrumpf-Falle (Flexbox §4.5) kann gar
+      // nicht greifen. Ohne diese Ausnahme verlangte der Test von `.stb-modal-backdrop`
+      // (fixed, inset:0, eigener Scroll) ein wirkungsloses `flex-shrink: 0` — eine
+      // Deklaration einzufügen, nur damit ein Prüfer schweigt, macht den Prüfer
+      // unglaubwürdig und die CSS-Datei unklarer.
+      .filter(([, , body]) => !/position:\s*(fixed|absolute)/.test(body))
       .filter(([, , body]) => !/flex-shrink:\s*0/.test(body) && !/flex:\s*0 0/.test(body))
       .map(([, selector]) => selector);
 

@@ -164,7 +164,7 @@ describe('PlaceEnclosureEditModal — Modal-Schale (Backdrop/Escape, INV-UI-4)',
     const onClose = vi.fn();
 
     const { container } = render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose } });
-    const backdrop = container.querySelector('.place-enclosure-modal__backdrop') as HTMLElement;
+    const backdrop = container.querySelector('.stb-modal-backdrop') as HTMLElement;
     await fireEvent.click(backdrop);
 
     expect(onClose).toHaveBeenCalledOnce();

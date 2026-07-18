@@ -5,7 +5,8 @@
   //
   // Rendert Regeln UND Schwellen aus der Registry bzw. dem Thresholds-Typ — eine neue
   // Regel oder ein neuer Schwellenwert erscheint hier ohne Änderung an dieser Datei.
-  // Das Overlay-Muster (Backdrop + Panel) folgt EventEditModal.svelte (INV-UI-4).
+  // Der Backdrop kommt aus `.stb-modal-backdrop` (design-system.css, INV-UI-4);
+  // lokal bleibt nur das Panel.
   import { SvelteSet } from 'svelte/reactivity';
   import type { RuleId, Thresholds, ValidationConfig } from '../../../core/validate/index';
   import { defaultConfig } from '../../../core/validate/index';
@@ -73,7 +74,7 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onClose()} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="valcfg__backdrop" onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
   <div
     class="valcfg__panel"
     onclick={(e) => e.stopPropagation()}
@@ -130,26 +131,6 @@
 </div>
 
 <style>
-  .valcfg__backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    /* Unten grosszügig, damit „Abbrechen"/„Speichern" am Listenende nicht unter der
-       Bottom-Nav landen — bei eigener Browser-Verifikation genau so aufgetreten. */
-    padding: 1.5rem 1rem 6rem;
-    overflow-y: auto;
-    /* ÜBER der Bottom-Nav (die liegt auf 400, BottomNav.svelte). Ein modales Overlay
-       unterhalb der Navigation ist nicht modal: die Nav bleibt bedienbar und verdeckt
-       den unteren Rand des Panels.
-       ACHTUNG, gleichgelagerte Stelle: EventEditModal.svelte nutzt z-index 100 und hat
-       damit dasselbe Problem — hier bewusst NICHT mitgeändert (fremde Komponente,
-       eigener Verifikationsbedarf), aber als eigener Punkt festgehalten. */
-    z-index: 500;
-  }
-
   .valcfg__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);

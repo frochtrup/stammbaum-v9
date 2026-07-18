@@ -72,7 +72,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 400;
+    z-index: var(--stb-z-nav);
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 

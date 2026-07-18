@@ -249,7 +249,7 @@ describe('EventEditModal — Modal-Schale (Backdrop/Escape)', () => {
     const { container } = render(EventEditModal, {
       props: { appState, event: makeEvent('OCCU'), label: 'Beruf', onSave: vi.fn(), onClose },
     });
-    const backdrop = container.querySelector('.event-edit-modal__backdrop') as HTMLElement;
+    const backdrop = container.querySelector('.stb-modal-backdrop') as HTMLElement;
     await fireEvent.click(backdrop);
 
     expect(onClose).toHaveBeenCalledOnce();

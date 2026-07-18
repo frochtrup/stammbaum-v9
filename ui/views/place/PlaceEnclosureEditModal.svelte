@@ -108,7 +108,7 @@
 <svelte:window onkeydown={onBackdropKeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="place-enclosure-modal__backdrop" onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
   <div
     class="place-enclosure-modal__panel"
     onclick={(e) => e.stopPropagation()}
@@ -170,18 +170,6 @@
 </div>
 
 <style>
-  .place-enclosure-modal__backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 1.5rem 1rem;
-    overflow-y: auto;
-    z-index: 100;
-  }
-
   .place-enclosure-modal__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);

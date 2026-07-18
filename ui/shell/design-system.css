@@ -15,6 +15,16 @@
   --stb-gold-light: #e5c96e;
   --stb-gold-dim: #7a6328;
 
+  /* Überlagerungs-Ebenen (Spec 21 §6, INV-UI-4). Die Reihenfolge ist hier EINMAL
+     festgelegt, statt in jeder Komponente neu geraten zu werden — genau daran ist sie
+     zweimal gescheitert: EventEditModal und PlaceEnclosureEditModal lagen mit 100 UNTER
+     der Bottom-Nav (400), waren also gar nicht modal und ließen ihre eigenen
+     Aktionsknöpfe verdecken (gefunden bei BL-04, ADR-v9-96). Wer eine neue Ebene
+     braucht, ergänzt sie hier und sieht die Nachbarn. */
+  --stb-z-nav: 400;
+  --stb-z-modal: 500;
+  --stb-z-tooltip: 1000;
+
   /* Text */
   --stb-text: #f2e8d4;
   --stb-text-dim: #a0906e;
@@ -345,11 +355,32 @@ button.stb-coord-indicator__glyph:focus-visible {
   color: var(--stb-gold);
 }
 
+/* Modal-Backdrop (Spec 21 §6, INV-UI-4): DER EINE abdunkelnde Vollflächen-Hintergrund
+   hinter einem Overlay-Panel. Vorher lag dieselbe Deklaration dreimal kopiert in
+   EventEditModal/PlaceEnclosureEditModal/ValConfigSheet — zwei davon mit zu niedrigem
+   z-index (s. --stb-z-modal oben). Das Panel bleibt komponenten-lokal: Breite, Polsterung
+   und Innenleben unterscheiden sich je Fall, der Hintergrund nicht.
+
+   `padding-bottom` ist bewusst grosszügig: bei einem Panel, das höher als der Viewport
+   ist, scrollt der Backdrop — ohne diesen Freiraum landen die Aktionsknöpfe am Listenende
+   hinter der Bottom-Nav. */
+.stb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem 6rem;
+  overflow-y: auto;
+  z-index: var(--stb-z-modal);
+}
+
 /* Geteilter Tooltip (ui/shell/tooltip.ts, INV-UI-4). Die Blase lebt im <body> (außerhalb
    jeder Svelte-Scope-Grenze), deshalb global hier statt komponenten-lokal. position/top/left
    setzt die Action inline; hier nur Optik + Ein-/Ausblenden. */
 .stb-tooltip {
-  z-index: 1000;
+  z-index: var(--stb-z-tooltip);
   max-width: 18rem;
   width: max-content;
   padding: 0.35rem 0.55rem;
