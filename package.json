@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:core": "vitest run tests/core",
     "test:round": "vitest run tests/roundtrip",
-    "test:perf": "vitest run --config vitest.perf.config.ts",
+    "test:perf": "NODE_OPTIONS=--expose-gc vitest run --config vitest.perf.config.ts",
     "test:watch": "vitest",
     "lint": "eslint . && tsc --noEmit && npm run check:svelte",
     "check:svelte": "svelte-check --tsconfig ./tsconfig.check.json --threshold error",

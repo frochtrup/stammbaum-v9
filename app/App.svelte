@@ -31,6 +31,8 @@
   import MoreView from '../ui/views/more/MoreView.svelte';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
+  import UndoControls from '../ui/shell/UndoControls.svelte';
+  import { matchShortcut, isEditableTarget } from '../ui/shell/shortcuts';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -198,11 +200,26 @@
     viewState.setCurrent('hof', hofId);
     activeTarget = 'person';
   }
+  // Undo/Redo per Tastatur (BL-01, Spec 20 §1.2). An der Schale statt an der Leiste:
+  // das Kürzel soll überall greifen, unabhängig vom Fokus. In Eingabefeldern bewusst
+  // NICHT — dort gehört ⌘Z dem Feld (s. shortcuts.ts).
+  function onWindowKeydown(e: KeyboardEvent) {
+    if (isEditableTarget(e.target)) return;
+    const action = matchShortcut(e);
+    if (!action) return;
+    const handled = action === 'undo' ? appState.undo() : appState.redo();
+    // Nur beanspruchen, wenn wirklich etwas passiert ist — sonst schluckt die App ein
+    // Kürzel, das der Browser sinnvoller behandeln könnte.
+    if (handled) e.preventDefault();
+  }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div class="app-shell">
   <header class="app-shell__header">
     <h1 class="app-shell__title">Stammbaum</h1>
+    <UndoControls {appState} />
   </header>
 
   {#if placesEditNotice}
@@ -260,6 +277,11 @@
 
   .app-shell__header {
     padding: 0.5rem 1rem 0;
+    /* Titel links, Undo/Redo rechts — die Leiste soll den Titel nicht verschieben. */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
   .app-shell__title {

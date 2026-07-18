@@ -457,19 +457,10 @@ describe('AppState.saveRepository/deleteRepository — Archiv-Editor-Kommandos (
   });
 });
 
-describe('AppState.touch — erzwungene Aktualisierung nach In-Place-Event-Mutation', () => {
-  it('gibt eine neue db-Referenz zurück, mit unverändertem Inhalt', () => {
-    const appState = createAppState();
-    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
-    const before = appState.db;
-
-    appState.touch();
-
-    expect(appState.db).not.toBe(before);
-    expect(appState.db.placeObjects).toBe(before.placeObjects); // Maps bleiben identisch (kein unnötiges Klonen)
-    expect(appState.db.placeObjects.get('@P1@')?.title).toBe('Ochtrup');
-  });
-});
+// `AppState.touch()` ist mit BL-01 entfallen (ADR-v9-92): es stieß nach einer
+// In-Place-Mutation von außen bloß die Reaktivität an — genau das Muster, das
+// Copy-on-Write ausschließt. Die frühere Verwendung (Reprojektion nach
+// linkEventToPlace) läuft jetzt im Kommando selbst, s. u.
 
 describe('AppState.loadDatabase/serialize — roots-Passthrough für Genealogie-Arbeitskopie/-Export (Spec 14 §3.1)', () => {
   it('loadDatabase ohne roots-Argument: serialize() liefert dennoch ein valides GEDCOM (leerer roots-Fallback)', () => {
@@ -595,19 +586,22 @@ describe('AppState.persistWorkingCopy — stilles Auto-Save der Genealogie-Arbei
     expect(calls).toBe(0);
   });
 
-  it('wird nach touch() aufgerufen (deckt linkEventToPlace-Reprojektion von ev.place ab, Nachtrag 2026-07-07)', () => {
+  it('wird nach linkEventToPlace aufgerufen (Reprojektion von ev.place ist GEDCOM-relevant)', () => {
     let calls = 0;
     const appState = loadedAppState(() => (calls += 1));
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' })); // nur orte.json, kein Working-Copy-Save
+    expect(calls).toBe(0);
+
     const person = appState.db.individuals.get('@I1@')!;
-    person.birth.place = 'Ochtrup, Steinfurt, NRW, Deutschland'; // simuliert linkEventToPlace-Reprojektion
-    appState.touch();
+    expect(appState.linkEventToPlace(person.birth, '@P1@')).toBe(true);
+
     expect(calls).toBe(1);
   });
 
-  it('wird NICHT nach touch() aufgerufen, solange noch keine Datei geladen ist', () => {
+  it('wird NICHT aufgerufen, solange noch keine Datei geladen ist', () => {
     let calls = 0;
     const appState = createAppState({ persistWorkingCopy: () => (calls += 1) });
-    appState.touch();
+    appState.savePerson(makePerson('@I9@'));
     expect(calls).toBe(0);
   });
 

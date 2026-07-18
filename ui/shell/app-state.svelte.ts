@@ -45,6 +45,7 @@ import {
   type MergeResult,
 } from '../../core/places';
 import { editDatabase, mapAllEvents } from '../../core/model/draft';
+import { createUndoStack } from '../../services/undo';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
 import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
@@ -199,23 +200,6 @@ export interface AppState {
    */
   replacePlacesAndHofs(placeObjects: Database['placeObjects'], hofObjects: Database['hofObjects']): void;
   /**
-   * Kommando: erzwingt eine Reaktivitäts-Aktualisierung nach einer In-Place-Mutation an
-   * Event-Feldern (z. B. `linkEventToPlace`, das Person-/Family-Events mutiert, die NICHT
-   * über eine eigene Map-Struktur laufen wie placeObjects/hofObjects). Ein Kommando →
-   * Chokepoints neu lesen → Views aktualisieren sich (Spec 02 §3, EIN Pfad). Löst (falls
-   * injiziert) auch `persistWorkingCopy` aus (Nachtrag 2026-07-07): `linkEventToPlace`
-   * (PlaceDetail.svelte "Ortszuordnung") reprojiziert `ev.place` sofort im Kommando
-   * (ADR-v9-19) — ein GEDCOM-relevantes Feld, das der bestehende Write-Back (ADR-v9-32)
-   * bereits über `eventEqual`/`emitPerson`/`emitFamily` abdeckt. Ohne diesen Aufruf ging
-   * die Reprojektion beim nächsten Reload/Export verloren, obwohl sie in-memory korrekt
-   * war. Die Hof-Review-Aktionen (`hof-review-actions.ts`) rufen `touch()` ebenfalls auf,
-   * mutieren aber nur `event.hofId`/`event.placeId` (laufzeit-only, Spec 11 §2 — werden
-   * beim nächsten `resolveEvents()` neu abgeleitet, NICHT persistiert) — für sie ist der
-   * zusätzliche Aufruf ein no-op (kein `ev.place`/`ev.addr`-Unterschied), aber ein
-   * einheitlicher `touch()`-Pfad ist einfacher als zwei Varianten je nach Aufrufer-Kontext
-   * zu unterscheiden.
-   */
-  /**
    * Kommando: verknüpft EIN Ereignis mit einem PlaceObject (Sofort-Reprojektion von
    * `ev.place`, ADR-v9-19/-42). `event` muss das echte, in Person/Family lebende Objekt
    * sein — der Copy-on-Write-Draft findet darüber seinen Owner (ADR-v9-92).
@@ -234,7 +218,33 @@ export interface AppState {
    * Feld (ADDR), deshalb genauso copy-on-write-pflichtig.
    */
   linkEventToHof(event: Event, hofId: HofId, villageId?: PlaceId): boolean;
-  touch(): void;
+  // --- Undo/Redo (Spec 20 §1.2, ADR-v9-92) ---------------------------------------
+  //
+  // `touch()` gab es hier bis BL-01: ein Kommando, das nach einer In-Place-Mutation von
+  // außen bloß die Reaktivität anstieß. Mit Copy-on-Write ist dieses Muster nicht mehr
+  // zulässig — jede Änderung liefert einen neuen Zustand — und `touch()` wäre die
+  // verbliebene Hintertür daran vorbei. Es ist deshalb entfernt, nicht nur ungenutzt.
+  /** true, wenn ein Schritt zurückgenommen werden kann (für die Aktivierung der Schaltfläche). */
+  readonly canUndo: boolean;
+  /** true, wenn ein zurückgenommener Schritt wiederherstellbar ist. */
+  readonly canRedo: boolean;
+  /**
+   * Kommando: nimmt das letzte Editier-Kommando zurück. Gibt `false` zurück, wenn der
+   * Stack leer ist — dann bietet die Schale „Zum gespeicherten Stand zurück"
+   * (`revertToSaved`) als Fallback an (Spec 20 §1.2).
+   */
+  undo(): boolean;
+  /** Kommando: stellt einen zurückgenommenen Schritt wieder her. `false`, wenn nichts anliegt. */
+  redo(): boolean;
+  /**
+   * Kommando: „Revert to Saved" (Spec 20 §1.2) — verwirft ALLE Änderungen seit dem Laden
+   * und stellt den zuletzt geladenen Stand wieder her. Der Fallback bei leerem Stack.
+   * `false`, wenn noch nichts geladen wurde (nichts, wohin zurückzukehren wäre).
+   *
+   * Wirkt wie jedes andere Kommando auf den Speicherzustand; die Auto-Save-Arbeitskopie
+   * schreibt den Stand danach fort (ADR-v9-92 Punkt 6, kein Sonderpfad auf Datei-Ebene).
+   */
+  revertToSaved(): boolean;
   /**
    * Kommando: legt eine neue Aufgabe an einer Person ODER Familie an (Spec 20 §1.11 [K]).
    * `taskId`/`now` werden vom Aufrufer injiziert (TST-3, analog `newTaskId()`/Uhrzeit in
@@ -332,6 +342,36 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   // nur unnötigen Proxy-Overhead auf einem potenziell großen Baum (analog `db` selbst,
   // das ebenfalls $state.raw ist statt tief-reaktiv).
   let roots: GedNode[] = [];
+  // Undo/Redo (BL-01, ADR-v9-92). Der Stack hält Referenzen auf frühere `db`-Stände;
+  // dass diese Stände gültig BLEIBEN, garantiert die Copy-on-Write-Disziplin der
+  // Kommandos (core/model/draft.ts, verriegelt in tests/ui/app-state-cow.test.ts).
+  const undoStack = createUndoStack();
+  // REAKTIVE SPIEGEL der Stack-Verfügbarkeit. Der Stack selbst ist framework-frei
+  // (INV-ARCH-1) und hält einfache Arrays — Svelte kann Änderungen daran NICHT bemerken.
+  // Ohne diese Spiegel blieben die Undo/Redo-Schaltflächen dauerhaft ausgegraut, obwohl
+  // `undoStack.canUndo` längst true ist: am laufenden System gefunden (die Unit-Tests
+  // waren grün, weil sie den Getter direkt lesen — außerhalb jedes reaktiven Kontexts).
+  // Das ist die Arbeitsteilung aus Spec 02 §3: der Kern/Dienst reagiert nicht selbst,
+  // die Schale hält die reaktive Referenz.
+  let canUndoFlag = $state(false);
+  let canRedoFlag = $state(false);
+  // Jeder Stack-Zugriff läuft über diese drei Helfer — direkt auf `undoStack` zugreifen
+  // hieße, den Spiegel vergessen zu können.
+  const syncUndoFlags = (): void => {
+    canUndoFlag = undoStack.canUndo;
+    canRedoFlag = undoStack.canRedo;
+  };
+  const stackPush = (before: Database): void => {
+    undoStack.push(before);
+    syncUndoFlags();
+  };
+  const stackClear = (): void => {
+    undoStack.clear();
+    syncUndoFlags();
+  };
+  // Bezugspunkt für „Revert to Saved" (Spec 20 §1.2): der zuletzt GELADENE Stand.
+  // Bewusst kein $state — kein View liest ihn, er fließt nur über revertToSaved() zurück.
+  let savedState: Database | null = null;
   const placeContext = $derived.by<PlaceContext>(() => ({
     places: makePlaceRegistry(db.placeObjects),
     hofs: makeHofRegistry(db.hofObjects),
@@ -363,12 +403,36 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       return target === undefined ? null : { ...ev, hofId: target };
     });
   };
+  /**
+   * DER Chokepoint für jede Zustandsänderung durch ein Editier-Kommando (Spec 02 §3).
+   *
+   * WARUM ALLES HIER DURCHLÄUFT statt `pushUndoSnapshot()` an ~20 Kommandos daneben:
+   * Undo/Redo braucht den Zustand VOR jeder Änderung. Als separater Aufruf wäre das eine
+   * Erinnerungspflicht — wer ihn vergisst, baut ein Kommando, das sich stillschweigend
+   * nicht zurücknehmen lässt (der Fehler fällt erst auf, wenn ein Nutzer ⌘Z drückt und
+   * nichts passiert). Weil die Ablage hier untrennbar an der Zuweisung hängt, kann man
+   * sie nicht vergessen, ohne dass die Änderung überhaupt ausbleibt — ein sofort
+   * sichtbarer Fehler statt eines stillen. Dieselbe Logik wie `resetKey` (ADR-v9-83):
+   * Zwang schlägt Dokumentation.
+   *
+   * `places`/`workingCopy` steuern die beiden Persistenz-Seitenkanäle (orte.json bzw.
+   * GEDCOM-Arbeitskopie) — nicht jedes Kommando berührt beide.
+   */
+  const commit = (
+    next: Database,
+    fx: { places?: boolean; workingCopy?: boolean } = {},
+  ): void => {
+    stackPush(db); // Referenz auf den Vorzustand, keine Kopie (ADR-v9-92)
+    db = next;
+    if (fx.places) persistPlaces();
+    if (fx.workingCopy) persistWorkingCopyIfLoaded();
+  };
   // Übernimmt das Ergebnis eines Forschungsdaten-Kommandos. `null` = nicht angewandt
-  // (Zielentität fehlt) — dann bleibt der Zustand unberührt und es wird nicht persistiert.
+  // (Zielentität fehlt) — dann bleibt der Zustand unberührt, es wird nicht persistiert
+  // UND kein Undo-Eintrag erzeugt (ein wirkungsloses Kommando ist kein Schritt).
   const applyEdit = (next: Database | null): void => {
     if (!next) return;
-    db = next;
-    persistWorkingCopyIfLoaded();
+    commit(next, { workingCopy: true });
   };
 
   return {
@@ -385,6 +449,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = nextDb;
       fileName = nextFileName;
       roots = nextRoots ?? [];
+      // Ein Undo über eine Dateiöffnung hinweg gibt es nicht (ADR-v9-92 Punkt 5) — die
+      // abgelegten Zustände gehören zu einem anderen Dokument. Zugleich wird hier der
+      // „Revert to Saved"-Bezugspunkt gesetzt (Spec 20 §1.2, Fallback bei leerem Stack).
+      stackClear();
+      savedState = nextDb;
     },
     serialize() {
       return serializeInternal();
@@ -399,8 +468,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextPlaces = new Map(db.placeObjects);
       savePlaceObject(nextPlaces, model);
-      db = { ...db, placeObjects: nextPlaces };
-      persistPlaces();
+      commit({ ...db, placeObjects: nextPlaces }, { places: true });
     },
     deletePlace(id) {
       // deletePlaceCascade (ADR-v9-78 Punkt 1) räumt jede hängende event.placeId-Referenz
@@ -409,9 +477,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // Änderung werden geklont). Sowohl placeObjects (orte.json) als auch
       // individuals/families (Event-Referenzen) haben sich geändert — beide Persistenz-
       // Pfade nötig.
-      db = deletePlaceCascade(db, id);
-      persistPlaces();
-      persistWorkingCopyIfLoaded();
+      commit(deletePlaceCascade(db, id), { places: true, workingCopy: true });
     },
     mergePlace(survivorId, mergedIds): MergeResult {
       // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
@@ -424,16 +490,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       const result = mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedIds, collectAllEvents(db));
-      db = applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap);
-      persistPlaces();
+      commit(applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap), {
+        places: true,
+      });
       return result;
     },
     saveHof(model) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, model);
-      db = { ...db, hofObjects: nextHofs };
-      persistPlaces();
+      commit({ ...db, hofObjects: nextHofs }, { places: true });
     },
     updateHofAddr(hofId, index, value, from, to) {
       const hof = db.hofObjects.get(hofId);
@@ -449,23 +515,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       if (oldValue !== undefined && newValue !== '' && oldValue !== newValue) {
         nextDb = renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
       }
-      db = nextDb;
-      persistPlaces();
-      persistWorkingCopyIfLoaded();
+      commit(nextDb, { places: true, workingCopy: true });
     },
     deleteHof(id) {
       // deleteHofCascade (ADR-v9-78 Punkt 1) — analog deletePlace oben, aber für den
       // Hof-Pfad (event.hofId statt event.placeId).
-      db = deleteHofCascade(db, id);
-      persistPlaces();
-      persistWorkingCopyIfLoaded();
+      commit(deleteHofCascade(db, id), { places: true, workingCopy: true });
     },
     mergeHof(survivorId, mergedIds) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       const remap = mergeHofObjects(nextHofs, survivorId, mergedIds);
-      db = applyHofRemap({ ...db, hofObjects: nextHofs }, remap);
-      persistPlaces();
+      commit(applyHofRemap({ ...db, hofObjects: nextHofs }, remap), { places: true });
     },
     replacePlacesAndHofs(placeObjects, hofObjects) {
       const nextDb = { ...db, placeObjects, hofObjects };
@@ -478,6 +539,14 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // neu geprüft werden (ADR-v9-74) — sonst würde der "bereits gelinkt"-Kurzschluss
       // in resolveEvents jede Verbesserung verhindern.
       const resolution = applyPlaceResolution(nextDb, { resetUncuratedLinks: true });
+      // KEIN Undo-Eintrag, sondern Stack LEEREN (ADR-v9-92 Punkt 5): `applyPlaceResolution`
+      // ist der volle Lade-Pass und mutiert Person-/Family-Events in-place — es teilt seine
+      // Entitäten also mit zuvor abgelegten Zuständen und würde sie mitverändern. Der ADR
+      // ordnet einen vollen Auflösungs-Pass ausdrücklich dem LADEN zu, nicht dem Editieren
+      // („ein Undo über eine Dateiöffnung hinweg gibt es nicht"); ein orte.json-Import ist
+      // genau so ein Massen-Wechsel der Orts-Identität (Spec 11 §3 „Mechanismus 1").
+      // Konsequenz statt stiller Beschädigung: was davor war, ist nicht mehr rücknehmbar.
+      stackClear();
       db = nextDb;
       persistWorkingCopyIfLoaded();
       // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand
@@ -486,39 +555,31 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) persistPlaces();
     },
     savePerson(model) {
-      db = { ...db, individuals: savePersonCmd(db.individuals, model) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, individuals: savePersonCmd(db.individuals, model) }, { workingCopy: true });
     },
     deletePerson(id) {
-      db = { ...db, individuals: deletePersonCmd(db.individuals, id) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, individuals: deletePersonCmd(db.individuals, id) }, { workingCopy: true });
     },
     saveFamily(model) {
       // saveFamilyCmd führt die INDI-Seite (Person.parentIn/childOf) synchron nach
       // (Spec 10 INV-P3) und liefert deshalb ein vollständiges neues Database zurück —
       // beide betroffenen Maps (individuals + families) kommen fertig daraus.
-      db = saveFamilyCmd(db, model);
-      persistWorkingCopyIfLoaded();
+      commit(saveFamilyCmd(db, model), { workingCopy: true });
     },
     deleteFamily(id) {
-      db = deleteFamilyCmd(db, id);
-      persistWorkingCopyIfLoaded();
+      commit(deleteFamilyCmd(db, id), { workingCopy: true });
     },
     saveSource(model) {
-      db = { ...db, sources: saveSourceCmd(db.sources, model) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, sources: saveSourceCmd(db.sources, model) }, { workingCopy: true });
     },
     deleteSource(id) {
-      db = { ...db, sources: deleteSourceCmd(db.sources, id) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, sources: deleteSourceCmd(db.sources, id) }, { workingCopy: true });
     },
     saveRepository(model) {
-      db = { ...db, repositories: saveRepositoryCmd(db.repositories, model) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, repositories: saveRepositoryCmd(db.repositories, model) }, { workingCopy: true });
     },
     deleteRepository(id) {
-      db = { ...db, repositories: deleteRepositoryCmd(db.repositories, id) };
-      persistWorkingCopyIfLoaded();
+      commit({ ...db, repositories: deleteRepositoryCmd(db.repositories, id) }, { workingCopy: true });
     },
     linkEventToPlace(event, placeId) {
       const ctx = placeContext;
@@ -530,8 +591,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
         applied = true;
       });
       if (!applied) return false;
-      db = next;
-      persistWorkingCopyIfLoaded();
+      commit(next, { workingCopy: true });
       return true;
     },
     linkEventToHof(event, hofId, villageId) {
@@ -548,16 +608,44 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
         applied = true;
       });
       if (!applied) return false;
-      db = next;
+      commit(next, { workingCopy: true });
+      return true;
+    },
+    // --- Undo/Redo (Spec 20 §1.2, ADR-v9-92) ---------------------------------------
+    get canUndo() {
+      return canUndoFlag;
+    },
+    get canRedo() {
+      return canRedoFlag;
+    },
+    undo() {
+      const previous = undoStack.undo(db);
+      if (previous === null) return false;
+      syncUndoFlags();
+      db = previous;
+      // NICHT über commit(): das legte den aktuellen Zustand als neuen Undo-Eintrag ab
+      // und verwürfe den Redo-Zweig — der Stack führt seine eigene Buchhaltung.
+      // Beide Persistenz-Seitenkanäle laufen: ein zurückgenommenes Kommando kann Orte
+      // ODER Genealogie betroffen haben, und der Stack weiß nicht mehr welches.
+      persistPlaces();
       persistWorkingCopyIfLoaded();
       return true;
     },
-    touch() {
-      // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität
-      // auszulösen (Referenzänderung), ohne die Map-Identitäten (individuals/families/…)
-      // unnötig zu klonen.
-      db = { ...db };
+    redo() {
+      const next = undoStack.redo(db);
+      if (next === null) return false;
+      syncUndoFlags();
+      db = next;
+      persistPlaces();
       persistWorkingCopyIfLoaded();
+      return true;
+    },
+    revertToSaved() {
+      if (savedState === null) return false;
+      // Ein ganz normales Kommando auf den Speicherzustand (ADR-v9-92 Punkt 6) — es ist
+      // damit selbst rücknehmbar, falls der Nutzer es versehentlich auslöst.
+      commit(savedState, { places: true, workingCopy: true });
+      return true;
     },
     // --- Forschungsdaten (Aufgaben/Protokoll/Hypothesen) ---------------------------
     // Alle zehn Kommandos liefern seit ADR-v9-92 einen NEUEN Stand statt in-place zu

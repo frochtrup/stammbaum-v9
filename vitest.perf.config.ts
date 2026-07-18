@@ -22,5 +22,12 @@ export default defineConfig({
     reporters: ['verbose'],
     // Die 20k-Fixture zu erzeugen + zu verarbeiten liegt weit über dem 5s-Default.
     testTimeout: 600_000,
+    // `--expose-gc` (für undo-memory.perf.test.ts, ADR-v9-92) kommt über NODE_OPTIONS im
+    // npm-Skript `test:perf`, NICHT über `poolOptions.*.execArgv`. Letzteres wurde
+    // zuerst versucht und am echten Lauf verworfen: Vitest 4 ERSETZT das execArgv der
+    // Worker (geprüft — `process.execArgv` enthielt danach nur Vitest-eigene Flags,
+    // `globalThis.gc` blieb undefined). Wer das Gate direkt per `vitest run --config …`
+    // aufruft, muss NODE_OPTIONS also selbst setzen; der Test meldet das Fehlen laut,
+    // statt ohne erzwungene Sammlung eine bedeutungslose Zahl grün zu melden.
   },
 });
