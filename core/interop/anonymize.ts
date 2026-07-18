@@ -1,7 +1,10 @@
 // core/interop/anonymize.ts — Anonymisierter Export (Spec 13 §7, DSGVO).
 //
 // Klassifikation lebender Personen in drei Phasen:
-//   (1) datumbasiert: kein Sterbedatum + Geburtsjahr > (Bezugsjahr − 100) → lebend
+//   (1) datumbasiert: kein Sterbedatum + Geburtsjahr ≥ (Bezugsjahr − 100) → lebend
+//       Die Grenze schließt ein (ADR-v9-95): wer exakt 100 Jahre vor dem Bezugsjahr
+//       geboren ist, gilt als lebend. Bei einer Datenschutz-Grenze ist der Fehler in
+//       Richtung „zu viel geschwärzt" folgenlos, der in die andere Richtung nicht.
 //   (2) BFS-Propagation über Verwandte (Ehepartner, Eltern↔Kinder)
 //   (3) konservativ: Personen ganz ohne Datum → lebend
 //
@@ -35,7 +38,7 @@ export function buildLivingSet(db: Database, referenceYear: number): Set<string>
       noDate.add(p.id);
       continue;
     }
-    if (deathY == null && birthY != null && birthY > referenceYear - 100) {
+    if (deathY == null && birthY != null && birthY >= referenceYear - 100) {
       living.add(p.id);
     }
   }

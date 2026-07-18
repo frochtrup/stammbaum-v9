@@ -59,6 +59,38 @@ describe('Anonymisierung (Spec 13 §7)', () => {
     expect(living.has('@I4@')).toBe(true);
   });
 
+  // Die 100-Jahre-Grenze selbst — vorher von KEINEM Test abgedeckt, weshalb ein
+  // Wechsel zwischen `>` und `>=` die ganze Suite unverändert grün ließ (ADR-v9-95).
+  // Beide Nachbarn der Grenze werden mitgeprüft, sonst belegt der Test nur, dass
+  // irgendein Vergleich stattfindet, nicht wo er sitzt.
+  describe('100-Jahre-Grenze (Spec 13 §7, ADR-v9-95: Geburtsjahr ≥ Jahr−100 → lebend)', () => {
+    const born = (year: number) =>
+      [
+        '0 HEAD',
+        '1 GEDC',
+        '2 VERS 5.5.1',
+        '0 @G1@ INDI',
+        '1 NAME Grenz /Fall/',
+        '1 SEX U',
+        '1 BIRT',
+        `2 DATE ${year}`,
+        '0 TRLR',
+      ].join('\n');
+    const livingAt = (year: number) => buildLivingSet(parseGedcom(born(year)).db, 2026).has('@G1@');
+
+    it('exakt 100 Jahre vor dem Bezugsjahr → lebend (der entschiedene Grenzfall)', () => {
+      expect(livingAt(1926)).toBe(true);
+    });
+
+    it('ein Jahr darüber → lebend', () => {
+      expect(livingAt(1927)).toBe(true);
+    });
+
+    it('ein Jahr darunter → nicht lebend', () => {
+      expect(livingAt(1925)).toBe(false);
+    });
+  });
+
   it('anonymer Record behält nur NAME "Lebende Person" + SEX + Familienlinks', () => {
     const { roots } = parseGedcom(SRC);
     const i1 = roots.find((r) => r.xref === '@I1@')!;
