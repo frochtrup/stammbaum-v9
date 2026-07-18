@@ -2,6 +2,37 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import svelte from 'eslint-plugin-svelte';
 
+// BL-54 — Ratsche gegen fette Views (Spec 02 §2, Spec 32 „Architektur-Gates").
+// Der Fund lautete ursprünglich „die Views werden fett" (`PlaceDetail.svelte` 921 Zeilen,
+// UI zu Kern 4:1). Als Risikozeile wäre das ein Gradient ohne Fertig-Zustand — deshalb
+// eine Schwelle: neue `.svelte`-Dateien laufen sofort gegen 600 Zeilen.
+//
+// Die Altfälle darunter sind KEINE Freistellung, sondern eine Ratsche auf ihrem
+// Ist-Stand (dasselbe Muster wie das Perf-Budget, ADR-v9-88/91): schrumpfen dürfen sie,
+// wachsen nicht. Wer eine dieser Dateien inhaltlich anfasst, zerlegt sie und streicht
+// ihre Zeile hier — DIESE LISTE IST DER FORTSCHRITTSANZEIGER. Schrumpft sie nicht, ist
+// das sichtbar, statt in einer Risikoliste zu verschwinden.
+//
+// Warum exakt der Ist-Wert und nicht „Ist + etwas Luft": eine Ratsche mit Puffer ist
+// keine Ratsche, sie ist eine höhere Schwelle. Stand 2026-07-18: Median 195 Zeilen,
+// 12 Dateien über 400, 9 über 500, 5 über der Schwelle von 600 — nur diese fünf brauchen
+// einen Eintrag. Die vier Dateien zwischen 500 und 600 bekommen bewusst KEINEN: ein
+// Eintrag für eine Datei, die die Regel gar nicht verletzt, würde sie stattdessen von
+// der 600er-Schwelle ausnehmen — also genau den Schutz abschalten, den er vorgibt zu
+// dokumentieren.
+const SVELTE_ALTFAELLE = {
+  'ui/views/place/PlaceDetail.svelte': 921,
+  'ui/views/tasks/TasksView.svelte': 676,
+  'ui/views/hof/HofDetail.svelte': 641,
+  'ui/views/person/PersonDetail.svelte': 621,
+  'ui/views/hypotheses/HypothesesView.svelte': 608
+};
+
+const MAX_LINES_SVELTE = 600;
+const maxLinesRule = (max) => ({
+  'max-lines': ['error', { max, skipBlankLines: false, skipComments: false }]
+});
+
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**'] },
   js.configs.recommended,
@@ -84,5 +115,14 @@ export default tseslint.config(
         }
       ]
     }
-  }
+  },
+  {
+    // Schwelle für alle .svelte-Dateien (s. Kopf: BL-54).
+    files: ['**/*.svelte'],
+    rules: maxLinesRule(MAX_LINES_SVELTE)
+  },
+  ...Object.entries(SVELTE_ALTFAELLE).map(([file, max]) => ({
+    files: [file],
+    rules: maxLinesRule(max)
+  }))
 );
