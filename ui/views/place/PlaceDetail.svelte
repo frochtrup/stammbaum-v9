@@ -31,7 +31,7 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { linkEventToPlace, withAddedPname, withRemovedPname } from '../../../core/places';
+  import { withAddedPname, withRemovedPname } from '../../../core/places';
   import {
     buildPlaceDetail,
     buildPlaceContemporaries,
@@ -202,8 +202,7 @@
     if (!detail || !placeId) return;
     const row = detail.unlinkedEvents.find((r) => r.key === eventKey);
     if (!row) return;
-    linkEventToPlace(row.event, placeId, appState.placeContext);
-    appState.touch();
+    appState.linkEventToPlace(row.event, placeId);
   }
 
   function navigateToOwner(kind: 'person' | 'family', id: string) {

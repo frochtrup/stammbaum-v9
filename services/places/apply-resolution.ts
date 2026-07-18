@@ -18,6 +18,7 @@
 // core/places bleibt UNVERÄNDERT (INV-ARCH-1) — nur seine öffentliche API wird aufgerufen.
 
 import type { Database, Event, PlaceId, HofId } from '../../core/model/types';
+import { mapAllEvents, type ReadonlyDatabase } from '../../core/model/draft';
 import {
   resolveEvents,
   seedPlacesFromEvents,
@@ -134,23 +135,11 @@ function resetUncuratedLinks(db: Database): void {
  * `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
  * `resetUncuratedLinks`/`applyPlaceResolution`).
  */
-export function deletePlaceCascade(db: Database, id: PlaceId): void {
-  const reset = (ev: Event): Event => (ev.placeId === id ? { ...ev, placeId: null } : ev);
-
-  for (const p of db.individuals.values()) {
-    p.birth = reset(p.birth);
-    p.chr = reset(p.chr);
-    p.death = reset(p.death);
-    p.buri = reset(p.buri);
-    p.events = p.events.map(reset);
-  }
-  for (const f of db.families.values()) {
-    f.engagement = reset(f.engagement);
-    f.marriage = reset(f.marriage);
-    f.events = f.events.map(reset);
-  }
-
-  deletePlaceObject(db.placeObjects, id);
+export function deletePlaceCascade(db: ReadonlyDatabase, id: PlaceId): Database {
+  const next = mapAllEvents(db, (ev) => (ev.placeId === id ? { ...ev, placeId: null } : null));
+  const places = new Map(next.placeObjects);
+  deletePlaceObject(places, id);
+  return { ...next, placeObjects: places };
 }
 
 /**
@@ -159,23 +148,11 @@ export function deletePlaceCascade(db: Database, id: PlaceId): void {
  * für den Hof-Pfad. KEIN Kaskaden-Löschen von Events/Personen/Familien — nur die
  * Referenz wird `null`.
  */
-export function deleteHofCascade(db: Database, id: HofId): void {
-  const reset = (ev: Event): Event => (ev.hofId === id ? { ...ev, hofId: null } : ev);
-
-  for (const p of db.individuals.values()) {
-    p.birth = reset(p.birth);
-    p.chr = reset(p.chr);
-    p.death = reset(p.death);
-    p.buri = reset(p.buri);
-    p.events = p.events.map(reset);
-  }
-  for (const f of db.families.values()) {
-    f.engagement = reset(f.engagement);
-    f.marriage = reset(f.marriage);
-    f.events = f.events.map(reset);
-  }
-
-  deleteHofObject(db.hofObjects, id);
+export function deleteHofCascade(db: ReadonlyDatabase, id: HofId): Database {
+  const next = mapAllEvents(db, (ev) => (ev.hofId === id ? { ...ev, hofId: null } : null));
+  const hofs = new Map(next.hofObjects);
+  deleteHofObject(hofs, id);
+  return { ...next, hofObjects: hofs };
 }
 
 /**
@@ -213,29 +190,25 @@ export function deleteHofCascade(db: Database, id: HofId): void {
  * Gleiche Slot-Iteration/Mutations-Disziplin wie `deleteHofCascade` (In-Place-Mutation
  * von `db.individuals`/`db.families`, gleiche Person-/Family-Slots).
  */
-export function renameHofAddrInEvents(db: Database, hofId: HofId, oldValue: string, newValue: string): void {
-  const ctx: PlaceContext = { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+export function renameHofAddrInEvents(
+  db: ReadonlyDatabase,
+  hofId: HofId,
+  oldValue: string,
+  newValue: string,
+): Database {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
 
-  const rename = (ev: Event): Event => {
-    if (ev.hofId !== hofId || ev.addr !== oldValue) return ev;
+  return mapAllEvents(db, (ev) => {
+    if (ev.hofId !== hofId || ev.addr !== oldValue) return null;
     const next: Event = { ...ev, addr: newValue };
     const proj = buildPlacForGedcom(next, eventYear(next), ctx);
     if (proj != null) next.place = proj;
     return next;
-  };
-
-  for (const p of db.individuals.values()) {
-    p.birth = rename(p.birth);
-    p.chr = rename(p.chr);
-    p.death = rename(p.death);
-    p.buri = rename(p.buri);
-    p.events = p.events.map(rename);
-  }
-  for (const f of db.families.values()) {
-    f.engagement = rename(f.engagement);
-    f.marriage = rename(f.marriage);
-    f.events = f.events.map(rename);
-  }
+  });
 }
 
 /**

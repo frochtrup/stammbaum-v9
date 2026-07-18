@@ -17,7 +17,6 @@
 // Guard-Veto-Unterfall (der richtige Ort fehlt ganz, resolve.ts) bleibt damit vorerst über
 // "Quelle schärfen" + Neuanlage im Orte-Tab lösbar.
 import type { Event, PlaceId } from '../../../core/model/types';
-import { linkEventToPlace } from '../../../core/places';
 import type { AppState } from '../../shell/app-state.svelte';
 
 /**
@@ -35,7 +34,8 @@ export function applyPlaceChoice(
   if (!appState.db.placeObjects.has(chosenPlaceId)) {
     return { ok: false, reason: 'Gewählter Ort nicht gefunden.' };
   }
-  linkEventToPlace(event, chosenPlaceId, appState.placeContext);
-  appState.touch();
+  if (!appState.linkEventToPlace(event, chosenPlaceId)) {
+    return { ok: false, reason: 'Ereignis nicht in der geladenen Datenbank gefunden.' };
+  }
   return { ok: true };
 }

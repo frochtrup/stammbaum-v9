@@ -41,21 +41,22 @@ describe('mergeHofObjects — verlustfreier Hof-Merge (§9.2)', () => {
         note: 'Hof am Bach',
       }),
     );
-    const events = [ev('RESI', { hofId: '@H2@' }), ev('RESI', { hofId: '@H1@' })];
-    mergeHofObjects(hofs, '@H1@', ['@H2@'], events);
+    const remap = mergeHofObjects(hofs, '@H1@', ['@H2@']);
     expect(hofs.has('@H2@')).toBe(false);
     const w = hofs.get('@H1@')!;
     expect(w.addrs.map((a) => a.value).sort()).toEqual(['Wall 33', 'Wall 33a']);
     expect(w.lat).toBe(52.2); // Lücke gefüllt
     expect(w.note).toBe('Hof am Bach');
-    // event.hofId des Verlierers umgehängt (Session-Konsistenz bis zum nächsten Reload).
-    expect(events[0].hofId).toBe('@H1@');
-    expect(events[1].hofId).toBe('@H1@');
+    // Die event.hofId-Umhängung wird seit ADR-v9-92 GEMELDET statt in-place ausgeführt
+    // (der Aufrufer zieht sie copy-on-write nach) — sonst schriebe der Merge in gehaltene
+    // Undo-Snapshots. Geprüft wird deshalb die Meldung, nicht die Mutation.
+    expect(remap.get('@H2@')).toBe('@H1@');
+    expect(remap.has('@H1@')).toBe(false);
   });
 
   it('No-Op bei fehlendem Gewinner/Verlierer oder Selbst-Merge', () => {
     const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
-    mergeHofObjects(hofs, '@H1@', ['@H1@', '@MISSING@'], []);
+    mergeHofObjects(hofs, '@H1@', ['@H1@', '@MISSING@']);
     expect(hofs.size).toBe(1);
     expect(hofs.get('@H1@')!.addrs).toHaveLength(1);
   });

@@ -7,6 +7,7 @@
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
 import type {
   Database,
+  Event,
   PlaceId,
   HofId,
   PersonId,
@@ -38,9 +39,12 @@ import {
   mergePlaceObjects,
   mergeHofObjects,
   withUpdatedHofAddr,
+  linkEventToPlace as linkEventToPlaceCmd,
+  linkEventToHof as linkEventToHofCmd,
   type PlaceContext,
   type MergeResult,
 } from '../../core/places';
+import { editDatabase, mapAllEvents } from '../../core/model/draft';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
 import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
@@ -211,6 +215,25 @@ export interface AppState {
    * einheitlicher `touch()`-Pfad ist einfacher als zwei Varianten je nach Aufrufer-Kontext
    * zu unterscheiden.
    */
+  /**
+   * Kommando: verknüpft EIN Ereignis mit einem PlaceObject (Sofort-Reprojektion von
+   * `ev.place`, ADR-v9-19/-42). `event` muss das echte, in Person/Family lebende Objekt
+   * sein — der Copy-on-Write-Draft findet darüber seinen Owner (ADR-v9-92).
+   *
+   * Ersetzt den früheren Ablauf „`linkEventToPlace(event, …)` im Aufrufer + `touch()`":
+   * der mutierte das Ereignis IN-PLACE und schrieb damit auch in jeden zurückgehaltenen
+   * Undo-Snapshot — `ev.place` ist ein persistiertes Feld (write-back-emit.ts).
+   *
+   * Gibt `false` zurück, wenn das Ereignis in der Datenbank nicht gefunden wurde (der
+   * Aufrufer hat ein losgelöstes Event übergeben) — kein stiller Abbruch, Spec 21.
+   */
+  linkEventToPlace(event: Event, placeId: PlaceId): boolean;
+  /**
+   * Kommando: verknüpft EIN Ereignis mit einem HofObject. Analog `linkEventToPlace`,
+   * füllt zusätzlich `ev.addr` (nur wenn leer, ADR-v9-47) — ebenfalls ein persistiertes
+   * Feld (ADDR), deshalb genauso copy-on-write-pflichtig.
+   */
+  linkEventToHof(event: Event, hofId: HofId, villageId?: PlaceId): boolean;
   touch(): void;
   /**
    * Kommando: legt eine neue Aufgabe an einer Person ODER Familie an (Spec 20 §1.11 [K]).
@@ -329,6 +352,17 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     return roots;
   };
   const serializeInternal = (): string => serializeGedcom({ db, roots: projectRoots() });
+  // Zieht die von einem Hof-Merge gemeldete Umhängung (`hofRemap`, Verlierer → Überlebender)
+  // auf alle referenzierenden Ereignisse nach — copy-on-write, es werden nur die Owner
+  // geklont, deren Ereignisse tatsächlich auf einen Verlierer zeigten (ADR-v9-92). Leerer
+  // Remap = kein Durchlauf, der Stand bleibt referenzgleich.
+  const applyHofRemap = (base: Database, remap: ReadonlyMap<HofId, HofId>): Database => {
+    if (remap.size === 0) return base;
+    return mapAllEvents(base, (ev) => {
+      const target = ev.hofId != null ? remap.get(ev.hofId) : undefined;
+      return target === undefined ? null : { ...ev, hofId: target };
+    });
+  };
   // Übernimmt das Ergebnis eines Forschungsdaten-Kommandos. `null` = nicht angewandt
   // (Zielentität fehlt) — dann bleibt der Zustand unberührt und es wird nicht persistiert.
   const applyEdit = (next: Database | null): void => {
@@ -369,31 +403,28 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       persistPlaces();
     },
     deletePlace(id) {
-      // deletePlaceCascade (ADR-v9-78 Punkt 1) räumt zuerst jede hängende
-      // event.placeId-Referenz in individuals/families auf (in-place), bevor es das
-      // PlaceObject selbst entfernt (ebenfalls in-place auf db.placeObjects) — deshalb
-      // hier derselbe Mutations-Stil wie replacePlacesAndHofs (nextDb-Shallow-Copy VOR dem
-      // Aufruf, damit die Referenzänderung Svelte's Reaktivität auslöst). Sowohl
-      // placeObjects (orte.json) als auch individuals/families (Event-Referenzen) haben
-      // sich geändert — beide Persistenz-Pfade nötig.
-      const nextDb = { ...db };
-      deletePlaceCascade(nextDb, id);
-      db = nextDb;
+      // deletePlaceCascade (ADR-v9-78 Punkt 1) räumt jede hängende event.placeId-Referenz
+      // in individuals/families auf, bevor es das PlaceObject selbst entfernt, und liefert
+      // seit ADR-v9-92 einen fertigen neuen Stand (Copy-on-Write — nur Owner mit echter
+      // Änderung werden geklont). Sowohl placeObjects (orte.json) als auch
+      // individuals/families (Event-Referenzen) haben sich geändert — beide Persistenz-
+      // Pfade nötig.
+      db = deletePlaceCascade(db, id);
       persistPlaces();
       persistWorkingCopyIfLoaded();
     },
     mergePlace(survivorId, mergedIds): MergeResult {
       // Merge berührt BEIDE Maps (pnames-Fold + Referenz-Umhängung in hofObjects.villageId).
       // `events` versorgt NUR die Gewinner-Heuristik des automatischen Hof-Nachlaufs
-      // (ADR-v9-45 Nachtrag) — die Events selbst werden in-place mutiert (event.hofId
-      // umgehängt), sie leben unverändert in db.individuals/db.families weiter.
+      // (ADR-v9-45 Nachtrag) und wird dabei nicht verändert — die `event.hofId`-Umhängung
+      // meldet der Merge als `hofRemap` und wird hier copy-on-write nachgezogen
+      // (ADR-v9-92: die frühere In-Place-Mutation schrieb in gehaltene Undo-Snapshots).
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextPlaces = new Map(db.placeObjects);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
-      const events = collectAllEvents(db);
-      const result = mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedIds, events);
-      db = { ...db, placeObjects: nextPlaces, hofObjects: nextHofs };
+      const result = mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedIds, collectAllEvents(db));
+      db = applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap);
       persistPlaces();
       return result;
     },
@@ -411,12 +442,12 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, withUpdatedHofAddr(hof, index, value, from, to));
-      const nextDb = { ...db, hofObjects: nextHofs };
+      let nextDb: Database = { ...db, hofObjects: nextHofs };
       const newValue = value.trim();
       // Nur bei tatsächlichem Namenswechsel propagieren — reine from/to-Änderungen
       // (Wert bleibt gleich) lösen KEINE Event-Umbenennung aus.
       if (oldValue !== undefined && newValue !== '' && oldValue !== newValue) {
-        renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
+        nextDb = renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
       }
       db = nextDb;
       persistPlaces();
@@ -425,18 +456,15 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     deleteHof(id) {
       // deleteHofCascade (ADR-v9-78 Punkt 1) — analog deletePlace oben, aber für den
       // Hof-Pfad (event.hofId statt event.placeId).
-      const nextDb = { ...db };
-      deleteHofCascade(nextDb, id);
-      db = nextDb;
+      db = deleteHofCascade(db, id);
       persistPlaces();
       persistWorkingCopyIfLoaded();
     },
     mergeHof(survivorId, mergedIds) {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
-      const events = collectAllEvents(db);
-      mergeHofObjects(nextHofs, survivorId, mergedIds, events);
-      db = { ...db, hofObjects: nextHofs };
+      const remap = mergeHofObjects(nextHofs, survivorId, mergedIds);
+      db = applyHofRemap({ ...db, hofObjects: nextHofs }, remap);
       persistPlaces();
     },
     replacePlacesAndHofs(placeObjects, hofObjects) {
@@ -491,6 +519,38 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     deleteRepository(id) {
       db = { ...db, repositories: deleteRepositoryCmd(db.repositories, id) };
       persistWorkingCopyIfLoaded();
+    },
+    linkEventToPlace(event, placeId) {
+      const ctx = placeContext;
+      let applied = false;
+      const next = editDatabase(db, (d) => {
+        const ev = d.event(event);
+        if (!ev) return;
+        linkEventToPlaceCmd(ev, placeId, ctx);
+        applied = true;
+      });
+      if (!applied) return false;
+      db = next;
+      persistWorkingCopyIfLoaded();
+      return true;
+    },
+    linkEventToHof(event, hofId, villageId) {
+      const ctx = placeContext;
+      let applied = false;
+      const next = editDatabase(db, (d) => {
+        const ev = d.event(event);
+        if (!ev) return;
+        // Dorf-Anker VOR der Reprojektion setzen (Klasse D "als Hof anlegen"): war früher
+        // ein separates `event.placeId = villageId` im Aufrufer — in derselben Draft-
+        // Transaktion bleibt die Verknüpfung atomar (kein Zwischenstand, ADR-v9-19).
+        if (villageId !== undefined) ev.placeId = villageId;
+        linkEventToHofCmd(ev, hofId, ctx);
+        applied = true;
+      });
+      if (!applied) return false;
+      db = next;
+      persistWorkingCopyIfLoaded();
+      return true;
     },
     touch() {
       // db ist $state.raw — eine flache Kopie reicht, um Svelte's Reaktivität

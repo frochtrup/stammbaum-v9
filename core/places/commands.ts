@@ -169,12 +169,37 @@ export function linkEventToHof(ev: Event, hofId: HofId, ctx: PlaceContext): void
   }
 }
 
+/**
+ * Bearbeitbares Exemplar aus einer Entitäts-Map: klont beim ERSTEN Zugriff und schreibt
+ * die Kopie zurück (Copy-on-Write, ADR-v9-92). Ohne diesen Schritt würden die Merges die
+ * PlaceObject-/HofObject-OBJEKTE mutieren, die ein zurückgehaltener Undo-Snapshot noch
+ * teilt — die Map-Kopie allein (`new Map(db.placeObjects)`) schützt nur die Map, nicht
+ * ihre Werte. `thawed` hält fest, was in DIESEM Merge bereits aufgetaut wurde, damit
+ * mehrfach berührte Objekte nicht mehrfach kopiert werden.
+ */
+function editableIn<K, V>(map: Map<K, V>, key: K, thawed: Set<K>): V | undefined {
+  const current = map.get(key);
+  if (current === undefined) return undefined;
+  if (thawed.has(key)) return current;
+  const copy = structuredClone(current);
+  map.set(key, copy);
+  thawed.add(key);
+  return copy;
+}
+
 /** Ergebnis eines Dorf-Merges — meldet den automatischen Hof-Nachlauf (§9.2, für UI-Toast). */
 export interface MergeResult {
   /** Anzahl automatisch nachkonsolidierter Hof-Dubletten (Verlierer-Höfe) unter dem Gewinner-Dorf. */
   hofsMerged: number;
   /** Dorf, unter dem konsolidiert wurde (null, wenn nichts nachkonsolidiert wurde). */
   villageId: PlaceId | null;
+  /**
+   * Verlierer-Hof → Überlebender-Hof. Der Merge hängt `event.hofId` NICHT mehr selbst um
+   * (das mutierte db-ansässige Ereignisse in-place und damit auch gehaltene Undo-
+   * Snapshots, ADR-v9-92); stattdessen zieht der Aufrufer die Referenzen copy-on-write
+   * nach (`mapAllEvents`). Leer, wenn kein Hof zusammengeführt wurde.
+   */
+  hofRemap: ReadonlyMap<HofId, HofId>;
 }
 
 /**
@@ -193,10 +218,11 @@ export interface MergeResult {
  * strukturelle Hof-Identität (§4.4), die der Nutzer mit „Dorf A = Dorf B" schon bestätigt hat.
  *
  * `events` dient NUR der Verwendungszahl-Heuristik (rein, kein I/O) — bleibt eine reine
- * Funktion (INV-ARCH-1/2). `event.placeId`/`event.hofId` sind runtime-only (Spec 11 §2);
- * `event.hofId`-Referenzen auf einen konsolidierten Verlierer-Hof werden für die
- * Session-Konsistenz umgehängt. Rückgabe meldet den Nachlauf für den UI-Toast.
- * No-Op-tolerant (gleiche/fehlende IDs werden übersprungen).
+ * Funktion (INV-ARCH-1/2) und wird NICHT mutiert. `event.hofId`-Referenzen auf einen
+ * konsolidierten Verlierer-Hof meldet die Rückgabe als `hofRemap`; der Aufrufer zieht sie
+ * copy-on-write nach (ADR-v9-92 — früher geschah das hier per In-Place-Mutation, was in
+ * gehaltene Undo-Snapshots schrieb). Rückgabe meldet außerdem den Nachlauf für den
+ * UI-Toast. No-Op-tolerant (gleiche/fehlende IDs werden übersprungen).
  */
 export function mergePlaceObjects(
   places: PlaceObjects,
@@ -206,9 +232,14 @@ export function mergePlaceObjects(
   events: readonly Event[] = [],
 ): MergeResult {
   const losers = Array.isArray(mergedIds) ? mergedIds : [mergedIds as PlaceId];
-  for (const mergedId of losers) mergePlaceObjectPair(places, hofObjects, survivorId, mergedId);
-  const hofsMerged = reconcileHofsUnderVillage(hofObjects, survivorId, events);
-  return { hofsMerged, villageId: hofsMerged > 0 ? survivorId : null };
+  const thawedPlaces = new Set<PlaceId>();
+  const thawedHofs = new Set<HofId>();
+  for (const mergedId of losers) {
+    mergePlaceObjectPair(places, hofObjects, survivorId, mergedId, thawedPlaces, thawedHofs);
+  }
+  const hofRemap = new Map<HofId, HofId>();
+  const hofsMerged = reconcileHofsUnderVillage(hofObjects, survivorId, events, thawedHofs, hofRemap);
+  return { hofsMerged, villageId: hofsMerged > 0 ? survivorId : null, hofRemap };
 }
 
 /**
@@ -225,9 +256,13 @@ function mergePlaceObjectPair(
   hofObjects: HofObjects,
   survivorId: PlaceId,
   mergedId: PlaceId,
+  thawedPlaces: Set<PlaceId>,
+  thawedHofs: Set<HofId>,
 ): void {
   if (survivorId === mergedId) return;
-  const survivor = places.get(survivorId);
+  // Der Überlebende wird geändert → bearbeitbares Exemplar (Copy-on-Write, ADR-v9-92).
+  // `merged` wird nur gelesen und am Ende entfernt — kein Auftauen nötig.
+  const survivor = editableIn(places, survivorId, thawedPlaces);
   const merged = places.get(mergedId);
   if (!survivor || !merged) return;
 
@@ -268,13 +303,19 @@ function mergePlaceObjectPair(
   if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
 
   // 4. Fremd-Referenzen umhängen: andere PlaceObjects.enclosedBy, die auf mergedId zeigen.
-  for (const pl of places.values()) {
-    if (pl.id === mergedId) continue;
-    for (const e of pl.enclosedBy) if (e.placeId === mergedId) e.placeId = survivorId;
+  //    Erst prüfen (auf dem geteilten Objekt), dann NUR die Treffer auftauen — sonst wäre
+  //    jeder Merge eine Tiefkopie aller Orte.
+  for (const id of [...places.keys()]) {
+    if (id === mergedId) continue;
+    const pl = places.get(id)!;
+    if (!pl.enclosedBy.some((e) => e.placeId === mergedId)) continue;
+    const target = editableIn(places, id, thawedPlaces)!;
+    for (const e of target.enclosedBy) if (e.placeId === mergedId) e.placeId = survivorId;
   }
-  // 5. HofObjects.villageId umhängen.
-  for (const h of hofObjects.values()) {
-    if (h.villageId === mergedId) h.villageId = survivorId;
+  // 5. HofObjects.villageId umhängen (gleiches Muster: prüfen, dann nur Treffer auftauen).
+  for (const id of [...hofObjects.keys()]) {
+    if (hofObjects.get(id)!.villageId !== mergedId) continue;
+    editableIn(hofObjects, id, thawedHofs)!.villageId = survivorId;
   }
 
   // 6. Zusammengeführten Ort entfernen.
@@ -294,11 +335,13 @@ export function mergeHofObjects(
   hofs: HofObjects,
   survivorId: HofId,
   mergedIds: HofId | readonly HofId[],
-  events: readonly Event[] = [],
-): void {
+  thawed: Set<HofId> = new Set(),
+  remap: Map<HofId, HofId> = new Map(),
+): ReadonlyMap<HofId, HofId> {
   const losers = Array.isArray(mergedIds) ? mergedIds : [mergedIds as HofId];
-  const survivor = hofs.get(survivorId);
-  if (!survivor) return;
+  // Bearbeitbares Exemplar (Copy-on-Write, ADR-v9-92) — der Überlebende wird verändert.
+  const survivor = editableIn(hofs, survivorId, thawed);
+  if (!survivor) return remap;
   const loserSet = new Set(losers);
 
   for (const mergedId of losers) {
@@ -334,12 +377,18 @@ export function mergeHofObjects(
     if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
     if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
 
-    // 3. event.hofId-Referenzen umhängen (Session-Konsistenz — der Verlierer verschwindet).
-    for (const ev of events) if (ev.hofId === mergedId) ev.hofId = survivorId;
+    // 3. Umhängung MELDEN statt ausführen: `event.hofId` zeigt auf einen Hof, der gleich
+    //    verschwindet — der Aufrufer zieht das copy-on-write nach (ADR-v9-92). Bereits
+    //    eingetragene Ziele mitziehen, falls in derselben Runde weitergemergt wird.
+    remap.set(mergedId, survivorId);
+    for (const [loser, target] of remap) {
+      if (target === mergedId) remap.set(loser, survivorId);
+    }
 
     // 4. Verlierer entfernen.
     hofs.delete(mergedId);
   }
+  return remap;
 }
 
 /**
@@ -381,6 +430,8 @@ function reconcileHofsUnderVillage(
   hofs: HofObjects,
   villageId: PlaceId,
   events: readonly Event[],
+  thawed: Set<HofId>,
+  remap: Map<HofId, HofId>,
 ): number {
   const inVillage = [...hofs.values()].filter((h) => h.villageId === villageId);
   if (inVillage.length < 2) return 0;
@@ -425,7 +476,7 @@ function reconcileHofsUnderVillage(
     if (ids.length < 2) continue;
     const winner = pickHofWinner(ids, hofs, events);
     const clusterLosers = ids.filter((x) => x !== winner);
-    mergeHofObjects(hofs, winner, clusterLosers, events);
+    mergeHofObjects(hofs, winner, clusterLosers, thawed, remap);
     merged += clusterLosers.length;
   }
   return merged;

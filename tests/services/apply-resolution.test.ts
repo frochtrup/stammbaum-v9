@@ -214,25 +214,25 @@ describe('applyPlaceResolution({ resetUncuratedLinks: true }) — ADR-v9-74: nac
 
 describe('deletePlaceCascade — ADR-v9-78 Punkt 1: Ort löschen ohne hängende event.placeId-Referenzen', () => {
   it('setzt event.placeId auf null, wenn es auf den gelöschten Ort zeigt, und entfernt das PlaceObject', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));
     const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'P1' }) });
     db.individuals.set(p.id, p);
 
-    deletePlaceCascade(db, 'P1');
+    db = deletePlaceCascade(db, 'P1');
 
     expect(db.individuals.get('I1')!.birth.placeId).toBeNull();
     expect(db.placeObjects.has('P1')).toBe(false);
   });
 
   it('lässt event.placeId unangetastet, wenn es auf einen ANDEREN Ort zeigt', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));
     db.placeObjects.set('P2', place('P2', { title: 'Wall' }));
     const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Wall', placeId: 'P2' }) });
     db.individuals.set(p.id, p);
 
-    deletePlaceCascade(db, 'P1');
+    db = deletePlaceCascade(db, 'P1');
 
     expect(db.individuals.get('I1')!.birth.placeId).toBe('P2');
     expect(db.placeObjects.has('P2')).toBe(true);
@@ -249,7 +249,7 @@ describe('deletePlaceCascade — ADR-v9-78 Punkt 1: Ort löschen ohne hängende 
   });
 
   it('deckt ALLE Event-Slots ab: chr/death/buri/events[] bei Person, engagement/marriage/events[] bei Family', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));
 
     const p = makePerson('I1', {
@@ -267,7 +267,7 @@ describe('deletePlaceCascade — ADR-v9-78 Punkt 1: Ort löschen ohne hängende 
     });
     db.families.set(f.id, f);
 
-    deletePlaceCascade(db, 'P1');
+    db = deletePlaceCascade(db, 'P1');
 
     const updatedP = db.individuals.get('I1')!;
     expect(updatedP.chr.placeId).toBeNull();
@@ -286,7 +286,7 @@ describe('deletePlaceCascade — ADR-v9-78 Punkt 1: Ort löschen ohne hängende 
 
 describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende event.hofId-Referenzen', () => {
   it('setzt event.hofId auf null, wenn es auf den gelöschten Hof zeigt, und entfernt das HofObject', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
     const p = makePerson('I1', {
@@ -294,7 +294,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
     });
     db.individuals.set(p.id, p);
 
-    deleteHofCascade(db, 'H1');
+    db = deleteHofCascade(db, 'H1');
 
     expect(db.individuals.get('I1')!.events[0].hofId).toBeNull();
     // placeId (Dorf) bleibt unberührt -- nur der Hof wird gelöscht.
@@ -303,7 +303,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
   });
 
   it('lässt event.hofId unangetastet, wenn es auf einen ANDEREN Hof zeigt', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
     db.hofObjects.set('H2', hof('H2', 'V1', { addrs: [{ value: 'Kirchplatz 1', from: null, to: null }] }));
@@ -312,7 +312,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
     });
     db.individuals.set(p.id, p);
 
-    deleteHofCascade(db, 'H1');
+    db = deleteHofCascade(db, 'H1');
 
     expect(db.individuals.get('I1')!.events[0].hofId).toBe('H2');
     expect(db.hofObjects.has('H2')).toBe(true);
@@ -329,7 +329,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
   });
 
   it('deckt ALLE Event-Slots ab: birth/chr/death/buri/events[] bei Person, engagement/marriage/events[] bei Family', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
 
@@ -349,7 +349,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
     });
     db.families.set(f.id, f);
 
-    deleteHofCascade(db, 'H1');
+    db = deleteHofCascade(db, 'H1');
 
     const updatedP = db.individuals.get('I1')!;
     expect(updatedP.birth.hofId).toBeNull();
@@ -369,7 +369,7 @@ describe('deleteHofCascade — ADR-v9-78 Punkt 1: Hof löschen ohne hängende ev
 
 describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenzierende event.addr mit (Nutzeraktion, ADR-v9-47 gilt hier NICHT)', () => {
   it('Event mit passendem hofId UND addr===oldValue: addr wird neu, place wird neu berechnet (zeigt den neuen Namen)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     // Aufrufer hat die Umbenennung bereits in db.hofObjects gespeichert, BEVOR die
     // Funktion gerufen wird (Vorbedingung laut Auftrag).
@@ -379,7 +379,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.individuals.set(p.id, p);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('Wall 99');
@@ -387,7 +387,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('Event mit passendem hofId, aber abweichendem addr (nicht oldValue): bleibt komplett unangetastet (LP-1-Guard)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 99', from: null, to: null }] }));
     const p = makePerson('I1', {
@@ -395,7 +395,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.individuals.set(p.id, p);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('Oster 82a, Wester 141');
@@ -403,7 +403,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('Event mit passendem hofId, aber addr==="" (leer): bleibt unangetastet', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 99', from: null, to: null }] }));
     const p = makePerson('I1', {
@@ -411,7 +411,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.individuals.set(p.id, p);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('');
@@ -419,7 +419,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('Event mit ANDEREM hofId (zufällig addr===oldValue): bleibt unangetastet', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 99', from: null, to: null }] }));
     db.hofObjects.set('H2', hof('H2', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
@@ -428,7 +428,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.individuals.set(p.id, p);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('Wall 33');
@@ -437,7 +437,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('Event mit hofId===null (aber addr===oldValue): bleibt unangetastet (nicht verlinkt)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 99', from: null, to: null }] }));
     const p = makePerson('I1', {
@@ -445,7 +445,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.individuals.set(p.id, p);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('Wall 33');
@@ -454,7 +454,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('Slot-Abdeckung: trifft sowohl einen Person-events[]-Eintrag als auch einen Family-Slot (marriage), nicht nur birth', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Wall 99', from: null, to: null }] }));
     const p = makePerson('I1', {
@@ -466,7 +466,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     });
     db.families.set(f.id, f);
 
-    renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33', 'Wall 99');
 
     expect(db.individuals.get('I1')!.events[0].addr).toBe('Wall 99');
     expect(db.individuals.get('I1')!.events[0].place).toBe('Wall 99, Ochtrup');
@@ -475,7 +475,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
   });
 
   it('datierter Hof mit zwei Adressvarianten: ein Event mit der NICHT umbenannten periodengerechten Adresse bleibt unangetastet (Guard greift automatisch)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
     // Nach der Umbenennung: die alte Variante "Wall 33" (bis 1950) bleibt bestehen,
     // die spätere Variante wurde von "Wall 33 neu" (ab 1951) auf "Wall 99" umbenannt.
@@ -491,7 +491,7 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     db.individuals.set(pOld.id, pOld);
 
     // Umbenennung betraf nur die ab-1951-Variante ("Wall 33 neu" -> "Wall 99").
-    renameHofAddrInEvents(db, 'H1', 'Wall 33 neu', 'Wall 99');
+    db = renameHofAddrInEvents(db, 'H1', 'Wall 33 neu', 'Wall 99');
 
     const updated = db.individuals.get('I1')!.birth;
     expect(updated.addr).toBe('Wall 33');

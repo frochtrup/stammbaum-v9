@@ -25,6 +25,7 @@
 // Undo-Korrektheit nichts zu tun hat.
 import type {
   Database,
+  Event,
   Family,
   FamilyId,
   Person,
@@ -34,6 +35,10 @@ import type {
   Source,
   SourceId,
 } from './types';
+
+/** Die Sonder-Ereignisslots von Person bzw. Familie (neben dem freien `events[]`-Array). */
+const PERSON_EVENT_FIELDS = ['birth', 'chr', 'death', 'buri'] as const;
+const FAMILY_EVENT_FIELDS = ['engagement', 'marriage'] as const;
 
 /**
  * Rekursiv unveränderlich — greift anders als `Readonly<T>` auch eine Ebene tiefer und
@@ -78,6 +83,31 @@ export interface DatabaseDraft {
    *  aber nur wenige ändern — z. B. Orts-Merges über alle Ereignisse). */
   personIds(): PersonId[];
   familyIds(): FamilyId[];
+  /**
+   * NUR-LESENDER Blick auf den Vorzustand — taut nichts auf. Das Gegenstück zu
+   * `personIds()` für das Muster „viele prüfen, wenige ändern": erst `peek*` zum Filtern,
+   * dann `person()`/`family()` nur für die Treffer. Ohne diesen Weg müsste ein Kaskaden-
+   * Kommando jede Entität auftauen, um sie überhaupt anzusehen — das wäre exakt die
+   * Tiefkopie, die ADR-v9-92 vermeidet.
+   */
+  peekPerson(id: PersonId): DeepReadonly<Person> | null;
+  peekFamily(id: FamilyId): DeepReadonly<Family> | null;
+  /**
+   * Bearbeitbare Kopie EINES Ereignisses, adressiert über die Objekt-Identität des im
+   * Vorzustand lebenden Events (`null`, wenn es dort nicht vorkommt).
+   *
+   * WARUM ÜBER IDENTITÄT: Ereignisse haben keine eigene id und liegen verschachtelt in
+   * `Person.birth/chr/death/buri/events[]` bzw. `Family.engagement/marriage/events[]`.
+   * Die Review-/Detail-Ansichten reichen sie bereits als echte Objekt-Referenz durch
+   * (place-review-model.ts: „`event` MUSS das echte, in Person/Family lebende Objekt
+   * sein"). Diese vorhandene Adressierung wird hier weiterverwendet, statt quer durch
+   * fünf Modelle ein zweites Adressierungs-Konzept (Owner + Slot) einzuführen — ein
+   * Mechanismus, nicht pro View neu erfunden (INV-UI-4).
+   *
+   * Klont NUR den gefundenen Owner, nicht die durchsuchten — der Scan liest den
+   * eingefrorenen Stand.
+   */
+  event(target: DeepReadonly<Event> | Event): Event | null;
 }
 
 /**
@@ -88,6 +118,54 @@ export interface DatabaseDraft {
  */
 function thaw<T>(frozen: DeepReadonly<T>): T {
   return structuredClone(frozen) as T;
+}
+
+/**
+ * Wendet `next` auf JEDES Ereignis der Datenbank an und liefert einen neuen Stand.
+ * `next` gibt `null` zurück, wenn das Ereignis unverändert bleibt — nur Owner mit
+ * mindestens einer echten Änderung werden geklont, alle übrigen bleiben mit dem
+ * Vorzustand referenzgleich. Genau das trennt einen 0,43-MiB-Snapshot von einer Tiefkopie.
+ *
+ * Deckt beide Slot-Formen ab (Person: birth/chr/death/buri + events[]; Familie:
+ * engagement/marriage + events[]). Mehrere Kommandos brauchen exakt diesen Durchlauf
+ * (Orts-/Hof-Kaskade, Hof-Umbenennung, Umhängen nach einem Merge) — er steht deshalb
+ * EINMAL hier statt in jedem von ihnen erneut (INV-UI-4-Geist).
+ *
+ * `next` bekommt das Ereignis als bearbeitbares `Event`: es liest nur und BAUT ein neues
+ * Objekt (`{ ...ev, … }`), statt das übergebene zu mutieren — die Umwandlung an dieser
+ * Grenze ist deshalb sicher und hält die Aufrufer lesbar.
+ */
+export function mapAllEvents(db: ReadonlyDatabase, next: (ev: Event) => Event | null): Database {
+  return editDatabase(db, (d) => {
+    for (const id of d.personIds()) {
+      const frozen = d.peekPerson(id)! as unknown as Person;
+      const slots = PERSON_EVENT_FIELDS.map((f) => next(frozen[f]));
+      const evs = frozen.events.map(next);
+      if (slots.every((s) => s === null) && evs.every((e) => e === null)) continue;
+      const p = d.person(id)!;
+      PERSON_EVENT_FIELDS.forEach((f, i) => {
+        const s = slots[i];
+        if (s) p[f] = s;
+      });
+      evs.forEach((e, i) => {
+        if (e) p.events[i] = e;
+      });
+    }
+    for (const id of d.familyIds()) {
+      const frozen = d.peekFamily(id)! as unknown as Family;
+      const slots = FAMILY_EVENT_FIELDS.map((f) => next(frozen[f]));
+      const evs = frozen.events.map(next);
+      if (slots.every((s) => s === null) && evs.every((e) => e === null)) continue;
+      const fam = d.family(id)!;
+      FAMILY_EVENT_FIELDS.forEach((f, i) => {
+        const s = slots[i];
+        if (s) fam[f] = s;
+      });
+      evs.forEach((e, i) => {
+        if (e) fam.events[i] = e;
+      });
+    }
+  });
 }
 
 /**
@@ -166,6 +244,34 @@ export function editDatabase(db: ReadonlyDatabase, fn: (d: DatabaseDraft) => voi
     },
     familyIds() {
       return [...base.families.keys()];
+    },
+    // Liest die AKTUELLE Fassung (bereits aufgetaute eingeschlossen), damit ein Kommando,
+    // das nach einer Änderung erneut nachsieht, keinen veralteten Stand bekommt.
+    peekPerson(id) {
+      const map = individuals ?? base.individuals;
+      return (map.get(id) as DeepReadonly<Person> | undefined) ?? null;
+    },
+    peekFamily(id) {
+      const map = families ?? base.families;
+      return (map.get(id) as DeepReadonly<Family> | undefined) ?? null;
+    },
+    event(target) {
+      // Scan über den EINGEFRORENEN Stand — es wird nur der Treffer-Owner aufgetaut.
+      for (const [id, p] of base.individuals) {
+        for (const field of PERSON_EVENT_FIELDS) {
+          if (p[field] === target) return draft.person(id)![field];
+        }
+        const i = p.events.indexOf(target as Event);
+        if (i >= 0) return draft.person(id)!.events[i]!;
+      }
+      for (const [id, f] of base.families) {
+        for (const field of FAMILY_EVENT_FIELDS) {
+          if (f[field] === target) return draft.family(id)![field];
+        }
+        const i = f.events.indexOf(target as Event);
+        if (i >= 0) return draft.family(id)!.events[i]!;
+      }
+      return null;
     },
   };
 

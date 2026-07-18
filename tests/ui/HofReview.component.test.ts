@@ -25,7 +25,9 @@ describe('HofReview — Klasse A: "Hof anlegen"', () => {
     expect(screen.getByText('Klasse A')).toBeTruthy();
     await fireEvent.click(screen.getByText('+ Hof anlegen'));
 
-    expect(person.death.hofId).toBeTruthy();
+    // Copy-on-Write (ADR-v9-92): das Kommando ersetzt den Owner, die beim Seeding
+    // gehaltene Referenz ist danach veraltet — im AKTUELLEN Stand nachsehen.
+    expect(appState.db.individuals.get('@I1@')!.death.hofId).toBeTruthy();
     expect(screen.getByText(/Keine offenen Zuweisungen/)).toBeTruthy();
   });
 });
@@ -57,7 +59,9 @@ describe('HofReview — Klasse C: "Hof wählen"', () => {
     const candidateButtons = screen.getAllByText('Hof wählen: Wall 33');
     await fireEvent.click(candidateButtons[0]);
 
-    expect(fam.marriage.hofId).toMatch(/^_hof_/);
+    // Copy-on-Write (ADR-v9-92): das Kommando ersetzt den Owner, die beim Seeding
+    // gehaltene Referenz ist danach veraltet — im AKTUELLEN Stand nachsehen.
+    expect(appState.db.families.get('@F1@')!.marriage.hofId).toMatch(/^_hof_/);
   });
 });
 
@@ -84,7 +88,8 @@ describe('HofReview — Klasse D: "Variante zum Hof" (generischer Picker, ADR-v9
     await fireEvent.click(screen.getByText('Variante zum Hof'));
 
     expect(appState.db.hofObjects.get('_hof_existing')?.addrs.map((a) => a.value)).toContain('Wall 33');
-    expect(person.birth.hofId).toBe('_hof_existing');
+    // Copy-on-Write (ADR-v9-92): im AKTUELLEN Stand nachsehen, nicht in der Seed-Referenz.
+    expect(appState.db.individuals.get('@I1@')!.birth.hofId).toBe('_hof_existing');
   });
 });
 

@@ -414,7 +414,9 @@ describe('PlaceDetail — String→PlaceObject verknüpfen', () => {
 
     await fireEvent.click(screen.getByText('Verknüpfen'));
 
-    expect(person.death.placeId).toBe('@P1@');
+    // Copy-on-Write (ADR-v9-92): das Kommando ersetzt den Owner, die beim Seeding
+    // gehaltene Referenz ist danach veraltet — im AKTUELLEN Stand nachsehen.
+    expect(appState.db.individuals.get('@I1@')!.death.placeId).toBe('@P1@');
     expect(screen.queryByText(/Nicht verknüpfte Ereignisse/)).toBeNull();
   });
 });
