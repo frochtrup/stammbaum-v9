@@ -13,10 +13,15 @@
   // (ResearchTask der Zielentität) nutzt die generische Picker-Shell DIREKT (kein eigener
   // TaskPicker-Wrapper — die Kandidatenmenge ist strukturell klein: offene Aufgaben EINER
   // Entität, keine Inline-Neuanlage nötig, Aufgaben entstehen im Aufgaben-Tab).
+  //
+  // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): EINE Toolbar-Zeile mit zwei
+  // Elementen — [Filter · N] [+ Eintrag]. Die vierstufige Ergebnis-Auswahl (die bei
+  // 375px ohne Restbreite endete) liegt hinter `FilterBar`, der MD-Export als Aktion in
+  // dessen Panel. Der 🕒-Timeline-Umschalter (Spec 20 §1.11b, noch offen) bekommt später
+  // den dritten Slot über `ViewModeToggle` — analog TasksView, nicht als eigenes Icon.
   import type { AppState } from '../../shell/app-state.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
-  import { tooltip } from '../../shell/tooltip';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
   import Picker from '../../shell/Picker.svelte';
@@ -32,6 +37,8 @@
   import type { LogResult } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
 
   interface Props {
     appState: AppState;
@@ -40,7 +47,10 @@
   }
   const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
 
-  let filter = $state<LogFilter>('all');
+  /** Ergebnis-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
+  const DEFAULT_FILTER: LogFilter = 'all';
+
+  let filter = $state<LogFilter>(DEFAULT_FILTER);
   let showForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus. Index-Adressierung (kein id, s. Kopf).
@@ -76,9 +86,9 @@
     { key: 'pending', label: 'Ausstehend' },
   ];
 
-  function switchFilter(f: LogFilter) {
-    filter = f;
-  }
+  const activeFilterCount = $derived(
+    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+  );
 
   function resetForm() {
     formDate = new Date().toISOString().slice(0, 10);
@@ -165,22 +175,21 @@
 
 <div class="log-view">
   <div class="log-view__toolbar">
-    <div class="log-view__filters stb-segment-row">
-      {#each FILTERS as f (f.key)}
-        <button
-          type="button"
-          class="stb-segment-btn"
-          class:stb-segment-btn--active={filter === f.key}
-          onclick={() => switchFilter(f.key)}
-        >
-          {f.label}
-        </button>
-      {/each}
-    </div>
-    <div class="log-view__actions">
-      <button type="button" class="log-view__icon-btn" onclick={exportMd} aria-label="Als Markdown exportieren" use:tooltip={'Als Markdown exportieren'}>↓</button>
-      <button type="button" class="log-view__add-btn" onclick={openAddForm}>+ Eintrag</button>
-    </div>
+    <FilterBar activeCount={activeFilterCount}>
+      <fieldset class="stb-filter-set">
+        <legend>Ergebnis</legend>
+        {#each FILTERS as f (f.key)}
+          <label class="stb-filter-opt">
+            <input type="radio" bind:group={filter} value={f.key} />
+            {f.label}
+          </label>
+        {/each}
+      </fieldset>
+      <button type="button" class="stb-filter-export" onclick={exportMd}>
+        ↓ Als Markdown exportieren
+      </button>
+    </FilterBar>
+    <button type="button" class="log-view__add-btn" onclick={openAddForm}>+ Eintrag</button>
   </div>
 
   {#if showForm}
@@ -353,37 +362,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: space-between;
     align-items: center;
-    padding: 0.15rem 0.25rem 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: var(--stb-surface-2);
     position: sticky;
     top: 0;
     z-index: 1;
   }
 
-  .log-view__filters {
-    padding: 0.35rem 0.5rem;
-  }
-
-  .log-view__actions {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-    padding-right: 0.75rem;
-  }
-
-  .log-view__icon-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-
+  /* Hauptaktion rechtsbündig, Filter links — EINE Zeile, zwei Elemente (INV-UI-11). */
   .log-view__add-btn {
+    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     border: none;

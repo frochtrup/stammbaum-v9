@@ -1,6 +1,11 @@
 // @vitest-environment happy-dom
 // tests/ui/TasksView.component.test.ts — globaler Aufgaben-Tab (Spec 20 §1.11 [K]).
 // Deckt Filter-Umschalter, Liste ⇄ Board, Hinzufügen/Status-Wechsel, Export-Button ab.
+//
+// Filter und Export liegen seit dem INV-UI-11-Retrofit (Spec 21 §6h) hinter `FilterBar`
+// statt als Dauer-Pillen in der Toolbar — die Tests gehen deshalb über `setFilter()`
+// bzw. öffnen das Panel zuerst. Das ist zugleich der Nachweis, dass beides von dort aus
+// überhaupt erreichbar bleibt (nicht nur "existiert im DOM").
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import TasksView from '../../ui/views/tasks/TasksView.svelte';
@@ -37,6 +42,17 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
+/** Filter-Panel öffnen — der Trigger heißt "Filter" bzw. "Filter · N". */
+async function openFilters() {
+  await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+}
+
+/** Statusauswahl über das FilterBar-Panel setzen (Radio, kein Dauer-Button mehr). */
+async function setFilter(label: string) {
+  await openFilters();
+  await fireEvent.click(screen.getByLabelText(label));
+}
+
 describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
   it('zeigt standardmäßig nur offene Aufgaben (todo+doing), gruppiert nach Kategorie', () => {
     renderView(seedDb());
@@ -47,13 +63,13 @@ describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
 
   it('Filter "Alle" zeigt auch erledigte Aufgaben', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
+    await setFilter('Alle');
     expect(screen.getByText('Sterbeurkunde beschaffen')).toBeTruthy();
   });
 
   it('Filter "Erledigt" zeigt NUR erledigte Aufgaben', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Erledigt' }));
+    await setFilter('Erledigt');
     expect(screen.getByText('Sterbeurkunde beschaffen')).toBeTruthy();
     expect(screen.queryByText('Kirchenbuch Hildesheim prüfen')).toBeNull();
   });
@@ -62,8 +78,8 @@ describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
 describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('wechselt in die Board-Ansicht mit den 3 Spalten Offen/In Arbeit/Erledigt', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' })); // alle Status sichtbar
-    await fireEvent.click(screen.getByRole('button', { name: 'Kanban-Board' }));
+    await setFilter('Alle'); // alle Status sichtbar
+    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
 
     // Spaltenköpfe (nicht der Filter-Button "Offen" oben in der Toolbar) — Selektor über
     // die Board-Spalten-Klasse, damit der Test nicht an der gleichlautenden Filter-
@@ -77,8 +93,8 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
 
   it('Tap-to-Advance im Board erhöht den Status um eine Stufe', async () => {
     const { appState } = renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'Kanban-Board' }));
+    await setFilter('Alle');
+    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
 
     const advanceBtn = screen.getByText('→ In Arbeit'); // t1 ist todo -> next=doing
     await fireEvent.click(advanceBtn);
@@ -168,9 +184,13 @@ describe('TasksView — Aufgabe hinzufügen', () => {
 describe('TasksView — Status-Wechsel im Listen-Modus + Klick-Navigation zur Trägerentität', () => {
   it('Status-Dropdown in der Liste ändert den Status direkt', async () => {
     const { appState } = renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
+    await setFilter('Alle');
 
-    const selects = screen.getAllByLabelText('Status');
+    // "Status" ist jetzt zweideutig: das Filter-Fieldset trägt dieselbe Beschriftung.
+    // Nur die <select> der Listenzeilen sind gemeint.
+    const selects = screen
+      .getAllByLabelText('Status')
+      .filter((el): el is HTMLSelectElement => el instanceof HTMLSelectElement);
     await fireEvent.change(selects[0]!, { target: { value: 'done' } });
 
     const anyDoneNow = [...appState.db.individuals.values(), ...appState.db.families.values()].some((e) =>
@@ -187,8 +207,10 @@ describe('TasksView — Status-Wechsel im Listen-Modus + Klick-Navigation zur Tr
 });
 
 describe('TasksView — MD-Export-Button vorhanden', () => {
-  it('rendert den Export-Button (Download wird über den AnchorDownloadAdapter angestoßen)', () => {
+  it('rendert den Export-Button im FilterBar-Panel (Spec 21 §6h: Export gehört zum Filter-Kontext)', async () => {
     renderView(seedDb());
-    expect(screen.getByRole('button', { name: 'Als Markdown exportieren' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Als Markdown exportieren/ })).toBeNull();
+    await openFilters();
+    expect(screen.getByRole('button', { name: /Als Markdown exportieren/ })).toBeTruthy();
   });
 });

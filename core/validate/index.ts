@@ -27,3 +27,12 @@ export {
 export { runValidation, countBySeverity, sortFindings, withoutAlreadyTasked } from './run';
 export { buildContext, reachableFrom, hofsWithResidence } from './context';
 export { distanceKm } from './geo';
+export { buildQualityDashboard, filterFocus } from './dashboard';
+export type {
+  DashboardOptions,
+  FocusFilter,
+  FocusPerson,
+  FocusRow,
+  QualityDashboard,
+  RadarBar,
+} from './dashboard';

@@ -263,7 +263,13 @@
         onNavigateToHof={openHofFromSearch}
       />
     {:else if activeTarget === 'tasks'}
-      <ResearchTab {appState} onNavigateToPerson={openPersonFromSearch} onNavigateToFamily={openFamilyFromSearch} />
+      <ResearchTab
+        {appState}
+        onNavigateToPerson={openPersonFromSearch}
+        onNavigateToFamily={openFamilyFromSearch}
+        onNavigateToPlace={openPlaceFromSearch}
+        onNavigateToHof={openHofFromSearch}
+      />
     {:else if activeTarget === 'more'}
       <MoreView
         {appState}

@@ -5,8 +5,14 @@
   // nur der Inhalt dahinter bekommt Segmente, analog wie "Personen" bereits Familien/
   // Quellen/Orte/Höfe-Segmente enthält, ohne dass der Slot-Text sich ändert.
   //
-  // Drei Segmente: Aufgaben (TasksView, weiterhin erster/Default-Segment) · Protokoll
-  // (LogView) · Hypothesen (HypothesesView). Anders als EntityTab braucht dieser
+  // Vier Segmente: Aufgaben (TasksView, weiterhin erster/Default-Segment) · Protokoll
+  // (LogView) · Hypothesen (HypothesesView) · Dashboard (QualityDashboard, BL-05).
+  // Das Dashboard ist bewusst KEIN Unterbereich der Statistik-Lens (Spec 20 §1.11g):
+  // "Baum-Demografie" und "Forschungsqualität" sind zwei verschiedene Fragen. Es wird
+  // nur gemountet, wenn es gewählt ist — die Validierung läuft über die ganze Datenbank
+  // und soll die drei anderen Segmente nicht mitbelasten.
+  //
+  // Anders als EntityTab braucht dieser
   // Umbrella KEINE ViewState-Verankerung des aktiven Segments — die drei Unter-Views
   // sind flache globale Listen ohne Detail-Drill-down/Master-Detail-Zustand, den es
   // über einen App-Resume hinweg zu erhalten gäbe (Spec 21 §5 gilt für Entitäts-
@@ -15,15 +21,24 @@
   import TasksView from './tasks/TasksView.svelte';
   import LogView from './research-log/LogView.svelte';
   import HypothesesView from './hypotheses/HypothesesView.svelte';
+  import QualityDashboard from './quality/QualityDashboard.svelte';
 
   interface Props {
     appState: AppState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
+    onNavigateToPlace?: (id: string) => void;
+    onNavigateToHof?: (id: string) => void;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
+  const {
+    appState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    onNavigateToPlace,
+    onNavigateToHof,
+  }: Props = $props();
 
-  type ResearchSegment = 'tasks' | 'log' | 'hypotheses';
+  type ResearchSegment = 'tasks' | 'log' | 'hypotheses' | 'quality';
 
   interface SegmentDef {
     id: ResearchSegment;
@@ -34,6 +49,7 @@
     { id: 'tasks', label: 'Aufgaben' },
     { id: 'log', label: 'Protokoll' },
     { id: 'hypotheses', label: 'Hypothesen' },
+    { id: 'quality', label: 'Dashboard' },
   ];
 
   let activeSegment = $state<ResearchSegment>('tasks');
@@ -65,6 +81,14 @@
     <LogView {appState} {onNavigateToPerson} {onNavigateToFamily} />
   {:else if activeSegment === 'hypotheses'}
     <HypothesesView {appState} {onNavigateToPerson} {onNavigateToFamily} />
+  {:else if activeSegment === 'quality'}
+    <QualityDashboard
+      {appState}
+      {onNavigateToPerson}
+      {onNavigateToFamily}
+      {onNavigateToPlace}
+      {onNavigateToHof}
+    />
   {/if}
 </div>
 

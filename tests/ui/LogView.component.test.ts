@@ -29,6 +29,17 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
+/** Filter-Panel öffnen — seit dem INV-UI-11-Retrofit (Spec 21 §6h) liegt die Auswahl
+ *  dahinter statt als Dauer-Pillenreihe in der Toolbar. */
+async function openFilters() {
+  await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+}
+
+async function setFilter(label: string) {
+  await openFilters();
+  await fireEvent.click(screen.getByLabelText(label));
+}
+
 describe('LogView — Liste + Filter', () => {
   it('zeigt alle Einträge standardmäßig (Filter "Alle")', () => {
     renderView(seedDb());
@@ -38,7 +49,7 @@ describe('LogView — Liste + Filter', () => {
 
   it('Filter "Gefunden" zeigt nur Einträge mit result=found', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Gefunden' }));
+    await setFilter('Gefunden');
     expect(screen.getByText('Taufeintrag Otto')).toBeTruthy();
     expect(screen.queryByText('Sterbeeintrag Otto')).toBeNull();
   });
@@ -141,8 +152,10 @@ describe('LogView — Klick-Navigation zur Trägerentität', () => {
 });
 
 describe('LogView — MD-Export-Button vorhanden', () => {
-  it('rendert den Export-Button', () => {
+  it('rendert den Export-Button im FilterBar-Panel (Spec 21 §6h: Export gehört zum Filter-Kontext)', async () => {
     renderView(seedDb());
-    expect(screen.getByRole('button', { name: 'Als Markdown exportieren' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Als Markdown exportieren/ })).toBeNull();
+    await openFilters();
+    expect(screen.getByRole('button', { name: /Als Markdown exportieren/ })).toBeTruthy();
   });
 });

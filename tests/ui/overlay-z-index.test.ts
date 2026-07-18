@@ -87,4 +87,22 @@ describe('Überlagerungs-Ordnung (Spec 21 §6, INV-UI-4)', () => {
     // sobald jemand sie „nur" hochzählt statt sie richtig zu lösen.
     expect(verstoesse.filter((v) => !/filterbar|event-menu/.test(v))).toEqual([]);
   });
+
+  it('das FilterBar-Sheet dockt über der Navigation an, statt um sie zu konkurrieren', () => {
+    // Der zweite, wirksame Umgang mit demselben Befund (ADR-v9-98): weil ein höherer
+    // z-index im Stacking-Context des Vorfahren wirkungslos bleibt (ADR-v9-97, im
+    // Browser bis 9999 gemessen), hält sich das Bottom-Sheet aus dem verdeckten
+    // Streifen HERAUS. Ohne diese Zeile lagen auf 375px zwei von drei Filter-Optionen
+    // unter der Nav und waren nicht anklickbar — der Fehler ist unsichtbar, solange
+    // niemand das Panel auf einem schmalen Gerät öffnet.
+    const bar = readFileSync(join(uiDir, 'shell/FilterBar.svelte'), 'utf8');
+    const start = bar.indexOf('.stb-filterbar__panel {');
+    expect(start, '.stb-filterbar__panel fehlt').toBeGreaterThan(-1);
+    const body = bar.slice(start, bar.indexOf('}', start));
+    expect(body).toMatch(/bottom:\s*var\(--stb-nav-height\)/);
+    // Die Höhe kommt aus EINER Quelle — sonst driften Nav und Andockpunkt auseinander.
+    expect(designSystem).toMatch(/--stb-nav-height:/);
+    const nav = readFileSync(join(uiDir, 'shell/BottomNav.svelte'), 'utf8');
+    expect(nav).toMatch(/min-height:\s*var\(--stb-nav-height\)/);
+  });
 });

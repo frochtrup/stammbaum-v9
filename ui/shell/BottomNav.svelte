@@ -72,6 +72,9 @@
     left: 0;
     right: 0;
     bottom: 0;
+    /* Höhe aus dem geteilten Token, damit Overlays, die sich über der Nav andocken,
+       nicht auf eine geschätzte Zahl angewiesen sind (design-system.css). */
+    min-height: var(--stb-nav-height);
     z-index: var(--stb-z-nav);
     padding-bottom: env(safe-area-inset-bottom, 0);
   }

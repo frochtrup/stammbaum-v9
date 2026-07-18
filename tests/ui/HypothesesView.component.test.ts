@@ -37,6 +37,17 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
+/** Filter-Panel öffnen — seit dem INV-UI-11-Retrofit (Spec 21 §6h) liegt die Auswahl
+ *  dahinter statt als Dauer-Pillenreihe in der Toolbar. */
+async function openFilters() {
+  await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+}
+
+async function setFilter(label: string) {
+  await openFilters();
+  await fireEvent.click(screen.getByLabelText(label));
+}
+
 describe('HypothesesView — Liste + Filter', () => {
   it('zeigt die Hypothese standardmäßig (Filter "Alle")', () => {
     renderView(seedDb());
@@ -45,7 +56,7 @@ describe('HypothesesView — Liste + Filter', () => {
 
   it('Filter "Bestätigt" blendet eine offene Hypothese aus', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Bestätigt' }));
+    await setFilter('Bestätigt');
     expect(screen.queryByText('Otto ist identisch mit dem Otto aus Nachbarort')).toBeNull();
   });
 

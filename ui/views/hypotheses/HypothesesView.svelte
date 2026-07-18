@@ -8,10 +8,17 @@
   // PersonForm.svelte (addCitation/removeCitation-Muster) — die UI baut das finale
   // evidence[]-Array selbst zusammen und übergibt es beim Speichern als vollständiges
   // Patch-Objekt (Kommando-Muster "vollständige Objekte", nicht Feld-für-Feld-Setter).
+  //
+  // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): EINE Toolbar-Zeile mit zwei
+  // Elementen — [Filter · N] [+ Hypothese]; die vierstufige Status-Auswahl liegt hinter
+  // `FilterBar` statt als Dauer-Pillenreihe (Zuordnungsregel "Filter → immer hinter
+  // FilterBar, nie als Dauer-Pillenreihe mit mehr als einem sichtbaren Element").
   import type { AppState } from '../../shell/app-state.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import {
     collectAllHypotheses,
     filterHypotheses,
@@ -31,7 +38,10 @@
   }
   const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
 
-  let filter = $state<HypothesisFilter>('all');
+  /** Status-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
+  const DEFAULT_FILTER: HypothesisFilter = 'all';
+
+  let filter = $state<HypothesisFilter>(DEFAULT_FILTER);
   let showForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
@@ -56,9 +66,9 @@
     { key: 'rejected', label: 'Verworfen' },
   ];
 
-  function switchFilter(f: HypothesisFilter) {
-    filter = f;
-  }
+  const activeFilterCount = $derived(
+    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+  );
 
   function resetForm() {
     formText = '';
@@ -149,21 +159,18 @@
 
 <div class="hyp-view">
   <div class="hyp-view__toolbar">
-    <div class="hyp-view__filters stb-segment-row">
-      {#each FILTERS as f (f.key)}
-        <button
-          type="button"
-          class="stb-segment-btn"
-          class:stb-segment-btn--active={filter === f.key}
-          onclick={() => switchFilter(f.key)}
-        >
-          {f.label}
-        </button>
-      {/each}
-    </div>
-    <div class="hyp-view__actions">
-      <button type="button" class="hyp-view__add-btn" onclick={openAddForm}>+ Hypothese</button>
-    </div>
+    <FilterBar activeCount={activeFilterCount}>
+      <fieldset class="stb-filter-set">
+        <legend>Status</legend>
+        {#each FILTERS as f (f.key)}
+          <label class="stb-filter-opt">
+            <input type="radio" bind:group={filter} value={f.key} />
+            {f.label}
+          </label>
+        {/each}
+      </fieldset>
+    </FilterBar>
+    <button type="button" class="hyp-view__add-btn" onclick={openAddForm}>+ Hypothese</button>
   </div>
 
   {#if showForm}
@@ -338,27 +345,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: space-between;
     align-items: center;
-    padding: 0.15rem 0.25rem 0.5rem;
+    padding: 0.5rem 0.75rem;
     background: var(--stb-surface-2);
     position: sticky;
     top: 0;
     z-index: 1;
   }
 
-  .hyp-view__filters {
-    padding: 0.35rem 0.5rem;
-  }
-
-  .hyp-view__actions {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-    padding-right: 0.75rem;
-  }
-
+  /* Hauptaktion rechtsbündig, Filter links — EINE Zeile, zwei Elemente (INV-UI-11). */
   .hyp-view__add-btn {
+    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     border: none;

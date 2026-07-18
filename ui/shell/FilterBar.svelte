@@ -90,11 +90,20 @@
 
   /* Mobile-first: Bottom-Sheet — feste Andockung an den unteren Viewport-Rand,
      volle Breite, begrenzte Höhe mit eigenem Scroll (375px Zielbreite, Spec 21 §2). */
+  /* Das Sheet dockt ÜBER der Bottom-Nav an, nicht am Viewport-Rand. Grund (gemessen,
+     nicht geschätzt): am unteren Rand liegt der untere Teil des Panels im Bereich der
+     Nav und ist dort weder sichtbar noch klickbar — auf 375px blieb von drei
+     Filter-Optionen nur die erste erreichbar (Nav y 763–812, Optionen 746/766/786).
+     Ein höherer z-index behebt das NICHT — am laufenden System gemessen, bis 9999: der
+     Vorfahre (`position: sticky; z-index: 1`) bildet einen eigenen Stacking-Context, in
+     dem die Zahl aufgelöst wird (ADR-v9-97, BL-85). Deshalb bleiben die z-Werte hier
+     unverändert; das Andocken hält das Panel schlicht aus dem verdeckten Streifen
+     heraus, statt um ihn zu konkurrieren. Die Portal-Lösung bleibt BL-85. */
   .stb-filterbar__panel {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--stb-nav-height);
     z-index: 21;
     max-height: 70vh;
     overflow-y: auto;

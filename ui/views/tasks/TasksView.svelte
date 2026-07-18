@@ -9,8 +9,15 @@
   // PersonPicker/FamilyPicker (ADR-v9-40, INV-UI-4 — EIN Entitäts-Picker-Muster statt
   // einer eigenen Text+<select>-Handkonstruktion). Quelle (optional) ebenso über
   // SourcePicker statt eines flachen <select>.
+  //
+  // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): die Kopfzeile trägt genau drei
+  // Elemente — [Filter · N] [Liste ⇄ Board] [+ Aufgabe]. Die Status-Auswahl liegt hinter
+  // `FilterBar`, der MD-Export als Aktion IN dessen Panel ("Export einer gefilterten
+  // Liste gehört fachlich zum Filter-Kontext"), der Ansichts-Umschalter kommt aus dem
+  // geteilten `ViewModeToggle` statt eines view-eigenen Icon-Buttons. "✓ Daten prüfen"
+  // ist mit dem Qualitäts-Dashboard dorthin gewandert (ADR-v9-98) — beide
+  // Validierungs-Flächen liegen jetzt in EINEM Segment beieinander.
   import type { AppState } from '../../shell/app-state.svelte';
-  import { tooltip } from '../../shell/tooltip';
   import TaskForm, { type TaskFormValues } from './TaskForm.svelte';
   import {
     collectAllTasks,
@@ -26,18 +33,9 @@
   import { newTaskId } from './tasks-commands';
   import type { TaskStatus } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
-  import ValidationPanel from '../validation/ValidationPanel.svelte';
-  import ValConfigSheet from '../validation/ValConfigSheet.svelte';
-  import {
-    runValidation,
-    withoutAlreadyTasked,
-    configFromStored,
-    configToStored,
-    defaultConfig,
-    type Finding,
-    type ValidationConfig,
-  } from '../../../core/validate/index';
-  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
 
   interface Props {
     appState: AppState;
@@ -48,7 +46,15 @@
   }
   const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
 
-  let filter = $state<TaskFilter>('open');
+  /** Status-Auswahl. `open` ist der Default — davon abweichend zählt `FilterBar` "· 1". */
+  const DEFAULT_FILTER: TaskFilter = 'open';
+  const FILTERS: { key: TaskFilter; label: string }[] = [
+    { key: 'all', label: 'Alle' },
+    { key: 'open', label: 'Offen' },
+    { key: 'done', label: 'Erledigt' },
+  ];
+
+  let filter = $state<TaskFilter>(DEFAULT_FILTER);
   let viewMode = $state<'list' | 'board'>('list');
   let showAddForm = $state(false);
 
@@ -64,14 +70,9 @@
   const filteredTasks = $derived(filterTasks(allTasks, filter));
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
-
-  function switchFilter(f: TaskFilter) {
-    filter = f;
-  }
-
-  function toggleBoard() {
-    viewMode = viewMode === 'board' ? 'list' : 'board';
-  }
+  const activeFilterCount = $derived(
+    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+  );
 
   function openAddForm() {
     editing = null;
@@ -132,132 +133,35 @@
   }
 
   const statusLabel: Record<TaskStatus, string> = { todo: 'Offen', doing: 'In Arbeit', done: 'Erledigt' };
-
-  // ─── Validierung (Spec 20 §1.11h) ──────────────────────────────────────────
-  // Der Bericht ist flüchtig: `null` = noch nicht geprüft/ausgeblendet. Er wird NICHT
-  // automatisch beim Öffnen des Tabs erzeugt — „✓ Daten prüfen" ist eine bewusste
-  // Nutzer-Handlung, und bei mehreren tausend Personen ist der Bericht lang.
-  let validationResults = $state<Finding[] | null>(null);
-  let showValConfig = $state(false);
-  let valConfig = $state<ValidationConfig>(defaultConfig());
-  let valConfigLoaded = false;
-
-  const valStore = new IdbValConfigStore();
-
-  /** Konfiguration einmal je Sitzung nachladen — danach lebt sie in `valConfig`. */
-  async function ensureValConfig() {
-    if (valConfigLoaded) return;
-    valConfig = configFromStored(await loadValConfig(valStore));
-    valConfigLoaded = true;
-  }
-
-  async function runCheck() {
-    await ensureValConfig();
-    const findings = runValidation(appState.db, valConfig);
-    // Befunde ausblenden, die bereits als Aufgabe übernommen wurden — sonst bietet
-    // jede Prüfung dieselbe, längst erledigte Lücke erneut an.
-    validationResults = withoutAlreadyTasked(findings, appState.db);
-  }
-
-  async function openValConfig() {
-    await ensureValConfig();
-    showValConfig = true;
-  }
-
-  async function saveValConfig(cfg: ValidationConfig) {
-    valConfig = cfg;
-    showValConfig = false;
-    // Ein fehlgeschlagenes Speichern darf die Prüfung nicht abbrechen — die Änderung
-    // gilt dann für diese Sitzung, nur eben nicht dauerhaft.
-    try {
-      await valStore.save(configToStored(cfg));
-    } catch {
-      /* app-lokaler Speicher nicht verfügbar — Konfiguration bleibt sitzungslokal. */
-    }
-    // Bereits angezeigte Befunde stammen aus der ALTEN Konfiguration und wären nach
-    // dem Speichern irreführend: neu berechnen statt stehen lassen.
-    if (validationResults !== null) await runCheck();
-  }
 </script>
 
 <div class="tasks-view">
   <div class="tasks-view__toolbar">
-    <div class="tasks-view__filters">
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'all'}
-        onclick={() => switchFilter('all')}
-      >
-        Alle
+    <FilterBar activeCount={activeFilterCount}>
+      <fieldset class="stb-filter-set">
+        <legend>Status</legend>
+        {#each FILTERS as f (f.key)}
+          <label class="stb-filter-opt">
+            <input type="radio" bind:group={filter} value={f.key} />
+            {f.label}
+          </label>
+        {/each}
+      </fieldset>
+      <button type="button" class="stb-filter-export" onclick={exportMd}>
+        ↓ Als Markdown exportieren
       </button>
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'open'}
-        onclick={() => switchFilter('open')}
-      >
-        Offen
-      </button>
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'done'}
-        onclick={() => switchFilter('done')}
-      >
-        Erledigt
-      </button>
-    </div>
-    <div class="tasks-view__actions">
-      <button
-        type="button"
-        class="tasks-view__icon-btn"
-        class:tasks-view__icon-btn--active={viewMode === 'board'}
-        onclick={toggleBoard}
-        aria-label={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
-        use:tooltip={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
-      >
-        {viewMode === 'board' ? '☰' : '▦'}
-      </button>
-      <button
-        type="button"
-        class="tasks-view__icon-btn"
-        onclick={exportMd}
-        aria-label="Als Markdown exportieren"
-        use:tooltip={'Als Markdown exportieren'}
-      >
-        ↓
-      </button>
-      <button
-        type="button"
-        class="tasks-view__check-btn"
-        onclick={runCheck}
-        aria-label="Daten prüfen"
-      >
-        ✓ Daten prüfen
-      </button>
-      <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
-    </div>
+    </FilterBar>
+    <ViewModeToggle
+      modes={[
+        { id: 'list', label: '☰ Liste' },
+        { id: 'board', label: '▦ Board' },
+      ]}
+      value={viewMode}
+      onChange={(id) => (viewMode = id as 'list' | 'board')}
+      ariaLabel="Aufgabenansicht wählen"
+    />
+    <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
   </div>
-
-  {#if validationResults !== null}
-    <ValidationPanel
-      {appState}
-      findings={validationResults}
-      onClose={() => (validationResults = null)}
-      onOpenConfig={openValConfig}
-      {onNavigateToPerson}
-      {onNavigateToFamily}
-    />
-  {/if}
-
-  {#if showValConfig}
-    <ValConfigSheet
-      config={valConfig}
-      onSave={saveValConfig}
-      onClose={() => (showValConfig = false)}
-    />
-  {/if}
 
   {#if showAddForm}
     <TaskForm
@@ -342,11 +246,11 @@
     flex-direction: column;
   }
 
+  /* EINE Toolbar-Zeile mit drei Elementen (INV-UI-11): Filter · Ansicht · Neuanlage. */
   .tasks-view__toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
     background: var(--stb-surface-2);
@@ -355,51 +259,11 @@
     z-index: 1;
   }
 
-  .tasks-view__filters {
-    display: flex;
-    gap: 0.3rem;
-  }
-
-  .tasks-view__filter-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-
-  .tasks-view__filter-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    font-weight: 700;
-    border-color: var(--stb-gold);
-  }
-
-  .tasks-view__actions {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-  }
-
-  .tasks-view__icon-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-
-  .tasks-view__icon-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border-color: var(--stb-gold);
-  }
-
+  /* Die Hauptaktion sitzt rechtsbündig am Zeilenende; Filter und Ansichts-Umschalter
+     bleiben links (Spec 21 §10c Slot-Reihenfolge). Kein eigener Wrapper-Container —
+     der würde bei 375px eine zweite Toolbar-Zeile erzwingen (INV-UI-11). */
   .tasks-view__add-btn {
+    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     border: none;
@@ -408,19 +272,6 @@
     font-weight: 700;
     cursor: pointer;
     font-size: 0.82rem;
-  }
-
-  /* Sekundär gegenüber „+ Aufgabe": Prüfen ist häufig, aber nicht die Hauptaktion
-     des Tabs — Umriss statt Vollfläche (Spec 21 §3 Hierarchie der Aktionen). */
-  .tasks-view__check-btn {
-    background: transparent;
-    color: var(--stb-gold-light);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-    white-space: nowrap;
   }
 
   .tasks-view__empty {
