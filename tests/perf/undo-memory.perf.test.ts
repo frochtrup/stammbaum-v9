@@ -3,9 +3,11 @@
 //
 // WARUM DIESES GATE EXISTIERT: ADR-v9-92 verwirft den wörtlich gelesenen Spec-Bullet
 // („Snapshot-Stack" = Tiefkopie je Eintrag), weil er bei der zugesicherten Bestandsgröße
-// von 20.000 Personen 1,3 GiB belegt — auf dem primären Zielgerät (iPad/Safari,
+// von 20.000 Personen über 1 GiB belegt — auf dem primären Zielgerät (iPad/Safari,
 // Spec 30 NFR-2) nicht tragbar. Die gewählte Bauweise (Referenz-Snapshots mit
-// Copy-on-Write) kostet gemessen 12,8 MiB für 30 Einträge, Faktor 103 günstiger.
+// Copy-on-Write) kostet 26 MiB für 30 Einträge, Faktor 67 günstiger.
+// (Zahlen aus der Messung unten, NICHT die Vorab-Schätzung des ADR — die lag bei
+// 12,8 MiB / Faktor 103 und ist zu optimistisch, s. Tabelle bei BUDGET_MIB.)
 //
 // Diese Ersparnis ist KEINE Eigenschaft des Undo-Stacks, sondern eine des Kommando-
 // Verhaltens: sie hält nur, solange jedes Kommando unveränderte Entitäten TEILT statt
@@ -33,6 +35,12 @@ const PERSONEN = 20_000;
  *  kalibriert werden mussten (ADR-v9-91 Nachtrag): Speicherverbrauch hängt an der
  *  Objektstruktur, nicht an der Hardware-Geschwindigkeit. Die Schwelle ist deshalb direkt
  *  aus dem ADR übernommen und braucht keine Runner-Toleranz.
+ *
+ *  AM ERSTEN CI-LAUF BELEGT, nicht bloß angenommen (2026-07-18): ubuntu-latest/Node 20
+ *  misst 26,2 MiB gegen 26,4 MiB lokal (Referenz-Mac/Node 24) — 0,8 % Abweichung, obwohl
+ *  im selben Lauf die Orts-Auflösung 3,0× langsamer ist (5.682 statt 1.914 ms). Das ist
+ *  die Begründung dieser Bemessungsregel in einer Zahl: die Runner-Toleranz, die ein
+ *  ZEIT-Budget zwingend braucht, wäre bei einem SPEICHER-Budget verschenkte Schärfe.
  *
  *  ECHTE MESSUNG (2026-07-18, erster Lauf dieses Gates, Referenz-Mac, Node 24) — die
  *  ADR-Zahlen stammen aus einer Vorab-Schätzung mit `structuredClone` und liegen
