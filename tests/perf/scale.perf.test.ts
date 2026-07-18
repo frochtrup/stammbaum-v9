@@ -27,23 +27,12 @@ import { makeScaleGedcom } from './make-scale-gedcom';
 /** Zielgröße aus Spec 30 §1 ("v8 verifiziert bis 20.000 Personen"). */
 const PERSONEN = 20_000;
 
-/** Ratschen-Größe: klein genug für einen zügigen CI-Schritt, groß genug, dass der
- *  Orts-/Hof-Pfad mit wachsender Hof-Registry läuft (s. RATSCHE unten). */
-const PERSONEN_RATSCHE = 2_500;
-
 /** Budgets in ms — bewusst ~3× über den v9-Zusicherungen aus [30 §1] (ADR-v9-89), damit
  *  das Gate auf fremder CI-Hardware ein Größenordnungs-Wecker bleibt und kein Prozent-Gate.
  *  Zusicherung ⇄ Budget: Parse < 400 ⇄ 1.200 · Auflösung < 2.000 ⇄ 6.000 · Sort < 400 ⇄ 1.200. */
 const BUDGET_PARSE_MS = 1_200; // Zusicherung < 400 ms (Ist 112 ms)
-const BUDGET_RESOLVE_MS = 6_000; // Zusicherung < 2.000 ms (Ist 89.436 ms — ADR-v9-88/BL-47)
-const BUDGET_SORT_MS = 1_200; // Zusicherung < 400 ms (Ist 81 ms)
-
-/** RATSCHE, kein Zielwert: Ist-Messung 2026-07-18 bei 2.500 Personen war ~5,3 s für
- *  die Orts-Auflösung — weit jenseits dessen, was hier stehen SOLLTE, aber der
- *  aktuelle Stand (s. BEFUND im Kopfkommentar). Der Wert hält fest, dass es nicht
- *  SCHLIMMER wird, solange der Resolver nicht behoben ist. Nach dem Fix: diesen Test
- *  löschen und den 20k-Test unskippen, NICHT diese Zahl nachziehen. */
-const RATSCHE_RESOLVE_MS = 12_000;
+const BUDGET_RESOLVE_MS = 6_000; // Zusicherung < 2.000 ms (Ist 1.917 ms — nach BL-47)
+const BUDGET_SORT_MS = 1_200; // Zusicherung < 400 ms (Ist 86 ms)
 
 function ms(fn: () => void): number {
   const t0 = performance.now();
@@ -55,20 +44,15 @@ describe(`Skalen-Gate: ${PERSONEN} Personen (Spec 30 §1)`, () => {
   // Fixture-Erzeugung IM Test, nicht auf describe-Ebene: sonst würden die ~9 MiB auch
   // erzeugt, während der Test übersprungen ist (describe-Rümpfe laufen immer).
 
-  // ÜBERSPRUNGEN, WEIL DER BEFUND OFFEN IST — nicht, weil der Test falsch wäre.
-  // Erster Lauf dieses Gates (2026-07-18): Orts-Auflösung 89.436 ms gegen ein Budget
-  // von 6.000 ms. Gemessene Kurve (resolve, Orts-Auflösung):
+  // WAR ÜBERSPRUNGEN (2026-07-18, ADR-v9-88), weil `resolveOne()` beide Registries pro
+  // EREIGNIS neu baute — O(events × (places + hofs)), gemessene Kurve superlinear:
   //     1.250 P →  1.748 ms      5.000 P → 15.950 ms     20.000 P → 89.436 ms
   //     2.500 P →  5.338 ms     10.000 P → 41.156 ms
-  // Pro Verdopplung ~2,2–3,1× statt 2× → superlinear.
-  // Ursache lokalisiert: `resolveOne()` (core/places/resolve.ts) baut BEIDE Registries
-  // pro EVENT neu auf (`makePlaceRegistry(places)` + `makeHofRegistry(workingHofs)`,
-  // dazu ein zweites `makeHofRegistry` in `reproject`) → O(events × (places + hofs)).
-  // Der Kommentar dort nennt den Grund ("workingHofs wächst durch Bootstrap") — die
-  // Entscheidung ist korrektheitsmotiviert, ihre Kosten waren nur nie gemessen.
-  // Behebung = inkrementell fortgeschriebene Registry statt Neubau; eigener Vorgang
-  // im dichtesten Kern-Bereich (Spec 11), ADR-würdig. Danach: `.skip` entfernen.
-  it.skip('lädt, löst Orte auf und sortiert innerhalb der NFR-Budgets', () => {
+  // Seit der inkrementellen Fortschreibung (`HofRegistry.indexHof`, BL-47) läuft dieser
+  // Test ohne `.skip`. Er ist damit der Wächter gegen einen Rückfall: wird die Registry
+  // wieder pro Ereignis gebaut, wird er rot. Er darf NICHT wieder geskippt und sein
+  // Budget nicht nachgezogen werden — bei Rot ist die Ursache im Resolver zu suchen.
+  it('lädt, löst Orte auf und sortiert innerhalb der NFR-Budgets', () => {
     const { text, familyCount } = makeScaleGedcom(PERSONEN);
     let parsed!: ReturnType<typeof parseGedcom>;
     const tParse = ms(() => {
@@ -113,23 +97,9 @@ describe(`Skalen-Gate: ${PERSONEN} Personen (Spec 30 §1)`, () => {
     expect(tSort).toBeLessThan(BUDGET_SORT_MS);
   });
 
-  // Der Teil, der HEUTE schützt: solange der 20k-Test wegen des offenen Befunds
-  // übersprungen ist, darf der Ist-Zustand wenigstens nicht schlechter werden.
-  it(`wird bei ${PERSONEN_RATSCHE} Personen nicht langsamer als der Ist-Stand (Ratsche)`, () => {
-    const kleiner = makeScaleGedcom(PERSONEN_RATSCHE);
-    const parsed = parseGedcom(kleiner.text);
-
-    const tResolve = ms(() => {
-      applyPlaceResolution(parsed.db);
-    });
-
-    console.log(
-      `\n  Ratsche (${PERSONEN_RATSCHE} Personen): Orts-Auflösung ${tResolve.toFixed(0)} ms ` +
-        `(Ratsche ${RATSCHE_RESOLVE_MS} ms, Ist-Stand 2026-07-18: ~5.300 ms)\n`,
-    );
-
-    expect(parsed.db.individuals.size).toBe(PERSONEN_RATSCHE);
-    expect(parsed.db.hofObjects.size).toBeGreaterThan(0);
-    expect(tResolve).toBeLessThan(RATSCHE_RESOLVE_MS);
-  });
+  // Hier stand bis BL-47 eine 2.500er-RATSCHE (12.000 ms), die den defekten Ist-Zustand
+  // vor weiterer Verschlechterung schützte, solange der 20k-Test übersprungen war. Sie
+  // ist mit dem Fix ersatzlos entfallen — der 20k-Test misst dieselbe Sache an der
+  // eigentlichen Zusicherungsgröße und ist damit der schärfere Wächter. Eine Ratsche auf
+  // einen behobenen Defekt wäre nur noch Archiv.
 });

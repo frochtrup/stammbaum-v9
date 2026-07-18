@@ -140,13 +140,17 @@ function resolveOne(
   input: Event,
   index: number,
   workingHofs: HofObjects,
-  places: PlaceObjects,
+  ctx: PlaceContext,
 ): { resolved: ResolvedEvent; review: ReviewItem | null } {
-  // Registries pro Event neu bauen — workingHofs wächst durch Bootstrap.
-  const ctx: PlaceContext = {
-    places: makePlaceRegistry(places),
-    hofs: makeHofRegistry(workingHofs),
-  };
+  // ctx wird EINMAL je resolveEvents()-Lauf gebaut und hier nur gelesen. Die Hof-Registry
+  // wird beim Bootstrap (Pfade C/B') über `ctx.hofs.indexHof()` fortgeschrieben — bis
+  // ADR-v9-88 stand hier stattdessen ein vollständiger Neubau BEIDER Registries pro
+  // Ereignis (O(events × (places + hofs)), gemessen 89 s bei 20.000 Personen). Die
+  // Zusicherung, die den Neubau motivierte, gilt unverändert: ein während der Auflösung
+  // entstandener Hof MUSS für alle folgenden Ereignisse auffindbar sein — dafür sorgt
+  // jetzt die Fortschreibung. `places` ändert sich während des Laufs nicht (der
+  // Village-Seed, Spec 11 §4.2 Schritt 0, läuft VOR resolveEvents), die Orts-Registry
+  // ist also ohnehin über den ganzen Lauf konstant.
   const ev: Event = { ...input };
   const year = eventYear(ev);
   const type = ev.type;
@@ -155,18 +159,16 @@ function resolveOne(
 
   const reproject = (path: ResolvePath): ResolvedEvent => {
     // INV-PLACE: am Ende jedes Pfads. Bei gesetztem placeId/hofId ist ev.place
-    // ausschließlich die periodengerechte Projektion.
-    const rebuiltCtx: PlaceContext = {
-      places: ctx.places,
-      hofs: makeHofRegistry(workingHofs),
-    };
+    // ausschließlich die periodengerechte Projektion. (Bis ADR-v9-88 wurde hier eine
+    // ZWEITE Hof-Registry gebaut, damit ein soeben gebootstrappter Hof sichtbar ist —
+    // `ctx.hofs` ist dank `indexHof()` an der Bootstrap-Stelle bereits aktuell.)
     if (ev.hofId != null || ev.placeId != null) {
-      const proj = buildPlacForGedcom(ev, year, rebuiltCtx);
+      const proj = buildPlacForGedcom(ev, year, ctx);
       if (proj != null) ev.place = proj;
     }
     // ev.addr NUR füllen wenn leer — Wire-ADDR bleibt byte-identisch (ADDR-Roundtrip).
     if (ev.hofId != null && !ev.addr) {
-      const a = rebuiltCtx.hofs.resolveAddrAsOf(ev.hofId, year);
+      const a = ctx.hofs.resolveAddrAsOf(ev.hofId, year);
       if (a) ev.addr = a;
     }
     return { event: ev, path };
@@ -273,7 +275,10 @@ function resolveOne(
   if (hofTypeAllowed && ev.placeId == null && isRich && leadSeg && anchorVillageId != null) {
     const res = findOrCreateHof(leadSeg, anchorVillageId, workingHofs);
     if (res) {
-      if (res.created) workingHofs.set(res.created.id, res.created);
+      if (res.created) {
+        workingHofs.set(res.created.id, res.created);
+        ctx.hofs.indexHof(res.created); // sofort sichtbar für alle folgenden Ereignisse
+      }
       ev.hofId = res.hofId;
       ev.placeId = anchorVillageId;
       return { resolved: reproject('C'), review: null };
@@ -307,7 +312,10 @@ function resolveOne(
       // Hof-Typ → Bootstrap aus Event-Typ-Semantik.
       const res = findOrCreateHof(ev.addr, villageForAddr, workingHofs);
       if (res) {
-        if (res.created) workingHofs.set(res.created.id, res.created);
+        if (res.created) {
+          workingHofs.set(res.created.id, res.created);
+          ctx.hofs.indexHof(res.created); // sofort sichtbar für alle folgenden Ereignisse
+        }
         ev.hofId = res.hofId;
         ev.placeId = villageForAddr;
         return { resolved: reproject("B'"), review: null };
@@ -343,10 +351,17 @@ export function resolveEvents(
   const workingHofs: HofObjects = new Map();
   for (const [id, h] of hofObjects) workingHofs.set(id, h);
 
+  // EIN Registry-Paar für den ganzen Lauf (ADR-v9-88). Die Hof-Registry indiziert
+  // `workingHofs` und wird beim Bootstrap in `resolveOne` fortgeschrieben.
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(places),
+    hofs: makeHofRegistry(workingHofs),
+  };
+
   const out: ResolvedEvent[] = [];
   const review: ReviewItem[] = [];
   events.forEach((ev, index) => {
-    const { resolved, review: r } = resolveOne(ev, index, workingHofs, places);
+    const { resolved, review: r } = resolveOne(ev, index, workingHofs, ctx);
     out.push(resolved);
     if (r) review.push(r);
   });
