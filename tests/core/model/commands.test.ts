@@ -22,7 +22,9 @@ import {
   addChildToFamily,
   checkIndiFamConsistency,
 } from '../../../core/model/index';
+import { editDatabase } from '../../../core/model/draft';
 import type {
+  Database,
   Person,
   PersonId,
   Source,
@@ -37,22 +39,22 @@ function fresh(): Map<PersonId, Person> {
 
 describe('savePerson — Upsert per id', () => {
   it('legt eine neue Person an', () => {
-    const map = fresh();
+    let map = fresh();
     const p = makePerson('@I1@');
-    savePerson(map, p);
+    map = savePerson(map, p);
     expect(map.get('@I1@')).toBe(p);
     expect(map.size).toBe(1);
   });
 
   it('ersetzt eine bestehende Person vollständig (per id)', () => {
-    const map = fresh();
+    let map = fresh();
     const p1 = makePerson('@I1@');
     p1.given = 'Alt';
-    savePerson(map, p1);
+    map = savePerson(map, p1);
 
     const p2 = makePerson('@I1@');
     p2.given = 'Neu';
-    savePerson(map, p2);
+    map = savePerson(map, p2);
 
     expect(map.size).toBe(1);
     expect(map.get('@I1@')).toBe(p2);
@@ -60,22 +62,22 @@ describe('savePerson — Upsert per id', () => {
   });
 
   it('rührt andere Personen nicht an', () => {
-    const map = fresh();
+    let map = fresh();
     const a = makePerson('@I1@');
     const b = makePerson('@I2@');
-    savePerson(map, a);
-    savePerson(map, b);
+    map = savePerson(map, a);
+    map = savePerson(map, b);
     expect(map.size).toBe(2);
     expect(map.get('@I1@')).toBe(a);
     expect(map.get('@I2@')).toBe(b);
   });
 
   it('fasst KEINE Beziehungs-Referenzen an (childOf/parentIn bleiben wie übergeben)', () => {
-    const map = fresh();
+    let map = fresh();
     const p = makePerson('@I1@');
     p.parentIn = ['@F9@'];
     p.childOf = [];
-    savePerson(map, p);
+    map = savePerson(map, p);
     // savePerson ersetzt nur das Objekt — kein Graph-Seiteneffekt.
     expect(map.get('@I1@')!.parentIn).toEqual(['@F9@']);
     expect(map.get('@I1@')!.childOf).toEqual([]);
@@ -84,26 +86,26 @@ describe('savePerson — Upsert per id', () => {
 
 describe('deletePerson — Entfernen per id', () => {
   it('entfernt eine vorhandene Person', () => {
-    const map = fresh();
-    savePerson(map, makePerson('@I1@'));
-    deletePerson(map, '@I1@');
+    let map = fresh();
+    map = savePerson(map, makePerson('@I1@'));
+    map = deletePerson(map, '@I1@');
     expect(map.has('@I1@')).toBe(false);
     expect(map.size).toBe(0);
   });
 
   it('ist ein No-Op bei unbekannter id', () => {
-    const map = fresh();
-    savePerson(map, makePerson('@I1@'));
-    deletePerson(map, '@I999@');
+    let map = fresh();
+    map = savePerson(map, makePerson('@I1@'));
+    map = deletePerson(map, '@I999@');
     expect(map.size).toBe(1);
   });
 
   it('führt KEINE Familien-Referenzen nach (außerhalb Scope, wie deletePlaceObject)', () => {
-    const map = fresh();
+    let map = fresh();
     const p = makePerson('@I1@');
     p.parentIn = ['@F1@'];
-    savePerson(map, p);
-    deletePerson(map, '@I1@');
+    map = savePerson(map, p);
+    map = deletePerson(map, '@I1@');
     // Nur die Person selbst ist weg; keine Kaskade in Family-Objekte (die diese Funktion
     // gar nicht kennt) — bewusst außerhalb dieser Scheibe.
     expect(map.has('@I1@')).toBe(false);
@@ -111,6 +113,10 @@ describe('deletePerson — Entfernen per id', () => {
 });
 
 // --- saveFamily / deleteFamily (Spec 20 §2 Familie-Formular; Spec 10 §3, INV-P3/P4) ---
+
+/** Bequemer Zugriff auf die Person im AKTUELLEN Stand (nach Copy-on-Write, ADR-v9-92
+ *  liefert jedes Kommando ein neues Database — die Seed-Referenz veraltet dabei). */
+const indi = (db: Database, id: PersonId) => db.individuals.get(id)!;
 
 /** Frische DB mit vier freien Personen, ohne Familie. */
 function seedFamilyDb() {
@@ -126,14 +132,16 @@ function seedFamilyDb() {
 
 describe('saveFamily — Formular-Kommando, INV-P3-konform', () => {
   it('neue Familie mit Eltern + Kindern → beide Seiten gesetzt, Konsistenz leer', () => {
-    const { db, a, mother, c1, c2 } = seedFamilyDb();
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a, mother, c1, c2} = seeded;
     const fam = makeFamily('@F1@', {
       husband: a.id,
       wife: mother.id,
       children: [c1.id, c2.id],
       noteText: 'Notiz',
     });
-    saveFamily(db, fam);
+    db = saveFamily(db, fam);
 
     const stored = db.families.get('@F1@')!;
     expect(stored.husband).toBe(a.id);
@@ -141,82 +149,92 @@ describe('saveFamily — Formular-Kommando, INV-P3-konform', () => {
     expect(stored.children).toEqual([c1.id, c2.id]);
     expect(stored.noteText).toBe('Notiz');
     // INDI-Seite nachgeführt
-    expect(a.parentIn).toContain('@F1@');
-    expect(mother.parentIn).toContain('@F1@');
-    expect(c1.childOf.map((l) => l.familyId)).toContain('@F1@');
-    expect(c2.childOf.map((l) => l.familyId)).toContain('@F1@');
+    expect(indi(db, a.id).parentIn).toContain('@F1@');
+    expect(indi(db, mother.id).parentIn).toContain('@F1@');
+    expect(indi(db, c1.id).childOf.map((l) => l.familyId)).toContain('@F1@');
+    expect(indi(db, c2.id).childOf.map((l) => l.familyId)).toContain('@F1@');
     // Korrektheits-Kriterium
     expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('Elternwechsel husband A → husband B: A sauber aus parentIn, B gesetzt', () => {
-    const { db, a, b } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { husband: a.id }));
-    expect(a.parentIn).toContain('@F1@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a, b} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { husband: a.id }));
+    expect(indi(db, a.id).parentIn).toContain('@F1@');
 
     // Formular liefert das gesamte (geänderte) Objekt zurück.
-    saveFamily(db, makeFamily('@F1@', { husband: b.id }));
+    db = saveFamily(db, makeFamily('@F1@', { husband: b.id }));
 
     const stored = db.families.get('@F1@')!;
     expect(stored.husband).toBe(b.id);
-    expect(a.parentIn).not.toContain('@F1@'); // A ist nirgends sonst Elternteil
-    expect(b.parentIn).toContain('@F1@');
+    expect(indi(db, a.id).parentIn).not.toContain('@F1@'); // A ist nirgends sonst Elternteil
+    expect(indi(db, b.id).parentIn).toContain('@F1@');
     expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('Eltern-Slot auf null setzen → alte Person sauber aus parentIn', () => {
-    const { db, a } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { husband: a.id }));
-    expect(a.parentIn).toContain('@F1@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { husband: a.id }));
+    expect(indi(db, a.id).parentIn).toContain('@F1@');
 
-    saveFamily(db, makeFamily('@F1@', { husband: null }));
+    db = saveFamily(db, makeFamily('@F1@', { husband: null }));
 
     const stored = db.families.get('@F1@')!;
     expect(stored.husband).toBeNull();
-    expect(a.parentIn).not.toContain('@F1@');
+    expect(indi(db, a.id).parentIn).not.toContain('@F1@');
     expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('Kind hinzufügen UND entfernen in einem Save → kein verwaistes childOf', () => {
-    const { db, c1, c2 } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { children: [c1.id] }));
-    expect(c1.childOf.map((l) => l.familyId)).toContain('@F1@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {c1, c2} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { children: [c1.id] }));
+    expect(indi(db, c1.id).childOf.map((l) => l.familyId)).toContain('@F1@');
 
     // Formular: c1 raus, c2 rein.
-    saveFamily(db, makeFamily('@F1@', { children: [c2.id] }));
+    db = saveFamily(db, makeFamily('@F1@', { children: [c2.id] }));
 
     const stored = db.families.get('@F1@')!;
     expect(stored.children).toEqual([c2.id]);
-    expect(c1.childOf.map((l) => l.familyId)).not.toContain('@F1@');
-    expect(c2.childOf.map((l) => l.familyId)).toContain('@F1@');
+    expect(indi(db, c1.id).childOf.map((l) => l.familyId)).not.toContain('@F1@');
+    expect(indi(db, c2.id).childOf.map((l) => l.familyId)).toContain('@F1@');
     expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('bewahrt bestehende Pedigree eines nicht angetasteten Kindes', () => {
-    const { db, c1, c2 } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { children: [c1.id] }));
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {c1, c2} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { children: [c1.id] }));
     // Pedigree wird separat (z. B. über einen anderen Editor) gesetzt.
-    addChildToFamily(db, '@F1@', c1.id, 'adopted');
-    expect(c1.childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('adopted');
+    db = editDatabase(db, (d) => addChildToFamily(d, '@F1@', c1.id, 'adopted'));
+    expect(indi(db, c1.id).childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('adopted');
 
     // Formular speichert erneut, fügt c2 hinzu — c1 bleibt unangetastet.
-    saveFamily(db, makeFamily('@F1@', { children: [c1.id, c2.id] }));
+    db = saveFamily(db, makeFamily('@F1@', { children: [c1.id, c2.id] }));
 
     // Pedigree von c1 NICHT überschrieben (children[] trägt keine Pedigree-Info).
-    expect(c1.childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('adopted');
-    expect(c2.childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('');
+    expect(indi(db, c1.id).childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('adopted');
+    expect(indi(db, c2.id).childOf.find((l) => l.familyId === '@F1@')!.pedigree).toBe('');
     expect(checkIndiFamConsistency(db)).toEqual([]);
   });
 
   it('übernimmt Restfelder (marriage/engagement/events/citations/lastChanged) direkt', () => {
-    const { db, a } = seedFamilyDb();
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a} = seeded;
     const fam = makeFamily('@F1@', {
       husband: a.id,
       lastChanged: '2026-07-06',
     });
     fam.marriage.date = '12 MAR 1890';
     fam.noteText = 'Heirat';
-    saveFamily(db, fam);
+    db = saveFamily(db, fam);
 
     const stored = db.families.get('@F1@')!;
     expect(stored.marriage.date).toBe('12 MAR 1890');
@@ -227,27 +245,32 @@ describe('saveFamily — Formular-Kommando, INV-P3-konform', () => {
 
 describe('deleteFamily — Entfernen ohne Kaskade', () => {
   it('entfernt die Familie per Map-Delete', () => {
-    const { db, a } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { husband: a.id }));
-    deleteFamily(db, '@F1@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { husband: a.id }));
+    db = deleteFamily(db, '@F1@');
     expect(db.families.has('@F1@')).toBe(false);
   });
 
   it('lässt Person.parentIn/childOf-Reste bewusst stehen (kein Cleanup, INV-P2 meldet)', () => {
-    const { db, a, c1 } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@', { husband: a.id, children: [c1.id] }));
-    deleteFamily(db, '@F1@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    const {a, c1} = seeded;
+    db = saveFamily(db, makeFamily('@F1@', { husband: a.id, children: [c1.id] }));
+    db = deleteFamily(db, '@F1@');
 
     // Bewusst KEINE Kaskade: die verwaisten Verweise bleiben stehen (analog deletePerson).
     // findOrphanRefs (INV-P2) meldet sie an anderer Stelle — hier kein stiller Cleanup.
-    expect(a.parentIn).toContain('@F1@');
-    expect(c1.childOf.map((l) => l.familyId)).toContain('@F1@');
+    expect(indi(db, a.id).parentIn).toContain('@F1@');
+    expect(indi(db, c1.id).childOf.map((l) => l.familyId)).toContain('@F1@');
   });
 
   it('ist ein No-Op bei unbekannter id', () => {
-    const { db } = seedFamilyDb();
-    saveFamily(db, makeFamily('@F1@'));
-    deleteFamily(db, '@F999@');
+    const seeded = seedFamilyDb();
+    let db = seeded.db;
+    db = saveFamily(db, makeFamily('@F1@'));
+    db = deleteFamily(db, '@F999@');
     expect(db.families.size).toBe(1);
   });
 });
@@ -262,38 +285,38 @@ function freshSources(): Map<SourceId, Source> {
 
 describe('saveSource — Upsert per id', () => {
   it('legt eine neue Quelle an', () => {
-    const map = freshSources();
+    let map = freshSources();
     const s = makeSource('@S1@');
-    saveSource(map, s);
+    map = saveSource(map, s);
     expect(map.get('@S1@')).toBe(s);
     expect(map.size).toBe(1);
   });
 
   it('ersetzt eine bestehende Quelle vollständig (per id)', () => {
-    const map = freshSources();
-    saveSource(map, makeSource('@S1@', { title: 'Alt' }));
+    let map = freshSources();
+    map = saveSource(map, makeSource('@S1@', { title: 'Alt' }));
     const s2 = makeSource('@S1@', { title: 'Neu' });
-    saveSource(map, s2);
+    map = saveSource(map, s2);
     expect(map.size).toBe(1);
     expect(map.get('@S1@')).toBe(s2);
     expect(map.get('@S1@')!.title).toBe('Neu');
   });
 
   it('rührt andere Quellen nicht an', () => {
-    const map = freshSources();
+    let map = freshSources();
     const a = makeSource('@S1@');
     const b = makeSource('@S2@');
-    saveSource(map, a);
-    saveSource(map, b);
+    map = saveSource(map, a);
+    map = saveSource(map, b);
     expect(map.size).toBe(2);
     expect(map.get('@S1@')).toBe(a);
     expect(map.get('@S2@')).toBe(b);
   });
 
   it('fasst die repo-Referenz nicht an (lose Referenz, keine Sync-Logik)', () => {
-    const map = freshSources();
+    let map = freshSources();
     const s = makeSource('@S1@', { repo: '@R7@' });
-    saveSource(map, s);
+    map = saveSource(map, s);
     // saveSource ersetzt nur das Objekt — kein Repository-Seiteneffekt.
     expect(map.get('@S1@')!.repo).toBe('@R7@');
   });
@@ -301,26 +324,26 @@ describe('saveSource — Upsert per id', () => {
 
 describe('deleteSource — Entfernen per id', () => {
   it('entfernt eine vorhandene Quelle', () => {
-    const map = freshSources();
-    saveSource(map, makeSource('@S1@'));
-    deleteSource(map, '@S1@');
+    let map = freshSources();
+    map = saveSource(map, makeSource('@S1@'));
+    map = deleteSource(map, '@S1@');
     expect(map.has('@S1@')).toBe(false);
     expect(map.size).toBe(0);
   });
 
   it('ist ein No-Op bei unbekannter id', () => {
-    const map = freshSources();
-    saveSource(map, makeSource('@S1@'));
-    deleteSource(map, '@S999@');
+    let map = freshSources();
+    map = saveSource(map, makeSource('@S1@'));
+    map = deleteSource(map, '@S999@');
     expect(map.size).toBe(1);
   });
 
   it('räumt referenzierende Citations NICHT auf (kein Cleanup, INV-P2 meldet)', () => {
     // deleteSource kennt weder Personen noch deren Zitate — verwaiste citation.sourceId
     // werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still aufgeräumt.
-    const map = freshSources();
-    saveSource(map, makeSource('@S1@'));
-    deleteSource(map, '@S1@');
+    let map = freshSources();
+    map = saveSource(map, makeSource('@S1@'));
+    map = deleteSource(map, '@S1@');
     expect(map.has('@S1@')).toBe(false);
   });
 });
@@ -333,29 +356,29 @@ function freshRepos(): Map<RepoId, Repository> {
 
 describe('saveRepository — Upsert per id', () => {
   it('legt ein neues Archiv an', () => {
-    const map = freshRepos();
+    let map = freshRepos();
     const r = makeRepository('@R1@');
-    saveRepository(map, r);
+    map = saveRepository(map, r);
     expect(map.get('@R1@')).toBe(r);
     expect(map.size).toBe(1);
   });
 
   it('ersetzt ein bestehendes Archiv vollständig (per id)', () => {
-    const map = freshRepos();
-    saveRepository(map, makeRepository('@R1@', { name: 'Alt' }));
+    let map = freshRepos();
+    map = saveRepository(map, makeRepository('@R1@', { name: 'Alt' }));
     const r2 = makeRepository('@R1@', { name: 'Neu' });
-    saveRepository(map, r2);
+    map = saveRepository(map, r2);
     expect(map.size).toBe(1);
     expect(map.get('@R1@')).toBe(r2);
     expect(map.get('@R1@')!.name).toBe('Neu');
   });
 
   it('rührt andere Archive nicht an', () => {
-    const map = freshRepos();
+    let map = freshRepos();
     const a = makeRepository('@R1@');
     const b = makeRepository('@R2@');
-    saveRepository(map, a);
-    saveRepository(map, b);
+    map = saveRepository(map, a);
+    map = saveRepository(map, b);
     expect(map.size).toBe(2);
     expect(map.get('@R1@')).toBe(a);
     expect(map.get('@R2@')).toBe(b);
@@ -364,26 +387,26 @@ describe('saveRepository — Upsert per id', () => {
 
 describe('deleteRepository — Entfernen per id', () => {
   it('entfernt ein vorhandenes Archiv', () => {
-    const map = freshRepos();
-    saveRepository(map, makeRepository('@R1@'));
-    deleteRepository(map, '@R1@');
+    let map = freshRepos();
+    map = saveRepository(map, makeRepository('@R1@'));
+    map = deleteRepository(map, '@R1@');
     expect(map.has('@R1@')).toBe(false);
     expect(map.size).toBe(0);
   });
 
   it('ist ein No-Op bei unbekannter id', () => {
-    const map = freshRepos();
-    saveRepository(map, makeRepository('@R1@'));
-    deleteRepository(map, '@R999@');
+    let map = freshRepos();
+    map = saveRepository(map, makeRepository('@R1@'));
+    map = deleteRepository(map, '@R999@');
     expect(map.size).toBe(1);
   });
 
   it('räumt Source.repo-Referenzen NICHT auf (kein Cleanup, INV-P2 meldet)', () => {
     // deleteRepository kennt die Sources-Map nicht — verwaiste Source.repo-Referenzen
     // werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still aufgeräumt.
-    const map = freshRepos();
-    saveRepository(map, makeRepository('@R1@'));
-    deleteRepository(map, '@R1@');
+    let map = freshRepos();
+    map = saveRepository(map, makeRepository('@R1@'));
+    map = deleteRepository(map, '@R1@');
     expect(map.has('@R1@')).toBe(false);
   });
 });

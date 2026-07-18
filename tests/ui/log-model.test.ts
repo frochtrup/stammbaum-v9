@@ -12,12 +12,12 @@ import {
 } from '../../ui/views/research-log/log-model';
 
 function dbWithEntries() {
-  const db = makeDatabase();
+  let db = makeDatabase();
   db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Muster' }));
   db.families.set('@F1@', makeFamily('@F1@'));
-  addLogEntry(db, 'person', '@I1@', makeLogEntry({ date: '2026-07-01', query: 'ältester Eintrag', result: 'pending' }));
-  addLogEntry(db, 'person', '@I1@', makeLogEntry({ date: '2026-07-05', query: 'neuester Eintrag', result: 'found' }));
-  addLogEntry(db, 'family', '@F1@', makeLogEntry({ date: '2026-07-03', query: 'Fam-Eintrag', result: 'notfound' }));
+  db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ date: '2026-07-01', query: 'ältester Eintrag', result: 'pending' })) ?? db;
+  db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ date: '2026-07-05', query: 'neuester Eintrag', result: 'found' })) ?? db;
+  db = addLogEntry(db, 'family', '@F1@', makeLogEntry({ date: '2026-07-03', query: 'Fam-Eintrag', result: 'notfound' })) ?? db;
   return db;
 }
 

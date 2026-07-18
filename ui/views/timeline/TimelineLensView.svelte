@@ -117,7 +117,7 @@
   // Deklaration steht bewusst VOR `swimLayout`: stand sie darunter, las ein $derived
   // eine block-scoped Variable vor ihrer Deklaration (TDZ) — dank Lazy-Evaluation der
   // Runes bislang folgenlos, aber nur zufällig; svelte-check meldet es zu Recht.
-  // eslint-disable-next-line no-useless-assignment
+   
   let containerWidth = $state(800);
 
   const swimLayout = $derived(mode === 'swim' ? computeSwimLaneLayout(events, histEvents, containerWidth) : null);

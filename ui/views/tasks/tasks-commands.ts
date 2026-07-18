@@ -5,31 +5,30 @@
 //
 // Bewusst in ui/, NICHT in core/research (Auftrags-Vorgabe): core/research/task.ts hat
 // nur reine Konstruktoren/Helfer (makeTask/setTaskStatus/isTaskDone), keine db-Mutations-
-// Kommandos. Diese Funktionen mutieren Person/Family in-place (analog
-// core/places/commands.ts `linkEventToPlace` — Event-/Task-Arrays werden von ihren
-// Owner-Objekten referenziert) und werden von einem AppState-Kommando aufgerufen, das
-// die Svelte-Reaktivität auslöst (Reassign obliegt der Schale, s. app-state.svelte.ts).
-// Kein DOM/I/O hier — reine Datenmutation, die Zeitstempel-Injektion (`created`, TST-3)
-// erfolgt über einen übergebenen `now`-Wert, nie über direkten `Date.now()`-Aufruf im
-// Kommando selbst (Aufrufer entscheidet die Uhrzeit, testbar ohne Wall-Clock-Mocking).
+// Kommandos. Kein DOM/I/O hier — reine Datenmutation, die Zeitstempel-Injektion
+// (`created`, TST-3) erfolgt über einen übergebenen `now`-Wert, nie über direkten
+// `Date.now()`-Aufruf im Kommando selbst (Aufrufer entscheidet die Uhrzeit, testbar ohne
+// Wall-Clock-Mocking).
+//
+// COPY-ON-WRITE (ADR-v9-92, BL-01): Diese Kommandos mutierten Person/Family früher
+// IN-PLACE. Das ist mit Undo/Redo unvereinbar — ein zurückgehaltener Snapshot teilt die
+// Entitäts-Objekte und sah `addTask`-Änderungen sofort mit (am Code belegt). Sie nehmen
+// jetzt eine eingefrorene `ReadonlyDatabase` entgegen und geben einen NEUEN Stand zurück;
+// bearbeitbare Objekte gibt es nur über den Draft (core/model/draft.ts). `null` bedeutet
+// „nicht angewandt" (Zielentität/Aufgabe fehlt) — kein stiller Verlust, Spec 21.
 import type { Database, FamilyId, PersonId, SourceId } from '../../../core/model/types';
+import { editDatabase, type ReadonlyDatabase } from '../../../core/model/draft';
+import { ownerOf } from '../entity-draft';
 import { makeTask } from '../../../core/research/index';
 import type { TaskStatus } from '../../../core/research/types';
 import type { TaskEntityKind } from './tasks-model';
 
-/** Liefert das tasks[]-Array der Zielentität, oder null wenn die Entität fehlt. */
-function tasksArrayOf(db: Database, kind: TaskEntityKind, entityId: PersonId | FamilyId) {
-  if (kind === 'person') return db.individuals.get(entityId)?.tasks ?? null;
-  return db.families.get(entityId)?.tasks ?? null;
-}
-
 /**
  * Kommando: legt eine neue Aufgabe an einer Person ODER Familie an (Upsert-artig: Task
- * ist neu, id wird injiziert). Gibt `false` zurück, wenn die Zielentität nicht existiert
- * (kein stiller Verlust, s. Spec 21 "nie stiller Abbruch").
+ * ist neu, id wird injiziert). Gibt `null` zurück, wenn die Zielentität nicht existiert.
  */
 export function addTask(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   taskId: string,
@@ -37,60 +36,74 @@ export function addTask(
   category: string,
   now: string,
   sourceRef: SourceId | '' = '',
-): boolean {
-  const arr = tasksArrayOf(db, kind, entityId);
-  if (!arr) return false;
-  arr.push(makeTask(taskId, { text: text.trim(), category, created: now, sourceRef }));
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner) return;
+    owner.tasks.push(makeTask(taskId, { text: text.trim(), category, created: now, sourceRef }));
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: ersetzt Text/Kategorie/Quellen-Bezug einer bestehenden Aufgabe vollständig (Bearbeiten-Formular). */
 export function updateTask(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   taskId: string,
   text: string,
   category: string,
   sourceRef: SourceId | '' = '',
-): boolean {
-  const arr = tasksArrayOf(db, kind, entityId);
-  const t = arr?.find((x) => x.id === taskId);
-  if (!t) return false;
-  t.text = text.trim();
-  t.category = category;
-  t.sourceRef = sourceRef;
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const t = ownerOf(d, kind, entityId)?.tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    t.text = text.trim();
+    t.category = category;
+    t.sourceRef = sourceRef;
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: setzt den Kanban-Status einer Aufgabe (hält `done` synchron, s. setTaskStatus-Invariante). */
 export function setTaskStatusById(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   taskId: string,
   status: TaskStatus,
-): boolean {
-  const arr = tasksArrayOf(db, kind, entityId);
-  const t = arr?.find((x) => x.id === taskId);
-  if (!t) return false;
-  t.status = status;
-  t.done = status === 'done';
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const t = ownerOf(d, kind, entityId)?.tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    t.status = status;
+    t.done = status === 'done';
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: entfernt eine Aufgabe. */
 export function deleteTask(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   taskId: string,
-): boolean {
-  const owner = kind === 'person' ? db.individuals.get(entityId) : db.families.get(entityId);
-  if (!owner) return false;
-  const before = owner.tasks.length;
-  owner.tasks = owner.tasks.filter((t) => t.id !== taskId);
-  return owner.tasks.length !== before;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner) return;
+    const before = owner.tasks.length;
+    owner.tasks = owner.tasks.filter((t) => t.id !== taskId);
+    applied = owner.tasks.length !== before;
+  });
+  return applied ? next : null;
 }
 
 /** Deterministische Task-Id (kein GEDCOM-Xref-Format nötig — `_ID` ist ein freier String, Spec 12 §1). */

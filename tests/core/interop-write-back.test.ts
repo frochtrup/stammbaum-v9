@@ -98,7 +98,7 @@ describe('Write-Back: geändertes Feld an bestehendem Record (INV-PT bleibt gewa
     const p = structuredClone(doc.db.individuals.get('@I1@')!);
     p.given = 'Moritz';
     p.name = 'Moritz /Muster/';
-    savePerson(doc.db.individuals, p);
+    doc.db.individuals = savePerson(doc.db.individuals, p);
 
     const out = serializeAfterWriteBack(doc);
     const reparsed = parseGedcom(out);
@@ -125,7 +125,7 @@ describe('Write-Back: geändertes Feld an bestehendem Record (INV-PT bleibt gewa
     const before = structuredClone(doc.db.individuals.get('@I1@')!);
     const p = structuredClone(before);
     p.sex = 'F';
-    savePerson(doc.db.individuals, p);
+    doc.db.individuals = savePerson(doc.db.individuals, p);
 
     const rp = parseGedcom(serializeAfterWriteBack(doc)).db.individuals.get('@I1@')!;
     expect(rp.sex).toBe('F');
@@ -139,7 +139,7 @@ describe('Write-Back: geändertes Feld an bestehendem Record (INV-PT bleibt gewa
     const doc = parseGedcom(PASSTHROUGH_INDI);
     const p = structuredClone(doc.db.individuals.get('@I1@')!);
     p.title = 'Dr.';
-    savePerson(doc.db.individuals, p);
+    doc.db.individuals = savePerson(doc.db.individuals, p);
     const out1 = serializeAfterWriteBack(doc);
     const doc2 = parseGedcom(out1);
     const out2 = serializeAfterWriteBack(doc2);
@@ -157,7 +157,7 @@ describe('Write-Back: neue Records anlegen', () => {
       sex: 'F',
       birth: makeEvent('BIRT', { seen: true, date: '1900', place: 'Rheine' }),
     });
-    savePerson(doc.db.individuals, np);
+    doc.db.individuals = savePerson(doc.db.individuals, np);
 
     const reparsed = parseGedcom(serializeAfterWriteBack(doc));
     const rp = reparsed.db.individuals.get('@I2@')!;
@@ -173,7 +173,7 @@ describe('Write-Back: neue Records anlegen', () => {
 
   it('neuer Record wird VOR TRLR eingefügt', () => {
     const doc = parseGedcom(MINI);
-    savePerson(doc.db.individuals, makePerson('@I9@', { name: 'Z /Z/' }));
+    doc.db.individuals = savePerson(doc.db.individuals, makePerson('@I9@', { name: 'Z /Z/' }));
     const lines = serializeAfterWriteBack(doc).split(/\r\n/);
     const iNew = lines.indexOf('0 @I9@ INDI');
     const iTrlr = lines.indexOf('0 TRLR');
@@ -188,7 +188,7 @@ describe('Write-Back: neue Records anlegen', () => {
       children: ['@I1@'],
       marriage: makeEvent('MARR', { seen: true, date: '1920' }),
     });
-    saveFamily(doc.db, f);
+    doc.db = saveFamily(doc.db, f);
     const rf = parseGedcom(serializeAfterWriteBack(doc)).db.families.get('@F1@')!;
     expect(rf.husband).toBe('@I1@');
     expect(rf.children).toEqual(['@I1@']);
@@ -197,7 +197,7 @@ describe('Write-Back: neue Records anlegen', () => {
 
   it('neue Quelle', () => {
     const doc = parseGedcom(MINI);
-    saveSource(doc.db.sources, makeSource('@S2@', {
+    doc.db.sources = saveSource(doc.db.sources, makeSource('@S2@', {
       title: 'Neue Quelle', author: 'Autor X', abbr: 'NQ',
     }));
     const rs = parseGedcom(serializeAfterWriteBack(doc)).db.sources.get('@S2@')!;
@@ -208,7 +208,7 @@ describe('Write-Back: neue Records anlegen', () => {
 
   it('neues Archiv (Repository) mit modelliertem _RTYPE/_FAURL', () => {
     const doc = parseGedcom(MINI);
-    saveRepository(doc.db.repositories, makeRepository('@R1@', {
+    doc.db.repositories = saveRepository(doc.db.repositories, makeRepository('@R1@', {
       name: 'Stadtarchiv', type: 'Archiv', findingAid: 'https://aid.example',
       address: 'Musterstr. 1\n48431 Rheine',
     }));
@@ -223,7 +223,7 @@ describe('Write-Back: neue Records anlegen', () => {
 describe('Write-Back: Records löschen', () => {
   it('gelöschte Person verschwindet, Rest bleibt', () => {
     const doc = parseGedcom(MINI);
-    deletePerson(doc.db.individuals, '@I1@');
+    doc.db.individuals = deletePerson(doc.db.individuals, '@I1@');
     const out = serializeAfterWriteBack(doc);
     expect(out).not.toContain('0 @I1@ INDI');
     // Quelle + Notiz bleiben.
@@ -233,7 +233,7 @@ describe('Write-Back: Records löschen', () => {
 
   it('gelöschte Quelle verschwindet', () => {
     const doc = parseGedcom(MINI);
-    deleteSource(doc.db.sources, '@S1@');
+    doc.db.sources = deleteSource(doc.db.sources, '@S1@');
     const out = serializeAfterWriteBack(doc);
     expect(out).not.toContain('0 @S1@ SOUR');
     expect(out).toContain('0 @I1@ INDI');
@@ -248,8 +248,8 @@ describe('Write-Back: Records löschen', () => {
       '0 TRLR',
     ].join('\n');
     const doc = parseGedcom(src);
-    deleteFamily(doc.db, '@F1@');
-    deleteRepository(doc.db.repositories, '@R1@');
+    doc.db = deleteFamily(doc.db, '@F1@');
+    doc.db.repositories = deleteRepository(doc.db.repositories, '@R1@');
     const out = serializeAfterWriteBack(doc);
     expect(out).not.toContain('0 @F1@ FAM');
     expect(out).not.toContain('0 @R1@ REPO');
@@ -260,7 +260,7 @@ describe('Write-Back: Records löschen', () => {
 describe('Write-Back: GED7/Strict-Adapter crashen nicht auf synthetisierten Knoten', () => {
   it('neuer Record → GED7-Export ohne Crash', () => {
     const doc = parseGedcom(MINI);
-    savePerson(doc.db.individuals, makePerson('@I2@', {
+    doc.db.individuals = savePerson(doc.db.individuals, makePerson('@I2@', {
       name: 'Neu /Person/', given: 'Neu', exids: [{ value: 'X123', type: 'UID' }],
     }));
     const roots = applyDatabaseToRoots(doc.db, doc.roots);
@@ -272,7 +272,7 @@ describe('Write-Back: GED7/Strict-Adapter crashen nicht auf synthetisierten Knot
 
   it('neuer Record → Strict-Export ohne Crash, _-Tags gestrippt', () => {
     const doc = parseGedcom(MINI);
-    saveRepository(doc.db.repositories, makeRepository('@R1@', {
+    doc.db.repositories = saveRepository(doc.db.repositories, makeRepository('@R1@', {
       name: 'Archiv', type: 'Kirche',
     }));
     const roots = applyDatabaseToRoots(doc.db, doc.roots);

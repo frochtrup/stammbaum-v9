@@ -329,6 +329,13 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     return roots;
   };
   const serializeInternal = (): string => serializeGedcom({ db, roots: projectRoots() });
+  // Übernimmt das Ergebnis eines Forschungsdaten-Kommandos. `null` = nicht angewandt
+  // (Zielentität fehlt) — dann bleibt der Zustand unberührt und es wird nicht persistiert.
+  const applyEdit = (next: Database | null): void => {
+    if (!next) return;
+    db = next;
+    persistWorkingCopyIfLoaded();
+  };
 
   return {
     get db() {
@@ -451,60 +458,38 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) persistPlaces();
     },
     savePerson(model) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextIndividuals = new Map(db.individuals);
-      savePersonCmd(nextIndividuals, model);
-      db = { ...db, individuals: nextIndividuals };
+      db = { ...db, individuals: savePersonCmd(db.individuals, model) };
       persistWorkingCopyIfLoaded();
     },
     deletePerson(id) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextIndividuals = new Map(db.individuals);
-      deletePersonCmd(nextIndividuals, id);
-      db = { ...db, individuals: nextIndividuals };
+      db = { ...db, individuals: deletePersonCmd(db.individuals, id) };
       persistWorkingCopyIfLoaded();
     },
     saveFamily(model) {
-      // saveFamilyCmd mutiert db.individuals (childOf/parentIn) UND db.families in-place
-      // (Spec 10 INV-P3) — die abschließende Reassign-Zeile löst Svelte's Reaktivität an
-      // BEIDEN betroffenen Maps aus (analog addTask's "Kommando mutiert ... in-place"-Muster).
-      saveFamilyCmd(db, model);
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      db = { ...db, individuals: new Map(db.individuals), families: new Map(db.families) };
+      // saveFamilyCmd führt die INDI-Seite (Person.parentIn/childOf) synchron nach
+      // (Spec 10 INV-P3) und liefert deshalb ein vollständiges neues Database zurück —
+      // beide betroffenen Maps (individuals + families) kommen fertig daraus.
+      db = saveFamilyCmd(db, model);
       persistWorkingCopyIfLoaded();
     },
     deleteFamily(id) {
-      deleteFamilyCmd(db, id);
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      db = { ...db, families: new Map(db.families) };
+      db = deleteFamilyCmd(db, id);
       persistWorkingCopyIfLoaded();
     },
     saveSource(model) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextSources = new Map(db.sources);
-      saveSourceCmd(nextSources, model);
-      db = { ...db, sources: nextSources };
+      db = { ...db, sources: saveSourceCmd(db.sources, model) };
       persistWorkingCopyIfLoaded();
     },
     deleteSource(id) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextSources = new Map(db.sources);
-      deleteSourceCmd(nextSources, id);
-      db = { ...db, sources: nextSources };
+      db = { ...db, sources: deleteSourceCmd(db.sources, id) };
       persistWorkingCopyIfLoaded();
     },
     saveRepository(model) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextRepositories = new Map(db.repositories);
-      saveRepositoryCmd(nextRepositories, model);
-      db = { ...db, repositories: nextRepositories };
+      db = { ...db, repositories: saveRepositoryCmd(db.repositories, model) };
       persistWorkingCopyIfLoaded();
     },
     deleteRepository(id) {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const nextRepositories = new Map(db.repositories);
-      deleteRepositoryCmd(nextRepositories, id);
-      db = { ...db, repositories: nextRepositories };
+      db = { ...db, repositories: deleteRepositoryCmd(db.repositories, id) };
       persistWorkingCopyIfLoaded();
     },
     touch() {
@@ -514,57 +499,40 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = { ...db };
       persistWorkingCopyIfLoaded();
     },
+    // --- Forschungsdaten (Aufgaben/Protokoll/Hypothesen) ---------------------------
+    // Alle zehn Kommandos liefern seit ADR-v9-92 einen NEUEN Stand statt in-place zu
+    // mutieren; `null` bedeutet „nicht angewandt" (Zielentität fehlt) — dann bleibt der
+    // Zustand unverändert und es wird auch nichts persistiert (vorher wurde in diesem
+    // Fall ein wirkungsloser Working-Copy-Save ausgelöst).
     addTask(kind, entityId, taskId, text, category, now, sourceRef) {
-      // Kommando mutiert Person/Family.tasks[] in-place (analog linkEventToPlace oben) —
-      // die abschließende Reassign-Zeile löst Svelte's Reaktivität aus (EIN Pfad, Spec 02 §3).
-      addTaskCmd(db, kind, entityId, taskId, text, category, now, sourceRef);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(addTaskCmd(db, kind, entityId, taskId, text, category, now, sourceRef));
     },
     updateTask(kind, entityId, taskId, text, category, sourceRef) {
-      updateTaskCmd(db, kind, entityId, taskId, text, category, sourceRef);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(updateTaskCmd(db, kind, entityId, taskId, text, category, sourceRef));
     },
     setTaskStatus(kind, entityId, taskId, status) {
-      setTaskStatusById(db, kind, entityId, taskId, status);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(setTaskStatusById(db, kind, entityId, taskId, status));
     },
     deleteTask(kind, entityId, taskId) {
-      deleteTaskCmd(db, kind, entityId, taskId);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(deleteTaskCmd(db, kind, entityId, taskId));
     },
     addLogEntry(kind, entityId, entry) {
-      addLogEntryCmd(db, kind, entityId, entry);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(addLogEntryCmd(db, kind, entityId, entry));
     },
     updateLogEntry(kind, entityId, index, entry) {
-      updateLogEntryCmd(db, kind, entityId, index, entry);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(updateLogEntryCmd(db, kind, entityId, index, entry));
     },
     deleteLogEntry(kind, entityId, index) {
-      deleteLogEntryCmd(db, kind, entityId, index);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(deleteLogEntryCmd(db, kind, entityId, index));
     },
     addHypothesis(kind, entityId, id, patch, now) {
-      addHypothesisCmd(db, kind, entityId, id, patch, now);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(addHypothesisCmd(db, kind, entityId, id, patch, now));
     },
     updateHypothesis(kind, entityId, id, patch) {
-      updateHypothesisCmd(db, kind, entityId, id, patch);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(updateHypothesisCmd(db, kind, entityId, id, patch));
     },
     deleteHypothesis(kind, entityId, id) {
-      deleteHypothesisCmd(db, kind, entityId, id);
-      db = { ...db };
-      persistWorkingCopyIfLoaded();
+      applyEdit(deleteHypothesisCmd(db, kind, entityId, id));
     },
   };
 }

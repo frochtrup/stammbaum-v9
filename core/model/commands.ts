@@ -6,6 +6,18 @@
 //
 // Kein Zustand hier, kein DOM/I/O (INV-ARCH-1/2) — die UI-Schale ruft diese Kommandos
 // über ein AppState-Kommando auf, das die Reaktivität auslöst.
+//
+// COPY-ON-WRITE (ADR-v9-92 Punkt 3, BL-01): Alle Kommandos hier geben einen NEUEN Stand
+// zurück, statt die übergebene Struktur in-place zu mutieren — Bedingung dafür, dass ein
+// zurückgehaltener Undo-Snapshot nicht nachträglich mitmutiert.
+//
+// WAS DER COMPILER DABEI LEISTET — und was nicht: Die `ReadonlyMap`-/`ReadonlyDatabase`-
+// Parameter machen jede In-Place-MUTATION zum Typfehler, und das ist die Hälfte, auf die
+// es ankommt (still in einen Snapshot schreiben ist der gefährliche Fehler). Einen
+// IGNORIERTEN Rückgabewert meldet TypeScript dagegen NICHT — beim Bau von BL-01 am echten
+// Code geprüft: `savePerson(map, p);` ohne Zuweisung kompiliert anstandslos und schlug
+// erst in den Tests fehl (ADR-v9-92 nahm hier mehr Compiler-Zwang an, als es gibt).
+// Diese Hälfte tragen die Tests, nicht der Typ — deshalb hat jedes Kommando einen.
 import type {
   Database,
   Family,
@@ -17,6 +29,7 @@ import type {
   Source,
   SourceId,
 } from './types';
+import { editDatabase, type ReadonlyDatabase } from './draft';
 import {
   addChildToFamily,
   removeChildFromFamily,
@@ -33,8 +46,13 @@ import {
  * ist ein eigenes Feature (Spec 20 §1.87 [S/E]), außerhalb dieser Scheibe — analog
  * savePlaceObject, das enclosedBy-Referenzen auch nicht anfasst.
  */
-export function savePerson(individuals: Map<PersonId, Person>, next: Person): void {
-  individuals.set(next.id, next);
+export function savePerson(
+  individuals: ReadonlyMap<PersonId, Person>,
+  next: Person,
+): Map<PersonId, Person> {
+  const out = new Map(individuals);
+  out.set(next.id, next);
+  return out;
 }
 
 /**
@@ -44,8 +62,13 @@ export function savePerson(individuals: Map<PersonId, Person>, next: Person): vo
  * andere Personen.childOf/parentIn) — genau wie deletePlaceObject verwaiste Verweise nicht
  * aufräumt. Kaskade/Integritäts-Report ist Sache eines separaten Features.
  */
-export function deletePerson(individuals: Map<PersonId, Person>, id: PersonId): void {
-  individuals.delete(id);
+export function deletePerson(
+  individuals: ReadonlyMap<PersonId, Person>,
+  id: PersonId,
+): Map<PersonId, Person> {
+  const out = new Map(individuals);
+  out.delete(id);
+  return out;
 }
 
 /**
@@ -62,47 +85,51 @@ export function deletePerson(individuals: Map<PersonId, Person>, id: PersonId): 
  * behalten ihren Pedigree-Wert unangetastet, neue erhalten den Default ''. Wer Pedigree
  * bearbeiten will, tut das über den ChildLink-Editor; dieses Formular fasst ihn nicht an.
  */
-export function saveFamily(db: Database, next: Family): void {
-  const prev = db.families.get(next.id);
-  const prevHusband = prev ? prev.husband : null;
-  const prevWife = prev ? prev.wife : null;
-  const prevChildren = prev ? prev.children : [];
+export function saveFamily(db: ReadonlyDatabase, next: Family): Database {
+  return editDatabase(db, (d) => {
+    const prev = d.family(next.id);
+    const prevHusband = prev ? prev.husband : null;
+    const prevWife = prev ? prev.wife : null;
+    // Kopie: `prev` wird unten von den integrity-Kommandos verändert, die Differenz muss
+    // aber gegen den Stand VOR der Änderung gebildet werden.
+    const prevChildren = prev ? prev.children.slice() : [];
 
-  // Sicherstellen, dass eine Familie existiert, bevor die integrity-Kommandos greifen
-  // (sie no-op'en auf fehlende Familien). Restfelder werden am Ende endgültig gesetzt.
-  if (!prev) {
-    db.families.set(next.id, { ...next, husband: null, wife: null, children: [] });
-  }
+    // Sicherstellen, dass eine Familie existiert, bevor die integrity-Kommandos greifen
+    // (sie no-op'en auf fehlende Familien). Restfelder werden am Ende endgültig gesetzt.
+    if (!prev) {
+      d.setFamily({ ...next, husband: null, wife: null, children: [] });
+    }
 
-  // --- Eltern-Slots synchron nachführen (INV-P3) ---
-  if (next.husband !== prevHusband) {
-    if (next.husband === null) removeParentFromFamily(db, next.id, 'husband');
-    else addParentToFamily(db, next.id, next.husband, 'husband');
-  }
-  if (next.wife !== prevWife) {
-    if (next.wife === null) removeParentFromFamily(db, next.id, 'wife');
-    else addParentToFamily(db, next.id, next.wife, 'wife');
-  }
+    // --- Eltern-Slots synchron nachführen (INV-P3) ---
+    if (next.husband !== prevHusband) {
+      if (next.husband === null) removeParentFromFamily(d, next.id, 'husband');
+      else addParentToFamily(d, next.id, next.husband, 'husband');
+    }
+    if (next.wife !== prevWife) {
+      if (next.wife === null) removeParentFromFamily(d, next.id, 'wife');
+      else addParentToFamily(d, next.id, next.wife, 'wife');
+    }
 
-  // --- Kinder-Differenz synchron nachführen (INV-P3), Pedigree unangetastet (INV-P4) ---
-  const nextSet = new Set(next.children);
-  const prevSet = new Set(prevChildren);
-  for (const cid of prevChildren) {
-    if (!nextSet.has(cid)) removeChildFromFamily(db, next.id, cid);
-  }
-  for (const cid of next.children) {
-    if (!prevSet.has(cid)) addChildToFamily(db, next.id, cid); // ohne pedigree → Default/erhalten
-  }
+    // --- Kinder-Differenz synchron nachführen (INV-P3), Pedigree unangetastet (INV-P4) ---
+    const nextSet = new Set(next.children);
+    const prevSet = new Set(prevChildren);
+    for (const cid of prevChildren) {
+      if (!nextSet.has(cid)) removeChildFromFamily(d, next.id, cid);
+    }
+    for (const cid of next.children) {
+      if (!prevSet.has(cid)) addChildToFamily(d, next.id, cid); // ohne pedigree → Default/erhalten
+    }
 
-  // --- Restfelder als reines Upsert übernehmen (keine Beziehungs-Seiteneffekte) ---
-  // husband/wife/children stehen bereits konsistent im aktuellen Family-Objekt; children in
-  // der vom Formular gewünschten Reihenfolge übernehmen. Beziehungslose Felder kommen aus next.
-  const fam = db.families.get(next.id)!;
-  db.families.set(next.id, {
-    ...next,
-    husband: fam.husband,
-    wife: fam.wife,
-    children: next.children.slice(),
+    // --- Restfelder als reines Upsert übernehmen (keine Beziehungs-Seiteneffekte) ---
+    // husband/wife/children stehen bereits konsistent im aktuellen Family-Objekt; children in
+    // der vom Formular gewünschten Reihenfolge übernehmen. Beziehungslose Felder kommen aus next.
+    const fam = d.family(next.id)!;
+    d.setFamily({
+      ...next,
+      husband: fam.husband,
+      wife: fam.wife,
+      children: next.children.slice(),
+    });
   });
 }
 
@@ -113,8 +140,8 @@ export function saveFamily(db: Database, next: Family): void {
  * verwaiste Referenzen werden von findOrphanRefs (INV-P2) gemeldet, nicht hier still
  * aufgeräumt — konsistentes Muster, kein Bug.
  */
-export function deleteFamily(db: Database, id: FamilyId): void {
-  db.families.delete(id);
+export function deleteFamily(db: ReadonlyDatabase, id: FamilyId): Database {
+  return editDatabase(db, (d) => d.removeFamily(id));
 }
 
 // --- Quelle / Archiv (Spec 10 §4, Spec 20 §2 Quelle-/Archiv-Formular) ---
@@ -129,8 +156,13 @@ export function deleteFamily(db: Database, id: FamilyId): void {
  *
  * BEWUSST OHNE Nachführung der repo-Referenz — sie ist ein loser Verweis, kein Graph.
  */
-export function saveSource(sources: Map<SourceId, Source>, next: Source): void {
-  sources.set(next.id, next);
+export function saveSource(
+  sources: ReadonlyMap<SourceId, Source>,
+  next: Source,
+): Map<SourceId, Source> {
+  const out = new Map(sources);
+  out.set(next.id, next);
+  return out;
 }
 
 /**
@@ -140,15 +172,25 @@ export function saveSource(sources: Map<SourceId, Source>, next: Source): void {
  * verwaiste citation.sourceId werden von findOrphanRefs (INV-P2, Spec 10 §6) gemeldet, nicht
  * hier still aufgeräumt.
  */
-export function deleteSource(sources: Map<SourceId, Source>, id: SourceId): void {
-  sources.delete(id);
+export function deleteSource(
+  sources: ReadonlyMap<SourceId, Source>,
+  id: SourceId,
+): Map<SourceId, Source> {
+  const out = new Map(sources);
+  out.delete(id);
+  return out;
 }
 
 /**
  * Kommando: legt ein Archiv an oder ersetzt es vollständig (Upsert per id).
  */
-export function saveRepository(repositories: Map<RepoId, Repository>, next: Repository): void {
-  repositories.set(next.id, next);
+export function saveRepository(
+  repositories: ReadonlyMap<RepoId, Repository>,
+  next: Repository,
+): Map<RepoId, Repository> {
+  const out = new Map(repositories);
+  out.set(next.id, next);
+  return out;
 }
 
 /**
@@ -157,6 +199,11 @@ export function saveRepository(repositories: Map<RepoId, Repository>, next: Repo
  * BEWUSST OHNE Kaskade auf Source.repo-Referenzen (gleiches Prinzip wie deleteSource):
  * verwaiste Verweise werden von findOrphanRefs (INV-P2) gemeldet, nicht hier aufgeräumt.
  */
-export function deleteRepository(repositories: Map<RepoId, Repository>, id: RepoId): void {
-  repositories.delete(id);
+export function deleteRepository(
+  repositories: ReadonlyMap<RepoId, Repository>,
+  id: RepoId,
+): Map<RepoId, Repository> {
+  const out = new Map(repositories);
+  out.delete(id);
+  return out;
 }

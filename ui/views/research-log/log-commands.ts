@@ -9,31 +9,35 @@
 // core/research/log.ts hat nur den reinen Konstruktor (makeLogEntry), keine
 // db-Mutations-Kommandos. Kein DOM/I/O hier — reine Datenmutation, `date` wird als
 // injizierter Zeitstempel übergeben (TST-3), nie per Date.now() im Kommando selbst.
+//
+// COPY-ON-WRITE (ADR-v9-92, BL-01): nimmt eine eingefrorene `ReadonlyDatabase` entgegen
+// und gibt einen NEUEN Stand zurück, statt Person/Family in-place zu mutieren — sonst
+// sähe ein zurückgehaltener Undo-Snapshot die Änderung sofort mit. `null` = nicht
+// angewandt (Zielentität fehlt / Index außerhalb), kein stiller Verlust.
 import type { Database, FamilyId, PersonId } from '../../../core/model/types';
+import { editDatabase, type ReadonlyDatabase } from '../../../core/model/draft';
+import { ownerOf } from '../entity-draft';
 import type { LogEntry } from '../../../core/research/types';
 import type { TaskEntityKind } from '../tasks/tasks-model';
 
-/** Liefert das researchLog[]-Array der Zielentität, oder null wenn die Entität fehlt. */
-function logArrayOf(db: Database, kind: TaskEntityKind, entityId: PersonId | FamilyId) {
-  if (kind === 'person') return db.individuals.get(entityId)?.researchLog ?? null;
-  return db.families.get(entityId)?.researchLog ?? null;
-}
-
 /**
  * Kommando: fügt einen neuen Protokoll-Eintrag an einer Person ODER Familie an
- * (Append — kein id-Upsert, s. Datei-Kopf). Gibt `false` zurück, wenn die
- * Zielentität nicht existiert (kein stiller Verlust).
+ * (Append — kein id-Upsert, s. Datei-Kopf).
  */
 export function addLogEntry(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   entry: LogEntry,
-): boolean {
-  const arr = logArrayOf(db, kind, entityId);
-  if (!arr) return false;
-  arr.push({ ...entry });
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner) return;
+    owner.researchLog.push({ ...entry });
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /**
@@ -41,27 +45,35 @@ export function addLogEntry(
  * Formular). `index` referenziert die Position im researchLog[]-Array.
  */
 export function updateLogEntry(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   index: number,
   entry: LogEntry,
-): boolean {
-  const arr = logArrayOf(db, kind, entityId);
-  if (!arr || index < 0 || index >= arr.length) return false;
-  arr[index] = { ...entry };
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner || index < 0 || index >= owner.researchLog.length) return;
+    owner.researchLog[index] = { ...entry };
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: entfernt einen Protokoll-Eintrag an der angegebenen Position. */
 export function deleteLogEntry(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   index: number,
-): boolean {
-  const arr = logArrayOf(db, kind, entityId);
-  if (!arr || index < 0 || index >= arr.length) return false;
-  arr.splice(index, 1);
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner || index < 0 || index >= owner.researchLog.length) return;
+    owner.researchLog.splice(index, 1);
+    applied = true;
+  });
+  return applied ? next : null;
 }

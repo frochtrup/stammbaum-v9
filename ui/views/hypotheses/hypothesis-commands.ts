@@ -6,64 +6,76 @@
 // reinen Konstruktoren/Helfer (makeHypothesis/addHypothesisEvidence), keine
 // db-Mutations-Kommandos. Kein DOM/I/O hier — reine Datenmutation, `now`/`id` werden
 // vom Aufrufer injiziert (TST-3), nie per Date.now()/Math.random() im Kommando selbst.
+//
+// COPY-ON-WRITE (ADR-v9-92, BL-01): nimmt eine eingefrorene `ReadonlyDatabase` entgegen
+// und gibt einen NEUEN Stand zurück, statt Person/Family in-place zu mutieren — sonst
+// sähe ein zurückgehaltener Undo-Snapshot die Änderung sofort mit. `null` = nicht
+// angewandt (Zielentität/Hypothese fehlt), kein stiller Verlust.
 import type { Database, FamilyId, PersonId } from '../../../core/model/types';
+import { editDatabase, type ReadonlyDatabase } from '../../../core/model/draft';
+import { ownerOf } from '../entity-draft';
 import { makeHypothesis } from '../../../core/research/index';
 import type { Hypothesis } from '../../../core/research/types';
 import type { TaskEntityKind } from '../tasks/tasks-model';
 
-/** Liefert das hypotheses[]-Array der Zielentität, oder null wenn die Entität fehlt. */
-function hypothesesArrayOf(db: Database, kind: TaskEntityKind, entityId: PersonId | FamilyId) {
-  if (kind === 'person') return db.individuals.get(entityId)?.hypotheses ?? null;
-  return db.families.get(entityId)?.hypotheses ?? null;
-}
-
 /**
  * Kommando: legt eine neue Hypothese an einer Person ODER Familie an (Upsert-artig:
- * Hypothese ist neu, id wird injiziert). Gibt `false` zurück, wenn die Zielentität
- * nicht existiert (kein stiller Verlust).
+ * Hypothese ist neu, id wird injiziert).
  */
 export function addHypothesis(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   id: string,
   patch: Partial<Omit<Hypothesis, 'id'>>,
   now: string,
-): boolean {
-  const arr = hypothesesArrayOf(db, kind, entityId);
-  if (!arr) return false;
-  arr.push(makeHypothesis(id, { ...patch, created: patch.created ?? now }));
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner) return;
+    owner.hypotheses.push(makeHypothesis(id, { ...patch, created: patch.created ?? now }));
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: ersetzt eine bestehende Hypothese vollständig (Bearbeiten-Formular). */
 export function updateHypothesis(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   id: string,
   patch: Partial<Omit<Hypothesis, 'id'>>,
-): boolean {
-  const arr = hypothesesArrayOf(db, kind, entityId);
-  const idx = arr?.findIndex((h) => h.id === id) ?? -1;
-  if (!arr || idx < 0) return false;
-  const existing = arr[idx]!;
-  arr[idx] = makeHypothesis(id, { ...existing, ...patch });
-  return true;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    const idx = owner?.hypotheses.findIndex((h) => h.id === id) ?? -1;
+    if (!owner || idx < 0) return;
+    const existing = owner.hypotheses[idx]!;
+    owner.hypotheses[idx] = makeHypothesis(id, { ...existing, ...patch });
+    applied = true;
+  });
+  return applied ? next : null;
 }
 
 /** Kommando: entfernt eine Hypothese. */
 export function deleteHypothesis(
-  db: Database,
+  db: ReadonlyDatabase,
   kind: TaskEntityKind,
   entityId: PersonId | FamilyId,
   id: string,
-): boolean {
-  const owner = kind === 'person' ? db.individuals.get(entityId) : db.families.get(entityId);
-  if (!owner) return false;
-  const before = owner.hypotheses.length;
-  owner.hypotheses = owner.hypotheses.filter((h) => h.id !== id);
-  return owner.hypotheses.length !== before;
+): Database | null {
+  let applied = false;
+  const next = editDatabase(db, (d) => {
+    const owner = ownerOf(d, kind, entityId);
+    if (!owner) return;
+    const before = owner.hypotheses.length;
+    owner.hypotheses = owner.hypotheses.filter((h) => h.id !== id);
+    applied = owner.hypotheses.length !== before;
+  });
+  return applied ? next : null;
 }
 
 /** Deterministische Hypothesen-Id (kein GEDCOM-Xref-Format nötig, analog newTaskId()). */

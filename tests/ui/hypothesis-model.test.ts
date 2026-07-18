@@ -11,12 +11,12 @@ import {
 } from '../../ui/views/hypotheses/hypothesis-model';
 
 function dbWithHypotheses() {
-  const db = makeDatabase();
+  let db = makeDatabase();
   db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Muster' }));
   db.families.set('@F1@', makeFamily('@F1@'));
-  addHypothesis(db, 'person', '@I1@', 'h1', { text: 'offene Hypothese', status: 'open' }, '2026-07-07');
-  addHypothesis(db, 'person', '@I1@', 'h2', { text: 'bestätigte Hypothese', status: 'confirmed' }, '2026-07-07');
-  addHypothesis(db, 'family', '@F1@', 'h3', { text: 'verworfene Hypothese', status: 'rejected' }, '2026-07-07');
+  db = addHypothesis(db, 'person', '@I1@', 'h1', { text: 'offene Hypothese', status: 'open' }, '2026-07-07') ?? db;
+  db = addHypothesis(db, 'person', '@I1@', 'h2', { text: 'bestätigte Hypothese', status: 'confirmed' }, '2026-07-07') ?? db;
+  db = addHypothesis(db, 'family', '@F1@', 'h3', { text: 'verworfene Hypothese', status: 'rejected' }, '2026-07-07') ?? db;
   return db;
 }
 

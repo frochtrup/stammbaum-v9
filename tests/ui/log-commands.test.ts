@@ -8,34 +8,37 @@ import { addLogEntry, updateLogEntry, deleteLogEntry } from '../../ui/views/rese
 
 describe('addLogEntry — fügt einen Protokoll-Eintrag an Person oder Familie an', () => {
   it('fügt einen Eintrag zu einer Person hinzu (Append, keine id)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
 
     const entry = makeLogEntry({ date: '2026-07-07', query: 'Taufeintrag suchen', result: 'pending' });
     const ok = addLogEntry(db, 'person', '@I1@', entry);
+    db = ok ?? db;
 
-    expect(ok).toBe(true);
+    expect(ok).not.toBeNull();
     const log = db.individuals.get('@I1@')!.researchLog;
     expect(log).toHaveLength(1);
     expect(log[0]!.query).toBe('Taufeintrag suchen');
   });
 
   it('fügt einen Eintrag zu einer Familie hinzu', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.families.set('@F1@', makeFamily('@F1@'));
 
     const ok = addLogEntry(db, 'family', '@F1@', makeLogEntry({ query: 'Heiratseintrag' }));
 
-    expect(ok).toBe(true);
+    db = ok ?? db;
+
+    expect(ok).not.toBeNull();
     expect(db.families.get('@F1@')!.researchLog).toHaveLength(1);
   });
 
   it('kopiert den Eintrag (kein geteiltes Objekt mit dem Aufrufer)', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
     const entry = makeLogEntry({ query: 'x' });
 
-    addLogEntry(db, 'person', '@I1@', entry);
+    db = addLogEntry(db, 'person', '@I1@', entry) ?? db;
     entry.query = 'geändert';
 
     expect(db.individuals.get('@I1@')!.researchLog[0]!.query).toBe('x');
@@ -43,19 +46,21 @@ describe('addLogEntry — fügt einen Protokoll-Eintrag an Person oder Familie a
 
   it('gibt false zurück, wenn die Zielentität nicht existiert (kein stiller Verlust)', () => {
     const db = makeDatabase();
-    expect(addLogEntry(db, 'person', '@I999@', makeLogEntry())).toBe(false);
+    expect(addLogEntry(db, 'person', '@I999@', makeLogEntry())).toBeNull();
   });
 });
 
 describe('updateLogEntry — ersetzt einen Eintrag an gegebenem Index vollständig', () => {
   it('aktualisiert den Eintrag an Index 0', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
-    addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'alt', result: 'pending' }));
+    db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'alt', result: 'pending' })) ?? db;
 
     const ok = updateLogEntry(db, 'person', '@I1@', 0, makeLogEntry({ query: 'neu', result: 'found' }));
 
-    expect(ok).toBe(true);
+    db = ok ?? db;
+
+    expect(ok).not.toBeNull();
     const e = db.individuals.get('@I1@')!.researchLog[0]!;
     expect(e.query).toBe('neu');
     expect(e.result).toBe('found');
@@ -64,22 +69,24 @@ describe('updateLogEntry — ersetzt einen Eintrag an gegebenem Index vollständ
   it('gibt false zurück bei Index außerhalb des Arrays', () => {
     const db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
-    expect(updateLogEntry(db, 'person', '@I1@', 0, makeLogEntry())).toBe(false);
-    expect(updateLogEntry(db, 'person', '@I1@', -1, makeLogEntry())).toBe(false);
+    expect(updateLogEntry(db, 'person', '@I1@', 0, makeLogEntry())).toBeNull();
+    expect(updateLogEntry(db, 'person', '@I1@', -1, makeLogEntry())).toBeNull();
   });
 });
 
 describe('deleteLogEntry — entfernt einen Eintrag an gegebenem Index', () => {
   it('entfernt genau den Eintrag am angegebenen Index, Reihenfolge der übrigen bleibt', () => {
-    const db = makeDatabase();
+    let db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
-    addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'a' }));
-    addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'b' }));
-    addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'c' }));
+    db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'a' })) ?? db;
+    db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'b' })) ?? db;
+    db = addLogEntry(db, 'person', '@I1@', makeLogEntry({ query: 'c' })) ?? db;
 
     const ok = deleteLogEntry(db, 'person', '@I1@', 1);
 
-    expect(ok).toBe(true);
+    db = ok ?? db;
+
+    expect(ok).not.toBeNull();
     const log = db.individuals.get('@I1@')!.researchLog;
     expect(log.map((e) => e.query)).toEqual(['a', 'c']);
   });
@@ -87,6 +94,6 @@ describe('deleteLogEntry — entfernt einen Eintrag an gegebenem Index', () => {
   it('gibt false zurück bei Index außerhalb des Arrays', () => {
     const db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
-    expect(deleteLogEntry(db, 'person', '@I1@', 0)).toBe(false);
+    expect(deleteLogEntry(db, 'person', '@I1@', 0)).toBeNull();
   });
 });
