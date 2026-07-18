@@ -27,12 +27,22 @@ import { makeScaleGedcom } from './make-scale-gedcom';
 /** Zielgröße aus Spec 30 §1 ("v8 verifiziert bis 20.000 Personen"). */
 const PERSONEN = 20_000;
 
-/** Budgets in ms — bewusst ~3× über den v9-Zusicherungen aus [30 §1] (ADR-v9-89), damit
+/** Budgets in ms — deutlich über den v9-Zusicherungen aus [30 §1] (ADR-v9-89), damit
  *  das Gate auf fremder CI-Hardware ein Größenordnungs-Wecker bleibt und kein Prozent-Gate.
- *  Zusicherung ⇄ Budget: Parse < 400 ⇄ 1.200 · Auflösung < 2.000 ⇄ 6.000 · Sort < 400 ⇄ 1.200. */
-const BUDGET_PARSE_MS = 1_200; // Zusicherung < 400 ms (Ist 112 ms)
-const BUDGET_RESOLVE_MS = 6_000; // Zusicherung < 2.000 ms (Ist 1.917 ms — nach BL-47)
-const BUDGET_SORT_MS = 1_200; // Zusicherung < 400 ms (Ist 86 ms)
+ *  Zusicherung ⇄ Budget: Parse < 400 ⇄ 1.200 · Auflösung < 2.000 ⇄ 9.000 · Sort < 400 ⇄ 1.200.
+ *
+ *  DAS BUDGET IST EINE RUNNER-TOLERANZ, KEIN ZIELWERT (BL-48). Der Faktor bemisst sich
+ *  am gemessenen IST auf Referenz-Hardware, nicht an der Zusicherung — sonst schrumpft
+ *  die CI-Reserve genau dann, wenn eine Implementierung ihre Zusicherung knapp erreicht.
+ *  Genau das war hier der Fall: nach BL-47 liegt die Auflösung bei 1.875 ms (94 % der
+ *  Zusicherung), die alten 6.000 ms hätten auf einem 2–3× langsameren ubuntu-latest-
+ *  Runner sporadisch rot gemeldet — und ein flackerndes Gate wird abgeschaltet.
+ *  9.000 ms = 4,8× Reserve auf das Ist. Fängt weiterhin JEDE Größenordnungs-Regression:
+ *  der behobene Registry-Neubau lag bei 89.436 ms, also Faktor 10 über dieser Schwelle,
+ *  und jede Rückkehr zu superlinearem Wachstum schlägt schon weit darunter an. */
+const BUDGET_PARSE_MS = 1_200; // Zusicherung < 400 ms (Ist 110 ms — 10,9× Reserve)
+const BUDGET_RESOLVE_MS = 9_000; // Zusicherung < 2.000 ms (Ist 1.875 ms — 4,8× Reserve)
+const BUDGET_SORT_MS = 1_200; // Zusicherung < 400 ms (Ist 87 ms — 13,8× Reserve)
 
 function ms(fn: () => void): number {
   const t0 = performance.now();
