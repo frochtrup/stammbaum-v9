@@ -230,15 +230,6 @@
       </button>
       <button
         type="button"
-        class="tasks-view__icon-btn"
-        onclick={openValConfig}
-        aria-label="Prüfregeln konfigurieren"
-        use:tooltip={'Prüfregeln konfigurieren'}
-      >
-        ⚙
-      </button>
-      <button
-        type="button"
         class="tasks-view__check-btn"
         onclick={runCheck}
         aria-label="Daten prüfen"
@@ -254,6 +245,7 @@
       {appState}
       findings={validationResults}
       onClose={() => (validationResults = null)}
+      onOpenConfig={openValConfig}
       {onNavigateToPerson}
       {onNavigateToFamily}
     />

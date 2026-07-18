@@ -16,6 +16,12 @@
     appState: AppState;
     findings: Finding[];
     onClose: () => void;
+    /** Öffnet die Regel-Konfiguration. Der Einstieg lebt HIER, nicht als Dauer-Icon in
+     *  der Tab-Toolbar: Spec 20 §1.11h verlangt für die Konfiguration „EINEN
+     *  Bottom-Sheet-Einstiegspunkt, nicht als Dauer-Toolbar-Icon" (INV-UI-11
+     *  Befehlsflächen-Budget). Im Bericht ist er zugleich dort, wo er gebraucht wird —
+     *  man will Regeln ändern, wenn man ihre Befunde vor sich sieht. */
+    onOpenConfig: () => void;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -25,6 +31,7 @@
     appState,
     findings,
     onClose,
+    onOpenConfig,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -64,9 +71,20 @@
 <section class="val-panel" aria-label="Prüfbericht">
   <div class="val-panel__head">
     <span class="val-panel__summary">{summaryText(visible)}</span>
-    <button type="button" class="val-panel__close" onclick={onClose} aria-label="Bericht ausblenden">
-      ✕
-    </button>
+    <span class="val-panel__head-actions">
+      <button
+        type="button"
+        class="val-panel__cfg"
+        onclick={onOpenConfig}
+        aria-label="Prüfregeln konfigurieren"
+        title="Prüfregeln konfigurieren"
+      >
+        ⚙
+      </button>
+      <button type="button" class="val-panel__close" onclick={onClose} aria-label="Bericht ausblenden">
+        ✕
+      </button>
+    </span>
   </div>
 
   {#each groups as group (group.severity)}
@@ -125,6 +143,13 @@
     color: var(--stb-gold-light);
   }
 
+  .val-panel__head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .val-panel__cfg,
   .val-panel__close {
     background: transparent;
     border: none;

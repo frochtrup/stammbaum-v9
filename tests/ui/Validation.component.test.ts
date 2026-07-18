@@ -28,7 +28,7 @@ describe('ValidationPanel', () => {
   it('zeigt den Befund mit Personenname und Text', () => {
     const appState = stateWithPerson();
     render(ValidationPanel, {
-      props: { appState, findings: findingsFor(appState), onClose: () => {} },
+      props: { appState, findings: findingsFor(appState), onClose: () => {}, onOpenConfig: () => {} },
     });
 
     expect(screen.getByText(/Sterbejahr 1880 liegt vor Geburtsjahr 1900/)).toBeTruthy();
@@ -39,14 +39,14 @@ describe('ValidationPanel', () => {
   it('gruppiert nach Schwere und nennt die Anzahl je Block', () => {
     const appState = stateWithPerson();
     render(ValidationPanel, {
-      props: { appState, findings: findingsFor(appState), onClose: () => {} },
+      props: { appState, findings: findingsFor(appState), onClose: () => {}, onOpenConfig: () => {} },
     });
     expect(screen.getByText(/✗ Fehler \(\d+\)/)).toBeTruthy();
   });
 
   it('meldet den Leerzustand ohne Befunde', () => {
     const appState = stateWithPerson();
-    render(ValidationPanel, { props: { appState, findings: [], onClose: () => {} } });
+    render(ValidationPanel, { props: { appState, findings: [], onClose: () => {}, onOpenConfig: () => {} } });
     expect(screen.getByText(/Keine Befunde/)).toBeTruthy();
   });
 
@@ -54,7 +54,7 @@ describe('ValidationPanel', () => {
     const appState = stateWithPerson();
     const findings = findingsFor(appState);
     const target = findings.find((f) => f.rule === 'DEATH_BEFORE_BIRTH')!;
-    render(ValidationPanel, { props: { appState, findings, onClose: () => {} } });
+    render(ValidationPanel, { props: { appState, findings, onClose: () => {}, onOpenConfig: () => {} } });
 
     expect(appState.db.individuals.get('@I1@')!.tasks).toHaveLength(0);
     const buttons = screen.getAllByLabelText('Als Aufgabe übernehmen');
@@ -66,11 +66,22 @@ describe('ValidationPanel', () => {
     expect(screen.queryByText(target.text)).toBeNull();
   });
 
+  it('das ⚙ im Berichtskopf öffnet die Konfiguration (INV-UI-11: kein Dauer-Toolbar-Icon)', async () => {
+    const appState = stateWithPerson();
+    const onOpenConfig = vi.fn();
+    render(ValidationPanel, {
+      props: { appState, findings: findingsFor(appState), onClose: () => {}, onOpenConfig },
+    });
+
+    await fireEvent.click(screen.getByLabelText('Prüfregeln konfigurieren'));
+    expect(onOpenConfig).toHaveBeenCalledTimes(1);
+  });
+
   it('ein Klick auf die Trägerperson navigiert dorthin', async () => {
     const appState = stateWithPerson();
     const onNavigateToPerson = vi.fn();
     render(ValidationPanel, {
-      props: { appState, findings: findingsFor(appState), onClose: () => {}, onNavigateToPerson },
+      props: { appState, findings: findingsFor(appState), onClose: () => {}, onOpenConfig: () => {}, onNavigateToPerson },
     });
 
     await fireEvent.click(screen.getAllByText('Otto Bauer')[0]);
