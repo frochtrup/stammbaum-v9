@@ -8,6 +8,8 @@ import FamilyDetail from '../../ui/views/family/FamilyDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson, makeSource, isEventPresent } from '../../core/model';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)', () => {
   it('rendert Mitgliederzeilen, die per Klick onNavigateToPerson mit der Person-Id aufrufen', async () => {
@@ -57,20 +59,7 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     f.marriage.lati = 52.1;
     f.marriage.long = 7.1;
     db.families.set('@F1@', f);
-    db.placeObjects.set('@P1@', {
-      id: '@P1@',
-      title: 'Ochtrup',
-      type: 'village',
-      pnames: [],
-      enclosedBy: [],
-      lat: null,
-      long: null,
-      note: '',
-      existsFrom: null,
-      existsTo: null,
-      govId: null,
-      govTypes: null,
-    });
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'village' }));
     appState.loadDatabase(db, 'test.ged');
     viewState.setCurrent('family', '@F1@');
     const onNavigateToPlace = vi.fn();
@@ -218,20 +207,7 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     // Realistische Fixture (Regressionsfund ADR-v9-78/80-Bau-Nachtrag): das
     // PlaceObject muss SELBST Koordinaten tragen, damit die Karte-Insel
     // (placesWithCoords) einen Marker dafür führt, s. EventLine.component.test.ts.
-    db.placeObjects.set('@P1@', {
-      id: '@P1@',
-      title: 'Ochtrup',
-      type: '',
-      pnames: [],
-      enclosedBy: [],
-      lat: 52.1,
-      long: 7.1,
-      note: '',
-      existsFrom: null,
-      existsTo: null,
-      govId: null,
-      govTypes: null,
-    });
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.1, long: 7.1 }));
     appState.loadDatabase(db, 'test.ged');
     viewState.setCurrent('family', '@F1@');
     const onNavigateLens = vi.fn();

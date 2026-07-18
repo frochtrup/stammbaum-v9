@@ -299,6 +299,12 @@ function mergePlaceObjectPair(
   else if (merged.note && merged.note !== survivor.note) survivor.note = `${survivor.note}\n${merged.note}`;
   if (survivor.existsFrom == null) survivor.existsFrom = merged.existsFrom;
   if (survivor.existsTo == null) survivor.existsTo = merged.existsTo;
+  // shortName folgt fill-if-empty wie die übrigen Metadaten — und wird bewusst NICHT
+  // über addName() in `pnames` gefaltet (anders als `merged.title`): `pnames` sind
+  // Identitätsnamen, die der Resolver matcht; ein Anzeigename dort würde zum
+  // Match-Kriterium und höbe genau die Trennung auf, für die das Feld existiert
+  // (ADR-v9-90/-100, Spec 11 §1).
+  if (!survivor.shortName && merged.shortName) survivor.shortName = merged.shortName;
   if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
   if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
 

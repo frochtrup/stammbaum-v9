@@ -9,6 +9,8 @@ import type { EventLineRow } from '../../ui/shell/event-line-row';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeSource } from '../../core/model';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 function row(patch: Partial<EventLineRow> = {}): EventLineRow {
   return {
@@ -182,20 +184,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
     // Realistischer Fall: frisch geseedetes PlaceObject (ADR-v9-28/44) OHNE eigene
     // Koordinaten — `ev.coords` kommt hier ausschließlich aus dem `ev.lati/long`-
     // Fallback (eventCoords-Chokepoint, Spec 11 §5), NICHT vom PlaceObject selbst.
-    appState.db.placeObjects.set('@P1@', {
-      id: '@P1@',
-      title: 'Rheine',
-      type: '',
-      pnames: [],
-      enclosedBy: [],
-      lat: null,
-      long: null,
-      note: '',
-      existsFrom: null,
-      existsTo: null,
-      govId: null,
-      govTypes: null,
-    });
+    appState.db.placeObjects.set('@P1@', place('@P1@', { title: 'Rheine' }));
 
     render(EventLine, {
       props: {

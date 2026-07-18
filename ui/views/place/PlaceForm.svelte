@@ -50,6 +50,9 @@
     const next: PlaceObject = {
       id,
       title: trimmedTitle,
+      // Anzeigename bleibt bei der Neuanlage leer ⇒ Listen zeigen `title` (ADR-v9-90).
+      // Kuriert wird er erst, wenn ein echtes Homonym ihn nötig macht.
+      shortName: '',
       type: type.trim(),
       pnames: [],
       enclosedBy: [],

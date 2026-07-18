@@ -10,6 +10,8 @@ import { createAppState } from '../../ui/shell/app-state.svelte';
 import { PlacesSyncService } from '../../services/places';
 import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { createMockPlacesStore, createMockDeviceId, createMockClock } from '../services/mock-places-store';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 const MINI_GED = `0 HEAD
 1 SOUR TEST
@@ -76,22 +78,7 @@ describe('loadGedcomText — EINE Pipeline für Datei-Import UND Demo-Ladeweg', 
       rev: 1,
       device: 'other-device',
       ts: 500,
-      placeObjects: [
-        {
-          id: '@P1@',
-          title: 'Ochtrup',
-          type: '',
-          pnames: [],
-          enclosedBy: [],
-          lat: null,
-          long: null,
-          note: '',
-          existsFrom: null,
-          existsTo: null,
-          govId: null,
-          govTypes: null,
-        },
-      ],
+      placeObjects: [place('@P1@', { title: 'Ochtrup' })],
       hofObjects: [],
     });
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId("device-1"), createMockClock(1000)));

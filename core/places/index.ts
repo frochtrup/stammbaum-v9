@@ -26,7 +26,16 @@ export { makePlaceRegistry, chainCompatibleAnyPath, type PlaceRegistry, type Enc
 export { makeHofRegistry, type HofRegistry } from './hof-registry';
 
 // Chokepoint 4 (Spec 11 §5): PLAC-Bau + Kontext-Typ.
-export { buildPlacForGedcom, buildFormString, buildFullPlaceName, eventYear, type PlaceContext } from './build-plac';
+export {
+  buildPlacForGedcom,
+  buildFormString,
+  buildFullPlaceName,
+  // Listen-Anzeige (INV-UI-14, Spec 21 §6l) — Kurzname statt Verwaltungskette.
+  buildListPlaceName,
+  placeDisplayName,
+  eventYear,
+  type PlaceContext,
+} from './build-plac';
 
 // Chokepoints 1–3 (Spec 11 §5): die einzigen erlaubten Reads.
 export { eventPlaceId, eventHofId, eventCoords, type Coords } from './chokepoints';

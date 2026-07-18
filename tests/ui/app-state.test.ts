@@ -6,43 +6,10 @@ import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase, makeEvent } from '../../core/model/index';
 import { parseGedcom } from '../../core/interop';
 import type { PlaceObject, HofObject } from '../../core/places';
-
-function place(id: string, patch: Partial<PlaceObject> = {}): PlaceObject {
-  return {
-    id,
-    title: '',
-    type: '',
-    pnames: [],
-    enclosedBy: [],
-    lat: null,
-    long: null,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    govId: null,
-    govTypes: null,
-    ...patch,
-  };
-}
-
-function hof(id: string, villageId: string, patch: Partial<HofObject> = {}): HofObject {
-  return {
-    id,
-    villageId,
-    addrs: [],
-    lat: null,
-    long: null,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    predecessor: null,
-    successor: null,
-    govId: null,
-    govTypes: null,
-    schemaVersion: 1,
-    ...patch,
-  };
-}
+// Geteilte Datenfabriken statt lokaler Kopien (TST-REUSE): eine neue Pflicht-Eigenschaft
+// an PlaceObject/HofObject wird sonst zu N Fundstellen — genau das ist beim shortName-Feld
+// (BL-55) passiert, in acht Testdateien gleichzeitig.
+import { place, hof } from '../core/places-fixtures';
 
 describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsistent', () => {
   it('savePlace fügt ein PlaceObject hinzu, das über db + placeContext sichtbar wird', () => {

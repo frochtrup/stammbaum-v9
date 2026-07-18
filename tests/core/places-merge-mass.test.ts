@@ -19,6 +19,37 @@ describe('mergePlaceObjects — Array von Verlierern (Massen-Merge, §9.2 Punkt 
     expect(places.get('@A@')!.lat).toBe(52.2); // Lücke aus @C@ gefüllt
   });
 
+  // shortName ist reine Anzeige (ADR-v9-90/-100): er folgt der fill-if-empty-Regel der
+  // übrigen Metadaten (type/note/govId) und landet NICHT in `pnames` — dort stehen
+  // Identitätsnamen, die der Resolver matcht. Ein Anzeigename dort würde zum
+  // Match-Kriterium und genau die Trennung aufheben, für die das Feld existiert.
+  it('füllt einen fehlenden shortName aus dem Verlierer (fill-if-empty)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Frankfurt' }),
+      place('@B@', { title: 'Franckfurt', shortName: 'Frankfurt (Main)' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.shortName).toBe('Frankfurt (Main)');
+  });
+
+  it('überschreibt einen vorhandenen shortName des Gewinners nie', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Frankfurt', shortName: 'Frankfurt (Main)' }),
+      place('@B@', { title: 'Franckfurt', shortName: 'Frankfurt (Oder)' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.shortName).toBe('Frankfurt (Main)');
+  });
+
+  it('faltet den shortName des Verlierers NICHT in pnames (kein Match-Kriterium)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Frankfurt' }),
+      place('@B@', { title: 'Franckfurt', shortName: 'Frankfurt (Main)' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.pnames.map((p) => p.value)).toEqual(['Franckfurt']);
+  });
+
   it('bleibt rückwärtskompatibel: einzelner String-Verlierer funktioniert weiter', () => {
     const places = placeMap(place('@A@', { title: 'Ochtrup' }), place('@B@', { title: 'Ochtorp' }));
     mergePlaceObjects(places, hofMap(), '@A@', '@B@');

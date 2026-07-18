@@ -9,6 +9,8 @@ import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, isEventPresent } from '../../core/model';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   it('rendert eine §N-Badge mit QUAY-Farbklasse und Quellentitel als Tooltip', () => {
@@ -172,20 +174,7 @@ describe('PersonDetail — Ort-Link + CoordIndicator in EINER Ereigniszeile (ADR
     // (placesWithCoords) einen Marker dafür führt — sonst bleibt der Glyph zwar
     // gefüllt (ev.lati/long-Fallback), aber ohne internen Karte-Sprung, s. eigener
     // Regressionstest in EventLine.component.test.ts.
-    db.placeObjects.set('@P1@', {
-      id: '@P1@',
-      title: 'Ochtrup',
-      type: '',
-      pnames: [],
-      enclosedBy: [],
-      lat: 52.1,
-      long: 7.6,
-      note: '',
-      existsFrom: null,
-      existsTo: null,
-      govId: null,
-      govTypes: null,
-    });
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.1, long: 7.6 }));
     appState.loadDatabase(db, 'test.ged');
     viewState.setCurrent('person', '@I1@');
     const onNavigateLens = vi.fn();

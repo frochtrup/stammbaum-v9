@@ -11,6 +11,8 @@ import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makeEvent, makePerson } from '../../core/model';
 import { savePlaceObject } from '../../core/places';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 function setOnline(value: boolean): void {
   Object.defineProperty(navigator, 'onLine', { value, configurable: true });
@@ -18,20 +20,7 @@ function setOnline(value: boolean): void {
 
 function dbWithPlace(): ReturnType<typeof makeDatabase> {
   const db = makeDatabase();
-  savePlaceObject(db.placeObjects, {
-    id: 'P1',
-    title: 'Musterdorf',
-    type: 'Village',
-    pnames: [],
-    enclosedBy: [],
-    lat: 51.5,
-    long: 10.0,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    govId: null,
-    govTypes: null,
-  });
+  savePlaceObject(db.placeObjects, place('P1', { title: 'Musterdorf', type: 'Village', lat: 51.5, long: 10.0 }));
   db.individuals.set(
     '@I1@',
     makePerson('@I1@', {
@@ -233,20 +222,15 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     const appState = createAppState();
     const db = dbWithPlace();
     for (let i = 0; i < 40; i++) {
-      savePlaceObject(db.placeObjects, {
-        id: `PX${i}`,
-        title: `Dorf ${i}`,
-        type: 'Village',
-        pnames: [],
-        enclosedBy: [],
-        lat: 51.0 + i * 0.001,
-        long: 10.0 + i * 0.001,
-        note: '',
-        existsFrom: null,
-        existsTo: null,
-        govId: null,
-        govTypes: null,
-      });
+      savePlaceObject(
+        db.placeObjects,
+        place(`PX${i}`, {
+          title: `Dorf ${i}`,
+          type: 'Village',
+          lat: 51.0 + i * 0.001,
+          long: 10.0 + i * 0.001,
+        }),
+      );
     }
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
