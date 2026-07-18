@@ -10,16 +10,11 @@
   // SVG-Namens-Zeitstrahl + Mini-Karte sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative
   // Inseln — anderer Bauabschnitt).
   //
-  // Verwaltungsgeschichte (Bau-Auftrag "Orts-Detailansicht", Nutzer-Zitat: "die
-  // Herkunftsketten sortiert nach den Zeiträumen … die direkte Zuordnung … wandert in
-  // den Bearbeiten-Modal"; Nachtrag nach Ansicht des ersten Ergebnisses: "die komplette
-  // Verwaltungshierarchie inkl. zeitlicher Abgrenzungen, die sich aus den übergeordneten
-  // Ebenen ergeben"): die LESE-Ansicht zeigt hier NUR `detail.hierarchyTimeline` (volle
-  // Kette je Schlüsseljahr, `place-detail-model.ts`) — die zunächst zusätzlich gebaute,
-  // nur-direkter-Elternteil-Zeitraum-Ansicht war dazu redundant und wurde wieder entfernt
-  // (zweiter Nachtrag). Die BEARBEITUNG der direkten `enclosedBy`-Zuordnung (Picker +
-  // Von/Bis-Jahr) lebt in `PlaceEnclosureEditModal.svelte` (eigenes Overlay, analog
-  // EventEditModal, INV-UI-4).
+  // Verwaltungsgeschichte (Bau-Auftrag "Orts-Detailansicht"): die LESE-Ansicht zeigt hier
+  // NUR `detail.hierarchyTimeline` (volle Kette je Schlüsseljahr, `place-detail-model.ts`,
+  // s. ADR-v9-75). Die BEARBEITUNG der direkten `enclosedBy`-Zuordnung (Picker + Von/Bis-
+  // Jahr) lebt in `PlaceEnclosureEditModal.svelte` (eigenes Overlay, analog EventEditModal,
+  // INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
@@ -31,7 +26,7 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { withAddedPname, withRemovedPname } from '../../../core/places';
+  import { withAddedPname, withRemovedPname, placeDisplayName } from '../../../core/places';
   import {
     buildPlaceDetail,
     buildPlaceContemporaries,
@@ -71,6 +66,8 @@
 
   let editing = $state(false);
   let formTitle = $state('');
+  /** Zeitinvarianter Listen-Anzeigename (Spec 11 §1, INV-UI-14) — nie Export (LP-1). */
+  let formShortName = $state('');
   let formType = $state('');
   let formLat = $state<number | null>(null);
   let formLong = $state<number | null>(null);
@@ -78,10 +75,8 @@
   let formExistsFrom = $state<number | null>(null);
   let formExistsTo = $state<number | null>(null);
   let formGovId = $state('');
-  /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext bearbeitet —
-   *  kein etabliertes Array-of-string-Editier-Muster im Projekt gefunden (geprüft:
-   *  PlaceForm.svelte setzt govTypes nur fest auf null bei Neuanlage), deshalb die
-   *  einfachste Lösung analog anderen komma-getrennten Listen. */
+  /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext (kein
+   *  etabliertes Array-of-string-Editier-Muster im Projekt, s. PlaceForm.svelte). */
   let formGovTypes = $state('');
   let newPnameValue = $state('');
   let newPnameFrom = $state<number | null>(null);
@@ -152,6 +147,7 @@
   function startEdit() {
     if (!detail) return;
     formTitle = detail.place.title;
+    formShortName = detail.place.shortName;
     formType = detail.place.type;
     formLat = detail.place.lat;
     formLong = detail.place.long;
@@ -172,6 +168,7 @@
     appState.savePlace({
       ...detail.place,
       title: formTitle.trim(),
+      shortName: formShortName.trim(),
       type: formType.trim(),
       lat: formLat,
       long: formLong,
@@ -221,7 +218,7 @@
   );
 
   function placeLabel(p: PlaceObject): string {
-    return p.title || p.id;
+    return placeDisplayName(p);
   }
 
   function placeMatches(p: PlaceObject, query: string): boolean {
@@ -336,6 +333,7 @@
           Name
           <input type="text" bind:value={formTitle} />
         </label>
+        <label>Anzeigename (Listen) <input type="text" bind:value={formShortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
         <label>
           Typ
           <input type="text" bind:value={formType} placeholder="z. B. Village, City, County…" />

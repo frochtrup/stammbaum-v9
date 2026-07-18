@@ -3,7 +3,7 @@
 // chronologisch"). Liest AUSSCHLIESSLICH db.hofObjects + db.placeObjects (id-basiert).
 import type { Database, Event, PlaceId, HofId } from '../../../core/model/types';
 import type { HofObject, PlaceContext } from '../../../core/places';
-import { isEnrichedHof, hasReference } from '../../../core/places';
+import { isEnrichedHof, hasReference, placeDisplayName } from '../../../core/places';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
 export interface HofRow {
@@ -59,7 +59,8 @@ export function toRow(h: HofObject, db: Database): HofRow {
     key: h.id,
     addr,
     villageId: h.villageId,
-    villageTitle: village?.title || h.villageId,
+    // Dorf-Anzeigename über den einzigen erlaubten Weg (Spec 11 §5, INV-UI-14).
+    villageTitle: village ? placeDisplayName(village) : h.villageId,
     hasCoords,
     coords: hasCoords ? { lat: h.lat as number, long: h.long as number } : null,
     enriched: isEnrichedHof(h),

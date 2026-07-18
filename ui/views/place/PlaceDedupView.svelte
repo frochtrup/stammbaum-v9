@@ -13,6 +13,7 @@
   // (Transparenz, LP-6) — kein app-weites Toast-System vorhanden, ein lokaler Hinweis an
   // der Merge-Stelle selbst reicht für diesen Zweck (Vereinfachen vor Erfinden).
   import type { AppState } from '../../shell/app-state.svelte';
+  import { placeDisplayName } from '../../../core/places';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
   import { buildPlaceDedupGroups } from './place-dedup-model';
@@ -58,7 +59,7 @@
     const winnerId = winnerFor(groupKey, suggested);
     const loserIds = memberIds.filter((id) => id !== winnerId && isSelected(groupKey, id, winnerId));
     if (loserIds.length === 0) return;
-    const winnerTitle = appState.db.placeObjects.get(winnerId)?.title || winnerId;
+    const winnerTitle = placeDisplayName(appState.db.placeObjects.get(winnerId)) || winnerId;
     const result = appState.mergePlace(winnerId, loserIds);
     statusMessage =
       result.hofsMerged > 0

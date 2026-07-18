@@ -4,7 +4,7 @@
 // Implementierung der Kern-Identitätsauflösung, ADR-v9-18-Lehre).
 import type { Database, Event, HofId } from '../../../core/model/types';
 import type { HofObject, PlaceContext } from '../../../core/places';
-import { eventHofId, eventYear } from '../../../core/places';
+import { eventHofId, eventYear, placeDisplayName } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { displayName } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
@@ -119,7 +119,8 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
   return {
     hof,
     villageId: hof.villageId,
-    villageTitle: village?.title || hof.villageId,
+    // Dorf-Anzeigename über den einzigen erlaubten Weg (Spec 11 §5, INV-UI-14).
+    villageTitle: village ? placeDisplayName(village) : hof.villageId,
     residents: rows,
     predecessorLabel: predecessor ? predecessor.addrs[0]?.value ?? predecessor.id : null,
     successorLabel: successor ? successor.addrs[0]?.value ?? successor.id : null,

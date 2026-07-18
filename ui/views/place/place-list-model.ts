@@ -6,7 +6,7 @@
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { placeTypeRank, isEnrichedPlace, hasReference } from '../../../core/places';
+import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName } from '../../../core/places';
 
 export interface PlaceRow {
   id: PlaceId;
@@ -56,7 +56,9 @@ function toRow(pl: PlaceObject): PlaceRow {
   const hasCoords = pl.lat != null && pl.long != null;
   return {
     id: pl.id,
-    title: pl.title || pl.id,
+    // Anzeigename über den einzigen erlaubten Weg (Spec 11 §5, INV-UI-14) — shortName vor
+    // title, nie po.title direkt.
+    title: placeDisplayName(pl),
     type: pl.type,
     hasCoords,
     coords: hasCoords ? { lat: pl.lat as number, long: pl.long as number } : null,
@@ -89,7 +91,9 @@ function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
 export function matchesSearch(pl: PlaceObject, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const haystack = [pl.title, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();
+  // shortName ergänzt den Heuhaufen (was sichtbar ist, muss auffindbar sein, ADR-v9-100) —
+  // title/pnames bleiben weiterhin durchsuchbar, shortName ersetzt sie nicht.
+  const haystack = [pl.title, pl.shortName, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();
   return haystack.includes(q);
 }
 

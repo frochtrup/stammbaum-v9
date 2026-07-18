@@ -19,8 +19,9 @@ import { matchesSearch as matchesFamilySearch } from '../family/family-list-mode
 import { matchesSearch as matchesSourceSearch } from '../source/source-list-model';
 import { matchesSearch as matchesPlaceSearch } from '../place/place-list-model';
 import { matchesSearch as matchesHofSearch, toRow as toHofRow } from '../hof/hof-list-model';
-import { displayName, yearPlaceSummary } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, eventPlaceLabel } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
+import { placeDisplayName } from '../../../core/places';
 
 /** Unterhalb dieser Zeichenzahl liefert die Suche bewusst keine Ergebnisse (kein
  * Full-Scan-Flackern bei jedem Tastendruck) — einfache, ausreichende Grenze, keine
@@ -33,6 +34,11 @@ export interface SearchResultRow {
   primary: string;
   /** Kurzinfo-Zeile (Jahr+Ort / Autor / Typ …), leer wenn nichts Sinnvolles vorhanden. */
   secondary: string;
+  /** Volle periodengerechte Verwaltungskette für den Tooltip (ADR-v9-86, INV-UI-14) —
+   *  nur bei Personen/Familien gesetzt (dort ist `secondary` "Jahr, Kurzname"); bei
+   *  Quellen/Orten/Höfen bedeutet `secondary` etwas anderes (Autor/Typ/Dorf), kein
+   *  Orts-Tooltip nötig. */
+  secondaryFull?: string;
 }
 
 export interface GroupedSearchResults {
@@ -70,14 +76,24 @@ export function globalSearch(db: Database, ctx: PlaceContext, query: string): Gr
   const persons: SearchResultRow[] = [];
   for (const p of db.individuals.values()) {
     if (!matchesPersonSearch(p, q)) continue;
-    persons.push({ id: p.id, primary: displayName(p), secondary: yearPlaceSummary(p.birth, ctx) });
+    persons.push({
+      id: p.id,
+      primary: displayName(p),
+      secondary: yearPlaceSummary(p.birth, ctx),
+      secondaryFull: eventPlaceLabel(p.birth, ctx),
+    });
   }
   persons.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));
 
   const families: SearchResultRow[] = [];
   for (const f of db.families.values()) {
     if (!matchesFamilySearch(db, f, q)) continue;
-    families.push({ id: f.id, primary: familyLabelFor(db, f.id), secondary: yearPlaceSummary(f.marriage, ctx) });
+    families.push({
+      id: f.id,
+      primary: familyLabelFor(db, f.id),
+      secondary: yearPlaceSummary(f.marriage, ctx),
+      secondaryFull: eventPlaceLabel(f.marriage, ctx),
+    });
   }
   families.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));
 
@@ -91,7 +107,7 @@ export function globalSearch(db: Database, ctx: PlaceContext, query: string): Gr
   const places: SearchResultRow[] = [];
   for (const pl of db.placeObjects.values()) {
     if (!matchesPlaceSearch(pl, q)) continue;
-    places.push({ id: pl.id, primary: pl.title || pl.id, secondary: pl.type });
+    places.push({ id: pl.id, primary: placeDisplayName(pl), secondary: pl.type });
   }
   places.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));
 

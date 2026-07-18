@@ -14,6 +14,7 @@
   // Aufrufer, analog dem bisherigen reinen <input>).
   import type { AppState } from './app-state.svelte';
   import type { PlaceObject } from '../../core/places/types';
+  import { placeDisplayName } from '../../core/places';
   import { matchesSearch } from '../views/place/place-list-model';
   import PlaceForm from '../views/place/PlaceForm.svelte';
   import Picker from './Picker.svelte';
@@ -37,7 +38,7 @@
   const places = $derived(Array.from(appState.db.placeObjects.values()));
 
   function placeLabel(p: PlaceObject): string {
-    return p.title || p.id;
+    return placeDisplayName(p);
   }
 
   function togglePanel() {

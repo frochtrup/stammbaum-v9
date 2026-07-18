@@ -3,7 +3,7 @@
 // über core-Chokepoints/-Felder, schreibt nie zurück (reine Query-Funktionen, Spec 02 §3).
 import type { Person, Event } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
-import { eventPlaceId, buildFormString, eventYear } from '../../core/places';
+import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
 import { formatDateForDisplay } from '../../core/model/gedcom-date';
 
 /** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
@@ -69,12 +69,15 @@ export function eventPlaceLabel(ev: Event, ctx: PlaceContext): string {
 
 /** Kombiniertes "Jahr, Ort" für die Listenzeile — leer, wenn beides fehlt.
  *  DISAMBIGUIERUNGS-/Übersichts-Kontext (Kinder-/Ehepartner-/Eltern-Zeilen, Ort-/Hof-
- *  Listen, Suche, INV-UI-6/[21 §6f] INV-UI-9) — Jahr genügt hier, ein volles Datum wäre
- *  Rauschen. NICHT für die eigenen Ereigniszeilen einer Detail-Seite verwenden, dafür
- *  siehe dateSummary(). */
+ *  Listen, Suche, INV-UI-6/[21 §6f] INV-UI-9, [21 §6l] INV-UI-14) — Jahr genügt hier, und
+ *  der Ortsteil ist der KURZNAME (`buildListPlaceName`, Spec 11 §5), nicht die volle
+ *  Verwaltungskette — ein volles Datum ODER eine lange Kette wären hier Rauschen. Die
+ *  Kette bleibt per `use:tooltip` an derselben Zeile erreichbar (ADR-v9-86), s. Aufrufer.
+ *  NICHT für die eigenen Ereigniszeilen einer Detail-Seite verwenden, dafür siehe
+ *  dateSummary() (die weiterhin die volle Kette via eventPlaceLabel trägt). */
 export function yearPlaceSummary(ev: Event, ctx: PlaceContext): string {
   const year = eventYearLabel(ev);
-  const place = eventPlaceLabel(ev, ctx);
+  const place = buildListPlaceName(ev, ctx);
   if (year && place) return `${year}, ${place}`;
   return year || place;
 }

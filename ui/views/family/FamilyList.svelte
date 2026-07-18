@@ -11,6 +11,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeFamily, allocatorFromDatabase, nextId } from '../../../core/model';
+  import { tooltip } from '../../shell/tooltip';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import {
@@ -131,7 +132,9 @@
             <button type="button" class="family-list__row" onclick={() => selectFamily(row.id)}>
               <span class="family-list__parents">{row.parentsLabel}</span>
               <span class="family-list__meta">
-                {#if row.marriageSummary}<span>⚭ {row.marriageSummary}</span>{/if}
+                {#if row.marriageSummary}
+                  <span use:tooltip={row.marriagePlaceFull || undefined}>⚭ {row.marriageSummary}</span>
+                {/if}
                 <span class="stb-list-stat">{row.childCount} {row.childCount === 1 ? 'Kind' : 'Kinder'}</span>
               </span>
             </button>

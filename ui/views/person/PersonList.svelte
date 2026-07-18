@@ -154,8 +154,12 @@
                     {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
                   </span>
                   <span class="person-list__meta">
-                    {#if row.birthSummary}<span>* {row.birthSummary}</span>{/if}
-                    {#if row.deathSummary}<span>† {row.deathSummary}</span>{/if}
+                    {#if row.birthSummary}
+                      <span use:tooltip={row.birthPlaceFull || undefined}>* {row.birthSummary}</span>
+                    {/if}
+                    {#if row.deathSummary}
+                      <span use:tooltip={row.deathPlaceFull || undefined}>† {row.deathSummary}</span>
+                    {/if}
                   </span>
                 </button>
               </li>

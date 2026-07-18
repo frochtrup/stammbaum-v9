@@ -3,6 +3,7 @@
 import type { Database } from '../../../core/model/types';
 import type { Finding, Severity } from '../../../core/validate/index';
 import { RULES, type Rule, type RuleGroup } from '../../../core/validate/index';
+import { placeDisplayName } from '../../../core/places';
 import { displayName } from '../../shell/person-display';
 
 export const SEVERITY_ICON: Record<Severity, string> = { error: '✗', warn: '⚠', info: 'ℹ' };
@@ -65,7 +66,7 @@ export function subjectLabel(f: Finding, db: Database): string {
   }
   if (f.placeId) {
     const o = db.placeObjects.get(f.placeId);
-    return o?.title || f.placeId;
+    return placeDisplayName(o) || f.placeId;
   }
   if (f.hofId) {
     const h = db.hofObjects.get(f.hofId);

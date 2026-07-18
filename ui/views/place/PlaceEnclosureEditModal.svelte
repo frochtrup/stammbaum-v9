@@ -26,7 +26,7 @@
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import Picker from '../../shell/Picker.svelte';
-  import { withAddedEnclosedBy, withRemovedEnclosedBy } from '../../../core/places';
+  import { withAddedEnclosedBy, withRemovedEnclosedBy, placeDisplayName } from '../../../core/places';
   import PlaceForm from './PlaceForm.svelte';
 
   interface Props {
@@ -89,11 +89,11 @@
   );
 
   function placeTitleFor(id: string): string {
-    return appState.db.placeObjects.get(id)?.title ?? id;
+    return placeDisplayName(appState.db.placeObjects.get(id)) || id;
   }
 
   function placeLabel(p: PlaceObject): string {
-    return p.title || p.id;
+    return placeDisplayName(p);
   }
 
   function placeMatches(p: PlaceObject, query: string): boolean {
