@@ -13,6 +13,13 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/perf/**/*.test.ts'],
+    // PFLICHT, nicht Geschmack: der Standard-Reporter unterdrückt console.log aus grünen
+    // Tests restlos (verifiziert 2026-07-18, auch mit CI=true) — im CI-Log stünde dann
+    // nur "1 passed" und die Messwerte, um die es hier einzig geht, wären unsichtbar.
+    // Das Gate wäre ein reiner Rot/Grün-Wecker ohne die Zahl, die seinen Nutzen ausmacht
+    // (s. Kopfkommentar von scale.perf.test.ts). Beim Verdrahten in CI (BL-48) zunächst
+    // übersehen und erst bei der Frage "wo finde ich die Zahl?" aufgefallen.
+    reporters: ['verbose'],
     // Die 20k-Fixture zu erzeugen + zu verarbeiten liegt weit über dem 5s-Default.
     testTimeout: 600_000,
   },
