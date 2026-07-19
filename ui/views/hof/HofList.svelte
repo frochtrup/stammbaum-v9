@@ -10,6 +10,7 @@
   import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
   import EventsByType from '../../shell/EventsByType.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
+  import FilterBar from '../../shell/FilterBar.svelte';
 
   interface Props {
     appState: AppState;
@@ -79,14 +80,22 @@
         {/if}
       </div>
       {#if onOpenReview || onOpenDedup}
-        <div class="hof-list__bulk-actions">
-          {#if onOpenReview}
-            <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
-          {/if}
-          {#if onOpenDedup}
-            <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
-          {/if}
-        </div>
+        <!-- Wie in PlaceList: Kuratierungs-Werkzeuge hinter EINEN Einstiegspunkt
+             (Spec 21 §6h, BL-96). Dieselbe Rolle, derselbe Mechanismus — nicht je Liste
+             neu entschieden (INV-UI-4).
+             Der LEERZUSTAND oben behält die Knöpfe bewusst offen: dort sind sie das
+             Einzige auf der Fläche, und eine Disclosure über einer leeren Liste würde
+             das einzige Angebot verstecken statt Platz zu sparen. -->
+        <FilterBar label="Werkzeuge">
+          <div class="hof-list__tools">
+            {#if onOpenReview}
+              <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
+            {/if}
+            {#if onOpenDedup}
+              <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+            {/if}
+          </div>
+        </FilterBar>
       {/if}
     </div>
 
@@ -176,6 +185,12 @@
   /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in
      der Zeile ist. margin-left:auto ist hier sicher (TST-11), weil dieser Block IMMER
      das letzte Element der Toolbar-Zeile ist, wenn er überhaupt gerendert wird. */
+  .hof-list__tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
   .hof-list__bulk-actions {
     display: flex;
     flex-wrap: wrap;

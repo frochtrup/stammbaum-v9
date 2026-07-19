@@ -262,6 +262,8 @@ describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () =>
 
     render(PlaceList, { props: { appState, viewState } });
 
+    // Ohne Callbacks entfällt der ganze Einstieg — kein leeres "Werkzeuge"-Panel.
+    expect(screen.queryByRole('button', { name: 'Werkzeuge' })).toBeNull();
     expect(screen.queryByText('Massen-Dedup')).toBeNull();
   });
 
@@ -275,6 +277,11 @@ describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () =>
     const onOpenDedup = vi.fn();
 
     render(PlaceList, { props: { appState, viewState, onOpenDedup } });
+    // Seit BL-96 liegen die Kuratierungs-Werkzeuge hinter EINEM "Werkzeuge"-Einstieg
+    // (Spec 21 §6h) — die Toolbar-Ownership aus §10c bleibt unberührt, die Liste besitzt
+    // den Einstieg weiterhin selbst. Nur ein Klick mehr, und die Panel-Inhalte liegen
+    // portaliert am <body> (deshalb `screen`, nicht `container`).
+    await fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }));
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 
     expect(onOpenDedup).toHaveBeenCalledOnce();

@@ -239,6 +239,11 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Orte/ }));
+    // Seit BL-96 liegen die Kuratierungs-Werkzeuge hinter EINEM "Werkzeuge"-Einstieg
+    // (Spec 21 §6h) — die Toolbar-Ownership aus §10c bleibt unberührt, die Liste besitzt
+    // den Einstieg weiterhin selbst. Nur ein Klick mehr, und die Panel-Inhalte liegen
+    // portaliert am <body> (deshalb `screen`, nicht `container`).
+    await fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }));
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 
     expect(screen.getByText('Orte — Massen-Dedup')).toBeTruthy();

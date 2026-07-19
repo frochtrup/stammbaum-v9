@@ -25,9 +25,22 @@
   interface Props {
     /** Anzahl der vom Default abweichenden Filterfelder — 0 = "Filter", sonst "Filter · N". */
     activeCount?: number;
+    /**
+     * Beschriftung von Trigger und Panel. Default "Filter" — der Fall, für den diese
+     * Komponente gebaut wurde.
+     *
+     * Der Parameter kam mit BL-96 dazu: Spec 21 §6h ordnet "seltene/schwere" Befehle
+     * hinter EINEN Einstiegspunkt, und die Orts-/Hof-Werkzeuge (Review, Massen-Dedup)
+     * sind genau das. Sie brauchen dieselbe Mechanik — eingeklappt per Default,
+     * Bottom-Sheet auf Mobil, Popover auf Desktop, portaliert. Eine zweite Komponente
+     * dafür wäre derselbe Mechanismus zum zweiten Mal (INV-UI-4); ein Parameter ist die
+     * kleinere Antwort. (Die allgemeinere Extraktion zu einer `Disclosure`-Primitive
+     * steht als BL-69 im Backlog — hier bewusst NICHT vorweggenommen.)
+     */
+    label?: string;
     children: Snippet;
   }
-  const { activeCount = 0, children }: Props = $props();
+  const { activeCount = 0, label = 'Filter', children }: Props = $props();
 
   let open = $state(false);
   let triggerEl = $state<HTMLElement | undefined>(undefined);
@@ -49,15 +62,15 @@
     onclick={toggle}
     bind:this={triggerEl}
   >
-    Filter{activeCount > 0 ? ` · ${activeCount}` : ''}
+    {label}{activeCount > 0 ? ` · ${activeCount}` : ''}
   </button>
 
   {#if open}
-    <button type="button" class="stb-filterbar__backdrop" aria-label="Filter-Hintergrund schließen" onclick={close} use:portal></button>
-    <div class="stb-filterbar__panel" role="dialog" aria-label="Filter" use:anchoredTo={triggerEl}>
+    <button type="button" class="stb-filterbar__backdrop" aria-label="{label}-Hintergrund schließen" onclick={close} use:portal></button>
+    <div class="stb-filterbar__panel" role="dialog" aria-label={label} use:anchoredTo={triggerEl}>
       <div class="stb-filterbar__panel-head">
-        <span>Filter</span>
-        <button type="button" class="stb-filterbar__panel-close" aria-label="Filter schließen" onclick={close}>✕</button>
+        <span>{label}</span>
+        <button type="button" class="stb-filterbar__panel-close" aria-label="{label} schließen" onclick={close}>✕</button>
       </div>
       <div class="stb-filterbar__panel-body">
         {@render children()}

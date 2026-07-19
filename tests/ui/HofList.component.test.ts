@@ -192,6 +192,11 @@ describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup"
     const onOpenDedup = vi.fn();
 
     render(HofList, { props: { appState, viewState, onOpenReview, onOpenDedup } });
+    // Seit BL-96 liegen die Kuratierungs-Werkzeuge hinter EINEM "Werkzeuge"-Einstieg
+    // (Spec 21 §6h) — die Toolbar-Ownership aus §10c bleibt unberührt, die Liste besitzt
+    // den Einstieg weiterhin selbst. Nur ein Klick mehr, und die Panel-Inhalte liegen
+    // portaliert am <body> (deshalb `screen`, nicht `container`).
+    await fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }));
     await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 

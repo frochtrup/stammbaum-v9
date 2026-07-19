@@ -99,16 +99,23 @@
         </div>
       </FilterBar>
       {#if onOpenReview || onOpenDedup}
-        <!-- Beide Bulk-Aktionen teilen sich EINE Zeile (Spec 21 §10c Toolbar-Ownership,
-             INV-UI-11 Befehlsflächen-Budget) — kein zweiter Slot für den Review-Öffner. -->
-        <div class="place-list__bulk-actions">
-          {#if onOpenReview}
-            <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen</button>
-          {/if}
-          {#if onOpenDedup}
-            <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
-          {/if}
-        </div>
+        <!-- Kuratierungs-Werkzeuge hinter EINEM Einstiegspunkt (Spec 21 §6h: "seltene/
+             schwere Konfiguration → hinter EINEM Einstiegspunkt, niemals ein Dauer-Icon
+             in der Kopfzeile"). Vorher standen beide dauerhaft in der Toolbar — auf der
+             Desktop-Listenspalte (352px, also SCHMALER als die mobile Zielbreite) ergab
+             das drei Umbruchzeilen und 161px Kopfbereich, gemessen (BL-96).
+             Dieselbe Disclosure-Mechanik wie die Filter, nur mit anderer Beschriftung —
+             kein zweiter Mechanismus (INV-UI-4). -->
+        <FilterBar label="Werkzeuge">
+          <div class="place-list__tools">
+            {#if onOpenReview}
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen</button>
+            {/if}
+            {#if onOpenDedup}
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+            {/if}
+          </div>
+        </FilterBar>
       {/if}
     </div>
 
@@ -213,9 +220,10 @@
   /* Bulk-Aktionen (Massen-Dedup) rechtsbündig, sofern Platz in der Zeile ist. margin-left:
      auto ist hier sicher (TST-11), weil dieser Block IMMER das letzte Element der
      Toolbar-Zeile ist, wenn er überhaupt gerendert wird (kein Geschwister danach). */
-  .place-list__bulk-actions {
+  .place-list__tools {
     display: flex;
-    margin-left: auto;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .place-list__toggle {
