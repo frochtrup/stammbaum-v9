@@ -8,7 +8,7 @@
   // hier) und reicht es unverändert durch. Nur der Standard-GEDCOM-5.5.1-Pfad — GED7/
   // Strict/GRAMPS/Anonymisierung sind nicht Teil dieser Aktion (separater Export-Dialog,
   // nicht Teil dieser Scheibe).
-  import { exportViaOnePipe } from '../../services/file';
+  import { saveGedcom } from './save-action';
   import type { FileService } from '../../services/file';
   import type { AppState } from './app-state.svelte';
 
@@ -24,35 +24,13 @@
   /** Kurzer Status-Hinweis nach dem Speichern (analog placesEditNotice-Muster in App.svelte). */
   let notice = $state('');
 
-  function baseNameOf(fileName: string): string {
-    return fileName.replace(/\.[^./\\]+$/, '');
-  }
-
+  // Der eigentliche Vorgang liegt seit BL-93 in save-action.ts — dieselbe Funktion
+  // ruft das Kürzel Cmd/Ctrl+S in App.svelte auf (EIN Speichern-Pfad, INV-UI-4).
   async function handleClick() {
     status = 'saving';
     notice = '';
-    try {
-      const doc = appState.buildGedcomDoc();
-      const result = await exportViaOnePipe(fileService, {
-        format: 'gedcom-5.5.1',
-        baseName: baseNameOf(appState.fileName),
-        gedcomDoc: doc,
-        handle,
-      });
-      if (!result.ok) {
-        notice = 'Speichern abgebrochen.';
-      } else if (result.tier === 'fs-handle') {
-        notice = 'Gespeichert (direkt in die Datei).';
-      } else if (result.tier === 'share') {
-        notice = 'Zum Sichern angeboten (Share-Sheet).';
-      } else {
-        notice = 'Als Download bereitgestellt.';
-      }
-    } catch (err) {
-      notice = 'Speichern fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err));
-    } finally {
-      status = 'idle';
-    }
+    notice = await saveGedcom(appState, fileService, handle);
+    status = 'idle';
   }
 </script>
 

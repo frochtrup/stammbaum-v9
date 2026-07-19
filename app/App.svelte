@@ -42,7 +42,10 @@
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import UndoControls from '../ui/shell/UndoControls.svelte';
-  import { matchShortcut, isEditableTarget } from '../ui/shell/shortcuts';
+  import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
+  import CommandPalette from '../ui/shell/CommandPalette.svelte';
+  import { isNavCommand, type Command } from '../ui/shell/command-palette-model';
+  import { saveGedcom } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
@@ -267,13 +270,63 @@
     viewState.setCurrent('hof', hofId);
     route.setTarget('hof');
   }
-  // Undo/Redo per Tastatur (BL-01, Spec 20 §1.2). An der Schale statt an der Leiste:
-  // das Kürzel soll überall greifen, unabhängig vom Fokus. In Eingabefeldern bewusst
-  // NICHT — dort gehört ⌘Z dem Feld (s. shortcuts.ts).
+  // Befehlspalette (⌘K, BL-93) — Desktop-Pendant zur Suche (Spec 21 §3). Sie lebt hier
+  // an der Schale, weil sie in JEDER Ansicht erreichbar sein muss.
+  let paletteOpen = $state(false);
+
+  /** Ausführen eines Palette-Befehls: Navigationsziel ODER Sprung auf eine Entität.
+   *  Die Entitäts-Sprünge nutzen exakt die Funktionen, die auch die Suchfläche
+   *  bedienen (openPersonFromSearch & Co.) — kein zweiter Sprung-Pfad. */
+  function runCommand(cmd: Command) {
+    if (isNavCommand(cmd)) {
+      route.setTarget(cmd.id);
+      return;
+    }
+    if (cmd.kind === 'person') openPersonFromSearch(cmd.id);
+    else if (cmd.kind === 'family') openFamilyFromSearch(cmd.id);
+    else if (cmd.kind === 'source') openSourceFromSearch(cmd.id);
+    else if (cmd.kind === 'place') openPlaceFromSearch(cmd.id);
+    else openHofFromSearch(cmd.id);
+  }
+
+  async function runSave() {
+    if (!appState.fileName) return;
+    placesEditNotice = await saveGedcom(appState, fileService, fileHandle);
+  }
+
+  // Tastenkürzel der Schale (BL-01 Undo/Redo, BL-08 Speichern/Escape, BL-93 Palette).
+  // An der Schale statt an einzelnen Leisten: die Kürzel sollen überall greifen,
+  // unabhängig vom Fokus.
+  //
+  // `belongsToField` statt eines pauschalen "in Eingabefeldern gar nichts": ⌘Z gehört
+  // dort dem Feld, Escape und ⌘S gerade NICHT — ein Escape, das ein Overlay nicht
+  // schließt, weil der Fokus in dessen eigenem Suchfeld steht, wäre die Falle statt der
+  // Rettung (LP-8, Spec 21 §6i).
   function onWindowKeydown(e: KeyboardEvent) {
-    if (isEditableTarget(e.target)) return;
     const action = matchShortcut(e);
     if (!action) return;
+    if (belongsToField(action) && isEditableTarget(e.target)) return;
+
+    if (action === 'palette') {
+      paletteOpen = !paletteOpen;
+      e.preventDefault();
+      return;
+    }
+    if (action === 'escape') {
+      // Nur beanspruchen, wenn wirklich etwas zu schließen war — sonst nimmt die App
+      // anderen Overlays (Modals, Menüs) ihr eigenes Escape weg.
+      if (paletteOpen) {
+        paletteOpen = false;
+        e.preventDefault();
+      }
+      return;
+    }
+    if (action === 'save') {
+      e.preventDefault();
+      void runSave();
+      return;
+    }
+
     const handled = action === 'undo' ? appState.undo() : appState.redo();
     // Nur beanspruchen, wenn wirklich etwas passiert ist — sonst schluckt die App ein
     // Kürzel, das der Browser sinnvoller behandeln könnte.
@@ -282,6 +335,15 @@
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
+
+{#if paletteOpen}
+  <CommandPalette
+    db={appState.db}
+    ctx={appState.placeContext}
+    onClose={() => (paletteOpen = false)}
+    onRun={runCommand}
+  />
+{/if}
 
 <div class="app-shell" class:app-shell--desktop={layout.isDesktopLayout}>
   {#if layout.isDesktopLayout}

@@ -1,12 +1,15 @@
-// ui/shell/shortcuts.ts — Tastenkürzel der Schale (BL-01 bringt Undo/Redo mit; die
-// übrigen aus BL-08 — Speichern/Verwerfen/Escape — kommen später hier dazu).
+// ui/shell/shortcuts.ts — Tastenkürzel der Schale (Spec 20 §1.2, Spec 21 §3
+// "Tastatur-first überall"). Undo/Redo kamen mit BL-01, Speichern/Escape mit BL-08,
+// die Befehlspalette mit BL-93 — bewusst in EINEM Zug gebaut (ADR-v9-101): die Datei
+// ist klein, sie zweimal aufzumachen kostet mehr als die sauberere Backlog-Grenze wert
+// wäre.
 //
 // Rein und DOM-frei bis auf den Ereignistyp: die Zuordnung Taste → Aktion ist eine
 // Funktion, kein Listener. Damit ist sie ohne Event-Dispatch testbar (TST-3-Geist), und
 // die Schale bleibt für das Verdrahten zuständig (App.svelte, `<svelte:window>`).
 
 /** Die von der Schale ausführbaren Kürzel-Aktionen. */
-export type Shortcut = 'undo' | 'redo';
+export type Shortcut = 'undo' | 'redo' | 'save' | 'palette' | 'escape';
 
 /**
  * True, wenn der Tastendruck in einem Texteingabe-Kontext landet.
@@ -36,7 +39,31 @@ export function isEditableTarget(target: EventTarget | null): boolean {
  * schädlich. `altKey` schließt Kombinationen aus, die anderswo eigene Bedeutung haben.
  */
 export function matchShortcut(e: KeyboardEvent): Shortcut | null {
+  // Escape trägt keinen Modifier — zuerst prüfen, sonst fällt es durch die
+  // Modifier-Schranke unten.
+  if (e.key === 'Escape') return 'escape';
+
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return null;
-  if (e.key.toLowerCase() !== 'z') return null;
-  return e.shiftKey ? 'redo' : 'undo';
+  const key = e.key.toLowerCase();
+  if (key === 'z') return e.shiftKey ? 'redo' : 'undo';
+  if (key === 's') return 'save';
+  if (key === 'k') return 'palette';
+  return null;
+}
+
+/**
+ * Gehört das Kürzel im Texteingabe-Kontext dem FELD statt der App?
+ *
+ * Nur Undo/Redo: dort ist das Text-Undo des Browsers die erwartete Bedeutung (s.
+ * `isEditableTarget`). Speichern, Befehlspalette und Escape sollen dagegen GERADE auch
+ * beim Tippen greifen — ein Escape, das ein offenes Overlay nicht schließt, weil der
+ * Fokus im Suchfeld dieses Overlays steht, wäre die Falle statt der Rettung (LP-8,
+ * Spec 21 §6i "Escape schließt jedes Overlay").
+ *
+ * Vor BL-93 war diese Unterscheidung nicht nötig und lag als pauschales
+ * `if (isEditableTarget(e.target)) return;` beim Aufrufer — mit Escape im Kürzel-Satz
+ * wäre daraus genau der beschriebene Keyboard-Trap geworden.
+ */
+export function belongsToField(shortcut: Shortcut): boolean {
+  return shortcut === 'undo' || shortcut === 'redo';
 }
