@@ -13,10 +13,11 @@
 // Deshalb bekommt jeder Render hier eine echte Route-Instanz statt eines Callback-Spions
 // — dieselbe Instanz, die in der App auch die Bottom-Nav-Markierung speist.
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import type { ComponentProps } from 'svelte';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { createRoute } from '../../ui/shell/route.svelte';
+import { createRoute, type Route } from '../../ui/shell/route.svelte';
 import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { FileService } from '../../services/file/file-service';
 import { PlacesSyncService } from '../../services/places';
@@ -29,6 +30,29 @@ import {
   createMockPlacesFileHandleStore,
   createMockPlacesStore,
 } from '../services/mock-places-store';
+
+// EIN Render-Einstieg für die ganze Datei. `fileService`/`persister` sind PFLICHT-Props
+// von MoreView (App.svelte reicht dieselben Instanzen durch, die auch Auto-Load/Auto-Save
+// nutzen) — acht Aufrufe hier ließen sie weg und liefen nur deshalb grün, weil das
+// Hub-Menü sie erst im "Datei"-Eintrag anfasst. `svelte-check` hat genau das aufgedeckt.
+// Statt die Props optional zu machen (das wäre eine Typ-Lüge gegenüber App.svelte)
+// liefert der Helfer echte Mock-Instanzen; Tests, die eine bestimmte Instanz brauchen,
+// überschreiben sie über `extra`.
+type MoreProps = ComponentProps<typeof MoreView>;
+
+function renderMore(route: Route, extra: Partial<MoreProps> = {}) {
+  return render(MoreView, {
+    props: {
+      appState: createAppState(),
+      fileService: new FileService(createMockAdapterSet().adapters),
+      persister: createPlacesPersister(
+        new PlacesSyncService(createMockPlacesStore(null), createMockDeviceId('dev-A'), createMockClock(1000)),
+      ),
+      route,
+      ...extra,
+    },
+  });
+}
 
 // Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
 // Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
@@ -46,7 +70,7 @@ afterEach(() => {
 describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   it('zeigt alle sechs Menüeinträge (vier Lenses + Ausgaben + Einstellungen)', () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     for (const label of ['Karte', 'Zeitleiste', 'Statistik', 'Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(label))).toBeTruthy();
@@ -55,7 +79,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste NICHT mehr', () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     for (const label of ['Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
@@ -67,7 +91,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('Klick auf "Karte" setzt das Routen-Ziel "map" und öffnet KEINE zweite Karte im Hub', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Karte/ }));
 
@@ -81,7 +105,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('Klick auf "Zeitleiste" setzt das Routen-Ziel "timeline", ohne den Hub-Inhalt zu tauschen', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Zeitleiste/ }));
 
@@ -91,7 +115,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('Klick auf "Story" zeigt ComingSoonPanel mit Label "Story"', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Story/ }));
 
@@ -102,7 +126,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('Klick auf "Einstellungen" zeigt ComingSoonPanel mit Label "Einstellungen"', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Einstellungen/ }));
 
@@ -111,7 +135,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('Klick auf "Statistik" zeigt die echte StatisticsView (kein ComingSoonPanel mehr)', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Statistik/ }));
 
@@ -120,12 +144,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 
   it('"Datei"-Sub-Ansicht zeigt KEINE Orte-Buttons, wenn kein placesFileIO übergeben wird (Rückwärtskompatibilität)', async () => {
-    const fileService = new FileService(createMockAdapterSet().adapters);
-    const persister = createPlacesPersister(
-      new PlacesSyncService(createMockPlacesStore(null), createMockDeviceId('dev-A'), createMockClock(1000)),
-    );
-    const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), fileService, persister, route } });
+    renderMore(createRoute({ target: 'more' }));
 
     await fireEvent.click(screen.getByRole('button', { name: /Datei/ }));
 
@@ -134,20 +153,15 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 
   it('"Datei"-Sub-Ansicht zeigt die Orte-Buttons zusätzlich zu Import/Speichern, wenn placesFileIO übergeben wird (ADR-v9-70)', async () => {
-    const fileService = new FileService(createMockAdapterSet().adapters);
+    // Dieser Test braucht EINE bestimmte Store-Instanz (dieselbe im Persister wie im
+    // placesFileIO) — deshalb hier explizit gebaut und über `extra` eingesetzt.
     const placesStore = createMockPlacesStore(null);
     const handleStore = createMockPlacesFileHandleStore(null);
-    const persister = createPlacesPersister(
-      new PlacesSyncService(placesStore, createMockDeviceId('dev-A'), createMockClock(1000)),
-    );
-    render(MoreView, {
-      props: {
-        appState: createAppState(),
-        fileService,
-        persister,
-        placesFileIO: { placesStore, handleStore, picker: { pick: async () => null } },
-        route: createRoute({ target: 'more' }),
-      },
+    renderMore(createRoute({ target: 'more' }), {
+      persister: createPlacesPersister(
+        new PlacesSyncService(placesStore, createMockDeviceId('dev-A'), createMockClock(1000)),
+      ),
+      placesFileIO: { placesStore, handleStore, picker: { pick: async () => null } },
     });
 
     await fireEvent.click(screen.getByRole('button', { name: /Datei/ }));
@@ -160,7 +174,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
   it('"Zurück zum Menü" aus der Sub-Ansicht bringt wieder alle sechs Einträge — über die Route', async () => {
     const route = createRoute({ target: 'more' });
-    render(MoreView, { props: { appState: createAppState(), route } });
+    renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Statistik/ }));
     expect(route.target).toBe('stats');

@@ -9,15 +9,24 @@
 //
 // `tests` ist bewusst ausgenommen: `@testing-library/svelte`s `render()` verliert die
 // Generic-Bindung generischer Komponenten (`<script generics="T">`), T kollabiert zu
-// `unknown`. Das erzeugt 37 Fehler in Picker/MoreView-Tests, die KEIN Produktionsrisiko
+// `unknown`. Das erzeugt 52 Fehler in Picker.component.test.ts, die KEIN Produktionsrisiko
 // sind, sondern ein bekanntes Limit des Zusammenspiels von Svelte-Generics und
-// testing-library. Sie hier zu unterdrücken ist ehrlicher als 28 Testaufrufe mit Casts
+// testing-library. Sie hier zu unterdrücken ist ehrlicher als 17 Testaufrufe mit Casts
 // zu entstellen — die Tests selbst laufen (Vitest prüft zur Laufzeit), und ein echter
 // Prop-Tippfehler lässt den Test scheitern.
 //
 // Sollen die Test-Dateien später doch typgeprüft werden, ist der Weg eine Harness-
 // Komponente je generischer Komponente (Projekt-Muster, s. EventsByTypeHarness.svelte) —
-// nicht das Aufweichen dieser Konfiguration.
+// nicht das Aufweichen dieser Konfiguration. Der naheliegende Cast-Weg ist am 2026-07-19
+// PROBIERT UND VERWORFEN worden: `Picker as Component<ComponentProps<typeof Picker<Fruit>>>`
+// macht svelte-check zwar grün, bricht aber `tsc --noEmit` im selben `npm run lint` —
+// tsc kann `.svelte` nicht lesen und sieht über die Ambient-Deklaration `Component<never>`,
+// womit der abgeleitete Props-Typ zu `never` kollabiert. Beide Prüfer gleichzeitig
+// zufriedenzustellen geht nur über eine echte Harness-Komponente (ADR-v9-105).
+//
+// ACHTUNG bei der Fehlersuche: ein blankes `npx svelte-check` nutzt tsconfig.json,
+// die `tests` EINSCHLIESST — es meldet dann Fehler, die das echte Gate (`npm run lint`)
+// gar nicht hat. Immer `npm run check:svelte` laufen lassen, nie das nackte Werkzeug.
 {
   "extends": "./tsconfig.json",
   "include": ["core", "services", "ui", "app"]
