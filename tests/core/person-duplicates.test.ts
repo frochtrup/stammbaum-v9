@@ -302,6 +302,21 @@ describe('findPersonDuplicates', () => {
     expect(findPersonDuplicates(g, DEFAULT_DUPLICATE_THRESHOLD, new Set([pairKey('@I2@', '@I1@')]))).toEqual([]);
   });
 
+  it('findet Duplikate auch ohne GIVN/SURN-Untertags — der verbreitete GEDCOM-Fall', () => {
+    // `1 NAME Anna /Decker/` ohne Untertags lässt `given`/`surname` LEER; der Name steckt
+    // nur in `name`. Vor dem Fallback (core/model/name-parts.ts) fielen dadurch 44 der
+    // 100 Punkte weg UND das Bucketing griff ins Leere („ann" statt „dec") — die beiden
+    // wurden nie miteinander verglichen. Kein Test schlug an, weil alle Fixtures die
+    // Felder direkt setzen und die Referenz-Datei (Ancestris) die Untertags schreibt.
+    // Gefunden bei BL-107 an einer selbst geschriebenen GEDCOM-Fixture.
+    const roh = (id: PersonId): Person =>
+      makePerson(id, { name: 'Anna /Decker/', sex: 'F', birth: makeEvent('BIRT', { date: '1850', place: 'Ochtrup' }) });
+    const hits = findPersonDuplicates(graph([roh('@I1@'), roh('@I2@')]));
+    expect(hits).toHaveLength(1);
+    expect(hits[0].reasons).toContain('Nachname identisch');
+    expect(hits[0].reasons).toContain('Vorname identisch');
+  });
+
   it('kommt mit einem leeren Bestand zurecht', () => {
     expect(findPersonDuplicates(graph([]))).toEqual([]);
   });

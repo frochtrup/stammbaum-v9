@@ -45,7 +45,16 @@ import {
   type MergeResult,
 } from '../../core/places';
 import { editDatabase, mapAllEvents } from '../../core/model/draft';
-import { mergePersons as mergePersonsCmd, type MergeSelections } from '../../core/dedup';
+import {
+  mergePersons as mergePersonsCmd,
+  applyImportPatch as applyImportPatchCmd,
+  type MergeSelections,
+  type ImportedFile,
+  type ImportMatch,
+  type ImportSelections,
+  type ImportSourceConfig,
+  type ApplyImportResult,
+} from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
@@ -125,6 +134,18 @@ export interface AppState {
    * es wie jedes andere Kommando über `commit` läuft.
    */
   mergePerson(winnerId: PersonId, loserId: PersonId, selections?: MergeSelections): void;
+  /**
+   * Kommando: übernimmt die Auswahl eines Import-Vergleichs (BL-106/BL-107,
+   * Spec 20 §1.12). Der Kern liefert einen fertigen neuen Stand samt mitgezogenen
+   * Quellen/Archiven; hier wird nur committet — damit hängt auch dieser Schritt am
+   * regulären Undo-Stack.
+   */
+  applyImport(
+    imported: ImportedFile,
+    matches: readonly ImportMatch[],
+    selections: ImportSelections,
+    sourceConfig: ImportSourceConfig | null,
+  ): ApplyImportResult;
   /**
    * Kommando: Upsert einer Familie (`saveFamily(model)`-Muster, Spec 20 §2). ANDERS als
    * savePerson führt der Kern (core/model/commands.ts saveFamily) hier die INDI-Seite
@@ -570,6 +591,15 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     },
     deletePerson(id) {
       commit({ ...db, individuals: deletePersonCmd(db.individuals, id) }, { workingCopy: true });
+    },
+    applyImport(imported, matches, selections, sourceConfig) {
+      const result = applyImportPatchCmd(db, imported, matches, selections, sourceConfig);
+      // Nur committen, wenn tatsächlich etwas passiert ist — ein folgenloser Durchgang
+      // soll keinen Undo-Schritt erzeugen (gleiche Haltung wie `applyEdit`).
+      if (result.changedPersons > 0 || result.importedPersons > 0) {
+        commit(result.db, { workingCopy: true });
+      }
+      return result;
     },
     mergePerson(winnerId, loserId, selections) {
       // Der Kern liefert einen fertigen neuen Stand (Copy-on-Write, ADR-v9-92) — hier

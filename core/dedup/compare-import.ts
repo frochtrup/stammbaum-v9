@@ -13,7 +13,7 @@
 // für BEIDE Seiten gegen `AppState.db` aus, obwohl die zweite Person aus der Fremddatei
 // stammt (s. Kopf von `scorePersonPair`). Hier bekommt jede Seite ihren eigenen Graphen.
 import type { Event, Person, PersonId } from '../model/types';
-import { scorePersonPair, normalizeNameForMatch, type PersonGraph } from './person-duplicates';
+import { scorePersonPair, bucketKey, NAMELESS_BUCKET, type PersonGraph } from './person-duplicates';
 import { MERGEABLE_PERSON_FIELDS } from './merge-persons';
 
 /** Spec 20 §1.12: „Übereinstimmung (≥75)". */
@@ -52,12 +52,8 @@ export interface PersonDiff {
 
 // --- Zuordnung --------------------------------------------------------------------
 
-const BUCKET_KEY_LENGTH = 3;
-const NO_NAME_BUCKET = ' ';
-
-function bucketKey(p: Person): string {
-  return normalizeNameForMatch(p.surname || p.name).slice(0, BUCKET_KEY_LENGTH) || NO_NAME_BUCKET;
-}
+// Bucketing kommt aus dem Finder — dieselbe Schlüsselbildung, EINE Definition
+// (s. dort: eine lokale Kopie war bereits still inkompatibel geworden).
 
 /**
  * Ordnet jede Person aus `imported` der bestpassenden Person aus `base` zu und
@@ -81,14 +77,14 @@ export function compareImport(base: PersonGraph, imported: PersonGraph): ImportM
     if (bucket) bucket.push(p);
     else buckets.set(key, [p]);
   }
-  const namenlose = buckets.get(NO_NAME_BUCKET) ?? [];
+  const namenlose = buckets.get(NAMELESS_BUCKET) ?? [];
 
   const belegt = new Set<PersonId>();
   const ergebnis: ImportMatch[] = [];
 
   for (const importPerson of [...imported.individuals.values()].sort((x, y) => x.id.localeCompare(y.id))) {
     const key = bucketKey(importPerson);
-    const kandidaten = key === NO_NAME_BUCKET ? [...base.individuals.values()] : [...(buckets.get(key) ?? []), ...namenlose];
+    const kandidaten = key === NAMELESS_BUCKET ? [...base.individuals.values()] : [...(buckets.get(key) ?? []), ...namenlose];
 
     let bester: { person: Person; score: number; reasons: string[] } | null = null;
     for (const kandidat of kandidaten) {

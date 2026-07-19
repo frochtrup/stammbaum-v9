@@ -34,6 +34,7 @@ export {
 export {
   applyImportPatch,
   type FieldDecision,
+  type ImportedFile,
   type ImportSelections,
   type ImportSourceConfig,
   type ApplyImportResult,

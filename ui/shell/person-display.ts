@@ -5,6 +5,7 @@ import type { Person, Event } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
 import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
 import { formatDateForDisplay } from '../../core/model/gedcom-date';
+import { surnameOf } from '../../core/model/name-parts';
 
 /** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
 export function displayName(p: Person): string {
@@ -27,7 +28,7 @@ export function displayName(p: Person): string {
  * Personen ohne GIVN/SURN-Untertags auf reine Label-Text-Sortierung durch).
  */
 export function surnameCandidate(p: Person): string {
-  return p.surname || p.name.split('/')[1] || p.given || p.name;
+  return surnameOf(p) || p.given || p.name;
 }
 
 /** Erster Buchstabe des Nachnamens für den Alphabet-Trenner der Personen-Liste. */

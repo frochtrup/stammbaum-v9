@@ -21,8 +21,16 @@
 //     das ist direkt nach dem Import der Regelfall (ADR-v9-28/44).
 //  3. Geburtsjahr-Abstand > 5 kostet −15 (ADR-v9-106). Die einzige Änderung an der
 //     Gewichtung selbst, am echten Bestand belegt — Begründung an der Fundstelle unten.
+//
+// NAMEN KOMMEN AUS `core/model/name-parts.ts`, nicht roh aus `p.given`/`p.surname`:
+// die sind nur bei GEDCOM-Quellen mit `GIVN`/`SURN`-Untertags gefüllt. Bei der
+// verbreiteten Form `1 NAME Anna /Decker/` bleiben sie leer — das Scoring verlor
+// dadurch still 44 der 100 Punkte, und das Nachname-Bucketing griff ins Leere.
+// Gefunden bei BL-107 an einer selbst geschriebenen GEDCOM-Fixture; die
+// Referenz-Datei (Ancestris) schreibt die Untertags und verdeckte den Fehler.
 import type { Person, Family, PersonId, FamilyId } from '../model/types';
 import { parseDateValue } from '../model/gedcom-date';
+import { givenOf, surnameOf } from '../model/name-parts';
 
 /**
  * Was der Finder vom Bestand braucht — bewusst NICHT `Database`: das Scoring liest
@@ -186,8 +194,8 @@ function relativePoints(
   snWeight: number,
   gnWeight: number,
 ): { points: number; surnameRatio: number; givenRatio: number } {
-  const sn = nameSimilarity(normalizeNameForMatch(a.surname), normalizeNameForMatch(b.surname));
-  const gn = nameSimilarity(normalizeNameForMatch(a.given), normalizeNameForMatch(b.given));
+  const sn = nameSimilarity(normalizeNameForMatch(surnameOf(a)), normalizeNameForMatch(surnameOf(b)));
+  const gn = nameSimilarity(normalizeNameForMatch(givenOf(a)), normalizeNameForMatch(givenOf(b)));
   return { points: sn * snWeight + gn * gnWeight, surnameRatio: sn, givenRatio: gn };
 }
 
@@ -219,8 +227,8 @@ export function scorePersonPair(
   let score = 0;
 
   // Nachname (max 24)
-  const snA = normalizeNameForMatch(a.surname);
-  const snB = normalizeNameForMatch(b.surname);
+  const snA = normalizeNameForMatch(surnameOf(a));
+  const snB = normalizeNameForMatch(surnameOf(b));
   if (snA && snB) {
     const r = surnameRatio(snA, snB);
     score += r * 24;
@@ -229,8 +237,8 @@ export function scorePersonPair(
   }
 
   // Vorname (max 20)
-  const gnA = normalizeNameForMatch(a.given);
-  const gnB = normalizeNameForMatch(b.given);
+  const gnA = normalizeNameForMatch(givenOf(a));
+  const gnB = normalizeNameForMatch(givenOf(b));
   if (gnA && gnB) {
     const r = nameSimilarity(gnA, gnB);
     score += r * 20;
@@ -331,10 +339,23 @@ export function scorePersonPair(
 
 // --- Finder -----------------------------------------------------------------------
 
-function bucketKey(p: Person): string {
-  const normalized = normalizeNameForMatch(p.surname || p.name);
+/**
+ * Bucket-Schlüssel einer Person — EINE Definition für Duplikat-Finder UND Import-Vergleich.
+ *
+ * `compare-import.ts` hatte anfangs eine eigene Kopie. Als der Nachname-Fallback
+ * (`surnameOf`) hier eingebaut wurde, blieb die Kopie auf dem alten Stand: eine Person
+ * ohne `SURN`-Untertag landete dort im Bucket „ann" (aus „Anna /Decker/"), die
+ * Bestandsperson in „dec" — die beiden wurden nie miteinander verglichen, und JEDE
+ * Person einer solchen Datei galt als „neu". Zwei Fassungen derselben Schlüsselbildung
+ * sind still inkompatibel, sobald eine von beiden sich ändert.
+ */
+export function bucketKey(p: Person): string {
+  const normalized = normalizeNameForMatch(surnameOf(p));
   return normalized.slice(0, BUCKET_KEY_LENGTH) || NO_NAME_BUCKET;
 }
+
+/** Sammel-Bucket der Namenlosen — Aufrufer brauchen ihn für den „gegen alle"-Fall. */
+export const NAMELESS_BUCKET = NO_NAME_BUCKET;
 
 /**
  * Sucht verdächtige Personenpaare mit Score ≥ `threshold`, absteigend sortiert.

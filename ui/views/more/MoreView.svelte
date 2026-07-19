@@ -33,6 +33,7 @@
   import ImportButton from '../../shell/ImportButton.svelte';
   import SaveButton from '../../shell/SaveButton.svelte';
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
+  import ImportCompareView from '../import/ImportCompareView.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
   import { layout } from '../../shell/layout.svelte';
@@ -107,6 +108,14 @@
         {#if placesFileIO}
           <PlacesFileButtons {appState} {fileService} {persister} {placesFileIO} />
         {/if}
+        <!-- Import-Vergleich (BL-107) sitzt bei den Datei-Aktionen, nicht in einem
+             Entitäts-Segment: er arbeitet auf einer ZWEITEN Datei, nicht auf dem
+             geladenen Bestand. Aufklappbar, weil er selten gebraucht wird und die
+             Datei-Fläche sonst mit einer vollen Arbeitsfläche startet. -->
+        <details class="more-view__compare">
+          <summary>Mit zweiter Datei vergleichen</summary>
+          <ImportCompareView {appState} {fileService} />
+        </details>
       </div>
     {:else}
       <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
