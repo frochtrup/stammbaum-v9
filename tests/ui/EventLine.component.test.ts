@@ -109,6 +109,68 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     expect(screen.queryByRole('button', { name: 'Ochtrup' })).toBeNull();
     expect(screen.getByText('Ochtrup')).toBeTruthy();
   });
+
+  // Regression: das Trennzeichen stand als literales `, ` im `{#if}`-Block, dessen
+  // nachlaufendes Leerzeichen Svelte beim Kompilieren wegtrimmt → "1930,Ochtrup".
+  // Deshalb jetzt als Ausdruck `{', '}`, den der Whitespace-Trim nicht anfasst.
+  it('trennt Datum und Ort mit Komma UND Leerzeichen', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
+        appState,
+        viewState,
+        onNavigateToPlace: vi.fn(),
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(container.querySelector('.event-line__date')?.textContent).toBe('1930, Ochtrup');
+  });
+
+  // Der Orts-Link ist bewusst ein `role="button"`-Span statt eines <button>: ein
+  // Button ist ein atomarer Inline-Block und kann lange Ortsketten nicht über
+  // Zeilen umbrechen (Begründung am CSS in EventLine.svelte). happy-dom kennt kein
+  // Layout — geprüft wird deshalb das Element, das den Umbruch überhaupt zulässt.
+  it('rendert den Orts-Link als umbruchfähiges Inline-Element, nicht als <button>', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    render(EventLine, {
+      props: {
+        ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
+        appState,
+        viewState,
+        onNavigateToPlace: vi.fn(),
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(screen.getByRole('button', { name: 'Ochtrup' }).tagName).toBe('SPAN');
+  });
+
+  it('Orts-Link ist per Tastatur bedienbar (Enter), da kein natives <button> mehr', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const onNavigateToPlace = vi.fn();
+
+    render(EventLine, {
+      props: {
+        ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
+        appState,
+        viewState,
+        onNavigateToPlace,
+        onEdit: vi.fn(),
+      },
+    });
+
+    const link = screen.getByRole('button', { name: 'Ochtrup' });
+    expect(link.getAttribute('tabindex')).toBe('0');
+    await fireEvent.keyDown(link, { key: 'Enter' });
+    expect(onNavigateToPlace).toHaveBeenCalledWith('@P1@');
+  });
 });
 
 describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Punkt 2)', () => {

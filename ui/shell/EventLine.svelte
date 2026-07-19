@@ -77,10 +77,25 @@
     else if (ev.placeId && onNavigateToPlace) onNavigateToPlace(ev.placeId);
   }
 
+  // Tastatur-Äquivalent zum Klick — nötig, weil der Orts-Link kein <button> mehr ist,
+  // sondern ein `role="button"`-Span (Begründung am `.event-line__place-link`-CSS).
+  function handlePlaceKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handlePlaceClick();
+    }
+  }
+
   // CoordIndicator nur zeigen, wenn diese Zeile überhaupt einen Orts-Bezug hat (Koords
   // ODER ein Ortstext) — ein Ereignis ganz ohne Ortskonzept (z. B. OCCU ohne Ort) zeigt
   // keinen irreführenden "Koordinaten fehlen"-Glyph.
   const showCoordIndicator = $derived(ev.coords != null || ev.placeLabel !== '');
+
+  // Trennzeichen bewusst als abgeleiteter Wert, nicht als literales `, ` im Markup:
+  // Svelte trimmt nachlaufenden Whitespace am Ende eines `{#if}`-Blocks weg, was die
+  // Zeile still zu "1930,Ochtrup" zusammenzog. Ein Ausdruck entgeht dem Trim — und
+  // das Leerzeichen ist zugleich die Umbruchstelle zwischen Datum und Ortskette.
+  const dateSep = $derived(ev.dateLabel && ev.placeLabel ? ', ' : '');
 </script>
 
 <li class="event-line">
@@ -90,11 +105,13 @@
     {#if ev.addr}<span class="event-line__value">{ev.addr}</span>{/if}
     {#if ev.dateLabel || ev.placeLabel}
       <span class="event-line__date">
-        {#if ev.dateLabel}{ev.dateLabel}{/if}{#if ev.dateLabel && ev.placeLabel}, {/if}{#if ev.placeLabel}{#if placeClickable}<button
-              type="button"
+        {#if ev.dateLabel}{ev.dateLabel}{/if}{dateSep}{#if ev.placeLabel}{#if placeClickable}<span
               class="event-line__place-link"
+              role="button"
+              tabindex="0"
               onclick={handlePlaceClick}
-            >{ev.placeLabel}</button>{:else}<span class="event-line__place-text">{ev.placeLabel}</span>{/if}{/if}
+              onkeydown={handlePlaceKeydown}
+            >{ev.placeLabel}</span>{:else}<span class="event-line__place-text">{ev.placeLabel}</span>{/if}{/if}
       </span>
     {/if}
     {#if showCoordIndicator}
@@ -157,15 +174,24 @@
     font-size: 0.85rem;
   }
 
+  /* BEWUSST ein `role="button"`-Span, KEIN <button>: ein Button ist ein atomarer
+     Inline-Block und kann seinen Text niemals über Zeilen hinweg umbrechen (auch
+     `display:inline` ändert das in Chrome nicht — empirisch geprüft, 1 Client-Rect).
+     Eine lange Ortskette rutschte dadurch komplett auf eine eigene Zeile und ließ
+     das Datum allein auf der vorigen zurück. Als Inline-Span fließt der Ortsname im
+     Text mit und bricht an den Komma-Leerzeichen um.
+     Messung @375px, "1930, Wulfen, Recklinghausen, Nordrhein-Westfalen, Deutschland":
+     <button> 46,5px (3 Zeilen) → <span> 31px (2 Zeilen). */
   .event-line__place-link {
-    background: transparent;
-    border: none;
     color: var(--stb-gold-light);
     cursor: pointer;
-    padding: 0;
-    font: inherit;
-    font-size: inherit;
     text-decoration: underline;
+  }
+
+  .event-line__place-link:focus-visible {
+    outline: 2px solid var(--stb-gold-light);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 
   .event-line__place-text {
