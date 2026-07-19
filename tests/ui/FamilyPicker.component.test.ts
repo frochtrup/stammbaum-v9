@@ -29,14 +29,14 @@ describe('FamilyPicker — Anzeige des Feldes', () => {
     const appState = seedTwoFamilies();
     render(FamilyPicker, { props: { appState, value: null, onChange: vi.fn(), placeholder: 'Familie wählen…' } });
 
-    expect(screen.getByText('Familie wählen…')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Familie wählen…')).toBeTruthy();
   });
 
   it('zeigt das Elternpaar-Label (familyLabelFor) der aktuell gewählten Familie', () => {
     const appState = seedTwoFamilies();
     render(FamilyPicker, { props: { appState, value: '@F1@', onChange: vi.fn() } });
 
-    expect(screen.getByText('Otto Bauer ⚭ Anna Klein')).toBeTruthy();
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Otto Bauer ⚭ Anna Klein');
   });
 });
 
@@ -49,7 +49,7 @@ describe('FamilyPicker — Filtern + Auswahl', () => {
     expect(screen.getByText('Otto Bauer ⚭ Anna Klein')).toBeTruthy();
     expect(screen.getByText('Karl Meyer ⚭ Grete Schulz')).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Familie durchsuchen'), { target: { value: 'Meyer' } });
+    await fireEvent.input(screen.getByLabelText('Familie'), { target: { value: 'Meyer' } });
 
     expect(screen.getByText('Karl Meyer ⚭ Grete Schulz')).toBeTruthy();
     expect(screen.queryByText('Otto Bauer ⚭ Anna Klein')).toBeNull();

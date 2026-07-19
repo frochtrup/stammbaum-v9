@@ -189,7 +189,7 @@ describe('SourceCitationRow — Quelle wechseln/neu anlegen über den Namens-Lin
     });
 
     await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1'));
-    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 auswählen durchsuchen')).toBeTruthy();
+    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 auswählen')).toBeTruthy();
 
     await fireEvent.click(screen.getByText('StA Musterstadt'));
     expect(onSourceChange).toHaveBeenCalledWith('@S2@');

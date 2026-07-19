@@ -154,8 +154,12 @@ describe('EventEditModal — Ort-/Hof-Picker (ADR-v9-42, byte-identisch zu Perso
     const onSave = vi.fn();
 
     render(EventEditModal, { props: { appState, event: ev, label: 'Beruf', onSave, onClose: vi.fn() } });
-    await fireEvent.click(screen.getByLabelText('Beruf Ort aus Liste wählen'));
-    await fireEvent.click(screen.getByText('Ochtrup'));
+    // EIN Feld (ADR-v9-103): kein 🔍-Knopf und kein zweites Suchfeld mehr — ein Klick
+    // ins Ort-Feld öffnet die Vorschläge direkt.
+    // EIN Feld (ADR-v9-103): kein 🔍-Knopf und kein zweites Suchfeld mehr — ein Klick
+    // ins Ort-Feld öffnet die Vorschläge direkt.
+    await fireEvent.click(screen.getByLabelText('Beruf Ort'));
+    await fireEvent.click(screen.getByRole('option', { name: 'Ochtrup' }));
     await fireEvent.click(screen.getByText('Speichern'));
 
     const [updated] = onSave.mock.calls[0];

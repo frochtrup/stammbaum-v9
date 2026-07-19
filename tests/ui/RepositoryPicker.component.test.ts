@@ -24,14 +24,14 @@ describe('RepositoryPicker — Anzeige des Feldes', () => {
     const appState = seedThreeRepositories();
     render(RepositoryPicker, { props: { appState, value: null, onChange: vi.fn(), placeholder: 'Archiv wählen…' } });
 
-    expect(screen.getByText('Archiv wählen…')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Archiv wählen…')).toBeTruthy();
   });
 
   it('zeigt Name + Typ als Sublabel des aktuell gewählten Archivs', () => {
     const appState = seedThreeRepositories();
     render(RepositoryPicker, { props: { appState, value: '@R1@', onChange: vi.fn() } });
 
-    expect(screen.getByText('Pfarrarchiv Musterdorf')).toBeTruthy();
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Pfarrarchiv Musterdorf');
     expect(screen.getByText(/Kirchenarchiv/)).toBeTruthy();
   });
 });
@@ -45,7 +45,7 @@ describe('RepositoryPicker — Filtern + Auswahl', () => {
     expect(screen.getByText('Pfarrarchiv Musterdorf')).toBeTruthy();
     expect(screen.getByText('Staatsarchiv Musterstadt')).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Archiv durchsuchen'), { target: { value: 'staatsarchiv' } });
+    await fireEvent.input(screen.getByLabelText('Archiv'), { target: { value: 'staatsarchiv' } });
 
     expect(screen.getByText('Staatsarchiv Musterstadt')).toBeTruthy();
     expect(screen.queryByText('Pfarrarchiv Musterdorf')).toBeNull();
@@ -86,7 +86,7 @@ describe('RepositoryPicker — Inline-Neuanlage ("+ Neues Archiv anlegen …")',
     await fireEvent.click(screen.getByText('+ Neues Archiv anlegen …'));
 
     expect(screen.getByText('Neues Archiv')).toBeTruthy();
-    expect(screen.queryByLabelText('Archiv durchsuchen')).toBeNull();
+    expect(screen.queryByLabelText('Archiv')).toBeNull();
 
     await fireEvent.input(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Neues Archiv X' } });
     await fireEvent.click(screen.getByText('Speichern'));

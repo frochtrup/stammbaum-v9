@@ -288,8 +288,8 @@
           Existiert bis (Jahr)
           <input type="number" bind:value={formExistsTo} />
         </label>
-        <label>
-          Vorgänger-Hof
+        <div class="stb-field">
+          <span class="stb-field__caption">Vorgänger-Hof</span>
           <!-- "+ neuen Hof anlegen" (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme): eine
                einzelne, bewusste Nutzerhandlung im Editier-Modus ist strukturell identisch
                zu "+ Neue Person/Familie/Quelle/Archiv anlegen" — die Kurations-Sorge
@@ -320,9 +320,9 @@
               onCreateRequested={() => beginCreateHof('predecessor')}
             />
           {/if}
-        </label>
-        <label>
-          Nachfolger-Hof
+        </div>
+        <div class="stb-field">
+          <span class="stb-field__caption">Nachfolger-Hof</span>
           {#if creatingHofFor === 'successor'}
             <div class="hof-detail__inline-create">
               <input
@@ -349,7 +349,7 @@
               onCreateRequested={() => beginCreateHof('successor')}
             />
           {/if}
-        </label>
+        </div>
         <label>
           GOV-ID
           <input type="text" bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />

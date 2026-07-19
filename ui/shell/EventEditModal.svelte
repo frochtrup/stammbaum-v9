@@ -250,8 +250,8 @@
       </label>
     {/if}
 
-    <label>
-      Ort (Freitext)
+    <div class="stb-field">
+      <span class="stb-field__caption">Ort (Freitext)</span>
       <EventPlaceField
         {appState}
         value={editable.place}
@@ -262,11 +262,11 @@
         onPick={(placeId) => pickPlaceFor(placeId)}
         label={`${label} Ort`}
       />
-    </label>
+    </div>
 
     {#if showAddr}
-      <label>
-        Adresse
+      <div class="stb-field">
+        <span class="stb-field__caption">Adresse</span>
         <EventAddrField
           {appState}
           value={editable.addr}
@@ -275,7 +275,7 @@
           villageId={editable.placeId}
           label={`${label} Adresse`}
         />
-      </label>
+      </div>
     {/if}
 
     <label>

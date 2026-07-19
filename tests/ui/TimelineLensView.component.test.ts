@@ -107,7 +107,7 @@ describe('TimelineLensView — Modus-Umschalter (Spec 20 §1.10 [S]: Swim-Lane/D
 
     render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
     await fireEvent.click(screen.getByRole('tab', { name: 'Dekaden' }));
 
     expect(screen.getByText(/nur im Swim-Lane-Modus/)).toBeTruthy();
@@ -136,7 +136,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
 
     render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
 
     expect(screen.getByText(/Anna Bauer/)).toBeTruthy();
     expect(screen.getByText(/Otto Müller/)).toBeTruthy();
@@ -158,7 +158,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     for (const n of [2, 3, 4, 5]) {
       await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
-      await fireEvent.click(screen.getByRole('button', { name: new RegExp(`P${n} X`) }));
+      await fireEvent.click(screen.getByRole('option', { name: new RegExp(`P${n} X`) }));
     }
 
     expect(screen.queryByRole('button', { name: /Person hinzufügen/ })).toBeNull();
@@ -174,7 +174,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
 
     render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
 
     // Erste Pille = die aus `lensFocus` vorbelegte Anna. Vor ADR-v9-102 trug sie als
     // einzige gar kein ✕ (erzwungener Startpunkt) — jetzt ist die Zeitleiste ihre
@@ -214,7 +214,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
 
     const first = render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
     // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
     first.unmount();
 

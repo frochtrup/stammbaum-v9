@@ -215,8 +215,8 @@
         </label>
       </div>
 
-      <label class="log-view__form-field">
-        Archiv
+      <div class="log-view__form-field stb-field">
+        <span class="stb-field__caption">Archiv</span>
         <RepositoryPicker
           {appState}
           value={formRepoRef || null}
@@ -225,10 +225,10 @@
           noneLabel="– kein Archiv –"
           label="Archiv"
         />
-      </label>
+      </div>
 
-      <label class="log-view__form-field">
-        Quelle
+      <div class="log-view__form-field stb-field">
+        <span class="stb-field__caption">Quelle</span>
         <SourcePicker
           {appState}
           value={formSourceRef || null}
@@ -237,7 +237,7 @@
           noneLabel="– keine Quelle –"
           label="Quelle"
         />
-      </label>
+      </div>
 
       <label class="log-view__form-field">
         Suchbegriff
@@ -295,8 +295,8 @@
       {/if}
 
       {#if formEntityId}
-        <label class="log-view__form-field">
-          Aufgaben-Bezug (optional)
+        <div class="log-view__form-field stb-field">
+          <span class="stb-field__caption">Aufgaben-Bezug (optional)</span>
           <Picker
             items={targetTasks}
             getId={(t) => t.id}
@@ -309,7 +309,7 @@
             label="Aufgaben-Bezug"
             placeholder="Aufgabe wählen…"
           />
-        </label>
+        </div>
       {/if}
 
       <div class="log-view__form-actions">

@@ -89,6 +89,13 @@ export default tseslint.config(
         HTMLSelectElement: 'readonly',
         HTMLInputElement: 'readonly',
         KeyboardEvent: 'readonly',
+        // Für die Picker-Combobox (ADR-v9-103): `Event`/`FocusEvent`/`Node` in den
+        // Handler-Signaturen, `crypto.randomUUID` für die instanz-eindeutige Listen-id
+        // der aria-controls/activedescendant-Kopplung.
+        Event: 'readonly',
+        FocusEvent: 'readonly',
+        Node: 'readonly',
+        crypto: 'readonly',
         fetch: 'readonly'
       }
     }
@@ -114,6 +121,21 @@ export default tseslint.config(
             'SvelteElement[name.name="select"] SvelteDirective[kind="Binding"]:has(SvelteDirectiveKey[name.name="value"])',
           message:
             '<select bind:value> ist unter happy-dom nicht zuverlässig testbar (TST-12, Spec 32). Nutze stattdessen value={x} onchange={(e) => (x = e.currentTarget.value)}.'
+        },
+        {
+          // TST-18 (Spec 32, ADR-v9-103): Ein <label> reicht JEDEN Klick in seinem Inneren
+          // an das zugehörige Feld weiter. Seit die Picker eine Combobox mit aufklappender
+          // Trefferliste sind, liegen die Trefferzeilen INNERHALB dieses Wrappers — ein
+          // Klick auf einen Treffer klickt damit zusätzlich das Feld an und öffnet die
+          // eben geschlossene Liste sofort wieder. Beim Umbau lagen sieben solche Stellen
+          // vor (EventEditModal 2x, TaskForm, SourceForm, LogView 3x); ohne Gate wäre die
+          // achte nur eine Frage der Zeit — genau der Verlauf der <select bind:value>-Falle
+          // eine Regel weiter oben. Ersatzmuster: <div class="stb-field"> +
+          // <span class="stb-field__caption">, der Picker trägt seinen Namen über `label`.
+          selector:
+            'SvelteElement[name.name="label"] SvelteElement[name.name=/^(Picker|PersonPicker|FamilyPicker|SourcePicker|RepositoryPicker|EventPlaceField|EventAddrField)$/]',
+          message:
+            'Ein Picker darf nicht in einem <label> stehen (TST-18, Spec 32): das <label> leitet den Klick auf eine Trefferzeile an das Feld weiter und öffnet die Liste sofort wieder. Nutze <div class="stb-field"> + <span class="stb-field__caption">.'
         }
       ]
     }

@@ -7,10 +7,26 @@
   //
   // Diese Shell kennt KEINE konkrete Entität — sie bekommt Kandidaten + Anzeige-/Match-
   // Funktionen als Props (`items`/`getId`/`getLabel`/`getSubLabel`/`matches`) und rendert
-  // nur die Mechanik: geschlossenes Feld -> Klick öffnet Panel mit Suchfeld + gefilterter,
-  // gekappter Ergebnisliste (MAX_VISIBLE_RESULTS, TST-7-Überlauf-Fall) + optionaler
-  // "keine Auswahl"-Zeile (allowNone) + optionaler "+ neu anlegen"-Zeile (createLabel/
-  // onCreateRequested) + Schließen-Button.
+  // nur die Mechanik.
+  //
+  // EIN Feld, kein zweites (ADR-v9-103, Nutzerbefund 2026-07-19: „der picker sollte direkt
+  // im eingabefeld wirken"). Bis dahin war das Feld ein KNOPF, der ein Panel mit einem
+  // ZWEITEN, eigenen Suchfeld aufklappte — eine bestehende Person/einen bestehenden Ort
+  // zu wählen kostete damit Klick auf das Feld (bzw. auf eine 🔍-Lupe), Klick ins Suchfeld,
+  // tippen, klicken. Jetzt ist das sichtbare Feld SELBST das Suchfeld (Combobox-Muster,
+  // WAI-ARIA `combobox`+`listbox`): Fokus öffnet die Liste, Tippen filtert sie, ↓/↑/Enter/
+  // Escape bedienen sie ohne Maus.
+  //
+  // Zwei Aufrufer-Arten, EIN Mechanismus (`freeText`):
+  //  - Entitäts-Referenz (Person/Familie/Quelle/Archiv): gespeichert wird nur die id; das
+  //    Feld zeigt das Label der Auswahl, beim Fokussieren wird es zum leeren Suchfeld und
+  //    die bisherige Auswahl bleibt als Platzhalter sichtbar.
+  //  - Freitext-Feld (Ereignis-Ort/-Adresse, `freeText`): der GETIPPTE TEXT ist der
+  //    gespeicherte Wert (ADR-v9-42: „Freitext bleibt Freitext") und zugleich der
+  //    Suchbegriff — jeder Tastendruck meldet `onTextChange`, eine Auswahl meldet
+  //    zusätzlich `onChange(id)`. Ersetzt die vormalige Konstruktion aus Textfeld +
+  //    🔍-Knopf + aufklappendem Panel mit eigenem Suchfeld in EventPlaceField/
+  //    EventAddrField.
   //
   // Inline-Neuanlage bewusst NICHT hier: die eigentliche Formular-Komponente (PersonForm/
   // FamilyForm/SourceForm/RepositoryForm) kennt die Shell nicht — der jeweilige dünne
@@ -20,9 +36,11 @@
   // der Wrapper übernimmt danach). Für Ort/Hof (ADR-v9-13/28/29, kuratierte Auflösung,
   // keine blanke Neuanlage) bleiben `createLabel`/`onCreateRequested` einfach weg.
   //
-  // Feld-Optik wiederverwendet `.stb-person-box`/`.stb-person-box__name`/`__meta`
-  // (design-system.css) statt eigener Klassen (INV-UI-4) — das ist exakt der Stil, den
-  // PersonPicker.svelte bisher als `.person-picker__field` dupliziert hatte.
+  // Kein <label>-Wrapper um diese Komponente (TST-18, Lint-Gate in eslint.config.js): ein
+  // <label> reicht jeden Klick in seinem Inneren an das zugehörige Feld weiter — seit die
+  // Trefferliste INNERHALB der Komponente liegt, würde ein Klick auf einen Treffer damit
+  // zusätzlich das Feld anklicken und die eben geschlossene Liste sofort wieder öffnen.
+  // Ersatzmuster: `.stb-field` + `.stb-field__caption` (design-system.css).
   import { untrack } from 'svelte';
 
   interface Props {
@@ -50,20 +68,30 @@
     /** Wird aufgerufen, wenn der Nutzer "+ neu anlegen" klickt (schließt das Panel selbst;
      *  der Aufrufer übernimmt danach die Anzeige seines Inline-Formulars). */
     onCreateRequested?: () => void;
-    /** Mountet die Shell direkt im offenen Panel-Zustand statt hinter dem geschlossenen
-     *  Feld-Button (ADR-v9-42: `EventPlaceField`/`EventAddrField` betten diese Shell selbst
-     *  hinter einem eigenen Auslöse-Icon ein — ein zweiter Klick auf einen redundanten
-     *  geschlossenen Zustand wäre unnötige Reibung). Nur beim Mount gelesen (jede
-     *  Sichtbarkeits-Änderung des Aufrufers mountet eine frische Picker-Instanz über
-     *  `{#if}`) — kein fortlaufendes Re-Sync nötig. Default false (bestehende Aufrufer
-     *  unverändert). */
+    /** Mountet die Shell mit bereits offener Trefferliste — für Aufrufer, die den Picker
+     *  selbst hinter einem eigenen Auslöser einblenden (MapLensView/TimelineLensView:
+     *  „⊕ Person hinzufügen" mountet ihn über `{#if}`), sodass die Liste ohne weiteren
+     *  Klick dasteht. Nur beim Mount gelesen (jede Sichtbarkeits-Änderung mountet eine
+     *  frische Instanz) — kein fortlaufendes Re-Sync nötig, TST-10. */
     startOpen?: boolean;
-    /** Wird gerufen, wenn das Panel sich schließt — durch Auswahl, "keine Auswahl" ODER
-     *  den Schließen-Knopf. Für Aufrufer, die die Shell mit `startOpen` selbst hinter
+    /** Wird gerufen, wenn die Liste sich schließt — durch Auswahl, "keine Auswahl",
+     *  Escape ODER Fokusverlust. Für Aufrufer, die die Shell mit `startOpen` selbst hinter
      *  einem eigenen Auslöser einblenden (`{#if offen}`) und dieses `offen` wieder
      *  zurücksetzen müssen, sonst bliebe ein leeres Panel stehen (MapLensView/
      *  TimelineLensView). Ohne Prop unverändertes Verhalten. */
     onClose?: () => void;
+    /** Freitext-Modus: das Feld trägt den vom Aufrufer gehaltenen Text (`textValue`) als
+     *  echten Wert, nicht nur als Suchbegriff. Jeder Tastendruck meldet `onTextChange`;
+     *  eine Auswahl aus der Liste meldet ZUSÄTZLICH `onChange(id)`. Für Ereignis-Ort/
+     *  -Adresse, wo freies Weitertippen erlaubt bleiben muss (ADR-v9-42). */
+    freeText?: boolean;
+    /** Nur mit `freeText`: der aktuelle Text. */
+    textValue?: string;
+    /** Nur mit `freeText`: jeder Tastendruck. */
+    onTextChange?: (v: string) => void;
+    /** Zusatzzeile unter der Ergebnisliste (z. B. „+ Hof ‚X' anlegen" mit dem getippten
+     *  Text, oder ein Hinweis, warum die Neuanlage gerade nicht geht). */
+    footer?: import('svelte').Snippet;
   }
   const {
     items,
@@ -82,21 +110,53 @@
     onCreateRequested,
     startOpen = false,
     onClose,
+    freeText = false,
+    textValue = '',
+    onTextChange,
+    footer,
   }: Props = $props();
 
   /** Ergebnisliste wird ab dieser Anzahl gekappt (TST-7 Kapazitäts-Fall). Ein Hinweistext
    *  zeigt an, dass weitere Treffer durch engeres Tippen erreichbar sind. */
   const MAX_VISIBLE_RESULTS = 25;
 
-  // TST-10-Muster (32-Testframework.md §1): startOpen ist nur der Mount-Anfangswert einer
-  // frisch instanziierten Picker-Instanz (der Aufrufer mountet über {#if}/{#each} neu,
-  // s. EventPlaceField/EventAddrField) — kein fortlaufendes Re-Sync bei Prop-Änderung.
+  // TST-10-Muster (32-Testframework.md §1): `startOpen` ist nur der Mount-Anfangswert einer
+  // frisch instanziierten Instanz (der Aufrufer mountet über {#if}/{#each} neu) — kein
+  // fortlaufendes Re-Sync bei Prop-Änderung.
   let open = $state(untrack(() => startOpen));
-  let query = $state('');
+  /** Suchbegriff im Entitäts-Modus. Im Freitext-Modus IST der Text der Suchbegriff. */
+  let typed = $state('');
+  let activeIndex = $state(-1);
+  /** Hat der Nutzer seit dem Öffnen getippt? Nur im Freitext-Modus relevant und dort
+   *  wesentlich: der bereits im Feld stehende Text ist ein WERT, keine Suchabsicht. Ohne
+   *  diese Unterscheidung filtert ein Ereignis-Ort wie „Steinwedel, Amt Burgdorf
+   *  (Hannover), Kurfürstentum …" sich beim bloßen Hineinklicken selbst auf null Treffer —
+   *  der Nutzer müsste erst alles löschen, um überhaupt etwas auswählen zu können, also
+   *  genau die Reibung, die dieser Umbau beseitigen soll (beim Bau am echten Bestand
+   *  aufgefallen, nicht in den Tests). */
+  let hasTyped = $state(false);
+  /** Stabile, instanz-eindeutige id für die aria-controls/activedescendant-Kopplung —
+   *  mehrere Picker pro Formular sind der Normalfall (jedes Ereignis hat ein Ort-Feld). */
+  const listId = `stb-picker-${crypto.randomUUID().slice(0, 8)}`;
 
   const selectedItem = $derived<T | undefined>(
     value != null ? items.find((it) => getId(it) === value) : undefined,
   );
+
+  const selectedLabel = $derived(selectedItem ? getLabel(selectedItem) : null);
+
+  /** Was im Feld steht. Freitext: der Wert des Aufrufers. Sonst: der Suchbegriff — das
+   *  Label der Auswahl steht währenddessen als Platzhalter (s. `fieldPlaceholder`), damit
+   *  die bisherige Auswahl beim Tippen sichtbar bleibt, ohne den Suchbegriff zu stören. */
+  const fieldText = $derived(freeText ? textValue : open ? typed : (selectedLabel ?? ''));
+
+  const fieldPlaceholder = $derived(
+    freeText || !open
+      ? (selectedLabel ? '' : allowNone ? noneLabel : placeholder)
+      : (selectedLabel ?? placeholder),
+  );
+
+  const query = $derived(freeText ? (hasTyped ? textValue : '') : typed);
 
   const filteredAll = $derived.by<T[]>(() => {
     const excluded = new Set(excludeIds);
@@ -116,94 +176,183 @@
 
   const showCreateRow = $derived(!!createLabel && !!onCreateRequested);
 
-  function openPicker() {
+  /** Die per ↓/↑ ansteuerbaren Zeilen in Anzeigereihenfolge — Sonderzeilen zählen mit,
+   *  sonst wäre "keine Auswahl"/"neu anlegen" nur mit der Maus erreichbar. */
+  type Row = { kind: 'none' } | { kind: 'create' } | { kind: 'item'; id: string };
+  const rows = $derived.by<Row[]>(() => [
+    ...(allowNone ? [{ kind: 'none' } as Row] : []),
+    ...(showCreateRow ? [{ kind: 'create' } as Row] : []),
+    ...candidates.map((it) => ({ kind: 'item', id: getId(it) }) as Row),
+  ]);
+
+  function openList() {
+    if (open) return;
     open = true;
-    query = '';
+    if (!freeText) typed = '';
+    hasTyped = false;
+    activeIndex = -1;
   }
 
-  function closePicker() {
+  function closeList() {
     open = false;
-    query = '';
+    if (!freeText) typed = '';
+    hasTyped = false;
+    activeIndex = -1;
     onClose?.();
+  }
+
+  function onInput(e: Event) {
+    const v = (e.currentTarget as HTMLInputElement).value;
+    open = true;
+    activeIndex = -1;
+    hasTyped = true;
+    if (freeText) onTextChange?.(v);
+    else typed = v;
   }
 
   function select(id: string) {
     onChange(id);
-    closePicker();
+    closeList();
   }
 
   function selectNone() {
     onChange(null);
-    closePicker();
+    closeList();
   }
 
   function requestCreate() {
     // Bewusst OHNE `onClose`: der Aufrufer blendet jetzt sein Anlege-Formular AN STELLE
-    // der Shell ein (PersonPicker & Co.) — ein `onClose` würde ihn dazu bringen, den
+    // dieser Shell ein (PersonPicker & Co.) — ein `onClose` würde ihn dazu bringen, den
     // ganzen Bereich zuzuklappen, und das Formular verschwände sofort wieder.
     open = false;
-    query = '';
+    if (!freeText) typed = '';
+    hasTyped = false;
+    activeIndex = -1;
     onCreateRequested?.();
+  }
+
+  function activateRow(row: Row) {
+    if (row.kind === 'none') selectNone();
+    else if (row.kind === 'create') requestCreate();
+    else select(row.id);
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      openList();
+      if (!rows.length) return;
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      activeIndex = (activeIndex + step + rows.length) % rows.length;
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (!open || activeIndex < 0 || activeIndex >= rows.length) return;
+      // Nur schlucken, wenn wirklich eine Zeile angesteuert ist — sonst gehört Enter dem
+      // umgebenden Formular (Speichern), nicht diesem Feld.
+      e.preventDefault();
+      activateRow(rows[activeIndex]);
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (!open) return;
+      // Nicht bis zum Modal/Overlay durchreichen: das erste Escape schließt die Liste,
+      // ein zweites darf dann das Overlay schließen (INV-UI-13-Nachbarschaft, BL-08).
+      e.stopPropagation();
+      // KEIN `inputEl.focus()` hier: der Tastendruck kam bereits aus dem Feld, der Fokus
+      // liegt also schon richtig — und ein erneutes Fokussieren würde `onfocus` auslösen
+      // und damit die eben geschlossene Liste sofort wieder öffnen (beim Bau genau so
+      // passiert, aufgedeckt vom Escape-Test).
+      closeList();
+    }
+  }
+
+  /** Klick INNERHALB der Komponente (Feld, Zeile, Fußbereich) darf nicht als "nach außen
+   *  geklickt" gelten — sonst schlösse der eigene Mausklick die Liste vor dem Treffer. */
+  function onFocusOut(e: FocusEvent) {
+    const next = e.relatedTarget;
+    if (next instanceof Node && e.currentTarget instanceof Node && e.currentTarget.contains(next)) return;
+    if (!open) return;
+    closeList();
   }
 </script>
 
-<div class="stb-picker">
-  {#if !open}
-    <button
-      type="button"
-      class="stb-person-box stb-picker__field"
-      aria-label={label}
-      onclick={openPicker}
-    >
-      {#if selectedItem}
-        <span class="stb-person-box__name">{getLabel(selectedItem)}</span>
-        {#if getSubLabel}
-          <span class="stb-person-box__meta">{getSubLabel(selectedItem)}</span>
-        {/if}
-      {:else if value != null}
-        <!-- value referenziert keinen Kandidaten aus `items` (z. B. Source.repo als
-             Legacy-Freitext statt einer @Rxx@-Repository-id, Spec 10 §4/Roundtrip-
-             Fidelity) — den Rohwert zeigen statt ihn stillschweigend wie "nichts
-             ausgewählt" zu behandeln (TST-9: keine Information kommentarlos verlieren). -->
-        <span class="stb-person-box__name">{value}</span>
-      {:else if allowNone}
-        <span class="stb-picker__placeholder">{noneLabel}</span>
-      {:else}
-        <span class="stb-picker__placeholder">{placeholder}</span>
-      {/if}
-    </button>
-  {:else}
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="stb-picker" onfocusout={onFocusOut} onkeydown={onKeydown}>
+  <input
+    type="text"
+    role="combobox"
+    class="stb-picker__field"
+    class:stb-picker__field--has-value={!open && !!selectedLabel}
+    aria-label={label}
+    aria-expanded={open}
+    aria-controls="{listId}"
+    aria-autocomplete="list"
+    aria-activedescendant={open && activeIndex >= 0 ? `${listId}-r${activeIndex}` : undefined}
+    autocomplete="off"
+    value={fieldText}
+    placeholder={fieldPlaceholder}
+    oninput={onInput}
+    onfocus={openList}
+    onclick={openList}
+  />
+  {#if !open && selectedItem && getSubLabel}
+    <!-- Unterzeile der AUSWAHL (Geburtsjahr/-ort & Co.). Nur im Ruhezustand: während des
+         Tippens gehört der Platz der Trefferliste, und die Unterzeile des Treffers steht
+         dort ohnehin an jeder Zeile. -->
+    <span class="stb-picker__field-meta">{getSubLabel(selectedItem)}</span>
+  {/if}
+
+  {#if open}
     <div class="stb-picker__panel">
-      <input
-        type="search"
-        class="stb-picker__search"
-        aria-label={`${label} durchsuchen`}
-        placeholder="Eingeben zum Filtern…"
-        bind:value={query}
-      />
-      <ul class="stb-picker__results">
-        {#if allowNone}
+      <!-- Eigener Name, NICHT derselbe wie am Feld: zwei Elemente mit identischem
+           zugänglichen Namen sind für Screenreader-Nutzer nicht unterscheidbar. -->
+      <ul class="stb-picker__results" role="listbox" id={listId} aria-label={`${label} — Treffer`}>
+        {#each rows as row, i (row.kind === 'item' ? row.id : row.kind)}
           <li>
-            <button type="button" class="stb-picker__result stb-picker__result--none" onclick={selectNone}>
-              {noneLabel}
-            </button>
-          </li>
-        {/if}
-        {#if showCreateRow}
-          <li>
-            <button type="button" class="stb-picker__result stb-picker__result--create" onclick={requestCreate}>
-              {createLabel}
-            </button>
-          </li>
-        {/if}
-        {#each candidates as item (getId(item))}
-          <li>
-            <button type="button" class="stb-picker__result" onclick={() => select(getId(item))}>
-              <span class="stb-picker__result-name">{getLabel(item)}</span>
-              {#if getSubLabel}
-                <span class="stb-picker__result-meta">{getSubLabel(item)}</span>
+            {#if row.kind === 'none'}
+              <button
+                type="button"
+                id="{listId}-r{i}"
+                role="option"
+                aria-selected={activeIndex === i}
+                class="stb-picker__result stb-picker__result--none"
+                class:stb-picker__result--active={activeIndex === i}
+                onclick={selectNone}
+              >
+                {noneLabel}
+              </button>
+            {:else if row.kind === 'create'}
+              <button
+                type="button"
+                id="{listId}-r{i}"
+                role="option"
+                aria-selected={activeIndex === i}
+                class="stb-picker__result stb-picker__result--create"
+                class:stb-picker__result--active={activeIndex === i}
+                onclick={requestCreate}
+              >
+                {createLabel}
+              </button>
+            {:else}
+              {@const item = candidates.find((c) => getId(c) === row.id)}
+              {#if item}
+                <button
+                  type="button"
+                  id="{listId}-r{i}"
+                  role="option"
+                  aria-selected={activeIndex === i}
+                  class="stb-picker__result"
+                  class:stb-picker__result--active={activeIndex === i}
+                  onclick={() => select(row.id)}
+                >
+                  <span class="stb-picker__result-name">{getLabel(item)}</span>
+                  {#if getSubLabel}
+                    <span class="stb-picker__result-meta">{getSubLabel(item)}</span>
+                  {/if}
+                </button>
               {/if}
-            </button>
+            {/if}
           </li>
         {/each}
         {#if candidates.length === 0}
@@ -213,7 +362,9 @@
           <li class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</li>
         {/if}
       </ul>
-      <button type="button" class="stb-picker__close-btn" onclick={closePicker}>Schließen</button>
+      {#if footer}
+        <div class="stb-picker__footer">{@render footer()}</div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -224,22 +375,9 @@
     min-width: 200px;
   }
 
+  /* Das Feld IST das Suchfeld (ADR-v9-103) — es übernimmt die Optik der übrigen
+     Formularfelder aus design-system.css, statt wie zuvor als Knopf zu erscheinen. */
   .stb-picker__field {
-    width: 100%;
-  }
-
-  .stb-picker__placeholder {
-    color: var(--stb-text-dim);
-  }
-
-  .stb-picker__panel {
-    background: var(--stb-surface-1);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-card);
-    padding: 0.5rem;
-  }
-
-  .stb-picker__search {
     width: 100%;
     background: var(--stb-surface-2);
     color: var(--stb-text);
@@ -247,7 +385,39 @@
     border-radius: var(--stb-radius-control);
     padding: 0.35rem 0.5rem;
     font: inherit;
-    margin-bottom: 0.4rem;
+  }
+
+  /* Eine getroffene Auswahl liest sich als Aussage, ein leeres Feld als Aufforderung. */
+  .stb-picker__field--has-value {
+    font-weight: 600;
+  }
+
+  .stb-picker__field::placeholder {
+    color: var(--stb-text-dim);
+    font-weight: 400;
+  }
+
+  .stb-picker__field-meta {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--stb-text-dim);
+    padding: 1px 0.5rem 0;
+  }
+
+  /* Über dem Folgeinhalt schwebend statt ihn wegzuschieben: das Feld sitzt oft mitten in
+     einem Formular, ein aufschiebendes Panel ließe die darunterliegenden Zeilen bei jedem
+     Tastendruck springen. */
+  .stb-picker__panel {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    right: 0;
+    top: calc(100% + 2px);
+    background: var(--stb-surface-1);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-card);
+    padding: 0.35rem;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
   }
 
   .stb-picker__results {
@@ -275,8 +445,15 @@
   }
 
   .stb-picker__result:hover,
-  .stb-picker__result:focus-visible {
+  .stb-picker__result:focus-visible,
+  .stb-picker__result--active {
     background: var(--stb-surface-2);
+  }
+
+  /* Tastatur-Ansteuerung muss ohne Farbe erkennbar sein (Spec 21 §2 „nie nur Farbe",
+     WCAG 1.4.1/LP-8) — deshalb zusätzlich eine Kante. */
+  .stb-picker__result--active {
+    box-shadow: inset 3px 0 0 var(--stb-gold-light);
   }
 
   .stb-picker__result-name {
@@ -301,14 +478,9 @@
     font-size: 0.8rem;
   }
 
-  .stb-picker__close-btn {
-    margin-top: 0.4rem;
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
+  .stb-picker__footer {
+    border-top: 1px solid var(--stb-surface-2);
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
   }
 </style>

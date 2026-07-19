@@ -84,8 +84,8 @@
     {/each}
   </div>
 
-  <label class="task-form__field">
-    Quelle (optional)
+  <div class="task-form__field stb-field">
+    <span class="stb-field__caption">Quelle (optional)</span>
     <SourcePicker
       {appState}
       value={sourceRef || null}
@@ -94,7 +94,7 @@
       noneLabel="– keine Quelle –"
       label="Quelle"
     />
-  </label>
+  </div>
 
   {#if !isEditing}
     <fieldset class="task-form__field task-form__entity-picker">

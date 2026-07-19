@@ -93,8 +93,8 @@
       Signatur
       <input type="text" bind:value={callNumber} />
     </label>
-    <label>
-      Archiv
+    <div class="stb-field">
+      <span class="stb-field__caption">Archiv</span>
       <RepositoryPicker
         {appState}
         value={repo || null}
@@ -103,7 +103,7 @@
         noneLabel="— kein Archiv —"
         label="Archiv"
       />
-    </label>
+    </div>
   </div>
 
   <label>

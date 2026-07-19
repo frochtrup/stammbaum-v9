@@ -114,6 +114,23 @@ textarea::placeholder {
   color: var(--stb-text-muted);
 }
 
+/* Formularfeld ohne <label>-Wrapper (ADR-v9-103, TST-18, INV-UI-4).
+   Überall dort, wo das Bedienelement eine Combobox mit aufklappender Trefferliste ist
+   (`Picker.svelte`), darf KEIN <label> es umschließen: ein <label> reicht jeden Klick in
+   seinem Inneren an das zugehörige Feld weiter — ein Klick auf eine Trefferzeile würde
+   damit zusätzlich das Feld anklicken und die eben geschlossene Liste sofort wieder
+   öffnen. Diese Klassen geben solchen Feldern dieselbe Optik wie ein <label>-Feld; den
+   zugänglichen Namen trägt der Picker selbst über seine `label`-Prop. */
+.stb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stb-field__caption {
+  font-size: 0.85rem;
+}
+
 /* Rollen-Label (INV-UI-4): kleine, GROSSGESCHRIEBENE Vorsatz-Beschriftung vor einem
    Namen/Wert, wo die ROLLE einer Zeile disambiguiert werden muss (Ehemann/Ehefrau in
    FamilyDetail, Eigene Familie/Herkunftsfamilie in PersonDetail, Bewohner/Eigentümer

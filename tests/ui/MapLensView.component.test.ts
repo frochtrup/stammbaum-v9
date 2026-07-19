@@ -100,7 +100,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
     expect(screen.getByRole('tab', { name: 'Personen' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByText(/Person wählen/)).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Person wählen/)).toBeTruthy();
   });
 
   it('Klick auf "Migrationen" wechselt den Modus und zeigt die Epochen-Legende', async () => {
@@ -147,7 +147,7 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
     render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
-    expect(screen.getByText(/Anna Bauer/)).toBeTruthy();
+    expect((screen.getByRole('combobox', { name: 'Person für Karte wählen' }) as HTMLInputElement).value).toMatch(/Anna Bauer/);
   });
 
   it('öffnet den Personen-Picker und wählt eine andere Person aus, ohne den geteilten Fokus zu verändern', async () => {
@@ -160,11 +160,11 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
 
     render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
-    await fireEvent.click(screen.getByText(/Anna Bauer/));
+    await fireEvent.click(screen.getByRole('combobox', { name: 'Person für Karte wählen' }));
 
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
 
-    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+    expect((screen.getByRole('combobox', { name: 'Person für Karte wählen' }) as HTMLInputElement).value).toMatch(/Otto Müller/);
     // Der geteilte Baum-/Lens-Fokus bleibt unverändert — der Picker ist ein rein
     // lokaler Auswahlzustand dieser Ansicht (Orakel: _mapPersonId getrennt von
     // AppState.currentPersonId).
@@ -189,8 +189,8 @@ describe('MapLensView — eigene, navigationsfeste Personenauswahl (ADR-v9-102)'
     render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
-    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
-    expect(screen.queryByText(/Anna Bauer/)).toBeNull();
+    expect((screen.getByRole('combobox', { name: 'Person für Karte wählen' }) as HTMLInputElement).value).toMatch(/Otto Müller/);
+    expect((screen.getByRole('combobox', { name: 'Person für Karte wählen' }) as HTMLInputElement).value).not.toMatch(/Anna Bauer/);
   });
 
   it('überlebt das Wegnavigieren: die Auswahl liegt im ViewState, nicht in der Komponente', async () => {
@@ -203,15 +203,15 @@ describe('MapLensView — eigene, navigationsfeste Personenauswahl (ADR-v9-102)'
 
     const first = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
-    await fireEvent.click(screen.getByText(/Anna Bauer/));
-    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    await fireEvent.click(screen.getByRole('combobox', { name: 'Person für Karte wählen' }));
+    await fireEvent.click(screen.getByRole('option', { name: /Otto Müller/ }));
     // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
     first.unmount();
 
     render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
-    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+    expect((screen.getByRole('combobox', { name: 'Person für Karte wählen' }) as HTMLInputElement).value).toMatch(/Otto Müller/);
   });
 });
 

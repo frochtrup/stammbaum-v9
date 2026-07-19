@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-// tests/ui/Picker.component.test.ts — generische Picker-Shell (ADR-v9-40, INV-UI-4).
-// Deckt die entitätsagnostische Mechanik ab (Feld/Panel-Toggle, Filtern per matches-Prop,
+// tests/ui/Picker.component.test.ts — generische Picker-Shell (ADR-v9-40, INV-UI-4;
+// Combobox-Umbau ADR-v9-103).
+// Deckt die entitätsagnostische Mechanik ab (EIN Feld, Filtern per matches-Prop,
 // Auswahl/onChange, allowNone, excludeIds, Kapazitäts-Kappung, "+ neu anlegen"-Zeile über
 // onCreateRequested) — die entitätsspezifischen Wrapper (PersonPicker/SourcePicker/
 // RepositoryPicker/FamilyPicker) haben je eigene, dünnere Tests für Label/Matcher/
@@ -41,7 +42,9 @@ describe('Picker — Anzeige des Feldes', () => {
       },
     });
 
-    expect(screen.getByText('Frucht wählen…')).toBeTruthy();
+    // Das Feld IST das Eingabefeld (ADR-v9-103) — der Platzhalter steht als Attribut,
+    // nicht als Knopfbeschriftung.
+    expect(screen.getByPlaceholderText('Frucht wählen…')).toBeTruthy();
   });
 
   it('zeigt Label + Sublabel der aktuell gewählten Zeile', () => {
@@ -57,7 +60,8 @@ describe('Picker — Anzeige des Feldes', () => {
       },
     });
 
-    expect(screen.getByText('Apfel')).toBeTruthy();
+    // Die Auswahl steht als Wert IM Feld, die Unterzeile darunter.
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Apfel');
     expect(screen.getByText('rot')).toBeTruthy();
   });
 });
@@ -81,7 +85,7 @@ describe('Picker — Filtern + Auswahl', () => {
     expect(screen.getByText('Banane')).toBeTruthy();
     expect(screen.getByText('Aprikose')).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Frucht durchsuchen'), { target: { value: 'Ap' } });
+    await fireEvent.input(screen.getByLabelText('Frucht'), { target: { value: 'Ap' } });
 
     expect(screen.getByText('Apfel')).toBeTruthy();
     expect(screen.getByText('Aprikose')).toBeTruthy();
@@ -211,5 +215,130 @@ describe('Picker — "+ neu anlegen"-Zeile', () => {
     await fireEvent.click(screen.getByText('+ Neue Frucht anlegen …'));
 
     expect(onCreateRequested).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Picker — EIN Feld: das sichtbare Feld IST das Suchfeld (ADR-v9-103)', () => {
+  it('hat genau ein Eingabefeld — kein zweites Suchfeld hinter einem Auslöser', async () => {
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange: vi.fn(), label: 'Frucht' },
+    });
+
+    await fireEvent.click(screen.getByLabelText('Frucht'));
+
+    // Der eigentliche Nutzerbefund: vorher öffnete das Feld ein Panel mit einem ZWEITEN,
+    // eigenen Suchfeld — eine bestehende Zeile zu wählen kostete dadurch vier Schritte.
+    expect(document.querySelectorAll('input')).toHaveLength(1);
+  });
+
+  it('meldet Combobox-Semantik und koppelt das Feld an die Trefferliste', async () => {
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange: vi.fn(), label: 'Frucht' },
+    });
+
+    const field = screen.getByRole('combobox');
+    expect(field.getAttribute('aria-expanded')).toBe('false');
+
+    await fireEvent.click(field);
+
+    expect(field.getAttribute('aria-expanded')).toBe('true');
+    const list = screen.getByRole('listbox');
+    expect(field.getAttribute('aria-controls')).toBe(list.id);
+    // Eigener Name je Element — zwei gleichnamige sind für Screenreader ununterscheidbar.
+    expect(list.getAttribute('aria-label')).not.toBe(field.getAttribute('aria-label'));
+  });
+
+  it('bedient die Liste per Tastatur: ↓ steuert an, Enter wählt', async () => {
+    const onChange = vi.fn();
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange, label: 'Frucht' },
+    });
+
+    const field = screen.getByRole('combobox');
+    await fireEvent.keyDown(field, { key: 'ArrowDown' });
+    expect(field.getAttribute('aria-activedescendant')).toBeTruthy();
+    await fireEvent.keyDown(field, { key: 'Enter' });
+
+    // Alphabetisch sortiert: Apfel, Aprikose, Banane.
+    expect(onChange).toHaveBeenCalledWith('f1');
+  });
+
+  it('Escape schließt die Liste und öffnet sie nicht sofort wieder', async () => {
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange: vi.fn(), label: 'Frucht' },
+    });
+
+    const field = screen.getByRole('combobox');
+    await fireEvent.click(field);
+    await fireEvent.keyDown(field, { key: 'Escape' });
+
+    // Beim Bau lag hier ein `focus()` im Escape-Zweig — das löste `onfocus` aus und
+    // öffnete die eben geschlossene Liste sofort wieder.
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+});
+
+describe('Picker — Freitext-Modus (Ereignis-Ort/-Adresse, ADR-v9-42 + ADR-v9-103)', () => {
+  it('meldet jeden Tastendruck als Text — auch wenn er auf keinen Kandidaten passt', async () => {
+    const onTextChange = vi.fn();
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+        freeText: true, textValue: '', onTextChange,
+      },
+    });
+
+    await fireEvent.input(screen.getByLabelText('Frucht'), { target: { value: 'Kein Kandidat' } });
+
+    // Freitext bleibt Freitext (ADR-v9-42).
+    expect(onTextChange).toHaveBeenCalledWith('Kein Kandidat');
+  });
+
+  it('zeigt den vom Aufrufer gehaltenen Text als Feldwert', () => {
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+        freeText: true, textValue: 'Handgetippter Ort', onTextChange: vi.fn(),
+      },
+    });
+
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Handgetippter Ort');
+  });
+
+  it('behandelt den VORHANDENEN Text nicht als Suchbegriff — beim Hineinklicken stehen alle Kandidaten da', async () => {
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+        // Ein Ereignis-Ort trägt typischerweise die volle Verwaltungskette. Würde dieser
+        // Text als Suchbegriff gelten, stünde beim Hineinklicken "Keine Treffer" und der
+        // Nutzer müsste erst löschen, um überhaupt auswählen zu können — genau die
+        // Reibung, die dieser Umbau beseitigen soll (am echten Bestand aufgefallen,
+        // nicht in den Tests).
+        freeText: true, textValue: 'Steinwedel, Amt Burgdorf (Hannover), Kurfürstentum', onTextChange: vi.fn(),
+      },
+    });
+
+    await fireEvent.click(screen.getByLabelText('Frucht'));
+
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+  });
+
+  it('filtert erst, sobald tatsächlich getippt wurde', async () => {
+    const { rerender } = render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+        freeText: true, textValue: '', onTextChange: vi.fn(),
+      },
+    });
+
+    await fireEvent.input(screen.getByLabelText('Frucht'), { target: { value: 'Ban' } });
+    // Der Aufrufer hält den Text — im echten Formular kommt er als neue Prop zurück.
+    await rerender({ textValue: 'Ban' });
+
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Banane']);
   });
 });

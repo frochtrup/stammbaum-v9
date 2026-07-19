@@ -24,14 +24,14 @@ describe('SourcePicker — Anzeige des Feldes', () => {
     const appState = seedThreeSources();
     render(SourcePicker, { props: { appState, value: null, onChange: vi.fn(), placeholder: 'Quelle wählen…' } });
 
-    expect(screen.getByText('Quelle wählen…')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Quelle wählen…')).toBeTruthy();
   });
 
   it('zeigt Kurzname/Titel + Autor als Sublabel der aktuell gewählten Quelle', () => {
     const appState = seedThreeSources();
     render(SourcePicker, { props: { appState, value: '@S1@', onChange: vi.fn() } });
 
-    expect(screen.getByText('KB Musterdorf')).toBeTruthy();
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('KB Musterdorf');
     expect(screen.getByText(/Pfarrer Müller/)).toBeTruthy();
   });
 
@@ -39,7 +39,7 @@ describe('SourcePicker — Anzeige des Feldes', () => {
     const appState = seedThreeSources();
     render(SourcePicker, { props: { appState, value: '@S3@', onChange: vi.fn() } });
 
-    expect(screen.getByText('Ohne Kurzname')).toBeTruthy();
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Ohne Kurzname');
   });
 });
 
@@ -52,7 +52,7 @@ describe('SourcePicker — Filtern + Auswahl', () => {
     expect(screen.getByText('KB Musterdorf')).toBeTruthy();
     expect(screen.getByText('StA Musterstadt')).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Quelle durchsuchen'), { target: { value: 'musterdorf' } });
+    await fireEvent.input(screen.getByLabelText('Quelle'), { target: { value: 'musterdorf' } });
 
     expect(screen.getByText('KB Musterdorf')).toBeTruthy();
     expect(screen.queryByText('StA Musterstadt')).toBeNull();
@@ -110,7 +110,7 @@ describe('SourcePicker — Inline-Neuanlage ("+ Neue Quelle anlegen …")', () =
     await fireEvent.click(screen.getByText('+ Neue Quelle anlegen …'));
 
     expect(screen.getByText('Neue Quelle')).toBeTruthy();
-    expect(screen.queryByLabelText('Quelle durchsuchen')).toBeNull();
+    expect(screen.queryByLabelText('Quelle')).toBeNull();
 
     await fireEvent.input(screen.getByRole('textbox', { name: 'Kurzname' }), { target: { value: 'Neue Quelle X' } });
     await fireEvent.click(screen.getByText('Speichern'));
