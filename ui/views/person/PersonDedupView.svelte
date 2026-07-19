@@ -11,8 +11,17 @@
   //
   // Zusammengeführt wird ausschließlich über `appState.mergePerson(...)` im Modal — hier
   // gibt es keine Merge-Logik, nur Auswahl und Anzeige.
+  //
+  // PAGINIERUNG (Spec 21 §10b, `pageSlice`): NICHT aus Performance-Gründen — das wurde
+  // gemessen und widerlegt. Am echten Bestand (3.180 Personen, 1.267 Paare) kosten die
+  // 1.266 zusätzlichen Zeilen rund 34 ms (1.523 ms gegenüber 1.489 ms bei EINER Zeile,
+  // Layout erzwungen); die 1,5 s sind der Scan selbst und fallen unabhängig von der
+  // Zeilenzahl an. Der Grund ist der, den §10b selbst nennt — Einfachheit: ungedeckelt
+  // ergaben 1.267 Paare eine 90.212 px lange Scrollstrecke und 11.542 DOM-Knoten.
+  // Bewusst dieselbe Primitive wie EventsByType, kein zweiter Mechanismus (INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
   import { DEFAULT_DUPLICATE_THRESHOLD, pairKey } from '../../../core/dedup';
+  import { pageSlice, DEFAULT_PAGE_SIZE } from '../../shell/pagination';
   import { IdbDedupIgnoreStore, loadIgnoredPairs, type DedupIgnoreStore } from '../../../services/dedup';
   import { buildPersonDedupRows, type DedupPairRow } from './person-dedup-model';
   import PersonMergeModal from './PersonMergeModal.svelte';
@@ -78,10 +87,29 @@
     scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold, '', ignored) : [],
   );
 
+  /**
+   * Wie viele Zeilen aktuell gezeigt werden. Wird bei JEDER Änderung der Grundmenge
+   * zurückgesetzt (neuer Scan, neue Suche) — sonst zeigte eine eingegrenzte Suche
+   * weiterhin den Stand von vorher, also mehr Zeilen als die Trefferzahl darüber
+   * behauptet. Genau die Sorte Zustands-Leck, gegen die `resetKey` bei EventsByType
+   * eingeführt wurde (ADR-v9-83).
+   */
+  let shown = $state(DEFAULT_PAGE_SIZE);
+  const paged = $derived(pageSlice(rows, shown));
+
   function runScan() {
     scannedThreshold = threshold;
     scanned = true;
     statusMessage = '';
+    shown = DEFAULT_PAGE_SIZE;
+  }
+
+  function onQueryInput() {
+    shown = DEFAULT_PAGE_SIZE;
+  }
+
+  function loadMore() {
+    shown += DEFAULT_PAGE_SIZE;
   }
 
   function scoreClass(score: number): string {
@@ -123,6 +151,7 @@
         placeholder="Ergebnisse durchsuchen"
         aria-label="Ergebnisse durchsuchen"
         bind:value={query}
+        oninput={onQueryInput}
       />
     </div>
     <p class="person-dedup__count">
@@ -134,7 +163,7 @@
     </p>
 
     <ul class="person-dedup__list">
-      {#each rows as row (row.key)}
+      {#each paged.visible as row (row.key)}
         <li>
           <button type="button" class="person-dedup__pair" onclick={() => (openPair = row)}>
             <span class="person-dedup__names">
@@ -151,6 +180,11 @@
         </li>
       {/each}
     </ul>
+    {#if paged.remaining > 0}
+      <button type="button" class="person-dedup__load-more" onclick={loadMore}>
+        {Math.min(paged.remaining, DEFAULT_PAGE_SIZE)} weitere laden
+      </button>
+    {/if}
   {/if}
 </div>
 
@@ -314,6 +348,15 @@
 
   .person-dedup__score--high {
     color: var(--stb-quay-1);
+  }
+
+  .person-dedup__load-more {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
   }
 
   .person-dedup__meta,

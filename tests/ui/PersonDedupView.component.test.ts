@@ -52,6 +52,36 @@ function zwillingsDb(): Database {
   return db;
 }
 
+/**
+ * N Zwillingspaare — je Paar GENAU ein Treffer.
+ *
+ * Die Nachnamen müssen sich in den ERSTEN DREI Zeichen unterscheiden: der Finder
+ * bucketet nach diesem Präfix, und gleichpräfixige Namen landen zusammen und werden
+ * kreuzweise bewertet. Ein erster Anlauf mit „Nachname000/001/…" erzeugte deshalb aus
+ * 5 gewollten Paaren über 30 Treffer — alle im Bucket „nac".
+ */
+function vielePaareDb(paare: number): Database {
+  const db = makeDatabase();
+  const buchstaben = 'abcdefghijklmnopqrstuvwxyz';
+  for (let i = 0; i < paare; i++) {
+    const prefix = buchstaben[Math.floor(i / 26) % 26] + buchstaben[i % 26] + 'x';
+    const surname = prefix.toUpperCase() + 'mann';
+    for (const seite of ['a', 'b']) {
+      const id = `@I${i}${seite}@`;
+      db.individuals.set(
+        id,
+        makePerson(id, {
+          given: 'Anna',
+          surname,
+          sex: 'F',
+          birth: makeEvent('BIRT', { date: '1850', place: 'Ochtrup' }),
+        }),
+      );
+    }
+  }
+  return db;
+}
+
 async function scan(): Promise<void> {
   await fireEvent.click(screen.getByRole('button', { name: 'Duplikate suchen' }));
 }
@@ -239,5 +269,61 @@ describe('PersonDedupView — „Kein Duplikat" (BL-105)', () => {
     await scan();
 
     expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+  });
+});
+
+describe('PersonDedupView — Paginierung (Spec 21 §10b)', () => {
+  // NICHT aus Performance-Gründen: 1.266 zusätzliche Zeilen kosten am echten Bestand
+  // rund 34 ms (gemessen 2026-07-19). §10b begründet den Deckel mit Einfachheit —
+  // ungedeckelt ergaben 1.267 Paare 90.212 px Scrollstrecke.
+  async function scanMit(paare: number) {
+    const appState = createAppState();
+    appState.loadDatabase(vielePaareDb(paare), 'test.ged');
+    render(PersonDedupView, { props: { appState, ignoreStore: new MemoryIgnoreStore() } });
+    await scan();
+  }
+
+  const sichtbareZeilen = () => document.querySelectorAll('.person-dedup__pair').length;
+
+  it('zeigt zunächst höchstens 30 Zeilen, nennt aber die volle Trefferzahl', async () => {
+    await scanMit(50);
+    expect(sichtbareZeilen()).toBe(30);
+    expect(screen.getByText(/50 verdächtige Paare/)).toBeTruthy();
+  });
+
+  it('„N weitere laden" hängt die nächsten 30 an', async () => {
+    await scanMit(50);
+    await fireEvent.click(screen.getByRole('button', { name: '20 weitere laden' }));
+    expect(sichtbareZeilen()).toBe(50);
+    expect(screen.queryByRole('button', { name: /weitere laden/ })).toBeNull();
+  });
+
+  it('kurze Listen bekommen keinen Knopf', async () => {
+    await scanMit(5);
+    expect(sichtbareZeilen()).toBe(5);
+    expect(screen.queryByRole('button', { name: /weitere laden/ })).toBeNull();
+  });
+
+  it('eine neue Suche setzt den Deckel zurück', async () => {
+    // Ohne das Zurücksetzen zeigte eine eingegrenzte Suche weiterhin den alten Stand —
+    // mehr Zeilen, als die Trefferzahl darüber behauptet (Zustands-Leck, ADR-v9-83).
+    await scanMit(50);
+    await fireEvent.click(screen.getByRole('button', { name: '20 weitere laden' }));
+    expect(sichtbareZeilen()).toBe(50);
+
+    await fireEvent.input(screen.getByLabelText('Ergebnisse durchsuchen'), { target: { value: 'Anna' } });
+
+    expect(sichtbareZeilen()).toBe(30);
+    expect(screen.getByRole('button', { name: '20 weitere laden' })).toBeTruthy();
+  });
+
+  it('ein neuer Scan setzt den Deckel ebenfalls zurück', async () => {
+    await scanMit(50);
+    await fireEvent.click(screen.getByRole('button', { name: '20 weitere laden' }));
+    expect(sichtbareZeilen()).toBe(50);
+
+    await scan();
+
+    expect(sichtbareZeilen()).toBe(30);
   });
 });
