@@ -9,6 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import EntityTab from '../../ui/views/EntityTab.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import {
   makeCitation,
   makeDatabase,
@@ -41,7 +42,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByText('Otto Bauer')).toBeTruthy();
@@ -52,7 +53,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Familien/ }));
 
@@ -68,7 +69,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     const placesTab = screen.getByRole('tab', { name: /Orte/ });
     expect(placesTab).toHaveProperty('disabled', false);
@@ -88,7 +89,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
 
@@ -100,7 +101,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Familien/ }));
     await fireEvent.click(screen.getByText('Otto Bauer ⚭ Anna Klein'));
     await fireEvent.click(screen.getByText('Otto Bauer'));
@@ -115,7 +116,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Eigene Familie' }));
 
@@ -129,7 +130,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByText('§1'));
 
@@ -143,8 +144,10 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('source', '@S1@');
-
-    render(EntityTab, { props: { appState, viewState } });
+    // Startsegment wird explizit gesetzt (so macht es App.svelte beim Start, s.
+    // initialEntityTarget) — vor BL-90 leitete EntityTab es selbst aus der
+    // ViewState-Auswahl ab, was bei jedem Remount erneut lief.
+    render(EntityTab, { props: { appState, viewState, route: createRoute({ target: 'source' }) } });
 
     await fireEvent.click(screen.getByText('Bistumsarchiv'));
     expect(viewState.getCurrent('repository')).toBe('@R1@');
@@ -166,7 +169,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     viewState.setCurrent('source', '@S1@');
     viewState.setCurrent('repository', '@R1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute({ target: 'source' }) } });
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
 
@@ -183,7 +186,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Ochtrup' }));
 
@@ -201,7 +204,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
     await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
 
@@ -220,7 +223,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Orte/ }));
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 
@@ -243,7 +246,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
     await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
 
@@ -266,7 +269,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByText('＋ Neue Person'));
 
     expect(viewState.getCurrent('person')).toBe('@I3@');

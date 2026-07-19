@@ -14,14 +14,21 @@
   // `fileHandle` weiterhin selbst (EINE Instanz, Auto-Load/Auto-Save brauchen sie beim
   // Start unabhängig davon, ob der Nutzer je den Mehr-Hub öffnet) und reicht sie nur
   // noch an MoreView durch, statt sie hier selbst zu rendern.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
   import { createFileService, type FileService } from '../services/file';
   import { loadGedcomText } from '../ui/shell/load-gedcom-text';
-  import BottomNav, { type BottomNavTarget } from '../ui/shell/BottomNav.svelte';
+  import BottomNav from '../ui/shell/BottomNav.svelte';
+  import {
+    bottomNavSlotFor,
+    isEntityTarget,
+    type BottomNavSlot,
+    type EntityTargetId,
+  } from '../ui/shell/nav-model';
+  import { createRoute } from '../ui/shell/route.svelte';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
@@ -115,28 +122,37 @@
     return n > 0 ? formatBadgeCount(n) : '';
   });
 
-  // Bottom-Nav-Ziele sind eine Teilmenge von ViewTarget (Spec 21 §2: 5 feste Slots;
-  // Familien/Quellen/Archive/Orte/Höfe leben NICHT hier, sondern im Entitäten-Segment-
-  // Umschalter innerhalb von EntityTab.svelte).
+  // DIE Routen-Quelle (Spec 21 §3, INV-UI-15, ADR-v9-101). Vor BL-90 lag der
+  // Navigationszustand hier als `activeTarget` UND in EntityTab (`activeSegment`) UND in
+  // MoreView (`openEntry`) — drei Ebenen, keine kannte die anderen. Die Desktop-Sidebar
+  // (BL-06) zeigt genau deren Vereinigung als flache Liste und wäre ohne diese
+  // Zusammenführung nur über eine zweite Navigationsquelle baubar gewesen (gegen
+  // INV-UI-2). Genau EINE Instanz, durchgereicht — analog `viewState` darüber.
   //
-  // MainRoute erweitert BottomNavTarget um 'map'/'timeline': weder Karte noch
-  // Zeitleiste haben einen eigenen Bottom-Nav-Slot (Baum bleibt der Signatur-Slot,
-  // Spec 21 §2) — beide werden nur über den Lens-Umschalter (LensSwitcher, Spec 21 §4)
-  // erreicht, während man im Baum steht. BottomNav.svelte bekommt weiterhin
-  // ausschließlich echte BottomNavTarget-Werte (s. <BottomNav active={...}> unten) —
-  // der erweiterte Typ ist reines App-internes Routing, kein neuer Bottom-Nav-Slot.
-  type MainRoute = BottomNavTarget | 'map' | 'timeline';
-  let activeTarget = $state<MainRoute>('person');
+  // Startziel aus einer bereits vorhandenen ViewState-Auswahl ableiten (Spec 21 §5
+  // "Selektion überlebt App-Resume"): diese Ableitung lag vorher in EntityTab und lief
+  // dort bei JEDEM Remount; hier läuft sie genau einmal beim App-Start, was sie immer
+  // sein sollte.
+  function initialEntityTarget(): EntityTargetId {
+    if (viewState.getCurrent('family')) return 'family';
+    if (viewState.getCurrent('source') || viewState.getCurrent('repository')) return 'source';
+    if (viewState.getCurrent('place')) return 'place';
+    if (viewState.getCurrent('hof')) return 'hof';
+    return 'person';
+  }
+  const route = createRoute({ target: untrack(initialEntityTarget) });
 
-  // BottomNav zeigt "Baum" als aktiv, auch wenn Karte/Zeitleiste offen ist (beide hängen
-  // navigatorisch am Baum-Slot, s. Kommentar oben) — nie ein aria-current auf einem
-  // Bottom-Nav-Ziel, das BottomNav selbst gar nicht kennt.
-  const bottomNavActive = $derived<BottomNavTarget>(
-    activeTarget === 'map' || activeTarget === 'timeline' ? 'tree' : activeTarget,
-  );
+  // BottomNav zeigt "Baum" als aktiv, auch wenn Karte/Zeitleiste offen ist, und "Mehr",
+  // solange ein Hub-Ziel offen ist. Diese Zuordnung ist keine App-Besonderheit mehr,
+  // sondern eine Funktion des Registers (nav-model.ts) — dort auch getestet.
+  const bottomNavActive = $derived<BottomNavSlot>(bottomNavSlotFor(route.target));
 
-  function navigate(target: BottomNavTarget) {
-    activeTarget = target;
+  function navigate(slot: BottomNavSlot) {
+    // "Personen" ist der Einstieg in die ENTITÄTEN (Spec 21 §2), nicht in die
+    // Personenliste im engeren Sinn: der Slot führt auf das zuletzt offene
+    // Entitäts-Segment zurück, nicht stur auf Personen.
+    if (slot === 'person') route.openEntities();
+    else route.setTarget(slot);
   }
 
   // Lens-Umschalter (Spec 21 §4, INV-UI-3) — EIN Callback für alle Lens-Wechsel aus
@@ -145,30 +161,25 @@
   // im geteilten ViewState-Slot `lensFocus` (view-state.svelte.ts) und bleibt beim
   // Wechsel automatisch erhalten, weil alle Lenses denselben Slot lesen/schreiben.
   function navigateLens(lens: LensId) {
-    if (lens === 'tree') {
-      activeTarget = 'tree';
-    } else if (lens === 'map') {
-      activeTarget = 'map';
-    } else if (lens === 'timeline') {
-      activeTarget = 'timeline';
-    }
-    // 'story' ist noch nicht implementiert (LensSwitcher selbst verriegelt das
-    // bereits — Klick ruft onNavigate gar nicht erst auf).
+    // Lens-Ids sind seit BL-90 zugleich Ziel-Ids des Registers — die frühere
+    // if/else-Übersetzung entfällt. 'story' ist noch nicht implementiert, der
+    // LensSwitcher verriegelt das bereits (Klick ruft onNavigate gar nicht erst auf).
+    if (lens !== 'story') route.setTarget(lens);
   }
 
-  // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (activeTarget sitzt in
+  // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (die Route sitzt in
   // App.svelte, nicht in EntityTab — daher ein eigener Callback statt eines
-  // EntityTab-Sub-Callbacks, s. Auftrag "IST aber kein EntityTab-Sub-Callback").
+  // EntityTab-Sub-Callbacks).
   function openPersonDetailFromTree(personId: string) {
     viewState.setCurrent('person', personId);
-    activeTarget = 'person';
+    route.setTarget('person');
   }
 
   // Umgekehrte Richtung: "Im Baum anzeigen" aus PersonDetail heraus (durchgereicht
   // via EntityTab.onNavigateToTree -> PersonDetail.onNavigateToTree).
   function openTreeFromPersonDetail(personId: string) {
     viewState.setCurrent('lensFocus', personId);
-    activeTarget = 'tree';
+    route.setTarget('tree');
   }
 
   // Klick auf den ⚭-Badge im Baum (zwischen Proband und aktivem Ehepartner) ->
@@ -177,38 +188,42 @@
   // (Familien-Segment), weil die Familien-Detailansicht dort lebt (EntityTab).
   function openFamilyFromTree(familyId: string) {
     viewState.setCurrent('family', familyId);
-    activeTarget = 'person';
+    route.setTarget('family');
   }
 
-  // Globale Suche (Spec 20 §1.1 [K]) -> Detailseiten leben alle im Personen-Tab
-  // (EntityTab-Umbrella, Spec ADR-v9-17); ein Klick setzt GENAU die ViewState-Auswahl
-  // des Zielsegments und wechselt activeTarget zurück auf 'person' — EntityTab liest
-  // beim (Re-)Mount seinen initialen Segment-Zustand aus genau dieser ViewState-
-  // Auswahl (s. EntityTab.svelte initialSegment()), also KEIN zweiter Segment-Prop nötig.
+  // Globale Suche (Spec 20 §1.1 [K]) -> Detailseiten leben alle in der Entitäten-Fläche
+  // (EntityTab-Umbrella, ADR-v9-17); ein Klick setzt GENAU die ViewState-Auswahl UND das
+  // Routen-Ziel des Zielsegments.
+  //
+  // Das Ziel wird seit BL-90 EXPLIZIT genannt (`setTarget('place')`) statt wie vorher
+  // implizit über einen EntityTab-Remount aus der ViewState-Auswahl abgeleitet zu
+  // werden. Die alte Ableitung hatte eine Rangfolge (Familie vor Quelle vor Ort vor
+  // Hof) und traf bei mehreren gleichzeitig gesetzten Auswahlen nicht zwingend das
+  // gerade angeklickte Segment.
   function openPersonFromSearch(personId: string) {
     viewState.setCurrent('person', personId);
-    activeTarget = 'person';
+    route.setTarget('person');
   }
 
   function openFamilyFromSearch(familyId: string) {
     viewState.setCurrent('family', familyId);
-    activeTarget = 'person';
+    route.setTarget('family');
   }
 
   function openSourceFromSearch(sourceId: string) {
     viewState.setCurrent('repository', null);
     viewState.setCurrent('source', sourceId);
-    activeTarget = 'person';
+    route.setTarget('source');
   }
 
   function openPlaceFromSearch(placeId: string) {
     viewState.setCurrent('place', placeId);
-    activeTarget = 'person';
+    route.setTarget('place');
   }
 
   function openHofFromSearch(hofId: string) {
     viewState.setCurrent('hof', hofId);
-    activeTarget = 'person';
+    route.setTarget('hof');
   }
   // Undo/Redo per Tastatur (BL-01, Spec 20 §1.2). An der Schale statt an der Leiste:
   // das Kürzel soll überall greifen, unabhängig vom Fokus. In Eingabefeldern bewusst
@@ -239,9 +254,15 @@
   {/if}
 
   <main class="app-shell__main">
-    {#if activeTarget === 'person'}
-      <EntityTab {appState} {viewState} onNavigateToTree={openTreeFromPersonDetail} onNavigateLens={navigateLens} />
-    {:else if activeTarget === 'tree'}
+    {#if isEntityTarget(route.target)}
+      <EntityTab
+        {appState}
+        {viewState}
+        {route}
+        onNavigateToTree={openTreeFromPersonDetail}
+        onNavigateLens={navigateLens}
+      />
+    {:else if route.target === 'tree'}
       <TreeView
         {appState}
         {viewState}
@@ -249,11 +270,11 @@
         onNavigateToFamily={openFamilyFromTree}
         onNavigateLens={navigateLens}
       />
-    {:else if activeTarget === 'map'}
+    {:else if route.target === 'map'}
       <MapLensView {appState} {viewState} onNavigateLens={navigateLens} />
-    {:else if activeTarget === 'timeline'}
+    {:else if route.target === 'timeline'}
       <TimelineLensView {appState} {viewState} onNavigateLens={navigateLens} />
-    {:else if activeTarget === 'search'}
+    {:else if route.target === 'search'}
       <GlobalSearchView
         {appState}
         onNavigateToPerson={openPersonFromSearch}
@@ -262,7 +283,7 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
-    {:else if activeTarget === 'tasks'}
+    {:else if route.target === 'tasks'}
       <ResearchTab
         {appState}
         onNavigateToPerson={openPersonFromSearch}
@@ -270,14 +291,14 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
-    {:else if activeTarget === 'more'}
+    {:else}
       <MoreView
         {appState}
         {fileService}
         {persister}
         {placesFileIO}
         {fileHandle}
-        onNavigateLens={navigateLens}
+        {route}
         onImported={(handle) => (fileHandle = handle)}
       />
     {/if}

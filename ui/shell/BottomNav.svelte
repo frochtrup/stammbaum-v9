@@ -9,29 +9,21 @@
   //
   // Aktiver Zustand: Balken + fett + Akzentfarbe (nicht nur Farbe, WCAG 1.4.1 / LP-8,
   // Spec 21 §2 "nie nur Farbe").
-  // Bottom-Nav-Ziele sind eine feste Teilmenge von ViewTarget (Spec 21 §2: 5 feste
+  // Bottom-Nav-Ziele sind eine feste Teilmenge der Navigationsziele (Spec 21 §2: 5 feste
   // Slots). Familien/Quellen/Archive sind KEINE Bottom-Nav-Ziele — sie leben im
   // Entitäten-Segment-Umschalter (EntityTab.svelte), erreichbar über "Personen".
-  export type BottomNavTarget = 'tree' | 'person' | 'search' | 'tasks' | 'more';
+  //
+  // Die Liste selbst steht seit BL-90 NICHT mehr hier: Symbole und Beschriftungen kommen
+  // aus dem einen Ziel-Register (nav-model.ts, INV-UI-15) — diese Komponente ist eine
+  // Projektion darauf, keine zweite Quelle. Vorher standen dieselben Beschriftungen
+  // zusätzlich in EntityTab.svelte und MoreView.svelte (ADR-v9-101).
+  import { bottomNavItems, type BottomNavSlot } from './nav-model';
 
-  interface NavItem {
-    target: BottomNavTarget;
-    icon: string;
-    label: string;
-    implemented: boolean;
-  }
-
-  const items: NavItem[] = [
-    { target: 'tree', icon: '⧖', label: 'Baum', implemented: true },
-    { target: 'person', icon: '👤', label: 'Personen', implemented: true },
-    { target: 'search', icon: '🔍', label: 'Suche', implemented: true },
-    { target: 'tasks', icon: '☑', label: 'Aufgaben', implemented: true },
-    { target: 'more', icon: '⋯', label: 'Mehr', implemented: true },
-  ];
+  const items = bottomNavItems();
 
   interface Props {
-    active: BottomNavTarget;
-    onNavigate: (target: BottomNavTarget) => void;
+    active: BottomNavSlot;
+    onNavigate: (target: BottomNavSlot) => void;
     /** Anzahl offener Aufgaben fürs Badge (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`
      * "99+" ab >99) — 0/undefined blendet das Badge aus. Formatierung obliegt dem
      * Aufrufer (tasks-model.ts `formatBadgeCount`), diese Komponente zeigt nur an. */
@@ -41,18 +33,18 @@
 </script>
 
 <nav class="bottom-nav" aria-label="Hauptnavigation">
-  {#each items as item (item.target)}
+  {#each items as item (item.id)}
     <button
       type="button"
       class="bottom-nav__item"
-      class:bottom-nav__item--active={active === item.target}
-      aria-current={active === item.target ? 'page' : undefined}
-      onclick={() => onNavigate(item.target)}
+      class:bottom-nav__item--active={active === item.id}
+      aria-current={active === item.id ? 'page' : undefined}
+      onclick={() => onNavigate(item.id)}
     >
       <span class="bottom-nav__bar" aria-hidden="true"></span>
       <span class="bottom-nav__icon" aria-hidden="true">
         {item.icon}
-        {#if item.target === 'tasks' && openTaskBadge}
+        {#if item.id === 'tasks' && openTaskBadge}
           <span class="bottom-nav__badge">{openTaskBadge}</span>
         {/if}
       </span>

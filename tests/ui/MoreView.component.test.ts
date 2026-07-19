@@ -4,14 +4,19 @@
 // "Statistik" ist echt verdrahtet (Spec 20 §4) und zeigt StatisticsView statt eines
 // Platzhalters. "Karte" UND "Zeitleiste" haben jetzt ebenfalls echten Inhalt
 // (ADR-v9-25 / Spec 20 §1.10) — GENAU EIN kanonischer Weg dorthin je Lens (INV-UI-2):
-// beide Hub-Einträge sind KEIN Menü-Sub-Eintrag mehr, sondern navigieren sofort über
-// onNavigateLens('map'/'timeline') auf denselben App.svelte-Pfad, den auch der
-// Lens-Umschalter nutzt. Story/Ausgaben/Einstellungen bleiben Platzhalter — eigene,
-// spätere Bauabschnitte.
-import { describe, expect, it, vi } from 'vitest';
+// beide Hub-Einträge sind KEIN Menü-Sub-Eintrag mehr, sondern setzen sofort das
+// Routen-Ziel, das auch der Lens-Umschalter setzt. Story/Ausgaben/Einstellungen bleiben
+// Platzhalter — eigene, spätere Bauabschnitte.
+//
+// Seit BL-90 hält der Hub KEINEN eigenen Unter-Zustand mehr (vormals `openEntry`):
+// welcher Eintrag offen ist, steht in der einen Routen-Quelle (INV-UI-15, ADR-v9-101).
+// Deshalb bekommt jeder Render hier eine echte Route-Instanz statt eines Callback-Spions
+// — dieselbe Instanz, die in der App auch die Bottom-Nav-Markierung speist.
+import { describe, expect, it } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { FileService } from '../../services/file/file-service';
 import { PlacesSyncService } from '../../services/places';
@@ -25,7 +30,8 @@ import {
 
 describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   it('zeigt alle sechs Menüeinträge (vier Lenses + Ausgaben + Einstellungen)', () => {
-    render(MoreView, { props: { appState: createAppState() } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     for (const label of ['Karte', 'Zeitleiste', 'Statistik', 'Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(label))).toBeTruthy();
@@ -33,7 +39,8 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 
   it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste NICHT mehr', () => {
-    render(MoreView, { props: { appState: createAppState() } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     for (const label of ['Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
@@ -43,41 +50,33 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
   });
 
-  it('Klick auf "Karte" ruft onNavigateLens mit "map" auf, OHNE den Hub zu verlassen (App.svelte wechselt activeTarget)', async () => {
-    const onNavigateLens = vi.fn();
-    render(MoreView, { props: { appState: createAppState(), onNavigateLens } });
+  it('Klick auf "Karte" setzt das Routen-Ziel "map" und öffnet KEINE zweite Karte im Hub', async () => {
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Karte/ }));
 
-    expect(onNavigateLens).toHaveBeenCalledWith('map');
+    expect(route.target).toBe('map');
     // Kein ComingSoonPanel/Sub-Ansicht für "Karte" — der Hub selbst öffnet keine
-    // eigene zweite Karten-Implementierung (INV-UI-2).
+    // eigene zweite Karten-Implementierung (INV-UI-2). Die Karten-Fläche rendert die
+    // App-Wurzel anhand desselben Routen-Ziels.
     expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
-  });
-
-  it('Klick auf "Zeitleiste" ruft onNavigateLens mit "timeline" auf, OHNE den Hub zu verlassen', async () => {
-    const onNavigateLens = vi.fn();
-    render(MoreView, { props: { appState: createAppState(), onNavigateLens } });
-
-    await fireEvent.click(screen.getByRole('button', { name: /Zeitleiste/ }));
-
-    expect(onNavigateLens).toHaveBeenCalledWith('timeline');
-    // Kein ComingSoonPanel/Sub-Ansicht für "Zeitleiste" — der Hub selbst öffnet keine
-    // eigene zweite Zeitleiste-Implementierung (INV-UI-2).
-    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
-  });
-
-  it('Klick auf "Karte" ohne onNavigateLens-Prop crasht nicht (optionaler Callback)', async () => {
-    render(MoreView, { props: { appState: createAppState() } });
-
-    await fireEvent.click(screen.getByRole('button', { name: /Karte/ }));
-
-    // Menü bleibt sichtbar (kein Absturz, kein stiller Sub-Ansicht-Wechsel).
     expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy();
   });
 
+  it('Klick auf "Zeitleiste" setzt das Routen-Ziel "timeline", ohne den Hub-Inhalt zu tauschen', async () => {
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Zeitleiste/ }));
+
+    expect(route.target).toBe('timeline');
+    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
+  });
+
   it('Klick auf "Story" zeigt ComingSoonPanel mit Label "Story"', async () => {
-    render(MoreView, { props: { appState: createAppState() } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Story/ }));
 
@@ -87,7 +86,8 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 
   it('Klick auf "Einstellungen" zeigt ComingSoonPanel mit Label "Einstellungen"', async () => {
-    render(MoreView, { props: { appState: createAppState() } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Einstellungen/ }));
 
@@ -95,7 +95,8 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 
   it('Klick auf "Statistik" zeigt die echte StatisticsView (kein ComingSoonPanel mehr)', async () => {
-    render(MoreView, { props: { appState: createAppState() } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Statistik/ }));
 
@@ -108,7 +109,8 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     const persister = createPlacesPersister(
       new PlacesSyncService(createMockPlacesStore(null), createMockDeviceId('dev-A'), createMockClock(1000)),
     );
-    render(MoreView, { props: { appState: createAppState(), fileService, persister } });
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), fileService, persister, route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Datei/ }));
 
@@ -129,6 +131,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
         fileService,
         persister,
         placesFileIO: { placesStore, handleStore, picker: { pick: async () => null } },
+        route: createRoute({ target: 'more' }),
       },
     });
 
@@ -140,13 +143,16 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     expect(screen.getByRole('button', { name: /Datei öffnen/ })).toBeTruthy();
   });
 
-  it('"Zurück zum Menü" aus der Sub-Ansicht bringt wieder alle sechs Einträge', async () => {
-    render(MoreView, { props: { appState: createAppState() } });
+  it('"Zurück zum Menü" aus der Sub-Ansicht bringt wieder alle sechs Einträge — über die Route', async () => {
+    const route = createRoute({ target: 'more' });
+    render(MoreView, { props: { appState: createAppState(), route } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Statistik/ }));
+    expect(route.target).toBe('stats');
     expect(screen.queryByRole('button', { name: /Karte/ })).toBeNull();
 
     await fireEvent.click(screen.getByRole('button', { name: /Zurück zum Menü/ }));
+    expect(route.target).toBe('more');
 
     for (const label of ['Karte', 'Zeitleiste', 'Statistik', 'Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy();

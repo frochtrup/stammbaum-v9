@@ -11,8 +11,10 @@
   // verstreuten Ad-hoc-Sprünge in den einzelnen Detail-Komponenten.
   import { untrack } from 'svelte';
   import type { AppState } from '../shell/app-state.svelte';
-  import type { ViewState, ViewTarget } from '../shell/view-state.svelte';
+  import type { ViewState } from '../shell/view-state.svelte';
   import type { LensId } from '../shell/lens-model';
+  import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
+  import type { Route } from '../shell/route.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
   import FamilyList from './family/FamilyList.svelte';
@@ -45,47 +47,30 @@
      *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
      *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
     onNavigateLens?: (lens: LensId) => void;
+    /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
+    route: Route;
   }
-  const { appState, viewState, onNavigateToTree, onNavigateLens }: Props = $props();
+  const { appState, viewState, route, onNavigateToTree, onNavigateLens }: Props = $props();
 
-  type EntitySegment = 'person' | 'family' | 'source' | 'repository' | 'place' | 'hof';
-
-  interface SegmentDef {
-    id: EntitySegment;
-    label: string;
-    target: ViewTarget | null;
-    implemented: boolean;
-  }
-
-  const segments: SegmentDef[] = [
-    { id: 'person', label: 'Personen', target: 'person', implemented: true },
-    { id: 'family', label: 'Familien', target: 'family', implemented: true },
-    { id: 'source', label: 'Quellen', target: 'source', implemented: true },
-    { id: 'place', label: 'Orte', target: 'place', implemented: true },
-    { id: 'hof', label: 'Höfe', target: 'hof', implemented: true },
-  ];
+  // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
+  // einen Ziel-Registers (nav-model.ts, INV-UI-15). Vorher war sie die zweite von drei
+  // unabhängigen Ziel-Listen — und weil die Desktop-Sidebar (Spec 21 §3) genau diese
+  // Ziele flach neben Baum/Karte/Suche zeigt, hätte sie ohne Zusammenführung in einen
+  // privaten Zustand dieser Komponente greifen müssen (ADR-v9-101).
+  const segments = ENTITY_TARGETS;
 
   // Archive sind Teil des Quellen-Tabs (Spec 20 §1.6: "Quellen-Tab & Archive"), aber
   // kein eigener Segment-Button — Zugang über die Quellen-Detailseite (verlinktes
   // Archiv) bzw. den Archiv-Picker innerhalb des Quellen-Segments.
   //
-  // Initialer Segment/Sub-View leitet sich aus einer schon vorhandenen ViewState-
-  // Auswahl ab (z. B. nach App-Resume, Spec 21 §5 "Selektion überlebt App-Resume", oder
-  // wenn ein Aufrufer vor dem Mount bereits eine Auswahl gesetzt hat) — kein doppelter,
-  // widersprüchlicher Default gegenüber dem, was ViewState bereits weiß.
-  function initialSegment(): EntitySegment {
-    if (viewState.getCurrent('family')) return 'family';
-    if (viewState.getCurrent('source') || viewState.getCurrent('repository')) return 'source';
-    if (viewState.getCurrent('place')) return 'place';
-    if (viewState.getCurrent('hof')) return 'hof';
-    return 'person';
-  }
-
-  // untrack: NUR der Startwert beim Mount zählt (Spec 21 §5 "Selektion überlebt
-  // App-Resume") — kein fortlaufendes Re-Sync bei jeder ViewState-Änderung, sonst
-  // würde z. B. ein Zurück-Klick in der Personenliste den Segment-State erneut ableiten
-  // und den Nutzer aus einem bewusst gewählten Segment werfen.
-  let activeSegment = $state<EntitySegment>(untrack(initialSegment));
+  // Welches Segment offen ist, hält seit BL-90 die EINE Routen-Quelle (route.entityTarget)
+  // statt eines komponenten-lokalen `activeSegment`. Die frühere Ableitung aus der
+  // ViewState-Auswahl beim Mount (`initialSegment()`) ist damit entfallen: sie war nur
+  // nötig, weil diese Komponente bei jedem Wechsel in Baum/Karte/Mehr unmountete und
+  // ihren Zustand verlor. Die Route überlebt das — und behält das Segment auch dann,
+  // wenn dort gar nichts ausgewählt war (was die alte Ableitung nicht konnte, s.
+  // route.svelte.ts). Der Startwert nach App-Resume wird einmalig in App.svelte gesetzt.
+  const activeSegment = $derived<EntityTargetId>(route.entityTarget);
   let sourceSubView = $state<'sources' | 'repositories'>(
     untrack(() => (viewState.getCurrent('repository') ? 'repositories' : 'sources')),
   );
@@ -109,9 +94,9 @@
   let placeDedupOpen = $state(false);
   let hofDedupOpen = $state(false);
 
-  function selectSegment(segment: SegmentDef) {
+  function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
-    activeSegment = segment.id;
+    route.setTarget(segment.id);
   }
 
   function backToList() {
@@ -125,7 +110,7 @@
   }
 
   function navigateToPerson(id: string) {
-    activeSegment = 'person';
+    route.setTarget('person');
     hofReviewOpen = false;
     placeReviewOpen = false;
     viewState.setCurrent('person', id);
@@ -142,7 +127,7 @@
   }
 
   function navigateToFamily(id: string) {
-    activeSegment = 'family';
+    route.setTarget('family');
     hofReviewOpen = false;
     placeReviewOpen = false;
     viewState.setCurrent('family', id);
@@ -158,7 +143,7 @@
   }
 
   function navigateToSource(id: string) {
-    activeSegment = 'source';
+    route.setTarget('source');
     sourceSubView = 'sources';
     viewState.setCurrent('repository', null);
     viewState.setCurrent('source', id);
@@ -174,7 +159,7 @@
   }
 
   function navigateToRepository(id: string) {
-    activeSegment = 'source';
+    route.setTarget('source');
     sourceSubView = 'repositories';
     viewState.setCurrent('repository', id);
   }
@@ -189,14 +174,14 @@
   }
 
   function navigateToPlace(id: string) {
-    activeSegment = 'place';
+    route.setTarget('place');
     placeDedupOpen = false;
     placeReviewOpen = false;
     viewState.setCurrent('place', id);
   }
 
   function navigateToHof(id: string) {
-    activeSegment = 'hof';
+    route.setTarget('hof');
     hofReviewOpen = false;
     hofDedupOpen = false;
     viewState.setCurrent('hof', id);

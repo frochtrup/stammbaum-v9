@@ -33,7 +33,8 @@
   import ImportButton from '../../shell/ImportButton.svelte';
   import SaveButton from '../../shell/SaveButton.svelte';
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
-  import type { LensId } from '../../shell/lens-model';
+  import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
+  import type { Route } from '../../shell/route.svelte';
   import type { FileService } from '../../../services/file';
   import type { PlacesPersister } from '../../shell/places-persister';
   import type { PlacesFileIO } from '../../../services/places';
@@ -53,47 +54,36 @@
     fileHandle?: unknown;
     /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
     onImported?: (handle: unknown) => void;
-    /** Verlässt den Hub Richtung Karten-/Zeitleiste-Lens (App.svelte activeTarget=
-     * 'map'/'timeline', INV-UI-2). */
-    onNavigateLens?: (lens: LensId) => void;
+    /** Die EINE Routen-Quelle (INV-UI-15) — der Hub hält keinen eigenen Unter-Zustand. */
+    route: Route;
   }
-  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, onNavigateLens }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, route }: Props = $props();
 
-  type MoreEntry = 'file' | 'stats' | 'story' | 'reports' | 'settings';
+  // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
+  // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
+  // Reihenfolge-Begründung (Datei vor Statistik: Session-Einstieg für Erstnutzer).
+  //
+  // Welcher Eintrag geöffnet ist, hält seit BL-90 ebenfalls nicht mehr diese Komponente
+  // (`openEntry`), sondern die EINE Routen-Quelle (route.svelte.ts). Das war der dritte
+  // der drei unabhängigen Navigationszustände, die ADR-v9-101 zusammengeführt hat: nur
+  // so kann die Desktop-Sidebar (BL-06) "Statistik" oder "Datei" direkt ansteuern, ohne
+  // in den privaten Zustand dieses Hubs zu greifen — dort gibt es gar keinen Hub mehr.
+  const items = moreHubItems();
 
-  interface MenuItem {
-    id: MoreEntry;
-    icon: string;
-    label: string;
-    implemented: boolean;
-  }
+  // Karte/Zeitleiste verlassen den Hub sofort (echter Inhalt, INV-UI-2 — derselbe Pfad
+  // wie der Lens-Umschalter); alle übrigen Einträge öffnen eine Sub-Ansicht INNERHALB
+  // des Hubs. Beides ist jetzt derselbe Aufruf — den Unterschied macht allein, ob das
+  // Ziel eine eigene Fläche in der App-Wurzel hat.
+  const LEAVES_HUB: readonly NavTargetId[] = ['map', 'timeline'];
+  const hubInternal = items.filter((i) => !LEAVES_HUB.includes(i.id));
 
-  // Reihenfolge folgt Spec 21 §1/§3: Datei zuerst (Session-Einstieg), dann die
-  // verbleibende Lens (Story), dann die übrigen Arbeitsflächen-Einträge, die laut §2 in
-  // den "Mehr"-Hub gehören. "Karte" und "Zeitleiste" sind KEIN Menü-Sub-Eintrag mehr
-  // (s. Kommentar oben) — eigene Buttons, die sofort über onNavigateLens navigieren
-  // statt eine Sub-Ansicht im Hub zu öffnen.
-  const items: MenuItem[] = [
-    { id: 'file', icon: '📁', label: 'Datei', implemented: true },
-    { id: 'stats', icon: '📊', label: 'Statistik', implemented: true },
-    { id: 'story', icon: '📖', label: 'Story', implemented: false },
-    { id: 'reports', icon: '🖨', label: 'Ausgaben', implemented: false },
-    { id: 'settings', icon: '⚙', label: 'Einstellungen', implemented: false },
-  ];
-
-  // Ein Menü mit einer Sub-Ansicht reicht (Auftrag: "halte das einfach, kein komplexer
-  // History-Stack nötig") — kein eigener Eintrag in der zentralen ViewState-Instanz,
-  // weil dieser Hub rein lokale Menü-Navigation ist (INV-VS bleibt unberührt: die
-  // "echte" Auswahl je Ziel bleibt weiterhin exklusiv bei ViewState, sobald die
-  // einzelnen Lenses/Ausgaben/Einstellungen gebaut werden).
-  let openEntry = $state<MenuItem | null>(null);
-
-  function open(item: MenuItem) {
-    openEntry = item;
-  }
+  // Welcher Hub-Eintrag ist offen, ergibt sich aus der Route — kein zweiter Zustand.
+  // Karte/Zeitleiste sind bewusst ausgenommen: bei diesen Zielen rendert die App-Wurzel
+  // die jeweilige Lens-Fläche und gar nicht diesen Hub.
+  const openEntry = $derived(hubInternal.find((i) => i.id === route.target) ?? null);
 
   function backToMenu() {
-    openEntry = null;
+    route.setTarget('more');
   }
 </script>
 
@@ -117,21 +107,9 @@
     {/if}
   {:else}
     <ul class="more-view__list">
-      <li>
-        <button type="button" class="more-view__item" onclick={() => onNavigateLens?.('map')}>
-          <span class="more-view__icon" aria-hidden="true">🗺</span>
-          <span class="more-view__label">Karte</span>
-        </button>
-      </li>
-      <li>
-        <button type="button" class="more-view__item" onclick={() => onNavigateLens?.('timeline')}>
-          <span class="more-view__icon" aria-hidden="true">⏱</span>
-          <span class="more-view__label">Zeitleiste</span>
-        </button>
-      </li>
       {#each items as item (item.id)}
         <li>
-          <button type="button" class="more-view__item" onclick={() => open(item)}>
+          <button type="button" class="more-view__item" onclick={() => route.setTarget(item.id)}>
             <span class="more-view__icon" aria-hidden="true">{item.icon}</span>
             <span class="more-view__label">{item.label}{item.implemented ? '' : ' (folgt)'}</span>
           </button>
