@@ -10,3 +10,11 @@ export {
   type PersonGraph,
   type DuplicateCandidate,
 } from './person-duplicates';
+
+export {
+  mergePersons,
+  MERGEABLE_PERSON_FIELDS,
+  type MergeSide,
+  type MergeSelections,
+  type MergeableField,
+} from './merge-persons';
