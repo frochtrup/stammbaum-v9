@@ -12,15 +12,19 @@
   // Zusammengeführt wird ausschließlich über `appState.mergePerson(...)` im Modal — hier
   // gibt es keine Merge-Logik, nur Auswahl und Anzeige.
   import type { AppState } from '../../shell/app-state.svelte';
-  import { DEFAULT_DUPLICATE_THRESHOLD } from '../../../core/dedup';
+  import { DEFAULT_DUPLICATE_THRESHOLD, pairKey } from '../../../core/dedup';
+  import { IdbDedupIgnoreStore, loadIgnoredPairs, type DedupIgnoreStore } from '../../../services/dedup';
   import { buildPersonDedupRows, type DedupPairRow } from './person-dedup-model';
   import PersonMergeModal from './PersonMergeModal.svelte';
 
   interface Props {
     appState: AppState;
     onClose?: () => void;
+    /** Speicher der „kein Duplikat"-Paare (BL-105). Injizierbar, damit der
+     *  Komponententest den Weg ohne IndexedDB prüfen kann; produktiv der IDB-Store. */
+    ignoreStore?: DedupIgnoreStore;
   }
-  const { appState, onClose }: Props = $props();
+  const { appState, onClose, ignoreStore = new IdbDedupIgnoreStore() }: Props = $props();
 
   let threshold = $state(DEFAULT_DUPLICATE_THRESHOLD);
   let query = $state('');
@@ -29,14 +33,49 @@
   let scannedThreshold = $state(DEFAULT_DUPLICATE_THRESHOLD);
   let statusMessage = $state('');
   let openPair = $state<DedupPairRow | null>(null);
+  /** Vom Nutzer abgehakte Paare (BL-105) — app-lokal, reist nicht mit der Datei (LP-1). */
+  let ignored = $state<Set<string>>(new Set());
+
+  // Einmal je Mount nachladen. Schlägt der app-lokale Speicher fehl, bleibt die Liste
+  // leer: der Nutzer sieht dann wieder abgehakte Paare (ärgerlich), statt gar keine
+  // Suche zu bekommen (kaputt) — dieselbe Haltung wie bei der Regel-Konfiguration.
+  $effect(() => {
+    let cancelled = false;
+    loadIgnoredPairs(ignoreStore)
+      .then((set) => {
+        if (!cancelled) ignored = set;
+      })
+      .catch(() => {
+        /* leere Liste behalten */
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  function ignorePair(row: DedupPairRow) {
+    // Die Menge wird ERSETZT, nicht mutiert — deshalb braucht es kein SvelteSet:
+    // die Reaktivität hängt an der Zuweisung an `ignored`, nicht am Set-Inneren.
+    // Gleiche Ausnahme und gleiche Begründung wie `new Map(db.placeObjects)` in
+    // ui/shell/app-state.svelte.ts.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const next = new Set(ignored);
+    next.add(pairKey(row.a, row.b));
+    ignored = next;
+    void ignoreStore.save([...next]).catch(() => {
+      /* Anzeige bleibt gefiltert; beim nächsten Öffnen ist das Paar wieder da. */
+    });
+    statusMessage = `Als „kein Duplikat" gemerkt: ${row.labelA} ↔ ${row.labelB}.`;
+    openPair = null;
+  }
 
   const graph = $derived({ individuals: appState.db.individuals, families: appState.db.families });
   const rows = $derived<DedupPairRow[]>(
-    scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold, query) : [],
+    scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold, query, ignored) : [],
   );
   /** Trefferzahl ohne Suchfilter — sonst sieht der Nutzer beim Tippen eine sinkende Gesamtzahl. */
   const totalRows = $derived<DedupPairRow[]>(
-    scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold) : [],
+    scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold, '', ignored) : [],
   );
 
   function runScan() {
@@ -131,6 +170,7 @@
       suggestedWinner={openPair.suggestedWinner}
       onClose={() => (openPair = null)}
       onDone={(message) => (statusMessage = message)}
+      onIgnore={() => ignorePair(openPair!)}
     />
   {/key}
 {/if}

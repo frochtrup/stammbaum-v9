@@ -31,8 +31,11 @@
     onClose: () => void;
     /** Nach erfolgreichem Merge/Protokolleintrag — der Aufrufer meldet den Erfolg. */
     onDone: (message: string) => void;
+    /** „Ignorieren" (BL-105): das Paar dauerhaft als „kein Duplikat" merken. Die
+     *  Persistenz gehört der Ansicht, nicht diesem Modal — hier wird nur gemeldet. */
+    onIgnore: () => void;
   }
-  const { appState, idA, idB, score, reasons, suggestedWinner, onClose, onDone }: Props = $props();
+  const { appState, idA, idB, score, reasons, suggestedWinner, onClose, onDone, onIgnore }: Props = $props();
 
   /**
    * Eigene Wahl des Nutzers; `null` = dem Vorschlag folgen. Bewusst NICHT
@@ -224,6 +227,7 @@
       <div class="person-merge__actions">
         <button type="button" class="person-merge__btn" onclick={swapSides}>⇄ Seiten tauschen</button>
         <button type="button" class="person-merge__btn" onclick={createLogEntries}>📝 Forschungseintrag</button>
+        <button type="button" class="person-merge__btn" onclick={onIgnore}>Kein Duplikat</button>
         <button type="button" class="person-merge__btn person-merge__btn--primary" onclick={confirmMerge}>
           Zusammenführen
         </button>

@@ -18,7 +18,7 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -28,6 +28,10 @@ export const STORE_PLACES_FILE_HANDLE = 'places-file-handle';
 /** Regel-Konfiguration der Validierung (Spec 20 §3, ADR-v9-96) — app-lokal, reist NICHT
  * mit der Genealogie-Datei; der GEDCOM-Writer bleibt damit unberührt (LP-1). */
 export const STORE_VAL_CONFIG = 'val-config';
+/** „Kein Duplikat"-Paare der Duplikat-Erkennung (BL-105, Spec 20 §1.12, ADR-v9-104) —
+ * app-lokal wie die Regel-Konfiguration: eine Nutzer-Einschätzung über den eigenen
+ * Bestand, keine genealogische Aussage, die mit der Datei reisen müsste (LP-1). */
+export const STORE_DEDUP_IGNORED = 'dedup-ignored';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -49,6 +53,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_VAL_CONFIG)) {
           db.createObjectStore(STORE_VAL_CONFIG);
+        }
+        if (!db.objectStoreNames.contains(STORE_DEDUP_IGNORED)) {
+          db.createObjectStore(STORE_DEDUP_IGNORED);
         }
       };
       req.onsuccess = () => resolve(req.result);

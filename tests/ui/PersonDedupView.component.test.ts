@@ -9,6 +9,22 @@ import PersonDedupView from '../../ui/views/person/PersonDedupView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makePerson, makeEvent } from '../../core/model';
 import type { Database } from '../../core/model/types';
+import type { DedupIgnoreStore } from '../../services/dedup';
+import { pairKey } from '../../core/dedup';
+
+/** Ignorier-Speicher ohne IndexedDB — der Komponententest prüft den Weg, nicht die Platform-API. */
+class MemoryIgnoreStore implements DedupIgnoreStore {
+  keys: string[] = [];
+  constructor(initial: string[] = []) {
+    this.keys = initial;
+  }
+  async load(): Promise<string[]> {
+    return this.keys;
+  }
+  async save(keys: readonly string[]): Promise<void> {
+    this.keys = [...keys];
+  }
+}
 
 /** Zwei praktisch identische Personen — Score liegt sicher über der Default-Schwelle. */
 function zwillingsDb(): Database {
@@ -38,6 +54,16 @@ function zwillingsDb(): Database {
 
 async function scan(): Promise<void> {
   await fireEvent.click(screen.getByRole('button', { name: 'Duplikate suchen' }));
+}
+
+/** Scannt und öffnet das Modal des einzigen Paares. */
+async function openModal(ignoreStore: DedupIgnoreStore = new MemoryIgnoreStore()) {
+  const appState = createAppState();
+  appState.loadDatabase(zwillingsDb(), 'test.ged');
+  render(PersonDedupView, { props: { appState, ignoreStore } });
+  await scan();
+  await fireEvent.click(screen.getByRole('button', { name: /Anna Decker/ }));
+  return appState;
 }
 
 describe('PersonDedupView — Scan und Ergebnisliste', () => {
@@ -107,14 +133,6 @@ describe('PersonDedupView — Scan und Ergebnisliste', () => {
 });
 
 describe('PersonDedupView — Merge-Modal', () => {
-  async function openModal() {
-    const appState = createAppState();
-    appState.loadDatabase(zwillingsDb(), 'test.ged');
-    render(PersonDedupView, { props: { appState } });
-    await scan();
-    await fireEvent.click(screen.getByRole('button', { name: /Anna Decker/ }));
-    return appState;
-  }
 
   it('öffnet den Vergleich mit Score und Gründen', async () => {
     await openModal();
@@ -189,5 +207,37 @@ describe('PersonDedupView — Merge-Modal', () => {
     // Nachname ist auf beiden Seiten „Decker" — eine Zelle über beide Spalten, keine Knöpfe.
     const zeile = screen.getByRole('row', { name: /Nachname/ });
     expect(zeile.querySelectorAll('button')).toHaveLength(0);
+  });
+});
+
+describe('PersonDedupView — „Kein Duplikat" (BL-105)', () => {
+  it('nimmt das Paar aus der Liste und schreibt es in den Speicher', async () => {
+    const store = new MemoryIgnoreStore();
+    await openModal(store);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Kein Duplikat' }));
+
+    expect(screen.getByText(/Als „kein Duplikat" gemerkt/)).toBeTruthy();
+    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+    expect(store.keys).toHaveLength(1);
+  });
+
+  it('führt NICHT zusammen — beide Personen bleiben erhalten', async () => {
+    const appState = await openModal();
+    await fireEvent.click(screen.getByRole('button', { name: 'Kein Duplikat' }));
+    expect(appState.db.individuals.size).toBe(2);
+  });
+
+  it('ein bereits gespeichertes Paar erscheint gar nicht erst', async () => {
+    // Die eigentliche Zusicherung von BL-105: „dauerhaft", nicht „bis zum Neuladen".
+    // Ein frischer Mount mit vorbefülltem Speicher steht für den nächsten App-Start.
+    const appState = createAppState();
+    appState.loadDatabase(zwillingsDb(), 'test.ged');
+    render(PersonDedupView, {
+      props: { appState, ignoreStore: new MemoryIgnoreStore([pairKey('@I1@', '@I2@')]) },
+    });
+    await scan();
+
+    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
   });
 });

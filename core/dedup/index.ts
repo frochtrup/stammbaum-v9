@@ -6,6 +6,7 @@ export {
   scorePersonPair,
   normalizeNameForMatch,
   nameSimilarity,
+  pairKey,
   DEFAULT_DUPLICATE_THRESHOLD,
   type PersonGraph,
   type DuplicateCandidate,

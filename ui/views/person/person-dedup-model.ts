@@ -4,7 +4,7 @@
 import type { Person, PersonId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import type { DuplicateCandidate, PersonGraph } from '../../../core/dedup';
-import { findPersonDuplicates, MERGEABLE_PERSON_FIELDS } from '../../../core/dedup';
+import { findPersonDuplicates, pairKey, MERGEABLE_PERSON_FIELDS } from '../../../core/dedup';
 import { displayName, eventPlaceLabel, fullDateLabel, yearPlaceSummary } from '../../shell/person-display';
 
 export interface DedupPairRow {
@@ -65,7 +65,7 @@ function toRow(db: PersonGraph, ctx: PlaceContext, hit: DuplicateCandidate): Ded
   const b = db.individuals.get(hit.b);
   if (!a || !b) return null;
   return {
-    key: `${hit.a}|${hit.b}`,
+    key: pairKey(hit.a, hit.b),
     a: hit.a,
     b: hit.b,
     score: hit.score,
@@ -88,8 +88,9 @@ export function buildPersonDedupRows(
   ctx: PlaceContext,
   threshold: number,
   query = '',
+  ignored: ReadonlySet<string> = new Set(),
 ): DedupPairRow[] {
-  const rows = findPersonDuplicates(db, threshold)
+  const rows = findPersonDuplicates(db, threshold, ignored)
     .map((hit) => toRow(db, ctx, hit))
     .filter((r): r is DedupPairRow => r !== null);
   const q = query.trim().toLowerCase();

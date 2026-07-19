@@ -18,6 +18,7 @@ import type { Person, Family, PersonId, FamilyId } from '../../core/model/types'
 import {
   findPersonDuplicates,
   scorePersonPair,
+  pairKey,
   DEFAULT_DUPLICATE_THRESHOLD,
   type PersonGraph,
 } from '../../core/dedup';
@@ -285,6 +286,20 @@ describe('findPersonDuplicates', () => {
     findPersonDuplicates(g);
     expect(JSON.stringify([...g.individuals.keys()])).toBe(before);
     expect(g.individuals.get('@I1@')).toBe(twinA);
+  });
+
+  it('BL-105: ein als „kein Duplikat" abgehaktes Paar taucht nicht mehr auf', () => {
+    const g = graph([twinA, twinB]);
+    expect(findPersonDuplicates(g)).toHaveLength(1);
+    expect(findPersonDuplicates(g, DEFAULT_DUPLICATE_THRESHOLD, new Set([pairKey('@I1@', '@I2@')]))).toEqual([]);
+  });
+
+  it('BL-105: die Ignorier-Menge ist reihenfolge-unabhängig', () => {
+    // Der Speicher kennt nur den Schlüssel, nicht welche id links stand — käme die
+    // Sortierung hier anders heraus als in `pairKey`, fände die gespeicherte Liste
+    // ihre eigenen Einträge nach einem Neustart nicht wieder.
+    const g = graph([twinA, twinB]);
+    expect(findPersonDuplicates(g, DEFAULT_DUPLICATE_THRESHOLD, new Set([pairKey('@I2@', '@I1@')]))).toEqual([]);
   });
 
   it('kommt mit einem leeren Bestand zurecht', () => {
