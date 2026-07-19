@@ -45,6 +45,7 @@
   import { applyUpdate } from './sw-register';
   import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
+  import { layout } from '../ui/shell/layout.svelte';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -108,10 +109,22 @@
       placesEditNotice = result.placesNotice;
     })();
 
-    // Online-/Offline-Listener der Schale (BL-03). Rückgabewert von onMount ist die
-    // Aufräumfunktion — der Zustand lebt zwar so lange wie die App, aber ein
-    // Listener-Leck in Komponententests (mehrfaches Mounten) wäre real.
-    return onlineStatus.start();
+    // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
+    // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
+    // lange wie die App, aber ein Listener-Leck in Komponententests (mehrfaches
+    // Mounten) wäre real.
+    //
+    // `layout` (BL-91) ist der EINE Formfaktor-Zustand (Spec 21 §3): hier verdrahtet,
+    // damit es genau ein `matchMedia` in der Schale gibt. Gelesen wird er erst von der
+    // Sidebar (BL-06) und dem Multi-Pane (BL-92) — verdrahtet ist er trotzdem schon
+    // hier, weil er sonst dort nachgezogen werden müsste und die eine Stelle, an der
+    // Plattform-Listener der Schale starten, genau diese ist.
+    const stopOnline = onlineStatus.start();
+    const stopLayout = layout.start();
+    return () => {
+      stopOnline();
+      stopLayout();
+    };
   });
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
