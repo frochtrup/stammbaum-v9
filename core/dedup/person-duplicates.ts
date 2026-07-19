@@ -195,12 +195,25 @@ function relativePoints(
 
 /**
  * Ähnlichkeits-Score zweier Personen (0..100, bei Geschlechts-Widerspruch auch darunter).
- * Rein: liest `graph`, verändert nichts.
+ * Rein: liest die Graphen, verändert nichts.
+ *
+ * `graphB` ist der Graph, in dem `b` lebt — Default: derselbe wie `a`. Er wird für den
+ * IMPORT-VERGLEICH (BL-63) gebraucht, wo die zweite Person aus einer FREMDEN Datei
+ * stammt: ihre `childOf`/`parentIn`-Ids sind Ids JENER Datei und ergeben im Basis-Bestand
+ * keinen Sinn.
+ *
+ * Das v8-Orakel hat hier einen Fehler, der bewusst NICHT nachgebaut wird: sein
+ * `_dedupScorePair` liest für beide Seiten `AppState.db` (`legacy-v8/gedcom.js`), und
+ * `cmpMatchPersons` (`legacy-v8/compare-engine.js`) ruft es trotzdem mit einer Person aus
+ * der Vergleichsdatei auf. Deren Familien-Ids werden damit im FALSCHEN Bestand
+ * nachgeschlagen — die Eltern-/Partner-Achsen (bis 22 der 100 Punkte) liefern dort je
+ * nach Id-Kollision entweder nichts oder die Verwandten einer fremden Familie.
  */
 export function scorePersonPair(
   graph: PersonGraph,
   a: Person,
   b: Person,
+  graphB: PersonGraph = graph,
 ): { score: number; reasons: string[] } {
   const reasons: string[] = [];
   let score = 0;
@@ -279,7 +292,7 @@ export function scorePersonPair(
 
   // Eltern (max 7 + 7)
   const parentsA = parentsOf(graph, a);
-  const parentsB = parentsOf(graph, b);
+  const parentsB = parentsOf(graphB, b);
   for (const [role, label] of [
     ['father', 'Vater'],
     ['mother', 'Mutter'],
@@ -296,7 +309,7 @@ export function scorePersonPair(
   // Partner (max 8) — nur das BESTE Paar zählt, nicht die Summe: zwei Personen mit je
   // drei Ehen sollen nicht allein durch Menge punkten.
   const spousesA = spousesOf(graph, a);
-  const spousesB = spousesOf(graph, b);
+  const spousesB = spousesOf(graphB, b);
   if (spousesA.length > 0 && spousesB.length > 0) {
     let bestPoints = 0;
     let bestLabel = '';

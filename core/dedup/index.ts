@@ -19,3 +19,14 @@ export {
   type MergeSelections,
   type MergeableField,
 } from './merge-persons';
+
+export {
+  compareImport,
+  diffPerson,
+  IMPORT_MATCH_THRESHOLD,
+  IMPORT_UNCERTAIN_THRESHOLD,
+  type ImportStatus,
+  type ImportMatch,
+  type FieldDiff,
+  type PersonDiff,
+} from './compare-import';
