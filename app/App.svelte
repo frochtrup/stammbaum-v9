@@ -22,13 +22,16 @@
   import { createFileService, type FileService } from '../services/file';
   import { loadGedcomText } from '../ui/shell/load-gedcom-text';
   import BottomNav from '../ui/shell/BottomNav.svelte';
+  import Sidebar from '../ui/shell/Sidebar.svelte';
   import {
     bottomNavSlotFor,
     isEntityTarget,
     type BottomNavSlot,
     type EntityTargetId,
+    type NavTargetId,
   } from '../ui/shell/nav-model';
   import { createRoute } from '../ui/shell/route.svelte';
+  import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
@@ -45,7 +48,7 @@
   import { applyUpdate } from './sw-register';
   import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
-  import { layout } from '../ui/shell/layout.svelte';
+  import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -60,11 +63,19 @@
     /** Injizierbar für Tests (analog fileService/persister) — eigener orte.json-Datei-IO
      * (eigenes FS-Handle, eigener Picker, ADR-v9-70). Default ist die echte Instanz. */
     placesFileIO?: PlacesFileIO;
+    /** Injizierbar für Tests — Formfaktor-Quelle (BL-91). Default ist window.matchMedia.
+     *
+     * Nötig, weil `layout` ein Modul-Singleton ist und `start()` hier im onMount läuft:
+     * ein Test, der den Formfaktor vorab festlegt, würde beim Mount überschrieben. Der
+     * Formfaktor gehört damit in dieselbe Reihe injizierbarer Plattform-Zugänge wie
+     * fileService/persister/placesFileIO — nicht in einen Sonderweg. */
+    layoutEnv?: LayoutEnv;
   }
   const {
     fileService = createFileService(),
     persister = createPlacesPersister(createPlacesSyncService()),
     placesFileIO = createPlacesFileIO(),
+    layoutEnv,
   }: Props = $props();
 
   const viewState = createViewState();
@@ -120,7 +131,7 @@
     // hier, weil er sonst dort nachgezogen werden müsste und die eine Stelle, an der
     // Plattform-Listener der Schale starten, genau diese ist.
     const stopOnline = onlineStatus.start();
-    const stopLayout = layout.start();
+    const stopLayout = layout.start(layoutEnv);
     return () => {
       stopOnline();
       stopLayout();
@@ -159,6 +170,24 @@
   // solange ein Hub-Ziel offen ist. Diese Zuordnung ist keine App-Besonderheit mehr,
   // sondern eine Funktion des Registers (nav-model.ts) — dort auch getestet.
   const bottomNavActive = $derived<BottomNavSlot>(bottomNavSlotFor(route.target));
+
+  // Der Mehr-Hub existiert nur im Mobile-Modell (Spec 21 §2): auf Desktop trägt die
+  // Sidebar Datei/Statistik/Ausgaben/Einstellungen direkt, ein Hub-Menü wäre ein
+  // zweiter Weg zu denselben Zielen (INV-UI-2). Wer beim Verbreitern des Fensters
+  // gerade im Hub stand, darf aber nicht auf einer leeren Fläche landen (Spec 21 §5:
+  // "nie ein stiller Abbruch") — er bekommt die Entitäten-Fläche, den Einstieg.
+  //
+  // Bewusst ein $derived statt eines $effect, der die Route umschreibt: der Hub-Zustand
+  // bleibt erhalten und ist beim Verschmälern wieder da. Ein korrigierender Effekt
+  // würde den Zustand zerstören und dabei mit der Routen-Quelle um die Wahrheit
+  // konkurrieren — genau die zweite Quelle, die BL-90 beseitigt hat.
+  const shownTarget = $derived<RouteTarget>(
+    layout.isDesktopLayout && route.target === 'more' ? route.entityTarget : route.target,
+  );
+
+  function navigateFromSidebar(target: NavTargetId) {
+    route.setTarget(target);
+  }
 
   function navigate(slot: BottomNavSlot) {
     // "Personen" ist der Einstieg in die ENTITÄTEN (Spec 21 §2), nicht in die
@@ -254,11 +283,23 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-<div class="app-shell">
-  <header class="app-shell__header">
-    <h1 class="app-shell__title">Stammbaum<OfflineIndicator /></h1>
-    <UndoControls {appState} />
-  </header>
+<div class="app-shell" class:app-shell--desktop={layout.isDesktopLayout}>
+  {#if layout.isDesktopLayout}
+    <Sidebar active={shownTarget} onNavigate={navigateFromSidebar} openTaskBadge={openTasksBadge} />
+  {/if}
+
+  <div class="app-shell__body">
+    <header class="app-shell__header">
+      <!-- Der Titel steht auf Desktop bereits in der Sidebar — hier bleibt nur, was
+           dort NICHT hingehört: der Offline-Zustand (ein Zustand der laufenden
+           Sitzung, kein Navigationsziel) und Rückgängig/Wiederherstellen. -->
+      {#if !layout.isDesktopLayout}
+        <h1 class="app-shell__title">Stammbaum<OfflineIndicator /></h1>
+      {:else}
+        <span class="app-shell__status"><OfflineIndicator /></span>
+      {/if}
+      <UndoControls {appState} />
+    </header>
 
   <UpdateBanner visible={swUpdate.ready} onApply={applyUpdate} />
 
@@ -267,7 +308,7 @@
   {/if}
 
   <main class="app-shell__main">
-    {#if isEntityTarget(route.target)}
+    {#if isEntityTarget(shownTarget)}
       <EntityTab
         {appState}
         {viewState}
@@ -275,7 +316,7 @@
         onNavigateToTree={openTreeFromPersonDetail}
         onNavigateLens={navigateLens}
       />
-    {:else if route.target === 'tree'}
+    {:else if shownTarget === 'tree'}
       <TreeView
         {appState}
         {viewState}
@@ -283,11 +324,11 @@
         onNavigateToFamily={openFamilyFromTree}
         onNavigateLens={navigateLens}
       />
-    {:else if route.target === 'map'}
+    {:else if shownTarget === 'map'}
       <MapLensView {appState} {viewState} onNavigateLens={navigateLens} />
-    {:else if route.target === 'timeline'}
+    {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} onNavigateLens={navigateLens} />
-    {:else if route.target === 'search'}
+    {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
         onNavigateToPerson={openPersonFromSearch}
@@ -296,7 +337,7 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
-    {:else if route.target === 'tasks'}
+    {:else if shownTarget === 'tasks'}
       <ResearchTab
         {appState}
         onNavigateToPerson={openPersonFromSearch}
@@ -317,14 +358,35 @@
     {/if}
   </main>
 
-  <BottomNav active={bottomNavActive} onNavigate={navigate} openTaskBadge={openTasksBadge} />
+    {#if !layout.isDesktopLayout}
+      <BottomNav active={bottomNavActive} onNavigate={navigate} openTaskBadge={openTasksBadge} />
+    {/if}
+  </div>
 </div>
 
 <style>
+  /* Mobile: eine Spalte, Bottom-Nav fix am unteren Rand.
+     Desktop (ab 900px, layout.svelte.ts): Sidebar links, Inhalt rechts. Die Umschaltung
+     hängt an einer Klasse, NICHT an einer eigenen Media-Query — der Formfaktor wird an
+     genau einer Stelle entschieden (BL-91), und eine zweite Query hier könnte von ihr
+     abweichen. Das ist zugleich der "saubere Layout-Modus (eine State-Klasse) statt
+     !important-Kaskade", den Spec 21 §3 fordert. */
   .app-shell {
     display: flex;
     flex-direction: column;
     height: 100vh;
+  }
+
+  .app-shell--desktop {
+    flex-direction: row;
+  }
+
+  .app-shell__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
   }
 
   .app-shell__header {
@@ -357,5 +419,16 @@
     display: flex;
     flex-direction: column;
     padding-bottom: 4.5rem; /* Platz für die fixed Bottom-Nav */
+  }
+
+  /* Auf Desktop gibt es keine Bottom-Nav mehr — der reservierte Platz muss mit ihr
+     verschwinden, sonst bleibt unten ein toter Streifen. */
+  .app-shell--desktop .app-shell__main {
+    padding-bottom: 0;
+  }
+
+  .app-shell__status {
+    display: inline-flex;
+    align-items: center;
   }
 </style>

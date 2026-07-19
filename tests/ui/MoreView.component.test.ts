@@ -12,7 +12,7 @@
 // welcher Eintrag offen ist, steht in der einen Routen-Quelle (INV-UI-15, ADR-v9-101).
 // Deshalb bekommt jeder Render hier eine echte Route-Instanz statt eines Callback-Spions
 // — dieselbe Instanz, die in der App auch die Bottom-Nav-Markierung speist.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -21,12 +21,27 @@ import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { FileService } from '../../services/file/file-service';
 import { PlacesSyncService } from '../../services/places';
 import { createMockAdapterSet } from '../services/mock-adapters';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 import {
   createMockClock,
   createMockDeviceId,
   createMockPlacesFileHandleStore,
   createMockPlacesStore,
 } from '../services/mock-places-store';
+
+// Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
+// Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
+// entfällt oberhalb der Layout-Grenze (INV-UI-2/3). Ohne Festlegung liefe die Datei im
+// happy-dom-Standard von 1024px, also im Desktop-Modell. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   it('zeigt alle sechs Menüeinträge (vier Lenses + Ausgaben + Einstellungen)', () => {

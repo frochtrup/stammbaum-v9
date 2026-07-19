@@ -10,6 +10,8 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeSource, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildSourceRows } from './source-list-model';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
 
   // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): `Source` hat kein eigenes
   // `noteRefs`/`noteText` (anders als Person/Family) — `text` (GEDCOM SOUR.TEXT,
@@ -43,7 +45,7 @@
 
 <div class="source-list">
   {#if isEmpty}
-    <p class="source-list__empty">Keine Quellen geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="source-list__empty">{noDataHint('Quellen', layout.isDesktopLayout)}</p>
     <div class="source-list__toolbar source-list__toolbar--empty">
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>

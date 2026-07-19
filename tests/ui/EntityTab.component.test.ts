@@ -4,7 +4,7 @@
 // Deckt Segment-Wechsel + Cross-Entitäts-Navigation (Familie->Person, Quelle->Person/
 // Familie/Archiv, Archiv->Quelle) ab: ein Klick wechselt sowohl den aktiven Segment als
 // auch die ViewState-Auswahl über denselben Mechanismus.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EntityTab from '../../ui/views/EntityTab.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -19,6 +19,8 @@ import {
   makeSource,
 } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 
 function seedRichDb() {
   const db = makeDatabase();
@@ -35,6 +37,18 @@ function seedRichDb() {
   db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Bistumsarchiv' }));
   return db;
 }
+
+// Formfaktor explizit: diese Datei prüft das MOBILE Modell (Segment-Umschalter oben,
+// Spec 21 §2). Ohne die Festlegung liefe sie im happy-dom-Standard von 1024px und damit
+// im Desktop-Modell, wo die Segmentreihe bewusst entfällt (INV-UI-2) — s. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => {
   it('startet im Personen-Segment und zeigt die Personenliste', () => {

@@ -4,12 +4,14 @@
 // Personen-Picker-Default = lensFocus, Mehrpersonen-Hinzufügen (bis 5), historische
 // Ereignisse ein-/ausblendbar. Die Layout-Berechnung selbst ist in
 // tests/islands/timeline-model.test.ts abgedeckt (Spec 32 §2).
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import TimelineLensView from '../../ui/views/timeline/TimelineLensView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makeEvent, makePerson } from '../../core/model';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 
 function dbWithPerson(id: string, given: string, surname: string, birthYear: number): ReturnType<typeof makeDatabase> {
   const db = makeDatabase();
@@ -24,6 +26,19 @@ function dbWithPerson(id: string, given: string, surname: string, birthYear: num
   );
   return db;
 }
+
+// Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
+// Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
+// entfällt oberhalb der Layout-Grenze (INV-UI-2/3). Ohne Festlegung liefe die Datei im
+// happy-dom-Standard von 1024px, also im Desktop-Modell. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('TimelineLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () => {
   it('bindet den EINEN Lens-Umschalter mit "Zeitleiste" als aktiver Lens ein', () => {

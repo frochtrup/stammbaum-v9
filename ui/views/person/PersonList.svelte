@@ -14,6 +14,8 @@
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -64,7 +66,7 @@
 
 <div class="person-list">
   {#if isEmpty}
-    <p class="person-list__empty">Keine Personen geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="person-list__empty">{noDataHint('Personen', layout.isDesktopLayout)}</p>
     <div class="person-list__toolbar person-list__toolbar--empty">
       <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
     </div>

@@ -14,6 +14,8 @@
   import { tooltip } from '../../shell/tooltip';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
   import {
     buildFamilyRows,
     defaultFamilyFilters,
@@ -71,7 +73,7 @@
 
 <div class="family-list">
   {#if isEmpty}
-    <p class="family-list__empty">Keine Familien geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="family-list__empty">{noDataHint('Familien', layout.isDesktopLayout)}</p>
     <div class="family-list__toolbar family-list__toolbar--empty">
       <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
     </div>

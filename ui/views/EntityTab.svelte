@@ -15,6 +15,7 @@
   import type { LensId } from '../shell/lens-model';
   import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
   import type { Route } from '../shell/route.svelte';
+  import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
   import FamilyList from './family/FamilyList.svelte';
@@ -240,7 +241,16 @@
 </script>
 
 <div class="entity-tab">
-  <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
+  <!-- Die Entitäts-Segmentreihe ist die MOBILE Sub-Navigation (Spec 21 §2: "Familien /
+       Quellen / Orte / Höfe über einen Segment-Umschalter oben"). Auf Desktop führt die
+       Sidebar dieselben fünf Ziele beschriftet und dauerhaft (Spec 21 §3) — beides
+       gleichzeitig wären ZWEI Wege zum selben Ziel und damit ein Bruch von INV-UI-2
+       ("genau ein kanonischer Weg"), zusätzlich zu der Redundanz, die Spec 21 §9 B2 an
+       v8 kritisiert. Die Reihe entfällt daher oberhalb der Layout-Grenze.
+       Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
+       Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
+  {#if !layout.isDesktopLayout}
+    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
     {#each segments as segment (segment.id)}
       <button
         type="button"
@@ -251,10 +261,11 @@
         disabled={!segment.implemented}
         onclick={() => selectSegment(segment)}
       >
-        {segment.label}{segment.implemented ? '' : ' (folgt)'}
-      </button>
-    {/each}
-  </div>
+          {segment.label}{segment.implemented ? '' : ' (folgt)'}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if activeSegment === 'source'}
     <div

@@ -35,6 +35,7 @@
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
+  import { layout } from '../../shell/layout.svelte';
   import type { FileService } from '../../../services/file';
   import type { PlacesPersister } from '../../shell/places-persister';
   import type { PlacesFileIO } from '../../../services/places';
@@ -89,9 +90,14 @@
 
 <div class="more-view">
   {#if openEntry}
-    <div class="more-view__sub-header">
-      <button type="button" class="more-view__back" onclick={backToMenu}>← Zurück zum Menü</button>
-    </div>
+    <!-- Auf Desktop gibt es kein Hub-Menü, in das man zurückkehren könnte (die Sidebar
+         führt Datei/Statistik/… direkt) — der Zurück-Weg wäre eine Schaltfläche zu einer
+         Fläche, die dort nicht existiert. Gefunden bei der eigenen Verifikation zu BL-06. -->
+    {#if !layout.isDesktopLayout}
+      <div class="more-view__sub-header">
+        <button type="button" class="more-view__back" onclick={backToMenu}>← Zurück zum Menü</button>
+      </div>
+    {/if}
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'file'}

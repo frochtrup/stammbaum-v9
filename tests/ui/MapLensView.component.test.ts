@@ -4,7 +4,7 @@
 // Modus-Umschalter, Personen-Picker-Default = lensFocus, Offline-Fallback-Anzeige.
 // Die Layout-/Marker-Berechnung selbst ist in tests/islands/map-model.test.ts abgedeckt
 // (Spec 32 §2: Inseln werden über ihre Layout-Berechnung getestet, nicht über Pixel).
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import MapLensView from '../../ui/views/map/MapLensView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -13,6 +13,8 @@ import { makeDatabase, makeEvent, makePerson } from '../../core/model';
 import { savePlaceObject } from '../../core/places';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 
 function setOnline(value: boolean): void {
   Object.defineProperty(navigator, 'onLine', { value, configurable: true });
@@ -31,6 +33,19 @@ function dbWithPlace(): ReturnType<typeof makeDatabase> {
   );
   return db;
 }
+
+// Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
+// Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
+// entfällt oberhalb der Layout-Grenze (INV-UI-2/3). Ohne Festlegung liefe die Datei im
+// happy-dom-Standard von 1024px, also im Desktop-Modell. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('MapLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () => {
   afterEach(() => setOnline(true));

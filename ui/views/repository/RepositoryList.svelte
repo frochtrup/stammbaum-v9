@@ -9,6 +9,8 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeRepository, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildRepositoryRows } from './repository-list-model';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
 
   interface Props {
     appState: AppState;
@@ -35,7 +37,7 @@
 
 <div class="repository-list">
   {#if isEmpty}
-    <p class="repository-list__empty">Keine Archive geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="repository-list__empty">{noDataHint('Archive', layout.isDesktopLayout)}</p>
     <div class="repository-list__toolbar repository-list__toolbar--empty">
       <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
     </div>

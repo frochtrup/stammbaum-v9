@@ -185,3 +185,17 @@ export function bottomNavSlotFor(target: RouteTarget): BottomNavSlot {
   if (target === 'search' || target === 'tasks') return target;
   return 'more';
 }
+
+/**
+ * Leerzustands-Hinweis "noch keine Daten geladen" — EINE Quelle statt vier.
+ *
+ * Der Satz nennt den Weg zum Datei-Öffnen, und der hängt am Formfaktor: mobil der
+ * Mehr-Hub, auf Desktop die Sidebar. Vor BL-06 stand er wörtlich und mit fest
+ * eingebautem „unter Mehr" in PersonList/FamilyList/SourceList/RepositoryList — vier
+ * Kopien (INV-UI-4), die auf Desktop alle auf eine Fläche verwiesen, die es dort gar
+ * nicht gibt. Gefunden bei der eigenen Browser-Verifikation von BL-06.
+ */
+export function noDataHint(entityPlural: string, isDesktop: boolean): string {
+  const where = isDesktop ? 'in der Seitenleiste unter „Datei"' : 'unter „Mehr"';
+  return `Keine ${entityPlural} geladen — ${where} eine Datei öffnen, um zu starten.`;
+}
