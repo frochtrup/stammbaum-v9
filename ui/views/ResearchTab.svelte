@@ -12,12 +12,16 @@
   // nur gemountet, wenn es gewählt ist — die Validierung läuft über die ganze Datenbank
   // und soll die drei anderen Segmente nicht mitbelasten.
   //
-  // Anders als EntityTab braucht dieser
-  // Umbrella KEINE ViewState-Verankerung des aktiven Segments — die drei Unter-Views
-  // sind flache globale Listen ohne Detail-Drill-down/Master-Detail-Zustand, den es
-  // über einen App-Resume hinweg zu erhalten gäbe (Spec 21 §5 gilt für Entitäts-
-  // Auswahl, nicht für einen reinen Listen-Filter-Tab).
+  // Das aktive Segment liegt in der Routen-Quelle (`route.researchTarget`), nicht in
+  // einem lokalen `$state` (ADR-v9-102). Bis dahin stand hier ausdrücklich das
+  // Gegenteil — "braucht KEINE Verankerung, die Unter-Views sind flache Listen ohne
+  // Zustand, den es zu erhalten gäbe". Der Trugschluss: erhalten werden muss nicht der
+  // Zustand IN den Listen, sondern WELCHE der vier Flächen offen war. Ohne den Merker
+  // fiel die Fläche bei jedem Verlassen auf "Aufgaben" zurück — dieselbe Lücke, die
+  // `entityTarget` für die Entitäten-Segmente längst schloss (BL-90/ADR-v9-101).
   import type { AppState } from '../shell/app-state.svelte';
+  import type { Route } from '../shell/route.svelte';
+  import type { ResearchSegmentId } from '../shell/nav-model';
   import TasksView from './tasks/TasksView.svelte';
   import LogView from './research-log/LogView.svelte';
   import HypothesesView from './hypotheses/HypothesesView.svelte';
@@ -25,6 +29,7 @@
 
   interface Props {
     appState: AppState;
+    route: Route;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -32,16 +37,15 @@
   }
   const {
     appState,
+    route,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
     onNavigateToHof,
   }: Props = $props();
 
-  type ResearchSegment = 'tasks' | 'log' | 'hypotheses' | 'quality';
-
   interface SegmentDef {
-    id: ResearchSegment;
+    id: ResearchSegmentId;
     label: string;
   }
 
@@ -52,10 +56,10 @@
     { id: 'quality', label: 'Dashboard' },
   ];
 
-  let activeSegment = $state<ResearchSegment>('tasks');
+  const activeSegment = $derived(route.researchTarget);
 
   function selectSegment(segment: SegmentDef) {
-    activeSegment = segment.id;
+    route.setResearchTarget(segment.id);
   }
 </script>
 

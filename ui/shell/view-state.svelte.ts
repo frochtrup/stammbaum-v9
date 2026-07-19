@@ -27,6 +27,17 @@
  * Slot — kein `tree`+`map`-Trio mit eigenem Fokus je Lens (das wäre selbst wieder
  * eine INV-VS-Verletzung, "eine Auswahl-Instanz je Ziel", s. Spec 21 §5/ADR-Log).
  *
+ * `mapPerson` ist die EIGENE Personenauswahl der Karte-Lens — bewusst getrennt von
+ * `lensFocus` (ADR-v9-102). `lensFocus` ist der geteilte, lens-übergreifende Fokus, den
+ * der Baum setzt; `mapPerson` ist das, was der Nutzer IN der Karte gewählt hat. Bis
+ * ADR-v9-102 lag diese Auswahl als komponenten-lokales `$state` in `MapLensView.svelte`
+ * und war beim ersten Wegnavigieren verloren — ein Vor-/Zurückspringen zwischen Karte
+ * und einer anderen Ansicht war damit unmöglich. Die Vorbelegung aus `lensFocus` greift
+ * NUR, solange die Karte noch gar keine eigene Auswahl hat (Nutzer-Entscheidung
+ * 2026-07-19: "ausser wenn die jeweilige sicht noch keine personenauswahl hat, dann
+ * sollte sie vorbelegt sein") — eine spätere Baum-Rezentrierung überschreibt eine
+ * getroffene Karten-Auswahl NICHT.
+ *
  * `lensPlaceFocus` (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") ist bewusst ein
  * EIGENER Slot statt `lensFocus` mitzubenutzen: `lensFocus` ist der dauerhafte
  * Personen-Fokus (bleibt über Lens-Wechsel hinweg bestehen), `lensPlaceFocus` ist ein
@@ -39,6 +50,7 @@
 export type ViewTarget =
   | 'lensFocus'
   | 'lensPlaceFocus'
+  | 'mapPerson'
   | 'person'
   | 'family'
   | 'source'
@@ -82,6 +94,17 @@ export interface ViewState {
   setMapCoordFocus(coords: MapCoordFocus | null): void;
   /** Reaktiv lesen (aus Svelte-Komponenten heraus). */
   getMapCoordFocus(): MapCoordFocus | null;
+  /**
+   * Eigene Personen-Vergleichsliste der Zeitleiste-Lens (bis 5, Spec 20 §1.10).
+   *
+   * Wie `setMapCoordFocus` ein explizit typisiertes Methodenpaar statt einer
+   * Zweckentfremdung des generischen Registers: dessen `string | null`-Vertrag trägt
+   * EINE Entitäts-Id, hier geht es um eine geordnete LISTE (INV-VS). Das Gegenstück der
+   * Karte ist einwertig und liegt deshalb regulär als Ziel `mapPerson` im Register.
+   */
+  setTimelinePersons(ids: readonly string[]): void;
+  /** Reaktiv lesen (aus Svelte-Komponenten heraus). */
+  getTimelinePersons(): readonly string[];
 }
 
 /**
@@ -94,6 +117,7 @@ export function createViewState(): ViewState {
   const selection = $state<Record<ViewTarget, string | null>>({
     lensFocus: null,
     lensPlaceFocus: null,
+    mapPerson: null,
     person: null,
     family: null,
     source: null,
@@ -105,6 +129,7 @@ export function createViewState(): ViewState {
     more: null,
   });
   let mapCoordFocus = $state<MapCoordFocus | null>(null);
+  let timelinePersons = $state<readonly string[]>([]);
 
   // Bewusst ein reines Buchführungs-Set, kein Teil des reaktiven Graphen (wird nie in
   // einem $derived/Template gelesen) — SvelteSet wäre hier unnötiger Overhead.
@@ -128,6 +153,12 @@ export function createViewState(): ViewState {
     },
     getMapCoordFocus() {
       return mapCoordFocus;
+    },
+    setTimelinePersons(ids) {
+      timelinePersons = [...ids];
+    },
+    getTimelinePersons() {
+      return timelinePersons;
     },
   };
 }

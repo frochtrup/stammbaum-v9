@@ -40,7 +40,7 @@
     /** Beschriftung der "keine Auswahl"-Option, nur relevant wenn allowNone. */
     noneLabel?: string;
     /** Kandidaten, die NICHT angeboten werden (z. B. bereits zugeordnete Kinder). */
-    excludeIds?: string[];
+    excludeIds?: readonly string[];
     /** Platzhaltertext, wenn nichts ausgewählt ist und allowNone=false. */
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
@@ -58,6 +58,12 @@
      *  `{#if}`) — kein fortlaufendes Re-Sync nötig. Default false (bestehende Aufrufer
      *  unverändert). */
     startOpen?: boolean;
+    /** Wird gerufen, wenn das Panel sich schließt — durch Auswahl, "keine Auswahl" ODER
+     *  den Schließen-Knopf. Für Aufrufer, die die Shell mit `startOpen` selbst hinter
+     *  einem eigenen Auslöser einblenden (`{#if offen}`) und dieses `offen` wieder
+     *  zurücksetzen müssen, sonst bliebe ein leeres Panel stehen (MapLensView/
+     *  TimelineLensView). Ohne Prop unverändertes Verhalten. */
+    onClose?: () => void;
   }
   const {
     items,
@@ -75,6 +81,7 @@
     createLabel,
     onCreateRequested,
     startOpen = false,
+    onClose,
   }: Props = $props();
 
   /** Ergebnisliste wird ab dieser Anzahl gekappt (TST-7 Kapazitäts-Fall). Ein Hinweistext
@@ -117,6 +124,7 @@
   function closePicker() {
     open = false;
     query = '';
+    onClose?.();
   }
 
   function select(id: string) {
@@ -130,7 +138,11 @@
   }
 
   function requestCreate() {
-    closePicker();
+    // Bewusst OHNE `onClose`: der Aufrufer blendet jetzt sein Anlege-Formular AN STELLE
+    // der Shell ein (PersonPicker & Co.) — ein `onClose` würde ihn dazu bringen, den
+    // ganzen Bereich zuzuklappen, und das Formular verschwände sofort wieder.
+    open = false;
+    query = '';
     onCreateRequested?.();
   }
 </script>

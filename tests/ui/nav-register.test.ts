@@ -16,8 +16,10 @@ import {
   MORE_HUB_ORDER,
   NAV_TARGETS,
   bottomNavItems,
+  LENS_SLOT_TARGETS,
   bottomNavSlotFor,
   isEntityTarget,
+  isLensTarget,
   moreHubItems,
   navTargetById,
   targetsByRole,
@@ -166,5 +168,85 @@ describe('Route — eine Quelle für "welches Ziel ist offen"', () => {
     expect(isEntityTarget('place')).toBe(true);
     expect(isEntityTarget('more')).toBe(false);
     expect(isEntityTarget('tree')).toBe(false);
+  });
+});
+
+// ADR-v9-102: dieselbe Merker-Frage wie oben, für die zwei Gruppen, die BL-90 übersehen
+// hat. Wächter gegen den Rückfall in "der Slot springt stur auf seinen ersten Eintrag".
+describe('Route — Lens-Merker (Baum/Karte/Zeitleiste teilen einen Slot)', () => {
+  it('startet auf dem Baum', () => {
+    expect(createRoute().lensTarget).toBe('tree');
+  });
+
+  it('merkt sich die zuletzt offene Lens über einen Ausflug in die Entitäten hinweg', () => {
+    const route = createRoute();
+    route.setTarget('map');
+    route.setTarget('person');
+
+    expect(route.lensTarget).toBe('map');
+
+    // Das ist der eigentliche Nutzer-Befund: der Baum-Slot führte stur auf den Baum
+    // zurück, ein Vor-/Zurückspringen zwischen zwei Ansichten war unmöglich.
+    route.openLens();
+    expect(route.target).toBe('map');
+  });
+
+  it('lässt den Lens-Merker von Nicht-Lens-Zielen unberührt', () => {
+    const route = createRoute({ target: 'timeline' });
+    for (const id of ['person', 'place', 'search', 'tasks', 'more', 'stats'] as const) {
+      route.setTarget(id);
+      expect(route.lensTarget, id).toBe('timeline');
+    }
+  });
+
+  it('isLensTarget deckt genau die drei Umschalter-Lenses ab (nicht stats/story)', () => {
+    expect(isLensTarget('tree')).toBe(true);
+    expect(isLensTarget('map')).toBe(true);
+    expect(isLensTarget('timeline')).toBe(true);
+    expect(isLensTarget('stats')).toBe(false);
+    expect(isLensTarget('story')).toBe(false);
+    expect(isLensTarget('person')).toBe(false);
+  });
+
+  it('bottomNavSlotFor und der Lens-Merker meinen dieselbe Menge', () => {
+    for (const id of LENS_SLOT_TARGETS) {
+      expect(bottomNavSlotFor(id), id).toBe('tree');
+    }
+  });
+});
+
+describe('Route — Modus-Merker der beiden Diagramm-Lenses', () => {
+  it('starten auf Orte bzw. Swim-Lane', () => {
+    const route = createRoute();
+    expect(route.mapMode).toBe('orte');
+    expect(route.timelineMode).toBe('swim');
+  });
+
+  it('merken den Modus über einen Ausflug in ein anderes Ziel hinweg', () => {
+    const route = createRoute({ target: 'map' });
+    route.setMapMode('person');
+    route.setTimelineMode('decade');
+    route.setTarget('person');
+    route.setTarget('map');
+
+    // Ohne diese Merker fiel die Karte auf "Orte" zurück und verdeckte damit ihre
+    // erhaltene Personenauswahl (die es nur im Personen-Modus zu sehen gibt).
+    expect(route.mapMode).toBe('person');
+    expect(route.timelineMode).toBe('decade');
+  });
+});
+
+describe('Route — Segment-Merker der Aufgaben-/Forschungsfläche', () => {
+  it('startet auf "Aufgaben"', () => {
+    expect(createRoute().researchTarget).toBe('tasks');
+  });
+
+  it('merkt sich das Segment über einen Ausflug in ein anderes Ziel hinweg', () => {
+    const route = createRoute({ target: 'tasks' });
+    route.setResearchTarget('hypotheses');
+    route.setTarget('person');
+    route.setTarget('tasks');
+
+    expect(route.researchTarget).toBe('hypotheses');
   });
 });

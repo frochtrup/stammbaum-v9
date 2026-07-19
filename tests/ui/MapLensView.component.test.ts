@@ -9,6 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import MapLensView from '../../ui/views/map/MapLensView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import { makeDatabase, makeEvent, makePerson } from '../../core/model';
 import { savePlaceObject } from '../../core/places';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
@@ -51,7 +52,7 @@ describe('MapLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () =
   afterEach(() => setOnline(true));
 
   it('bindet den EINEN Lens-Umschalter mit "Karte" als aktiver Lens ein', () => {
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     const mapTab = screen.getByRole('tab', { name: /Karte/ });
     expect(mapTab.getAttribute('aria-current')).toBe('page');
@@ -60,7 +61,7 @@ describe('MapLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () =
   it('Klick auf "Baum" im eingebetteten Umschalter ruft onNavigateLens mit "tree" auf', async () => {
     const onNavigateLens = vi.fn();
     render(MapLensView, {
-      props: { appState: createAppState(), viewState: createViewState(), onNavigateLens },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute(), onNavigateLens },
     });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Baum/ }));
@@ -70,7 +71,7 @@ describe('MapLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () =
 
   it('zeigt KEINE redundante Titel-Zeile über dem Umschalter (Befund: doppeltes "Karte")', () => {
     const { container } = render(MapLensView, {
-      props: { appState: createAppState(), viewState: createViewState() },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute() },
     });
 
     // "Karte" darf nur einmal im DOM stehen (als aktives Tab im Lens-Umschalter) —
@@ -85,7 +86,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
 
   it('startet im Orte-Modus und zeigt den Karten-Host', () => {
     const { container } = render(MapLensView, {
-      props: { appState: createAppState(), viewState: createViewState() },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute() },
     });
 
     const orteTab = screen.getByRole('tab', { name: 'Orte' });
@@ -94,7 +95,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
   });
 
   it('Klick auf "Personen" wechselt den Modus und zeigt den Personen-Picker-Button', async () => {
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
@@ -103,7 +104,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
   });
 
   it('Klick auf "Migrationen" wechselt den Modus und zeigt die Epochen-Legende', async () => {
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
 
@@ -114,7 +115,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
   });
 
   it('zeigt Animations-Regler (Geschwindigkeit/Loop) nur im Personen-/Migrations-Modus', async () => {
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     expect(screen.queryByText(/Loop/)).toBeNull();
 
@@ -123,7 +124,7 @@ describe('MapLensView — Modus-Umschalter (Spec 20 §1.9 [S]: Orte/Personen/Mig
   });
 
   it('Geschwindigkeits-Select reagiert auf Auswahl (value/onchange-Muster, kein bind:value; numerische Option)', async () => {
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
 
     const select = screen.getByLabelText('Geschwindigkeit') as HTMLSelectElement;
@@ -143,7 +144,7 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(MapLensView, { props: { appState, viewState } });
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
 
     expect(screen.getByText(/Anna Bauer/)).toBeTruthy();
@@ -157,7 +158,7 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(MapLensView, { props: { appState, viewState } });
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
     await fireEvent.click(screen.getByText(/Anna Bauer/));
 
@@ -171,6 +172,70 @@ describe('MapLensView — Personen-Picker-Default (Spec 21 §4 "Fokus bleibt erh
   });
 });
 
+describe('MapLensView — eigene, navigationsfeste Personenauswahl (ADR-v9-102)', () => {
+  afterEach(() => setOnline(true));
+
+  it('belegt aus "lensFocus" nur vor, solange die Karte noch KEINE eigene Auswahl hat', async () => {
+    const appState = createAppState();
+    const db = dbWithPlace();
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Müller' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    // Eigene Auswahl aus einem früheren Besuch — ein abweichender Baum-Fokus darf sie
+    // NICHT überschreiben (Nutzer-Entscheidung 2026-07-19).
+    viewState.setCurrent('mapPerson', '@I2@');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
+
+    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+    expect(screen.queryByText(/Anna Bauer/)).toBeNull();
+  });
+
+  it('überlebt das Wegnavigieren: die Auswahl liegt im ViewState, nicht in der Komponente', async () => {
+    const appState = createAppState();
+    const db = dbWithPlace();
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Müller' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const first = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
+    await fireEvent.click(screen.getByText(/Anna Bauer/));
+    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
+    first.unmount();
+
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
+
+    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+  });
+});
+
+describe('MapLensView — der Anzeige-Modus überlebt das Wegnavigieren (ADR-v9-102)', () => {
+  afterEach(() => setOnline(true));
+
+  it('kommt im zuletzt gewählten Modus zurück, nicht auf "Orte"', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+    const viewState = createViewState();
+    const route = createRoute();
+
+    const first = render(MapLensView, { props: { appState, viewState, route } });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
+    // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
+    first.unmount();
+
+    render(MapLensView, { props: { appState, viewState, route } });
+
+    expect(screen.getByRole('tab', { name: 'Migrationen' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('tab', { name: 'Orte' }).getAttribute('aria-current')).toBeNull();
+  });
+});
+
 describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2")', () => {
   afterEach(() => setOnline(true));
 
@@ -180,7 +245,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     const viewState = createViewState();
     viewState.setCurrent('lensPlaceFocus', 'P1');
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByRole('tab', { name: 'Orte' }).getAttribute('aria-current')).toBe('page');
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
@@ -192,7 +257,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     const viewState = createViewState();
     viewState.setCurrent('lensPlaceFocus', 'P1');
 
-    render(MapLensView, { props: { appState, viewState } });
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
   });
@@ -204,7 +269,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     viewState.setCurrent('lensFocus', '@I1@');
     viewState.setCurrent('lensPlaceFocus', 'P1');
 
-    render(MapLensView, { props: { appState, viewState } });
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
@@ -215,7 +280,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     appState.loadDatabase(dbWithPlace(), 'test.ged');
     const viewState = createViewState();
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
@@ -227,7 +292,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     const viewState = createViewState();
     viewState.setCurrent('lensPlaceFocus', 'UNBEKANNTE-ID');
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
@@ -251,7 +316,7 @@ describe('MapLensView — Orte-Modus-Fokus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "L�
     const viewState = createViewState();
     viewState.setCurrent('lensPlaceFocus', 'PX23');
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
@@ -267,7 +332,7 @@ describe('MapLensView — Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag: Event-Koord
     const viewState = createViewState();
     viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
   });
@@ -278,7 +343,7 @@ describe('MapLensView — Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag: Event-Koord
     const viewState = createViewState();
     viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
 
-    render(MapLensView, { props: { appState, viewState } });
+    render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(viewState.getMapCoordFocus()).toBeNull();
   });
@@ -290,7 +355,7 @@ describe('MapLensView — Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag: Event-Koord
     viewState.setCurrent('lensPlaceFocus', 'P1');
     viewState.setMapCoordFocus({ lat: 52.28, long: 7.43 });
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
     expect(viewState.getCurrent('lensPlaceFocus')).toBeNull();
@@ -302,7 +367,7 @@ describe('MapLensView — Roh-Koordinaten-Fokus (ADR-v9-78-Nachtrag: Event-Koord
     appState.loadDatabase(dbWithPlace(), 'test.ged');
     const viewState = createViewState();
 
-    const { container } = render(MapLensView, { props: { appState, viewState } });
+    const { container } = render(MapLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(container.querySelector('.map-lens-view__host')).toBeTruthy();
     expect(viewState.getMapCoordFocus()).toBeNull();
@@ -315,7 +380,7 @@ describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
   it('zeigt den Offline-Hinweis-Banner, wenn navigator.onLine=false beim Mount ist', () => {
     setOnline(false);
 
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     expect(screen.getByRole('status').textContent).toMatch(/Offline/);
   });
@@ -323,7 +388,7 @@ describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
   it('zeigt KEINEN Offline-Banner, wenn online', () => {
     setOnline(true);
 
-    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(MapLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     expect(screen.queryByRole('status')).toBeNull();
   });
@@ -333,7 +398,7 @@ describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
     const appState = createAppState();
     appState.loadDatabase(dbWithPlace(), 'test.ged');
 
-    const { container } = render(MapLensView, { props: { appState, viewState: createViewState() } });
+    const { container } = render(MapLensView, { props: { appState, viewState: createViewState(), route: createRoute() } });
 
     expect(container.querySelector('.map-fallback')).toBeTruthy();
     expect(container.querySelector('.map-fallback__svg')).toBeTruthy();

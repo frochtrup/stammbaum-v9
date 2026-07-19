@@ -9,6 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import TimelineLensView from '../../ui/views/timeline/TimelineLensView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import { makeDatabase, makeEvent, makePerson } from '../../core/model';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
@@ -42,7 +43,7 @@ afterEach(() => {
 
 describe('TimelineLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)', () => {
   it('bindet den EINEN Lens-Umschalter mit "Zeitleiste" als aktiver Lens ein', () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     const timelineTab = screen.getByRole('tab', { name: /Zeitleiste/ });
     expect(timelineTab.getAttribute('aria-current')).toBe('page');
@@ -51,7 +52,7 @@ describe('TimelineLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)',
   it('Klick auf "Baum" im eingebetteten Umschalter ruft onNavigateLens mit "tree" auf', async () => {
     const onNavigateLens = vi.fn();
     render(TimelineLensView, {
-      props: { appState: createAppState(), viewState: createViewState(), onNavigateLens },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute(), onNavigateLens },
     });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Baum/ }));
@@ -61,7 +62,7 @@ describe('TimelineLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)',
 
   it('zeigt KEINE redundante Titel-Zeile über dem Umschalter (INV-UI-4, LensViewHeader-Kanon)', () => {
     const { container } = render(TimelineLensView, {
-      props: { appState: createAppState(), viewState: createViewState() },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute() },
     });
 
     expect(container.querySelectorAll('.lens-switcher__item--active')).toHaveLength(1);
@@ -71,7 +72,7 @@ describe('TimelineLensView — Lens-/Fokus-Verdrahtung (INV-UI-3, Spec 21 §4)',
 
 describe('TimelineLensView — Modus-Umschalter (Spec 20 §1.10 [S]: Swim-Lane/Dekaden)', () => {
   it('startet im Swim-Lane-Modus', () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     const swimTab = screen.getByRole('tab', { name: 'Swim-Lane' });
     expect(swimTab.getAttribute('aria-current')).toBe('page');
@@ -79,7 +80,7 @@ describe('TimelineLensView — Modus-Umschalter (Spec 20 §1.10 [S]: Swim-Lane/D
 
   it('nutzt die zentralen .stb-segment-row/.stb-segment-btn-Klassen (INV-UI-4, kein eigenes Tab-CSS)', () => {
     const { container } = render(TimelineLensView, {
-      props: { appState: createAppState(), viewState: createViewState() },
+      props: { appState: createAppState(), viewState: createViewState(), route: createRoute() },
     });
 
     const modeRow = container.querySelector('.timeline-lens-view__mode-row');
@@ -88,7 +89,7 @@ describe('TimelineLensView — Modus-Umschalter (Spec 20 §1.10 [S]: Swim-Lane/D
   });
 
   it('Klick auf "Dekaden" wechselt den Modus', async () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Dekaden' }));
 
@@ -104,7 +105,7 @@ describe('TimelineLensView — Modus-Umschalter (Spec 20 §1.10 [S]: Swim-Lane/D
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
     await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
     await fireEvent.click(screen.getByRole('tab', { name: 'Dekaden' }));
@@ -120,7 +121,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByText(/Anna Bauer/)).toBeTruthy();
   });
@@ -133,7 +134,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
     await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
 
@@ -154,7 +155,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     for (const n of [2, 3, 4, 5]) {
       await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
       await fireEvent.click(screen.getByRole('button', { name: new RegExp(`P${n} X`) }));
@@ -163,7 +164,7 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     expect(screen.queryByRole('button', { name: /Person hinzufügen/ })).toBeNull();
   });
 
-  it('entfernt eine hinzugefügte Person wieder, aber nicht die Fokus-Person', async () => {
+  it('entfernt jede Person der Vergleichsliste — auch die vorbelegte erste (ADR-v9-102)', async () => {
     const appState = createAppState();
     const db = dbWithPerson('@I1@', 'Anna', 'Bauer', 1850);
     db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Müller' }));
@@ -171,26 +172,69 @@ describe('TimelineLensView — Personen-Picker-Default + Mehrpersonen (Spec 20 �
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
     await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
-    await fireEvent.click(screen.getByRole('button', { name: /Person aus Vergleich entfernen/ }));
+
+    // Erste Pille = die aus `lensFocus` vorbelegte Anna. Vor ADR-v9-102 trug sie als
+    // einzige gar kein ✕ (erzwungener Startpunkt) — jetzt ist die Zeitleiste ihre
+    // eigene Auswahl-Herrin, wie die Karte daneben.
+    const removeButtons = screen.getAllByRole('button', { name: /Person aus Vergleich entfernen/ });
+    expect(removeButtons).toHaveLength(2);
+    await fireEvent.click(removeButtons[0]);
+
+    expect(screen.queryByText(/Anna Bauer/)).toBeNull();
+    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+  });
+
+  it('belegt aus "lensFocus" nur vor, solange die Zeitleiste noch KEINE eigene Auswahl hat', async () => {
+    const appState = createAppState();
+    const db = dbWithPerson('@I1@', 'Anna', 'Bauer', 1850);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Müller' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    // Die Sicht hat bereits eine eigene Auswahl (z. B. aus einem früheren Besuch) —
+    // ein davon abweichender geteilter Baum-Fokus darf sie NICHT überschreiben.
+    viewState.setTimelinePersons(['@I2@']);
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
+
+    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
+    expect(screen.queryByText(/Anna Bauer/)).toBeNull();
+  });
+
+  it('überlebt das Wegnavigieren: die Auswahl liegt im ViewState, nicht in der Komponente', async () => {
+    const appState = createAppState();
+    const db = dbWithPerson('@I1@', 'Anna', 'Bauer', 1850);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Müller' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const first = render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('button', { name: /Person hinzufügen/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Otto Müller/ }));
+    // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
+    first.unmount();
+
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByText(/Anna Bauer/)).toBeTruthy();
-    expect(screen.queryByText(/Otto Müller/)).toBeNull();
+    expect(screen.getByText(/Otto Müller/)).toBeTruthy();
   });
 });
 
 describe('TimelineLensView — historische Ereignisse ein-/ausblendbar (Spec 20 §1.10 [S])', () => {
   it('zeigt die Kategorie-Filter standardmäßig aktiv, wenn "Historische Ereignisse" angehakt ist', () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     expect(screen.getByRole('checkbox', { name: /Historische Ereignisse/ })).toBeTruthy();
     expect(screen.getByText(/⚔ Krieg/)).toBeTruthy();
   });
 
   it('blendet die Kategorie-Filter aus, wenn "Historische Ereignisse" abgehakt wird', async () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('checkbox', { name: /Historische Ereignisse/ }));
 
@@ -198,7 +242,7 @@ describe('TimelineLensView — historische Ereignisse ein-/ausblendbar (Spec 20 
   });
 
   it('togglet eine einzelne Kategorie (Krieg) unabhängig von den anderen', async () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     const warBtn = screen.getByText(/⚔ Krieg/);
     expect(warBtn.className).toContain('timeline-lens-view__filter-btn--active');
@@ -211,7 +255,7 @@ describe('TimelineLensView — historische Ereignisse ein-/ausblendbar (Spec 20 
 
 describe('TimelineLensView — leerer Zustand', () => {
   it('zeigt einen Hinweis, wenn keine Person geladen ist', () => {
-    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState() } });
+    render(TimelineLensView, { props: { appState: createAppState(), viewState: createViewState(), route: createRoute() } });
 
     expect(screen.getByText('Keine Person geladen.')).toBeTruthy();
   });
@@ -224,7 +268,7 @@ describe('TimelineLensView — leerer Zustand', () => {
     const viewState = createViewState();
     viewState.setCurrent('lensFocus', '@I1@');
 
-    render(TimelineLensView, { props: { appState, viewState } });
+    render(TimelineLensView, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByText('Keine datierten Ereignisse vorhanden.')).toBeTruthy();
   });

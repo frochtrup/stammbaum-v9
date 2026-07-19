@@ -24,6 +24,49 @@ export type NavRole = 'entity' | 'lens' | 'work';
 export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof';
 
 /**
+ * Die Kontext-Fokus-Lenses, die sich EINEN Bottom-Nav-Slot teilen (Spec 21 §4:
+ * "Baum ▸ Karte ▸ Zeitleiste"). Deckungsgleich mit den implementierten Einträgen des
+ * Lens-Umschalters (lens-model.ts) — 'story' fehlt, weil unimplementiert, 'stats' ist
+ * laut NAV_TARGETS zwar Rolle 'lens', aber kein Umschalter-Eintrag (globales Dashboard
+ * ohne Personenfokus) und hängt am Mehr-Slot.
+ *
+ * Diese Liste ist der Grund, warum `bottomNavSlotFor` und der Lens-Merker der Route
+ * (`route.svelte.ts`) dieselbe Menge meinen können, ohne sie zweimal aufzuzählen.
+ */
+export type LensTargetId = 'tree' | 'map' | 'timeline';
+
+export const LENS_SLOT_TARGETS: readonly LensTargetId[] = ['tree', 'map', 'timeline'];
+
+export function isLensTarget(id: RouteTarget): id is LensTargetId {
+  return (LENS_SLOT_TARGETS as readonly string[]).includes(id);
+}
+
+/**
+ * Segmente der Aufgaben-/Forschungsfläche (ResearchTab.svelte).
+ *
+ * Bewusst KEINE eigenen NAV_TARGETS-Einträge: sie sind Werkzeuge INNERHALB des Ziels
+ * 'tasks', nicht eigene Ziele (INV-UI-2, dieselbe Begründung wie Orts-/Hof-Review).
+ * Sie stehen hier, weil die Route sich das zuletzt offene Segment merken muss — genau
+ * wie bei den Entitäts-Segmenten (`entityTarget`).
+ */
+export type ResearchSegmentId = 'tasks' | 'log' | 'hypotheses' | 'quality';
+
+/**
+ * Anzeige-Modi der beiden Diagramm-Lenses (Karte: Orte/Personen/Migrationen; Zeitleiste:
+ * Swim-Lane/Dekaden). Aus demselben Grund hier wie `ResearchSegmentId`: der Modus muss
+ * das Wegnavigieren überleben, und die Merker leben gesammelt in der Routen-Quelle.
+ *
+ * Bewusst als EIGENE Unions statt eines Typ-Imports aus `ui/islands/**`: nav-model ist
+ * rein und DOM-frei (INV-ARCH-2), die Inseln sind es nicht — eine Abhängigkeit
+ * ui/shell → ui/islands wäre eine Querverbindung, keine nach unten (INV-ARCH-1).
+ * Gegen ein stilles Auseinanderdriften der beiden Unions schützt der Compiler an der
+ * Zuweisungsstelle in MapLensView/TimelineLensView (dort treffen Insel-Typ und
+ * Merker-Typ aufeinander) — kein Verlass auf Erinnerung.
+ */
+export type MapModeId = 'orte' | 'person' | 'migr';
+export type TimelineModeId = 'swim' | 'decade';
+
+/**
  * Alle Navigationsziele der App.
  *
  * Archive sind bewusst KEIN eigenes Ziel: sie sind laut Spec 20 §1.6 Teil des
@@ -181,7 +224,7 @@ export function moreHubItems(): readonly NavTargetDef[] {
  */
 export function bottomNavSlotFor(target: RouteTarget): BottomNavSlot {
   if (isEntityTarget(target)) return 'person';
-  if (target === 'tree' || target === 'map' || target === 'timeline') return 'tree';
+  if (isLensTarget(target)) return 'tree';
   if (target === 'search' || target === 'tasks') return target;
   return 'more';
 }

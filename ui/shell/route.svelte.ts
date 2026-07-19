@@ -16,7 +16,16 @@
 // Instanz und reicht sie durch, damit Komponententests eine frische, isolierte Instanz
 // bekommen (kein Test-Leck über globalen Modul-State).
 
-import { isEntityTarget, type EntityTargetId, type RouteTarget } from './nav-model';
+import {
+  isEntityTarget,
+  isLensTarget,
+  type EntityTargetId,
+  type LensTargetId,
+  type MapModeId,
+  type ResearchSegmentId,
+  type TimelineModeId,
+  type RouteTarget,
+} from './nav-model';
 
 export interface Route {
   /** Aktuell offenes Ziel (reaktiv aus Svelte-Komponenten heraus lesbar). */
@@ -33,10 +42,48 @@ export interface Route {
    * Baum sprang, kam auf "Personen" zurück. Der Merker behebt das nebenbei.
    */
   readonly entityTarget: EntityTargetId;
-  /** Ziel setzen; ist es ein Entitäts-Ziel, zieht `entityTarget` mit. */
+  /**
+   * Zuletzt offene Lens — welche Ansicht der Baum-Slot zeigt.
+   *
+   * Exakt derselbe Merker-Gedanke wie `entityTarget` eine Ebene darüber, für die zweite
+   * Gruppe von Zielen, die sich EINEN Bottom-Nav-Slot teilen (Baum/Karte/Zeitleiste,
+   * `LENS_SLOT_TARGETS`). Ohne ihn führte der Baum-Slot stur auf den Baum zurück, auch
+   * wenn der Nutzer zuletzt in der Karte war — ein Vor-/Zurückspringen zwischen zwei
+   * Ansichten war damit unmöglich, und die Lens-Gruppe verhielt sich anders als die
+   * Entitäts-Gruppe direkt daneben (ADR-v9-102).
+   */
+  readonly lensTarget: LensTargetId;
+  /**
+   * Zuletzt offenes Segment der Aufgaben-/Forschungsfläche.
+   *
+   * Dritte Ausprägung desselben Merkers (ResearchTab: Aufgaben · Protokoll · Hypothesen
+   * · Qualität). Lag bis ADR-v9-102 als komponenten-lokales `$state` in
+   * ResearchTab.svelte und fiel deshalb bei jedem Verlassen der Fläche auf "Aufgaben"
+   * zurück.
+   */
+  readonly researchTarget: ResearchSegmentId;
+  /**
+   * Anzeige-Modus der Karte- bzw. Zeitleiste-Lens.
+   *
+   * Vierte und fünfte Ausprägung desselben Merkers. Ohne sie fiel die Karte bei jeder
+   * Rückkehr auf "Orte" zurück — was die (inzwischen erhaltene) Personenauswahl der
+   * Karte unsichtbar machte, weil sie nur im Personen-Modus gezeigt wird. Ein halb
+   * erhaltener Zustand ist aus Nutzersicht kein erhaltener Zustand.
+   */
+  readonly mapMode: MapModeId;
+  readonly timelineMode: TimelineModeId;
+  /** Ziel setzen; ist es ein Entitäts-/Lens-Ziel, zieht der jeweilige Merker mit. */
   setTarget(target: RouteTarget): void;
   /** Zurück in die Entitäten-Fläche, auf das zuletzt dort offene Segment. */
   openEntities(): void;
+  /** Zurück in die Lens-Fläche, auf die zuletzt dort offene Ansicht. */
+  openLens(): void;
+  /** Segment der Aufgaben-/Forschungsfläche wechseln (merkt es sich für den Rückweg). */
+  setResearchTarget(segment: ResearchSegmentId): void;
+  /** Anzeige-Modus der Karte-Lens wechseln (merkt ihn sich für den Rückweg). */
+  setMapMode(mode: MapModeId): void;
+  /** Anzeige-Modus der Zeitleiste-Lens wechseln (merkt ihn sich für den Rückweg). */
+  setTimelineMode(mode: TimelineModeId): void;
 }
 
 export interface RouteOptions {
@@ -44,6 +91,14 @@ export interface RouteOptions {
   target?: RouteTarget;
   /** Start-Segment der Entitäten-Fläche, falls es vom Startziel abweicht. */
   entityTarget?: EntityTargetId;
+  /** Start-Lens, falls sie vom Startziel abweicht. */
+  lensTarget?: LensTargetId;
+  /** Start-Segment der Aufgaben-/Forschungsfläche. */
+  researchTarget?: ResearchSegmentId;
+  /** Start-Modus der Karte-Lens. */
+  mapMode?: MapModeId;
+  /** Start-Modus der Zeitleiste-Lens. */
+  timelineMode?: TimelineModeId;
 }
 
 export function createRoute(options: RouteOptions = {}): Route {
@@ -52,6 +107,12 @@ export function createRoute(options: RouteOptions = {}): Route {
   let entityTarget = $state<EntityTargetId>(
     options.entityTarget ?? (isEntityTarget(initialTarget) ? initialTarget : 'person'),
   );
+  let lensTarget = $state<LensTargetId>(
+    options.lensTarget ?? (isLensTarget(initialTarget) ? initialTarget : 'tree'),
+  );
+  let researchTarget = $state<ResearchSegmentId>(options.researchTarget ?? 'tasks');
+  let mapMode = $state<MapModeId>(options.mapMode ?? 'orte');
+  let timelineMode = $state<TimelineModeId>(options.timelineMode ?? 'swim');
 
   return {
     get target() {
@@ -60,12 +121,37 @@ export function createRoute(options: RouteOptions = {}): Route {
     get entityTarget() {
       return entityTarget;
     },
+    get lensTarget() {
+      return lensTarget;
+    },
+    get researchTarget() {
+      return researchTarget;
+    },
+    get mapMode() {
+      return mapMode;
+    },
+    get timelineMode() {
+      return timelineMode;
+    },
     setTarget(next) {
       if (isEntityTarget(next)) entityTarget = next;
+      if (isLensTarget(next)) lensTarget = next;
       target = next;
     },
     openEntities() {
       target = entityTarget;
+    },
+    openLens() {
+      target = lensTarget;
+    },
+    setResearchTarget(segment) {
+      researchTarget = segment;
+    },
+    setMapMode(next) {
+      mapMode = next;
+    },
+    setTimelineMode(next) {
+      timelineMode = next;
     },
   };
 }

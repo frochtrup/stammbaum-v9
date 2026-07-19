@@ -197,6 +197,11 @@
     // Personenliste im engeren Sinn: der Slot führt auf das zuletzt offene
     // Entitäts-Segment zurück, nicht stur auf Personen.
     if (slot === 'person') route.openEntities();
+    // "Baum" ist genauso der Einstieg in die LENSES, nicht in den Baum im engeren Sinn:
+    // der Slot führt auf die zuletzt offene Ansicht zurück (Baum/Karte/Zeitleiste).
+    // Bis ADR-v9-102 stand hier `setTarget('tree')` — der Slot sprang stur auf den Baum,
+    // während der Slot direkt daneben sich sein Segment längst merkte.
+    else if (slot === 'tree') route.openLens();
     else route.setTarget(slot);
   }
 
@@ -387,9 +392,9 @@
         onNavigateLens={navigateLens}
       />
     {:else if shownTarget === 'map'}
-      <MapLensView {appState} {viewState} onNavigateLens={navigateLens} />
+      <MapLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'timeline'}
-      <TimelineLensView {appState} {viewState} onNavigateLens={navigateLens} />
+      <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
@@ -402,6 +407,7 @@
     {:else if shownTarget === 'tasks'}
       <ResearchTab
         {appState}
+        {route}
         onNavigateToPerson={openPersonFromSearch}
         onNavigateToFamily={openFamilyFromSearch}
         onNavigateToPlace={openPlaceFromSearch}

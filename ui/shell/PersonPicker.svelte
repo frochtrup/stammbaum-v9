@@ -32,7 +32,7 @@
     /** Beschriftung der "keine Auswahl"-Option, nur relevant wenn allowNone. */
     noneLabel?: string;
     /** Personen, die als Kandidat NICHT angeboten werden (z. B. bereits zugeordnete Kinder). */
-    excludeIds?: PersonId[];
+    excludeIds?: readonly PersonId[];
     /** Platzhaltertext, wenn nichts ausgewählt ist und allowNone=false. */
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
@@ -45,6 +45,15 @@
      *  wäre unnötige Reibung). Nur beim Mount gelesen, kein fortlaufendes Re-Sync.
      *  Default false (bestehende Aufrufer unverändert). */
     startOpen?: boolean;
+    /** Reicht Picker.svelte's `onClose` durch — für Aufrufer, die diesen Picker selbst
+     *  hinter einem `{#if}` einblenden (Karten-/Zeitleisten-Lens). */
+    onClose?: () => void;
+    /** Blendet die "+ Neue Person anlegen"-Zeile aus. Default true (alle Formular-
+     *  Aufrufer unverändert). Auf `false` für ANSICHTS-Auswahlen, die nur einen Fokus
+     *  auf einen bestehenden Datenbestand setzen (Karte, Zeitleiste) — dort ist eine
+     *  leere Neuanlage keine sinnvolle Handlung, sie erzeugte nur eine namenlose Person
+     *  ohne Ereignisse, die die Ansicht gar nicht darstellen kann. */
+    allowCreate?: boolean;
   }
   const {
     appState,
@@ -56,6 +65,8 @@
     placeholder = 'Person wählen…',
     label = 'Person auswählen',
     startOpen = false,
+    onClose,
+    allowCreate = true,
   }: Props = $props();
 
   const items = $derived(Array.from(appState.db.individuals.values()));
@@ -111,9 +122,10 @@
       {excludeIds}
       {placeholder}
       {label}
-      createLabel="+ Neue Person anlegen …"
-      onCreateRequested={beginCreate}
+      createLabel={allowCreate ? '+ Neue Person anlegen …' : undefined}
+      onCreateRequested={allowCreate ? beginCreate : undefined}
       {startOpen}
+      {onClose}
     />
   {/if}
 </div>

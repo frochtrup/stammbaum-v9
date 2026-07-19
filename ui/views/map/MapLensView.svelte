@@ -40,32 +40,50 @@
   } from '../../islands/map/map-model';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { Route } from '../../shell/route.svelte';
   import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import type { LensId } from '../../shell/lens-model';
-  import { displayName, sortKey } from '../../shell/person-display';
+  // Personen-Auswahl über den gemeinsamen Entitäts-Picker (INV-UI-4, ADR-v9-40) statt
+  // einer eigenen Overlay-Konstruktion: dadurch dieselbe Trefferliste wie in JEDER
+  // anderen Personen-Auswahl der App — Geburtsjahr/-ort als Unterzeile
+  // (`yearPlaceSummary`) und dieselbe Match-Logik wie die globale Suche
+  // (`matchesSearch`, nicht bloß ein Substring-Vergleich auf dem Anzeigenamen).
+  import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    route: Route;
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateLens }: Props = $props();
+  const { appState, viewState, route, onNavigateLens }: Props = $props();
 
-  let mode = $state<MapMode>('orte');
-  let personId = $state<string | null>(null);
-  let personPickerOpen = $state(false);
-  let personQuery = $state('');
+  // Anzeige-Modus im Routen-Merker, nicht lokal (ADR-v9-102): fiel sonst bei jeder
+  // Rückkehr auf "Orte" zurück — und verdeckte damit die erhaltene Personenauswahl,
+  // die es nur im Personen-Modus zu sehen gibt. Die Zuweisung an `MapMode` ist zugleich
+  // der Compiler-Wächter dagegen, dass Insel-Union und Merker-Union auseinanderdriften.
+  const mode = $derived<MapMode>(route.mapMode);
   let animSpeed = $state(600);
   let animLoop = $state(false);
   let animRunning = $state(false);
   let animIndex = $state(-1); // -1 = alles anzeigen (kein Animationslauf aktiv)
 
-  // Personen-Modus-Default: der geteilte Lens-Fokus (Spec 21 §4), NICHT verändert
-  // durch den Picker im Personen-Modus (der Picker setzt nur den lokalen `personId`-State
-  // dieser Ansicht — analog wie im Orakel `_mapPersonId` getrennt von `AppState.currentPersonId` war).
+  // Die Personenauswahl der Karte lebt im ViewState-Slot `mapPerson`, NICHT in einem
+  // lokalen `$state` (ADR-v9-102): diese Ansicht wird beim Wegnavigieren unmountet
+  // (App.svelte rendert die Ziele über `{:else if}`), eine lokale Auswahl wäre danach
+  // verloren — ein Vor-/Zurückspringen zwischen Karte und einer anderen Ansicht war
+  // deshalb nicht möglich. Weiterhin bewusst GETRENNT vom geteilten `lensFocus` (analog
+  // wie im Orakel `_mapPersonId` getrennt von `AppState.currentPersonId` war).
+  const personId = $derived(viewState.getCurrent('mapPerson'));
+
+  // Vorbelegung aus dem geteilten Lens-Fokus (Spec 21 §4) — NUR solange die Karte noch
+  // gar keine eigene Auswahl hat. Eine spätere Baum-Rezentrierung überschreibt eine
+  // getroffene Karten-Auswahl nicht (Nutzer-Entscheidung 2026-07-19).
   const focusId = $derived(viewState.getCurrent('lensFocus'));
   $effect(() => {
-    if (mode === 'person' && personId == null && focusId) personId = focusId;
+    if (mode === 'person' && personId == null && focusId) {
+      viewState.setCurrent('mapPerson', focusId);
+    }
   });
 
   // Orte-Modus-Fokus (ADR-v9-78 Punkt 4) — EINMALIGER Konsum-Read, s. Kommentar oben.
@@ -113,13 +131,6 @@
   const migrations = $derived(migrationLines(appState.db, appState.placeContext));
   const biography = $derived(personId ? personBiographyPoints(appState.db, appState.placeContext, personId) : []);
 
-  const personResults = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !personQuery.trim() || displayName(p).toLowerCase().includes(personQuery.trim().toLowerCase()))
-      .sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'de'))
-      .slice(0, 50),
-  );
-
   function stopAnim(): void {
     animRunning = false;
     if (animTimer) clearTimeout(animTimer);
@@ -129,12 +140,12 @@
   function switchMode(next: MapMode): void {
     stopAnim();
     animIndex = -1;
-    mode = next;
+    route.setMapMode(next);
   }
 
-  function selectPerson(id: string): void {
-    personId = id;
-    personPickerOpen = false;
+  function selectPerson(id: string | null): void {
+    if (!id) return;
+    viewState.setCurrent('mapPerson', id);
     stopAnim();
     animIndex = -1;
   }
@@ -280,9 +291,14 @@
 
   {#if mode === 'person'}
     <div class="map-lens-view__person-row">
-      <button type="button" class="map-lens-view__person-btn" onclick={() => (personPickerOpen = true)}>
-        {personId ? displayName(appState.db.individuals.get(personId)!) : 'Person wählen…'}
-      </button>
+      <PersonPicker
+        {appState}
+        value={personId}
+        onChange={selectPerson}
+        allowCreate={false}
+        placeholder="Person wählen…"
+        label="Person für Karte wählen"
+      />
       {#if personId && biography.length === 0}
         <span class="map-lens-view__empty-hint">Keine Koordinaten für diese Person vorhanden</span>
       {/if}
@@ -327,34 +343,6 @@
 
   <div class="map-lens-view__host" bind:this={containerEl}></div>
 
-  {#if personPickerOpen}
-    <div class="map-lens-view__picker-overlay" role="dialog" aria-label="Person für Karte wählen">
-      <div class="map-lens-view__picker">
-        <div class="map-lens-view__picker-header">
-          <input
-            type="search"
-            class="map-lens-view__picker-input"
-            placeholder="Person suchen…"
-            bind:value={personQuery}
-          />
-          <button type="button" class="map-lens-view__picker-close" onclick={() => (personPickerOpen = false)}>
-            ✕
-          </button>
-        </div>
-        <ul class="map-lens-view__picker-list">
-          {#each personResults as p (p.id)}
-            <li>
-              <button type="button" class="map-lens-view__picker-item" onclick={() => selectPerson(p.id)}>
-                {displayName(p)}
-              </button>
-            </li>
-          {:else}
-            <li class="map-lens-view__picker-empty">Keine Person gefunden</li>
-          {/each}
-        </ul>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -387,16 +375,6 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem 0;
-  }
-
-  .map-lens-view__person-btn {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.85rem;
-    cursor: pointer;
   }
 
   .map-lens-view__empty-hint {
@@ -457,75 +435,4 @@
     margin: 0.5rem 0.75rem 0.75rem;
   }
 
-  .map-lens-view__picker-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 3rem;
-    z-index: 500;
-  }
-
-  .map-lens-view__picker {
-    background: var(--stb-surface-1);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-card);
-    width: min(420px, 90vw);
-    max-height: 70vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .map-lens-view__picker-header {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.6rem;
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .map-lens-view__picker-input {
-    flex: 1;
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    color: var(--stb-text);
-    padding: 0.4rem 0.6rem;
-  }
-
-  .map-lens-view__picker-close {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 1rem;
-  }
-
-  .map-lens-view__picker-list {
-    list-style: none;
-    margin: 0;
-    padding: 0.3rem;
-    overflow-y: auto;
-  }
-
-  .map-lens-view__picker-item {
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: none;
-    color: var(--stb-text);
-    padding: 0.5rem 0.6rem;
-    cursor: pointer;
-    border-radius: var(--stb-radius-control);
-  }
-
-  .map-lens-view__picker-item:hover {
-    background: var(--stb-surface-2);
-  }
-
-  .map-lens-view__picker-empty {
-    padding: 0.6rem;
-    color: var(--stb-text-dim);
-  }
 </style>
