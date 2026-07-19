@@ -9,6 +9,9 @@
 //
 // Summe der Maxima = 100: Nachname 24 · Vorname 20 · Geschlecht 11 · Geburtsjahr 16 ·
 // Geburtsort 7 · Vater 7 · Mutter 7 · Partner 8.
+//
+// EINE Abweichung an der Gewichtung selbst: Geburtsjahr-Abstand > 5 kostet −15
+// (ADR-v9-106) — am echten Bestand gemessen, s. den zugehörigen Test unten.
 import { describe, it, expect } from 'vitest';
 import { makePerson, makeFamily, makeEvent } from '../../core/model/factory';
 import type { Person, Family, PersonId, FamilyId } from '../../core/model/types';
@@ -96,12 +99,35 @@ describe('scorePersonPair — Gewichte des v8-Orakels', () => {
     const off1 = person('@I3@', { birthDate: '1851' });
     const off2 = person('@I4@', { birthDate: '1852' });
     const off5 = person('@I5@', { birthDate: '1855' });
-    const off6 = person('@I6@', { birthDate: '1856' });
     expect(pairScore(base, same)).toBe(16);
     expect(pairScore(base, off1)).toBe(12);
     expect(pairScore(base, off2)).toBe(6);
     expect(pairScore(base, off5)).toBe(2);
-    expect(pairScore(base, off6)).toBe(0);
+  });
+
+  it('ab mehr als 5 Jahren Abstand gibt es −15 Malus (ADR-v9-106, über das Orakel hinaus)', () => {
+    // Das Orakel kennt nur Boni: ein Abstand von 60 Jahren kostet nichts, er bringt
+    // bloß nichts ein. Zusammen mit den +14 für gemeinsame Eltern ließ das in einem
+    // Dorfstammbaum jede Geschwisterreihe verdächtig aussehen (gemessen: 2.436
+    // Verdachtspaare bei 2.795 Personen). Der Malus ist die Symmetrie zum bereits
+    // vorhandenen Geschlechts-Malus: ein bekannter Widerspruch spricht GEGEN Identität,
+    // nicht bloß nicht dafür.
+    const base = person('@I1@', { birthDate: '1850' });
+    expect(pairScore(base, person('@I6@', { birthDate: '1856' }))).toBe(-15);
+    expect(pairScore(base, person('@I7@', { birthDate: '1911' }))).toBe(-15);
+  });
+
+  it('der Malus greift nur, wenn BEIDE Jahre bekannt sind', () => {
+    // Unwissen ist kein Widerspruch — sonst würde der Malus genau die schlecht
+    // belegten Personen bestrafen, für die das Werkzeug am nötigsten ist.
+    const dated = person('@I1@', { birthDate: '1850' });
+    expect(pairScore(dated, person('@I2@'))).toBe(4);
+  });
+
+  it('nennt den Jahrgang-Widerspruch als Grund gegen das Paar', () => {
+    const a = person('@I1@', { surname: 'Decker', birthDate: '1850' });
+    const b = person('@I2@', { surname: 'Decker', birthDate: '1900' });
+    expect(scorePersonPair(graph([a, b]), a, b).reasons).toContain('Geburtsjahr weit auseinander');
   });
 
   it('fehlt EIN Geburtsdatum, greift der neutrale +4-Zuschlag statt der Staffel', () => {
