@@ -28,8 +28,11 @@
     viewState: ViewState;
     /** Nach dem Anlegen einer neuen Person aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
     onCreate?: (personId: string) => void;
+    /** Öffnet die Duplikat-Erkennung (BL-104). Analog PlaceList/HofList: die Ansicht selbst
+     *  gehört EntityTab, hier sitzt nur der Öffner. */
+    onOpenDedup?: () => void;
   }
-  const { appState, viewState, onCreate }: Props = $props();
+  const { appState, viewState, onCreate, onOpenDedup }: Props = $props();
 
   function createPerson() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -135,6 +138,18 @@
           <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
         </div>
       </FilterBar>
+      {#if onOpenDedup}
+        <!-- Werkzeuge hinter EINEM Einstiegspunkt (Spec 21 §6h): das Befehlsflächen-Budget
+             INV-UI-11 zählt in JEDER Spalte ≤400px, und die Desktop-Listenspalte misst
+             352px (BL-96). Die Toolbar trägt bereits Sortierung, „Neue Person", Suche und
+             Filter — ein sechstes Dauer-Element wäre eine Zeile zu viel. Dieselbe
+             Disclosure wie bei PlaceList/HofList, kein zweiter Mechanismus (INV-UI-4). -->
+        <FilterBar label="Werkzeuge">
+          <div class="person-list__tools">
+            <button type="button" class="person-list__tool-btn" onclick={onOpenDedup}>Duplikate suchen</button>
+          </div>
+        </FilterBar>
+      {/if}
     </div>
 
     {#if !hasResults}
@@ -181,6 +196,21 @@
   .person-list__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
+  }
+
+  .person-list__tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .person-list__tool-btn {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
   }
 
   .person-list__toolbar {

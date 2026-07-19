@@ -45,6 +45,7 @@ import {
   type MergeResult,
 } from '../../core/places';
 import { editDatabase, mapAllEvents } from '../../core/model/draft';
+import { mergePersons as mergePersonsCmd, type MergeSelections } from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
 import type { GedNode } from '../../core/interop';
 import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
@@ -114,6 +115,16 @@ export interface AppState {
   savePerson(model: Person): void;
   /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
   deletePerson(id: PersonId): void;
+  /**
+   * Kommando: führt `loserId` in `winnerId` zusammen (BL-103/BL-104, Spec 20 §1.12).
+   *
+   * ANDERS als `savePerson` + `deletePerson` hängt der Kern hier ALLE Referenzen auf den
+   * Verlierer um (Family.husband/wife/children, Person.aliases, Association.personRef) —
+   * die naive Kombination hinterlässt gegengeprüft drei Waisen (INV-P2,
+   * `tests/core/merge-persons.test.ts`). Rückgängig über den regulären Undo-Stack, weil
+   * es wie jedes andere Kommando über `commit` läuft.
+   */
+  mergePerson(winnerId: PersonId, loserId: PersonId, selections?: MergeSelections): void;
   /**
    * Kommando: Upsert einer Familie (`saveFamily(model)`-Muster, Spec 20 §2). ANDERS als
    * savePerson führt der Kern (core/model/commands.ts saveFamily) hier die INDI-Seite
@@ -559,6 +570,12 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     },
     deletePerson(id) {
       commit({ ...db, individuals: deletePersonCmd(db.individuals, id) }, { workingCopy: true });
+    },
+    mergePerson(winnerId, loserId, selections) {
+      // Der Kern liefert einen fertigen neuen Stand (Copy-on-Write, ADR-v9-92) — hier
+      // gibt es keine Merge-Logik, nur den Commit. Nur `workingCopy`: Orte/Höfe bleiben
+      // unberührt, ein Personen-Merge fasst `placeObjects` nicht an.
+      commit(mergePersonsCmd(db, winnerId, loserId, selections), { workingCopy: true });
     },
     saveFamily(model) {
       // saveFamilyCmd führt die INDI-Seite (Person.parentIn/childOf) synchron nach

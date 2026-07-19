@@ -27,6 +27,7 @@
   import PlaceList from './place/PlaceList.svelte';
   import PlaceDetail from './place/PlaceDetail.svelte';
   import PlaceDedupView from './place/PlaceDedupView.svelte';
+  import PersonDedupView from './person/PersonDedupView.svelte';
   import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
@@ -93,6 +94,11 @@
   // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
   // wie beim Hof-Review-Toggle oben (INV-UI-2).
   let placeDedupOpen = $state(false);
+  // Duplikat-Erkennung für Personen (BL-104) — bewusst komponenten-lokal wie die
+  // Orte-/Höfe-Pendants und NICHT in der Routen-Quelle (ADR-v9-104): ADR-v9-102 verlangt
+  // die Route für Unterzustand, der eine AUSWAHL oder einen ANZEIGE-MODUS trägt. Ein
+  // On-Demand-Werkzeug, das der Nutzer bewusst öffnet, ist beides nicht.
+  let personDedupOpen = $state(false);
   let hofDedupOpen = $state(false);
 
   function selectSegment(segment: (typeof segments)[number]) {
@@ -231,6 +237,14 @@
     placeDedupOpen = false;
   }
 
+  function openPersonDedup() {
+    personDedupOpen = true;
+  }
+
+  function closePersonDedup() {
+    personDedupOpen = false;
+  }
+
   const selectedPersonId = $derived(viewState.getCurrent('person'));
   const selectedFamilyId = $derived(viewState.getCurrent('family'));
   const selectedSourceId = $derived(viewState.getCurrent('source'));
@@ -253,6 +267,7 @@
    *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
    *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
   const overlayActive = $derived.by(() => {
+    if (activeSegment === 'person') return personDedupOpen && !selectedPersonId;
     if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
     if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
     return false;
@@ -331,7 +346,7 @@
        ohne Gewinn. -->
   {#snippet listPane()}
     {#if activeSegment === 'person'}
-      <PersonList {appState} {viewState} onCreate={createPerson} />
+      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} />
     {:else if activeSegment === 'family'}
       <FamilyList {appState} {viewState} onCreate={createFamily} />
     {:else if activeSegment === 'source'}
@@ -411,7 +426,9 @@
   {#if overlayActive}
     <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
          s. `overlayActive` oben. -->
-    {#if activeSegment === 'place' && placeReviewOpen}
+    {#if activeSegment === 'person' && personDedupOpen}
+      <PersonDedupView {appState} onClose={closePersonDedup} />
+    {:else if activeSegment === 'place' && placeReviewOpen}
       <PlaceReview
         {appState}
         onNavigateToPerson={navigateToPerson}
