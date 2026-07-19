@@ -30,3 +30,11 @@ export {
   type FieldDiff,
   type PersonDiff,
 } from './compare-import';
+
+export {
+  applyImportPatch,
+  type FieldDecision,
+  type ImportSelections,
+  type ImportSourceConfig,
+  type ApplyImportResult,
+} from './apply-import';
