@@ -2,7 +2,7 @@
 // tests/ui/PlaceDetail.component.test.ts — Orts-Steckbrief + Bearbeitung (Spec 32 §6;
 // Spec 20 §1.7 [K]). Deckt Ereignis-Gruppierung, Bearbeitung, pnames/enclosedBy-Pflege,
 // String→PlaceObject-Verknüpfung als tatsächliches DOM-Rendering ab.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
@@ -10,6 +10,20 @@ import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeCitation, makeSource } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
+
+// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
+// Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
   it('zeigt einen definierten Leerzustand, wenn kein Ort ausgewählt ist', () => {

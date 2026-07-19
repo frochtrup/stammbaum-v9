@@ -3,7 +3,7 @@
 // (Spec 32 §6 [21]; Spec 20 §1.4 [K]: Quellen-Badges §N mit QUAY-Farbindikator,
 // Geo-Links). Deckt tatsächliches DOM-Rendering ab (Klassen/Titel/Links), das
 // person-detail-model.test.ts (reine Projektion) nicht prüft.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -11,6 +11,20 @@ import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, isEventPresent } from '../../core/model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
+
+// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
+// Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
   it('rendert eine §N-Badge mit QUAY-Farbklasse und Quellentitel als Tooltip', () => {

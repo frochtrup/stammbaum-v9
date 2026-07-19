@@ -16,6 +16,7 @@
   // Zeile (INV-UI-5, §6a) — Zurück links, Aktionen rechts. Zeile 2 = der Titel als
   // eigene Zeile darunter (Titel ist Inhalt, keine Navigations-Funktion, s. Spec 21 §6b).
   import type { Snippet } from 'svelte';
+  import { layout } from './layout.svelte';
 
   interface Props {
     /** Personenname/Familienlabel/Ortsname/Hofadresse — Inhalt, keine Navigation, s. o. */
@@ -38,7 +39,15 @@
 <div class="detail-header">
   <div class="detail-header__row">
     <div class="detail-header__left">
-      <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+      <!-- "← Zur Liste" ist eine MOBILE Navigation: dort ersetzt die Detailansicht die
+           Liste, also braucht es einen Rückweg. Im Desktop-Multi-Pane (Spec 21 §3,
+           BL-92) steht die Liste dauerhaft daneben — ein Zurück-Knopf führte auf eine
+           Fläche, die bereits sichtbar ist. Die Auswahl aufzuheben bleibt möglich, ist
+           aber kein Navigations-, sondern ein Auswahl-Vorgang (Liste selbst).
+           Diese EINE Stelle deckt Person/Familie/Quelle/Archiv/Ort/Hof ab (INV-UI-4). -->
+      {#if !layout.isDesktopLayout}
+        <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+      {/if}
       {#if compact}
         <span class="detail-header__compact-title">{title}</span>
       {/if}

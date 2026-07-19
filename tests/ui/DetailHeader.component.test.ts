@@ -4,10 +4,24 @@
 // (EntityTab's `.entity-tab__detail-header` mit "← Zur Liste" + der jeweiligen Detail-
 // Komponente eigener `__hero`/`__head`-Zeile mit Titel+Aktionen) zu EINER Kopfzeile:
 // Zeile 1 = "Zur Liste" + Aktionen (flex-wrap, INV-UI-5), Zeile 2 = Titel.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import DetailHeader from '../../ui/shell/DetailHeader.svelte';
 import DetailHeaderActionsHarness from './fixtures/DetailHeaderActionsHarness.svelte';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
+
+// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
+// Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('DetailHeader — eine gemeinsame Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
   it('rendert "← Zur Liste" und den Titel in derselben Komponente, Titel in eigener Zeile darunter', () => {

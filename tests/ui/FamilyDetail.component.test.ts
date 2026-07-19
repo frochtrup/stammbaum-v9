@@ -2,7 +2,7 @@
 // tests/ui/FamilyDetail.component.test.ts — Familien-Detail als Component-Test
 // (Spec 32 §6; Spec 20 §1.5 [K]: anklickbare Mitglieder). Deckt tatsächliches
 // DOM-Rendering + Cross-Navigation zu Personen ab.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyDetail from '../../ui/views/family/FamilyDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -10,6 +10,20 @@ import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeEvent, makeFamily, makePerson, makeSource, isEventPresent } from '../../core/model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
+
+// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
+// Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)', () => {
   it('rendert Mitgliederzeilen, die per Klick onNavigateToPerson mit der Person-Id aufrufen', async () => {

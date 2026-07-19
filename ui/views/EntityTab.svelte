@@ -238,6 +238,26 @@
   const selectedPlaceId = $derived(viewState.getCurrent('place'));
   const selectedHofId = $derived(viewState.getCurrent('hof'));
 
+  /** Hat das aktive Segment gerade eine Auswahl? Entscheidet mobil Liste-ODER-Detail
+   *  und auf Desktop, ob der Detail-Pane Inhalt oder Leerzustand zeigt. */
+  const hasSelection = $derived.by(() => {
+    if (activeSegment === 'person') return !!selectedPersonId;
+    if (activeSegment === 'family') return !!selectedFamilyId;
+    if (activeSegment === 'source')
+      return sourceSubView === 'repositories' ? !!selectedRepositoryId : !!selectedSourceId;
+    if (activeSegment === 'place') return !!selectedPlaceId;
+    return !!selectedHofId;
+  });
+
+  /** Review-/Dedup-Werkzeuge sind breite Arbeitsflächen, keine Listen: sie belegen in
+   *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
+   *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
+  const overlayActive = $derived.by(() => {
+    if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
+    if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
+    return false;
+  });
+
 </script>
 
 <div class="entity-tab">
@@ -300,8 +320,35 @@
     </div>
   {/if}
 
-  {#if activeSegment === 'person'}
-    {#if selectedPersonId}
+  <!-- Liste und Detail sind ab hier zwei SNIPPETS statt einer verschachtelten
+       Liste-oder-Detail-Kette. Grund ist der Desktop-Multi-Pane (Spec 21 §3, BL-92): dort
+       müssen BEIDE gleichzeitig rendern, nebeneinander. Mobil bleibt es bei
+       entweder-oder — dieselbe Fläche, dieselbe Reihenfolge wie bisher.
+
+       Bewusst zwei Snippets statt zweier Komponenten: die Auswahl-/Navigations-Callbacks
+       (navigateToPerson, createPerson, die Overlay-Schalter …) gehören weiterhin dieser
+       Komponente, und sie durch eine neue Zwischenschicht durchzureichen wäre Aufwand
+       ohne Gewinn. -->
+  {#snippet listPane()}
+    {#if activeSegment === 'person'}
+      <PersonList {appState} {viewState} onCreate={createPerson} />
+    {:else if activeSegment === 'family'}
+      <FamilyList {appState} {viewState} onCreate={createFamily} />
+    {:else if activeSegment === 'source'}
+      {#if sourceSubView === 'repositories'}
+        <RepositoryList {appState} {viewState} onCreate={createRepository} />
+      {:else}
+        <SourceList {appState} {viewState} onCreate={createSource} />
+      {/if}
+    {:else if activeSegment === 'place'}
+      <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
+    {:else if activeSegment === 'hof'}
+      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
+    {/if}
+  {/snippet}
+
+  {#snippet detailPane()}
+    {#if activeSegment === 'person' && selectedPersonId}
       <PersonDetail
         {appState}
         {viewState}
@@ -314,11 +361,7 @@
         onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
       />
-    {:else}
-      <PersonList {appState} {viewState} onCreate={createPerson} />
-    {/if}
-  {:else if activeSegment === 'family'}
-    {#if selectedFamilyId}
+    {:else if activeSegment === 'family' && selectedFamilyId}
       <FamilyDetail
         {appState}
         {viewState}
@@ -329,23 +372,15 @@
         {onNavigateLens}
         onBack={backToList}
       />
-    {:else}
-      <FamilyList {appState} {viewState} onCreate={createFamily} />
-    {/if}
-  {:else if activeSegment === 'source'}
-    {#if sourceSubView === 'repositories'}
-      {#if selectedRepositoryId}
-        <RepositoryDetail
-          {appState}
-          {viewState}
-          onNavigateToSource={navigateToSource}
-          onBack={backToList}
-          startInEdit={selectedRepositoryId === createdRepositoryId}
-        />
-      {:else}
-        <RepositoryList {appState} {viewState} onCreate={createRepository} />
-      {/if}
-    {:else if selectedSourceId}
+    {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
+      <RepositoryDetail
+        {appState}
+        {viewState}
+        onNavigateToSource={navigateToSource}
+        onBack={backToList}
+        startInEdit={selectedRepositoryId === createdRepositoryId}
+      />
+    {:else if activeSegment === 'source' && sourceSubView === 'sources' && selectedSourceId}
       <SourceDetail
         {appState}
         {viewState}
@@ -355,20 +390,7 @@
         onBack={backToList}
         startInEdit={selectedSourceId === createdSourceId}
       />
-    {:else}
-      <SourceList {appState} {viewState} onCreate={createSource} />
-    {/if}
-  {:else if activeSegment === 'place'}
-    {#if placeReviewOpen && !selectedPlaceId}
-      <PlaceReview
-        {appState}
-        onNavigateToPerson={navigateToPerson}
-        onNavigateToFamily={navigateToFamily}
-        onClose={closePlaceReview}
-      />
-    {:else if placeDedupOpen && !selectedPlaceId}
-      <PlaceDedupView {appState} onClose={closePlaceDedup} />
-    {:else if selectedPlaceId}
+    {:else if activeSegment === 'place' && selectedPlaceId}
       <PlaceDetail
         {appState}
         {viewState}
@@ -376,24 +398,47 @@
         onNavigateToFamily={navigateToFamily}
         onBack={backToList}
       />
+    {:else if activeSegment === 'hof' && selectedHofId}
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
-      <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
+      <!-- Leerzustand des Detail-Panes: existiert nur auf Desktop (mobil rendert bei
+           fehlender Auswahl die Liste selbst). Bewusst neutral formuliert statt je
+           Segment eigener Text — die Liste daneben sagt bereits, worum es geht. -->
+      <p class="entity-tab__pane-empty">Kein Eintrag ausgewählt — links einen Eintrag aus der Liste wählen.</p>
     {/if}
-  {:else if activeSegment === 'hof'}
-    {#if hofReviewOpen && !selectedHofId}
+  {/snippet}
+
+  {#if overlayActive}
+    <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
+         s. `overlayActive` oben. -->
+    {#if activeSegment === 'place' && placeReviewOpen}
+      <PlaceReview
+        {appState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+        onClose={closePlaceReview}
+      />
+    {:else if activeSegment === 'place' && placeDedupOpen}
+      <PlaceDedupView {appState} onClose={closePlaceDedup} />
+    {:else if activeSegment === 'hof' && hofReviewOpen}
       <HofReview
         {appState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onClose={closeHofReview}
       />
-    {:else if hofDedupOpen && !selectedHofId}
+    {:else if activeSegment === 'hof' && hofDedupOpen}
       <HofDedupView {appState} onClose={closeHofDedup} />
-    {:else if selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
-    {:else}
-      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
     {/if}
+  {:else if layout.isDesktopLayout}
+    <div class="entity-tab__panes">
+      <div class="entity-tab__pane entity-tab__pane--list">{@render listPane()}</div>
+      <div class="entity-tab__pane entity-tab__pane--detail">{@render detailPane()}</div>
+    </div>
+  {:else if hasSelection}
+    {@render detailPane()}
+  {:else}
+    {@render listPane()}
   {/if}
 </div>
 
@@ -416,5 +461,42 @@
   .entity-tab__subsegments--dashed {
     padding-top: 0;
     border-bottom-style: dashed;
+  }
+
+  /* Multi-Pane (Spec 21 §3, BL-92). Die Umschaltung hängt an `layout.isDesktopLayout`
+     (BL-91) im Markup, nicht an einer zweiten Media-Query hier — der Formfaktor wird an
+     genau einer Stelle entschieden. */
+  .entity-tab__panes {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .entity-tab__pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+  }
+
+  /* Feste Listenbreite, mitwachsender Detail-Bereich: die Liste ist ein Index zum
+     Überfliegen (INV-UI-14-Kurznamen sind darauf ausgelegt), das Detail trägt den
+     Inhalt und profitiert von jeder zusätzlichen Breite. */
+  .entity-tab__pane--list {
+    width: 22rem;
+    flex-shrink: 0;
+    border-right: 1px solid var(--stb-surface-3);
+  }
+
+  .entity-tab__pane--detail {
+    flex: 1;
+  }
+
+  .entity-tab__pane-empty {
+    margin: 0;
+    padding: 1.5rem 1rem;
+    color: var(--stb-text-dim);
+    font-style: italic;
   }
 </style>
