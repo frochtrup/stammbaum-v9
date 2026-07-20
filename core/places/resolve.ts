@@ -10,7 +10,7 @@
 // keinen Pfad ohne Reprojektion → Stale-Cache strukturell ausgeschlossen.
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
-import { makePlaceRegistry } from './place-registry';
+import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
 import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
@@ -56,9 +56,18 @@ export interface ResolveResult {
   review: ReviewItem[];
 }
 
-/** Segmentiert einen PLAC-String in getrimmte, nicht-leere Komma-Segmente. */
+/**
+ * Segmentiert einen PLAC-String in getrimmte, NICHT-LEERE Komma-Segmente. Leere Segmente
+ * (führend, innen oder abschließend, z. B. `, Ochtrup, , , NRW, Deutschland` — Ancestris/
+ * MyHeritage schreiben Fixed-Template-PLAC mit Leerfeldern auf nicht belegten Ebenen)
+ * bedeuten „keine Angabe auf dieser Ebene" und werden verworfen — das Leitsegment ist der
+ * erste NICHT-leere Wert, nicht positionsstarr segs[0]. Ohne diese Filterung würde ein
+ * führendes Leerfeld leadSeg='' erzeugen und das Event bliebe unaufgelöst (Symptom 2).
+ * KONSISTENT zum Seed-Vorpass (`seed.ts::segments`), der bereits so filtert — sonst
+ * schattet der Seed die Auflösung (unterschiedliche Segment-Sicht).
+ */
 function placSegments(plac: string): string[] {
-  return plac.split(',').map((s) => s.trim());
+  return plac.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 /**
@@ -90,10 +99,35 @@ function chainCompatible(
   placParents: readonly string[],
   year: Year,
 ): boolean {
-  const modeled = reg.enclosureChainAsOf(candidateId, year).slice(1).map(normPlaceName);
+  // Knoten-ID-Kette, pro Knoten gegen die VOLLE Namensmenge (title + alle pnames) prüfen —
+  // NICHT nur gegen den einen periodenkorrekten Namen: ein PLAC-Segment „Bayern" (Titel-Form)
+  // ist mit dem Knoten kompatibel, dessen im Ereignisjahr gültiger Name „Königreich Bayern"
+  // ist. Ein reiner Namensketten-Vergleich (title vs. pname) vetote hier fälschlich →
+  // eindeutiges Ereignis kippte grundlos in Review-Klasse P (Bugfix 2026-07-12, ADR-v9-71).
+  // Prefix-Semantik: nur die gemeinsame Länge zählt.
   const stated = placParents.map(normPlaceName);
-  const n = Math.min(modeled.length, stated.length);
-  for (let i = 0; i < n; i++) if (modeled[i] !== stated[i]) return false;
+
+  // UNDATIERTES Event (year==null): ALLE undatierten `enclosedBy`-Pfade durchsuchen (nach
+  // einem Merge trägt der Kandidat mehrere gültige Ketten, ADR-v9-72). Deckt sich mit dem
+  // Seed-Dedup (`existingParentsCompatible`) — EINE gemeinsame Funktion, kein zweiter Walk.
+  if (year == null) {
+    return chainCompatibleAnyPath(reg.byId, candidateId, stated);
+  }
+
+  // DATIERTES Event: periodenkorrekte Einzelkette (`enclosureWinnerAsOf` wählt bereits unter
+  // mehreren DATIERTEN Kandidaten den im Jahr gültigen) — hier UNVERÄNDERT.
+  const modeledIds = reg.enclosureIdsAsOf(candidateId, year).slice(1);
+  const n = Math.min(modeledIds.length, stated.length);
+  for (let i = 0; i < n; i++) {
+    const node = reg.byId(modeledIds[i]);
+    if (!node) return false;
+    const names = new Set<string>();
+    for (const nm of [node.title, ...node.pnames.map((p) => p.value)]) {
+      const k = normPlaceName(nm);
+      if (k) names.add(k);
+    }
+    if (!names.has(stated[i])) return false;
+  }
   return true;
 }
 
@@ -106,13 +140,17 @@ function resolveOne(
   input: Event,
   index: number,
   workingHofs: HofObjects,
-  places: PlaceObjects,
+  ctx: PlaceContext,
 ): { resolved: ResolvedEvent; review: ReviewItem | null } {
-  // Registries pro Event neu bauen — workingHofs wächst durch Bootstrap.
-  const ctx: PlaceContext = {
-    places: makePlaceRegistry(places),
-    hofs: makeHofRegistry(workingHofs),
-  };
+  // ctx wird EINMAL je resolveEvents()-Lauf gebaut und hier nur gelesen. Die Hof-Registry
+  // wird beim Bootstrap (Pfade C/B') über `ctx.hofs.indexHof()` fortgeschrieben — bis
+  // ADR-v9-88 stand hier stattdessen ein vollständiger Neubau BEIDER Registries pro
+  // Ereignis (O(events × (places + hofs)), gemessen 89 s bei 20.000 Personen). Die
+  // Zusicherung, die den Neubau motivierte, gilt unverändert: ein während der Auflösung
+  // entstandener Hof MUSS für alle folgenden Ereignisse auffindbar sein — dafür sorgt
+  // jetzt die Fortschreibung. `places` ändert sich während des Laufs nicht (der
+  // Village-Seed, Spec 11 §4.2 Schritt 0, läuft VOR resolveEvents), die Orts-Registry
+  // ist also ohnehin über den ganzen Lauf konstant.
   const ev: Event = { ...input };
   const year = eventYear(ev);
   const type = ev.type;
@@ -121,18 +159,16 @@ function resolveOne(
 
   const reproject = (path: ResolvePath): ResolvedEvent => {
     // INV-PLACE: am Ende jedes Pfads. Bei gesetztem placeId/hofId ist ev.place
-    // ausschließlich die periodengerechte Projektion.
-    const rebuiltCtx: PlaceContext = {
-      places: ctx.places,
-      hofs: makeHofRegistry(workingHofs),
-    };
+    // ausschließlich die periodengerechte Projektion. (Bis ADR-v9-88 wurde hier eine
+    // ZWEITE Hof-Registry gebaut, damit ein soeben gebootstrappter Hof sichtbar ist —
+    // `ctx.hofs` ist dank `indexHof()` an der Bootstrap-Stelle bereits aktuell.)
     if (ev.hofId != null || ev.placeId != null) {
-      const proj = buildPlacForGedcom(ev, year, rebuiltCtx);
+      const proj = buildPlacForGedcom(ev, year, ctx);
       if (proj != null) ev.place = proj;
     }
     // ev.addr NUR füllen wenn leer — Wire-ADDR bleibt byte-identisch (ADDR-Roundtrip).
     if (ev.hofId != null && !ev.addr) {
-      const a = rebuiltCtx.hofs.resolveAddrAsOf(ev.hofId, year);
+      const a = ctx.hofs.resolveAddrAsOf(ev.hofId, year);
       if (a) ev.addr = a;
     }
     return { event: ev, path };
@@ -239,7 +275,10 @@ function resolveOne(
   if (hofTypeAllowed && ev.placeId == null && isRich && leadSeg && anchorVillageId != null) {
     const res = findOrCreateHof(leadSeg, anchorVillageId, workingHofs);
     if (res) {
-      if (res.created) workingHofs.set(res.created.id, res.created);
+      if (res.created) {
+        workingHofs.set(res.created.id, res.created);
+        ctx.hofs.indexHof(res.created); // sofort sichtbar für alle folgenden Ereignisse
+      }
       ev.hofId = res.hofId;
       ev.placeId = anchorVillageId;
       return { resolved: reproject('C'), review: null };
@@ -273,7 +312,10 @@ function resolveOne(
       // Hof-Typ → Bootstrap aus Event-Typ-Semantik.
       const res = findOrCreateHof(ev.addr, villageForAddr, workingHofs);
       if (res) {
-        if (res.created) workingHofs.set(res.created.id, res.created);
+        if (res.created) {
+          workingHofs.set(res.created.id, res.created);
+          ctx.hofs.indexHof(res.created); // sofort sichtbar für alle folgenden Ereignisse
+        }
         ev.hofId = res.hofId;
         ev.placeId = villageForAddr;
         return { resolved: reproject("B'"), review: null };
@@ -309,10 +351,17 @@ export function resolveEvents(
   const workingHofs: HofObjects = new Map();
   for (const [id, h] of hofObjects) workingHofs.set(id, h);
 
+  // EIN Registry-Paar für den ganzen Lauf (ADR-v9-88). Die Hof-Registry indiziert
+  // `workingHofs` und wird beim Bootstrap in `resolveOne` fortgeschrieben.
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(places),
+    hofs: makeHofRegistry(workingHofs),
+  };
+
   const out: ResolvedEvent[] = [];
   const review: ReviewItem[] = [];
   events.forEach((ev, index) => {
-    const { resolved, review: r } = resolveOne(ev, index, workingHofs, places);
+    const { resolved, review: r } = resolveOne(ev, index, workingHofs, ctx);
     out.push(resolved);
     if (r) review.push(r);
   });

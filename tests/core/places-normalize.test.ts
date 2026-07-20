@@ -40,6 +40,22 @@ describe('normPlaceName — kanonische Norm-Form', () => {
     const a = normPlaceName('Münster');
     expect(normPlaceName(a)).toBe(a);
   });
+
+  // Unsicherheits-Marker „?" (Korrektur 2026-07-12, ADR-v9-73): ein „?" am Ortsnamen ist
+  // eine genealogische Aussage („nicht sicher, ob das stimmt"), kein Schreibrauschen —
+  // wird NICHT abgestreift. „Ochtrup ?" darf beim Identitätsvergleich NICHT mit dem
+  // unmarkierten „Ochtrup" kollabieren, sonst behauptet die automatische Auflösung
+  // stillschweigend Sicherheit, die die Quelle nicht hergibt (verschärft durch INV-PLACE:
+  // event.place würde bei gesetzter placeId durch die saubere Projektion ersetzt — das
+  // „?" wäre für dieses Ereignis spurlos weg). Ein früherer Fix (selber Tag) hatte das
+  // Abstreifen versehentlich eingeführt — hier bewusst wieder ausgeschlossen.
+  it('Unsicherheits-„?" bleibt beim Identitätsvergleich erhalten (kollabiert NICHT mit dem unmarkierten Namen)', () => {
+    expect(normPlaceName('Ochtrup ?')).not.toBe(normPlaceName('Ochtrup'));
+    expect(normPlaceName('Ochtrup?')).not.toBe(normPlaceName('Ochtrup'));
+    expect(normPlaceName('Ochtrup ?')).toBe('ochtrup ?');
+    expect(normPlaceName('? Ochtrup')).toBe('? ochtrup');
+    expect(normPlaceName('Ochtrup')).toBe('ochtrup');
+  });
 });
 
 describe('placeYear — erste 3–4-stellige Jahreszahl', () => {

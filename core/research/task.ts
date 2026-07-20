@@ -24,6 +24,7 @@ export function makeTask(
     status,
     done: status === 'done',
     created: patch.created ?? '',
+    sourceRef: patch.sourceRef ?? '',
   };
 }
 

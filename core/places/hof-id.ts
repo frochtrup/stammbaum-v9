@@ -46,6 +46,18 @@ export function findOrCreateHof(
   const fullNorm = normHofAddr(addr);
 
   // Idempotenz + Read-Tolerance: Voll-Norm ODER Extract-Norm, im selben Dorf.
+  //
+  // Dieser Scan ist linear über ALLE Höfe, also O(Höfe²) über einen Auflösungslauf.
+  // BEWUSST so gelassen — die Zahlen tragen das (gemessen 2026-07-18, nach ADR-v9-88):
+  //   5.000 Personen → 1.908 Höfe, 1.908 Aufrufe, 35 ms von 526 ms  (6,6 %)
+  //  20.000 Personen → 2.196 Höfe, 2.196 Aufrufe, 46 ms von 1.877 ms (2,4 %)
+  // Aufrufe == Höfe exakt: hierher kommt nur, wer WIRKLICH einen Hof anlegt — bestehende
+  // fängt die Registry über Pfad A/B vorher ab (`resolve.ts`). Die Quadratik liegt damit
+  // in der HOF-Zahl, nicht in der Ereigniszahl, und die Hof-Zahl sättigt (4× Personen →
+  // 1,15× Höfe): der Anteil SINKT beim Skalieren. Das ist NICHT die Defektform von
+  // ADR-v9-88 (dort superlinear über die Datenmenge).
+  // Erst bei hof-dichten Beständen relevant (~10k Höfe ≈ 1 s, ~50k ≈ 24 s). Wer das
+  // erreicht, indiziert hier nach (villageId, Norm) — vorher lohnt es nicht.
   for (const h of existing.values()) {
     if (h.villageId !== villageId) continue;
     for (const a of h.addrs) {

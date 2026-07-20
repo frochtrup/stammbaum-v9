@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { makeDatabase, makeFamily, makePerson, makeCitation } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, savePlaceObject, type PlaceContext } from '../../core/places';
 import { computeStatistics } from '../../ui/views/stats/stats-model';
+// Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
+import { place } from '../core/places-fixtures';
 
 function emptyContext(): PlaceContext {
   return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
@@ -13,20 +15,7 @@ function emptyContext(): PlaceContext {
 
 function contextWithPlace(id: string, title: string): PlaceContext {
   const places = new Map();
-  savePlaceObject(places, {
-    id,
-    title,
-    type: 'Dorf',
-    pnames: [],
-    enclosedBy: [],
-    lat: null,
-    long: null,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    govId: null,
-    govTypes: null,
-  });
+  savePlaceObject(places, place(id, { title, type: 'Dorf' }));
   return { places: makePlaceRegistry(places), hofs: makeHofRegistry(new Map()) };
 }
 

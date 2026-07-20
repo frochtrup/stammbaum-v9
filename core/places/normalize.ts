@@ -6,6 +6,16 @@
 /**
  * Kanonische Norm-Form eines Orts-/Adress-Strings: NFC + casefold + Whitespace-Kollaps.
  * Grundlage jedes Identitäts-Vergleichs (zwei Schreibweisen desselben Orts kollabieren).
+ *
+ * Unsicherheits-Marker „?" werden ABSICHTLICH NICHT entfernt (Korrektur 2026-07-12,
+ * ADR-v9-73, revidiert einen Fix vom selben Tag): ein „?" direkt am Ortsnamen
+ * (`, Ochtrup ?, …`) ist eine genealogische Aussage — „nicht sicher, ob das stimmt" —,
+ * kein Schreibrauschen. Ein automatisches Gleichsetzen mit dem unmarkierten Ort würde
+ * diese Unsicherheit für das jeweilige Ereignis stillschweigend behaupten (verschärft
+ * durch INV-PLACE: sobald `placeId` gesetzt ist, wird `event.place` bei jeder Anzeige/
+ * jedem Export durch die saubere Projektion ersetzt — das „?" wäre dann spurlos weg).
+ * „Ochtrup ?" bleibt deshalb ein eigener, sichtbarer Ort — Zusammenführung ist eine
+ * bewusste, manuelle Nutzer-Entscheidung (Dedup-Dialog), keine automatische.
  */
 export function normPlaceName(s: string | null | undefined): string {
   if (!s) return '';

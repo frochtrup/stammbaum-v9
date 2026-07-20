@@ -6,6 +6,7 @@ import {
   parseDateValue,
   formatDateValue,
   normalizeMonth,
+  formatDateForDisplay,
   type DateParts,
 } from '../../../core/model/gedcom-date';
 
@@ -156,6 +157,92 @@ describe('formatDateValue — inverse Operation', () => {
       day2: null, month2: null, year2: 2005,
     };
     expect(formatDateValue(parts)).toBe('FROM 1985 TO 2005');
+  });
+});
+
+describe('formatDateForDisplay — volles, lokalisiertes Datum (Spec 10 §5.2, INV-UI-9)', () => {
+  it('leer/null/undefiniert → \'\' (unverändert zum bisherigen Verhalten bei fehlendem Datum)', () => {
+    expect(formatDateForDisplay(null)).toBe('');
+    expect(formatDateForDisplay('')).toBe('');
+    expect(formatDateForDisplay('   ')).toBe('');
+  });
+
+  it('Tag+Monat+Jahr → deutscher Monatsname, "12. März 1890"', () => {
+    expect(formatDateForDisplay('12 MAR 1890')).toBe('12. März 1890');
+  });
+
+  it('nur Monat+Jahr (kein Tag) → "März 1890"', () => {
+    expect(formatDateForDisplay('MAR 1890')).toBe('März 1890');
+  });
+
+  it('nur Jahr → "1890"', () => {
+    expect(formatDateForDisplay('1890')).toBe('1890');
+  });
+
+  it('alle 12 Monate übersetzen korrekt', () => {
+    expect(formatDateForDisplay('1 JAN 2000')).toBe('1. Januar 2000');
+    expect(formatDateForDisplay('1 FEB 2000')).toBe('1. Februar 2000');
+    expect(formatDateForDisplay('1 MAR 2000')).toBe('1. März 2000');
+    expect(formatDateForDisplay('1 APR 2000')).toBe('1. April 2000');
+    expect(formatDateForDisplay('1 MAY 2000')).toBe('1. Mai 2000');
+    expect(formatDateForDisplay('1 JUN 2000')).toBe('1. Juni 2000');
+    expect(formatDateForDisplay('1 JUL 2000')).toBe('1. Juli 2000');
+    expect(formatDateForDisplay('1 AUG 2000')).toBe('1. August 2000');
+    expect(formatDateForDisplay('1 SEP 2000')).toBe('1. September 2000');
+    expect(formatDateForDisplay('1 OCT 2000')).toBe('1. Oktober 2000');
+    expect(formatDateForDisplay('1 NOV 2000')).toBe('1. November 2000');
+    expect(formatDateForDisplay('1 DEC 2000')).toBe('1. Dezember 2000');
+  });
+
+  it('ABT → "ca. <Datum>"', () => {
+    expect(formatDateForDisplay('ABT 1875')).toBe('ca. 1875');
+    expect(formatDateForDisplay('ABT MAR 1875')).toBe('ca. März 1875');
+    expect(formatDateForDisplay('ABT 12 MAR 1875')).toBe('ca. 12. März 1875');
+  });
+
+  it('CAL → "errechnet <Datum>"', () => {
+    expect(formatDateForDisplay('CAL 1875')).toBe('errechnet 1875');
+  });
+
+  it('EST → "geschätzt <Datum>"', () => {
+    expect(formatDateForDisplay('EST 1875')).toBe('geschätzt 1875');
+  });
+
+  it('BEF → "vor <Datum>"', () => {
+    expect(formatDateForDisplay('BEF 1900')).toBe('vor 1900');
+    expect(formatDateForDisplay('BEF MAR 1900')).toBe('vor März 1900');
+  });
+
+  it('AFT → "nach <Datum>"', () => {
+    expect(formatDateForDisplay('AFT 1850')).toBe('nach 1850');
+    expect(formatDateForDisplay('AFT 5 JUN 1850')).toBe('nach 5. Juni 1850');
+  });
+
+  it('BET…AND… → "zwischen <Datum1> und <Datum2>"', () => {
+    expect(formatDateForDisplay('BET 1880 AND 1890')).toBe('zwischen 1880 und 1890');
+  });
+
+  it('BET…AND… mit vollen Teildaten auf beiden Seiten', () => {
+    expect(formatDateForDisplay('BET 1 JAN 1880 AND 31 DEC 1890')).toBe(
+      'zwischen 1. Januar 1880 und 31. Dezember 1890',
+    );
+  });
+
+  it('FROM…TO… → "<Datum1>–<Datum2>"', () => {
+    expect(formatDateForDisplay('FROM 1985 TO 2005')).toBe('1985–2005');
+  });
+
+  it('FROM…TO… mit vollen Teildaten auf beiden Seiten', () => {
+    expect(formatDateForDisplay('FROM 1 JAN 1985 TO 31 DEC 2005')).toBe(
+      '1. Januar 1985–31. Dezember 2005',
+    );
+  });
+
+  it('nutzt denselben parseDateValue-Parser (kein zweiter Parser, INV-UI-9/INV-UI-4) — Roundtrip über beide Formate stimmt konzeptionell überein', () => {
+    // Kein zweiter Parser bedeutet: ein Wert, den parseDateValue nicht sinnvoll zerlegen
+    // kann (z. B. ein unbekannter Monat), führt zu demselben defensiven Verhalten wie dort
+    // (kein Crash, day/year bleiben erhalten, Monat fällt weg).
+    expect(formatDateForDisplay('12 FOO 1890')).toBe('12. 1890');
   });
 });
 

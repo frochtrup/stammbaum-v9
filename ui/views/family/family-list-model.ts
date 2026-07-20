@@ -6,7 +6,7 @@
 // ohne DOM unit-testbar sind (Testpyramide, TST-5) — die Svelte-Komponente rendert nur.
 import type { Database, Family, Person } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { eventYear } from '../../../core/places';
+import { eventYear, buildListPlaceName } from '../../../core/places';
 import { displayName, surnameCandidate, yearPlaceSummary, eventPlaceLabel } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
 
@@ -36,7 +36,11 @@ export function defaultFamilyFilters(): FamilyFilters {
 export interface FamilyRow {
   id: string;
   parentsLabel: string;
+  /** "Jahr, Kurzname" (INV-UI-14). */
   marriageSummary: string;
+  /** Volle periodengerechte Verwaltungskette für den Tooltip (ADR-v9-86) — leer, wenn
+   *  kein Ort erfasst ist. */
+  marriagePlaceFull: string;
   childCount: number;
 }
 
@@ -100,8 +104,11 @@ function matchesFilters(f: Family, filters: FamilyFilters, ctx: PlaceContext): b
 
   const placeQuery = filters.marriagePlace.trim().toLowerCase();
   if (placeQuery) {
+    // Ergänzt um den Kurznamen (inkl. shortName) — ersetzt die Ketten-Suche nicht,
+    // Spec 11 §1 "was sichtbar ist, muss auffindbar sein" (ADR-v9-100).
     const place = eventPlaceLabel(f.marriage, ctx).toLowerCase();
-    if (!place.includes(placeQuery)) return false;
+    const placeShort = buildListPlaceName(f.marriage, ctx).toLowerCase();
+    if (!place.includes(placeQuery) && !placeShort.includes(placeQuery)) return false;
   }
 
   if (filters.noMarriageDate && f.marriage.date) return false;
@@ -153,6 +160,7 @@ function toRow(f: Family, db: Database, ctx: PlaceContext): FamilyRow {
     id: f.id,
     parentsLabel: familyLabelFor(db, f.id),
     marriageSummary: yearPlaceSummary(f.marriage, ctx),
+    marriagePlaceFull: eventPlaceLabel(f.marriage, ctx),
     childCount: f.children.length,
   };
 }

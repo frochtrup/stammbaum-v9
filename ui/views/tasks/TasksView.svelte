@@ -5,15 +5,20 @@
   // exportTasksMd) — Liste ⇄ Kanban-Board-Umschalter, Filter alle/offen/erledigt,
   // Kategorien-Gruppierung, Tap-to-Advance im Board, MD-Export.
   //
-  // Ziel-Entitäts-Auswahl beim Hinzufügen (Design-Entscheidung, da die Spec hier keine
-  // feste Form vorgibt): Person/Familie per Radio wählen, danach eine gefilterte
-  // Auswahlliste (Textfeld + <select>) aus den bereits geladenen Personen/Familien —
-  // bewusst keine neue Suchkomponente (die globale Suche ist für Navigation gedacht,
-  // nicht für Formular-Zielauswahl); ein einfacher <select>, gefiltert per Textfeld,
-  // reicht für die erwartete Datenmenge (kein Overengineering).
+  // Ziel-Entitäts-Auswahl beim Hinzufügen: Person/Familie per Radio wählen, danach
+  // PersonPicker/FamilyPicker (ADR-v9-40, INV-UI-4 — EIN Entitäts-Picker-Muster statt
+  // einer eigenen Text+<select>-Handkonstruktion). Quelle (optional) ebenso über
+  // SourcePicker statt eines flachen <select>.
+  //
+  // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): die Kopfzeile trägt genau drei
+  // Elemente — [Filter · N] [Liste ⇄ Board] [+ Aufgabe]. Die Status-Auswahl liegt hinter
+  // `FilterBar`, der MD-Export als Aktion IN dessen Panel ("Export einer gefilterten
+  // Liste gehört fachlich zum Filter-Kontext"), der Ansichts-Umschalter kommt aus dem
+  // geteilten `ViewModeToggle` statt eines view-eigenen Icon-Buttons. "✓ Daten prüfen"
+  // ist mit dem Qualitäts-Dashboard dorthin gewandert (ADR-v9-98) — beide
+  // Validierungs-Flächen liegen jetzt in EINEM Segment beieinander.
   import type { AppState } from '../../shell/app-state.svelte';
-  import { displayName } from '../../shell/person-display';
-  import { familyLabelFor } from '../source/family-label';
+  import TaskForm, { type TaskFormValues } from './TaskForm.svelte';
   import {
     collectAllTasks,
     filterTasks,
@@ -28,6 +33,9 @@
   import { newTaskId } from './tasks-commands';
   import type { TaskStatus } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
 
   interface Props {
     appState: AppState;
@@ -38,69 +46,49 @@
   }
   const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
 
-  // v8-Presets als Vorschläge (Auftrags-Vorgabe: KEIN geschlossenes Enum in der UI —
-  // Freitext bleibt immer möglich, die drei Labels sind nur ein <datalist>-Vorschlag).
-  const CATEGORY_PRESETS = ['Kirchenbuch', 'Urkunde/Standesamt', 'Online-Recherche'];
+  /** Status-Auswahl. `open` ist der Default — davon abweichend zählt `FilterBar` "· 1". */
+  const DEFAULT_FILTER: TaskFilter = 'open';
+  const FILTERS: { key: TaskFilter; label: string }[] = [
+    { key: 'all', label: 'Alle' },
+    { key: 'open', label: 'Offen' },
+    { key: 'done', label: 'Erledigt' },
+  ];
 
-  let filter = $state<TaskFilter>('open');
+  let filter = $state<TaskFilter>(DEFAULT_FILTER);
   let viewMode = $state<'list' | 'board'>('list');
   let showAddForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
   let editing = $state<{ kind: TaskEntityKind; entityId: string; taskId: string } | null>(null);
 
-  let formText = $state('');
-  let formCategory = $state('');
-  let formKind = $state<TaskEntityKind>('person');
-  let formEntityQuery = $state('');
-  let formEntityId = $state('');
+  /** Startwerte des Formulars — TaskForm hält den Eingabe-Zustand selbst. */
+  let formInitial = $state<TaskFormValues>({
+    text: '', category: '', sourceRef: '', kind: 'person', entityId: '',
+  });
 
   const allTasks = $derived(collectAllTasks(appState.db));
   const filteredTasks = $derived(filterTasks(allTasks, filter));
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
-
-  const personOptions = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !formEntityQuery.trim() || displayName(p).toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .map((p) => ({ id: p.id, label: displayName(p) }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
+  const activeFilterCount = $derived(
+    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
   );
-  const familyOptions = $derived(
-    Array.from(appState.db.families.keys())
-      .map((id) => ({ id, label: familyLabelFor(appState.db, id) }))
-      .filter((row) => !formEntityQuery.trim() || row.label.toLowerCase().includes(formEntityQuery.trim().toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'))
-      .slice(0, 50),
-  );
-  const entityOptions = $derived(formKind === 'person' ? personOptions : familyOptions);
-
-  function switchFilter(f: TaskFilter) {
-    filter = f;
-  }
-
-  function toggleBoard() {
-    viewMode = viewMode === 'board' ? 'list' : 'board';
-  }
 
   function openAddForm() {
     editing = null;
-    formText = '';
-    formCategory = '';
-    formKind = 'person';
-    formEntityQuery = '';
-    formEntityId = '';
+    formInitial = { text: '', category: '', sourceRef: '', kind: 'person', entityId: '' };
     showAddForm = true;
   }
 
   function openEditForm(entry: TaskEntry) {
     editing = { kind: entry.kind, entityId: entry.entityId, taskId: entry.task.id };
-    formText = entry.task.text;
-    formCategory = entry.task.category;
-    formKind = entry.kind;
-    formEntityQuery = '';
-    formEntityId = entry.entityId;
+    formInitial = {
+      text: entry.task.text,
+      category: entry.task.category,
+      sourceRef: entry.task.sourceRef,
+      kind: entry.kind,
+      entityId: entry.entityId,
+    };
     showAddForm = true;
   }
 
@@ -109,14 +97,12 @@
     editing = null;
   }
 
-  function saveForm() {
-    if (!formText.trim()) return;
+  function saveForm(v: TaskFormValues) {
     if (editing) {
-      appState.updateTask(editing.kind, editing.entityId, editing.taskId, formText, formCategory);
+      appState.updateTask(editing.kind, editing.entityId, editing.taskId, v.text, v.category, v.sourceRef);
     } else {
-      if (!formEntityId) return;
       const today = new Date().toISOString().slice(0, 10);
-      appState.addTask(formKind, formEntityId, newTaskId(), formText, formCategory, today);
+      appState.addTask(v.kind, v.entityId, newTaskId(), v.text, v.category, today, v.sourceRef);
     }
     closeForm();
   }
@@ -151,123 +137,40 @@
 
 <div class="tasks-view">
   <div class="tasks-view__toolbar">
-    <div class="tasks-view__filters">
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'all'}
-        onclick={() => switchFilter('all')}
-      >
-        Alle
+    <FilterBar activeCount={activeFilterCount}>
+      <fieldset class="stb-filter-set">
+        <legend>Status</legend>
+        {#each FILTERS as f (f.key)}
+          <label class="stb-filter-opt">
+            <input type="radio" bind:group={filter} value={f.key} />
+            {f.label}
+          </label>
+        {/each}
+      </fieldset>
+      <button type="button" class="stb-filter-export" onclick={exportMd}>
+        ↓ Als Markdown exportieren
       </button>
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'open'}
-        onclick={() => switchFilter('open')}
-      >
-        Offen
-      </button>
-      <button
-        type="button"
-        class="tasks-view__filter-btn"
-        class:tasks-view__filter-btn--active={filter === 'done'}
-        onclick={() => switchFilter('done')}
-      >
-        Erledigt
-      </button>
-    </div>
-    <div class="tasks-view__actions">
-      <button
-        type="button"
-        class="tasks-view__icon-btn"
-        class:tasks-view__icon-btn--active={viewMode === 'board'}
-        onclick={toggleBoard}
-        title={viewMode === 'board' ? 'Listenansicht' : 'Kanban-Board'}
-      >
-        {viewMode === 'board' ? '☰' : '▦'}
-      </button>
-      <button type="button" class="tasks-view__icon-btn" onclick={exportMd} title="Als Markdown exportieren">
-        ↓
-      </button>
-      <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
-    </div>
+    </FilterBar>
+    <ViewModeToggle
+      modes={[
+        { id: 'list', label: '☰ Liste' },
+        { id: 'board', label: '▦ Board' },
+      ]}
+      value={viewMode}
+      onChange={(id) => (viewMode = id as 'list' | 'board')}
+      ariaLabel="Aufgabenansicht wählen"
+    />
+    <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
   </div>
 
   {#if showAddForm}
-    <form class="tasks-view__form" onsubmit={(e) => { e.preventDefault(); saveForm(); }}>
-      <h3 class="tasks-view__form-title">{editing ? 'Aufgabe bearbeiten' : 'Aufgabe hinzufügen'}</h3>
-
-      <label class="tasks-view__form-field">
-        Text
-        <input type="text" bind:value={formText} placeholder="Was ist zu tun?" required />
-      </label>
-
-      <label class="tasks-view__form-field">
-        Kategorie
-        <input type="text" bind:value={formCategory} list="tasks-category-presets" placeholder="frei wählbar…" />
-        <datalist id="tasks-category-presets">
-          {#each CATEGORY_PRESETS as preset (preset)}
-            <option value={preset}></option>
-          {/each}
-        </datalist>
-      </label>
-      <div class="tasks-view__preset-chips">
-        {#each CATEGORY_PRESETS as preset (preset)}
-          <button type="button" class="tasks-view__chip" onclick={() => (formCategory = preset)}>{preset}</button>
-        {/each}
-      </div>
-
-      {#if !editing}
-        <fieldset class="tasks-view__form-field tasks-view__entity-picker">
-          <legend>Ziel</legend>
-          <div class="tasks-view__kind-toggle">
-            <label>
-              <input
-                type="radio"
-                name="tasks-kind"
-                value="person"
-                checked={formKind === 'person'}
-                onchange={() => { formKind = 'person'; formEntityId = ''; }}
-              />
-              Person
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="tasks-kind"
-                value="family"
-                checked={formKind === 'family'}
-                onchange={() => { formKind = 'family'; formEntityId = ''; }}
-              />
-              Familie
-            </label>
-          </div>
-          <input
-            type="search"
-            placeholder="Suchen…"
-            aria-label="Ziel-Entität durchsuchen"
-            bind:value={formEntityQuery}
-          />
-          <select
-            value={formEntityId}
-            onchange={(e) => (formEntityId = e.currentTarget.value)}
-            aria-label="Ziel-Entität wählen"
-            required
-            size="5"
-          >
-            {#each entityOptions as opt (opt.id)}
-              <option value={opt.id}>{opt.label}</option>
-            {/each}
-          </select>
-        </fieldset>
-      {/if}
-
-      <div class="tasks-view__form-actions">
-        <button type="button" class="tasks-view__form-cancel" onclick={closeForm}>Abbrechen</button>
-        <button type="submit" class="tasks-view__form-save">Speichern</button>
-      </div>
-    </form>
+    <TaskForm
+      {appState}
+      initial={formInitial}
+      isEditing={editing !== null}
+      onSubmit={saveForm}
+      onCancel={closeForm}
+    />
   {/if}
 
   {#if filteredTasks.length === 0}
@@ -343,11 +246,11 @@
     flex-direction: column;
   }
 
+  /* EINE Toolbar-Zeile mit drei Elementen (INV-UI-11): Filter · Ansicht · Neuanlage. */
   .tasks-view__toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
     background: var(--stb-surface-2);
@@ -356,51 +259,11 @@
     z-index: 1;
   }
 
-  .tasks-view__filters {
-    display: flex;
-    gap: 0.3rem;
-  }
-
-  .tasks-view__filter-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-
-  .tasks-view__filter-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    font-weight: 700;
-    border-color: var(--stb-gold);
-  }
-
-  .tasks-view__actions {
-    display: flex;
-    gap: 0.4rem;
-    align-items: center;
-  }
-
-  .tasks-view__icon-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-
-  .tasks-view__icon-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border-color: var(--stb-gold);
-  }
-
+  /* Die Hauptaktion sitzt rechtsbündig am Zeilenende; Filter und Ansichts-Umschalter
+     bleiben links (Spec 21 §10c Slot-Reihenfolge). Kein eigener Wrapper-Container —
+     der würde bei 375px eine zweite Toolbar-Zeile erzwingen (INV-UI-11). */
   .tasks-view__add-btn {
+    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     border: none;
@@ -414,109 +277,6 @@
   .tasks-view__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
-  }
-
-  .tasks-view__form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.8rem 1rem;
-    background: var(--stb-surface-1);
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .tasks-view__form-title {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--stb-gold-light);
-  }
-
-  .tasks-view__form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-
-  .tasks-view__form-field input[type='text'],
-  .tasks-view__form-field input[type='search'] {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.9rem;
-  }
-
-  .tasks-view__preset-chips {
-    display: flex;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-  }
-
-  .tasks-view__chip {
-    background: var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: 999px;
-    padding: 0.15rem 0.6rem;
-    font-size: 0.72rem;
-    cursor: pointer;
-  }
-
-  .tasks-view__entity-picker {
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem;
-  }
-
-  .tasks-view__entity-picker legend {
-    font-size: 0.78rem;
-    color: var(--stb-gold-light);
-    padding: 0 0.3rem;
-  }
-
-  .tasks-view__kind-toggle {
-    display: flex;
-    gap: 0.8rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--stb-text);
-  }
-
-  .tasks-view__entity-picker select {
-    width: 100%;
-    margin-top: 0.4rem;
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-  }
-
-  .tasks-view__form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-
-  .tasks-view__form-cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .tasks-view__form-save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
   }
 
   .tasks-view__cat-header {

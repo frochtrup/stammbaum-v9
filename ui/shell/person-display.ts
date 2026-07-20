@@ -3,7 +3,9 @@
 // über core-Chokepoints/-Felder, schreibt nie zurück (reine Query-Funktionen, Spec 02 §3).
 import type { Person, Event } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
-import { eventPlaceId, buildFormString, eventYear } from '../../core/places';
+import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
+import { formatDateForDisplay } from '../../core/model/gedcom-date';
+import { surnameOf } from '../../core/model/name-parts';
 
 /** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
 export function displayName(p: Person): string {
@@ -26,7 +28,7 @@ export function displayName(p: Person): string {
  * Personen ohne GIVN/SURN-Untertags auf reine Label-Text-Sortierung durch).
  */
 export function surnameCandidate(p: Person): string {
-  return p.surname || p.name.split('/')[1] || p.given || p.name;
+  return surnameOf(p) || p.given || p.name;
 }
 
 /** Erster Buchstabe des Nachnamens für den Alphabet-Trenner der Personen-Liste. */
@@ -66,10 +68,37 @@ export function eventPlaceLabel(ev: Event, ctx: PlaceContext): string {
   return ev.place ?? '';
 }
 
-/** Kombiniertes "Jahr, Ort" für die Listenzeile — leer, wenn beides fehlt. */
+/** Kombiniertes "Jahr, Ort" für die Listenzeile — leer, wenn beides fehlt.
+ *  DISAMBIGUIERUNGS-/Übersichts-Kontext (Kinder-/Ehepartner-/Eltern-Zeilen, Ort-/Hof-
+ *  Listen, Suche, INV-UI-6/[21 §6f] INV-UI-9, [21 §6l] INV-UI-14) — Jahr genügt hier, und
+ *  der Ortsteil ist der KURZNAME (`buildListPlaceName`, Spec 11 §5), nicht die volle
+ *  Verwaltungskette — ein volles Datum ODER eine lange Kette wären hier Rauschen. Die
+ *  Kette bleibt per `use:tooltip` an derselben Zeile erreichbar (ADR-v9-86), s. Aufrufer.
+ *  NICHT für die eigenen Ereigniszeilen einer Detail-Seite verwenden, dafür siehe
+ *  dateSummary() (die weiterhin die volle Kette via eventPlaceLabel trägt). */
 export function yearPlaceSummary(ev: Event, ctx: PlaceContext): string {
   const year = eventYearLabel(ev);
-  const place = eventPlaceLabel(ev, ctx);
+  const place = buildListPlaceName(ev, ctx);
   if (year && place) return `${year}, ${place}`;
   return year || place;
+}
+
+/** Volles, lokalisiertes Datum eines Events (Tag+Monat wo vorhanden, deutscher
+ *  Monatsname, Qualifier-Präfix) — Eigene-Ereignis-Kontext, [21 INV-UI-9](
+ *  ../../specs/v9/21-UI-UX.md). Reine Delegation an core/model/gedcom-date.ts (INV-UI-4:
+ *  ein Parser, keine zweite Implementierung). */
+export function fullDateLabel(ev: Event): string {
+  return formatDateForDisplay(ev.date);
+}
+
+/** Kombiniertes "volles Datum, Ort" für die EIGENE Ereigniszeile einer Detail-Seite
+ *  (PersonDetail/FamilyDetail, [21 INV-UI-9](../../specs/v9/21-UI-UX.md)) — leer, wenn
+ *  beides fehlt. Gleiche Orts-Chokepoint-Logik wie yearPlaceSummary(), nur der
+ *  Datums-Teil ist voll statt Jahr-only. NICHT für Disambiguierungs-Listen verwenden,
+ *  dafür bleibt yearPlaceSummary() der kanonische Weg (INV-UI-6). */
+export function dateSummary(ev: Event, ctx: PlaceContext): string {
+  const date = fullDateLabel(ev);
+  const place = eventPlaceLabel(ev, ctx);
+  if (date && place) return `${date}, ${place}`;
+  return date || place;
 }

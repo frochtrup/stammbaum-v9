@@ -13,8 +13,10 @@
 // Bewusste v9-Abweichungen vom Orakel (s. Auftrag):
 // - Orte-Kachel: db.placeObjects.size statt einer neu gebauten collectPlaces()-Portierung
 //   (die war v8-spezifisch, es gibt in v9 keine Entsprechung).
-// - Häufigste Geburts-/Sterbeorte: eventPlaceId(ev,ctx) -> places.byId(placeId)?.title,
-//   sonst ev.place roh — KEINE canonicalPlaceLabel()-Portierung (Überbau für diese Slice).
+// - Häufigste Geburts-/Sterbeorte: eventPlaceId(ev,ctx) -> placeDisplayName(place)
+//   (Spec 11 §5, INV-UI-14 — Listen-/Statistik-Kontext zeigt den Kurznamen, nie po.title
+//   direkt), sonst ev.place roh — KEINE canonicalPlaceLabel()-Portierung (Überbau für
+//   diese Slice).
 // - Jahr-Extraktion: eventYear() aus core/places (Chokepoint-Nachbarschaft), keine zweite
 //   _yearFrom()-Parsing-Funktion.
 // - Nachname-Aggregation: surnameCandidate() (ADR-v9-18) statt p.surname direkt — konsistent
@@ -24,7 +26,7 @@
 //   + events[].citations (alle Citation[]-Fundstellen aus core/model/types.ts).
 import type { Database, Event, Person } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { eventPlaceId, eventYear } from '../../../core/places';
+import { eventPlaceId, eventYear, placeDisplayName } from '../../../core/places';
 import { surnameCandidate } from '../../shell/person-display';
 
 export interface Kachel {
@@ -137,12 +139,13 @@ function personHasPhoto(p: Person): boolean {
   return p.media.some((m) => PHOTO_RE.test(m.file));
 }
 
-/** Ortsname eines Events: places.byId(placeId)?.title, sonst der rohe ev.place-String. */
+/** Ortsname eines Events: placeDisplayName(place) (Spec 11 §5), sonst der rohe
+ *  ev.place-String. */
 function placeLabel(ev: Event, ctx: PlaceContext): string | null {
   const placeId = eventPlaceId(ev, ctx);
   if (placeId != null) {
-    const title = ctx.places.byId(placeId)?.title;
-    if (title) return title;
+    const name = placeDisplayName(ctx.places.byId(placeId));
+    if (name) return name;
   }
   return ev.place ?? null;
 }

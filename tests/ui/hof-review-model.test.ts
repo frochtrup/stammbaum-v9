@@ -79,3 +79,61 @@ describe('buildHofReview — keine Review-Zeilen, wenn alles sauber auflöst', (
     expect(review.rows).toEqual([]);
   });
 });
+
+describe('buildHofReview — Klasse P gehört NICHT in die Hof-Review (Spec 20 §1.8: Klassen A/C/D)', () => {
+  // Befund svelte-check 2026-07-16 (HofReview.svelte:25: "Property 'P' is missing in
+  // type '{A,C,D}' but required in type 'Record<ReviewClass, string>'"): buildHofReview
+  // reichte JEDES ReviewItem aus resolveEvents durch — auch Klasse P, die im PLACE-Pfad
+  // entsteht (resolve.ts: `ids.length >= 2 && !ev.addr`, also ein Event OHNE jeden
+  // Hof-Bezug: zwei gleichnamige Orte, nicht disambiguierbar). Folge: eine Orts-
+  // Mehrdeutigkeit erschien in der HOF-Review mit leerem Klassen-Label
+  // (`klassLabel['P']` === undefined, ungeschützt gerendert) und bot dort Hof-Aktionen
+  // an, die auf ein Orts-Problem nicht passen. Die UI war korrekt (Spec: A/C/D) —
+  // der TYP war zu weit. Kein Informationsverlust durch das Filtern: P hat in der
+  // Hof-Ansicht keine sinnvolle Bedeutung (eigene Orts-Review-Ansicht fehlt noch,
+  // separat gemeldet).
+  it('filtert Klasse-P-Items (Orts-Mehrdeutigkeit ohne ADDR) aus den Hof-Review-Zeilen', () => {
+    const db = makeDatabase();
+    // Zwei gleichnamige Orte ohne disambiguierenden Elter -> findAllByName liefert 2.
+    db.placeObjects = placeMap(
+      place('@OL_DE@', { title: 'Oldenburg', type: 'Town' }),
+      place('@OL_US@', { title: 'Oldenburg', type: 'Town' }),
+    );
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.death.place = 'Oldenburg'; // atomarer PLAC, KEIN addr -> Klasse P
+    person.death.date = '1900';
+    db.individuals.set('@I1@', person);
+
+    const review = buildHofReview(db);
+
+    // Bewusst über `string` verglichen: seit dem Fix schließt `HofReviewClass` das 'P'
+    // bereits TYPMÄSSIG aus — geprüft werden soll hier aber das LAUFZEIT-Verhalten des
+    // Filters (der Kern liefert weiterhin P-Items), nicht die Typdeklaration.
+    expect(review.rows.every((r) => (r.klass as string) !== 'P')).toBe(true);
+    expect(review.rows).toHaveLength(0);
+  });
+
+  it('lässt die echten Hof-Klassen (A) unberührt, wenn im selben Lauf ein P-Item auftritt', () => {
+    const db = makeDatabase();
+    db.placeObjects = placeMap(
+      place('@OL_DE@', { title: 'Oldenburg', type: 'Town' }),
+      place('@OL_US@', { title: 'Oldenburg', type: 'Town' }),
+      place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' }),
+    );
+    const pPlace = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    pPlace.death.place = 'Oldenburg'; // -> P, muss verschwinden
+    pPlace.death.date = '1900';
+    db.individuals.set('@I1@', pPlace);
+    const pHof = makePerson('@I2@', { given: 'Emma', surname: 'Meier' });
+    pHof.death.place = 'Ochtrup';
+    pHof.death.addr = 'Wall 33'; // -> A, muss bleiben
+    pHof.death.date = '1900';
+    db.individuals.set('@I2@', pHof);
+
+    const review = buildHofReview(db);
+
+    expect(review.rows).toHaveLength(1);
+    expect(review.rows[0].klass).toBe('A');
+    expect(review.rows[0].ownerLabel).toBe('Emma Meier');
+  });
+});

@@ -35,3 +35,52 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Fokus-Hervorhebung im Orte-Modus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") —
+   gold, dieselbe Akzentfarbe wie überall sonst im App-Design (--stb-gold-light in
+   design-system.css, hier als Literal übernommen wie der Rest dieser Datei — plain
+   CSS, kein var()-Gebrauch in dieser Datei bisher, kein neues Muster einführen). Der
+   Kreis-Marker bekommt seine Golden-Ring-Optik bereits über die Leaflet-Insel selbst
+   (fillColor/color/weight, s. leaflet-map.ts renderOrte) — hier nur das Pulsieren
+   obendrauf, damit ein einzelner hervorgehobener Marker unter vielen (TST-7:
+   dichte/viele Marker) trotzdem sofort auffindbar bleibt. */
+.map-island__marker--focused {
+  filter: drop-shadow(0 0 3px #e5c96e);
+}
+
+.map-island__diamond-marker--focused {
+  background: #e5c96e;
+  box-shadow: 0 0 0 3px rgba(229, 201, 110, 0.55);
+}
+
+/* prefers-reduced-motion (Spec 21 §6i): das Pulsieren ist reine CSS-Deko ohne
+   Zustandsänderung — bei gesetzter Systemeinstellung bleibt der Marker einfach
+   dauerhaft in seiner "hellsten" Hervorhebung stehen statt zu animieren, statt
+   komplett auf die Hervorhebung zu verzichten. */
+@media (prefers-reduced-motion: no-preference) {
+  .map-island__marker--focused,
+  .map-island__diamond-marker--focused {
+    animation: map-island-focus-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+/* Ad-hoc-Marker (ADR-v9-78-Nachtrag): Event-Koordinaten ohne passenden kuratierten
+   Orts-/Hof-Marker (z. B. ein Geburtshaus statt des Dorf-Zentrums). Bewusst optisch
+   von den normalen Orte-/Höfe-Markern UNTERSCHIEDEN (Ring statt gefüllter Kreis/
+   Raute) — signalisiert "präziser Einzelpunkt aus einem Ereignis", nicht "kuratierter
+   Ort/Hof im Bestand". Erbt trotzdem den Gold-Pulse von `.map-island__marker--focused`
+   (dieselbe Hervorhebungs-Sprache), nur die Füllung ist per Leaflet-Style transparent
+   gehalten (s. leaflet-map.ts renderOrte, fillOpacity 0.35) statt hier per CSS. */
+.map-island__adhoc-marker {
+  stroke-dasharray: 3 2;
+}
+
+@keyframes map-island-focus-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px #e5c96e);
+  }
+  50% {
+    filter: drop-shadow(0 0 9px #e5c96e);
+  }
+}

@@ -3,14 +3,21 @@
 // Gruppen-Modus (pnames-Varianten), Admin-Filter. Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
 import { makeDatabase } from '../../core/model';
-import { place } from '../core/places-fixtures';
+import { place, ev } from '../core/places-fixtures';
+import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
+import type { PlaceContext } from '../../core/places';
 import {
   buildPlaceRows,
+  buildPlaceListSections,
   defaultPlaceFilters,
   isAdminType,
   knownPlaceTypes,
   type PlaceFilters,
 } from '../../ui/views/place/place-list-model';
+
+function ctxOf(db: ReturnType<typeof makeDatabase>): PlaceContext {
+  return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
+}
 
 describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-Indikator', () => {
   it('baut eine Zeile je PlaceObject, alphabetisch nach Titel sortiert', () => {
@@ -25,7 +32,7 @@ describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-I
     expect(rows[0].type).toBe('City');
   });
 
-  it('markiert hasCoords, wenn lat/long gesetzt sind', () => {
+  it('markiert hasCoords, wenn lat/long gesetzt sind, und liefert die Koordinaten selbst', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Mit Koords', lat: 52.1, long: 7.2 }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Ohne Koords' }));
@@ -33,7 +40,9 @@ describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-I
     const rows = buildPlaceRows(db);
 
     expect(rows.find((r) => r.id === '@P1@')?.hasCoords).toBe(true);
+    expect(rows.find((r) => r.id === '@P1@')?.coords).toEqual({ lat: 52.1, long: 7.2 });
     expect(rows.find((r) => r.id === '@P2@')?.hasCoords).toBe(false);
+    expect(rows.find((r) => r.id === '@P2@')?.coords).toBeNull();
   });
 
   it('fällt auf die id zurück, wenn kein Titel gesetzt ist (kein leeres Label)', () => {
@@ -148,5 +157,86 @@ describe('Admin-Filter — reine Verwaltungseinheiten ausblendbar', () => {
     const rows = buildPlaceRows(db, '', filters);
 
     expect(rows.map((r) => r.id)).toEqual(['@P3@']);
+  });
+});
+
+describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile', () => {
+  it('plain (Seed-Rohzustand) → enriched=false', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }));
+
+    expect(buildPlaceRows(db)[0].enriched).toBe(false);
+  });
+
+  it('angereichert (z. B. gesetzter Typ) → enriched=true', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+
+    expect(buildPlaceRows(db)[0].enriched).toBe(true);
+  });
+});
+
+describe('Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — hasHierarchy-Feld je Zeile', () => {
+  it('PlaceObject mit enclosedBy-Eintrag → hasHierarchy=true', () => {
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
+    );
+
+    expect(buildPlaceRows(db)[0].hasHierarchy).toBe(true);
+  });
+
+  it('PlaceObject ohne enclosedBy-Eintrag → hasHierarchy=false', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    expect(buildPlaceRows(db)[0].hasHierarchy).toBe(false);
+  });
+
+  it('hasHierarchy ist UNABHÄNGIG von enriched — angereichert (Typ gesetzt), aber keine Kette', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+
+    const row = buildPlaceRows(db)[0];
+    expect(row.enriched).toBe(true);
+    expect(row.hasHierarchy).toBe(false);
+  });
+});
+
+describe('buildPlaceListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => {
+  it('referenziertes PlaceObject landet in "referenced", referenzloses in "unreferenced"', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Verwaist' }));
+    const events = [ev('BIRT', { placeId: '@P1@' })];
+
+    const sections = buildPlaceListSections(db, ctxOf(db), events);
+
+    expect(sections.referenced.map((r) => r.id)).toEqual(['@P1@']);
+    expect(sections.unreferenced.map((r) => r.id)).toEqual(['@P2@']);
+  });
+
+  it('keine Events → alle Orte landen in "unreferenced"', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    const sections = buildPlaceListSections(db, ctxOf(db), []);
+
+    expect(sections.referenced).toEqual([]);
+    expect(sections.unreferenced.map((r) => r.id)).toEqual(['@P1@']);
+  });
+
+  it('Such-/Typ-Filter gelten für BEIDE Abschnitte gleichermaßen', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Münster', type: 'City' }));
+    const events = [ev('BIRT', { placeId: '@P1@' }), ev('BIRT', { placeId: '@P2@' })];
+
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'Village' };
+    const sections = buildPlaceListSections(db, ctxOf(db), events, '', filters);
+
+    expect(sections.referenced.map((r) => r.id)).toEqual(['@P1@']);
+    expect(sections.unreferenced).toEqual([]);
   });
 });

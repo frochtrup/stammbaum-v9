@@ -15,6 +15,20 @@
   --stb-gold-light: #e5c96e;
   --stb-gold-dim: #7a6328;
 
+  /* Überlagerungs-Ebenen (Spec 21 §6, INV-UI-4). Die Reihenfolge ist hier EINMAL
+     festgelegt, statt in jeder Komponente neu geraten zu werden — genau daran ist sie
+     zweimal gescheitert: EventEditModal und PlaceEnclosureEditModal lagen mit 100 UNTER
+     der Bottom-Nav (400), waren also gar nicht modal und ließen ihre eigenen
+     Aktionsknöpfe verdecken (gefunden bei BL-04, ADR-v9-96). Wer eine neue Ebene
+     braucht, ergänzt sie hier und sieht die Nachbarn. */
+  /* Höhe der Bottom-Nav. EINE Quelle für zwei Nutzer: die Nav selbst (min-height) und
+     alles, was sich darüber andocken muss — sonst driften die beiden Werte auseinander
+     und ein Overlay landet wieder unter der Nav (s. FilterBar-Bottom-Sheet). */
+  --stb-nav-height: 3.1rem;
+  --stb-z-nav: 400;
+  --stb-z-modal: 500;
+  --stb-z-tooltip: 1000;
+
   /* Text */
   --stb-text: #f2e8d4;
   --stb-text-dim: #a0906e;
@@ -73,6 +87,62 @@ button {
   color: inherit;
 }
 
+/* Formular-Steuerelemente (INV-UI-4): EINE Quelle für Eingabefelder-Optik statt
+   pro Formular/Komponente dupliziert. Befund (2026-07-10): `.person-form`/
+   `.family-form` deklarierten dieselben Regeln lokal (`font: inherit`) — das
+   Datumszeilen-`<div>` sitzt außerhalb jedes `<label>`s, erbt daher keinen
+   0.8rem-Ahnen-Fontsize und rendert im Browser-Default (16px), sichtbar größer
+   als Vorname/Nachname. Geteilte Shell-Komponenten wie `EventPlaceField.svelte`
+   bekamen die lokale Regel gar nicht (Svelte-Scoped-CSS überschreitet keine
+   Komponentengrenze) — ihr `<input>` blieb komplett unstyled (weißer
+   Browser-Default-Hintergrund). Ein expliziter `font-size` statt `font: inherit`
+   behebt beides gleichzeitig: kein Vererbungs-Kontext mehr nötig. */
+input,
+select,
+textarea {
+  background: var(--stb-surface-2);
+  color: var(--stb-text);
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: var(--stb-radius-control);
+  padding: 0.35rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--stb-text-muted);
+}
+
+/* Formularfeld ohne <label>-Wrapper (ADR-v9-103, TST-18, INV-UI-4).
+   Überall dort, wo das Bedienelement eine Combobox mit aufklappender Trefferliste ist
+   (`Picker.svelte`), darf KEIN <label> es umschließen: ein <label> reicht jeden Klick in
+   seinem Inneren an das zugehörige Feld weiter — ein Klick auf eine Trefferzeile würde
+   damit zusätzlich das Feld anklicken und die eben geschlossene Liste sofort wieder
+   öffnen. Diese Klassen geben solchen Feldern dieselbe Optik wie ein <label>-Feld; den
+   zugänglichen Namen trägt der Picker selbst über seine `label`-Prop. */
+.stb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stb-field__caption {
+  font-size: 0.85rem;
+}
+
+/* Rollen-Label (INV-UI-4): kleine, GROSSGESCHRIEBENE Vorsatz-Beschriftung vor einem
+   Namen/Wert, wo die ROLLE einer Zeile disambiguiert werden muss (Ehemann/Ehefrau in
+   FamilyDetail, Eigene Familie/Herkunftsfamilie in PersonDetail, Bewohner/Eigentümer
+   in HofDetail — drittes unabhängiges Auftreten desselben Musters, 2026-07-10,
+   konsolidiert statt erneut lokal dupliziert). */
+.stb-role-label {
+  font-size: 0.7rem;
+  color: var(--stb-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 /* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
    zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
    Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung
@@ -84,6 +154,14 @@ button {
   gap: 0.3rem;
   padding: 0.5rem 0.75rem;
   overflow-x: auto;
+  /* PFLICHT, nicht kosmetisch: `overflow-x: auto` setzt `min-height: auto` auf 0
+     (CSS-Flexbox §4.5) — in einem Spalten-Flex-Container (EntityTab/ResearchTab:
+     `flex-direction: column; height: 100%`) darf dieser Container dann unter seine
+     Inhaltshöhe schrumpfen. Gemessener Ist-Zustand vor dem Fix: Zeile 17,1 px hoch,
+     Pillen 11,6 px bei Top-Offset 8 px → die Hauptnavigation war bei JEDER Breite
+     unten angeschnitten. `flex-shrink: 0` schützt alle .stb-segment-row-Stellen
+     zugleich (INV-UI-4: ein Mechanismus, eine Korrektur). */
+  flex-shrink: 0;
 }
 
 .stb-segment-btn {
@@ -154,17 +232,48 @@ button {
   color: var(--stb-text);
 }
 
+/* Aktivierungs-Pill (Spec 20 §2 "Progressive Offenlegung", ADR-v9-63): DER EINE Stil für
+   einen "+ Label"-Aktivierungs-Button, der ein Feld/eine Sektion einblendet ODER (seit
+   ADR-v9-63) direkt eine Kommando-/Neuanlage-Aktion auslöst (z. B. "+ Wohnort" auf
+   PersonDetail, "+ Ehemann wählen" auf FamilyDetail) — bewusst NICHT `.stb-pill`
+   wiederverwendet (das ist ein entfernbarer Chip/Tag mit ✕-Slot, semantisch etwas
+   anderes, s. Kommentar dort). Vorher als `.person-form__pill`/`.family-form__pill`
+   unabhängig in PersonForm.svelte UND FamilyForm.svelte dupliziert (identischer Stil) —
+   jetzt EINE Quelle, seit PersonDetail/FamilyDetail denselben Aktivierungs-Pill-
+   Mechanismus direkt auf der Detail-Ansicht brauchen (ADR-v9-63 verlagert Ereignis-Pills
+   vom Formular auf die Detail-Seite), nicht mehr nur im (schrumpfenden) PersonForm. */
+.stb-activation-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.stb-activation-pill {
+  background: var(--stb-surface-2);
+  border: 1px dashed var(--stb-gold-dim);
+  color: var(--stb-gold-light);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.stb-activation-pill:hover,
+.stb-activation-pill:focus-visible {
+  border-style: solid;
+}
+
 /* Personen-Box (Spec 21 §6 INV-UI-4, Nachtrag 2026-07-06/[20 §1.5]): DER EINE Stil für
    eine kompakte, informative Personen-Anzeige — Name fett + Sekundärzeile Jahr+Ort in
    einer umrandeten Box. Ursprünglich nur in PersonPicker.svelte (.person-picker__field)
    umgesetzt; FamilyDetail.svelte übernimmt hier dieselbe Klasse für die Eltern-Boxen
    (Ehemann/Ehefrau), statt einen zweiten, optisch abweichenden Box-Stil zu schreiben.
-   PersonPicker.svelte selbst bleibt (Stand dieser Änderung) bei seinen eigenen
-   `.person-picker__field`-Regeln — dieselbe visuelle Wirkung, aber PersonPicker hat
-   zusätzliche interaktive Zustände (Fokus/Öffnen-Panel) und wird bewusst nicht
-   angefasst, um keine Regression an einer bereits fertigen, getesteten Komponente zu
-   riskieren (siehe Kommentar dort). Künftige Konsumenten sollten `.stb-person-box`
-   verwenden statt einen dritten Stil zu erfinden. */
+   Seit ADR-v9-40 nutzt auch die generische Picker-Shell (`ui/shell/Picker.svelte`, von
+   PersonPicker/SourcePicker/RepositoryPicker/FamilyPicker/PlaceDetail/HofDetail geteilt)
+   diese Klasse für ihr geschlossenes Feld — EIN Stil für JEDEN Entitäts-Picker, nicht
+   mehr dupliziert. Künftige Konsumenten verwenden `.stb-person-box` statt einen eigenen
+   Box-Stil zu erfinden. */
 .stb-person-box {
   display: flex;
   flex-direction: column;
@@ -193,4 +302,160 @@ button {
 .stb-person-box__meta {
   font-size: 0.75rem;
   color: var(--stb-text-dim);
+}
+
+/* Zahlen-Fakt-Text (Spec 21 §10l Punkt 1, ADR-v9-79): DER EINE Stil für reine
+   Zählungen in einer Listenzeile (Kinderzahl `FamilyList`, Referenzzähler
+   `SourceList`, künftige analoge Zählungen) — bewusst KEIN `.stb-pill` (Zahlen
+   erscheinen auf praktisch jeder Zeile, ein Pill dafür wäre Rauschen). Ersetzt die
+   vorher unabhängigen `.family-list__meta`/`.source-list__refcount` (unterschiedliche
+   Farben: gedimmt bzw. gold). `PersonList`s Geburts-/Sterbejahr-Zeile bleibt bewusst
+   AUSSERHALB dieser Konsolidierung (biografische Kerninfo, kein Zusatz-Zähler). */
+/* Zähl-Elemente in Listenzeilen ("1 Kind", "5× zitiert", Spec 21 §10l Punkt 1,
+   ADR-v9-79-Nachtrag 2026-07-14 — Nutzer-Fund: reiner Text ging in einer langen Liste
+   optisch unter, schnelles Scannen war nicht möglich). Bewusst eine DRITTE, eigene
+   Optik zwischen reinem Text und `.stb-pill` (Nutzer-Wahl unter drei Optionen:
+   "leichter Hintergrund-Chip") — dezente Fläche für Scan-Kontrast, aber OHNE Rahmen
+   und mit engerem Padding/kleinerem Radius als `.stb-pill`, damit Zähl-Elemente (die
+   auf praktisch jeder Zeile vorkommen) nicht dieselbe visuelle Dichte wie die
+   selteneren Präsenz-/Kategorie-Badges erzeugen — genau die Dichte, die ADR-v9-79
+   durch die Ablehnung von "Alles wird Pill" bereits bewusst vermieden hat. */
+.stb-list-stat {
+  display: inline-flex;
+  align-items: center;
+  color: var(--stb-text-dim);
+  background: var(--stb-surface-2);
+  border-radius: 5px;
+  padding: 0.1em 0.45em;
+}
+
+/* Koordinaten-Indikator (Spec 21 §10l Punkt 2 / §10m Punkt 2, ADR-v9-79/80): DER EINE
+   Paar-Zustand-Glyph (◎ vorhanden / ◌ fehlt), von `CoordIndicator.svelte` gerendert.
+   Ersetzt `.place-list__coord-indicator`/`.hof-list__coord-indicator` UND den
+   Text-Link "Karte ↗" in PersonDetail/FamilyDetail (dort über `EventLine.svelte`). */
+.stb-coord-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.stb-coord-indicator__glyph {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--stb-quay-3);
+  cursor: default;
+  line-height: 1;
+}
+
+button.stb-coord-indicator__glyph {
+  cursor: pointer;
+}
+
+button.stb-coord-indicator__glyph:hover,
+button.stb-coord-indicator__glyph:focus-visible {
+  color: var(--stb-gold-light);
+}
+
+.stb-coord-indicator__glyph--missing {
+  color: var(--stb-text-muted);
+}
+
+/* Externe OpenStreetMap-Affordanz: kompaktes ↗-Symbol + Tooltip statt ausgeschriebenem
+   Link-Text (INV-UI-12). Monochrom-Gold, passend zum ◎-Glyph daneben. */
+.stb-coord-indicator__osm {
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--stb-gold-light);
+  text-decoration: none;
+}
+
+.stb-coord-indicator__osm:hover,
+.stb-coord-indicator__osm:focus-visible {
+  color: var(--stb-gold);
+}
+
+/* Modal-Backdrop (Spec 21 §6, INV-UI-4): DER EINE abdunkelnde Vollflächen-Hintergrund
+   hinter einem Overlay-Panel. Vorher lag dieselbe Deklaration dreimal kopiert in
+   EventEditModal/PlaceEnclosureEditModal/ValConfigSheet — zwei davon mit zu niedrigem
+   z-index (s. --stb-z-modal oben). Das Panel bleibt komponenten-lokal: Breite, Polsterung
+   und Innenleben unterscheiden sich je Fall, der Hintergrund nicht.
+
+   `padding-bottom` ist bewusst grosszügig: bei einem Panel, das höher als der Viewport
+   ist, scrollt der Backdrop — ohne diesen Freiraum landen die Aktionsknöpfe am Listenende
+   hinter der Bottom-Nav. */
+.stb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem 6rem;
+  overflow-y: auto;
+  z-index: var(--stb-z-modal);
+}
+
+/* Geteilter Tooltip (ui/shell/tooltip.ts, INV-UI-4). Die Blase lebt im <body> (außerhalb
+   jeder Svelte-Scope-Grenze), deshalb global hier statt komponenten-lokal. position/top/left
+   setzt die Action inline; hier nur Optik + Ein-/Ausblenden. */
+.stb-tooltip {
+  z-index: var(--stb-z-tooltip);
+  max-width: 18rem;
+  width: max-content;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--stb-radius-control);
+  background: var(--stb-surface-1);
+  color: var(--stb-text);
+  border: 1px solid var(--stb-gold-dim);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  /* Zeilenumbrüche im Text erhalten (natives `title` konnte das; die Zeitleisten-Chips
+     liefern mehrzeilige Tooltips "Datum\nTyp\nOrt") — `pre-line` bricht zusätzlich
+     weiterhin am max-width um. */
+  white-space: pre-line;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transition: opacity 0.08s ease;
+}
+
+/* Filter-Optionsliste im `FilterBar`-Panel (INV-UI-4). Vier Views (Aufgaben, Protokoll,
+   Hypothesen, Dashboard) reichen dieselbe einachsige Auswahl "Alle/…" hinter FilterBar
+   ein (Spec 21 §6h Zuordnungsregel "Filter → immer hinter FilterBar"); ohne diese
+   gemeinsame Quelle stünde derselbe Fieldset-Stil viermal parallel in den Views — genau
+   die Drift, die §6l/§6m an anderen Badges bereits nachweisen musste. Der Export-Knopf
+   im selben Panel gehört fachlich dazu ("Export einer gefilterten Liste ... wandert mit
+   hinter die Filter-Disclosure"). */
+.stb-filter-set {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stb-filter-set legend {
+  color: var(--stb-text-dim);
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.stb-filter-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.stb-filter-export {
+  background: var(--stb-surface-3);
+  color: var(--stb-text);
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: var(--stb-radius-control);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  align-self: flex-end;
 }

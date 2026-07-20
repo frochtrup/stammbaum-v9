@@ -4,11 +4,12 @@
 // Deckt Segment-Wechsel + Cross-Entitäts-Navigation (Familie->Person, Quelle->Person/
 // Familie/Archiv, Archiv->Quelle) ab: ein Klick wechselt sowohl den aktiven Segment als
 // auch die ViewState-Auswahl über denselben Mechanismus.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EntityTab from '../../ui/views/EntityTab.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import {
   makeCitation,
   makeDatabase,
@@ -18,6 +19,8 @@ import {
   makeSource,
 } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 
 function seedRichDb() {
   const db = makeDatabase();
@@ -35,13 +38,25 @@ function seedRichDb() {
   return db;
 }
 
+// Formfaktor explizit: diese Datei prüft das MOBILE Modell (Segment-Umschalter oben,
+// Spec 21 §2). Ohne die Festlegung liefe sie im happy-dom-Standard von 1024px und damit
+// im Desktop-Modell, wo die Segmentreihe bewusst entfällt (INV-UI-2) — s. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
+
 describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => {
   it('startet im Personen-Segment und zeigt die Personenliste', () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     expect(screen.getByRole('tab', { name: /Personen/ }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByText('Otto Bauer')).toBeTruthy();
@@ -52,7 +67,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Familien/ }));
 
@@ -63,10 +78,12 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    // ADR-v9-46: die Hauptliste zeigt nur referenzierte Orte — referenzierendes Event nötig.
+    db.individuals.get('@I1@')!.birth.placeId = '@P1@';
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     const placesTab = screen.getByRole('tab', { name: /Orte/ });
     expect(placesTab).toHaveProperty('disabled', false);
@@ -81,10 +98,12 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    // ADR-v9-46: die Hauptliste zeigt nur referenzierte Höfe — referenzierendes Event nötig.
+    db.individuals.get('@I1@')!.birth.hofId = '@H1@';
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
 
@@ -96,7 +115,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Familien/ }));
     await fireEvent.click(screen.getByText('Otto Bauer ⚭ Anna Klein'));
     await fireEvent.click(screen.getByText('Otto Bauer'));
@@ -105,15 +124,15 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('person')).toBe('@I1@');
   });
 
-  it('Person -> Familie: "Familie ansehen" navigiert zur Familien-Detailseite', async () => {
+  it('Person -> Familie: das Rollen-Label navigiert zur Familien-Detailseite (INV-UI-12)', async () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
-    await fireEvent.click(screen.getByText('Familie ansehen →'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Eigene Familie' }));
 
     expect(screen.getByRole('tab', { name: /Familien/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('family')).toBe('@F1@');
@@ -125,7 +144,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
     await fireEvent.click(screen.getByText('§1'));
 
@@ -139,8 +158,10 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('source', '@S1@');
-
-    render(EntityTab, { props: { appState, viewState } });
+    // Startsegment wird explizit gesetzt (so macht es App.svelte beim Start, s.
+    // initialEntityTarget) — vor BL-90 leitete EntityTab es selbst aus der
+    // ViewState-Auswahl ab, was bei jedem Remount erneut lief.
+    render(EntityTab, { props: { appState, viewState, route: createRoute({ target: 'source' }) } });
 
     await fireEvent.click(screen.getByText('Bistumsarchiv'));
     expect(viewState.getCurrent('repository')).toBe('@R1@');
@@ -162,14 +183,14 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     viewState.setCurrent('source', '@S1@');
     viewState.setCurrent('repository', '@R1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute({ target: 'source' }) } });
 
     await fireEvent.click(screen.getByText('← Zur Liste'));
 
     expect(viewState.getCurrent('repository')).toBeNull();
   });
 
-  it('Person -> Ort: "Ort ansehen" navigiert zur Orte-Detailseite (Spec 20 §1.7)', async () => {
+  it('Person -> Ort: Klick auf den Ortsnamen navigiert zur Orte-Detailseite (Spec 20 §1.7, ADR-v9-80: Ortsname selbst ist der Link)', async () => {
     const appState = createAppState();
     const db = seedRichDb();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -179,9 +200,9 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     const viewState = createViewState();
     viewState.setCurrent('person', '@I1@');
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
-    await fireEvent.click(screen.getByText('Ort ansehen →'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Ochtrup' }));
 
     expect(screen.getByRole('tab', { name: /Orte/ }).getAttribute('aria-selected')).toBe('true');
     expect(viewState.getCurrent('place')).toBe('@P1@');
@@ -197,7 +218,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
     await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
 
@@ -208,12 +229,66 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('person')).toBe('@I1@');
   });
 
+  it('Orte-Segment: "Massen-Dedup" (aus der PlaceList-eigenen Toolbar, Spec 21 §10c) öffnet die Massen-Dedup-Ansicht', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Orte/ }));
+    // Seit BL-96 liegen die Kuratierungs-Werkzeuge hinter EINEM "Werkzeuge"-Einstieg
+    // (Spec 21 §6h) — die Toolbar-Ownership aus §10c bleibt unberührt, die Liste besitzt
+    // den Einstieg weiterhin selbst. Nur ein Klick mehr, und die Panel-Inhalte liegen
+    // portaliert am <body> (deshalb `screen`, nicht `container`).
+    await fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }));
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(screen.getByText('Orte — Massen-Dedup')).toBeTruthy();
+
+    // Schließen läuft jetzt über PlaceDedupView's eigenen "✕ Schließen" (Spec 21 §10c:
+    // der öffnende Button lebt in PlaceList, das beim Öffnen des Overlays unmountet —
+    // ein Toggle auf demselben Button ist also nicht mehr möglich).
+    await fireEvent.click(screen.getByText('✕ Schließen'));
+    expect(screen.queryByText('Orte — Massen-Dedup')).toBeNull();
+  });
+
+  it('Höfe-Segment: Review- und Dedup-Werkzeug sind gegenseitig exklusiv (Schließen vor Öffnen des anderen, Spec 21 §10c)', async () => {
+    const appState = createAppState();
+    const db = seedRichDb();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Town' }));
+    const husband = db.individuals.get('@I1@')!;
+    husband.death.place = 'Ochtrup';
+    husband.death.addr = 'Wall 33';
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Höfe/ }));
+    await fireEvent.click(screen.getByText('Hof-Zuweisungen prüfen'));
+
+    expect(screen.getByText('Klasse A')).toBeTruthy();
+    // HofList (und damit sein "Massen-Dedup"-Button, Toolbar-Ownership) ist unmountet,
+    // solange das Review-Overlay offen ist — erst "✕ Schließen" bringt die Liste zurück.
+    expect(screen.queryByText('Massen-Dedup')).toBeNull();
+
+    await fireEvent.click(screen.getByText('✕ Schließen'));
+    expect(screen.queryByText('Klasse A')).toBeNull();
+
+    await fireEvent.click(screen.getByText('Massen-Dedup'));
+
+    expect(screen.getByText('Höfe — Massen-Dedup')).toBeTruthy();
+    expect(screen.queryByText('Klasse A')).toBeNull();
+  });
+
   it('"＋ Neue Person" wählt die neue Person aus UND öffnet den Editor sofort (Spec 20 §2)', async () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
 
-    render(EntityTab, { props: { appState, viewState } });
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
     await fireEvent.click(screen.getByText('＋ Neue Person'));
 
     expect(viewState.getCurrent('person')).toBe('@I3@');

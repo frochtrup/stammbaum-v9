@@ -12,6 +12,15 @@ export interface SourceRow {
   author: string;
   date: string;
   refCount: number;
+  /** "Notizen"-Badge (Spec 20 §1.6 [K], ADR-v9-79 Punkt 3/4) — `true` wenn `text`
+   *  (GEDCOM SOUR.TEXT) nicht leer ist. FELD-UNSCHÄRFE (bewusst nicht abschließend
+   *  geklärt, ADR-v9-79 Punkt 4): `Source` hat kein eigenes `noteRefs`/`noteText`
+   *  (anders als Person/Family) — `text` ist die einzige vorhandene Textablage und
+   *  wurde behelfsweise als "Notizen"-Abbildung gewählt, ist inhaltlich aber eher
+   *  Transkription/zitierter Urtext als Anmerkung. Falls stattdessen Zitat-Notizen
+   *  (`Citation.note`, pro Referenz) gemeint waren, gehört das zu SourceCitationRow
+   *  (Spec 21 §10d), nicht hierher — vor einer Änderung am Nutzer verifizieren. */
+  hasNotes: boolean;
 }
 
 /** Alle Zitate der Datenbank, gruppiert nach Quellen-Id -> Zitat-Liste (mit Herkunft). */
@@ -32,6 +41,7 @@ function toRow(s: Source, refCount: number): SourceRow {
     author: s.author,
     date: s.date,
     refCount,
+    hasNotes: s.text.trim() !== '',
   };
 }
 

@@ -1,11 +1,21 @@
 <script lang="ts">
   // ui/views/place/PlaceList.svelte — Orte-Tab-Liste (Spec 20 §1.7 [K]). Typ-Badge,
   // Koordinaten-Indikator, Typ-Filter, Admin-Filter, Gruppen-Modus (pnames-Varianten
-  // unter dem Titel). Suche über Titel + pnames.
+  // unter dem Titel). Suche über Titel + pnames. Anreicherungs-Pille (ADR-v9-44) +
+  // Referenz-Filter (ADR-v9-46, Spec 11 §9.3): die Hauptliste zeigt nur referenzierte
+  // Orte, ein Segment-Umschalter (`.stb-segment-row`, INV-UI-4) wechselt zum separaten
+  // "Ohne Bezug"-Abschnitt — dort bleiben Orte voll editierbar/löschbar (Klick navigiert
+  // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
+  import type { LensId } from '../../shell/lens-model';
+  import { collectAllEvents } from '../../shell/all-events';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import CoordIndicator from '../../shell/CoordIndicator.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import {
-    buildPlaceRows,
+    buildPlaceListSections,
     defaultPlaceFilters,
     knownPlaceTypes,
     type PlaceFilters,
@@ -14,15 +24,28 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** "Massen-Dedup" (Spec 20 §1.7 [K], Spec 21 §10c): der Button lebt in der eigenen
+     *  Toolbar dieser Liste (Toolbar-Ownership), die eigentliche Ansichts-Umschaltung
+     *  bleibt bei EntityTab (das entscheidet, ob PlaceList oder PlaceDedupView rendert). */
+    /** "Orts-Zuweisungen prüfen" (Klasse P, Spec 11 §6) — Overlay-Öffner, analog
+     *  HofList's onOpenReview. EntityTab entscheidet, welche Komponente rendert. */
+    onOpenReview?: () => void;
+    onOpenDedup?: () => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
+     *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
 
   let query = $state('');
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
-  let showFilters = $state(false);
   let groupMode = $state(false);
+  let section = $state<'referenced' | 'unreferenced'>('referenced');
 
-  const rows = $derived(buildPlaceRows(appState.db, query, filters));
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultPlaceFilters()));
+  const events = $derived(collectAllEvents(appState.db));
+  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
+  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const types = $derived(knownPlaceTypes(appState.db));
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
 
@@ -57,37 +80,72 @@
         <input type="checkbox" bind:checked={groupMode} />
         Varianten gruppiert
       </label>
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="place-list__filters">
+          <label>
+            Typ
+            <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
+              <option value="">alle</option>
+              {#each types as t (t)}
+                <option value={t}>{t}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="place-list__checkbox">
+            <input type="checkbox" bind:checked={filters.hideAdmin} />
+            Verwaltungseinheiten ausblenden
+          </label>
+          <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+        </div>
+      </FilterBar>
+      {#if onOpenReview || onOpenDedup}
+        <!-- Kuratierungs-Werkzeuge hinter EINEM Einstiegspunkt (Spec 21 §6h: "seltene/
+             schwere Konfiguration → hinter EINEM Einstiegspunkt, niemals ein Dauer-Icon
+             in der Kopfzeile"). Vorher standen beide dauerhaft in der Toolbar — auf der
+             Desktop-Listenspalte (352px, also SCHMALER als die mobile Zielbreite) ergab
+             das drei Umbruchzeilen und 161px Kopfbereich, gemessen (BL-96).
+             Dieselbe Disclosure-Mechanik wie die Filter, nur mit anderer Beschriftung —
+             kein zweiter Mechanismus (INV-UI-4). -->
+        <FilterBar label="Werkzeuge">
+          <div class="place-list__tools">
+            {#if onOpenReview}
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen</button>
+            {/if}
+            {#if onOpenDedup}
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+            {/if}
+          </div>
+        </FilterBar>
+      {/if}
+    </div>
+
+    <div class="stb-segment-row place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
       <button
         type="button"
-        class="place-list__filter-toggle"
-        aria-expanded={showFilters}
-        onclick={() => (showFilters = !showFilters)}
+        role="tab"
+        aria-selected={section === 'referenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'referenced'}
+        onclick={() => (section = 'referenced')}
       >
-        Filter
+        Orte ({sections.referenced.length})
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={section === 'unreferenced'}
+        class="stb-segment-btn"
+        class:stb-segment-btn--active={section === 'unreferenced'}
+        onclick={() => (section = 'unreferenced')}
+      >
+        Ohne Bezug ({sections.unreferenced.length})
       </button>
     </div>
 
-    {#if showFilters}
-      <div class="place-list__filters">
-        <label>
-          Typ
-          <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
-            <option value="">alle</option>
-            {#each types as t (t)}
-              <option value={t}>{t}</option>
-            {/each}
-          </select>
-        </label>
-        <label class="place-list__checkbox">
-          <input type="checkbox" bind:checked={filters.hideAdmin} />
-          Verwaltungseinheiten ausblenden
-        </label>
-        <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
-      </div>
-    {/if}
-
     {#if rows.length === 0}
-      <p class="place-list__empty">Keine Orte gefunden.</p>
+      <p class="place-list__empty">
+        {section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
+      </p>
     {:else}
       <ul class="place-list__rows">
         {#each rows as row (row.id)}
@@ -95,13 +153,13 @@
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
-                {#if row.type}<span class="place-list__type-badge">{row.type}</span>{/if}
-                <span
-                  class="place-list__coord-indicator"
-                  class:place-list__coord-indicator--missing={!row.hasCoords}
-                  title={row.hasCoords ? 'Koordinaten vorhanden' : 'Koordinaten fehlen'}
-                >
-                  {row.hasCoords ? '◎' : '◌'}
+                {#if row.type}<span class="stb-pill">{row.type}</span>{/if}
+                {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
+                {#if !row.enriched}
+                  <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
+                {/if}
+                <span class="place-list__coord-wrap">
+                  <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
                 </span>
               </span>
               {#if groupMode && row.variants.length > 0}
@@ -125,6 +183,12 @@
     color: var(--stb-text-dim);
   }
 
+  /* Segment-Pillen selbst kommen aus design-system.css (.stb-segment-row/-btn, INV-UI-4)
+     — hier nur die lokale Trennlinie unter der Reihe. */
+  .place-list__sections {
+    border-bottom: 1px solid var(--stb-surface-3);
+  }
+
   .place-list__toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -137,8 +201,8 @@
     z-index: 1;
   }
 
-  .place-list__filter-toggle,
-  .place-list__filter-reset {
+  .place-list__filter-reset,
+  .place-list__dedup-btn {
     background: var(--stb-surface-3);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -148,9 +212,18 @@
     font-size: 0.85rem;
   }
 
-  .place-list__filter-toggle:hover,
-  .place-list__filter-reset:hover {
+  .place-list__filter-reset:hover,
+  .place-list__dedup-btn:hover {
     border-color: var(--stb-gold);
+  }
+
+  /* Bulk-Aktionen (Massen-Dedup) rechtsbündig, sofern Platz in der Zeile ist. margin-left:
+     auto ist hier sicher (TST-11), weil dieser Block IMMER das letzte Element der
+     Toolbar-Zeile ist, wenn er überhaupt gerendert wird (kein Geschwister danach). */
+  .place-list__tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .place-list__toggle {
@@ -191,8 +264,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-1);
     align-items: flex-end;
   }
 
@@ -244,8 +315,12 @@
     background: var(--stb-surface-2);
   }
 
+  /* flex-wrap (Nutzer-Fund-Analog HofList.svelte, TST-11): mit Hierarchie-Badge PLUS
+     Anreicherungs-Pille PLUS CoordIndicator kann diese Zeile auf 375px (primäre
+     mobile Zielbreite, Spec 21 §2) mehr Inhalt tragen, als in eine Zeile passt. */
   .place-list__title-line {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
   }
@@ -254,21 +329,10 @@
     font-weight: 600;
   }
 
-  .place-list__type-badge {
-    font-size: 0.68rem;
-    color: var(--stb-text-dim);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.05em 0.4em;
-  }
-
-  .place-list__coord-indicator {
+  /* CoordIndicator ist IMMER das letzte Kind dieser Zeile (unconditionally gerendert,
+     kein Geschwister danach) — margin-left:auto ist hier sicher (TST-11). */
+  .place-list__coord-wrap {
     margin-left: auto;
-    color: var(--stb-quay-3);
-  }
-
-  .place-list__coord-indicator--missing {
-    color: var(--stb-text-muted);
   }
 
   .place-list__variants {

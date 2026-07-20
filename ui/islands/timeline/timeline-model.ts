@@ -4,10 +4,10 @@
 // Spec 32 §2: "Layout-Berechnung wird über Modell -> Positionen unit-getestet").
 //
 // INV-ARCH-1: keine Kern-Logik hier (keine Identitätsauflösung/Parsen) — liest
-// AUSSCHLIESSLICH über die core/places-Chokepoints (eventPlaceId/eventYear) sowie
-// core-Felder direkt (Event/Person/Family). Ortsnamen kommen über denselben Chokepoint-
-// Pfad wie person-display.ts (eventPlaceLabel-Äquivalent), damit Zeitleiste und
-// Personen-Detail nie auseinanderlaufen.
+// AUSSCHLIESSLICH über die core/places-Chokepoints (buildListPlaceName/eventYear) sowie
+// core-Felder direkt (Event/Person/Family). Ortsnamen kommen über denselben
+// Listen-Kurzform-Chokepoint wie person-display.ts's `yearPlaceSummary` (INV-UI-14,
+// Spec 21 §6l), damit Zeitleiste und Personen-/Familien-Listen nie auseinanderlaufen.
 //
 // Verhaltens-Orakel: legacy-v8/ui-timeline.js (`_buildPersonEvents`, `_swimLane`,
 // `_resolveSwimOverlaps`, `_renderTlV`-Dekaden-Gruppierung, Konstanten `_TL_PX_EMPTY`/
@@ -35,7 +35,7 @@
 // wird von beiden Rendering-Zweigen geteilt).
 import type { Database, Event, Person, PersonId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { eventPlaceId, eventYear, buildFormString } from '../../../core/places';
+import { eventYear, buildListPlaceName } from '../../../core/places';
 import { HIST_EVENTS, type HistEvent } from './historical-events';
 
 /** Swim-Lane-Kategorie (Orakel: `_SL_LANES`-IDs, wörtlich übernommen). */
@@ -97,30 +97,17 @@ const EVENT_LABELS: Record<string, string> = {
   ADOP: 'Adoption',
 };
 
-/** Erstes Komma-Segment eines Ortsstrings (Orakel: `_shortPlace`). */
-function shortPlace(place: string): string {
-  if (!place) return '';
-  return (
-    place
-      .split(',')
-      .map((s) => s.trim())
-      .find((s) => s) || ''
-  );
-}
-
 /**
- * Periodengerechter Ortsname eines Events über den Places-Chokepoint (Spec 11 §5),
- * analog `person-display.ts` `eventPlaceLabel` — NIE `ev.place` roh anzeigen, wenn eine
- * Auflösung über `eventPlaceId`/`buildFormString` möglich ist. Fällt auf den rohen,
- * gekürzten Ortsstring zurück, wenn kein PlaceObject auflösbar ist.
+ * Ortsname eines Events für die Zeitleiste — DER Listen-Kontext (INV-UI-14, ADR-v9-100
+ * Punkt 3: dicht und schmal, dort stört die volle Verwaltungskette wie in einer Liste).
+ * Delegiert an DEN EINEN Kern-Chokepoint `buildListPlaceName` (Spec 11 §5) — dieselbe
+ * Kurzform wie `person-display.ts`s `yearPlaceSummary`, kein eigener
+ * `shortPlace`/`buildFormString`-Nachbau mehr (INV-UI-4, ADR-v9-80-Lehre: ein Helfer in
+ * der Schale/Insel wäre als zweite Implementierung geendet — genau das, was hier vorher
+ * der Fall war).
  */
 function resolvedPlace(ev: Event, ctx: PlaceContext): string {
-  const placeId = eventPlaceId(ev, ctx);
-  if (placeId != null) {
-    const built = buildFormString(ctx.places, placeId, eventYear(ev));
-    if (built) return shortPlace(built);
-  }
-  return shortPlace(ev.place ?? '');
+  return buildListPlaceName(ev, ctx);
 }
 
 /**

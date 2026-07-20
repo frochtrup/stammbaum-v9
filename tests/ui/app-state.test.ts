@@ -3,46 +3,13 @@
 // Directive gesetzt (läuft mit dem globalen 'node'-Environment, s. vitest.config.ts).
 import { describe, expect, it } from 'vitest';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase } from '../../core/model/index';
+import { makePerson, makeFamily, makeSource, makeRepository, makeDatabase, makeEvent } from '../../core/model/index';
 import { parseGedcom } from '../../core/interop';
 import type { PlaceObject, HofObject } from '../../core/places';
-
-function place(id: string, patch: Partial<PlaceObject> = {}): PlaceObject {
-  return {
-    id,
-    title: '',
-    type: '',
-    pnames: [],
-    enclosedBy: [],
-    lat: null,
-    long: null,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    govId: null,
-    govTypes: null,
-    ...patch,
-  };
-}
-
-function hof(id: string, villageId: string, patch: Partial<HofObject> = {}): HofObject {
-  return {
-    id,
-    villageId,
-    addrs: [],
-    lat: null,
-    long: null,
-    note: '',
-    existsFrom: null,
-    existsTo: null,
-    predecessor: null,
-    successor: null,
-    govId: null,
-    govTypes: null,
-    schemaVersion: 1,
-    ...patch,
-  };
-}
+// Geteilte Datenfabriken statt lokaler Kopien (TST-REUSE): eine neue Pflicht-Eigenschaft
+// an PlaceObject/HofObject wird sonst zu N Fundstellen — genau das ist beim shortName-Feld
+// (BL-55) passiert, in acht Testdateien gleichzeitig.
+import { place, hof } from '../core/places-fixtures';
 
 describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsistent', () => {
   it('savePlace fügt ein PlaceObject hinzu, das über db + placeContext sichtbar wird', () => {
@@ -70,6 +37,17 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     expect(appState.db.placeObjects.has('@P1@')).toBe(false);
   });
 
+  it('deletePlace räumt hängende event.placeId-Referenzen kaskadierend auf (ADR-v9-78 Punkt 1)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.savePerson(makePerson('@I1@', { birth: makeEvent('BIRT', { placeId: '@P1@' }) }));
+
+    appState.deletePlace('@P1@');
+
+    expect(appState.db.placeObjects.has('@P1@')).toBe(false);
+    expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
+  });
+
   it('mergePlace führt Dubletten zusammen: Variante überlebt, Hof-villageId wird umgehängt, Kontext bleibt konsistent', () => {
     const appState = createAppState();
     appState.savePlace(place('@A@', { title: 'Ochtrup', type: 'Town' }));
@@ -83,6 +61,36 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     expect(appState.db.hofObjects.get('_hof_x')?.villageId).toBe('@A@');
     // Chokepoint-Kontext passt zur neuen db: die zusammengeführte Variante findet jetzt @A@.
     expect(appState.placeContext.places.findByName('Ochtorp')).toBe('@A@');
+  });
+
+  it('mergePlace akzeptiert ein Array von Verlierern (Massen-Dedup, §9.2) und gibt ein MergeResult zurück', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.savePlace(place('@C@', { title: 'Ochtrupe' }));
+
+    const result = appState.mergePlace('@A@', ['@B@', '@C@']);
+
+    expect(appState.db.placeObjects.has('@B@')).toBe(false);
+    expect(appState.db.placeObjects.has('@C@')).toBe(false);
+    expect(result.hofsMerged).toBe(0);
+    expect(result.villageId).toBeNull();
+  });
+
+  it('mergePlace meldet den automatischen Hof-Nachlauf im MergeResult (ADR-v9-45 Nachtrag 2026-07-10)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.saveHof(hof('_h1', '@A@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.saveHof(hof('_h2', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+
+    const result = appState.mergePlace('@A@', '@B@');
+
+    expect(result.hofsMerged).toBe(1);
+    expect(result.villageId).toBe('@A@');
+    // Genau einer der beiden Höfe überlebt unter dem Gewinner-Dorf.
+    const survivingHofs = Array.from(appState.db.hofObjects.values()).filter((h) => h.villageId === '@A@');
+    expect(survivingHofs).toHaveLength(1);
   });
 });
 
@@ -136,6 +144,138 @@ describe('AppState.saveHof/deleteHof — Chokepoint-Kontext bleibt konsistent', 
     appState.deleteHof('@H1@');
 
     expect(appState.db.hofObjects.has('@H1@')).toBe(false);
+  });
+
+  it('deleteHof räumt hängende event.hofId-Referenzen kaskadierend auf (ADR-v9-78 Punkt 1)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.saveHof(hof('@H1@', '@P1@'));
+    appState.savePerson(makePerson('@I1@', { birth: makeEvent('BIRT', { hofId: '@H1@' }) }));
+
+    appState.deleteHof('@H1@');
+
+    expect(appState.db.hofObjects.has('@H1@')).toBe(false);
+    expect(appState.db.individuals.get('@I1@')?.birth.hofId).toBeNull();
+  });
+
+  it('mergeHof führt Dubletten zusammen (Array von Verlierern, Massen-Dedup §9.2)', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
+    appState.saveHof(hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    appState.saveHof(hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33a', from: null, to: null }] }));
+
+    appState.mergeHof('@H1@', ['@H2@']);
+
+    expect(appState.db.hofObjects.has('@H2@')).toBe(false);
+    expect(appState.db.hofObjects.get('@H1@')?.addrs.map((a) => a.value)).toContain('Wall 33a');
+  });
+
+  it('mergeHof: persistPlaces wird ausgelöst (TST-8-Anschluss: Persistenz-Kommando nicht vergessen)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.saveHof(hof('@H1@', '@P1@'));
+    appState.saveHof(hof('@H2@', '@P1@'));
+    calls = 0;
+    appState.mergeHof('@H1@', ['@H2@']);
+    expect(calls).toBe(1);
+  });
+});
+
+const MINI_GED_WITH_PLAC = `0 HEAD
+1 SOUR TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Max /Muster/
+2 GIVN Max
+2 SURN Muster
+1 SEX M
+1 BIRT
+2 DATE 1 JAN 1900
+2 PLAC Ochtrup, Steinfurt, Deutschland
+0 TRLR
+`;
+
+describe('AppState.replacePlacesAndHofs — orte.json-Datei-Import ersetzt die Maps UND reklassifiziert (ADR-v9-70 + Nachtrag)', () => {
+  it('ersetzt placeObjects/hofObjects vollständig, sichtbar über db UND placeContext', () => {
+    const appState = createAppState();
+    appState.savePlace(place('@ALT@', { title: 'Wird ersetzt' }));
+
+    const nextPlaces = new Map([['@NEU@', place('@NEU@', { title: 'Importiert' })]]);
+    const nextHofs = new Map([['@H1@', hof('@H1@', '@NEU@')]]);
+    appState.replacePlacesAndHofs(nextPlaces, nextHofs);
+
+    expect(appState.db.placeObjects.has('@ALT@')).toBe(false);
+    expect(appState.db.placeObjects.get('@NEU@')?.title).toBe('Importiert');
+    expect(appState.db.hofObjects.has('@H1@')).toBe(true);
+    expect(appState.placeContext.places.findByName('Importiert')).toBe('@NEU@');
+  });
+
+  it('löst KEIN persistPlaces aus, wenn die Reklassifikation den Bestand NICHT wachsen lässt (leere db, keine Events)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    appState.replacePlacesAndHofs(new Map([['@P@', place('@P@')]]), new Map());
+    expect(calls).toBe(0);
+  });
+
+  it('rührt individuals/families als Maps nicht an (keine Personen verschwinden/entstehen)', () => {
+    const appState = createAppState();
+    appState.savePerson(makePerson('@I1@', { given: 'Max' }));
+    appState.replacePlacesAndHofs(new Map([['@P@', place('@P@')]]), new Map());
+    expect(appState.db.individuals.has('@I1@')).toBe(true);
+  });
+
+  it('reklassifiziert bestehende Events gegen den neu importierten Orts-Bestand — der eigentliche Zweck des Imports (Nachtrag, s. Interface-Doku)', () => {
+    const appState = createAppState();
+    const parsed = parseGedcom(MINI_GED_WITH_PLAC);
+    appState.loadDatabase(parsed.db, 'test.ged');
+    expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
+
+    // Leere Maps genügen: applyPlaceResolution seedet "Ochtrup" selbst aus der PLAC-Zeile
+    // (Village-Seed, ADR-v9-28) und verlinkt das Event darauf — exakt wie beim GEDCOM-
+    // (Re-)Import über load-gedcom-text.ts, nur jetzt auch beim orte.json-Import ausgelöst.
+    appState.replacePlacesAndHofs(new Map(), new Map());
+
+    const resolvedPlaceId = appState.db.individuals.get('@I1@')?.birth.placeId ?? null;
+    expect(resolvedPlaceId).not.toBeNull();
+    expect(appState.placeContext.places.byId(resolvedPlaceId!)?.title).toContain('Ochtrup');
+  });
+
+  it('löst persistPlaces AUS, wenn die Reklassifikation selbst den Bestand wachsen lässt (Village-Seed)', () => {
+    let calls = 0;
+    const appState = createAppState({ persistPlaces: () => (calls += 1) });
+    const parsed = parseGedcom(MINI_GED_WITH_PLAC);
+    appState.loadDatabase(parsed.db, 'test.ged');
+
+    appState.replacePlacesAndHofs(new Map(), new Map());
+
+    expect(calls).toBe(1);
+  });
+});
+
+describe('AppState.mergePlace/mergeHof — Persistenz-Rundlauf (TST-8: speichern -> "neu laden" -> noch da)', () => {
+  it('nach mergePlace bleibt der konsolidierte Stand über einen simulierten Reload (persistPlaces-Snapshot) erhalten', () => {
+    let persisted: { places: Map<string, PlaceObject>; hofs: Map<string, HofObject> } | null = null;
+    const appState = createAppState({
+      persistPlaces: (places, hofs) => {
+        persisted = { places: new Map(places), hofs: new Map(hofs) };
+      },
+    });
+    appState.savePlace(place('@A@', { title: 'Ochtrup' }));
+    appState.savePlace(place('@B@', { title: 'Ochtorp' }));
+    appState.mergePlace('@A@', '@B@');
+
+    // Simulierter Reload: eine frische AppState-Instanz übernimmt NUR den persistierten Snapshot.
+    const reloaded = createAppState();
+    const db2 = makeDatabase();
+    for (const [id, po] of persisted!.places) db2.placeObjects.set(id, po);
+    for (const [id, h] of persisted!.hofs) db2.hofObjects.set(id, h);
+    reloaded.loadDatabase(db2, 'reload.ged');
+
+    expect(reloaded.db.placeObjects.has('@B@')).toBe(false);
+    expect(reloaded.db.placeObjects.get('@A@')?.pnames.map((p) => p.value)).toContain('Ochtorp');
   });
 });
 
@@ -284,19 +424,10 @@ describe('AppState.saveRepository/deleteRepository — Archiv-Editor-Kommandos (
   });
 });
 
-describe('AppState.touch — erzwungene Aktualisierung nach In-Place-Event-Mutation', () => {
-  it('gibt eine neue db-Referenz zurück, mit unverändertem Inhalt', () => {
-    const appState = createAppState();
-    appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
-    const before = appState.db;
-
-    appState.touch();
-
-    expect(appState.db).not.toBe(before);
-    expect(appState.db.placeObjects).toBe(before.placeObjects); // Maps bleiben identisch (kein unnötiges Klonen)
-    expect(appState.db.placeObjects.get('@P1@')?.title).toBe('Ochtrup');
-  });
-});
+// `AppState.touch()` ist mit BL-01 entfallen (ADR-v9-92): es stieß nach einer
+// In-Place-Mutation von außen bloß die Reaktivität an — genau das Muster, das
+// Copy-on-Write ausschließt. Die frühere Verwendung (Reprojektion nach
+// linkEventToPlace) läuft jetzt im Kommando selbst, s. u.
 
 describe('AppState.loadDatabase/serialize — roots-Passthrough für Genealogie-Arbeitskopie/-Export (Spec 14 §3.1)', () => {
   it('loadDatabase ohne roots-Argument: serialize() liefert dennoch ein valides GEDCOM (leerer roots-Fallback)', () => {
@@ -414,13 +545,48 @@ describe('AppState.persistWorkingCopy — stilles Auto-Save der Genealogie-Arbei
     expect(calls).toBe(2);
   });
 
-  it('wird NICHT nach savePlace/saveHof/addTask aufgerufen (nur persistPlaces, s. o.)', () => {
+  it('wird NICHT nach savePlace/saveHof aufgerufen (nur persistPlaces, s. o.)', () => {
     let calls = 0;
     const appState = loadedAppState(() => (calls += 1));
     appState.savePlace(place('@P1@', { title: 'Ochtrup' }));
     appState.saveHof(hof('@H1@', '@P1@'));
-    appState.addTask('person', '@I1@', 't1', 'x', 'Kirchenbuch', '2026-07-07');
     expect(calls).toBe(0);
+  });
+
+  it('wird nach linkEventToPlace aufgerufen (Reprojektion von ev.place ist GEDCOM-relevant)', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.savePlace(place('@P1@', { title: 'Ochtrup' })); // nur orte.json, kein Working-Copy-Save
+    expect(calls).toBe(0);
+
+    const person = appState.db.individuals.get('@I1@')!;
+    expect(appState.linkEventToPlace(person.birth, '@P1@')).toBe(true);
+
+    expect(calls).toBe(1);
+  });
+
+  it('wird NICHT aufgerufen, solange noch keine Datei geladen ist', () => {
+    let calls = 0;
+    const appState = createAppState({ persistWorkingCopy: () => (calls += 1) });
+    appState.savePerson(makePerson('@I9@'));
+    expect(calls).toBe(0);
+  });
+
+  it('wird nach addTask/updateTask/setTaskStatus/deleteTask aufgerufen (Nachtrag 2026-07-07, _TASK-Write-Back)', () => {
+    let calls = 0;
+    const appState = loadedAppState(() => (calls += 1));
+    appState.addTask('person', '@I1@', 't1', 'Kirchenbuch prüfen', 'Kirchenbuch', '2026-07-07');
+    appState.updateTask('person', '@I1@', 't1', 'Kirchenbuch prüfen (aktualisiert)', 'Kirchenbuch');
+    appState.setTaskStatus('person', '@I1@', 't1', 'done');
+    appState.deleteTask('person', '@I1@', 't1');
+    expect(calls).toBe(4);
+  });
+
+  it('serialisierter Text nach addTask enthält den _TASK-Block', () => {
+    let lastText = '';
+    const appState = loadedAppState((text) => (lastText = text));
+    appState.addTask('person', '@I1@', 't1', 'Kirchenbuch prüfen', 'Kirchenbuch', '2026-07-07');
+    expect(lastText).toContain('_TASK Kirchenbuch prüfen');
   });
 
   it('wird NICHT aufgerufen, solange noch keine Datei geladen ist (kein leeres Working-Copy-Save)', () => {

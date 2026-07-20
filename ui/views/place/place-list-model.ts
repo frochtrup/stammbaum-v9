@@ -4,17 +4,33 @@
 // Liest AUSSCHLIESSLICH db.placeObjects (ID-basiert, Spec 11 §5 "Aggregatoren sind
 // id-basiert, nicht string-basiert") — KEIN eigenes String-Aggregat über ev.place, das
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
-import type { Database, PlaceId } from '../../../core/model/types';
-import type { PlaceObject } from '../../../core/places';
-import { placeTypeRank } from '../../../core/places';
+import type { Database, Event, PlaceId } from '../../../core/model/types';
+import type { PlaceContext, PlaceObject } from '../../../core/places';
+import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName } from '../../../core/places';
 
 export interface PlaceRow {
   id: PlaceId;
   title: string;
   type: string;
   hasCoords: boolean;
+  coords: { lat: number; long: number } | null;
   /** String-Varianten (pnames) für den Gruppen-Modus — leer, wenn keine erfasst sind. */
   variants: string[];
+  /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille) — reines
+   *  Inhalts-Prädikat, KEINE Herkunfts-Aussage (s. Modul-Kommentar der Kern-Funktion). */
+  enriched: boolean;
+  /** Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — `true`, wenn mind. eine
+   *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `enriched` (ein Ort kann
+   *  eine Kette haben, ohne sonst angereichert zu sein, oder umgekehrt). */
+  hasHierarchy: boolean;
+}
+
+/** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.7 [K] Referenz-Filter, ADR-v9-46). */
+export interface PlaceListSections {
+  /** Von mind. einem Event der geladenen Datei referenziert — die eigentliche Hauptliste. */
+  referenced: PlaceRow[];
+  /** `hasReference === false` — separater Abschnitt, weiterhin voll editierbar/löschbar. */
+  unreferenced: PlaceRow[];
 }
 
 export interface PlaceFilters {
@@ -37,12 +53,18 @@ export function isAdminType(type: string | null | undefined): boolean {
 }
 
 function toRow(pl: PlaceObject): PlaceRow {
+  const hasCoords = pl.lat != null && pl.long != null;
   return {
     id: pl.id,
-    title: pl.title || pl.id,
+    // Anzeigename über den einzigen erlaubten Weg (Spec 11 §5, INV-UI-14) — shortName vor
+    // title, nie po.title direkt.
+    title: placeDisplayName(pl),
     type: pl.type,
-    hasCoords: pl.lat != null && pl.long != null,
+    hasCoords,
+    coords: hasCoords ? { lat: pl.lat as number, long: pl.long as number } : null,
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
+    enriched: isEnrichedPlace(pl),
+    hasHierarchy: pl.enclosedBy.length > 0,
   };
 }
 
@@ -69,7 +91,9 @@ function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
 export function matchesSearch(pl: PlaceObject, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const haystack = [pl.title, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();
+  // shortName ergänzt den Heuhaufen (was sichtbar ist, muss auffindbar sein, ADR-v9-100) —
+  // title/pnames bleiben weiterhin durchsuchbar, shortName ersetzt sie nicht.
+  const haystack = [pl.title, pl.shortName, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();
   return haystack.includes(q);
 }
 
@@ -83,4 +107,27 @@ export function buildPlaceRows(
     .filter((pl) => matchesSearch(pl, query) && matchesFilters(pl, filters))
     .map(toRow)
     .sort((a, b) => a.title.localeCompare(b.title, 'de'));
+}
+
+/**
+ * Referenz-Filter (Spec 20 §1.7 [K], ADR-v9-46): partitioniert die (bereits Such-/Typ-
+ * gefilterten) Zeilen nach `hasReference` — die Hauptliste zeigt nur `referenced`,
+ * `unreferenced` füllt den separaten "Ohne Bezug"-Abschnitt (weiterhin voll editierbar/
+ * löschbar, keine automatische Löschung). Baut auf `buildPlaceRows` auf (kein zweiter
+ * Aufbereitungs-Pfad) — reine Zusatz-Partitionierung.
+ */
+export function buildPlaceListSections(
+  db: Database,
+  ctx: PlaceContext,
+  events: readonly Event[],
+  query = '',
+  filters: PlaceFilters = defaultPlaceFilters(),
+): PlaceListSections {
+  const rows = buildPlaceRows(db, query, filters);
+  const referenced: PlaceRow[] = [];
+  const unreferenced: PlaceRow[] = [];
+  for (const row of rows) {
+    (hasReference(row.id, events, ctx) ? referenced : unreferenced).push(row);
+  }
+  return { referenced, unreferenced };
 }

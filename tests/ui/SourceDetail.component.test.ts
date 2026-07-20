@@ -83,3 +83,56 @@ describe('SourceDetail — Referenzen inkl. PAGE/QUAY (Component)', () => {
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
   });
 });
+
+describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', () => {
+  it('gruppiert Referenzen nach Kontext-Typ mit "Typ (N)"-Untertitel', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const anna = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    anna.birth.citations.push(makeCitation('@S1@'));
+    anna.death.citations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', anna);
+    db.sources.set('@S1@', makeSource('@S1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('Geburt (1)')).toBeTruthy();
+    expect(screen.getByText('Tod (1)')).toBeTruthy();
+  });
+
+  it('TST-7 Kapazitäts-Fall: mehr als 30 Referenzen desselben Typs zeigen zunächst nur 30 + "N weitere laden" (Gruppe mit >30 Zeilen startet automatisch eingeklappt, Spec 21 §10b/ADR-v9-78 Punkt 6 — erst aufklappen)', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    for (let i = 0; i < 45; i++) {
+      const p = makePerson(`@I${i}@`, { given: `Person${i}`, surname: 'Bauer' });
+      p.birth.citations.push(makeCitation('@S1@'));
+      db.individuals.set(`@I${i}@`, p);
+    }
+    db.sources.set('@S1@', makeSource('@S1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    const groupHeader = screen.getByText('Geburt (45)');
+    expect(groupHeader).toBeTruthy();
+    expect(groupHeader.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryAllByText('Geburt')).toHaveLength(0);
+
+    await fireEvent.click(groupHeader);
+
+    expect(groupHeader.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByText('Geburt')).toHaveLength(30);
+    const loadMoreBtn = screen.getByText('15 weitere laden');
+    expect(loadMoreBtn).toBeTruthy();
+
+    await fireEvent.click(loadMoreBtn);
+
+    expect(screen.getAllByText('Geburt')).toHaveLength(45);
+    expect(screen.queryByText(/weitere laden/)).toBeNull();
+  });
+});

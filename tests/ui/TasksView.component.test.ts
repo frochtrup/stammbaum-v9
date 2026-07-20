@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 // tests/ui/TasksView.component.test.ts — globaler Aufgaben-Tab (Spec 20 §1.11 [K]).
 // Deckt Filter-Umschalter, Liste ⇄ Board, Hinzufügen/Status-Wechsel, Export-Button ab.
+//
+// Filter und Export liegen seit dem INV-UI-11-Retrofit (Spec 21 §6h) hinter `FilterBar`
+// statt als Dauer-Pillen in der Toolbar — die Tests gehen deshalb über `setFilter()`
+// bzw. öffnen das Panel zuerst. Das ist zugleich der Nachweis, dass beides von dort aus
+// überhaupt erreichbar bleibt (nicht nur "existiert im DOM").
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import TasksView from '../../ui/views/tasks/TasksView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource } from '../../core/model';
 import { makeTask } from '../../core/research/index';
 
 function seedDb() {
@@ -37,6 +42,17 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
+/** Filter-Panel öffnen — der Trigger heißt "Filter" bzw. "Filter · N". */
+async function openFilters() {
+  await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+}
+
+/** Statusauswahl über das FilterBar-Panel setzen (Radio, kein Dauer-Button mehr). */
+async function setFilter(label: string) {
+  await openFilters();
+  await fireEvent.click(screen.getByLabelText(label));
+}
+
 describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
   it('zeigt standardmäßig nur offene Aufgaben (todo+doing), gruppiert nach Kategorie', () => {
     renderView(seedDb());
@@ -47,13 +63,13 @@ describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
 
   it('Filter "Alle" zeigt auch erledigte Aufgaben', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
+    await setFilter('Alle');
     expect(screen.getByText('Sterbeurkunde beschaffen')).toBeTruthy();
   });
 
   it('Filter "Erledigt" zeigt NUR erledigte Aufgaben', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Erledigt' }));
+    await setFilter('Erledigt');
     expect(screen.getByText('Sterbeurkunde beschaffen')).toBeTruthy();
     expect(screen.queryByText('Kirchenbuch Hildesheim prüfen')).toBeNull();
   });
@@ -62,8 +78,8 @@ describe('TasksView — Filter, Kategorien-Gruppierung, Liste', () => {
 describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('wechselt in die Board-Ansicht mit den 3 Spalten Offen/In Arbeit/Erledigt', async () => {
     renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' })); // alle Status sichtbar
-    await fireEvent.click(screen.getByTitle('Kanban-Board'));
+    await setFilter('Alle'); // alle Status sichtbar
+    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
 
     // Spaltenköpfe (nicht der Filter-Button "Offen" oben in der Toolbar) — Selektor über
     // die Board-Spalten-Klasse, damit der Test nicht an der gleichlautenden Filter-
@@ -77,8 +93,8 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
 
   it('Tap-to-Advance im Board erhöht den Status um eine Stufe', async () => {
     const { appState } = renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
-    await fireEvent.click(screen.getByTitle('Kanban-Board'));
+    await setFilter('Alle');
+    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
 
     const advanceBtn = screen.getByText('→ In Arbeit'); // t1 ist todo -> next=doing
     await fireEvent.click(advanceBtn);
@@ -89,17 +105,15 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
 });
 
 describe('TasksView — Aufgabe hinzufügen', () => {
-  it('öffnet das Formular, legt eine neue Aufgabe an einer Person an', async () => {
+  it('öffnet das Formular, legt eine neue Aufgabe an einer Person an (über PersonPicker, ADR-v9-40)', async () => {
     const { appState } = renderView(seedDb());
     await fireEvent.click(screen.getByRole('button', { name: '+ Aufgabe' }));
 
     await fireEvent.input(screen.getByPlaceholderText('Was ist zu tun?'), { target: { value: 'Neue Aufgabe' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Kirchenbuch' })); // Preset-Chip (Kategorie-Header ist kein <button>)
 
-    // Ziel: erste Person in der gefilterten Auswahlliste wählen.
-    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
-    const firstOption = select.querySelector('option') as HTMLOptionElement;
-    await fireEvent.change(select, { target: { value: firstOption.value } });
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
@@ -107,28 +121,53 @@ describe('TasksView — Aufgabe hinzufügen', () => {
     expect(allTexts).toContain('Neue Aufgabe');
   });
 
-  it('wählt gezielt eine NICHT-erste Person aus der Ziel-Liste (value/onchange-Muster, kein bind:value)', async () => {
-    // Bewusst NICHT die erste Option wählen: bei size="5" ohne Leer-Platzhalter-Option
-    // selektiert der Browser standardmäßig die erste Option, auch ohne Nutzeraktion —
-    // ein Test, der nur die erste Option wählt, würde ein kaputtes onchange nicht
-    // bemerken. Optionen sind nach Anzeigename sortiert ("Anna Klein" vor "Otto Bauer");
-    // hier muss die Auswahl tatsächlich reagieren, damit die Aufgabe bei Otto (@I1@)
-    // statt beim Default (Anna, @I2@) landet.
+  it('wählt gezielt eine NICHT-erste Person aus der Ziel-Liste (PersonPicker-Ergebnisliste)', async () => {
+    // Kandidaten sind nach Anzeigename sortiert ("Anna Klein" vor "Otto Bauer") — die
+    // Aufgabe muss bei Otto (@I1@) landen, nicht bei Anna (@I2@), um sicherzustellen,
+    // dass die Auswahl tatsächlich reagiert (kein "immer erste Option"-Fehler).
     const { appState } = renderView(seedDb());
     await fireEvent.click(screen.getByRole('button', { name: '+ Aufgabe' }));
     await fireEvent.input(screen.getByPlaceholderText('Was ist zu tun?'), { target: { value: 'Für Otto' } });
 
-    const select = screen.getByLabelText('Ziel-Entität wählen') as HTMLSelectElement;
-    const options = [...select.querySelectorAll('option')] as HTMLOptionElement[];
-    const ottoOption = options.find((o) => o.textContent?.includes('Otto'))!;
-    expect(ottoOption.value).not.toBe(options[0].value); // Otto ist nicht die erste Option
-    await fireEvent.change(select, { target: { value: ottoOption.value } });
-    expect(select.value).toBe(ottoOption.value);
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
 
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     expect(appState.db.individuals.get('@I1@')!.tasks.some((t) => t.text === 'Für Otto')).toBe(true);
     expect(appState.db.individuals.get('@I2@')!.tasks.some((t) => t.text === 'Für Otto')).toBe(false);
+  });
+
+  it('legt eine Aufgabe an einer Familie an (Ziel-Kind-Umschalter -> FamilyPicker)', async () => {
+    const { appState } = renderView(seedDb());
+    await fireEvent.click(screen.getByRole('button', { name: '+ Aufgabe' }));
+    await fireEvent.input(screen.getByPlaceholderText('Was ist zu tun?'), { target: { value: 'Für die Familie' } });
+
+    await fireEvent.click(screen.getByLabelText('Familie'));
+    await fireEvent.click(screen.getByLabelText('Ziel-Familie'));
+    await fireEvent.click(screen.getByText('Otto Bauer ⚭ Anna Klein'));
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    expect(appState.db.families.get('@F1@')!.tasks.some((t) => t.text === 'Für die Familie')).toBe(true);
+  });
+
+  it('setzt einen optionalen Quellen-Bezug über den SourcePicker', async () => {
+    const db = seedDb();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Musterdorf' }));
+    const { appState } = renderView(db);
+    await fireEvent.click(screen.getByRole('button', { name: '+ Aufgabe' }));
+    await fireEvent.input(screen.getByPlaceholderText('Was ist zu tun?'), { target: { value: 'Mit Quelle' } });
+
+    await fireEvent.click(screen.getByLabelText('Quelle'));
+    await fireEvent.click(screen.getByText('KB Musterdorf'));
+
+    await fireEvent.click(screen.getByLabelText('Ziel-Person'));
+    await fireEvent.click(screen.getByText('Otto Bauer'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    const saved = appState.db.individuals.get('@I1@')!.tasks.find((t) => t.text === 'Mit Quelle');
+    expect(saved?.sourceRef).toBe('@S1@');
   });
 
   it('Abbrechen schließt das Formular ohne Aufgabe anzulegen', async () => {
@@ -145,9 +184,13 @@ describe('TasksView — Aufgabe hinzufügen', () => {
 describe('TasksView — Status-Wechsel im Listen-Modus + Klick-Navigation zur Trägerentität', () => {
   it('Status-Dropdown in der Liste ändert den Status direkt', async () => {
     const { appState } = renderView(seedDb());
-    await fireEvent.click(screen.getByRole('button', { name: 'Alle' }));
+    await setFilter('Alle');
 
-    const selects = screen.getAllByLabelText('Status');
+    // "Status" ist jetzt zweideutig: das Filter-Fieldset trägt dieselbe Beschriftung.
+    // Nur die <select> der Listenzeilen sind gemeint.
+    const selects = screen
+      .getAllByLabelText('Status')
+      .filter((el): el is HTMLSelectElement => el instanceof HTMLSelectElement);
     await fireEvent.change(selects[0]!, { target: { value: 'done' } });
 
     const anyDoneNow = [...appState.db.individuals.values(), ...appState.db.families.values()].some((e) =>
@@ -164,8 +207,10 @@ describe('TasksView — Status-Wechsel im Listen-Modus + Klick-Navigation zur Tr
 });
 
 describe('TasksView — MD-Export-Button vorhanden', () => {
-  it('rendert den Export-Button (Download wird über den AnchorDownloadAdapter angestoßen)', () => {
+  it('rendert den Export-Button im FilterBar-Panel (Spec 21 §6h: Export gehört zum Filter-Kontext)', async () => {
     renderView(seedDb());
-    expect(screen.getByTitle('Als Markdown exportieren')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Als Markdown exportieren/ })).toBeNull();
+    await openFilters();
+    expect(screen.getByRole('button', { name: /Als Markdown exportieren/ })).toBeTruthy();
   });
 });

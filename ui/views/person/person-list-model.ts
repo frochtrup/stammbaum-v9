@@ -6,7 +6,7 @@
 // sie ohne DOM unit-testbar sind (Testpyramide, TST-5) — die Svelte-Komponente rendert nur.
 import type { Database, Person, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { eventYear } from '../../../core/places';
+import { eventYear, buildListPlaceName } from '../../../core/places';
 import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel } from '../../shell/person-display';
 
 export type PersonSortMode = 'name' | 'birthDate';
@@ -40,8 +40,17 @@ export function defaultPersonFilters(): PersonFilters {
 export interface PersonRow {
   id: string;
   name: string;
+  /** "Jahr, Kurzname" (INV-UI-14) — der sichtbare Zeilentext. */
   birthSummary: string;
   deathSummary: string;
+  /** Volle periodengerechte Verwaltungskette (`eventPlaceLabel`) für den Tooltip an
+   *  derselben Zeile (ADR-v9-86) — leer, wenn kein Ort erfasst ist (kein Tooltip). */
+  birthPlaceFull: string;
+  deathPlaceFull: string;
+  /** 📎-Medien-Badge (Spec 20 §1.4 [K], ADR-v9-79 Punkt 3) — `true` wenn `person.media`
+   *  mind. einen Eintrag hat. Wiederverwendetes 📎-Symbol (Spec 21 §7: "ausschließlich
+   *  Medien/OBJE, nie Quellen"). */
+  hasMedia: boolean;
 }
 
 export interface PersonGroup {
@@ -110,9 +119,15 @@ function matchesFilters(p: Person, filters: PersonFilters, ctx: PlaceContext): b
 
   const placeQuery = filters.birthPlace.trim().toLowerCase();
   if (placeQuery) {
+    // Matcht sowohl über die volle Kette (eventPlaceLabel) ALS AUCH über den Kurznamen
+    // inkl. shortName (buildListPlaceName) — ergänzt, ersetzt nicht (Spec 11 §1 "was
+    // sichtbar ist, muss auffindbar sein", ADR-v9-100).
     const birthPlace = eventPlaceLabel(p.birth, ctx).toLowerCase();
+    const birthShort = buildListPlaceName(p.birth, ctx).toLowerCase();
     const chrPlace = eventPlaceLabel(p.chr, ctx).toLowerCase();
-    if (!birthPlace.includes(placeQuery) && !chrPlace.includes(placeQuery)) return false;
+    const chrShort = buildListPlaceName(p.chr, ctx).toLowerCase();
+    const hay = [birthPlace, birthShort, chrPlace, chrShort];
+    if (!hay.some((s) => s.includes(placeQuery))) return false;
   }
 
   if (filters.noDeathDate && p.death.date) return false;
@@ -194,5 +209,8 @@ function toRow(p: Person, ctx: PlaceContext): PersonRow {
     name: displayName(p),
     birthSummary: yearPlaceSummary(p.birth, ctx),
     deathSummary: yearPlaceSummary(p.death, ctx),
+    birthPlaceFull: eventPlaceLabel(p.birth, ctx),
+    deathPlaceFull: eventPlaceLabel(p.death, ctx),
+    hasMedia: p.media.length > 0,
   };
 }

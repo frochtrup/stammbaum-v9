@@ -15,6 +15,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MigrationLine, PlacePoint, BiographyPoint } from './map-model';
+import { escapeHtml, findFocusPoint } from './map-model';
+import { prefersReducedMotion } from '../shared/reduced-motion';
 
 export type MapMode = 'orte' | 'person' | 'migr';
 
@@ -32,6 +34,24 @@ export interface LeafletMountData {
   biography: BiographyPoint[];
   /** Animationsfortschritt (0..N) für Personen-/Migrations-Modus; -1 = alles anzeigen (kein Animationslauf). */
   animIndex?: number;
+  /**
+   * Orts-/Hof-ID zum ZUSÄTZLICHEN Hervorheben eines kuratierten Markers im Orte-Modus
+   * (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2"). `null`/`undefined`/unbekannte ID =
+   * kein zusätzlich hervorgehobener Marker — die Zentrierung selbst hängt seit dem
+   * ADR-v9-78-Nachtrag NICHT mehr hiervon ab, s. `focusCoords`.
+   */
+  focusPlaceId?: string | null;
+  /**
+   * Roh-Koordinaten zum Zentrieren im Orte-Modus (ADR-v9-78-Nachtrag, 2026-07-14) —
+   * PRIMÄRES Sprungziel, unabhängig davon, ob `focusPlaceId` einen kuratierten Marker
+   * trifft. Existiert bereits ein Marker an (nahezu) dieser Stelle (via `focusPlaceId`
+   * aufgelöst), wird DER hervorgehoben (kein doppelter Marker). Sonst zeichnet die
+   * Insel einen eigenständigen Ad-hoc-Marker an der exakten Koordinate — Event-
+   * Koordinaten (z. B. ein Geburtshaus) sind oft präziser als die des zugeordneten
+   * Orts und verdienen einen eigenen, sofort erkennbaren Zentrierungs-Effekt, auch
+   * ohne kuratiertes PlaceObject/HofObject an dieser Stelle.
+   */
+  focusCoords?: { lat: number; long: number } | null;
 }
 
 export interface LeafletIslandHandle {
@@ -43,6 +63,9 @@ export interface LeafletIslandHandle {
 
 const DEFAULT_CENTER: [number, number] = [51.5, 10.0];
 const DEFAULT_ZOOM = 6;
+/** Zoom-Stufe für die Fokus-Zentrierung (ADR-v9-78 Punkt 4) — enger als der
+ * `fitBounds`-`maxZoom:10` der Orte-Gesamtansicht, analog `renderPerson`s `maxZoom:13`. */
+const FOCUS_ZOOM = 13;
 
 function circleStyle(count: number): { radius: number; fillColor: string } {
   if (count >= 20) return { radius: 11, fillColor: '#c8a84a' };
@@ -83,28 +106,35 @@ export function mountLeafletMap(
   const markerLayer = L.layerGroup().addTo(map);
   const lineLayer = L.layerGroup().addTo(map);
 
-  function renderOrte(places: PlacePoint[]): void {
+  function renderOrte(
+    places: PlacePoint[],
+    focusPlaceId: string | null | undefined,
+    focusCoords: { lat: number; long: number } | null | undefined,
+  ): void {
     const bounds: [number, number][] = [];
+    const focusPoint = findFocusPoint(places, focusPlaceId);
     for (const p of places) {
+      const isFocused = focusPoint != null && p.placeId === focusPoint.placeId;
       const { radius, fillColor } = circleStyle(p.personCount);
       const marker = p.isHof
         ? L.marker([p.lat, p.long], {
             icon: L.divIcon({
               className: '',
-              html: '<div class="map-island__diamond-marker"></div>',
+              html: `<div class="map-island__diamond-marker${isFocused ? ' map-island__diamond-marker--focused' : ''}"></div>`,
               iconSize: [10, 10],
               iconAnchor: [5, 5],
             }),
           })
         : L.circleMarker([p.lat, p.long], {
-            radius,
+            radius: isFocused ? radius + 3 : radius,
             fillColor,
-            color: '#1a140a',
-            weight: 1.5,
+            color: isFocused ? '#e5c96e' : '#1a140a',
+            weight: isFocused ? 3 : 1.5,
             opacity: 1,
             fillOpacity: 0.85,
+            className: isFocused ? 'map-island__marker--focused' : undefined,
           });
-      marker.bindTooltip(`${p.title} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`, {
+      marker.bindTooltip(`${escapeHtml(p.title)} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`, {
         direction: 'top',
         offset: [0, -6],
       });
@@ -112,7 +142,34 @@ export function mountLeafletMap(
       marker.addTo(markerLayer);
       bounds.push([p.lat, p.long]);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10, animate: !prefersReducedMotion() });
+    // Fokus-Zentrierung LÄUFT NACH der Gesamt-fitBounds (Reihenfolge wichtig: der
+    // engere, gezielte setView-Aufruf muss der letzte Zentrierungsbefehl sein, sonst
+    // gewinnt die Gesamtansicht). `prefers-reduced-motion` (Spec 21 §6i) entscheidet
+    // hier zwischen animiertem Pan/Zoom und direktem Sprung zum Endzustand.
+    //
+    // ADR-v9-78-Nachtrag: `focusPoint` (kuratierter Marker) hat Vorrang — existiert
+    // einer, wird DER zentriert+hervorgehoben (kein doppelter Marker an derselben
+    // Stelle). Sonst zentriert `focusCoords` (rohe Event-Koordinaten) direkt, MIT
+    // einem eigenständigen Ad-hoc-Marker — Event-Koordinaten sind oft präziser als
+    // die des zugeordneten Orts (z. B. ein Geburtshaus) und verdienen eine sichtbare
+    // Zentrierung, auch ohne kuratiertes PlaceObject/HofObject an dieser Stelle.
+    if (focusPoint) {
+      map.setView([focusPoint.lat, focusPoint.long], FOCUS_ZOOM, { animate: !prefersReducedMotion() });
+    } else if (focusCoords) {
+      L.circleMarker([focusCoords.lat, focusCoords.long], {
+        radius: 8,
+        fillColor: '#e5c96e',
+        color: '#f2e8d4',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.35,
+        className: 'map-island__marker--focused map-island__adhoc-marker',
+      })
+        .bindTooltip('Ereignis-Koordinaten (kein eigener Ortsmarker)', { direction: 'top', offset: [0, -6] })
+        .addTo(markerLayer);
+      map.setView([focusCoords.lat, focusCoords.long], FOCUS_ZOOM, { animate: !prefersReducedMotion() });
+    }
   }
 
   function renderMigr(lines: MigrationLine[], animIndex: number): void {
@@ -122,7 +179,7 @@ export function mountLeafletMap(
       const line = lines[i];
       const latLngs = line.points.map((pt) => [pt.lat, pt.long] as [number, number]);
       const poly = L.polyline(latLngs, { color: line.color, weight: 1.5, opacity: 0.55 });
-      poly.bindTooltip(line.personName, { sticky: true });
+      poly.bindTooltip(escapeHtml(line.personName), { sticky: true });
       poly.addTo(lineLayer);
       const last = latLngs[latLngs.length - 1];
       L.circleMarker(last, {
@@ -135,7 +192,7 @@ export function mountLeafletMap(
       }).addTo(markerLayer);
       bounds.push(...latLngs);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10, animate: !prefersReducedMotion() });
   }
 
   function renderPerson(points: BiographyPoint[], animIndex: number): void {
@@ -150,10 +207,10 @@ export function mountLeafletMap(
         iconAnchor: [11, 11],
       });
       const marker = L.marker([pt.lat, pt.long], { icon });
-      marker.bindTooltip(`<b>${i + 1}. ${pt.role}</b><br>${pt.title}${pt.date ? '<br>' + pt.date : ''}`, {
-        direction: 'top',
-        offset: [0, -12],
-      });
+      marker.bindTooltip(
+        `<b>${i + 1}. ${escapeHtml(pt.role)}</b><br>${escapeHtml(pt.title)}${pt.date ? '<br>' + escapeHtml(pt.date) : ''}`,
+        { direction: 'top', offset: [0, -12] },
+      );
       marker.addTo(markerLayer);
       if (i > 0) {
         const prev = points[i - 1];
@@ -167,14 +224,14 @@ export function mountLeafletMap(
       }
       bounds.push([pt.lat, pt.long]);
     }
-    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13, animate: !prefersReducedMotion() });
   }
 
   function render(next: LeafletMountData): void {
     markerLayer.clearLayers();
     lineLayer.clearLayers();
     const animIndex = next.animIndex ?? -1;
-    if (next.mode === 'orte') renderOrte(next.places);
+    if (next.mode === 'orte') renderOrte(next.places, next.focusPlaceId, next.focusCoords);
     else if (next.mode === 'migr') renderMigr(next.migrations, animIndex);
     else renderPerson(next.biography, animIndex);
   }

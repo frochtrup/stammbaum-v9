@@ -7,13 +7,10 @@ import { PlacesSyncService } from '../../services/places';
 import { createMockPlacesStore, createMockDeviceId, createMockClock } from '../services/mock-places-store';
 import type { PlaceObject, HofObject } from '../../core/places';
 import type { PlacesFileWrapper } from '../../services/places/types';
+// Geteilte Datenfabrik statt lokaler Kopie (TST-REUSE, s. app-state.test.ts).
+import { place as makePlace } from '../core/places-fixtures';
 
-function place(id: string, title: string): PlaceObject {
-  return {
-    id, title, type: '', pnames: [], enclosedBy: [], lat: null, long: null,
-    note: '', existsFrom: null, existsTo: null, govId: null, govTypes: null,
-  };
-}
+const place = (id: string, title: string): PlaceObject => makePlace(id, { title });
 const pm = (...ps: PlaceObject[]): Map<string, PlaceObject> => new Map(ps.map((p) => [p.id, p]));
 const hm = (...hs: HofObject[]): Map<string, HofObject> => new Map(hs.map((h) => [h.id, h]));
 

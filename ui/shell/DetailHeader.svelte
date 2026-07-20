@@ -16,6 +16,7 @@
   // Zeile (INV-UI-5, §6a) — Zurück links, Aktionen rechts. Zeile 2 = der Titel als
   // eigene Zeile darunter (Titel ist Inhalt, keine Navigations-Funktion, s. Spec 21 §6b).
   import type { Snippet } from 'svelte';
+  import { layout } from './layout.svelte';
 
   interface Props {
     /** Personenname/Familienlabel/Ortsname/Hofadresse — Inhalt, keine Navigation, s. o. */
@@ -24,20 +25,42 @@
     /** View-spezifische Aktions-Buttons (Bearbeiten, Im Baum anzeigen, …), rechts neben
      *  "Zur Liste" in derselben Zeile. */
     actions?: Snippet;
+    /** Kompakt-Modus (Spec 21 §10e-Aufarbeitung): der Titel läuft klein in der Kopfzeile
+     *  selbst statt als eigene große zweite Zeile darunter — für Views, deren Titel bereits
+     *  redundant zu strukturell reicherem Inhalt weiter unten ist (z. B. FamilyDetail's
+     *  "Ehemann ⚭ Ehefrau", das die Eltern-Boxen unten mit Name+Geburtsjahr/-ort ohnehin
+     *  wiederholen). Default false — PersonDetail/PlaceDetail/HofDetail behalten ihre
+     *  bisherige große Titelzeile. */
+    compact?: boolean;
   }
-  const { title, onBack, actions }: Props = $props();
+  const { title, onBack, actions, compact = false }: Props = $props();
 </script>
 
 <div class="detail-header">
   <div class="detail-header__row">
-    <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+    <div class="detail-header__left">
+      <!-- "← Zur Liste" ist eine MOBILE Navigation: dort ersetzt die Detailansicht die
+           Liste, also braucht es einen Rückweg. Im Desktop-Multi-Pane (Spec 21 §3,
+           BL-92) steht die Liste dauerhaft daneben — ein Zurück-Knopf führte auf eine
+           Fläche, die bereits sichtbar ist. Die Auswahl aufzuheben bleibt möglich, ist
+           aber kein Navigations-, sondern ein Auswahl-Vorgang (Liste selbst).
+           Diese EINE Stelle deckt Person/Familie/Quelle/Archiv/Ort/Hof ab (INV-UI-4). -->
+      {#if !layout.isDesktopLayout}
+        <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+      {/if}
+      {#if compact}
+        <span class="detail-header__compact-title">{title}</span>
+      {/if}
+    </div>
     {#if actions}
       <div class="detail-header__actions">
         {@render actions()}
       </div>
     {/if}
   </div>
-  <h2 class="detail-header__title">{title}</h2>
+  {#if !compact}
+    <h2 class="detail-header__title">{title}</h2>
+  {/if}
 </div>
 
 <style>
@@ -61,6 +84,25 @@
     font: inherit;
     padding: 0;
     white-space: nowrap;
+  }
+
+  /* Linke Gruppe (Zurück + optionaler Kompakt-Titel) — eigenes Flex-Item, damit
+     `.detail-header__row`s `justify-content: space-between` weiterhin nur zwischen ZWEI
+     Kindern (links/rechts) wirkt statt einen dritten mittigen Titel unvorhersehbar
+     einzuquetschen (TST-11-Lehre). */
+  .detail-header__left {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .detail-header__compact-title {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .detail-header__actions {

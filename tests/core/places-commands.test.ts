@@ -13,7 +13,9 @@ import {
   withRemovedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
+  withUpdatedHofAddr,
   linkEventToPlace,
+  linkEventToHof,
   mergePlaceObjects,
 } from '../../core/places/commands';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places/index';
@@ -127,6 +129,53 @@ describe('withAddedHofAddr/withRemovedHofAddr — Adressvarianten (Formular-Pfad
   });
 });
 
+describe('withUpdatedHofAddr — bestehende Adressvariante bearbeiten (Formular-Pfad)', () => {
+  it('ersetzt Wert/from/to an gültigem Index, Rest der Liste unverändert, ohne Original zu mutieren', () => {
+    const h = hof('@H1@', '@P1@', {
+      addrs: [
+        { value: 'Wall 33', from: 1900, to: 1950 },
+        { value: 'Wall 34', from: null, to: null },
+      ],
+    });
+    const next = withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949);
+    expect(next.addrs).toEqual([
+      { value: 'Wall 33a', from: 1901, to: 1949 },
+      { value: 'Wall 34', from: null, to: null },
+    ]);
+    // Original unangetastet (unveränderliche Funktion).
+    expect(h.addrs).toEqual([
+      { value: 'Wall 33', from: 1900, to: 1950 },
+      { value: 'Wall 34', from: null, to: null },
+    ]);
+  });
+
+  it('trimmt den Wert (gleiche Trim-Disziplin wie withAddedHofAddr)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Alt', from: null, to: null }] });
+    const next = withUpdatedHofAddr(h, 0, '  Neu  ', null, null);
+    expect(next.addrs).toEqual([{ value: 'Neu', from: null, to: null }]);
+  });
+
+  it('ignoriert leere/nur-Whitespace Werte (kein stillschweigendes Löschen)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, 0, '', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 0, '   ', null, null)).toBe(h);
+  });
+
+  it('ignoriert Index außerhalb des Arrays (negativ oder >= length)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, -1, 'X', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 1, 'X', null, null)).toBe(h);
+    expect(withUpdatedHofAddr(h, 99, 'X', null, null)).toBe(h);
+  });
+
+  it('lässt die Hof-id in jedem Fall unverändert (id ist deterministisch aus Erstanlage, kein Re-Resolve)', () => {
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    expect(withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949).id).toBe('@H1@');
+    expect(withUpdatedHofAddr(h, 0, '', null, null).id).toBe('@H1@');
+    expect(withUpdatedHofAddr(h, 5, 'X', null, null).id).toBe('@H1@');
+  });
+});
+
 describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [K], ADR-v9-19)', () => {
   it('setzt ev.placeId UND reprojiziert ev.place sofort (INV-PLACE, Sofort-Reprojektion)', () => {
     const places = placeMap(
@@ -165,6 +214,61 @@ describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [
     linkEventToPlace(e, '@NOPE@', ctx);
     expect(e.placeId).toBe('@NOPE@');
     expect(e.place).toBe('Ochtrup');
+  });
+});
+
+describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-Reprojektion)', () => {
+  it('setzt ev.hofId UND reprojiziert ev.place sofort (INV-PLACE, Hof-Adresse + Dorf-Hierarchie)', () => {
+    const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
+    const e = ev('RESI', { place: 'roher String', date: '1900' });
+    linkEventToHof(e, '@H1@', ctx);
+    expect(e.hofId).toBe('@H1@');
+    // ev.place ist ab sofort die Projektion (Hof-Blatt + Dorf), nicht der Rohstring.
+    expect(e.place).toBe('Wall 33, Ochtrup');
+  });
+
+  it('füllt ev.addr sofort, wenn leer (voller Hof-Adresswert)', () => {
+    const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
+    const e = ev('RESI', { place: '', date: '1900' });
+    linkEventToHof(e, '@H1@', ctx);
+    expect(e.addr).toBe('Wall 33');
+  });
+
+  it('lässt eine bereits gesetzte ev.addr byte-identisch (Wire-ADDR-Roundtrip, LP-1)', () => {
+    const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
+    const e = ev('RESI', { place: '', addr: 'Wall 33, 48607 Ochtrup', date: '1900' });
+    linkEventToHof(e, '@H1@', ctx);
+    expect(e.addr).toBe('Wall 33, 48607 Ochtrup');
+  });
+
+  it('kein Zwischenzustand: hofId gesetzt UND Text reprojiziert nach EINEM Aufruf', () => {
+    const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
+    const hofs = hofMap(
+      hof('@H1@', '@V@', {
+        addrs: [{ value: 'Alte Str 1', from: 1800, to: 1899 }, { value: 'Neue Str 5', from: 1900, to: null }],
+      }),
+    );
+    const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
+    const e = ev('RESI', { place: '', date: '1850' });
+    linkEventToHof(e, '@H1@', ctx);
+    // periodengerecht: das im Jahr 1850 gültige Adress-Blatt.
+    expect(e.hofId).toBe('@H1@');
+    expect(e.place).toBe('Alte Str 1, Ochtrup');
+    expect(e.addr).toBe('Alte Str 1');
+  });
+
+  it('unbekannte hofId (kein HofObject) → ev.place bleibt Rohstring (kein Overwrite mit null)', () => {
+    const ctx = { places: makePlaceRegistry(placeMap()), hofs: makeHofRegistry(hofMap()) };
+    const e = ev('RESI', { place: 'Wall 33, Ochtrup' });
+    linkEventToHof(e, '@NOPE@', ctx);
+    expect(e.hofId).toBe('@NOPE@');
+    expect(e.place).toBe('Wall 33, Ochtrup');
   });
 });
 

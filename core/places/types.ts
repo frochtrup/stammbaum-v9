@@ -41,6 +41,16 @@ export interface DatedRef {
 export interface PlaceObject {
   id: PlaceId;
   title: string;
+  /**
+   * Zeitinvarianter Anzeigename für Listen (Spec 11 §1, ADR-v9-90/-100). Leer = `title`.
+   * Die dritte Achse neben `pnames` (Zeit) und `translations` (Sprache): EIN Name für
+   * kompakte Listen, per Hand kuratiert dort, wo echte Homonyme es nötig machen
+   * ("Frankfurt (Main)"). App-privat in `orte.json` — erreicht den EXPORT NIE (sonst
+   * stünde die Anzeigekonvention in der GEDCOM-Datei, LP-1) und ist NIE Identitäts-
+   * merkmal oder Match-Kriterium (§4.2 sieht ausschließlich `title` + `pnames`).
+   * Einziger erlaubter Leseweg: `placeDisplayName()` (§5).
+   */
+  shortName: string;
   type: string;
   pnames: DatedName[];
   enclosedBy: DatedRef[];

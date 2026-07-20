@@ -11,7 +11,11 @@
   // verstreuten Ad-hoc-Sprünge in den einzelnen Detail-Komponenten.
   import { untrack } from 'svelte';
   import type { AppState } from '../shell/app-state.svelte';
-  import type { ViewState, ViewTarget } from '../shell/view-state.svelte';
+  import type { ViewState } from '../shell/view-state.svelte';
+  import type { LensId } from '../shell/lens-model';
+  import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
+  import type { Route } from '../shell/route.svelte';
+  import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
   import FamilyList from './family/FamilyList.svelte';
@@ -22,9 +26,13 @@
   import RepositoryDetail from './repository/RepositoryDetail.svelte';
   import PlaceList from './place/PlaceList.svelte';
   import PlaceDetail from './place/PlaceDetail.svelte';
+  import PlaceDedupView from './place/PlaceDedupView.svelte';
+  import PersonDedupView from './person/PersonDedupView.svelte';
+  import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
   import HofReview from './hof/HofReview.svelte';
+  import HofDedupView from './hof/HofDedupView.svelte';
 
   interface Props {
     appState: AppState;
@@ -37,58 +45,65 @@
      * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
      */
     onNavigateToTree?: (personId: string) => void;
+    /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`/`EventLine`)
+     *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
+     *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
+    onNavigateLens?: (lens: LensId) => void;
+    /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
+    route: Route;
   }
-  const { appState, viewState, onNavigateToTree }: Props = $props();
+  const { appState, viewState, route, onNavigateToTree, onNavigateLens }: Props = $props();
 
-  type EntitySegment = 'person' | 'family' | 'source' | 'repository' | 'place' | 'hof';
-
-  interface SegmentDef {
-    id: EntitySegment;
-    label: string;
-    target: ViewTarget | null;
-    implemented: boolean;
-  }
-
-  const segments: SegmentDef[] = [
-    { id: 'person', label: 'Personen', target: 'person', implemented: true },
-    { id: 'family', label: 'Familien', target: 'family', implemented: true },
-    { id: 'source', label: 'Quellen', target: 'source', implemented: true },
-    { id: 'place', label: 'Orte', target: 'place', implemented: true },
-    { id: 'hof', label: 'Höfe', target: 'hof', implemented: true },
-  ];
+  // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
+  // einen Ziel-Registers (nav-model.ts, INV-UI-15). Vorher war sie die zweite von drei
+  // unabhängigen Ziel-Listen — und weil die Desktop-Sidebar (Spec 21 §3) genau diese
+  // Ziele flach neben Baum/Karte/Suche zeigt, hätte sie ohne Zusammenführung in einen
+  // privaten Zustand dieser Komponente greifen müssen (ADR-v9-101).
+  const segments = ENTITY_TARGETS;
 
   // Archive sind Teil des Quellen-Tabs (Spec 20 §1.6: "Quellen-Tab & Archive"), aber
   // kein eigener Segment-Button — Zugang über die Quellen-Detailseite (verlinktes
   // Archiv) bzw. den Archiv-Picker innerhalb des Quellen-Segments.
   //
-  // Initialer Segment/Sub-View leitet sich aus einer schon vorhandenen ViewState-
-  // Auswahl ab (z. B. nach App-Resume, Spec 21 §5 "Selektion überlebt App-Resume", oder
-  // wenn ein Aufrufer vor dem Mount bereits eine Auswahl gesetzt hat) — kein doppelter,
-  // widersprüchlicher Default gegenüber dem, was ViewState bereits weiß.
-  function initialSegment(): EntitySegment {
-    if (viewState.getCurrent('family')) return 'family';
-    if (viewState.getCurrent('source') || viewState.getCurrent('repository')) return 'source';
-    if (viewState.getCurrent('place')) return 'place';
-    if (viewState.getCurrent('hof')) return 'hof';
-    return 'person';
-  }
-
-  // untrack: NUR der Startwert beim Mount zählt (Spec 21 §5 "Selektion überlebt
-  // App-Resume") — kein fortlaufendes Re-Sync bei jeder ViewState-Änderung, sonst
-  // würde z. B. ein Zurück-Klick in der Personenliste den Segment-State erneut ableiten
-  // und den Nutzer aus einem bewusst gewählten Segment werfen.
-  let activeSegment = $state<EntitySegment>(untrack(initialSegment));
+  // Welches Segment offen ist, hält seit BL-90 die EINE Routen-Quelle (route.entityTarget)
+  // statt eines komponenten-lokalen `activeSegment`. Die frühere Ableitung aus der
+  // ViewState-Auswahl beim Mount (`initialSegment()`) ist damit entfallen: sie war nur
+  // nötig, weil diese Komponente bei jedem Wechsel in Baum/Karte/Mehr unmountete und
+  // ihren Zustand verlor. Die Route überlebt das — und behält das Segment auch dann,
+  // wenn dort gar nichts ausgewählt war (was die alte Ableitung nicht konnte, s.
+  // route.svelte.ts). Der Startwert nach App-Resume wird einmalig in App.svelte gesetzt.
+  const activeSegment = $derived<EntityTargetId>(route.entityTarget);
   let sourceSubView = $state<'sources' | 'repositories'>(
     untrack(() => (viewState.getCurrent('repository') ? 'repositories' : 'sources')),
   );
   // "Hof-Zuweisungen prüfen" (Spec 20 §1.8 [K], Spec 11 §6) ist ein Overlay innerhalb
   // des Höfe-Segments, kein eigener Segment-Button (INV-UI-2: ein kanonischer Weg zu
   // Höfe-nahen Daten bleibt "Höfe" — der Review ist ein Werkzeug darin, kein Ziel).
+  //
+  // Toolbar-Ownership (Spec 21 §10c): die Buttons, die diese Overlays ÖFFNEN, leben
+  // seit dem Listen-/Detail-Primitiven-Bauabschnitt in der jeweiligen Listen-eigenen
+  // Toolbar (PlaceList/HofList) statt in dieser gemeinsamen EntityTab-Kopfzeile —
+  // EntityTab bleibt aber die Stelle, die entscheidet, WELCHE Komponente rendert
+  // (Liste vs. Overlay), sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
   let hofReviewOpen = $state(false);
+  // "Orts-Zuweisungen prüfen" (Klasse P, Spec 11 §6) — dasselbe Overlay-Muster im
+  // Orte-Segment. Eigene Ansicht, weil P eine Orts- und keine Hof-Mehrdeutigkeit ist:
+  // die Hof-Aktionen passen darauf nicht (Befund 2026-07-16).
+  let placeReviewOpen = $state(false);
+  // "Massen-Dedup" (Spec 20 §1.7/§1.8 [K], Spec 11 §9.2) ist analog ein Overlay innerhalb
+  // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
+  // wie beim Hof-Review-Toggle oben (INV-UI-2).
+  let placeDedupOpen = $state(false);
+  // Duplikat-Erkennung für Personen (BL-104) — bewusst komponenten-lokal wie die
+  // Orte-/Höfe-Pendants und NICHT in der Routen-Quelle (ADR-v9-104): ADR-v9-102 verlangt
+  // die Route für Unterzustand, der eine AUSWAHL oder einen ANZEIGE-MODUS trägt. Ein
+  // On-Demand-Werkzeug, das der Nutzer bewusst öffnet, ist beides nicht.
+  let personDedupOpen = $state(false);
+  let hofDedupOpen = $state(false);
 
-  function selectSegment(segment: SegmentDef) {
+  function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
-    activeSegment = segment.id;
+    route.setTarget(segment.id);
   }
 
   function backToList() {
@@ -102,8 +117,9 @@
   }
 
   function navigateToPerson(id: string) {
-    activeSegment = 'person';
+    route.setTarget('person');
     hofReviewOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('person', id);
   }
 
@@ -118,22 +134,23 @@
   }
 
   function navigateToFamily(id: string) {
-    activeSegment = 'family';
+    route.setTarget('family');
     hofReviewOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('family', id);
   }
 
   /** "＋ Neue Familie" (Spec 20 §2): FamilyList hat die Familie bereits per
-   *  appState.saveFamily angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
-  let createdFamilyId = $state<string | null>(null);
-
+   *  appState.saveFamily angelegt — hier nur Auswahl. Kein Editor-Sofort-Öffnen mehr
+   *  nötig (ADR-v9-63): `FamilyDetail` hat kein Toggle-Formular mehr, ein frisches
+   *  Familien-Gerüst ist direkt auf der Detail-Ansicht editierbar (Eltern-/Kind-Slots,
+   *  Ereignis-Pills). */
   function createFamily(id: string) {
-    createdFamilyId = id;
     navigateToFamily(id);
   }
 
   function navigateToSource(id: string) {
-    activeSegment = 'source';
+    route.setTarget('source');
     sourceSubView = 'sources';
     viewState.setCurrent('repository', null);
     viewState.setCurrent('source', id);
@@ -149,7 +166,7 @@
   }
 
   function navigateToRepository(id: string) {
-    activeSegment = 'source';
+    route.setTarget('source');
     sourceSubView = 'repositories';
     viewState.setCurrent('repository', id);
   }
@@ -164,14 +181,68 @@
   }
 
   function navigateToPlace(id: string) {
-    activeSegment = 'place';
+    route.setTarget('place');
+    placeDedupOpen = false;
+    placeReviewOpen = false;
     viewState.setCurrent('place', id);
   }
 
   function navigateToHof(id: string) {
-    activeSegment = 'hof';
+    route.setTarget('hof');
     hofReviewOpen = false;
+    hofDedupOpen = false;
     viewState.setCurrent('hof', id);
+  }
+
+  /** Beide Höfe-Overlays (Review/Dedup) sind gegenseitig exklusiv — jeweils nur EIN
+   *  Werkzeug gleichzeitig sichtbar (INV-VS-Analog: eine aktive Overlay-Auswahl).
+   *  "open"/"close" statt "toggle", weil der öffnende Button jetzt in HofList sitzt
+   *  (Toolbar-Ownership, Spec 21 §10c) — HofList verschwindet aus dem DOM, sobald das
+   *  Overlay rendert, ein Toggle-Button könnte sich also nicht mehr selbst umschalten.
+   *  Das Schließen übernimmt stattdessen der onClose der jeweiligen Overlay-Komponente
+   *  (HofReview/HofDedupView/PlaceDedupView haben bereits einen eigenen "✕ Schließen"). */
+  function openHofReview() {
+    hofDedupOpen = false;
+    hofReviewOpen = true;
+  }
+
+  function closeHofReview() {
+    hofReviewOpen = false;
+  }
+
+  function openHofDedup() {
+    hofReviewOpen = false;
+    hofDedupOpen = true;
+  }
+
+  function closeHofDedup() {
+    hofDedupOpen = false;
+  }
+
+  function openPlaceReview() {
+    placeDedupOpen = false;
+    placeReviewOpen = true;
+  }
+
+  function closePlaceReview() {
+    placeReviewOpen = false;
+  }
+
+  function openPlaceDedup() {
+    placeReviewOpen = false;
+    placeDedupOpen = true;
+  }
+
+  function closePlaceDedup() {
+    placeDedupOpen = false;
+  }
+
+  function openPersonDedup() {
+    personDedupOpen = true;
+  }
+
+  function closePersonDedup() {
+    personDedupOpen = false;
   }
 
   const selectedPersonId = $derived(viewState.getCurrent('person'));
@@ -181,10 +252,40 @@
   const selectedPlaceId = $derived(viewState.getCurrent('place'));
   const selectedHofId = $derived(viewState.getCurrent('hof'));
 
+  /** Hat das aktive Segment gerade eine Auswahl? Entscheidet mobil Liste-ODER-Detail
+   *  und auf Desktop, ob der Detail-Pane Inhalt oder Leerzustand zeigt. */
+  const hasSelection = $derived.by(() => {
+    if (activeSegment === 'person') return !!selectedPersonId;
+    if (activeSegment === 'family') return !!selectedFamilyId;
+    if (activeSegment === 'source')
+      return sourceSubView === 'repositories' ? !!selectedRepositoryId : !!selectedSourceId;
+    if (activeSegment === 'place') return !!selectedPlaceId;
+    return !!selectedHofId;
+  });
+
+  /** Review-/Dedup-Werkzeuge sind breite Arbeitsflächen, keine Listen: sie belegen in
+   *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
+   *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
+  const overlayActive = $derived.by(() => {
+    if (activeSegment === 'person') return personDedupOpen && !selectedPersonId;
+    if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
+    if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
+    return false;
+  });
+
 </script>
 
 <div class="entity-tab">
-  <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
+  <!-- Die Entitäts-Segmentreihe ist die MOBILE Sub-Navigation (Spec 21 §2: "Familien /
+       Quellen / Orte / Höfe über einen Segment-Umschalter oben"). Auf Desktop führt die
+       Sidebar dieselben fünf Ziele beschriftet und dauerhaft (Spec 21 §3) — beides
+       gleichzeitig wären ZWEI Wege zum selben Ziel und damit ein Bruch von INV-UI-2
+       ("genau ein kanonischer Weg"), zusätzlich zu der Redundanz, die Spec 21 §9 B2 an
+       v8 kritisiert. Die Reihe entfällt daher oberhalb der Layout-Grenze.
+       Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
+       Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
+  {#if !layout.isDesktopLayout}
+    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
     {#each segments as segment (segment.id)}
       <button
         type="button"
@@ -195,10 +296,11 @@
         disabled={!segment.implemented}
         onclick={() => selectSegment(segment)}
       >
-        {segment.label}{segment.implemented ? '' : ' (folgt)'}
-      </button>
-    {/each}
-  </div>
+          {segment.label}{segment.implemented ? '' : ' (folgt)'}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if activeSegment === 'source'}
     <div
@@ -233,16 +335,35 @@
     </div>
   {/if}
 
-  {#if activeSegment === 'hof' && !selectedHofId}
-    <div class="entity-tab__detail-header">
-      <button type="button" class="entity-tab__review-toggle" onclick={() => (hofReviewOpen = !hofReviewOpen)}>
-        {hofReviewOpen ? '← Zur Hof-Liste' : 'Hof-Zuweisungen prüfen'}
-      </button>
-    </div>
-  {/if}
+  <!-- Liste und Detail sind ab hier zwei SNIPPETS statt einer verschachtelten
+       Liste-oder-Detail-Kette. Grund ist der Desktop-Multi-Pane (Spec 21 §3, BL-92): dort
+       müssen BEIDE gleichzeitig rendern, nebeneinander. Mobil bleibt es bei
+       entweder-oder — dieselbe Fläche, dieselbe Reihenfolge wie bisher.
 
-  {#if activeSegment === 'person'}
-    {#if selectedPersonId}
+       Bewusst zwei Snippets statt zweier Komponenten: die Auswahl-/Navigations-Callbacks
+       (navigateToPerson, createPerson, die Overlay-Schalter …) gehören weiterhin dieser
+       Komponente, und sie durch eine neue Zwischenschicht durchzureichen wäre Aufwand
+       ohne Gewinn. -->
+  {#snippet listPane()}
+    {#if activeSegment === 'person'}
+      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} />
+    {:else if activeSegment === 'family'}
+      <FamilyList {appState} {viewState} onCreate={createFamily} />
+    {:else if activeSegment === 'source'}
+      {#if sourceSubView === 'repositories'}
+        <RepositoryList {appState} {viewState} onCreate={createRepository} />
+      {:else}
+        <SourceList {appState} {viewState} onCreate={createSource} />
+      {/if}
+    {:else if activeSegment === 'place'}
+      <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
+    {:else if activeSegment === 'hof'}
+      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
+    {/if}
+  {/snippet}
+
+  {#snippet detailPane()}
+    {#if activeSegment === 'person' && selectedPersonId}
       <PersonDetail
         {appState}
         {viewState}
@@ -251,14 +372,11 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        {onNavigateLens}
         onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
       />
-    {:else}
-      <PersonList {appState} {viewState} onCreate={createPerson} />
-    {/if}
-  {:else if activeSegment === 'family'}
-    {#if selectedFamilyId}
+    {:else if activeSegment === 'family' && selectedFamilyId}
       <FamilyDetail
         {appState}
         {viewState}
@@ -266,26 +384,18 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
+        {onNavigateLens}
         onBack={backToList}
-        startInEdit={selectedFamilyId === createdFamilyId}
       />
-    {:else}
-      <FamilyList {appState} {viewState} onCreate={createFamily} />
-    {/if}
-  {:else if activeSegment === 'source'}
-    {#if sourceSubView === 'repositories'}
-      {#if selectedRepositoryId}
-        <RepositoryDetail
-          {appState}
-          {viewState}
-          onNavigateToSource={navigateToSource}
-          onBack={backToList}
-          startInEdit={selectedRepositoryId === createdRepositoryId}
-        />
-      {:else}
-        <RepositoryList {appState} {viewState} onCreate={createRepository} />
-      {/if}
-    {:else if selectedSourceId}
+    {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
+      <RepositoryDetail
+        {appState}
+        {viewState}
+        onNavigateToSource={navigateToSource}
+        onBack={backToList}
+        startInEdit={selectedRepositoryId === createdRepositoryId}
+      />
+    {:else if activeSegment === 'source' && sourceSubView === 'sources' && selectedSourceId}
       <SourceDetail
         {appState}
         {viewState}
@@ -295,11 +405,7 @@
         onBack={backToList}
         startInEdit={selectedSourceId === createdSourceId}
       />
-    {:else}
-      <SourceList {appState} {viewState} onCreate={createSource} />
-    {/if}
-  {:else if activeSegment === 'place'}
-    {#if selectedPlaceId}
+    {:else if activeSegment === 'place' && selectedPlaceId}
       <PlaceDetail
         {appState}
         {viewState}
@@ -307,21 +413,49 @@
         onNavigateToFamily={navigateToFamily}
         onBack={backToList}
       />
+    {:else if activeSegment === 'hof' && selectedHofId}
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
     {:else}
-      <PlaceList {appState} {viewState} />
+      <!-- Leerzustand des Detail-Panes: existiert nur auf Desktop (mobil rendert bei
+           fehlender Auswahl die Liste selbst). Bewusst neutral formuliert statt je
+           Segment eigener Text — die Liste daneben sagt bereits, worum es geht. -->
+      <p class="entity-tab__pane-empty">Kein Eintrag ausgewählt — links einen Eintrag aus der Liste wählen.</p>
     {/if}
-  {:else if activeSegment === 'hof'}
-    {#if hofReviewOpen && !selectedHofId}
+  {/snippet}
+
+  {#if overlayActive}
+    <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
+         s. `overlayActive` oben. -->
+    {#if activeSegment === 'person' && personDedupOpen}
+      <PersonDedupView {appState} onClose={closePersonDedup} />
+    {:else if activeSegment === 'place' && placeReviewOpen}
+      <PlaceReview
+        {appState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+        onClose={closePlaceReview}
+      />
+    {:else if activeSegment === 'place' && placeDedupOpen}
+      <PlaceDedupView {appState} onClose={closePlaceDedup} />
+    {:else if activeSegment === 'hof' && hofReviewOpen}
       <HofReview
         {appState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
+        onClose={closeHofReview}
       />
-    {:else if selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
-    {:else}
-      <HofList {appState} {viewState} />
+    {:else if activeSegment === 'hof' && hofDedupOpen}
+      <HofDedupView {appState} onClose={closeHofDedup} />
     {/if}
+  {:else if layout.isDesktopLayout}
+    <div class="entity-tab__panes">
+      <div class="entity-tab__pane entity-tab__pane--list">{@render listPane()}</div>
+      <div class="entity-tab__pane entity-tab__pane--detail">{@render detailPane()}</div>
+    </div>
+  {:else if hasSelection}
+    {@render detailPane()}
+  {:else}
+    {@render listPane()}
   {/if}
 </div>
 
@@ -346,17 +480,40 @@
     border-bottom-style: dashed;
   }
 
-  .entity-tab__detail-header {
-    padding: 0.5rem 0.75rem 0;
+  /* Multi-Pane (Spec 21 §3, BL-92). Die Umschaltung hängt an `layout.isDesktopLayout`
+     (BL-91) im Markup, nicht an einer zweiten Media-Query hier — der Formfaktor wird an
+     genau einer Stelle entschieden. */
+  .entity-tab__panes {
+    display: flex;
+    flex: 1;
+    min-height: 0;
   }
 
-  .entity-tab__review-toggle {
-    background: var(--stb-surface-3);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-text);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.8rem;
+  .entity-tab__pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+  }
+
+  /* Feste Listenbreite, mitwachsender Detail-Bereich: die Liste ist ein Index zum
+     Überfliegen (INV-UI-14-Kurznamen sind darauf ausgelegt), das Detail trägt den
+     Inhalt und profitiert von jeder zusätzlichen Breite. */
+  .entity-tab__pane--list {
+    width: 22rem;
+    flex-shrink: 0;
+    border-right: 1px solid var(--stb-surface-3);
+  }
+
+  .entity-tab__pane--detail {
+    flex: 1;
+  }
+
+  .entity-tab__pane-empty {
+    margin: 0;
+    padding: 1.5rem 1rem;
+    color: var(--stb-text-dim);
+    font-style: italic;
   }
 </style>

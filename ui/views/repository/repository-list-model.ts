@@ -32,3 +32,16 @@ export function buildRepositoryRows(db: Database): RepositoryRow[] {
     .map((r) => toRow(r, counts.get(r.id) ?? 0))
     .sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }
+
+/**
+ * Textmatch über Name/Typ/Adresse (analog `matchesSearch` in source-list-model.ts,
+ * ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift). Wiederverwendet vom
+ * generischen Entitäts-Picker (`ui/shell/RepositoryPicker.svelte`, ADR-v9-40) — die
+ * Match-Logik gehört ins Modell, nicht in die Picker-Komponente selbst.
+ */
+export function matchesSearch(r: Repository, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [r.name, r.type, r.address].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}

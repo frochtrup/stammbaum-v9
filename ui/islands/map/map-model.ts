@@ -238,7 +238,41 @@ export function migrationLines(db: Database, ctx: PlaceContext): MigrationLine[]
   return lines;
 }
 
+/**
+ * Findet den fokussierten Punkt (Ort ODER Hof — beide teilen denselben `placeId`-
+ * Schlüsselraum in `PlacePoint`, s. `placesWithCoords` oben) für die Zentrierungs-/
+ * Hervorhebungs-Funktion des Orte-Modus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2").
+ * Reine Lookup-Funktion (Spec 32 §2: Layout-Berechnung ist Modell->Positionen, DOM-
+ * frei, unit-testbar) — die Insel selbst (leaflet-map.ts/svg-fallback-map.ts) ruft
+ * nur noch das Ergebnis ab, statt selbst zu suchen (EINE Quelle für "ist das der
+ * fokussierte Punkt", nicht in jeder Rendering-Schicht neu dupliziert).
+ */
+export function findFocusPoint(places: PlacePoint[], focusId: string | null | undefined): PlacePoint | null {
+  if (!focusId) return null;
+  return places.find((p) => p.placeId === focusId) ?? null;
+}
+
 function personDisplayName(p: Person): string {
   const full = `${p.given} ${p.surname}`.trim();
   return full || p.name || p.id;
+}
+
+/**
+ * Leaflet setzt jeden String-Inhalt von `bindTooltip`/`bindPopup`/`divIcon({html})`
+ * per `innerHTML` (Leaflets `Popup.js`/`Tooltip.js` `_updateContent`) — Personen-/
+ * Orts-Freitext (Titel, Rollen-Label, Anzeigename) ist Nutzerdaten und muss vor der
+ * Interpolation in `leaflet-map.ts` escaped werden, sonst wäre z. B. ein Personenname
+ * `<img src=x onerror=...>` eine echte HTML-Injektion (durch CSP `script-src 'self'`
+ * bereits strukturell abgemildert, ADR-v9-39, aber die zugrunde liegende Lücke bleibt
+ * ohne dies ungefixt). Hier statt in `leaflet-map.ts` (reine, testbare Funktion neben
+ * den anderen Datenaufbereitungs-Funktionen dieser Datei, Spec 32 §2 — die imperative
+ * Rendering-Schicht selbst wird nicht unit-getestet).
+ */
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

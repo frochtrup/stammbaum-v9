@@ -28,10 +28,45 @@ describe('buildPlaceDetail — Ereignisse gruppiert nach Typ', () => {
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
     expect(detail).not.toBeNull();
+    // Gruppen-Header deutsch übersetzt (event-labels.ts, Nutzer-Fund 2026-07-10) — "BIRT"/
+    // "MARR" erscheinen nicht mehr roh.
     const types = detail!.eventsByType.map((g) => g.type).sort();
-    expect(types).toEqual(['BIRT', 'MARR']);
-    const birtGroup = detail!.eventsByType.find((g) => g.type === 'BIRT')!;
+    expect(types).toEqual(['Geburt', 'Heirat']);
+    const birtGroup = detail!.eventsByType.find((g) => g.type === 'Geburt')!;
     expect(birtGroup.rows[0].ownerLabel).toBe('Otto Bauer');
+  });
+
+  it('liefert NUR das Jahr, nicht die Ortskette (Spec 21 §10h: die Seite IST der Ort)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.birth.placeId = '@P1@';
+    person.birth.date = '1 JAN 1900';
+    db.individuals.set('@I1@', person);
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    const row = detail!.eventsByType[0]!.rows[0]!;
+    expect(row.year).toBe('1900');
+    expect(row.year).not.toContain('Ochtrup');
+    expect(row.year).not.toContain('Kreis Steinfurt');
+  });
+
+  it('liefert die Zitate je Ereigniszeile (für Quellen-Badges pro Zeile)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    const person = makePerson('@I1@');
+    person.birth.placeId = '@P1@';
+    person.birth.citations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', person);
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.eventsByType[0]!.rows[0]!.citations.map((c) => c.sourceId)).toEqual(['@S1@']);
   });
 
   it('ignoriert Ereignisse an einem ANDEREN Ort', () => {
@@ -108,7 +143,155 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    expect(detail!.enclosureChain).toEqual(['Ochtrup', 'Kreis Steinfurt']);
+    expect(detail!.enclosureChain).toEqual([
+      { id: '@P1@', label: 'Ochtrup' },
+      { id: '@KREIS@', label: 'Kreis Steinfurt' },
+    ]);
+  });
+
+  // Bugfix 2026-07-12: "Aktuell:" muss die tatsächlich HEUTE gültige Kette zeigen, nicht
+  // enclosedBy[0] (reine Merge-/Einfüge-Reihenfolge). Nachgebaut nach dem realen
+  // _po_ochtrup-Muster: mehrere gemergte, datierte enclosedBy-Perioden, deren offenes
+  // (aktuelles) Ende NICHT an Index 0 steht.
+  it('"Aktuell:" folgt der heute gültigen datierten Periode, nicht enclosedBy[0] (Merge-Reihenfolge)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@KREIS@', from: 1816, to: 1934 }, // Index 0, aber historisch — nicht mehr aktuell
+          { placeId: '@AMT@', from: 1934, to: null }, // Index 1, offenes Ende — heute gültig
+        ],
+      }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.enclosureChain).toEqual([
+      { id: '@P1@', label: 'Ochtrup' },
+      { id: '@AMT@', label: 'Amt Ochtrup' },
+    ]);
+  });
+});
+
+describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", volle Kette, v8-Vorbild)', () => {
+  it('liefert ein leeres Array ohne enclosedBy-Einträge', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toEqual([]);
+  });
+
+  it('zeigt die VOLLE Kette (nicht nur den direkten Elternteil) zum Schlüsseljahr', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@LAND@', place('@LAND@', { title: 'Preußen' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', { title: 'Kreis Steinfurt', enclosedBy: [{ placeId: '@LAND@', from: 1816, to: null }] }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toEqual([
+      {
+        year: 1816,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@LAND@', label: 'Preußen' },
+        ],
+        truncated: false,
+      },
+    ]);
+  });
+
+  it('erzeugt eine neue Zeile, wenn sich NUR die Zugehörigkeit einer ÜBERGEORDNETEN Ebene ändert (direkter Elternteil bleibt gleich)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@PREUSSEN@', place('@PREUSSEN@', { title: 'Preußen' }));
+    db.placeObjects.set('@NRW@', place('@NRW@', { title: 'Nordrhein-Westfalen' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis Steinfurt',
+        // Der Kreis selbst wechselt 1946 von Preußen zu NRW — Ochtrups DIREKTER
+        // Elternteil (der Kreis) ändert sich dabei nicht.
+        enclosedBy: [
+          { placeId: '@PREUSSEN@', from: 1816, to: 1945 },
+          { placeId: '@NRW@', from: 1946, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // 1945 (Ende der Preußen-Periode) fällt weg, weil die volle Kette dort identisch mit
+    // 1816 bleibt (Duplikate werden zusammengefasst) — erst 1946 ändert die volle Kette.
+    expect(detail!.hierarchyTimeline).toEqual([
+      {
+        year: 1816,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@PREUSSEN@', label: 'Preußen' },
+        ],
+        truncated: false,
+      },
+      {
+        year: 1946,
+        chain: [
+          { id: '@KREIS@', label: 'Kreis Steinfurt' },
+          { id: '@NRW@', label: 'Nordrhein-Westfalen' },
+        ],
+        truncated: false,
+      },
+    ]);
+  });
+
+  it('markiert eine echte Verwaltungslücke als EINE "unbekannt"-Zeile (chain: null), wenn ein Schlüsseljahr in die Lücke fällt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@GRAF@',
+      place('@GRAF@', {
+        title: 'Grafschaft Steinfurt',
+        // Eine zusätzliche pnames-Periode liefert (wie in v8) ein Schlüsseljahr, das
+        // tatsächlich INNERHALB der Lücke 1814-1815 liegt -- ohne ein Schlüsseljahr,
+        // das in die Lücke selbst fällt, gäbe es keine Zeile mitten in der Lücke, nur
+        // davor/danach (nur SCHLÜSSELJAHRE werden geprüft, keine ganzen Zeiträume).
+        pnames: [{ value: 'Grafschaft Steinfurt (Spätform)', from: 1814, to: null }],
+      }),
+    );
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@GRAF@', from: 1300, to: 1813 },
+          { placeId: '@AMT@', from: 1816, to: null },
+        ],
+      }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // 1813 liegt noch INNERHALB der GRAF-Periode (inklusiv) -> identische Kette wie 1300,
+    // wird zusammengefasst. 1814 liegt in der echten Lücke -> "unbekannt". 1816 -> AMT.
+    expect(detail!.hierarchyTimeline).toEqual([
+      { year: 1300, chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false },
+      { year: 1814, chain: null, truncated: false },
+      { year: 1816, chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false },
+    ]);
   });
 });
 

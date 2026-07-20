@@ -10,6 +10,15 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeSource, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildSourceRows } from './source-list-model';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
+
+  // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): `Source` hat kein eigenes
+  // `noteRefs`/`noteText` (anders als Person/Family) — `text` (GEDCOM SOUR.TEXT,
+  // zitierter Urtext) ist die einzige vorhandene Textablage und wurde als "Notizen"-
+  // Abbildung gewählt (bewusst offen gelassene Feld-Frage, s. ADR-v9-79 Punkt 4/Spec
+  // 20 §1.6). Falls eigentlich Zitat-Notizen (Citation.note) gemeint waren, gehört das
+  // stattdessen zu SourceCitationRow (Spec 21 §10d), nicht zur Quellen-Liste.
 
   interface Props {
     appState: AppState;
@@ -36,7 +45,7 @@
 
 <div class="source-list">
   {#if isEmpty}
-    <p class="source-list__empty">Keine Quellen geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="source-list__empty">{noDataHint('Quellen', layout.isDesktopLayout)}</p>
     <div class="source-list__toolbar source-list__toolbar--empty">
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>
@@ -52,7 +61,8 @@
             <span class="source-list__meta">
               {#if row.author}<span>{row.author}</span>{/if}
               {#if row.date}<span>{row.date}</span>{/if}
-              <span class="source-list__refcount">{row.refCount}× zitiert</span>
+              <span class="stb-list-stat">{row.refCount}× zitiert</span>
+              {#if row.hasNotes}<span class="stb-pill">Notizen</span>{/if}
             </span>
           </button>
         </li>
@@ -136,12 +146,10 @@
 
   .source-list__meta {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.75rem;
     font-size: 0.78rem;
     color: var(--stb-text-dim);
-  }
-
-  .source-list__refcount {
-    color: var(--stb-gold-light);
   }
 </style>

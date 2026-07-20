@@ -39,6 +39,29 @@
   fill: #e8a33a;
 }
 
+/* Fokus-Hervorhebung im Orte-Modus (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") —
+   dieselbe Gold-Akzentfarbe wie der primäre Leaflet-Pfad (leaflet-map.css
+   .map-island__marker--focused), statisch statt pulsierend: die Fokus-Zentrierung
+   selbst baut die Inhalts-Gruppe bei jedem Update komplett neu auf (kein
+   CSS-transition-fähiger Vorzustand), ein zusätzlicher Animations-Layer würde hier
+   nur Overhead ohne sichtbaren Effekt sein. */
+.map-fallback__marker--focused {
+  stroke: #e5c96e;
+  stroke-width: 2.5;
+}
+
+/* Ad-hoc-Marker (ADR-v9-78-Nachtrag, Offline-Parität zu leaflet-map.css
+   .map-island__adhoc-marker): Event-Koordinaten ohne kuratierten Orts-/Hof-Marker —
+   Ring statt gefüllter Kreis, dieselbe "präziser Einzelpunkt"-Optik wie der primäre
+   Pfad, nur ohne den dort per Leaflet-Style gesetzten Transparenz-Wert (hier per
+   `fill: none` gelöst, einfacher als ein zweiter Opacity-Wert). */
+.map-fallback__marker--adhoc {
+  fill: none;
+  stroke: #e5c96e;
+  stroke-width: 2.5;
+  stroke-dasharray: 3 2;
+}
+
 .map-fallback__migr-line {
   fill: none;
   stroke-width: 1.5;

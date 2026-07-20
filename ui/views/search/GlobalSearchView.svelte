@@ -10,6 +10,7 @@
   // — kein zweiter Navigationspfad neben dem, den EntityTab für seine eigenen
   // Cross-Entitäts-Sprünge nutzt.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
 
   interface Props {
@@ -82,7 +83,9 @@
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
-                  {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
+                  {#if row.secondary}
+                    <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
+                  {/if}
                 </button>
               </li>
             {/each}
@@ -98,7 +101,9 @@
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToFamily(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
-                  {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
+                  {#if row.secondary}
+                    <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
+                  {/if}
                 </button>
               </li>
             {/each}

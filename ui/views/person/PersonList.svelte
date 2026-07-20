@@ -10,7 +10,12 @@
   // übernimmt — dieselbe Kommando-Disziplin wie appState.savePerson(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
+  import { noDataHint } from '../../shell/nav-model';
+  import { layout } from '../../shell/layout.svelte';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -23,8 +28,11 @@
     viewState: ViewState;
     /** Nach dem Anlegen einer neuen Person aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
     onCreate?: (personId: string) => void;
+    /** Öffnet die Duplikat-Erkennung (BL-104). Analog PlaceList/HofList: die Ansicht selbst
+     *  gehört EntityTab, hier sitzt nur der Öffner. */
+    onOpenDedup?: () => void;
   }
-  const { appState, viewState, onCreate }: Props = $props();
+  const { appState, viewState, onCreate, onOpenDedup }: Props = $props();
 
   function createPerson() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -36,8 +44,8 @@
   let sortMode = $state<PersonSortMode>('name');
   let query = $state('');
   let filters = $state<PersonFilters>(defaultPersonFilters());
-  let showFilters = $state(false);
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultPersonFilters()));
   const groups = $derived(buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters));
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
@@ -61,7 +69,7 @@
 
 <div class="person-list">
   {#if isEmpty}
-    <p class="person-list__empty">Keine Personen geladen — unter „Mehr" eine Datei öffnen, um zu starten.</p>
+    <p class="person-list__empty">{noDataHint('Personen', layout.isDesktopLayout)}</p>
     <div class="person-list__toolbar person-list__toolbar--empty">
       <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
     </div>
@@ -82,64 +90,67 @@
           <button type="button" class="person-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
-      <button
-        type="button"
-        class="person-list__filter-toggle"
-        aria-expanded={showFilters}
-        onclick={() => (showFilters = !showFilters)}
-      >
-        Filter
-      </button>
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="person-list__filters">
+          <fieldset class="person-list__sex-filter">
+            <legend>Geschlecht</legend>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="" />
+              Alle
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="M" />
+              Männlich
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="F" />
+              Weiblich
+            </label>
+            <label class="person-list__checkbox">
+              <input type="radio" bind:group={filters.sex} value="U" />
+              Unbekannt
+            </label>
+          </fieldset>
+          <label>
+            Geburtsjahr von
+            <input type="number" bind:value={filters.birthYearFrom} placeholder="von" />
+          </label>
+          <label>
+            Geburtsjahr bis
+            <input type="number" bind:value={filters.birthYearTo} placeholder="bis" />
+          </label>
+          <label>
+            Geburtsort
+            <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noDeathDate} />
+            kein Sterbedatum
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noSources} />
+            keine Quellen
+          </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.noParents} />
+            keine Eltern
+          </label>
+          <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+        </div>
+      </FilterBar>
+      {#if onOpenDedup}
+        <!-- Werkzeuge hinter EINEM Einstiegspunkt (Spec 21 §6h): das Befehlsflächen-Budget
+             INV-UI-11 zählt in JEDER Spalte ≤400px, und die Desktop-Listenspalte misst
+             352px (BL-96). Die Toolbar trägt bereits Sortierung, „Neue Person", Suche und
+             Filter — ein sechstes Dauer-Element wäre eine Zeile zu viel. Dieselbe
+             Disclosure wie bei PlaceList/HofList, kein zweiter Mechanismus (INV-UI-4). -->
+        <FilterBar label="Werkzeuge">
+          <div class="person-list__tools">
+            <button type="button" class="person-list__tool-btn" onclick={onOpenDedup}>Duplikate suchen</button>
+          </div>
+        </FilterBar>
+      {/if}
     </div>
-
-    {#if showFilters}
-      <div class="person-list__filters">
-        <fieldset class="person-list__sex-filter">
-          <legend>Geschlecht</legend>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="" />
-            Alle
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="M" />
-            Männlich
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="F" />
-            Weiblich
-          </label>
-          <label class="person-list__checkbox">
-            <input type="radio" bind:group={filters.sex} value="U" />
-            Unbekannt
-          </label>
-        </fieldset>
-        <label>
-          Geburtsjahr von
-          <input type="number" bind:value={filters.birthYearFrom} placeholder="von" />
-        </label>
-        <label>
-          Geburtsjahr bis
-          <input type="number" bind:value={filters.birthYearTo} placeholder="bis" />
-        </label>
-        <label>
-          Geburtsort
-          <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noDeathDate} />
-          kein Sterbedatum
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noSources} />
-          keine Quellen
-        </label>
-        <label class="person-list__checkbox">
-          <input type="checkbox" bind:checked={filters.noParents} />
-          keine Eltern
-        </label>
-        <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
-      </div>
-    {/if}
 
     {#if !hasResults}
       <p class="person-list__empty">Keine Personen gefunden.</p>
@@ -155,10 +166,17 @@
             {#each group.rows as row (row.id)}
               <li>
                 <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
-                  <span class="person-list__name">{row.name}</span>
+                  <span class="person-list__name-line">
+                    <span class="person-list__name">{row.name}</span>
+                    {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
+                  </span>
                   <span class="person-list__meta">
-                    {#if row.birthSummary}<span>* {row.birthSummary}</span>{/if}
-                    {#if row.deathSummary}<span>† {row.deathSummary}</span>{/if}
+                    {#if row.birthSummary}
+                      <span use:tooltip={row.birthPlaceFull || undefined}>* {row.birthSummary}</span>
+                    {/if}
+                    {#if row.deathSummary}
+                      <span use:tooltip={row.deathPlaceFull || undefined}>† {row.deathSummary}</span>
+                    {/if}
                   </span>
                 </button>
               </li>
@@ -180,6 +198,21 @@
     color: var(--stb-text-dim);
   }
 
+  .person-list__tools {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .person-list__tool-btn {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+  }
+
   .person-list__toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -198,7 +231,6 @@
   }
 
   .person-list__sort-toggle,
-  .person-list__filter-toggle,
   .person-list__filter-reset,
   .person-list__new-btn {
     background: var(--stb-surface-3);
@@ -211,7 +243,6 @@
   }
 
   .person-list__new-btn {
-    margin-left: auto;
     background: var(--stb-gold);
     color: var(--stb-bg);
     font-weight: 600;
@@ -219,7 +250,6 @@
   }
 
   .person-list__sort-toggle:hover,
-  .person-list__filter-toggle:hover,
   .person-list__filter-reset:hover {
     border-color: var(--stb-gold);
   }
@@ -254,8 +284,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-1);
     align-items: flex-end;
   }
 
@@ -333,6 +361,13 @@
   .person-list__row:hover,
   .person-list__row:focus-visible {
     background: var(--stb-surface-2);
+  }
+
+  .person-list__name-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .person-list__name {

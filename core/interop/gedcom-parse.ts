@@ -15,6 +15,19 @@ import {
   makeEvent,
   makeCitation,
 } from '../model/factory';
+import { makeTask } from '../research/task';
+import { makeLogEntry } from '../research/log';
+import { makeHypothesis } from '../research/hypothesis';
+import type {
+  ResearchTask,
+  TaskStatus,
+  LogEntry,
+  LogResult,
+  Hypothesis,
+  HypothesisStatus,
+  HypothesisWeight,
+  EvidenceRef,
+} from '../research/types';
 import { normalizeSex } from '../model/sex';
 import type {
   Person,
@@ -123,6 +136,108 @@ function parseEvent(node: GedNode): Event {
   return ev;
 }
 
+/**
+ * Parst einen `1 _TASK`-Block in einen ResearchTask (Spec 12 §1, Wire-Format 13 §2.3).
+ * Struktur (v8-Oracle-Format, `gedcom-writer.js` `_writeINDIExt`):
+ *   1 _TASK <text>
+ *   2 _CAT <category>
+ *   2 _DONE <0|1>            (redundant zu _TSTAT — `done` wird IMMER aus status abgeleitet)
+ *   2 _TSTAT <todo|doing|done>
+ *   2 _DATE <created>         (EIGENER Tag `_DATE`, NICHT Standard-`DATE`)
+ *   2 _ID <id>
+ *   2 SOUR <sourceRef>        (Standard-Tag, roher @Sxx@-Xref — v9-Ergänzung ADR-v9-36)
+ * `_TASK` MUSS modelliert (aus dem Passthrough herausgelöst) werden — sonst Doppelschreibung
+ * pro Roundtrip (`_REPO_MODELLED`-Lehre, Spec 13 §2.3). `_DONE` wird NICHT gelesen (aus
+ * status abgeleitet, INV Spec 12 §1), aber vom Writer mitgeschrieben (Spec nennt den Tag).
+ */
+function parseTask(node: GedNode): ResearchTask {
+  const raw = childValue(node, '_TSTAT');
+  const status: TaskStatus =
+    raw === 'doing' || raw === 'done' || raw === 'todo' ? raw : 'todo';
+  const t = makeTask(childValue(node, '_ID'), {
+    text: collectText(node),
+    category: childValue(node, '_CAT'),
+    status,
+    created: childValue(node, '_DATE'),
+  });
+  const sour = child(node, 'SOUR');
+  if (sour) t.sourceRef = unescapeAt(sour.value) as ResearchTask['sourceRef'];
+  return t;
+}
+
+/**
+ * Parst einen `1 _RLOG`-Block in einen LogEntry (Spec 12 §2, Wire-Format 13 §2.3).
+ * Struktur (v8-Oracle, `gedcom-writer.js`/`gedcom-parser.js`):
+ *   1 _RLOG
+ *   2 DATE <date>            (Standard-Tag DATE — NICHT `_DATE`, anders als bei _TASK)
+ *   2 REPO <repoRef>         (roher @Rxx@-Xref)
+ *   2 SOUR <sourceRef>       (roher @Sxx@-Xref)
+ *   2 _QUERY <query>
+ *   2 _RESULT <found|notfound|pending>
+ *   2 NOTE <note>            (CONT-fähig, mehrzeilig)
+ *   2 _TASKID <taskId>       (v9-Erweiterung, ADR-v9-36 — kein Oracle-Vorbild)
+ * LogEntry hat KEINE eigene id (index-adressiert, v8-Parität). Aus dem Passthrough
+ * herausgelöst (INV-PT/§2.3, `_REPO_MODELLED`-Lehre).
+ */
+function parseLogEntry(node: GedNode): LogEntry {
+  const raw = childValue(node, '_RESULT');
+  const result: LogResult =
+    raw === 'found' || raw === 'notfound' || raw === 'pending' ? raw : 'pending';
+  const repo = child(node, 'REPO');
+  const sour = child(node, 'SOUR');
+  const noteNode = child(node, 'NOTE');
+  return makeLogEntry({
+    date: childValue(node, 'DATE'),
+    repoRef: (repo ? unescapeAt(repo.value) : '') as LogEntry['repoRef'],
+    sourceRef: (sour ? unescapeAt(sour.value) : '') as LogEntry['sourceRef'],
+    query: childValue(node, '_QUERY'),
+    result,
+    note: noteNode ? collectText(noteNode) : '',
+    taskId: childValue(node, '_TASKID'),
+  });
+}
+
+/**
+ * Parst einen `1 _HYPO`-Block in eine Hypothesis (Spec 12 §4, Wire-Format 13 §2.3).
+ * Struktur (v8-Oracle, `gedcom-writer.js`/`gedcom-parser.js`):
+ *   1 _HYPO <text>
+ *   2 _ID <id>
+ *   2 _HSTAT <open|confirmed|rejected>
+ *   2 _HWGT <low|medium|high>
+ *   2 _DATE <created>        (EIGENER Tag `_DATE`, wie bei _TASK)
+ *   2 SOUR <sourceId>        (WIEDERHOLBAR — ein evidence[]-Item pro Block)
+ *   3 PAGE <page>            (gehört zum vorangehenden SOUR-Block)
+ *   2 _RATIO <rationale>     (CONT-fähig)
+ *   2 _CONCL <conclusion>    (CONT-fähig)
+ * Aus dem Passthrough herausgelöst (INV-PT/§2.3).
+ */
+function parseHypothesis(node: GedNode): Hypothesis {
+  const rawStat = childValue(node, '_HSTAT');
+  const status: HypothesisStatus =
+    rawStat === 'confirmed' || rawStat === 'rejected' || rawStat === 'open' ? rawStat : 'open';
+  const rawWgt = childValue(node, '_HWGT');
+  const weight: HypothesisWeight =
+    rawWgt === 'low' || rawWgt === 'high' || rawWgt === 'medium' ? rawWgt : 'medium';
+  const evidence: EvidenceRef[] = [];
+  for (const s of children(node, 'SOUR')) {
+    evidence.push({
+      sourceId: unescapeAt(s.value) as EvidenceRef['sourceId'],
+      page: childValue(s, 'PAGE'),
+    });
+  }
+  const ratio = child(node, '_RATIO');
+  const concl = child(node, '_CONCL');
+  return makeHypothesis(childValue(node, '_ID'), {
+    text: collectText(node),
+    status,
+    weight,
+    created: childValue(node, '_DATE'),
+    evidence,
+    rationale: ratio ? collectText(ratio) : '',
+    conclusion: concl ? collectText(concl) : '',
+  });
+}
+
 function parsePerson(rec: GedNode): Person {
   const id = rec.xref ?? '';
   const p = makePerson(id);
@@ -226,6 +341,15 @@ function parsePerson(rec: GedNode): Person {
       case 'CREA':
         p.createdDate = childValue(c, 'DATE');
         break;
+      case '_TASK':
+        p.tasks.push(parseTask(c));
+        break;
+      case '_RLOG':
+        p.researchLog.push(parseLogEntry(c));
+        break;
+      case '_HYPO':
+        p.hypotheses.push(parseHypothesis(c));
+        break;
       default:
         // Bekannte Ereignis-Tags → events[]; alles andere bleibt im Baum (Passthrough).
         if (isEventTag(c.tag)) p.events.push(parseEvent(c));
@@ -268,6 +392,15 @@ function parseFamily(rec: GedNode): Family {
         break;
       case 'SOUR':
         f.citations.push(parseCitation(c));
+        break;
+      case '_TASK':
+        f.tasks.push(parseTask(c));
+        break;
+      case '_RLOG':
+        f.researchLog.push(parseLogEntry(c));
+        break;
+      case '_HYPO':
+        f.hypotheses.push(parseHypothesis(c));
         break;
       default:
         if (isEventTag(c.tag)) f.events.push(parseEvent(c));

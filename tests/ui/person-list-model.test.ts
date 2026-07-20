@@ -17,6 +17,28 @@ function emptyContext(): PlaceContext {
   return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
 }
 
+describe('Medien-Badge (Spec 20 §1.4 [K], ADR-v9-79 Punkt 3) — hasMedia-Feld je Zeile', () => {
+  it('Person mit Medien-Eintrag → hasMedia=true', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.media.push({ file: 'foto.jpg', title: '' });
+    db.individuals.set('@I1@', p);
+
+    const groups = buildPersonGroups(db, emptyContext());
+
+    expect(groups[0].rows[0].hasMedia).toBe(true);
+  });
+
+  it('Person ohne Medien → hasMedia=false', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+
+    const groups = buildPersonGroups(db, emptyContext());
+
+    expect(groups[0].rows[0].hasMedia).toBe(false);
+  });
+});
+
 describe('buildPersonGroups — alphabetische Gruppierung mit Buchstaben-Trenner', () => {
   it('gruppiert Personen nach dem ersten Buchstaben des Nachnamens, Gruppen sortiert', () => {
     const db = makeDatabase();

@@ -1,6 +1,14 @@
 // core/model/integrity.ts — INV-P2 (verwaiste Refs melden), INV-P3/P4 (INDI↔FAM-Konsistenz).
 // Spec 10 §6, §3. Rein: keine Mutation in den find*/check*-Funktionen.
+//
+// Die vier synchron haltenden Kommandos (addChild…/removeParent…) arbeiten seit ADR-v9-92
+// auf einem `DatabaseDraft` statt direkt auf `Database`: sie ändern Person UND Family
+// zugleich (INV-P3), und genau solche Mehr-Entitäten-Mutationen brachen zuvor die
+// Undo-Snapshots (am Code belegt: `saveFamily` schrieb in den Vorzustand hinein). Der
+// Draft liefert bearbeitbare KOPIEN — innerhalb dieser Funktionen darf deshalb weiterhin
+// frei mutiert werden, nur eben nicht mehr am geteilten Original.
 import type { Citation, Database, FamilyId, PersonId } from './types';
+import type { DatabaseDraft } from './draft';
 
 // --- INV-P2: verwaiste Referenzen ---
 
@@ -141,13 +149,13 @@ export function checkIndiFamConsistency(db: Database): ConsistencyIssue[] {
  * pedigree=undefined lässt einen bestehenden Wert unangetastet.
  */
 export function addChildToFamily(
-  db: Database,
+  d: DatabaseDraft,
   familyId: FamilyId,
   personId: PersonId,
   pedigree?: 'birth' | 'adopted' | 'foster' | 'sealing' | '',
 ): void {
-  const fam = db.families.get(familyId);
-  const child = db.individuals.get(personId);
+  const fam = d.family(familyId);
+  const child = d.person(personId);
   if (!fam || !child) return;
 
   if (!fam.children.includes(personId)) fam.children.push(personId);
@@ -170,22 +178,22 @@ export function addChildToFamily(
 }
 
 /** Kommando (INV-P3): entfernt ein Kind — räumt BEIDE Seiten ab. */
-export function removeChildFromFamily(db: Database, familyId: FamilyId, personId: PersonId): void {
-  const fam = db.families.get(familyId);
+export function removeChildFromFamily(d: DatabaseDraft, familyId: FamilyId, personId: PersonId): void {
+  const fam = d.family(familyId);
   if (fam) fam.children = fam.children.filter((c) => c !== personId);
-  const child = db.individuals.get(personId);
+  const child = d.person(personId);
   if (child) child.childOf = child.childOf.filter((l) => l.familyId !== familyId);
 }
 
 /** Kommando (INV-P3): setzt einen Elternteil — hält FAM.husband/wife + INDI.parentIn synchron. */
 export function addParentToFamily(
-  db: Database,
+  d: DatabaseDraft,
   familyId: FamilyId,
   personId: PersonId,
   slot: 'husband' | 'wife',
 ): void {
-  const fam = db.families.get(familyId);
-  const parent = db.individuals.get(personId);
+  const fam = d.family(familyId);
+  const parent = d.person(personId);
   if (!fam || !parent) return;
 
   const previous = fam[slot];
@@ -194,7 +202,7 @@ export function addParentToFamily(
   if (previous !== null && previous !== personId) {
     const stillParent = fam.husband === previous || fam.wife === previous;
     if (!stillParent) {
-      const old = db.individuals.get(previous);
+      const old = d.person(previous);
       if (old) old.parentIn = old.parentIn.filter((f) => f !== familyId);
     }
   }
@@ -208,11 +216,11 @@ export function addParentToFamily(
  * Idempotent (leerer Slot bleibt leer).
  */
 export function removeParentFromFamily(
-  db: Database,
+  d: DatabaseDraft,
   familyId: FamilyId,
   slot: 'husband' | 'wife',
 ): void {
-  const fam = db.families.get(familyId);
+  const fam = d.family(familyId);
   if (!fam) return;
 
   const previous = fam[slot];
@@ -221,7 +229,7 @@ export function removeParentFromFamily(
     // Nur lösen, wenn die Person nicht noch im anderen Slot dieser Familie sitzt.
     const stillParent = fam.husband === previous || fam.wife === previous;
     if (!stillParent) {
-      const old = db.individuals.get(previous);
+      const old = d.person(previous);
       if (old) old.parentIn = old.parentIn.filter((f) => f !== familyId);
     }
   }

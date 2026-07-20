@@ -25,7 +25,7 @@ describe('PersonPicker — Anzeige des Feldes', () => {
     const appState = seedThreePersons();
     render(PersonPicker, { props: { appState, value: null, onChange: vi.fn(), placeholder: 'Person wählen…' } });
 
-    expect(screen.getByText('Person wählen…')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Person wählen…')).toBeTruthy();
   });
 
   it('zeigt Name + Geburtsjahr/-ort der aktuell gewählten Person', () => {
@@ -36,7 +36,7 @@ describe('PersonPicker — Anzeige des Feldes', () => {
 
     render(PersonPicker, { props: { appState, value: '@I1@', onChange: vi.fn() } });
 
-    expect(screen.getByText('Otto Bauer')).toBeTruthy();
+    expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('Otto Bauer');
     expect(screen.getByText('1900')).toBeTruthy();
   });
 
@@ -46,7 +46,7 @@ describe('PersonPicker — Anzeige des Feldes', () => {
       props: { appState, value: null, onChange: vi.fn(), allowNone: true, noneLabel: '— kein Elternteil —' },
     });
 
-    expect(screen.getByText('— kein Elternteil —')).toBeTruthy();
+    expect(screen.getByPlaceholderText('— kein Elternteil —')).toBeTruthy();
   });
 });
 
@@ -60,7 +60,7 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     expect(screen.getByText('Anna Klein')).toBeTruthy();
     expect(screen.getByText('Karl Bauer')).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Ehemann durchsuchen'), { target: { value: 'anna' } });
+    await fireEvent.input(screen.getByLabelText('Ehemann'), { target: { value: 'anna' } });
 
     expect(screen.getByText('Anna Klein')).toBeTruthy();
     expect(screen.queryByText('Otto Bauer')).toBeNull();
@@ -87,7 +87,7 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     });
 
     await fireEvent.click(screen.getByLabelText('Ehemann'));
-    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.person-picker__result--none' }));
+    await fireEvent.click(screen.getByText('— kein Elternteil —', { selector: '.stb-picker__result--none' }));
 
     expect(onChange).toHaveBeenCalledWith(null);
   });
@@ -101,8 +101,8 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     await fireEvent.click(screen.getByLabelText('Kind hinzufügen'));
 
     expect(screen.getByText('Anna Klein')).toBeTruthy();
-    expect(screen.queryByText('Otto Bauer', { selector: '.person-picker__result-name' })).toBeNull();
-    expect(screen.queryByText('Karl Bauer', { selector: '.person-picker__result-name' })).toBeNull();
+    expect(screen.queryByText('Otto Bauer', { selector: '.stb-picker__result-name' })).toBeNull();
+    expect(screen.queryByText('Karl Bauer', { selector: '.stb-picker__result-name' })).toBeNull();
   });
 
   it('viele dicht benannte Kandidaten bleiben bedienbar (TST-7 Überlauf-Fall) — Liste wird gekappt, Hinweistext zeigt den Rest', async () => {
@@ -117,11 +117,11 @@ describe('PersonPicker — Filtern + Auswahl', () => {
     render(PersonPicker, { props: { appState, value: null, onChange: vi.fn(), label: 'Ehemann' } });
     await fireEvent.click(screen.getByLabelText('Ehemann'));
 
-    const results = document.querySelectorAll('.person-picker__result-name');
+    const results = document.querySelectorAll('.stb-picker__result-name');
     expect(results.length).toBeLessThan(40);
     expect(screen.getByText(/weitere/)).toBeTruthy();
 
-    await fireEvent.input(screen.getByLabelText('Ehemann durchsuchen'), { target: { value: 'person01' } });
+    await fireEvent.input(screen.getByLabelText('Ehemann'), { target: { value: 'person01' } });
     expect(screen.getByText('Person01 Meyer')).toBeTruthy();
   });
 });
@@ -145,7 +145,7 @@ describe('PersonPicker — Inline-Neuanlage ("+ Neue Person anlegen …")', () =
 
     // Inline-Formular ist da (PersonForm-Feld), das Picker-Suchfeld ist es nicht mehr.
     expect(screen.getByLabelText('Vorname')).toBeTruthy();
-    expect(screen.queryByLabelText('Ehemann durchsuchen')).toBeNull();
+    expect(screen.queryByLabelText('Ehemann')).toBeNull();
 
     await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Neu' } });
     await fireEvent.input(screen.getByLabelText('Nachname'), { target: { value: 'Person' } });

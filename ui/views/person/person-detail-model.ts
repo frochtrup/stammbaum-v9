@@ -4,22 +4,38 @@
 // keine Mutation, keine Feld-Interpretation, die eigentlich in den Kern gehört.
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
-import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
-import { isEventPresent } from '../../../core/model';
-import { displayName, yearPlaceSummary } from '../../shell/person-display';
-
-/** Deutsche Kurzlabels für die fest modellierten Sonder-Ereignisse (Spec 10 §5.1). */
-const SPECIAL_LABELS: Record<string, string> = {
-  BIRT: 'Geburt',
-  CHR: 'Taufe',
-  DEAT: 'Tod',
-  BURI: 'Bestattung',
-};
+import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
+import { isEventPresent, isEventEmpty } from '../../../core/model';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel } from '../../shell/person-display';
+import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
+import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
 export interface EventRow {
   key: string;
   label: string;
-  summary: string;
+  /** REALER GEDCOM-Tag (nicht der übersetzte `label`-Text) — für Sortier-/Gruppierungs-
+   *  Entscheidungen, die den echten Typ brauchen (z. B. "OCCU vor Beschäftigung
+   *  innerhalb Beruf", Nutzer-Vorgabe 2026-07-10), analog `HofResidentRow.eventType`. */
+  tag: string;
+  /** Kategorie für die gruppierte Anzeige (Nutzer-Vorgabe 2026-07-10, `event-labels.ts`). */
+  category: string;
+  /** Jahr für die Sortierung innerhalb einer Kategorie (`sortWithinCategory`) — undatiert
+   *  = `null`, sortiert ans Ende. */
+  year: number | null;
+  /** VOLLES, lokalisiertes Datum (`fullDateLabel`, [21 INV-UI-9](
+   *  ../../../specs/v9/21-UI-UX.md), ADR-v9-64) — dies ist die EIGENE Ereigniszeile der
+   *  Person, nicht eine Disambiguierungs-Liste (die bleibt bei yearPlaceSummary/Jahr-only,
+   *  s. FamilyNavRow.children unten). Getrennt von `placeLabel` (ADR-v9-80 Punkt 1,
+   *  `EventLine.svelte`: "Datum, [Ort-Link]" statt eines vorverknüpften Strings). */
+  dateLabel: string;
+  /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
+   *  Text in `EventLine.svelte`, klickbar wenn `placeId`/`hofId` gesetzt ist, sonst
+   *  unverlinkter Text. */
+  placeLabel: string;
+  /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
+  value: string;
+  /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
+  addr: string;
   note: string;
   citations: Citation[];
   coords: Coords | null;
@@ -27,6 +43,12 @@ export interface EventRow {
   placeId: string | null;
   /** Für "Hof ansehen"-Link (Cross-Tab-Navigation zum Höfe-Tab). */
   hofId: string | null;
+  /** `isEventEmpty(ev)` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert") — steuert die
+   *  generalisierte ✕-Rücknahme: PersonDetail.svelte zeigt für Taufe/Bestattung UND jeden
+   *  generischen `events[]`-Eintrag ein Rücknahme-Control, SOLANGE dieses Feld `true` ist.
+   *  Tod bleibt bewusst außen vor (eigene, bereits bestehende Death-spezifische Prüfung
+   *  — `value='Y'` zählt dort NICHT als „echte Daten", hier schon). */
+  empty: boolean;
 }
 
 export interface FamilyNavRow {
@@ -38,28 +60,93 @@ export interface FamilyNavRow {
   /** Nur bei role==='parentIn': Kinder dieser eigenen Familie, ebenfalls anklickbar
    *  (ADR-v9-30 Punkt 6/Nachtrag — "wesentliche Beziehungen" zeigte bisher nur den
    *  Ehepartner, keine Kinder). Bei role==='childOf' immer leer (Geschwister sind
-   *  NICHT Teil dieser Zeile — nur Eltern, unverändert). */
-  children: { personId: string; name: string }[];
+   *  NICHT Teil dieser Zeile — nur Eltern, unverändert). `summary` (Geburtsjahr, via
+   *  denselben yearPlaceSummary-Mechanismus wie family-detail-model.ts's Kinder-Zeile,
+   *  Nachtrag 2026-07-06 [20 §1.5]) zur eindeutigen Identifikation bei Namensgleichheit —
+   *  fehlte hier bisher, obwohl FamilyDetail dieselben Kinder bereits so anzeigt. */
+  children: { personId: string; name: string; summary: string }[];
 }
 
 export interface PersonDetailModel {
   person: Person;
   events: EventRow[];
+  /** `events`, gruppiert in feste Kategorien (Nutzer-Vorgabe 2026-07-10: "primär/
+   *  Lebensdaten, educ und grad, dann occu und beschäftigung, dann resi und prop sowie
+   *  weitere") — s. `event-labels.ts` `EVENT_CATEGORY_ORDER`. Reihenfolge INNERHALB einer
+   *  Kategorie bleibt normalerweise die GEDCOM-Schreibreihenfolge aus `events` (keine
+   *  Neusortierung) — AUSSER "Beruf": dort OCCU vor allen anderen (z. B. "Beschäftigung"),
+   *  danach chronologisch (`sortWithinCategory`, Nutzer-Vorgabe 2026-07-10). */
+  eventGroups: EventGroup<EventRow>[];
   families: FamilyNavRow[];
 }
 
-function toEventRow(key: string, label: string, ev: Event, ctx: PlaceContext): EventRow | null {
-  if (!isEventPresent(ev)) return null;
+/**
+ * `tag` ist der REALE GEDCOM-Tag (z. B. "GRAD", "EDUC", "BIRT") — Quelle für Kategorie
+ * UND Label-Fallback. `ev.eventType` (aus dem `TYPE`-Sub-Tag beim Parsen befüllt, s.
+ * `core/interop/gedcom-parse.ts::parseEvent`) ist ein freier Anzeige-Text (z. B. "Schule"
+ * bei einem `EDUC`/`EVEN`-Ereignis mit `2 TYPE Schule`) und hat PRIORITÄT vor der
+ * generischen Übersetzung, wenn gesetzt. Für die Kategorie gilt: ein Tag mit EIGENER
+ * Bedeutung (EDUC/GRAD/OCCU/…) entscheidet immer — ein `EDUC`-Ereignis mit TYPE "Schule"
+ * bleibt "Bildung". NUR bei kategorie-losen Tags (EVEN/FACT) prüft `eventCategory`
+ * zusätzlich den freien Text gegen bekannte Synonyme (Nutzer-Vorgabe 2026-07-10: ein
+ * `EVEN`-Ereignis mit TYPE "Beschäftigung" gehört fachlich zu "Beruf", wie ein
+ * OCCU-Ereignis — `event-labels.ts::CATEGORY_BY_CUSTOM_TEXT`).
+ */
+/**
+ * `alwaysShow` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert"): generische
+ * `events[]`-Einträge werden IMMER projiziert, auch wenn `!isEventPresent(ev)` — anders
+ * als die vier Sonder-Felder (BIRT/CHR/DEAT/BURI, weiterhin isEventPresent-gated, „nie
+ * aktiviert" bleibt unsichtbar). Grund: ein per Pill/„+ Ereignis"-Menü frisch angelegtes,
+ * dann leer gespeichertes Event landet in `events[]` (Array-Append, PersonDetail.svelte's
+ * `saveModal`) — OHNE diese Ausnahme wäre der Eintrag unsichtbar UND unentfernbar (der
+ * ursprüngliche Bug-Befund: „verschwindet nur scheinbar aus der Ansicht, bleibt aber als
+ * leerer events[]-Eintrag bestehen"). Mit `alwaysShow` wird die Zeile stattdessen
+ * sichtbar+leer gerendert (PersonDetail.svelte's `ev.empty`-Zweig), mit ✕-Rücknahme.
+ */
+function toEventRow(
+  key: string,
+  tag: string,
+  ev: Event,
+  ctx: PlaceContext,
+  alwaysShow = false,
+): EventRow | null {
+  if (!alwaysShow && !isEventPresent(ev)) return null;
   return {
     key,
-    label,
-    summary: yearPlaceSummary(ev, ctx),
+    label: ev.eventType || eventTypeLabel(tag),
+    tag,
+    category: eventCategory(tag, ev.eventType),
+    year: eventYear(ev),
+    dateLabel: fullDateLabel(ev),
+    placeLabel: eventPlaceLabel(ev, ctx),
+    value: ev.value,
+    addr: ev.addr,
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),
     placeId: eventPlaceId(ev, ctx),
     hofId: eventHofId(ev, ctx),
+    empty: isEventEmpty(ev),
   };
+}
+
+/** Innerhalb der Kategorie "Beruf": OCCU-Zeilen vor allen anderen (z. B. "Beschäftigung"-
+ *  Synonym-Zeilen, ADR-v9-58), danach chronologisch (Jahr, undatiert ans Ende) — Nutzer-
+ *  Vorgabe 2026-07-10. Andere Kategorien behalten ihre bestehende Reihenfolge
+ *  unverändert (Lebensdaten: kanonische GEDCOM-Position; alle übrigen: Einfüge-
+ *  Reihenfolge aus `person.events[]`) — nur für "Beruf" explizit angefragt.
+ */
+function sortWithinCategory(category: string, rows: EventRow[]): EventRow[] {
+  if (category !== 'Beruf') return rows;
+  return [...rows].sort((a, b) => {
+    const aOccu = a.tag === 'OCCU' ? 0 : 1;
+    const bOccu = b.tag === 'OCCU' ? 0 : 1;
+    if (aOccu !== bOccu) return aOccu - bOccu;
+    if (a.year == null && b.year == null) return 0;
+    if (a.year == null) return 1;
+    if (b.year == null) return -1;
+    return a.year - b.year;
+  });
 }
 
 function familyLabel(f: Family, db: Database): string {
@@ -93,11 +180,11 @@ export function buildPersonDetail(
     ['BURI', person.buri],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, SPECIAL_LABELS[tag], ev, ctx);
+    const row = toEventRow(tag, tag, ev, ctx);
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.eventType || ev.type || 'Ereignis', ev, ctx);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true);
     if (row) events.push(row);
   });
 
@@ -110,7 +197,10 @@ export function buildPersonDetail(
       .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
       .filter((m) => m.name);
     const children = f.children
-      .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
+      .map((id) => {
+        const child = db.individuals.get(id)!;
+        return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
+      })
       .filter((c) => c.name);
     families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children });
   }
@@ -124,5 +214,10 @@ export function buildPersonDetail(
     families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
   }
 
-  return { person, events, families };
+  const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER).map((group) => ({
+    ...group,
+    rows: sortWithinCategory(group.type, group.rows),
+  }));
+
+  return { person, events, eventGroups, families };
 }

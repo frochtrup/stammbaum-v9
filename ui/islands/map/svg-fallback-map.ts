@@ -9,10 +9,15 @@
 // Personen-/Migrations-Modus dürfen hier vereinfacht sein (Auftrag: "nur Linien ohne
 // Animation") — Orte-Modus (Marker-Punkte) ist der verlässliche Kernfall.
 import type { PlacePoint, MigrationLine, BiographyPoint } from './map-model';
+import { findFocusPoint } from './map-model';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEW_W = 1000;
 const VIEW_H = 520;
+/** Zoom-Faktor der Fokus-Zentrierung im Fallback (ADR-v9-78 Punkt 4) — angewandt als
+ * Gruppen-Transform auf den Inhalt (Kontinente+Marker), NICHT auf den Ozean-
+ * Hintergrund, der immer den ganzen viewBox füllt (s. render() unten). */
+const FOCUS_SCALE = 3;
 
 /**
  * Sehr grobe Kontinent-Umrisse als [lat, long][]-Polygone (grob abgetastete
@@ -67,6 +72,19 @@ export interface SvgFallbackMountOptions {
   migrations: MigrationLine[];
   biography: BiographyPoint[];
   onSelectPlace?: (placeId: string) => void;
+  /**
+   * Orts-/Hof-ID zum ZUSÄTZLICHEN Hervorheben eines kuratierten Markers im Orte-Modus
+   * (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2") — honoriert denselben Fokus wie der
+   * primäre Leaflet-Pfad (Offline-Parität-Disziplin, s.
+   * `leaflet-map.ts::LeafletMountData.focusPlaceId`). Zentrierung hängt seit dem
+   * ADR-v9-78-Nachtrag nicht mehr hiervon ab, s. `focusCoords`.
+   */
+  focusPlaceId?: string | null;
+  /**
+   * Roh-Koordinaten zum Zentrieren im Orte-Modus (ADR-v9-78-Nachtrag) — Offline-
+   * Parität zu `leaflet-map.ts::LeafletMountData.focusCoords`.
+   */
+  focusCoords?: { lat: number; long: number } | null;
 }
 
 export interface SvgFallbackHandle {
@@ -95,6 +113,9 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
   function render(opts: SvgFallbackMountOptions): void {
     svg.innerHTML = '';
 
+    // Ozean-Hintergrund bleibt UN-transformiert außerhalb der Inhalts-Gruppe (füllt
+    // immer den ganzen viewBox) — nur Kontinente+Marker werden bei einem Fokus
+    // reinzoomt (s. Fokus-Transform am Ende dieser Funktion).
     const oceanBg = svgEl('rect');
     oceanBg.setAttribute('x', '0');
     oceanBg.setAttribute('y', '0');
@@ -102,6 +123,10 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
     oceanBg.setAttribute('height', String(VIEW_H));
     oceanBg.setAttribute('class', 'map-fallback__ocean');
     svg.appendChild(oceanBg);
+
+    const content = svgEl('g');
+    content.setAttribute('class', 'map-fallback__content');
+    svg.appendChild(content);
 
     for (const outline of CONTINENT_OUTLINES) {
       const poly = svgEl('polygon');
@@ -111,25 +136,51 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
       });
       poly.setAttribute('points', points.join(' '));
       poly.setAttribute('class', 'map-fallback__continent');
-      svg.appendChild(poly);
+      content.appendChild(poly);
     }
 
+    let focusPoint: PlacePoint | null = null;
     if (opts.mode === 'orte') {
+      // Fokus-Hervorhebung + -Zentrierung (ADR-v9-78 Punkt 4, Spec 20 §1.9 "Lücke 2")
+      // — dieselbe Lookup-Funktion wie der primäre Leaflet-Pfad (Offline-Parität,
+      // EINE Quelle für "ist das der fokussierte Punkt").
+      focusPoint = findFocusPoint(opts.places, opts.focusPlaceId);
       for (const p of opts.places) {
+        const isFocused = focusPoint != null && p.placeId === focusPoint.placeId;
         const { x, y } = project(p.lat, p.long);
         const circle = svgEl('circle');
         circle.setAttribute('cx', String(x));
         circle.setAttribute('cy', String(y));
         const r = p.personCount >= 20 ? 6 : p.personCount >= 5 ? 4.5 : 3;
-        circle.setAttribute('r', String(r));
-        circle.setAttribute('class', 'map-fallback__marker' + (p.isHof ? ' map-fallback__marker--hof' : ''));
+        circle.setAttribute('r', String(isFocused ? r + 2 : r));
+        circle.setAttribute(
+          'class',
+          'map-fallback__marker' +
+            (p.isHof ? ' map-fallback__marker--hof' : '') +
+            (isFocused ? ' map-fallback__marker--focused' : ''),
+        );
         circle.setAttribute('role', 'button');
         circle.setAttribute('tabindex', '0');
         const title = svgEl('title');
         title.textContent = `${p.title} · ${p.personCount} Person${p.personCount !== 1 ? 'en' : ''}`;
         circle.appendChild(title);
         circle.addEventListener('click', () => opts.onSelectPlace?.(p.placeId));
-        svg.appendChild(circle);
+        content.appendChild(circle);
+      }
+      // Ad-hoc-Marker (ADR-v9-78-Nachtrag, Offline-Parität zu leaflet-map.ts) — nur
+      // wenn KEIN kuratierter Marker gefunden wurde (sonst doppelte Hervorhebung an
+      // derselben Stelle).
+      if (!focusPoint && opts.focusCoords) {
+        const { x, y } = project(opts.focusCoords.lat, opts.focusCoords.long);
+        const circle = svgEl('circle');
+        circle.setAttribute('cx', String(x));
+        circle.setAttribute('cy', String(y));
+        circle.setAttribute('r', '5');
+        circle.setAttribute('class', 'map-fallback__marker map-fallback__marker--adhoc');
+        const title = svgEl('title');
+        title.textContent = 'Ereignis-Koordinaten (kein eigener Ortsmarker)';
+        circle.appendChild(title);
+        content.appendChild(circle);
       }
     } else if (opts.mode === 'migr') {
       // Vereinfacht (Auftrag: "nur Linien ohne Animation"): statische Polylinien,
@@ -146,7 +197,7 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
         const title = svgEl('title');
         title.textContent = line.personName;
         poly.appendChild(title);
-        svg.appendChild(poly);
+        content.appendChild(poly);
       }
     } else {
       // Personen-Modus: Biografie-Linie ohne Animation, nummerierte Stationen.
@@ -155,7 +206,7 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
         const poly = svgEl('polyline');
         poly.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
         poly.setAttribute('class', 'map-fallback__bio-line');
-        svg.appendChild(poly);
+        content.appendChild(poly);
       }
       opts.biography.forEach((pt, i) => {
         const { x, y } = project(pt.lat, pt.long);
@@ -167,8 +218,25 @@ export function mountSvgFallbackMap(container: HTMLElement, options: SvgFallback
         const title = svgEl('title');
         title.textContent = `${i + 1}. ${pt.role} — ${pt.title}${pt.date ? ' (' + pt.date + ')' : ''}`;
         circle.appendChild(title);
-        svg.appendChild(circle);
+        content.appendChild(circle);
       });
+    }
+
+    // Fokus-Zentrierung: Gruppen-Transform statt viewBox-Änderung (einfacher, kein
+    // zweiter Projektions-Pfad nötig) — kein CSS-`transition` hier (Spec 02 §5:
+    // "kompletter Neu-Aufbau" pro `render()`-Aufruf, die Gruppe ist bei jedem Update
+    // ein NEUES Element ohne Vorzustand, ein `transition` würde also nie sichtbar
+    // animieren; die Zentrierung ist damit von sich aus ein direkter Sprung, erfüllt
+    // `prefers-reduced-motion`/Spec 21 §6i ohne zusätzlichen JS-Check).
+    // ADR-v9-78-Nachtrag: `focusPoint` (kuratierter Marker) hat Vorrang; sonst
+    // zentriert `focusCoords` (rohe Event-Koordinaten) direkt — Offline-Parität zum
+    // primären Leaflet-Pfad.
+    const centerOn = focusPoint ?? (opts.mode === 'orte' ? opts.focusCoords : null);
+    if (centerOn) {
+      const { x, y } = project(centerOn.lat, centerOn.long);
+      const tx = VIEW_W / 2 - x * FOCUS_SCALE;
+      const ty = VIEW_H / 2 - y * FOCUS_SCALE;
+      content.setAttribute('transform', `translate(${tx}, ${ty}) scale(${FOCUS_SCALE})`);
     }
   }
 

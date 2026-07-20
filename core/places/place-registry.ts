@@ -19,6 +19,14 @@ export interface PlaceRegistry {
   resolveAsOf: (id: PlaceId, year: Year) => string | null;
   /** [Ort, übergeordnet, …] als periodenkorrekte Namen. Optional meta.truncated. */
   enclosureChainAsOf: (id: PlaceId, year: Year, meta?: EnclosureMeta) => string[];
+  /**
+   * [Ort-Id, übergeordnete Id, …] — dieselbe periodenkorrekte Kettenwahl wie
+   * `enclosureChainAsOf`, aber als Knoten-IDs statt Namen. Für Identitäts-/Verträglichkeits-
+   * Prüfungen (`chainCompatible`), die pro Knoten gegen die VOLLE Namensmenge (title + alle
+   * pnames) prüfen müssen — ein einzelner periodenkorrekter Name reicht nicht (ein PLAC-Segment
+   * „Bayern" ist mit dem Knoten kompatibel, dessen periodenkorrekter Name „Königreich Bayern" ist).
+   */
+  enclosureIdsAsOf: (id: PlaceId, year: Year, meta?: EnclosureMeta) => PlaceId[];
 }
 
 // Undatiert im PlaceObject-pname-Kontext gilt NICHT „jederzeit" — nur der Fallback
@@ -26,6 +34,63 @@ export interface PlaceRegistry {
 function dateMatches(from: Year, to: Year, y: number): boolean {
   if (from == null && to == null) return false;
   return (from == null || y >= from) && (to == null || y <= to);
+}
+
+/** Volle normalisierte Namensmenge eines Knotens (title + alle pnames). */
+function nodeNames(node: PlaceObject): Set<string> {
+  const names = new Set<string>();
+  for (const nm of [node.title, ...node.pnames.map((p) => p.value)]) {
+    const k = normPlaceName(nm);
+    if (k) names.add(k);
+  }
+  return names;
+}
+
+/**
+ * UNDATIERTE Eltern-Verträglichkeit über ALLE `enclosedBy`-Pfade (DFS/Backtracking).
+ *
+ * WARUM DFS statt linearem `enclosedBy[0]`-Walk (Bugfix 2026-07-12, ADR-v9-72): ein durch
+ * `mergePlaceObjectPair` zusammengeführter Ort (z. B. der kuratierte `_po_ochtrup`, in den
+ * 15 „Ochtrup"-Varianten gefaltet wurden) trägt MEHRERE `enclosedBy`-Einträge — jede der
+ * gemergten historischen Verwaltungsketten. Ein PLAC-Segment, dessen Kette NICHT zufällig
+ * der ERSTEN dieser Ketten entspricht, wurde vom Index-0-Walk fälschlich als „unbekannt"
+ * gewertet → der Ort (bzw. seine Kette) wurde beim nächsten Laden/Seeden neu angelegt,
+ * obwohl seine Kette bereits (an anderer Position) in `enclosedBy` steht (stille Verdopplung).
+ *
+ * Verträglich = es EXISTIERT ein Pfad durch den undatierten `enclosedBy`-Graphen ab
+ * `leafId`, sodass `statedParentsNorm[i]` einen Namen des i-ten Vorfahren trifft
+ * (Präfix-Semantik: läuft die Modell-Kette vor den Stated-Segmenten aus, bleibt es
+ * verträglich). Deterministisch (Eingabe-Ordnung der `enclosedBy`-Liste). Lenient bei
+ * fehlenden/zyklischen Knoten (wie der frühere Einzelpfad-Walk: nicht verifizierbar → ok).
+ *
+ * EIN gemeinsamer Mechanismus für `seed.ts::existingParentsCompatible` UND
+ * `resolve.ts::chainCompatible` (year==null) — nicht zweimal geschrieben.
+ */
+export function chainCompatibleAnyPath(
+  byId: (id: PlaceId) => PlaceObject | undefined,
+  leafId: PlaceId,
+  statedParentsNorm: readonly string[],
+): boolean {
+  const dfs = (curId: PlaceId, depth: number, seen: ReadonlySet<PlaceId>): boolean => {
+    if (depth >= statedParentsNorm.length) return true; // alle Stated getroffen
+    const cur = byId(curId);
+    if (!cur) return true; // Knoten fehlt → nicht verifizierbar, lenient
+    const entries = cur.enclosedBy;
+    if (entries.length === 0) return true; // Modell-Kette endet → Präfix ok
+    const want = statedParentsNorm[depth];
+    for (const e of entries) {
+      const childId = e.placeId;
+      if (seen.has(childId)) return true; // Zyklus → wie Einzelpfad-Walk (lenient)
+      const child = byId(childId);
+      if (!child) return true; // dangling → lenient
+      if (!nodeNames(child).has(want)) continue; // dieser Elter passt nicht → nächster
+      const nextSeen = new Set(seen);
+      nextSeen.add(childId);
+      if (dfs(childId, depth + 1, nextSeen)) return true;
+    }
+    return false;
+  };
+  return dfs(leafId, 0, new Set([leafId]));
 }
 
 /**
@@ -116,8 +181,8 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       }
       return pl.title || pl.pnames[0]?.value || '';
     },
-    enclosureChainAsOf: (id, year, meta) => {
-      const out: string[] = [];
+    enclosureIdsAsOf: (id, year, meta) => {
+      const out: PlaceId[] = [];
       const seen = new Set<PlaceId>();
       const y = placeYear(year);
       let cur: PlaceId | null = id;
@@ -129,8 +194,7 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
           const et = placeYear(pl.existsTo);
           if ((ef != null && y < ef) || (et != null && y > et)) break;
         }
-        const name = reg.resolveAsOf(cur, year);
-        if (name != null) out.push(name);
+        out.push(cur);
         if (y != null) {
           const w = enclosureWinnerAsOf(cur, y);
           if (w.truncated && meta) meta.truncated = true;
@@ -138,6 +202,15 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
         } else {
           cur = pl.enclosedBy[0]?.placeId ?? null;
         }
+      }
+      return out;
+    },
+    enclosureChainAsOf: (id, year, meta) => {
+      // Namenskette = periodenkorrekter Name JEDES Knotens der ID-Kette (gleiche Auswahl-Logik).
+      const out: string[] = [];
+      for (const nid of reg.enclosureIdsAsOf(id, year, meta)) {
+        const name = reg.resolveAsOf(nid, year);
+        if (name != null) out.push(name);
       }
       return out;
     },

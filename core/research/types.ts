@@ -20,11 +20,19 @@ export interface ResearchTask {
   done: boolean;
   /** injizierter Zeitstempel (ISO-Datum) — nie Wall-Clock (TST-3). */
   created: string;
+  /** optionaler Quellen-Bezug (v8-Parität `t.sid`, ADR-v9-36). '' = kein Bezug. */
+  sourceRef: SourceId | '';
 }
 
 // --- §2 Forschungsprotokoll (Log) -------------------------------------------
 export type LogResult = 'found' | 'notfound' | 'pending';
 
+/**
+ * LogEntry — EIN protokollierter Sucheintrag. Bewusst OHNE eigene `id` (v8-Parität,
+ * `ui-views-rlog.js` `_deleteRlogEntry(personId, idx)`: index-adressiert innerhalb des
+ * jeweiligen `researchLog[]`-Arrays, keine stabile ID nötig — Reihenfolge ist Einfüge-
+ * Reihenfolge, wird nie umsortiert).
+ */
 export interface LogEntry {
   /** injizierter Zeitstempel (TST-3). */
   date: string;
@@ -33,6 +41,9 @@ export interface LogEntry {
   query: string;
   result: LogResult;
   note: string;
+  /** optionaler Bezug: welche ResearchTask.id hat diesen Sucheintrag veranlasst
+   *  (ADR-v9-36, neu ggü. v8 — kein Oracle-Vorbild). '' = kein Bezug. */
+  taskId: string;
 }
 
 // --- §4 Hypothese (leichtes GPS-Modell) -------------------------------------

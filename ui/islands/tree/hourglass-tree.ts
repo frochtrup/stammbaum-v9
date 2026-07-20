@@ -9,6 +9,13 @@
 // Inseln, Auftrag "Nur über Callbacks nach oben").
 import type { Database, PersonId } from '../../../core/model/types';
 import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
+// Geteilter Tooltip (INV-UI-12/ADR-v9-87): hier IMPERATIV aufgerufen (kein Svelte-`use:`),
+// da die Insel framework-frei ist. `tooltip.ts` ist zur Laufzeit reines DOM (nur Typ-Import
+// aus svelte/action, erased) — INV-ARCH bleibt gewahrt. Kollisionsfrei mit Pan/Pinch: jede
+// Bewegung bricht den Long-Press ab; `touchmove` ist passiv; `touchend`-preventDefault feuert
+// nur nach stationärem Long-Press. Kein destroy nötig — Karten werden je Render neu gebaut,
+// die Listener sterben mit dem entfernten Knoten (ein globaler Scroll-Listener, kein pro-Knoten).
+import { tooltip } from '../../shell/tooltip';
 
 export interface TreeMountCallbacks {
   /** Klick auf eine Ahnen-/Ehepartner-/Kind-Karte -> Rezentrierung auf diese Person. */
@@ -141,7 +148,7 @@ export function mountHourglassTree(
     if (card.kekule) {
       const kEl = document.createElement('div');
       kEl.className = 'tree-island__kekule';
-      kEl.title = `Kekule-Nr. ${card.kekule} (Proband = 1)`;
+      tooltip(kEl, `Kekule-Nr. ${card.kekule} (Proband = 1)`);
       kEl.textContent = String(card.kekule);
       div.appendChild(kEl);
     }
@@ -162,7 +169,7 @@ export function mountHourglassTree(
       // Proband-Kartenrand — kein Konflikt mit ⚭/Kekule oben-rechts/oben-links).
       const sibCountEl = document.createElement('div');
       sibCountEl.className = 'tree-island__sib-count-badge';
-      sibCountEl.title = `${layout.siblingCountBadge} Geschwister`;
+      tooltip(sibCountEl, `${layout.siblingCountBadge} Geschwister`);
       sibCountEl.textContent = String(layout.siblingCountBadge);
       div.appendChild(sibCountEl);
     }
@@ -223,7 +230,7 @@ export function mountHourglassTree(
       morEl.style.top = `${Math.round(overflow.y)}px`;
       morEl.style.width = `${overflow.width}px`;
       morEl.style.height = `${overflow.height}px`;
-      morEl.title = overflow.title;
+      tooltip(morEl, overflow.title);
       morEl.textContent = '…';
       wrapEl.appendChild(morEl);
     }
@@ -236,7 +243,7 @@ export function mountHourglassTree(
       btn.style.top = `${Math.round(badge.y)}px`;
       btn.style.width = `${Math.round(badge.width)}px`;
       btn.style.height = `${Math.round(badge.height)}px`;
-      btn.title = 'Familie öffnen';
+      tooltip(btn, 'Familie öffnen');
       btn.textContent = '⚭';
       btn.addEventListener('click', () => callbacks.onSelectFamily!(badge.familyId));
       wrapEl.appendChild(btn);

@@ -5,10 +5,26 @@
 // Lens-Umschalter — redundant, weil der Umschalter die aktive Lens bereits über
 // das hervorgehobene Tab zeigt). Diese Komponente ist jetzt die einzige Quelle für
 // Höhe/Padding/Ausrichtung der Lens-Kopfzeile.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import LensViewHeader from '../../ui/shell/LensViewHeader.svelte';
 import LensViewHeaderActionsHarness from './fixtures/LensViewHeaderActionsHarness.svelte';
+import { createRawSnippet } from 'svelte';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
+
+// Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
+// Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
+// entfällt oberhalb der Layout-Grenze (INV-UI-2/3). Ohne Festlegung liefe die Datei im
+// happy-dom-Standard von 1024px, also im Desktop-Modell. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('LensViewHeader — die eine Kopfzeile für Lens-Ansichten (Spec 21 §4, INV-UI-3)', () => {
   it('rendert NUR den Lens-Umschalter, keinen separaten Titel-Text', () => {
@@ -53,5 +69,35 @@ describe('LensViewHeader — die eine Kopfzeile für Lens-Ansichten (Spec 21 §4
     const actions = container.querySelector('.lens-view-header__actions');
     expect(actions).toBeTruthy();
     expect(getByRole('button', { name: /Vollbild/ })).toBeTruthy();
+  });
+});
+
+describe('LensViewHeader — auf Desktop trägt die Sidebar die Lenses (Spec 21 §4)', () => {
+  it('blendet den Umschalter oberhalb der Layout-Grenze aus', () => {
+    unpin();
+    const unpinDesktop = pinLayout(true);
+    try {
+      render(LensViewHeader, { props: { active: 'tree', onNavigate: vi.fn() } });
+      // Spec 21 §4 nennt beide Formen als Entweder-Oder ("Segment-Control (Mobile) bzw.
+      // Sidebar-Abschnitt Ansichten (Desktop)"): zwei gleichzeitige Umschalter wären
+      // ein zweiter Mechanismus für denselben Wechsel (INV-UI-3).
+      expect(screen.queryByRole('button', { name: /Karte/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Baum/ })).toBeNull();
+    } finally {
+      unpinDesktop();
+    }
+  });
+
+  it('behält den Aktions-Bereich, der KEIN Lens-Wechsel ist (z. B. Vollbild)', () => {
+    unpin();
+    const unpinDesktop = pinLayout(true);
+    try {
+      render(LensViewHeader, {
+        props: { active: 'tree', onNavigate: vi.fn(), actions: createRawSnippet(() => ({ render: () => '<button>Vollbild</button>' })) },
+      });
+      expect(screen.getByRole('button', { name: 'Vollbild' })).toBeTruthy();
+    } finally {
+      unpinDesktop();
+    }
   });
 });

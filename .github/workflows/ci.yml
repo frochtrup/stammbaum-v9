@@ -19,8 +19,14 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run check:arch
+      - run: npm run check:csp
       - run: npm run lint
       - run: npm test
+      # Eigener Schritt, eigene Vitest-Config: die Haupt-Config schließt tests/perf/ aus
+      # (Pre-Commit-Tauglichkeit, Spec 32 §2) — ein Pfad-Argument gegen sie fände null
+      # Tests und meldete grün. Hält u. a. den 20k-Skalen-Test scharf, der seit BL-47
+      # der Wächter gegen einen Rückfall des Orts-Resolvers ist (ADR-v9-88).
+      - run: npm run test:perf
 
   deploy:
     needs: test

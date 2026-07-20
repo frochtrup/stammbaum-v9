@@ -18,6 +18,7 @@
   // Komponente — sie sind inhaltlich kein Lens-Wechsel, sondern ein View-internes
   // Konzept, und jede aufrufende View rendert sie direkt darunter.
   import LensSwitcher from './LensSwitcher.svelte';
+  import { layout } from './layout.svelte';
   import type { LensId } from './lens-model';
   import type { Snippet } from 'svelte';
 
@@ -32,7 +33,15 @@
 </script>
 
 <div class="lens-view-header">
-  <LensSwitcher {active} {onNavigate} />
+  <!-- Spec 21 §4 nennt beide Formen als ENTWEDER-ODER: "Segment-Control (Mobile) bzw.
+       Sidebar-Abschnitt ‚Ansichten' (Desktop)". Auf Desktop trägt die Sidebar die
+       Lenses beschriftet und dauerhaft — der Umschalter hier wäre ein zweiter
+       Mechanismus für denselben Wechsel (INV-UI-3) und ein zweiter Weg zum selben Ziel
+       (INV-UI-2), genau wie die Entitäts-Segmentreihe in EntityTab. Der Aktions-Bereich
+       (z. B. Baum-Vollbild) bleibt: der ist kein Lens-Wechsel. -->
+  {#if !layout.isDesktopLayout}
+    <LensSwitcher {active} {onNavigate} />
+  {/if}
   {#if actions}
     <div class="lens-view-header__actions">
       {@render actions()}

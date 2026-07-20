@@ -21,7 +21,7 @@ export {
   makeNote,
   makeCitation,
 } from './factory';
-export { isEventPresent } from './event';
+export { isEventPresent, isEventEmpty } from './event';
 export {
   parseDateValue,
   formatDateValue,
@@ -35,6 +35,8 @@ export {
   setCitationQuay,
   suggestQuayFromEval,
   applyEvalToCitation,
+  citationUrl,
+  setCitationUrl,
 } from './citation';
 export {
   findOrphanRefs,

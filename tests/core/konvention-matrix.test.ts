@@ -118,3 +118,105 @@ describe('Konvention 3b — atomar, ohne Match → Review / Quelle schärfen', (
     expect(res.events[0].event.place).toBe('Wall 33');
   });
 });
+
+// Symptom 2 (Bugfix 2026-07-12): Ancestris/MyHeritage schreiben PLAC oft in einem
+// FESTEN Template mit Leerfeldern auf nicht belegten Ebenen — der Ortsname steht dann
+// NICHT im ersten Komma-Segment (Index 0 leer), z. B. „, Ochtrup, , , NRW, Deutschland".
+// Diese Form koexistiert im selben File mit der Normalform „Ochtrup, …". Vor dem Fix
+// erzeugte das führende Leer-Segment leadSeg='' → das Event blieb unaufgelöst und tauchte
+// nicht in der Orte-Liste auf. Kern-Anforderung: Leerfelder = „keine Angabe auf dieser
+// Ebene", das Leitsegment ist der erste NICHT-leere Wert; die Auflösung ist IDENTISCH zur
+// Normalform (Segment-Parsing-Äquivalenz), robust für 4 wie 6 Segmente.
+describe('Symptom 2 — Leerfeld-PLAC (Ancestris Fixed-Template)', () => {
+  // Kuratierter Bestand: atomares Ochtrup + Beckum in NRW/Deutschland-Hierarchie.
+  const ochtrup = place('@OCHTRUP2@', { title: 'Ochtrup', type: 'Town' });
+  const nrw = place('@NRW@', {
+    title: 'Nordrhein-Westfalen',
+    type: 'State',
+    enclosedBy: [{ placeId: '@DE@', from: null, to: null }],
+  });
+  const de = place('@DE@', { title: 'Deutschland', type: 'Country' });
+  const beckum = place('@BECKUM@', {
+    title: 'Beckum',
+    type: 'Town',
+    enclosedBy: [{ placeId: '@NRW@', from: null, to: null }],
+  });
+  const atomicPlaces = placeMap(ochtrup, nrw, de, beckum);
+
+  it('führendes Leerfeld, atomar: ", Ochtrup, , , ," matcht den vorhandenen Ort „Ochtrup"', () => {
+    const source = ev('BIRT', { place: ', Ochtrup, , , ,', date: '1950' });
+    const res = resolveEvents([source], atomicPlaces, hofMap());
+    expect(res.events[0].path).toBe('atomic-po');
+    expect(res.events[0].event.placeId).toBe('@OCHTRUP2@');
+  });
+
+  it('Äquivalenz: ", Ochtrup, , , ," löst IDENTISCH auf wie „Ochtrup" (kein Leerfeld-Titel-Ort)', () => {
+    const empty = resolveEvents([ev('BIRT', { place: ', Ochtrup, , , ,', date: '1950' })], atomicPlaces, hofMap());
+    const plain = resolveEvents([ev('BIRT', { place: 'Ochtrup', date: '1950' })], atomicPlaces, hofMap());
+    expect(empty.events[0].event.placeId).toBe(plain.events[0].event.placeId);
+    expect(empty.events[0].path).toBe(plain.events[0].path);
+  });
+
+  it('führendes Leerfeld + inneres Leerfeld, reich: ", Beckum, , , NRW, Deutschland" matcht Beckum über die Hierarchie', () => {
+    const source = ev('BIRT', { place: ', Beckum, , , Nordrhein-Westfalen, Deutschland', date: '1900' });
+    const res = resolveEvents([source], atomicPlaces, hofMap());
+    expect(res.events[0].path).toBe('hierarchy-lead');
+    expect(res.events[0].event.placeId).toBe('@BECKUM@');
+  });
+
+  it('robust für unterschiedliche Segment-Anzahl: 4-Segment ", Eggerode, , ," wie 6-Segment behandelt', () => {
+    const withEggerode = placeMap(ochtrup, nrw, de, beckum, place('@EGG@', { title: 'Eggerode', type: 'Village' }));
+    const short = resolveEvents([ev('BIRT', { place: ', Eggerode, , ,', date: '1900' })], withEggerode, hofMap());
+    const long = resolveEvents([ev('BIRT', { place: ', Eggerode, , , , ', date: '1900' })], withEggerode, hofMap());
+    expect(short.events[0].event.placeId).toBe('@EGG@');
+    expect(long.events[0].event.placeId).toBe('@EGG@');
+    expect(short.events[0].path).toBe('atomic-po');
+    expect(long.events[0].path).toBe('atomic-po');
+  });
+
+  it('alle acht echten Leerfeld-Formen aus der GEDCOM-Datei werden aufgelöst (kein stiller Drop)', () => {
+    // Genau die im Bugreport gemeldeten Strings + Segment-Längen-Varianten.
+    const wall = place('@GRONAU@', { title: 'Gronau', type: 'Town' });
+    const seedable = placeMap(
+      ochtrup, nrw, de, beckum, wall,
+      place('@AACHEN@', { title: 'Aachen', type: 'Town' }),
+      place('@BERLIN@', { title: 'Berlin', type: 'City' }),
+      place('@BREMEN@', { title: 'Bremen', type: 'City' }),
+      place('@BURGDORF@', { title: 'Burgdorf', type: 'Town' }),
+      place('@DENEKAMP@', { title: 'Denekamp', type: 'Village' }),
+    );
+    const realStrings = [
+      ', Ochtrup, , , ,',
+      ', Aachen, , , , ',
+      ', Beckum, , , Nordrhein-Westfalen, Deutschland',
+      ', Berlin, , , , Deutschland',
+      ', Bremen, , ,, Deutschland',
+      ', Burgdorf, , Hannover, , Deutschland',
+      ', Denekamp, , , ,',
+      ', Eggerode, , ,',
+    ];
+    const events = realStrings.map((p) => ev('BIRT', { place: p, date: '1900' }));
+    const res = resolveEvents(events, seedable, hofMap());
+    // Jede Form, deren Leitsegment einen bekannten Ort trifft, bekommt eine placeId.
+    // (Eggerode ist hier bewusst NICHT im Bestand → bleibt ungelöst, das ist korrekt.)
+    const resolvedLeads = res.events
+      .map((r, i) => ({ place: realStrings[i], placeId: r.event.placeId }))
+      .filter((x) => x.placeId != null)
+      .map((x) => x.place);
+    expect(resolvedLeads).toContain(', Ochtrup, , , ,');
+    expect(resolvedLeads).toContain(', Aachen, , , , ');
+    expect(resolvedLeads).toContain(', Beckum, , , Nordrhein-Westfalen, Deutschland');
+    expect(resolvedLeads).toContain(', Berlin, , , , Deutschland');
+    expect(resolvedLeads).toContain(', Bremen, , ,, Deutschland');
+    expect(resolvedLeads).toContain(', Burgdorf, , Hannover, , Deutschland');
+    expect(resolvedLeads).toContain(', Denekamp, , , ,');
+    // Kein Leerfeld-Titel-Ort: keine placeId zeigt auf einen leeren/Komma-Titel.
+    for (const r of res.events) {
+      if (r.event.placeId != null) {
+        const t = seedable.get(r.event.placeId)?.title ?? '';
+        expect(t).not.toBe('');
+        expect(t.startsWith(',')).toBe(false);
+      }
+    }
+  });
+});

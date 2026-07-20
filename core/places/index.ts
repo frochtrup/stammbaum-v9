@@ -22,11 +22,20 @@ export {
   slugify,
 } from './normalize';
 
-export { makePlaceRegistry, type PlaceRegistry, type EnclosureMeta } from './place-registry';
+export { makePlaceRegistry, chainCompatibleAnyPath, type PlaceRegistry, type EnclosureMeta } from './place-registry';
 export { makeHofRegistry, type HofRegistry } from './hof-registry';
 
 // Chokepoint 4 (Spec 11 §5): PLAC-Bau + Kontext-Typ.
-export { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
+export {
+  buildPlacForGedcom,
+  buildFormString,
+  buildFullPlaceName,
+  // Listen-Anzeige (INV-UI-14, Spec 21 §6l) — Kurzname statt Verwaltungskette.
+  buildListPlaceName,
+  placeDisplayName,
+  eventYear,
+  type PlaceContext,
+} from './build-plac';
 
 // Chokepoints 1–3 (Spec 11 §5): die einzigen erlaubten Reads.
 export { eventPlaceId, eventHofId, eventCoords, type Coords } from './chokepoints';
@@ -71,6 +80,22 @@ export {
   withRemovedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
+  withUpdatedHofAddr,
   linkEventToPlace,
+  linkEventToHof,
   mergePlaceObjects,
+  mergeHofObjects,
+  type MergeResult,
 } from './commands';
+
+// Kurations-Layer (Spec 11 §9, ADR-v9-44/45/46): reine Anzeige-/Dedup-Prädikate über
+// orte.json (kein Schreibgate, kein persistierter Zustand). Anreicherungs-Prädikat (§9.1),
+// Referenz-Sichtbarkeit (§9.3), Massen-Dedup-Finder (§9.2).
+export {
+  isEnrichedPlace,
+  isEnrichedHof,
+  hasReference,
+  findPlaceDuplicates,
+  type DedupKind,
+  type DuplicateGroup,
+} from './curation';

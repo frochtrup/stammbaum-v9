@@ -13,12 +13,16 @@
   // Titel-Text), der Modus-Umschalter nutzt dieselben `.stb-segment-row`/`.stb-segment-btn`
   // Klassen wie TreeView/MapLensView/EntityTab — keine eigene "sieht aus wie ein Tab"-CSS.
   //
-  // Personen-Picker: analog dem Personen-Picker in MapLensView.svelte übernommen
-  // (gleiches Overlay-Muster, Suchfeld + Liste), NICHT neu erfunden — hier zusätzlich
-  // mit "Hinzufügen"-Semantik (Mehrpersonen-Auswahl) statt "Ersetzen".
+  // Personen-Auswahl über den gemeinsamen Entitäts-Picker (INV-UI-4, ADR-v9-40),
+  // identisch zu MapLensView und zu jeder Formular-Personenreferenz — also mit
+  // Geburtsjahr/-ort als Unterzeile (`yearPlaceSummary`) und derselben Match-Logik wie
+  // die globale Suche (`matchesSearch`). Besonderheit hier: "Hinzufügen"-Semantik
+  // (Mehrpersonen-Vergleich) statt "Ersetzen" — die bereits verglichenen Personen
+  // gehen als `excludeIds` in denselben Picker, statt eine eigene Filterung zu bauen.
   import { onDestroy } from 'svelte';
   import '../../islands/timeline/timeline-view.css';
   import { mountTimelineView, type TimelineIslandHandle, type TimelineMode } from '../../islands/timeline/timeline-view';
+  import { tooltip } from '../../shell/tooltip';
   import {
     ALL_HIST_CATEGORIES,
     MAX_TIMELINE_PERSONS,
@@ -31,16 +35,19 @@
   import type { HistEventCategory } from '../../islands/timeline/historical-events';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { Route } from '../../shell/route.svelte';
   import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import type { LensId } from '../../shell/lens-model';
-  import { displayName, sortKey } from '../../shell/person-display';
+  import { displayName } from '../../shell/person-display';
+  import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    route: Route;
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateLens }: Props = $props();
+  const { appState, viewState, route, onNavigateLens }: Props = $props();
 
   const HIST_FILTER_LABELS: { cat: HistEventCategory; label: string }[] = [
     { cat: 'war', label: '⚔ Krieg' },
@@ -50,44 +57,55 @@
     { cat: 'natural', label: '⚡ Natur' },
   ];
 
-  let mode = $state<TimelineMode>('swim');
+  // Anzeige-Modus im Routen-Merker, nicht lokal — gleiche Begründung wie in
+  // MapLensView.svelte (ADR-v9-102).
+  const mode = $derived<TimelineMode>(route.timelineMode);
   // Plain Array statt Set im $state (svelte/prefer-svelte-reactivity — ein natives Set
   // als reaktiver Zustand bräuchte SvelteSet; ein Array reicht hier, `historicalEventsInRange`
   // nimmt ohnehin nur ein ReadonlySet entgegen -> Umwandlung an der Aufrufstelle).
   let histFilterList = $state<HistEventCategory[]>([...ALL_HIST_CATEGORIES]);
   let showHist = $state(true);
 
-  // Mehrpersonen-Auswahl (Spec 20 §1.10 [S] "Mehrpersonen bis 5") — rein lokaler
-  // UI-Zustand dieser Ansicht (Auftrag: "KEIN neuer ViewState-Slot dafür nötig"). Die
-  // Fokus-Person (geteilter ViewState-Slot `lensFocus`, wie bei Baum/Karte) ist IMMER
-  // Startpunkt/erste der Auswahl.
-  const focusId = $derived(viewState.getCurrent('lensFocus'));
-  let extraPersonIds = $state<string[]>([]);
-  const personIds = $derived(focusId ? [focusId, ...extraPersonIds.filter((id) => id !== focusId)] : extraPersonIds);
+  // Mehrpersonen-Auswahl (Spec 20 §1.10 [S] "Mehrpersonen bis 5"). Liegt seit
+  // ADR-v9-102 im ViewState (`setTimelinePersons`/`getTimelinePersons`), nicht mehr als
+  // lokaler `$state` dieser Ansicht: App.svelte unmountet die Zeitleiste beim
+  // Wegnavigieren, eine lokale Liste war danach verloren.
+  //
+  // Die Zeitleiste führt ihre EIGENE Liste (Nutzer-Entscheidung 2026-07-19, Variante A):
+  // die geteilte Fokus-Person aus `lensFocus` ist nur noch die VORBELEGUNG einer leeren
+  // Liste, nicht mehr ein erzwungener, nicht entfernbarer erster Eintrag. Vorher war die
+  // primäre Person hier gar nicht wählbar — sie kam immer aus dem Baum, was die
+  // Zeitleiste anders verhalten ließ als die Karte direkt daneben.
+  const personIds = $derived(viewState.getTimelinePersons());
   const isMulti = $derived(personIds.length > 1);
 
+  const focusId = $derived(viewState.getCurrent('lensFocus'));
+  // `touched` verhindert, dass das Entfernen der LETZTEN Person sofort wieder die
+  // Fokus-Person einsetzt (der Effekt würde sonst unmittelbar erneut greifen). Bewusst
+  // mount-lokal: kommt der Nutzer später mit weiterhin leerer Liste zurück, ist das
+  // wieder "diese Sicht hat noch keine Auswahl" und die Vorbelegung greift erneut.
+  let touched = $state(false);
+  $effect(() => {
+    if (!touched && personIds.length === 0 && focusId) {
+      viewState.setTimelinePersons([focusId]);
+    }
+  });
+
   let personPickerOpen = $state(false);
-  let personQuery = $state('');
 
-  const personResults = $derived(
-    Array.from(appState.db.individuals.values())
-      .filter((p) => !personIds.includes(p.id))
-      .filter((p) => !personQuery.trim() || displayName(p).toLowerCase().includes(personQuery.trim().toLowerCase()))
-      .sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'de'))
-      .slice(0, 50),
-  );
-
-  function addPerson(id: string): void {
+  function addPerson(id: string | null): void {
+    if (!id) return;
     if (personIds.includes(id)) return;
     if (personIds.length >= MAX_TIMELINE_PERSONS) return;
-    extraPersonIds = [...extraPersonIds, id];
-    personPickerOpen = false;
-    personQuery = '';
+    touched = true;
+    viewState.setTimelinePersons([...personIds, id]);
+    // Das Schließen übernimmt der Picker selbst über `onClose` (feuert auch beim
+    // Abbrechen) — hier nicht doppelt setzen.
   }
 
   function removePerson(id: string): void {
-    if (id === focusId) return; // Fokus-Person bleibt immer Startpunkt (Auftrag).
-    extraPersonIds = extraPersonIds.filter((x) => x !== id);
+    touched = true;
+    viewState.setTimelinePersons(personIds.filter((x) => x !== id));
   }
 
   function toggleHistCategory(cat: HistEventCategory): void {
@@ -108,18 +126,21 @@
     !isMulti ? (events.find((e) => e.type === 'birth')?.year ?? null) : null,
   );
 
-  const swimLayout = $derived(mode === 'swim' ? computeSwimLaneLayout(events, histEvents, containerWidth) : null);
-  const decadeLayout = $derived(
-    mode === 'decade' ? computeDecadeLayout(events.filter((e) => e.personIdx === 0), histEvents) : null,
-  );
-
   let containerEl: HTMLDivElement | undefined = $state();
   // `800` ist der Fallback, den `swimLayout` (unten) vor dem ersten Mount/Resize liest
   // (kein toter Wert — false positive von no-useless-assignment mit Svelte-5-Runes,
   // die die spätere Neuzuweisung im ResizeObserver-Effect nicht als "Lesen dazwischen"
   // erkennt, analog svelte/prefer-svelte-reactivity-Ausnahmen in app-state.svelte.ts).
-  // eslint-disable-next-line no-useless-assignment
+  // Deklaration steht bewusst VOR `swimLayout`: stand sie darunter, las ein $derived
+  // eine block-scoped Variable vor ihrer Deklaration (TDZ) — dank Lazy-Evaluation der
+  // Runes bislang folgenlos, aber nur zufällig; svelte-check meldet es zu Recht.
+   
   let containerWidth = $state(800);
+
+  const swimLayout = $derived(mode === 'swim' ? computeSwimLaneLayout(events, histEvents, containerWidth) : null);
+  const decadeLayout = $derived(
+    mode === 'decade' ? computeDecadeLayout(events.filter((e) => e.personIdx === 0), histEvents) : null,
+  );
   let handle: TimelineIslandHandle | null = null;
 
   function selectPersonFromChip(personId: string): void {
@@ -188,7 +209,7 @@
       class="stb-segment-btn"
       class:stb-segment-btn--active={mode === 'swim'}
       aria-current={mode === 'swim' ? 'page' : undefined}
-      onclick={() => (mode = 'swim')}
+      onclick={() => route.setTimelineMode('swim')}
     >
       Swim-Lane
     </button>
@@ -198,7 +219,7 @@
       class="stb-segment-btn"
       class:stb-segment-btn--active={mode === 'decade'}
       aria-current={mode === 'decade' ? 'page' : undefined}
-      onclick={() => (mode = 'decade')}
+      onclick={() => route.setTimelineMode('decade')}
     >
       Dekaden
     </button>
@@ -213,23 +234,21 @@
       <span class="timeline-lens-view__person-pill" style:--tl-pc={personColor(idx)}>
         <span class="timeline-lens-view__person-dot"></span>
         {displayName(appState.db.individuals.get(pid)!)}
-        {#if idx > 0}
-          <button
-            type="button"
-            class="timeline-lens-view__person-rm"
-            aria-label="Person aus Vergleich entfernen"
-            onclick={() => removePerson(pid)}
-          >
-            ✕
-          </button>
-        {/if}
+        <button
+          type="button"
+          class="timeline-lens-view__person-rm"
+          aria-label="Person aus Vergleich entfernen"
+          onclick={() => removePerson(pid)}
+        >
+          ✕
+        </button>
       </span>
     {/each}
     {#if personIds.length < MAX_TIMELINE_PERSONS}
       <button
         type="button"
         class="timeline-lens-view__person-add"
-        title="Person vergleichen"
+        use:tooltip={'Person vergleichen'}
         aria-label="Person hinzufügen"
         onclick={() => (personPickerOpen = true)}
       >
@@ -237,6 +256,21 @@
       </button>
     {/if}
   </div>
+
+  {#if personPickerOpen}
+    <div class="timeline-lens-view__picker-slot">
+      <PersonPicker
+        {appState}
+        value={null}
+        onChange={addPerson}
+        onClose={() => (personPickerOpen = false)}
+        excludeIds={personIds}
+        allowCreate={false}
+        startOpen
+        label="Person zum Vergleich hinzufügen"
+      />
+    </div>
+  {/if}
 
   <div class="timeline-lens-view__filter-row">
     <label class="timeline-lens-view__hist-toggle">
@@ -265,34 +299,6 @@
 
   <div class="timeline-lens-view__host" bind:this={containerEl}></div>
 
-  {#if personPickerOpen}
-    <div class="timeline-lens-view__picker-overlay" role="dialog" aria-label="Person zum Vergleich hinzufügen">
-      <div class="timeline-lens-view__picker">
-        <div class="timeline-lens-view__picker-header">
-          <input
-            type="search"
-            class="timeline-lens-view__picker-input"
-            placeholder="Person suchen…"
-            bind:value={personQuery}
-          />
-          <button type="button" class="timeline-lens-view__picker-close" onclick={() => (personPickerOpen = false)}>
-            ✕
-          </button>
-        </div>
-        <ul class="timeline-lens-view__picker-list">
-          {#each personResults as p (p.id)}
-            <li>
-              <button type="button" class="timeline-lens-view__picker-item" onclick={() => addPerson(p.id)}>
-                {displayName(p)}
-              </button>
-            </li>
-          {:else}
-            <li class="timeline-lens-view__picker-empty">Keine Person gefunden</li>
-          {/each}
-        </ul>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -406,75 +412,9 @@
     margin: 0.5rem 0.75rem 0.75rem;
   }
 
-  .timeline-lens-view__picker-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 3rem;
-    z-index: 500;
-  }
-
-  .timeline-lens-view__picker {
-    background: var(--stb-surface-1);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-card);
-    width: min(420px, 90vw);
-    max-height: 70vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .timeline-lens-view__picker-header {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.6rem;
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .timeline-lens-view__picker-input {
-    flex: 1;
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    color: var(--stb-text);
-    padding: 0.4rem 0.6rem;
-  }
-
-  .timeline-lens-view__picker-close {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 1rem;
-  }
-
-  .timeline-lens-view__picker-list {
-    list-style: none;
-    margin: 0;
-    padding: 0.3rem;
-    overflow-y: auto;
-  }
-
-  .timeline-lens-view__picker-item {
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: none;
-    color: var(--stb-text);
-    padding: 0.5rem 0.6rem;
-    cursor: pointer;
-    border-radius: var(--stb-radius-control);
-  }
-
-  .timeline-lens-view__picker-item:hover {
-    background: var(--stb-surface-2);
-  }
-
-  .timeline-lens-view__picker-empty {
-    padding: 0.6rem;
-    color: var(--stb-text-dim);
+  /* Der Picker selbst bringt seine Optik aus design-system.css/Picker.svelte mit
+     (INV-UI-4) — hier nur die Einbettung in die Spalte. */
+  .timeline-lens-view__picker-slot {
+    padding: 0 0.75rem 0.5rem;
   }
 </style>

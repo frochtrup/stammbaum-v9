@@ -1,0 +1,25 @@
+{
+  "name": "Stammbaum",
+  "short_name": "Stammbaum",
+  "description": "GEDCOM-Genealogie: Betrachten und Bearbeiten, lokal und offline",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#18140f",
+  "theme_color": "#c8a84a",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -54,3 +54,18 @@ export interface DeviceIdProvider {
 export interface Clock {
   now(): number;
 }
+
+/**
+ * Persistenz-Adapter für das FS-Access-Handle des orte.json-Datei-Ein-/Ausgangs
+ * (ADR-v9-70, Spec 14 §6). GETRENNT vom `WorkingCopyStore` der Genealogie-Datei
+ * (services/file/types.ts) — eigener Store, eigener Key, eigenes Handle, damit ein
+ * Datei-Wechsel bei der einen Datei nie das Handle der anderen überschreibt. Reale
+ * Implementierung: idb-places-file-handle-store.ts; Tests mocken mit einem simplen
+ * In-Memory-Fake (analog createMockWorkingCopyStore).
+ */
+export interface PlacesFileHandleStore {
+  /** Undurchsichtiges Handle-Objekt (z. B. FileSystemFileHandle) oder null, falls noch keins bekannt. */
+  load(): Promise<unknown | null>;
+  save(handle: unknown): Promise<void>;
+  clear(): Promise<void>;
+}

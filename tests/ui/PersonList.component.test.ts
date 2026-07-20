@@ -177,6 +177,26 @@ describe('PersonList — Filter-Panel (Component)', () => {
   });
 });
 
+describe('PersonList — 📎-Medien-Badge (ADR-v9-79 Punkt 3)', () => {
+  it('zeigt die 📎-Pille nur bei Personen mit Medien', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    const withMedia = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    withMedia.media.push({ file: 'foto.jpg', title: '' });
+    db.individuals.set('@I1@', withMedia);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Meyer' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PersonList, { props: { appState, viewState } });
+
+    const row1 = screen.getByText('Anna Bauer').closest('.person-list__row') as HTMLElement;
+    const row2 = screen.getByText('Otto Meyer').closest('.person-list__row') as HTMLElement;
+    expect(Array.from(row1.querySelectorAll('.stb-pill')).some((el) => el.textContent === '📎')).toBe(true);
+    expect(Array.from(row2.querySelectorAll('.stb-pill')).some((el) => el.textContent === '📎')).toBe(false);
+  });
+});
+
 describe('PersonList — "＋ Neue Person" (Spec 20 §2)', () => {
   it('legt eine leere Person mit kollisionsfreier id an und meldet sie über onCreate', async () => {
     const appState = seedAppState(); // bereits @I1@/@I2@ belegt

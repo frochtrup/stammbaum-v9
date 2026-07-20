@@ -55,14 +55,14 @@ describe('SourceForm — Speichern/Vorbefüllung', () => {
     expect(appState.db.sources.get('@S1@')?.repo).toBe('Legacy-Freitext-Archiv');
   });
 
-  it('übernimmt eine aktive Archiv-Auswahl per Select (value/onchange)', async () => {
+  it('übernimmt eine aktive Archiv-Auswahl über den RepositoryPicker (ADR-v9-40)', async () => {
     const appState = createAppState();
     appState.saveRepository(makeRepository('@R1@', { name: 'Landesarchiv NRW' }));
     const source = makeSource('@S1@');
     render(SourceForm, { props: { appState, source } });
 
-    const select = screen.getByLabelText('Archiv') as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: '@R1@' } });
+    await fireEvent.click(screen.getByLabelText('Archiv'));
+    await fireEvent.click(screen.getByText('Landesarchiv NRW'));
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(appState.db.sources.get('@S1@')?.repo).toBe('@R1@');

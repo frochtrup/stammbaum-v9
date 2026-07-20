@@ -3,18 +3,33 @@
 // Sanduhr-Insel (Spec 02 §5). Prüft NUR Mount/Unmount/Container-Vertrag — die
 // Layout-/SVG-Logik selbst ist in tests/islands/tree-layout.test.ts abgedeckt
 // (Spec 32 §2: Inseln werden über ihre Layout-Berechnung getestet, nicht Pixel).
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import TreeView from '../../ui/views/tree/TreeView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson } from '../../core/model';
+import { pinLayout } from './layout-harness';
+import { layout } from '../../ui/shell/layout.svelte';
 
 function dbWithPerson(id: string): ReturnType<typeof makeDatabase> {
   const db = makeDatabase();
   db.individuals.set(id, makePerson(id, { given: 'Anna', surname: 'Bauer' }));
   return db;
 }
+
+// Formfaktor explizit auf MOBIL: diese Datei prüft den Lens-Umschalter bzw. das
+// Hub-Menü — beides ist laut Spec 21 §4/§2 das mobile Gegenstück zur Sidebar und
+// entfällt oberhalb der Layout-Grenze (INV-UI-2/3). Ohne Festlegung liefe die Datei im
+// happy-dom-Standard von 1024px, also im Desktop-Modell. S. layout-harness.ts.
+let unpin: () => void;
+beforeEach(() => {
+  unpin = pinLayout(false);
+});
+afterEach(() => {
+  unpin();
+  layout.reset();
+});
 
 describe('TreeView — Mount/Unmount der imperativen Insel', () => {
   it('mountet einen Container und baut mindestens eine Zentrum-Karte auf', () => {

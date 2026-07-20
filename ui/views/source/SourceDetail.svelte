@@ -8,8 +8,9 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { buildSourceDetail } from './source-detail-model';
+  import { buildSourceDetail, type SourceReferenceRow } from './source-detail-model';
   import { quayClassFor } from '../../shell/source-badge';
+  import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
 
   interface Props {
@@ -57,6 +58,21 @@
     else onNavigateToFamily(id);
   }
 </script>
+
+{#snippet refRow(ref: SourceReferenceRow)}
+  <button
+    type="button"
+    class="source-detail__ref-owner"
+    onclick={() => navigateToOwner(ref.ownerKind, ref.ownerId)}
+  >
+    {ref.ownerLabel}
+  </button>
+  <span class="source-detail__ref-context">{ref.context}</span>
+  {#if ref.page}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
+  <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
+    QUAY {ref.quay}
+  </span>
+{/snippet}
 
 <div class="source-detail">
   {#if !sourceId}
@@ -114,24 +130,7 @@
       {#if detail.references.length === 0}
         <p class="source-detail__muted">Keine Zitatstelle referenziert diese Quelle.</p>
       {:else}
-        <ul class="source-detail__refs">
-          {#each detail.references as ref, i (i)}
-            <li class="source-detail__ref">
-              <button
-                type="button"
-                class="source-detail__ref-owner"
-                onclick={() => navigateToOwner(ref.ownerKind, ref.ownerId)}
-              >
-                {ref.ownerLabel}
-              </button>
-              <span class="source-detail__ref-context">{ref.context}</span>
-              {#if ref.page}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
-              <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
-                QUAY {ref.quay}
-              </span>
-            </li>
-          {/each}
-        </ul>
+        <EventsByType groups={detail.referencesByType} row={refRow} resetKey={sourceId} />
       {/if}
     </section>
   {/if}
@@ -210,39 +209,31 @@
     font-size: 0.85rem;
   }
 
-  .source-detail__refs {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .source-detail__ref {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--stb-surface-2);
-    font-size: 0.85rem;
-  }
-
+  /* Referenzen-Gruppierung/-Paginierung/-Einklappen kommt jetzt VOLLSTÄNDIG aus
+     EventsByType.svelte (Spec 21 §10b, ADR-v9-78 Punkt 6, INV-UI-4) — kein eigenes
+     Gruppen-/Paginierungs-Markup mehr hier. Die Zeile selbst (refRow-Snippet) setzt
+     ihre Schriftgröße explizit (0.85rem), weil EventsByType's geteiltes `<li>` bewusst
+     KEINE eigene Schriftgröße vorgibt (Konsumenten mit unterschiedlichem Zeileninhalt,
+     analog PlaceDetail.svelte's placeEventRow-Snippet). */
   .source-detail__ref-owner {
     background: transparent;
     border: none;
     color: var(--stb-gold-light);
     cursor: pointer;
     padding: 0;
-    font: inherit;
+    font-size: 0.85rem;
     font-weight: 600;
     text-decoration: underline;
   }
 
   .source-detail__ref-context {
     color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .source-detail__ref-page {
     color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .source-detail__ref-quay {

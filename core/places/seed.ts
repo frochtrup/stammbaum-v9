@@ -21,6 +21,7 @@ import type { Event, PlaceId } from '../model/types';
 import type { PlaceObject } from './types';
 import type { PlaceContext } from './build-plac';
 import { eventPlaceId } from './chokepoints';
+import { chainCompatibleAnyPath } from './place-registry';
 import { normPlaceName, extractHofAddr, slugify } from './normalize';
 
 /** Hof-relevante Event-Typen (Spec 11 §4.2) — hier kann das Leitsegment ein Hof sein. */
@@ -57,8 +58,11 @@ function adminChain(ev: Event, segs: string[]): string[] {
  * Eltern-Verträglichkeit (ADR-v9-29): zwei Elternketten sind verträglich, wenn eine ein
  * Präfix der anderen ist (an jeder gemeinsamen Position gleich). Widerspruch an einer
  * gemeinsamen Position → unverträglich (distinkte Orte).
+ *
+ * Exportiert, damit der Massen-Dedup (`findPlaceDuplicates`, §9.2, ADR-v9-45) exakt
+ * dieselbe Verträglichkeits-Regel benutzt wie der Seed-Dedup — NICHT neu erfinden.
  */
-function parentsCompatible(a: readonly string[], b: readonly string[]): boolean {
+export function parentsCompatible(a: readonly string[], b: readonly string[]): boolean {
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) if (a[i] !== b[i]) return false;
   return true;
@@ -74,6 +78,7 @@ function makeSeededPlace(id: PlaceId, title: string, parentId: PlaceId | null): 
   return {
     id,
     title,
+    shortName: '', // Anzeige-Kuration folgt nachgelagert; leer ⇒ `title` (ADR-v9-90).
     type: '', // unbekannt — Kuration (Typ, Koordinaten, GOV) folgt nachgelagert (Spec 11 §2).
     pnames: [],
     enclosedBy: parentId ? [{ placeId: parentId, from: null, to: null }] : [],
@@ -120,9 +125,63 @@ export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext
     return id;
   };
 
-  /** Liefert die (normalisierte) Elternkette eines bereits existierenden PlaceObject. */
-  const existingParentsNorm = (id: PlaceId): string[] =>
-    ctx.places.enclosureChainAsOf(id, null).slice(1).map(normPlaceName);
+  /**
+   * Cross-load-robuste Elternverträglichkeit gegen ein BESTEHENDES PlaceObject.
+   *
+   * WARUM NICHT `enclosureChainAsOf(...).map(normPlaceName)`: jene Kette liefert pro Knoten
+   * nur den periodenkorrekten TITEL (via resolveAsOf). Ein PLAC-Segment kann denselben
+   * Knoten aber über eine PNAME getroffen haben — z. B. Segment „Deutsches Reich" trifft
+   * `_po_de` (title „Deutschland", pname „Deutsches Reich"). Ein positionsweiser Titel-
+   * Vergleich schlägt dann fehl, obwohl es DERSELBE Ort ist, und der Seed mintet bei JEDEM
+   * Reload ein Duplikat der ganzen Verwaltungskette (Idempotenz-Bug, ADR-v9-71). Deshalb
+   * gegen die volle Namensmenge (title + alle pnames) JEDES Kettenknotens prüfen: das
+   * gestellte Segment ist verträglich, wenn es EINEN Namen des Knotens trifft.
+   *
+   * Und WARUM `chainCompatibleAnyPath` statt eines linearen `enclosedBy[0]`-Walks (ADR-v9-72):
+   * ein gemergter Ort trägt MEHRERE undatierte `enclosedBy`-Ketten (je gemergter Variante
+   * eine); ein Index-0-Walk sähe nur die erste und legte Ketten neu an, die bereits (an
+   * anderer Position) modelliert sind. Der DFS durchsucht ALLE Pfade. Gemeinsame reine
+   * Funktion mit `resolve.ts::chainCompatible` (year==null) — nicht zweimal geschrieben.
+   */
+  const existingParentsCompatible = (leafId: PlaceId, parentsNorm: readonly string[]): boolean =>
+    chainCompatibleAnyPath(ctx.places.byId, leafId, parentsNorm);
+
+  /**
+   * Cluster-Verträglichkeit ZWISCHEN zwei im selben Lauf geseedeten Ketten.
+   *
+   * Wie `parentsCompatible` positionsweise über die gemeinsame Länge (leere/kürzere Kette
+   * bleibt mit allem verträglich — „hunderte Ochtrup, auch atomar+reich gemischt, bleiben
+   * ein Ort", §4.2), ABER pro Position mit KNOTEN-Identität statt rohem String-Vergleich:
+   * zwei verschiedene Schreibweisen können denselben kuratierten Knoten treffen — Segment
+   * „Deutsches Reich" und Segment „Deutschland" lösen beide auf `_po_de` auf (title
+   * „Deutschland", pname „Deutsches Reich" 1871–1945).
+   *
+   * WARUM eine zweite Funktion neben `parentsCompatible` (Befund 2026-07-16): ADR-v9-71
+   * hat exakt dieses Problem bereits gelöst — aber nur für Pfad (a), den Abgleich gegen
+   * KURATIERTE POs (`existingParentsCompatible` oben). Pfad (b), der Abgleich gegen die im
+   * selben Lauf frisch geseedeten Cluster, behielt den nackten String-Vergleich. Folge am
+   * echten Datenbestand: vier Ortspaare (Bremen/Essen/Hildesheim/Bottrop) existierten
+   * doppelt — je `_plac_X__deutsches_reich` UND `_plac_X__deutschland`, BEIDE mit demselben
+   * Elter `_po_de` —, wodurch 23 Ereignisse unbindbar in Review-Klasse P landeten, obwohl
+   * ihr Ort eindeutig war. Spec 11 §4.2 schließt genau das aus: der Dedup-Schlüssel ist
+   * „weder name-only NOCH Voll-Hierarchie-String".
+   *
+   * `parentsCompatible` (exportiert, rein, ohne Registry-Zugriff) bleibt bewusst unangetastet.
+   */
+  const seedParentsCompatible = (a: readonly string[], b: readonly string[]): boolean => {
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+      if (a[i] === b[i]) continue;
+      // Verschiedene Schreibweisen, aber derselbe kuratierte Knoten? Nur bei EINDEUTIGER
+      // Auflösung beider Seiten — bei mehreren gleichnamigen Kandidaten wäre die Gleichheit
+      // selbst geraten (genau die Mehrdeutigkeit, die Klasse P dem Menschen vorlegt).
+      const idsA = ctx.places.findAllByName(a[i]);
+      if (idsA.length !== 1) return false;
+      const idsB = ctx.places.findAllByName(b[i]);
+      if (idsB.length !== 1 || idsA[0] !== idsB[0]) return false;
+    }
+    return true;
+  };
 
   /**
    * Stellt sicher, dass es für die Kette einen Ort gibt (neu oder bestehend) und gibt
@@ -140,13 +199,14 @@ export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext
     //     Elternkette (sonst würde „Oldenburg, USA" an das deutsche Oldenburg gebunden).
     const existingCompat = ctx.places
       .findAllByName(leaf)
-      .filter((id) => parentsCompatible(existingParentsNorm(id), parentsNorm));
+      .filter((id) => existingParentsCompatible(id, parentsNorm));
     if (existingCompat.length === 1) return existingCompat[0];
     if (existingCompat.length > 1) return null; // mehrdeutig gegen kuratierte Daten → Klasse P
 
-    // (b) Bereits geseedeten Cluster wiederverwenden (verträglich).
+    // (b) Bereits geseedeten Cluster wiederverwenden (verträglich) — KNOTEN-Identität,
+    //     nicht roher String-Vergleich (s. seedParentsCompatible, Befund 2026-07-16).
     const bucket = clustersByLeaf.get(leafNorm) ?? [];
-    const seedCompat = bucket.filter((c) => parentsCompatible(c.repParentsNorm, parentsNorm));
+    const seedCompat = bucket.filter((c) => seedParentsCompatible(c.repParentsNorm, parentsNorm));
     if (seedCompat.length === 1) return seedCompat[0].id;
     if (seedCompat.length > 1) return null; // atomar/kurz gegen ≥2 Cluster → mehrdeutig → Klasse P
 

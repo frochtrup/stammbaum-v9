@@ -17,14 +17,21 @@
 //
 // core/places bleibt UNVERÄNDERT (INV-ARCH-1) — nur seine öffentliche API wird aufgerufen.
 
-import type { Database, Event } from '../../core/model/types';
+import type { Database, Event, PlaceId, HofId } from '../../core/model/types';
+import { mapAllEvents, type ReadonlyDatabase } from '../../core/model/draft';
 import {
   resolveEvents,
   seedPlacesFromEvents,
   makePlaceRegistry,
   makeHofRegistry,
+  isEnrichedPlace,
+  isEnrichedHof,
+  buildPlacForGedcom,
+  eventYear,
   type ResolveResult,
+  type PlaceContext,
 } from '../../core/places';
+import { deletePlaceObject, deleteHofObject } from '../../core/places/commands';
 
 /** Ein Rückschreib-Ziel: Funktion, die die aufgelöste Event-Kopie an ihrer Stelle einsetzt. */
 type EventSlot = (resolved: Event) => void;
@@ -66,6 +73,144 @@ export interface ApplyResolutionResult {
   placeObjectsGrew: boolean;
 }
 
+export interface ApplyResolutionOptions {
+  /**
+   * ADR-v9-74: setzt vor der Auflösung `placeId`/`hofId` auf Events zurück, deren
+   * AKTUELLES Ziel (in `db.placeObjects`/`hofObjects`, wie zu Beginn dieses Aufrufs)
+   * nicht kuratiert ist (`isEnrichedPlace`/`isEnrichedHof` = false). Der reguläre
+   * „bereits gelinkt"-Kurzschluss in `resolveEvents` (Pfad REPROJECT, Spec 11 §4.1)
+   * überspringt sonst jede Neu-Zuordnung für Events, die schon irgendeine — und sei es
+   * nur eine automatisch geratene — `placeId` tragen: ein reiner Re-Resolve-Aufruf
+   * (ohne frischen `parseGedcom()`) verbessert die Zuordnung dann NIE, selbst wenn
+   * gerade reichhaltigere, kuratierte Orte importiert wurden. Kuratierte Ziele bleiben
+   * unangetastet (schützt bewusste `linkEventToPlace`-Entscheidungen). Default `false`
+   * (bestehendes Verhalten beim GEDCOM-Laden — dort sind alle Events ohnehin frisch aus
+   * `parseGedcom()` und tragen noch keine `placeId`, dieser Schritt ist dort ein No-op).
+   */
+  resetUncuratedLinks?: boolean;
+}
+
+/**
+ * Setzt `placeId`/`hofId` auf Events zurück, deren aktuelles Ziel (in `db`, VOR jeder
+ * Mutation durch diesen Aufruf) nicht kuratiert ist — s. `ApplyResolutionOptions`.
+ * Mutiert `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
+ * `applyPlaceResolution` selbst).
+ */
+function resetUncuratedLinks(db: Database): void {
+  const shouldReset = (ev: Event): boolean => {
+    if (ev.hofId != null) {
+      const hof = db.hofObjects.get(ev.hofId);
+      return !hof || !isEnrichedHof(hof);
+    }
+    if (ev.placeId != null) {
+      const place = db.placeObjects.get(ev.placeId);
+      return !place || !isEnrichedPlace(place);
+    }
+    return false;
+  };
+  const reset = (ev: Event): Event => (shouldReset(ev) ? { ...ev, placeId: null, hofId: null } : ev);
+
+  for (const p of db.individuals.values()) {
+    p.birth = reset(p.birth);
+    p.chr = reset(p.chr);
+    p.death = reset(p.death);
+    p.buri = reset(p.buri);
+    p.events = p.events.map(reset);
+  }
+  for (const f of db.families.values()) {
+    f.engagement = reset(f.engagement);
+    f.marriage = reset(f.marriage);
+    f.events = f.events.map(reset);
+  }
+}
+
+/**
+ * Kommando (ADR-v9-78 Punkt 1): löscht ein PlaceObject UND räumt jede darauf zeigende
+ * `event.placeId`-Referenz vorher auf (`null`) — sonst blieben hängende Fremdreferenzen
+ * zurück (`deletePlaceObject` in core/places/commands.ts kennt `db` nicht und fasst nur
+ * die Map an, s. dortiger Kommentar). Gleiche Slot-Iteration wie `resetUncuratedLinks`
+ * (birth/chr/death/buri/events[] bei Person, engagement/marriage/events[] bei Family),
+ * aber simplere Bedingung: „zeigt exakt auf `id`" statt einer Kurations-Heuristik. KEIN
+ * Kaskaden-Löschen von Events/Personen/Familien — nur die Referenz wird `null`. Mutiert
+ * `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
+ * `resetUncuratedLinks`/`applyPlaceResolution`).
+ */
+export function deletePlaceCascade(db: ReadonlyDatabase, id: PlaceId): Database {
+  const next = mapAllEvents(db, (ev) => (ev.placeId === id ? { ...ev, placeId: null } : null));
+  const places = new Map(next.placeObjects);
+  deletePlaceObject(places, id);
+  return { ...next, placeObjects: places };
+}
+
+/**
+ * Kommando (ADR-v9-78 Punkt 1): löscht ein HofObject UND räumt jede darauf zeigende
+ * `event.hofId`-Referenz vorher auf (`null`) — exakt analog `deletePlaceCascade`, aber
+ * für den Hof-Pfad. KEIN Kaskaden-Löschen von Events/Personen/Familien — nur die
+ * Referenz wird `null`.
+ */
+export function deleteHofCascade(db: ReadonlyDatabase, id: HofId): Database {
+  const next = mapAllEvents(db, (ev) => (ev.hofId === id ? { ...ev, hofId: null } : null));
+  const hofs = new Map(next.hofObjects);
+  deleteHofObject(hofs, id);
+  return { ...next, hofObjects: hofs };
+}
+
+/**
+ * Kommando: zieht eine EXPLIZITE Hof-Adress-Umbenennung (Nutzeraktion, z. B. via
+ * `withUpdatedHofAddr`) auf alle referenzierenden Events mit. Der „Name" eines Hofes IST
+ * `addrs[i].value` (HofObject hat kein eigenes `title`-Feld) — der Sinn einer
+ * Umbenennung ist, dass sie durchgängig sichtbar wird. ADR-v9-47 (schützt `ev.addr` als
+ * eingefrorenes, byte-identisches „fill-if-empty"-Feld vor AUTOMATISCHEN/ungewollten
+ * Änderungen, s. `linkEventToHof`) gilt hier NICHT — das ist eine bewusste, explizite
+ * Nutzeraktion auf den Hof selbst, keine automatische Reprojektion.
+ *
+ * Ohne diesen Nachlauf würde eine Umbenennung zwar `PLAC` live ändern (der Writer baut
+ * `PLAC` bei jedem Export frisch aus den aktuellen Hof-`addrs`, s. `write-back-emit.ts`),
+ * aber `ev.addr` bliebe der alte Wert — unsichtbar in der Ereigniszeile (die `ev.addr`
+ * roh anzeigt) UND beim nächsten Laden würde das alte `ADDR` den alten Hof-Namen erneut
+ * bootstrappen (Pfad B, Spec 11 §4.2).
+ *
+ * VORBEDINGUNG: der Aufrufer hat die aktualisierten Hof-`addrs` (mit `newValue`) bereits
+ * in `db.hofObjects` gespeichert, BEVOR diese Funktion gerufen wird — der hier intern
+ * gebaute `PlaceContext` muss den neuen Namen sehen, damit `buildPlacForGedcom` korrekt
+ * mit `newValue` projiziert.
+ *
+ * Trifft NUR Events mit `hofId === hofId` UND `addr === oldValue` (exakter String-
+ * Vergleich, BEIDE Bedingungen) — das ist ein LP-1-Schutz: Events, deren `addr` vom
+ * erwarteten alten Wert abweicht (seltener Altbestand, z. B. eine Komma-Variante wie
+ * „Oster 82a, Wester 141" oder eine Adressbuch-Übernahme), sind kein „sauberer"
+ * Projektions-Cache mehr und bleiben BYTE-IDENTISCH unangetastet (GEDCOM-ADDR-
+ * Roundtrip-Treue). Events mit leerem `addr` matchen den Guard nicht (schreiben ohnehin
+ * kein ADDR, ihr PLAC berechnet sich live) — ebenfalls unangetastet.
+ *
+ * Für jeden Treffer: `addr` wird `newValue`; `place` wird per `buildPlacForGedcom` neu
+ * berechnet, aber NUR übernommen, wenn das Ergebnis `!= null` ist (sonst bleibt `place`
+ * unverändert — analog `linkEventToHof`/`linkEventToPlace`, kein Overwrite mit null).
+ *
+ * Gleiche Slot-Iteration/Mutations-Disziplin wie `deleteHofCascade` (In-Place-Mutation
+ * von `db.individuals`/`db.families`, gleiche Person-/Family-Slots).
+ */
+export function renameHofAddrInEvents(
+  db: ReadonlyDatabase,
+  hofId: HofId,
+  oldValue: string,
+  newValue: string,
+): Database {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+
+  return mapAllEvents(db, (ev) => {
+    if (ev.hofId !== hofId || ev.addr !== oldValue) return null;
+    const next: Event = { ...ev, addr: newValue };
+    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    if (proj != null) next.place = proj;
+    return next;
+  });
+}
+
 /**
  * Löst ALLE Events der Datenbank auf (Schritte 1–4 aus der Aufgabenstellung) und
  * schreibt die Ergebnisse IN-PLACE an ihre ursprüngliche Stelle zurück (Person/Family-
@@ -78,7 +223,8 @@ export interface ApplyResolutionResult {
  * PlaceObjects; `db.hofObjects` wird auf das ggf. durch Hof-Bootstrap gewachsene Ergebnis
  * gesetzt.
  */
-export function applyPlaceResolution(db: Database): ApplyResolutionResult {
+export function applyPlaceResolution(db: Database, opts: ApplyResolutionOptions = {}): ApplyResolutionResult {
+  if (opts.resetUncuratedLinks) resetUncuratedLinks(db);
   const { events, slots } = collectEventSlots(db);
 
   // Schritt 0 (Spec 11 §4.2, ADR-v9-28/-29): Village-Seed VOR der Auflösung — erzeugt die
