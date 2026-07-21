@@ -55,8 +55,12 @@ export interface FamilyNavRow {
   familyId: string;
   role: 'parentIn' | 'childOf';
   label: string;
-  /** Anklickbare Gegenpersonen dieser Familie (Partner bzw. Eltern), nie die Person selbst. */
-  members: { personId: string; name: string }[];
+  /** Anklickbare Gegenpersonen dieser Familie (Partner bzw. Eltern), nie die Person selbst.
+   *  `summary` (Geburtsjahr + Kurz-Ort, `yearPlaceSummary`) trägt die Disambiguierung
+   *  bei Namensgleichheit — INV-UI-6, Spec 21 §6c. Die Lücke war dort namentlich
+   *  festgehalten: `FamilyDetail` zeigt für DIESELBEN Personen längst ein Geburtsjahr,
+   *  diese zweite Aufrufkette hatte es nicht (BL-64). */
+  members: { personId: string; name: string; summary: string }[];
   /** Nur bei role==='parentIn': Kinder dieser eigenen Familie, ebenfalls anklickbar
    *  (ADR-v9-30 Punkt 6/Nachtrag — "wesentliche Beziehungen" zeigte bisher nur den
    *  Ehepartner, keine Kinder). Bei role==='childOf' immer leer (Geschwister sind
@@ -194,7 +198,10 @@ export function buildPersonDetail(
     if (!f) continue;
     const members = [f.husband, f.wife]
       .filter((id): id is string => id != null && id !== personId)
-      .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
+      .map((id) => {
+        const m = db.individuals.get(id)!;
+        return { personId: id, name: displayName(m), summary: yearPlaceSummary(m.birth, ctx) };
+      })
       .filter((m) => m.name);
     const children = f.children
       .map((id) => {
@@ -209,7 +216,10 @@ export function buildPersonDetail(
     if (!f) continue;
     const members = [f.husband, f.wife]
       .filter((id): id is string => id != null)
-      .map((id) => ({ personId: id, name: displayName(db.individuals.get(id)!) }))
+      .map((id) => {
+        const m = db.individuals.get(id)!;
+        return { personId: id, name: displayName(m), summary: yearPlaceSummary(m.birth, ctx) };
+      })
       .filter((m) => m.name);
     families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
   }

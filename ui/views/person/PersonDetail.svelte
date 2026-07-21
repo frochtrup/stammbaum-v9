@@ -408,7 +408,7 @@
                     class="person-detail__family-link"
                     onclick={() => goToPerson(member.personId)}
                   >
-                    {member.name}
+                    {member.name}{#if member.summary}<span class="person-detail__family-children-summary">({member.summary})</span>{/if}
                   </button>
                 {/each}
               {/if}
