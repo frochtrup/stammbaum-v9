@@ -167,7 +167,30 @@ function serializeNode(node: XmlNode, depth: number, out: string[]): void {
     out.push(open + '>' + escapeText(node.text) + '</' + node.tag + '>');
     return;
   }
-  // Element mit Kindern (GRAMPS: Text bei gemischtem Inhalt kommt vor den Kindern nicht vor).
+  // Gemischter Inhalt (Text UND Kinder) — Abbruch statt stiller Verlust (BL-81, LP-1).
+  //
+  // Bis hierher gab dieser Zweig nur die Kinder aus; `node.text` fiel weg, ohne dass
+  // irgendetwas anschlug. Der Roundtrip merkte es nicht einmal: der zweite Durchlauf
+  // erzeugte denselben Verlust und meldete brav `xml1 === xml2`.
+  //
+  // Warum nicht gerettet wird: WO der Text zwischen den Kindern stand, weiß dieses Modell
+  // nicht — `text` ist ein String, `children` eine Liste, die Reihenfolge zwischen beiden
+  // ist nirgends erfasst. „Text vor die Kinder" schriebe `<a><b/>Ende</a>` als
+  // `<a>Ende<b/></a>` und machte aus einer unvollständigen Datei eine falsche. Wer das
+  // ändern will, macht den Inhalt zuerst ordnungserhaltend (eine Liste aus Text- und
+  // Element-Knoten) — dann ist es kein Sonderfall mehr, sondern der Normalfall.
+  //
+  // Gemessen (2026-07-21, `tests/core/xml-tree-mixed-content.test.ts`): in beiden echten
+  // GRAMPS-Fixturen (5,7 MB, ~37.000 Elemente) kommt der Fall NULL mal vor — der Abbruch
+  // kostet real nichts und bewacht den Datenverlust, der sonst niemandem auffiele.
+  if (hasText) {
+    const auszug = node.text.length > 60 ? node.text.slice(0, 60) + '…' : node.text;
+    throw new Error(
+      `xml-tree: gemischter Inhalt in <${node.tag}> — Text neben Kindelementen ` +
+        `(${node.children.map((c) => `<${c.tag}>`).join(', ')}) kann nicht ordnungstreu ` +
+        `geschrieben werden. Text: "${auszug}". Abbruch statt stillem Verlust (LP-1, BL-81).`,
+    );
+  }
   out.push(open + '>');
   for (const c of node.children) serializeNode(c, depth + 1, out);
   out.push(indent + '</' + node.tag + '>');
