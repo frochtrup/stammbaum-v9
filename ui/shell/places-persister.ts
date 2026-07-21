@@ -8,10 +8,12 @@
 // nach orte.json, statt nur im Speicher zu leben (sonst würde der Auto-Seed die Dublette
 // beim nächsten Laden neu anlegen).
 import type { PlaceObject, HofObject } from '../../core/places';
-import type { PlacesSyncService, LoadedPlaces } from '../../services/places';
+import type { PlacesSyncService, LoadedPlaces, SyncBase } from '../../services/places';
 
 const UNION_MERGE_NOTICE =
   'Orts-/Hofwissen wurde mit einem anderen Gerät zusammengeführt (kein Datenverlust).';
+const UNION_MERGE_CONFLICT_NOTICE =
+  'Orts-/Hofwissen wurde zusammengeführt — einzelne Einträge waren auf beiden Geräten geändert; hier gilt die Fassung dieses Geräts.';
 const SCHEMA_TOO_NEW_NOTICE =
   'Orts-/Hofwissen stammt von einer neueren App-Version — nicht gespeichert (Nur-Lese-Schutz).';
 
@@ -34,20 +36,46 @@ export interface PlacesPersister {
 }
 
 export function createPlacesPersister(sync: PlacesSyncService): PlacesPersister {
-  let baseRev = 0;
+  // Die Basis des Drei-Wege-Merges (BL-82): nicht nur die Revision, sondern der INHALT,
+  // aus dem die aktuelle lokale Fassung hervorgegangen ist. Ohne ihn kann der Merge nicht
+  // unterscheiden, WELCHE Seite sich geändert hat, und muss raten.
+  //
+  // Flache Map-Kopie, kein Deep-Clone: Orts-/Hof-Objekte werden ausschließlich per
+  // Copy-on-Write ersetzt (ADR-v9-92), nie an Ort und Stelle mutiert — die Kopie der
+  // Zuordnung genügt also, um den geladenen Stand einzufrieren. Eine geteilte Map-Referenz
+  // dagegen würde jede lokale Änderung stillschweigend in die „Basis" mitschreiben und den
+  // Merge glauben lassen, lokal habe sich nichts getan.
+  let base: SyncBase = { rev: 0, placeObjects: new Map(), hofObjects: new Map() };
   return {
     async load() {
       const loaded = await sync.loadPlaces();
-      baseRev = loaded.rev;
+      base = {
+        rev: loaded.rev,
+        placeObjects: new Map(loaded.placeObjects),
+        hofObjects: new Map(loaded.hofObjects),
+      };
       return loaded;
     },
     async persist(placeObjects, hofObjects) {
-      const res = await sync.reconcileAndSave(placeObjects, hofObjects, baseRev);
-      // Auch bei schema-too-new die remote rev übernehmen — der nächste Versuch baut darauf auf.
-      baseRev = res.rev;
+      const res = await sync.reconcileAndSave(placeObjects, hofObjects, base);
+      // Auch bei schema-too-new die remote rev übernehmen — der nächste Versuch baut darauf
+      // auf; das Ergebnis ist ab jetzt der gemeinsame Vorfahre.
+      base = {
+        rev: res.rev,
+        placeObjects: new Map(res.placeObjects),
+        hofObjects: new Map(res.hofObjects),
+      };
+      // „Kein Datenverlust" gilt nur, solange der Vorfahre die Kollision auflösen konnte.
+      // Wo BEIDE Geräte denselben Eintrag geändert haben, wurde eine Fassung überschrieben
+      // — das darf die Meldung nicht verschweigen (BL-82).
+      const echterKonflikt =
+        res.warning?.kind === 'union-merge' &&
+        res.warning.conflictPlaceIds.length + res.warning.conflictHofIds.length > 0;
       const notice =
         res.warning?.kind === 'union-merge'
-          ? UNION_MERGE_NOTICE
+          ? echterKonflikt
+            ? UNION_MERGE_CONFLICT_NOTICE
+            : UNION_MERGE_NOTICE
           : res.warning?.kind === 'schema-too-new'
             ? SCHEMA_TOO_NEW_NOTICE
             : '';

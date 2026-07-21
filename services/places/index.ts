@@ -2,7 +2,7 @@
 // Resolve-Wiring-Orchestrierung (Spec 14 §6, Spec 11 §2, Spec 30 §2.1/§4).
 
 export { PlacesSyncService } from './places-sync-service';
-export type { LoadedPlaces, ConflictWarning, ReconcileResult } from './places-sync-service';
+export type { LoadedPlaces, ConflictWarning, ReconcileResult, SyncBase } from './places-sync-service';
 export { createPlacesSyncService } from './create-places-sync-service';
 export { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from './apply-resolution';
 export type { ApplyResolutionResult } from './apply-resolution';

@@ -10,13 +10,24 @@
 //     abgleichen will (`reconcileAndSave`).
 //   - speichern (`savePlaces`): packt Maps → Arrays, bumpt rev, schreibt über den Store.
 //
-// UNION-MERGE-POLICY (Design-Entscheidung dieser Slice, s. Bericht/ADR-Empfehlung):
+// UNION-MERGE-POLICY:
 //   PlaceObjects/HofObjects sind id-gekeyte Maps. „Union" heißt: alle IDs aus beiden
 //   Seiten bleiben erhalten (keine Seite verliert einen Eintrag, den die andere nicht
-//   hat). Existiert dieselbe ID auf beiden Seiten mit UNTERSCHIEDLICHEM Inhalt, gewinnt
-//   die Seite mit dem neueren `ts` (Wrapper-Zeitstempel) — kein Feld-Level-Merge (das
-//   wäre Überkonstruktion für diese Slice, s. Aufgabenstellung). Gleicher Inhalt auf
-//   beiden Seiten ist kein Konflikt (keine Warnung, kein Merge-Aufwand).
+//   hat). Existiert dieselbe ID auf beiden Seiten mit UNTERSCHIEDLICHEM Inhalt, entscheidet
+//   der GEMEINSAME VORFAHRE (`base`): die Seite, die sich gegenüber der Basis nicht
+//   verändert hat, hat nichts zu sagen und verliert. Haben beide sich verändert (oder gibt
+//   es keine Basis für diese ID), ist es ein echter Konflikt — lokal gewinnt deterministisch
+//   und die ID wird als Konflikt gemeldet. Kein Feld-Level-Merge.
+//
+//   BIS BL-82 entschied hier ein Zeitvergleich: `clock.now()` gegen `remote.ts`. Das ist
+//   kein Vergleich zweier Inhalts-Alter, sondern „jetzt" gegen „irgendwann früher" —
+//   `now()` ist per Definition größer als jeder bereits gespeicherte Zeitstempel, die
+//   lokale Seite gewann also immer. Ein Gerät mit stundenaltem, unverändertem Stand machte
+//   damit die Kuration des anderen Geräts beim nächsten Speichern rückgängig. Die drei
+//   bestehenden Tests belegten scheinbar beide Richtungen, weil ihre Mock-Uhr 2000 lieferte,
+//   während der gespeicherte Stand ts=5000 trug — ein Zustand, den eine echte Uhr nicht
+//   erzeugen kann. Zeitstempel taugen für die Frage „wer ist neuer" hier grundsätzlich
+//   nicht: sie beantworten nicht, WER sich geändert hat. Der Vorfahre beantwortet genau das.
 
 import type { PlaceObject, HofObject } from '../../core/places/types';
 import type { Clock, DeviceIdProvider, PlacesFileWrapper, PlacesStore } from './types';
@@ -33,8 +44,30 @@ export interface LoadedPlaces {
 }
 
 export type ConflictWarning =
-  | { kind: 'union-merge'; mergedPlaceIds: string[]; mergedHofIds: string[] }
+  | {
+      kind: 'union-merge';
+      /** IDs, die auf beiden Seiten mit abweichendem Inhalt vorlagen. */
+      mergedPlaceIds: string[];
+      mergedHofIds: string[];
+      /** Teilmenge davon: beide Seiten haben sich seit der Basis geändert — eine Fassung
+       *  wurde überschrieben. Getrennt gemeldet, weil „zusammengeführt, kein Datenverlust"
+       *  für diese IDs schlicht nicht stimmt (BL-82). */
+      conflictPlaceIds: string[];
+      conflictHofIds: string[];
+    }
   | { kind: 'schema-too-new'; foundSchemaVersion: number };
+
+/**
+ * Der Stand, aus dem die lokale Fassung hervorgegangen ist — der gemeinsame Vorfahre des
+ * Drei-Wege-Merges. Pflichtparameter und nicht optional: ohne ihn fällt der Merge auf ein
+ * Raten zurück, und ein optionaler Parameter würde genau dort vergessen, wo es darauf
+ * ankommt (der Aufrufer hat ihn ohnehin — er hat den Stand geladen).
+ */
+export interface SyncBase {
+  rev: number;
+  placeObjects: Map<string, PlaceObject>;
+  hofObjects: Map<string, HofObject>;
+}
 
 export interface ReconcileResult {
   placeObjects: Map<string, PlaceObject>;
@@ -71,19 +104,19 @@ function sameContent<T>(a: T, b: T): boolean {
 }
 
 /**
- * Union-Merge zweier id-gekeyter Maps (Spec 30 §4 LP-9): alle IDs aus beiden Seiten
- * bleiben; bei abweichendem Inhalt derselben ID gewinnt die Seite mit neuerem `ts`.
- * Gibt das gemergte Ergebnis + die Liste der tatsächlich kollidierten IDs zurück
- * (für die Warnung — nur IDs mit echtem Inhalts-Unterschied zählen als Konflikt).
+ * Union-Merge zweier id-gekeyter Maps gegen ihren gemeinsamen Vorfahren (Spec 30 §4 LP-9):
+ * alle IDs beider Seiten bleiben; bei abweichendem Inhalt derselben ID entscheidet, WER
+ * sich gegenüber `base` verändert hat. Liefert das Ergebnis, die kollidierten IDs (für die
+ * Warnung) und die Teilmenge davon, in der beide Seiten sich geändert haben.
  */
 function unionMerge<T extends { id: string }>(
   local: Map<string, T>,
   remote: Map<string, T>,
-  localTs: number,
-  remoteTs: number
-): { merged: Map<string, T>; collidedIds: string[] } {
+  base: Map<string, T>
+): { merged: Map<string, T>; collidedIds: string[]; conflictIds: string[] } {
   const merged = new Map<string, T>();
   const collidedIds: string[] = [];
+  const conflictIds: string[] = [];
 
   for (const [id, remoteItem] of remote) merged.set(id, remoteItem);
   for (const [id, localItem] of local) {
@@ -94,10 +127,25 @@ function unionMerge<T extends { id: string }>(
     }
     if (sameContent(localItem, remoteItem)) continue; // kein Konflikt, identischer Inhalt.
     collidedIds.push(id);
-    merged.set(id, localTs >= remoteTs ? localItem : remoteItem);
+
+    const baseItem = base.get(id);
+    const lokalUnveraendert = baseItem !== undefined && sameContent(localItem, baseItem);
+    const remoteUnveraendert = baseItem !== undefined && sameContent(remoteItem, baseItem);
+
+    if (lokalUnveraendert) {
+      merged.set(id, remoteItem); // nur die Gegenseite hat etwas zu sagen
+    } else if (remoteUnveraendert) {
+      merged.set(id, localItem);
+    } else {
+      // Beide geändert oder kein Vorfahre vorhanden: nicht entscheidbar. Lokal gewinnt
+      // deterministisch — es ist die Fassung, die der Nutzer gerade vor Augen hat — und
+      // die ID wird gemeldet, damit die Meldung nicht Datenerhalt behauptet.
+      conflictIds.push(id);
+      merged.set(id, localItem);
+    }
   }
 
-  return { merged, collidedIds };
+  return { merged, collidedIds, conflictIds };
 }
 
 export class PlacesSyncService {
@@ -134,14 +182,16 @@ export class PlacesSyncService {
    *     Schreibstopp (Spec 11 §2 Zeile „bekannte Schema-Version"): nichts wird
    *     geschrieben, Warnung `schema-too-new`.
    *
-   * `baseRev` ist die Revision, auf der die übergebene lokale Fassung aufbaut (aus einem
-   * vorherigen loadPlaces()) — nötig, um "gleiche rev" (Spec-Wortlaut) zu erkennen.
+   * `base` ist der Stand, auf dem die übergebene lokale Fassung aufbaut (aus einem
+   * vorherigen loadPlaces()): seine Revision erkennt "gleiche rev" (Spec-Wortlaut), sein
+   * INHALT ist der gemeinsame Vorfahre des Merges (BL-82).
    */
   async reconcileAndSave(
     localPlaceObjects: Map<string, PlaceObject>,
     localHofObjects: Map<string, HofObject>,
-    baseRev: number
+    base: SyncBase
   ): Promise<ReconcileResult> {
+    const baseRev = base.rev;
     const remoteWrapper = await this.store.load();
 
     if (remoteWrapper && remoteWrapper.schemaVersion > PLACES_SCHEMA_VERSION) {
@@ -175,8 +225,8 @@ export class PlacesSyncService {
     let warning: ConflictWarning | null = null;
 
     if ((sameRev && otherDevice) || remoteMovedOn) {
-      const placeMerge = unionMerge(localPlaceObjects, remotePlaces, localTs, remote.ts);
-      const hofMerge = unionMerge(localHofObjects, remoteHofs, localTs, remote.ts);
+      const placeMerge = unionMerge(localPlaceObjects, remotePlaces, base.placeObjects);
+      const hofMerge = unionMerge(localHofObjects, remoteHofs, base.hofObjects);
       finalPlaces = placeMerge.merged;
       finalHofs = hofMerge.merged;
       if (placeMerge.collidedIds.length > 0 || placeMerge.merged.size !== localPlaceObjects.size
@@ -184,7 +234,9 @@ export class PlacesSyncService {
         warning = {
           kind: 'union-merge',
           mergedPlaceIds: placeMerge.collidedIds,
-          mergedHofIds: hofMerge.collidedIds
+          mergedHofIds: hofMerge.collidedIds,
+          conflictPlaceIds: placeMerge.conflictIds,
+          conflictHofIds: hofMerge.conflictIds
         };
       }
     }

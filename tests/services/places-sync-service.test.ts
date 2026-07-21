@@ -1,6 +1,13 @@
 // tests/services/places-sync-service.test.ts — orte.json-Browser-Spiegel-Orchestrierung
 // (Spec 14 §6, Spec 30 §2.1/§4 LP-9). Ruft NIE eine echte Plattform-API auf — der
 // PlacesStore ist ein In-Memory-Fake (mock-places-store.ts, analog ADR-v9-15).
+//
+// `reconcileAndSave` bekommt seit BL-82 den gemeinsamen VORFAHREN statt nur dessen
+// Revision (`SyncBase`) — der Tie-Break bei Kollisionen hängt daran, nicht mehr an
+// Zeitstempeln. Die Tie-Break-Fälle selbst stehen in `places-sync-tiebreak.test.ts`;
+// hier bleiben Laden, Revisions-/Device-Logik und Schema-Schutz. `basis(...)` ist der
+// bequeme Weg, den Vorfahren zu benennen: in den meisten Fällen hier ist er leer, weil
+// es um Fälle OHNE Kollision geht.
 
 import { describe, expect, it } from 'vitest';
 import { PlacesSyncService } from '../../services/places/places-sync-service';
@@ -10,6 +17,13 @@ import { createMockClock, createMockDeviceId, createMockPlacesStore } from './mo
 
 const placeMap = (...ps: ReturnType<typeof place>[]) => new Map(ps.map((p) => [p.id, p]));
 const hofMap = (...hs: ReturnType<typeof hof>[]) => new Map(hs.map((h) => [h.id, h]));
+
+/** Gemeinsamer Vorfahre für reconcileAndSave — Revision plus (meist leerer) Inhalt. */
+const basis = (
+  rev: number,
+  placeObjects = placeMap(),
+  hofObjects = hofMap(),
+) => ({ rev, placeObjects, hofObjects });
 
 describe('loadPlaces', () => {
   it('liefert leere Maps + isEmpty=true, wenn noch nie gespeichert wurde', async () => {
@@ -51,7 +65,7 @@ describe('reconcileAndSave — kein Konflikt (Normalfall)', () => {
     const store = createMockPlacesStore(null);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P1')), hofMap(), 0);
+    const result = await svc.reconcileAndSave(placeMap(place('P1')), hofMap(), basis(0));
 
     expect(result.saved).toBe(true);
     expect(result.warning).toBeNull();
@@ -73,9 +87,7 @@ describe('reconcileAndSave — kein Konflikt (Normalfall)', () => {
 
     const result = await svc.reconcileAndSave(
       placeMap(place('P1', { title: 'Ochtrup' }), place('P2', { title: 'Wall' })),
-      hofMap(),
-      2
-    );
+      hofMap(), basis(2));
 
     expect(result.saved).toBe(true);
     expect(result.warning).toBeNull();
@@ -97,49 +109,28 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(2000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P_LOCAL_ONLY', { title: 'Nur lokal' })), hofMap(), 1);
+    const result = await svc.reconcileAndSave(placeMap(place('P_LOCAL_ONLY', { title: 'Nur lokal' })), hofMap(), basis(1));
 
-    expect(result.warning).toEqual({ kind: 'union-merge', mergedPlaceIds: [], mergedHofIds: [] });
+    expect(result.warning).toEqual({
+      kind: 'union-merge',
+      mergedPlaceIds: [],
+      mergedHofIds: [],
+      conflictPlaceIds: [],
+      conflictHofIds: []
+    });
     expect(result.placeObjects.has('P_REMOTE_ONLY')).toBe(true);
     expect(result.placeObjects.has('P_LOCAL_ONLY')).toBe(true);
     expect(result.placeObjects.size).toBe(2);
   });
 
-  it('bei gleicher ID mit abweichendem Inhalt gewinnt die Seite mit dem neueren ts', async () => {
-    const remoteWrapper = {
-      schemaVersion: PLACES_SCHEMA_VERSION,
-      rev: 1,
-      device: 'dev-REMOTE',
-      ts: 5000, // remote ist NEUER als local (2000) → remote gewinnt trotz "lokaler" Fassung.
-      placeObjects: [place('P1', { title: 'Remote-Titel (neuer)' })],
-      hofObjects: []
-    };
-    const store = createMockPlacesStore(remoteWrapper);
-    const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(2000));
-
-    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Lokaler-Titel (älter)' })), hofMap(), 1);
-
-    expect(result.warning).toEqual({ kind: 'union-merge', mergedPlaceIds: ['P1'], mergedHofIds: [] });
-    expect(result.placeObjects.get('P1')?.title).toBe('Remote-Titel (neuer)');
-  });
-
-  it('bei gleicher ID mit abweichendem Inhalt gewinnt die lokale Seite, wenn sie neuer ist', async () => {
-    const remoteWrapper = {
-      schemaVersion: PLACES_SCHEMA_VERSION,
-      rev: 1,
-      device: 'dev-REMOTE',
-      ts: 1000, // remote ist ÄLTER als local (9000) → lokal gewinnt.
-      placeObjects: [place('P1', { title: 'Remote-Titel (älter)' })],
-      hofObjects: []
-    };
-    const store = createMockPlacesStore(remoteWrapper);
-    const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(9000));
-
-    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Lokaler-Titel (neuer)' })), hofMap(), 1);
-
-    expect(result.warning).toEqual({ kind: 'union-merge', mergedPlaceIds: ['P1'], mergedHofIds: [] });
-    expect(result.placeObjects.get('P1')?.title).toBe('Lokaler-Titel (neuer)');
-  });
+  // Die beiden vormaligen Fälle „neueres ts gewinnt" (in beide Richtungen) stehen nicht
+  // mehr hier: sie hingen an einer Mock-Uhr, die 2000 lieferte, während der gespeicherte
+  // Stand ts=5000 trug — ein Zustand, den eine echte Uhr nicht erzeugen kann, weil der
+  // gespeicherte Wert aus einem früheren now() desselben Zeitstrahls stammt. Sie belegten
+  // damit eine Symmetrie, die es in der Anwendung nie gab (BL-82). Die Auflösung von
+  // Kollisionen entscheidet seither der gemeinsame Vorfahre; ihre Fälle stehen vollständig
+  // in `places-sync-tiebreak.test.ts` — inklusive eines Wächters, der anschlägt, sobald
+  // das Ergebnis wieder von der Uhr abhängt.
 
   it('merged auch hofObjects nach derselben Politik, unabhängig von placeObjects', async () => {
     const remoteWrapper = {
@@ -153,7 +144,7 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(2000));
 
-    const result = await svc.reconcileAndSave(placeMap(), hofMap(hof('H_LOCAL_ONLY', 'P1')), 1);
+    const result = await svc.reconcileAndSave(placeMap(), hofMap(hof('H_LOCAL_ONLY', 'P1')), basis(1));
 
     expect(result.hofObjects.has('H_REMOTE_ONLY')).toBe(true);
     expect(result.hofObjects.has('H_LOCAL_ONLY')).toBe(true);
@@ -173,7 +164,7 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(2000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Ochtrup' })), hofMap(), 1);
+    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Ochtrup' })), hofMap(), basis(1));
 
     expect(result.warning).toBeNull();
     expect(result.saved).toBe(true);
@@ -191,7 +182,7 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(2000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Neu' })), hofMap(), 1);
+    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Neu' })), hofMap(), basis(1));
 
     expect(result.warning).toBeNull();
     expect(result.placeObjects.get('P1')?.title).toBe('Neu');
@@ -202,8 +193,9 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     // verändert, seit die lokale Fassung geladen wurde. Auch das läuft über Union-Merge
     // (Härtung dieser Slice, s. Kommentar in places-sync-service.ts) statt lokale
     // Änderungen stillschweigend zu verwerfen (Last-Write-Wins, explizit verworfen).
-    // Deshalb bleiben P1(lokal) UND P2(remote) sowie P1(remote, gewinnt bei ts-Vorrang)
-    // erhalten — nichts geht verloren.
+    // Deshalb bleiben P1 UND P2 erhalten — nichts geht verloren. Welche P1-Fassung gewinnt,
+    // entscheidet der Vorfahre: die lokale Seite ist gegenüber `basis` unverändert, hat also
+    // nichts zu sagen (BL-82).
     const remoteWrapper = {
       schemaVersion: PLACES_SCHEMA_VERSION,
       rev: 3,
@@ -215,10 +207,15 @@ describe('reconcileAndSave — Union-Merge (LP-9): gleiche rev + anderes Device 
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(1000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P1', { title: 'Lokal-alter-Stand' })), hofMap(), 1);
+    const lokalUnveraendert = place('P1', { title: 'Lokal-alter-Stand' });
+    const result = await svc.reconcileAndSave(
+      placeMap(lokalUnveraendert),
+      hofMap(),
+      basis(1, placeMap(lokalUnveraendert))
+    );
 
     expect(result.placeObjects.has('P2')).toBe(true); // nichts verloren.
-    expect(result.placeObjects.get('P1')?.title).toBe('Remote-neuer-Stand'); // remote neuer.
+    expect(result.placeObjects.get('P1')?.title).toBe('Remote-neuer-Stand'); // nur remote hat geändert.
     expect(result.saved).toBe(true);
   });
 });
@@ -236,7 +233,7 @@ describe('reconcileAndSave — höhere Schema-Version als bekannt (Spec 30 §4)'
     const store = createMockPlacesStore(remoteWrapper);
     const svc = new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(2000));
 
-    const result = await svc.reconcileAndSave(placeMap(place('P_NEW', { title: 'Lokal neu angelegt' })), hofMap(), 1);
+    const result = await svc.reconcileAndSave(placeMap(place('P_NEW', { title: 'Lokal neu angelegt' })), hofMap(), basis(1));
 
     expect(result.saved).toBe(false);
     expect(result.warning).toEqual({ kind: 'schema-too-new', foundSchemaVersion: PLACES_SCHEMA_VERSION + 1 });
