@@ -39,5 +39,6 @@ export { stripStrict } from './strict-adapter';
 export { buildLivingSet, anonymizeIndi } from './anonymize';
 
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
+export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';
 export { parseXml, serializeXml } from './xml-tree';
