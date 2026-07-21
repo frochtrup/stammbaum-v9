@@ -43,7 +43,9 @@ export function portal(node: HTMLElement) {
  * Die Koordinaten landen als CSS-Variablen auf dem Knoten, nicht als `top`/`left`. So
  * entscheidet weiterhin das Stylesheet, OB angedockt wird — `FilterBar` nutzt sie nur
  * im Desktop-Zweig und bleibt auf Mobil ein Bottom-Sheet, ohne dass der Breakpoint ein
- * zweites Mal in JavaScript stünde.
+ * zweites Mal in JavaScript stünde. Neben `--stb-anchor-top`/`-left` steht auch die
+ * gemessene Trigger-Breite als `--stb-anchor-width` bereit; wer sie nicht braucht
+ * (Menü, Popover), ignoriert sie schlicht.
  */
 export function anchoredTo(node: HTMLElement, trigger: HTMLElement | undefined) {
   let current = trigger;
@@ -52,6 +54,11 @@ export function anchoredTo(node: HTMLElement, trigger: HTMLElement | undefined) 
   function place() {
     if (!current) return;
     const t = current.getBoundingClientRect();
+    // Trigger-Breite ZUERST schreiben, dann das Panel messen: wer sie benutzt (`Picker`
+    // — eine Trefferliste gehört bündig unter ihr Feld), hätte sonst im ersten Durchlauf
+    // eine andere Breite, als die Randbegrenzung unten annimmt. `getBoundingClientRect`
+    // erzwingt das Layout, die Messung sieht die neue Breite also bereits.
+    node.style.setProperty('--stb-anchor-width', `${t.width}px`);
     const p = node.getBoundingClientRect();
     const box: Box = { top: t.top, left: t.left, width: t.width, height: t.height };
     const { top, left, placement } = anchorPosition({
