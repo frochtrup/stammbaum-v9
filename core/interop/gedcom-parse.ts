@@ -29,6 +29,7 @@ import type {
   EvidenceRef,
 } from '../research/types';
 import { normalizeSex } from '../model/sex';
+import { splitGedcomName } from '../model/name-parts';
 import type {
   Person,
   Family,
@@ -251,6 +252,17 @@ function parsePerson(rec: GedNode): Person {
           p.surname = childValue(c, 'SURN');
           p.prefix = childValue(c, 'NPFX');
           p.suffix = childValue(c, 'NSFX');
+          // Untertags sind optional (ADR-v9-112): fehlende Teile aus dem NAME-Wert
+          // ergänzen, sofern er eindeutig zerlegbar ist. FELDWEISE, nicht als Block —
+          // eine Quelle darf `GIVN Anna` bewusst enger setzen als der NAME-Wert
+          // (`Anna Maria /Decker/`) und trotzdem `SURN` weglassen. Ein explizit
+          // gesetztes Untertag wird nie überschrieben.
+          const parts = splitGedcomName(c.value);
+          if (parts) {
+            if (!p.given) p.given = parts.given;
+            if (!p.surname) p.surname = parts.surname;
+            if (!p.suffix) p.suffix = parts.suffix;
+          }
           if (!p.nick) p.nick = childValue(c, 'NICK');
           for (const s of children(c, 'SOUR')) p.nameCitations.push(parseCitation(s));
         }

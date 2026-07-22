@@ -23,6 +23,7 @@ import {
   removeParentFromFamily,
 } from '../model/integrity';
 import type { Citation, Database, Event, Person, PersonId } from '../model/types';
+import { composeGedcomName } from '../model/name-parts';
 
 /** Welche Seite ein Feld beisteuert. Ohne Eintrag gilt „Gewinner, sonst Verlierer". */
 export type MergeSide = 'winner' | 'loser';
@@ -160,8 +161,14 @@ export function mergePersons(
     winner.www = pick(selections, 'www', winner.www, loser.www);
     winner.uid = pick(selections, 'uid', winner.uid, loser.uid);
     winner.cause = pick(selections, 'cause', winner.cause, loser.cause);
-    // Der Anzeigename folgt der getroffenen Namenswahl, statt den alten Stand zu behalten.
-    winner.name = [winner.given, winner.surname].filter(Boolean).join(' ') || winner.name || loser.name;
+    // Der rohe GEDCOM-NAME-Wert folgt der getroffenen Namenswahl, statt den alten Stand zu
+    // behalten — über composeGedcomName, damit der Nachname seine Schrägstriche behält.
+    // (Vorher: `[given, surname].join(' ')` → "Max Muster" ohne Trenner; der Nachname war
+    // in der NAME-Zeile danach nicht mehr als solcher erkennbar, ADR-v9-112.)
+    winner.name =
+      composeGedcomName({ given: winner.given, surname: winner.surname, suffix: winner.suffix }) ||
+      winner.name ||
+      loser.name;
 
     // --- Sonder-Ereignisse ---
     for (const slot of EVENT_SLOTS) {

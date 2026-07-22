@@ -16,6 +16,7 @@ import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
 // nur nach stationärem Long-Press. Kein destroy nötig — Karten werden je Render neu gebaut,
 // die Listener sterben mit dem entfernten Knoten (ein globaler Scroll-Listener, kein pro-Knoten).
 import { tooltip } from '../../shell/tooltip';
+import { displayNameOr } from '../../shell/person-display';
 
 export interface TreeMountCallbacks {
   /** Klick auf eine Ahnen-/Ehepartner-/Kind-Karte -> Rezentrierung auf diese Person. */
@@ -172,7 +173,7 @@ export function mountHourglassTree(
 
     const nameEl = document.createElement('div');
     nameEl.className = 'tree-island__name';
-    nameEl.textContent = person.given || person.surname ? `${person.given} ${person.surname}`.trim() : person.name || card.id;
+    nameEl.textContent = displayNameOr(person, card.id);
     div.appendChild(nameEl);
 
     const by = (person.birth.date || '').match(/\d{4}/)?.[0];

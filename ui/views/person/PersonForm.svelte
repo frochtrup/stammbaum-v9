@@ -18,6 +18,7 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person } from '../../../core/model/types';
+  import { composeGedcomName } from '../../../core/model/name-parts';
 
   interface Props {
     appState: AppState;
@@ -87,8 +88,27 @@
   });
 
   function save() {
+    // `person.name` (der rohe GEDCOM-NAME-Wert) ist die ZWEITE Hälfte derselben Sache
+    // wie given/surname/suffix: der Writer schreibt NAME aus dem einen Feld und
+    // GIVN/SURN/NSFX aus den anderen. Ohne Nachziehen exportiert eine Umbenennung
+    // widersprüchliche Zeilen und der nächste Ladevorgang holt den ALTEN Namen zurück
+    // (ADR-v9-81-Klasse, ADR-v9-112).
+    //
+    // NUR bei tatsächlicher Änderung neu zusammensetzen: sonst würde bloßes Öffnen und
+    // Speichern ohne Edit einen byte-abweichenden NAME-Wert (z. B. doppeltes Leerzeichen
+    // in der Quelle) glattziehen und den Record fälschlich als geändert markieren — das
+    // wäre genau die automatische Änderung, vor der LP-1 schützt.
+    const nameChanged =
+      given.trim() !== person.given ||
+      surname.trim() !== person.surname ||
+      suffix.trim() !== person.suffix;
+    const nextName = nameChanged
+      ? composeGedcomName({ given: given.trim(), surname: surname.trim(), suffix: suffix.trim() })
+      : person.name;
+
     const next: Person = {
       ...person,
+      name: nextName,
       given: given.trim(),
       surname: surname.trim(),
       prefix: prefix.trim(),

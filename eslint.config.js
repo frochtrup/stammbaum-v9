@@ -141,6 +141,33 @@ export default tseslint.config(
     }
   },
   {
+    // TST-19 (Spec 32, ADR-v9-112): Personennamen werden NICHT von Hand zusammengesetzt.
+    //
+    // Bewusst ENG gefasst — verboten ist die Komposition (`${p.given} ${p.surname}`), nicht
+    // der Feldzugriff. Seit der Parser die Felder beim Einlesen füllt, ist `p.given` zu lesen
+    // korrekt; ein Pauschalverbot wäre die konservative Regel „aus Prinzip" und würde
+    // legitime Stellen treffen (Vornamen-Statistik, Validierungsregeln, Suchheuhaufen).
+    //
+    // Was der Selbstbau dagegen verlässlich verliert: Präfix und Suffix, und den Rückfall
+    // für namenlose Personen. Alle drei Diagramm-Inseln hatten genau diese Zeile — die
+    // Sanduhr zeigte deshalb „Theodor Hermann /Zurloh/" mit Schrägstrichen. Ersatz:
+    // `displayName(p)` aus ui/shell/person-display.ts (mit `fallback`-Argument, wo eine
+    // ID sinnvoller ist als der Platzhalter), bzw. `composeGedcomName()` für den rohen
+    // GEDCOM-NAME-Wert.
+    files: ['ui/**/*.ts', 'ui/**/*.svelte', 'services/**/*.ts'],
+    ignores: ['ui/shell/person-display.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TemplateLiteral:has(MemberExpression[property.name="surname"])',
+          message:
+            'Personennamen nicht von Hand zusammensetzen (TST-19, Spec 32): `${p.given} ${p.surname}` verliert Präfix/Suffix und den Rückfall für namenlose Personen. Nutze displayName(p) aus ui/shell/person-display.ts — oder composeGedcomName() für den rohen GEDCOM-NAME-Wert.'
+        }
+      ]
+    }
+  },
+  {
     // Service Worker (BL-02): eigener globaler Scope — `self` ist der
     // ServiceWorkerGlobalScope, `clients`/`caches` gibt es nur hier. Die Datei liegt
     // in app/public/ und wird verbatim ausgeliefert, ist also klassisches Skript
