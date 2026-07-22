@@ -69,6 +69,16 @@ function extensionFor(format: ExportFormat): string {
   return format === 'gramps' ? 'gramps' : 'ged';
 }
 
+/**
+ * Der Dateiname, den ein Export erzeugt — EINE Quelle für Rohr und Oberfläche. Die
+ * Export-Fläche zeigt ihn vorab an (BL-119); würde sie die Regel nachbauen, hätte die
+ * Datei zwei Namensquellen, die auseinanderlaufen können (INV-UI-4-Grundsatz auf eine
+ * Nicht-CSS-Regel angewandt).
+ */
+export function exportFileName(baseName: string, format: ExportFormat, anonymize = false): string {
+  return `${baseName}${SUFFIX_BY_EXPORT[format]}${anonymize ? '_anon' : ''}.${extensionFor(format)}`;
+}
+
 function mimeTypeFor(format: ExportFormat): string {
   return format === 'gramps' ? 'application/gzip' : 'text/plain';
 }
@@ -80,8 +90,7 @@ function mimeTypeFor(format: ExportFormat): string {
  */
 export async function exportViaOnePipe(fileService: FileService, req: ExportRequest): Promise<SaveResult> {
   const anonymize = req.anonymizeReferenceYear != null;
-  const suffix = SUFFIX_BY_EXPORT[req.format] + (anonymize ? '_anon' : '');
-  const filename = `${req.baseName}${suffix}.${extensionFor(req.format)}`;
+  const filename = exportFileName(req.baseName, req.format, anonymize);
   const isInPlaceCapable = req.format === 'gedcom-5.5.1' && !anonymize;
 
   let bytes: string | Uint8Array;

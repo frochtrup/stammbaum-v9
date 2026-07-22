@@ -34,6 +34,7 @@
   import SaveButton from '../../shell/SaveButton.svelte';
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
   import ImportCompareView from '../import/ImportCompareView.svelte';
+  import ExportView from '../export/ExportView.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
   import { layout } from '../../shell/layout.svelte';
@@ -108,6 +109,13 @@
         {#if placesFileIO}
           <PlacesFileButtons {appState} {fileService} {persister} {placesFileIO} />
         {/if}
+        <!-- Export in ein anderes Format (BL-119) steht UNTER dem Speichern-Knopf und
+             aufklappbar: der Normalfall ist Speichern, ein Strict-/GED7-/anonymisierter
+             Export ist die Ausnahme. Kein eigenes Nav-Ziel (ADR-v9-113). -->
+        <details class="more-view__compare">
+          <summary>In anderes Format exportieren</summary>
+          <ExportView {appState} {fileService} handle={fileHandle} />
+        </details>
         <!-- Import-Vergleich (BL-107) sitzt bei den Datei-Aktionen, nicht in einem
              Entitäts-Segment: er arbeitet auf einer ZWEITEN Datei, nicht auf dem
              geladenen Bestand. Aufklappbar, weil er selten gebraucht wird und die

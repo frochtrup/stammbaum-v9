@@ -2,7 +2,7 @@
 
 export { FileService } from './file-service';
 export { createFileService } from './create-file-service';
-export { exportViaOnePipe } from './export-pipe';
+export { exportViaOnePipe, exportFileName } from './export-pipe';
 // InputFilePickerAdapter (universal <input type="file"> / showOpenFilePicker) ist
 // generisch (Bytes/Text, kein GEDCOM-Wissen) — wird auch von services/places für einen
 // zweiten, unabhängigen orte.json-Datei-Öffnen-Vorgang wiederverwendet (ADR-v9-70,
