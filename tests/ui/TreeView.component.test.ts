@@ -81,6 +81,42 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     expect(island.className).not.toContain('tree-island--fullscreen');
   });
 
+  it('der Vollbild-Schalter sitzt IN der Insel — sonst ist er im Vollbild unerreichbar (BL-95)', async () => {
+    // Der Kern des Befunds, und happy-dom kann ihn nur strukturell prüfen: `.tree-island
+    // --fullscreen` ist `position: fixed; inset: 0; z-index: 500` und legt sich damit über
+    // die Kopfzeile UND die Bottom-Nav. Am laufenden System gemessen (2026-07-21):
+    // `elementFromPoint` traf am Knopf `tree-island__wrap`, an der Navigation
+    // `tree-island__scroll` — der Vollbildmodus war nur durch Neuladen verlassbar.
+    // Ein Schalter innerhalb der Insel wandert mit ihr und bleibt bedienbar.
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const { container, getByText } = render(TreeView, { props: { appState, viewState } });
+    const island = container.querySelector('.tree-island')!;
+
+    await fireEvent.click(getByText(/⤢ Vollbild/));
+    const knopf = getByText(/⤡ Vollbild beenden/);
+    expect(island.contains(knopf), 'Vollbild-Schalter liegt außerhalb der Insel').toBe(true);
+  });
+
+  it('Escape verlässt das Vollbild — ein Modus braucht mehr als einen Ausgang', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
+    viewState.setCurrent('lensFocus', '@I1@');
+
+    const { container, getByText } = render(TreeView, { props: { appState, viewState } });
+    const island = container.querySelector('.tree-island')!;
+
+    await fireEvent.click(getByText(/⤢ Vollbild/));
+    expect(island.className).toContain('tree-island--fullscreen');
+
+    await fireEvent.keyDown(document, { key: 'Escape' });
+    expect(island.className).not.toContain('tree-island--fullscreen');
+  });
+
   it('Klick auf die Zentrum-Karte ruft onOpenPersonDetail mit der Proband-ID auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();

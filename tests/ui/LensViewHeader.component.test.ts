@@ -8,8 +8,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import LensViewHeader from '../../ui/shell/LensViewHeader.svelte';
-import LensViewHeaderActionsHarness from './fixtures/LensViewHeaderActionsHarness.svelte';
-import { createRawSnippet } from 'svelte';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
@@ -55,20 +53,15 @@ describe('LensViewHeader — die eine Kopfzeile für Lens-Ansichten (Spec 21 §4
     expect(onNavigate).toHaveBeenCalledWith('map');
   });
 
-  it('ohne actions-Snippet gibt es keinen Aktionen-Bereich im DOM', () => {
+  it('trägt KEINEN Aktions-Bereich mehr — die Reihe gehört dem Umschalter allein (BL-95)', () => {
+    // Der Aktions-Bereich war der Vektor des Defekts, nicht sein Opfer: der einzige
+    // jemals dort platzierte Knopf (Baum-Vollbild) nahm der Reihe 79 px und schob „Story"
+    // bei 375 px vollständig aus dem Bild. Er sitzt jetzt in der Baum-Insel, wo er auch
+    // im Vollbild erreichbar bleibt. Eine künftige Lens-Aktion gehört ebenfalls dorthin
+    // oder in eine eigene Zeile — nicht wieder neben die Segmente.
     const { container } = render(LensViewHeader, { props: { active: 'tree', onNavigate: vi.fn() } });
 
     expect(container.querySelector('.lens-view-header__actions')).toBeNull();
-  });
-
-  it('mit actions-Snippet erscheint der Kontext-Aktionen-Bereich rechts neben dem Umschalter', () => {
-    const { container, getByRole } = render(LensViewHeaderActionsHarness, {
-      props: { active: 'tree', onNavigate: vi.fn() },
-    });
-
-    const actions = container.querySelector('.lens-view-header__actions');
-    expect(actions).toBeTruthy();
-    expect(getByRole('button', { name: /Vollbild/ })).toBeTruthy();
   });
 });
 
@@ -88,16 +81,4 @@ describe('LensViewHeader — auf Desktop trägt die Sidebar die Lenses (Spec 21 
     }
   });
 
-  it('behält den Aktions-Bereich, der KEIN Lens-Wechsel ist (z. B. Vollbild)', () => {
-    unpin();
-    const unpinDesktop = pinLayout(true);
-    try {
-      render(LensViewHeader, {
-        props: { active: 'tree', onNavigate: vi.fn(), actions: createRawSnippet(() => ({ render: () => '<button>Vollbild</button>' })) },
-      });
-      expect(screen.getByRole('button', { name: 'Vollbild' })).toBeTruthy();
-    } finally {
-      unpinDesktop();
-    }
-  });
 });

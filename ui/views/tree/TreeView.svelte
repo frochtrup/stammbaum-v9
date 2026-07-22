@@ -36,7 +36,6 @@
 
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: TreeIslandHandle | null = null;
-  let fullscreen = $state(false);
 
   const focusId = $derived(viewState.getCurrent('lensFocus') ?? firstAvailablePersonId());
 
@@ -47,11 +46,6 @@
 
   function recenter(id: string): void {
     viewState.setCurrent('lensFocus', id);
-  }
-
-  function toggleFullscreen(): void {
-    fullscreen = !fullscreen;
-    handle?.toggleFullscreen();
   }
 
   $effect(() => {
@@ -81,13 +75,11 @@
 </script>
 
 <div class="tree-view">
-  <LensViewHeader active="tree" onNavigate={(lens) => onNavigateLens?.(lens)}>
-    {#snippet actions()}
-      <button type="button" class="tree-view__fs-btn" onclick={toggleFullscreen}>
-        {fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild'}
-      </button>
-    {/snippet}
-  </LensViewHeader>
+  <!-- Kein `actions`-Snippet mehr: der Vollbild-Schalter sitzt in der Insel selbst
+       (BL-95). Er war hier oben im Vollbild unerreichbar (die Insel legt sich als
+       `position: fixed` darüber) UND nahm dem Lens-Umschalter 79 px, wodurch „Story"
+       aus dem Bild rutschte. -->
+  <LensViewHeader active="tree" onNavigate={(lens) => onNavigateLens?.(lens)} />
   {#if !focusId}
     <p class="tree-view__empty">Keine Person geladen.</p>
   {/if}
@@ -100,17 +92,6 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
-  }
-
-  .tree-view__fs-btn {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
   }
 
   .tree-view__empty {
