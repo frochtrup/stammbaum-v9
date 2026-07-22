@@ -15,6 +15,7 @@ Grund-Legende: `bug-fix` = v8 war falsch · `by-design` = Format-/Konventions-Gr
 | DEV-03 | GRAMPS-Roundtrip (`Unsere Familie.gramps`), Whitespace zwischen Attributen/Elementen | v8 gibt GRAMPS über den DOM-Serializer aus (normalisierte Ausgabe) | v9 gibt den struktur-erhaltenden XML-Baum mit deterministischer 2-Space-Einrückung + Einfach-Space-Attributtrennung aus. Die Quelldatei enthält vereinzelt unregelmäßige Attribut-Abstände (`<url  href`, trailing space) — v9 normiert sie. KEIN Datenverlust (Element-/Attribut-/Textparität geprüft), Ziel ist `xml1===xml2` (Writer-Idempotenz, Spec 13 §6), nicht Byte-Gleichheit zur Quelle | `by-design` | `tests/roundtrip/gramps-familie.roundtrip.test.ts` › RT-1 (`xml1===xml2`); `tests/roundtrip/gramps-mini.roundtrip.test.ts` › INV-PT-Fälle |
 | DEV-04 | Strict-Export (`format:'strict'`) | v8 lässt `_`-Tags weg / mappt sie (bewusst nicht verlustfrei) | v9 identisch: `_UID`→`REFN`+`TYPE UID`, `_RUFNAME`→`NICK`, `_FREL`/`_MREL`→`PEDI`, `_EVAL`/`_HYPO`/… weg. Roundtrip-stabil (`strict(strict)===strict`), aber by-design verlustbehaftet | `by-design` | `tests/core/interop-strict.test.ts` |
 | DEV-05 | GED7-Export (`format:'7.0'`) | v8: `REFN`→`EXID`, `1 NOTE Kein bekanntes Ereignis: X`→`1 NO X`, `NOTE`→`SNOTE`, `_TRAN`→`TRAN`, `RELA`→`ROLE`, CHAR/FORM raus | v9 identisch via reinem Baum-Adapter | `by-design` | `tests/core/interop-ged7.test.ts` |
+| DEV-06 | Anonymisierter Export, FAM-Records mit lebendem Partner | v8 schreibt FAM-Records ungefiltert (`writeGEDCOM` reicht `_livingSet` nur an `writeINDIRecord` weiter) — gemessen an `MeineDaten_ancestris.ged` bleiben 265 `MARR`-Daten und 31 `MARR`-Orte lebender Paare in der „anonymisierten" Datei stehen | v9 schwärzt FAM-Records mit mindestens einem lebenden PARTNER: `HUSB`/`WIFE`/`CHIL` bleiben (Spec 13 §7 „Familienlinks bleiben"), Ereignisdetails (`MARR`/`DIV` samt `DATE`/`PLAC`/`SOUR`, `NCHI`) fallen weg. Ein Hochzeitsdatum ist ein personenbezogenes Datum der Lebenden | `bug-fix` | `tests/core/interop-anonymize-doc.test.ts` › „FAM mit lebendem Partner behält HUSB/WIFE/CHIL, verliert aber MARR mit Datum und Ort" |
 
 ## Offene Kandidaten (noch nicht berührt)
 
@@ -42,10 +43,21 @@ Grund-Legende: `bug-fix` = v8 war falsch · `by-design` = Format-/Konventions-Gr
   auf synthetisierten Knoten). Scope: INDI/FAM/SOUR/REPO (die vier Typen mit Save-Kommandos);
   Notes/Places laufen über eigene Kanäle (Spec 11 §2). GRAMPS-Write-Back bleibt offen.
 
-### Anonymisierung / GRAMPS-Vollprojektion — bewusst offen
-- **`buildLivingSet`/`anonymizeIndi`** sind implementiert + unit-getestet (Spec 13 §7);
-  die Verdrahtung eines vollständigen anonymisierten *Datei-Exports* (alle Records durch
-  den Baum-Filter) ist ein dünner App-Adapter und noch nicht als Datei-Roundtrip getestet.
+### Anonymisierung / GRAMPS-Vollprojektion
+- **Anonymisierter Datei-Export — IMPLEMENTIERT (2026-07-22, BL-138/ADR-v9-113):**
+  `anonymizeDoc(doc, referenceYear)` führt alle Records durch den Baum-Filter, der
+  Export-Schalter `anonymizeReferenceYear` hängt am einen Rohr (`services/file/export-pipe.ts`)
+  und erzwingt `_anon`-Suffix + Download. Zwei Punkte, die vorher nur als „dünner Adapter"
+  galten und es nicht waren: (a) die **BFS-Bremse** — v9s Propagation lief ohne `dead`-Set
+  durch datiert Verstorbene und klassifizierte 2767 von 2795 Personen als lebend, das
+  Orakel 689; jetzt Orakel-Parität (kein DEV-Eintrag, es ist ein Defektfix, kein Diff).
+  (b) FAM-Records, s. **DEV-06** oben. Verriegelt durch
+  `tests/core/interop-anonymize-doc.test.ts` + den Anon-Block in
+  `tests/services/export-pipe.test.ts`. **Offen bleibt die Bedienfläche** (BL-119) — bis
+  dahin hat der Schalter keinen Aufrufer in `ui/`/`app/`.
+- **Anonymisierung + GRAMPS** ist nicht umgesetzt (die Schwärzung arbeitet auf
+  GEDCOM-Records): das Rohr wirft in dieser Kombination, statt still eine unanonymisierte
+  Datei zu liefern.
 - **GRAMPS-Modell-Projektion** deckt die Kern-Entitäten ab (Person/Familie/Quelle/Archiv/
   Notiz); die Fidelity hängt am erhaltenen XML-Baum, nicht an der Projektionstiefe. Ereignis-
   und Zitat-Deref über Handles ins Modell ist für den Roundtrip nicht nötig und offen.
