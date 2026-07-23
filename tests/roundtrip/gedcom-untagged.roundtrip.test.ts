@@ -21,7 +21,7 @@ import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/i
 import { savePerson } from '../../core/model';
 import { assembleLines, calcNetDelta, firstDiff } from './roundtrip-helpers';
 
-const UNTAGGED = readFileSync(join(__dirname, '../fixtures/mini.untagged.ged'), 'utf8');
+const UNTAGGED = readFileSync(join(__dirname, '../fixtures/mini.untagged.small.ged'), 'utf8');
 
 describe('(a) unberührt: die Zerlegung leckt nicht in die Datei', () => {
   it('RT-1: out1 === out2 (Byte-Idempotenz)', () => {

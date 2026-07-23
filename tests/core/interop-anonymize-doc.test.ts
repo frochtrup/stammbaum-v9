@@ -12,9 +12,18 @@
 //       Datenverlust am Original.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseGedcom, buildLivingSet, anonymizeDoc, child, children, serializeGedcom } from '../../core/interop';
+
+// Die große Orakel-Fixture ist privat und gitignored (Datenschutz + Repo-Größe, s.
+// .gitignore: nur *.small.ged wird eingecheckt) — auf dem CI-Runner fehlt sie. Der
+// Mengenanker-Block läuft daher NUR lokal (skipIf, dasselbe Muster wie
+// gedcom-ancestris.roundtrip.test.ts). Der eigentliche CI-Wächter gegen einen Rückfall
+// der BFS-Bremse ist der synthetische „BFS-Bremse"-Block oben (inline-Fixture, kein
+// File) — negativ verifiziert: Bremse raus ⇒ er wird rot.
+const ANCESTRIS = join(__dirname, '..', 'fixtures', 'MeineDaten_ancestris.ged');
+const ancestrisPresent = existsSync(ANCESTRIS);
 
 /**
  * Drei Generationen an EINER Linie: die jüngste lebt, die beiden Vorfahren sind
@@ -125,9 +134,9 @@ describe('BFS-Bremse: Propagation läuft nur über UNDATIERTE Verwandte (Spec 13
   });
 });
 
-describe('Mengenanker am echten Bestand (ADR-v9-113: 689 statt 2767 von 2795)', () => {
+describe.skipIf(!ancestrisPresent)('Mengenanker am echten Bestand (ADR-v9-113: 689 statt 2767 von 2795)', () => {
   it('MeineDaten_ancestris.ged, Bezugsjahr 2026', () => {
-    const text = readFileSync(join(__dirname, '..', 'fixtures', 'MeineDaten_ancestris.ged'), 'utf8');
+    const text = readFileSync(ANCESTRIS, 'utf8');
     const { db } = parseGedcom(text);
     expect(db.individuals.size).toBe(2795);
     // Die Zahl selbst ist der Nutzen: kippt die Bremse wieder heraus, springt sie auf 2767
