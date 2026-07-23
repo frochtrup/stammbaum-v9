@@ -25,12 +25,11 @@
 // (`DTD_ORDER` unten). Die Ordnungstabellen stammen aus grampsxml.dtd 1.7.2.
 //
 // ── Handles, nicht IDs. GRAMPS verweist ausschließlich über `handle`; die menschenlesbare
-// `id` (I0001) ist nur ein Etikett. Das Modell hält als Schlüssel die `id` (ersatzweise das
-// Handle, s. `grampsKey`), in Familien-Referenzen aber die Handles aus der Datei. Wer eine
-// Familienbindung im Modell ändert, hinterlässt dort daher je nach Weg eine id ODER ein
-// Handle — `alsHandle()` löst beides auf. Dass Projektion und Referenzen zwei verschiedene
-// Schlüsselarten benutzen, ist ein eigener Befund (BL-136), nicht hier zu heilen: dieses
-// Modul sorgt nur dafür, dass das Write-Back keine toten Verweise erzeugt.
+// `id` (I0001) ist nur ein Etikett. Das Modell hält als Schlüssel die `id` — und seit BL-136
+// auch in den REFERENZEN die id (`projectFamily`/`projectSource` übersetzen die Datei-Handles
+// beim Lesen über `buildRefIndex`). Beim Schreiben ist der Weg umgekehrt: `toHandle()` bildet
+// die Modell-id wieder auf ihr Datei-Handle ab (ein bereits gültiges Handle bleibt). So sind
+// Store-Schlüssel und Referenzen durchgängig id-basiert, die Datei bleibt handle-basiert.
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
@@ -38,6 +37,7 @@ import type { Database, Family, Note, Person, Repository, Source } from '../mode
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 import {
+  buildRefIndex,
   grampsKey,
   projectFamily,
   projectNote,
@@ -45,6 +45,7 @@ import {
   projectRepository,
   projectSource,
 } from './gramps';
+import type { GrampsRefIndex } from './gramps';
 
 /** Kind-Reihenfolge laut grampsxml.dtd 1.7.2 — maßgeblich für das EINFÜGEN neuer Elemente. */
 const DTD_ORDER: Record<string, string[]> = {
@@ -137,32 +138,33 @@ function neuesHandle(id: string): string {
   return `_stb${id.replace(/[^A-Za-z0-9]/g, '')}`;
 }
 
-interface HandleIndex {
-  /** Modell-Schlüssel (id) → Handle, aus dem vorhandenen Baum. */
-  byKey: Map<string, string>;
-  /** Alle bekannten Handles — um „ist das schon ein Handle?" zu beantworten. */
-  handles: Set<string>;
-}
-
-function indexPersonen(peopleSec: XmlNode | null): HandleIndex {
-  const byKey = new Map<string, string>();
-  const handles = new Set<string>();
-  for (const person of peopleSec ? childrenByTag(peopleSec, 'person') : []) {
-    const h = attr(person, 'handle');
-    if (h) handles.add(h);
-    byKey.set(grampsKey(person), h);
+/**
+ * Schreib-Index: der Handle↔id-Index des vorhandenen Baums, ergänzt um die künftigen
+ * Handles NEUER db-Records (Person/Archiv), die noch nicht im Baum stehen. So findet eine
+ * Familien-/Quellen-Referenz auf einen frisch angelegten Record dasselbe Handle, das
+ * `neuerRecord` ihm gleich zuweist — kein toter Verweis (das Kernversprechen dieses Moduls).
+ */
+function buildWriteIndex(root: XmlNode, db: Database): GrampsRefIndex {
+  const index = buildRefIndex(root);
+  const referenzierbar = [...db.individuals.keys(), ...db.repositories.keys()];
+  for (const id of referenzierbar) {
+    if (index.idToHandle.has(id)) continue;
+    const h = neuesHandle(id);
+    index.idToHandle.set(id, h);
+    index.handleToId.set(h, id);
+    index.handles.add(h);
   }
-  return { byKey, handles };
+  return index;
 }
 
 /**
- * Übersetzt einen Modell-Verweis in ein GRAMPS-Handle. Ein bereits gültiges Handle bleibt;
- * eine Modell-id wird über den Index aufgelöst. Bleibt beides erfolglos, wird der Wert
- * unverändert durchgereicht — erfinden wäre schlimmer als eine erkennbare Fremdreferenz.
+ * Übersetzt einen Modell-Verweis (id) in ein GRAMPS-Handle. Ein bereits gültiges Handle
+ * bleibt; eine Modell-id wird über den Index aufgelöst. Bleibt beides erfolglos, wird der
+ * Wert unverändert durchgereicht — erfinden wäre schlimmer als eine erkennbare Fremdreferenz.
  */
-function alsHandle(ref: string, idx: HandleIndex): string {
-  if (ref === '' || idx.handles.has(ref)) return ref;
-  return idx.byKey.get(ref) ?? ref;
+function toHandle(ref: string, index: GrampsRefIndex): string {
+  if (ref === '' || index.handles.has(ref)) return ref;
+  return index.idToHandle.get(ref) ?? ref;
 }
 
 // ── Aktualisierung je Entität (nur die erkannten Elemente) ──────────────────────────────
@@ -185,16 +187,16 @@ function personKinder(orig: XmlNode, cur: Person): XmlNode[] {
   return children;
 }
 
-function familyKinder(orig: XmlNode, cur: Family, idx: HandleIndex): XmlNode[] {
-  let children = setzeAttribut(orig.children, DTD_ORDER.family, 'father', 'hlink', alsHandle(cur.husband ?? '', idx));
-  children = setzeAttribut(children, DTD_ORDER.family, 'mother', 'hlink', alsHandle(cur.wife ?? '', idx));
+function familyKinder(orig: XmlNode, cur: Family, index: GrampsRefIndex): XmlNode[] {
+  let children = setzeAttribut(orig.children, DTD_ORDER.family, 'father', 'hlink', toHandle(cur.husband ?? '', index));
+  children = setzeAttribut(children, DTD_ORDER.family, 'mother', 'hlink', toHandle(cur.wife ?? '', index));
 
   // childref ist mehrwertig: der ganze Block wird an der Stelle des ersten vorhandenen
   // childref ersetzt (Reihenfolge der Kinder kommt aus dem Modell), vorhandene Attribute
   // je Kind (z. B. `mrel="Birth"`) bleiben erhalten, solange das Kind bleibt.
   const alteRefs = new Map(childrenByTag(orig, 'childref').map((c) => [attr(c, 'hlink'), c]));
   const neueRefs = cur.children.map((ref) => {
-    const h = alsHandle(ref, idx);
+    const h = toHandle(ref, index);
     return alteRefs.get(h) ?? knoten('childref', '', [['hlink', h]]);
   });
   const ersteIdx = children.findIndex((c) => c.tag === 'childref');
@@ -209,12 +211,12 @@ function familyKinder(orig: XmlNode, cur: Family, idx: HandleIndex): XmlNode[] {
   return out;
 }
 
-function sourceKinder(orig: XmlNode, cur: Source): XmlNode[] {
+function sourceKinder(orig: XmlNode, cur: Source, index: GrampsRefIndex): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.source, 'stitle', cur.title);
   children = setzeText(children, DTD_ORDER.source, 'sauthor', cur.author);
   children = setzeText(children, DTD_ORDER.source, 'spubinfo', cur.publisher);
   children = setzeText(children, DTD_ORDER.source, 'sabbrev', cur.abbr);
-  return setzeAttribut(children, DTD_ORDER.source, 'reporef', 'hlink', cur.repo ?? '');
+  return setzeAttribut(children, DTD_ORDER.source, 'reporef', 'hlink', toHandle(cur.repo ?? '', index));
 }
 
 function repoKinder(orig: XmlNode, cur: Repository): XmlNode[] {
@@ -232,11 +234,13 @@ function noteKinder(orig: XmlNode, cur: Note): XmlNode[] {
 const personGleich = (a: Person, b: Person): boolean =>
   a.sex === b.sex && a.given === b.given && a.surname === b.surname && a.prefix === b.prefix && a.nick === b.nick;
 
-const familyGleich = (a: Family, b: Family, idx: HandleIndex): boolean =>
-  (a.husband ?? '') === alsHandle(b.husband ?? '', idx) &&
-  (a.wife ?? '') === alsHandle(b.wife ?? '', idx) &&
+// Beide Seiten halten seit BL-136 die Modell-id (a projiziert über denselben Index wie beim
+// Parsen, b aus dem Modell) — direkter id-Vergleich, kein Handle-Umweg mehr nötig.
+const familyGleich = (a: Family, b: Family): boolean =>
+  (a.husband ?? '') === (b.husband ?? '') &&
+  (a.wife ?? '') === (b.wife ?? '') &&
   a.children.length === b.children.length &&
-  a.children.every((h, i) => h === alsHandle(b.children[i], idx));
+  a.children.every((h, i) => h === b.children[i]);
 
 const sourceGleich = (a: Source, b: Source): boolean =>
   a.title === b.title && a.author === b.author && a.abbr === b.abbr && a.publisher === b.publisher &&
@@ -307,7 +311,7 @@ function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
  */
 export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument {
   const root = doc.root;
-  const idx = indexPersonen(firstChild(root, 'people'));
+  const index = buildWriteIndex(root, db);
 
   const sektionen: XmlNode[] = [];
   const ersetzt = new Map<string, XmlNode | null>();
@@ -317,12 +321,13 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   }));
   ersetzt.set('families', verarbeiteSektion(root, {
     section: 'families', item: 'family', map: db.families,
-    project: projectFamily, gleich: (a, b) => familyGleich(a, b, idx),
-    kinder: (orig, cur) => familyKinder(orig, cur, idx),
+    project: (n) => projectFamily(n, index), gleich: familyGleich,
+    kinder: (orig, cur) => familyKinder(orig, cur, index),
   }));
   ersetzt.set('sources', verarbeiteSektion(root, {
     section: 'sources', item: 'source', map: db.sources,
-    project: projectSource, gleich: sourceGleich, kinder: sourceKinder,
+    project: (n) => projectSource(n, index), gleich: sourceGleich,
+    kinder: (orig, cur) => sourceKinder(orig, cur, index),
   }));
   ersetzt.set('repositories', verarbeiteSektion(root, {
     section: 'repositories', item: 'repository', map: db.repositories,

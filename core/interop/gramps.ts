@@ -40,6 +40,51 @@ export function grampsKey(node: XmlNode): string {
   return attr(node, 'id') || attr(node, 'handle');
 }
 
+/**
+ * Handle ↔ Modell-id für den ganzen Baum (BL-136). GRAMPS verweist ausschließlich über
+ * `handle` (`<father hlink="_x">`); die Records liegen im Modell aber unter ihrer
+ * GEDCOM-konformen `id` (Handles sind Fidelity-Felder, KEINE Primär-IDs — ADR-v9-11).
+ * Ohne diese Übersetzung liefen Store-Schlüssel (id) und Referenzen (handle) auseinander:
+ * keine einzige Familien-/Quellen-Referenz wäre auflösbar. GRAMPS-Handles sind global
+ * eindeutig, ein Index über alle Sektionen genügt.
+ */
+export interface GrampsRefIndex {
+  handleToId: Map<string, string>;
+  idToHandle: Map<string, string>;
+  handles: Set<string>;
+}
+
+const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes'];
+
+export function buildRefIndex(root: XmlNode): GrampsRefIndex {
+  const handleToId = new Map<string, string>();
+  const idToHandle = new Map<string, string>();
+  const handles = new Set<string>();
+  for (const secName of REF_SECTIONS) {
+    const sec = firstChild(root, secName);
+    if (!sec) continue;
+    for (const node of sec.children) {
+      const h = attr(node, 'handle');
+      if (!h) continue;
+      handles.add(h);
+      const id = grampsKey(node);
+      handleToId.set(h, id);
+      idToHandle.set(id, h);
+    }
+  }
+  return { handleToId, idToHandle, handles };
+}
+
+/**
+ * Datei-Handle → Modell-id beim Lesen. Ein unbekanntes Handle wird unverändert
+ * durchgereicht — eine echte Fremd-/Dangling-Referenz bleibt erkennbar, statt erfunden
+ * zu werden (Gegenstück zu `alsHandle` beim Schreiben).
+ */
+function resolveRef(hlink: string, index: GrampsRefIndex): string {
+  if (hlink === '') return hlink;
+  return index.handleToId.get(hlink) ?? hlink;
+}
+
 export function projectPerson(person: XmlNode): Person {
   const p = makePerson(grampsKey(person));
   const gender = firstChild(person, 'gender');
@@ -56,24 +101,24 @@ export function projectPerson(person: XmlNode): Person {
   return p;
 }
 
-export function projectFamily(family: XmlNode): Family {
+export function projectFamily(family: XmlNode, index: GrampsRefIndex): Family {
   const f = makeFamily(grampsKey(family));
   const father = firstChild(family, 'father');
   const mother = firstChild(family, 'mother');
-  f.husband = father ? attr(father, 'hlink') : null;
-  f.wife = mother ? attr(mother, 'hlink') : null;
-  f.children = childrenByTag(family, 'childref').map((c) => attr(c, 'hlink'));
+  f.husband = father ? resolveRef(attr(father, 'hlink'), index) : null;
+  f.wife = mother ? resolveRef(attr(mother, 'hlink'), index) : null;
+  f.children = childrenByTag(family, 'childref').map((c) => resolveRef(attr(c, 'hlink'), index));
   return f;
 }
 
-export function projectSource(source: XmlNode): Source {
+export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   const s = makeSource(grampsKey(source));
   s.title = firstChild(source, 'stitle')?.text ?? '';
   s.author = firstChild(source, 'sauthor')?.text ?? '';
   s.abbr = firstChild(source, 'sabbrev')?.text ?? '';
   s.publisher = firstChild(source, 'spubinfo')?.text ?? '';
   const reporef = firstChild(source, 'reporef');
-  if (reporef) s.repo = attr(reporef, 'hlink');
+  if (reporef) s.repo = resolveRef(attr(reporef, 'hlink'), index);
   return s;
 }
 
@@ -101,6 +146,9 @@ export function parseXMLText(xml: string): GrampsParsed {
   const doc = parseXml(xml);
   const db = makeDatabase();
   const root = doc.root;
+  // Handle→id-Index über den ganzen Baum, bevor irgendeine Referenz projiziert wird
+  // (BL-136): Familien-/Quellen-Referenzen zeigen dann auf Store-Schlüssel, nicht Handles.
+  const index = buildRefIndex(root);
 
   const peopleSec = firstChild(root, 'people');
   if (peopleSec) {
@@ -113,7 +161,7 @@ export function parseXMLText(xml: string): GrampsParsed {
   const familiesSec = firstChild(root, 'families');
   if (familiesSec) {
     for (const family of childrenByTag(familiesSec, 'family')) {
-      const f = projectFamily(family);
+      const f = projectFamily(family, index);
       db.families.set(f.id, f);
     }
   }
@@ -121,7 +169,7 @@ export function parseXMLText(xml: string): GrampsParsed {
   const sourcesSec = firstChild(root, 'sources');
   if (sourcesSec) {
     for (const source of childrenByTag(sourcesSec, 'source')) {
-      const s = projectSource(source);
+      const s = projectSource(source, index);
       db.sources.set(s.id, s);
     }
   }
