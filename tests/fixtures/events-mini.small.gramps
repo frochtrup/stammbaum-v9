@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2026-04-11" version="6.0.6"/>
+    <researcher>
+      <resname>Franz Decker</resname>
+    </researcher>
+  </header>
+  <events>
+    <event handle="_e1" change="1" id="E0000">
+      <type>Birth</type>
+      <dateval val="1901-03-15"/>
+      <place hlink="_pl1"/>
+      <description>morgens</description>
+      <citationref hlink="_c1"/>
+    </event>
+    <event handle="_e2" change="1" id="E0001">
+      <type>Death</type>
+      <datestr val="um Ostern"/>
+    </event>
+    <event handle="_e3" change="1" id="E0002">
+      <type>Beschäftigung</type>
+      <dateval val="1930-00-00"/>
+      <_fremdtag foo="bar"/>
+    </event>
+    <event handle="_e4" change="1" id="E0003">
+      <type>Marriage</type>
+      <dateval val="1925-06-01"/>
+      <citationref hlink="_c2"/>
+    </event>
+  </events>
+  <people>
+    <person handle="_p1" change="1" id="I0001">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Max</first>
+        <surname>Muster</surname>
+        <citationref hlink="_c1"/>
+      </name>
+      <eventref hlink="_e1" role="Primary"/>
+      <eventref hlink="_e2" role="Primary"/>
+      <eventref hlink="_e3" role="Primary"/>
+    </person>
+    <person handle="_p2" change="1" id="I0002">
+      <gender>F</gender>
+      <name type="Birth Name">
+        <first>Erna</first>
+        <surname>Beispiel</surname>
+      </name>
+    </person>
+  </people>
+  <families>
+    <family handle="_f1" change="1" id="F0001">
+      <rel type="Married"/>
+      <father hlink="_p1"/>
+      <mother hlink="_p2"/>
+      <eventref hlink="_e4" role="Family"/>
+    </family>
+  </families>
+  <places>
+    <placeobj handle="_pl1" change="1" id="P0001" type="Town">
+      <ptitle>Ochtrup</ptitle>
+      <pname value="Ochtrup"/>
+    </placeobj>
+  </places>
+  <sources>
+    <source handle="_s1" change="1" id="S0001">
+      <stitle>Kirchenbuch Ochtrup</stitle>
+    </source>
+  </sources>
+  <citations>
+    <citation handle="_c1" change="1" id="C0000">
+      <dateval val="1901-03-16"/>
+      <page>S. 42</page>
+      <confidence>4</confidence>
+      <sourceref hlink="_s1"/>
+    </citation>
+    <citation handle="_c2" change="1" id="C0001">
+      <page>Trauregister 12</page>
+      <confidence>2</confidence>
+      <sourceref hlink="_s1"/>
+    </citation>
+  </citations>
+</database>

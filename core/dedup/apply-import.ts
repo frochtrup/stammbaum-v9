@@ -367,5 +367,6 @@ function leeresEreignis(type: string): Event {
     citations: [],
     media: [],
     seen: false,
+    grampsHandle: null,
   };
 }

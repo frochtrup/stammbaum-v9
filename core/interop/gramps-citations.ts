@@ -17,7 +17,7 @@ import type { XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 
 /** GRAMPS-`<confidence>` (0–4) → GEDCOM-QUAY (0–3). 4 (Very High) und 3 (High) → 3. */
-function confidenceToQuay(text: string): Quay {
+export function confidenceToQuay(text: string): Quay {
   const n = parseInt(text, 10);
   if (!Number.isFinite(n) || n <= 0) return 0;
   return (n >= 3 ? 3 : n) as Quay;
@@ -33,6 +33,10 @@ export function projectGrampsCitation(citationNode: XmlNode, resolveSourceId: (h
   return makeCitation(sourceId, {
     page: firstChild(citationNode, 'page')?.text ?? '',
     quay: confidenceToQuay(firstChild(citationNode, 'confidence')?.text ?? ''),
+    // Fidelity-Handle des geteilten <citation>-Records: ordnet das Zitat beim Write-Back
+    // wieder seinem Record zu (BL-142). Das Handle steht am Record selbst, nicht am
+    // <citationref>, damit dieselbe Quelle byte-treu round-trippt, egal wer sie referenziert.
+    grampsHandle: attr(citationNode, 'handle') || null,
   });
 }
 

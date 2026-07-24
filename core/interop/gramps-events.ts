@@ -72,6 +72,8 @@ export function projectGrampsEvent(eventNode: XmlNode, resolvePlace: (hlink: str
   const ev = makeEvent(tag);
   ev.seen = true;
   ev.eventType = eventType;
+  // Fidelity-Handle des geteilten <event>-Records: Zuordnungsschlüssel fürs Write-Back (BL-142).
+  ev.grampsHandle = attr(eventNode, 'handle') || null;
   ev.value = firstChild(eventNode, 'description')?.text ?? '';
   const d = grampsDateOf(eventNode);
   ev.date = d.date;

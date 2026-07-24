@@ -33,7 +33,7 @@
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
-import type { Database, Family, Note, Person, Repository, Source } from '../model/types';
+import type { Citation, Database, Event, Family, Note, Person, Repository, Source } from '../model/types';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 import {
@@ -46,6 +46,10 @@ import {
   projectSource,
 } from './gramps';
 import type { GrampsRefIndex } from './gramps';
+import { buildEnrichContext } from './gramps-enrich';
+import { projectGrampsEvent, tagToGrampsType } from './gramps-events';
+import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
+import { gedcomToGramps, grampsDateOf } from './gramps-date';
 
 /** Kind-Reihenfolge laut grampsxml.dtd 1.7.2 — maßgeblich für das EINFÜGEN neuer Elemente. */
 const DTD_ORDER: Record<string, string[]> = {
@@ -58,7 +62,16 @@ const DTD_ORDER: Record<string, string[]> = {
   source: ['stitle', 'sauthor', 'spubinfo', 'sabbrev', 'noteref', 'objref', 'srcattribute', 'reporef', 'tagref'],
   repository: ['rname', 'type', 'address', 'url', 'noteref', 'tagref'],
   note: ['text', 'style', 'tagref'],
+  // Die vier Datums-Tags stehen als Choice an EINER Position (zwischen type und place bzw.
+  // vor page); zur Laufzeit ist stets höchstens einer da. Reihenfolge unter ihnen egal.
+  event: ['type', 'daterange', 'datespan', 'dateval', 'datestr', 'place', 'cause', 'description',
+    'attribute', 'noteref', 'citationref', 'objref', 'tagref'],
+  citation: ['daterange', 'datespan', 'dateval', 'datestr', 'page', 'confidence',
+    'noteref', 'objref', 'srcattribute', 'sourceref', 'tagref'],
 };
+
+/** Die vier GRAMPS-Datums-Tags (Choice-Gruppe in event/citation). */
+const DATE_TAGS = new Set(['dateval', 'daterange', 'datespan', 'datestr']);
 
 function knoten(tag: string, text = '', attrs: [string, string][] = [], children: XmlNode[] = []): XmlNode {
   return { tag, attrs, children, text };
@@ -128,6 +141,25 @@ function setzeAttribut(
   if (wert === '') return children;
   const neu = [...children];
   neu.splice(einfuegePosition(children, ordnung, tag), 0, knoten(tag, '', [[name, wert]]));
+  return neu;
+}
+
+/**
+ * Setzt das Datums-Element (Choice `dateval|daterange|datespan|datestr`) eines geänderten
+ * Events/Zitats. UNVERÄNDERTES Datum bleibt der ORIGINAL-Knoten — so überleben Qualitäts-/
+ * Kalender-Attribute (`quality`, `cformat`, `dualdated`, `newyear`), die das Modell nicht
+ * trägt, byte-treu, auch wenn ein ANDERES Feld des Records editiert wurde (INV-PT). Nur bei
+ * echter Datums-Änderung wird über `gedcomToGramps` neu gebildet und an der Choice-Position
+ * eingefügt.
+ */
+function setzeDate(children: XmlNode[], ordnung: string[], orig: XmlNode, date: string | null, datePhrase: string): XmlNode[] {
+  const origD = grampsDateOf(orig);
+  if ((origD.date ?? null) === (date ?? null) && origD.datePhrase === datePhrase) return children;
+  const el = gedcomToGramps(date, datePhrase);
+  const ohne = children.filter((c) => !DATE_TAGS.has(c.tag));
+  if (!el) return ohne;
+  const neu = [...ohne];
+  neu.splice(einfuegePosition(ohne, ordnung, el.tag), 0, knoten(el.tag, '', el.attrs));
   return neu;
 }
 
@@ -229,6 +261,35 @@ function noteKinder(orig: XmlNode, cur: Note): XmlNode[] {
   return setzeText(orig.children, DTD_ORDER.note, 'text', cur.text);
 }
 
+/**
+ * Aktualisiert die ERKANNTEN Kinder eines geänderten `<event>`-Records: `<type>` (Rück-
+ * abbildung `tagToGrampsType`), das Datums-Element und `<description>`. NICHT angetastet:
+ * `<place>` (Orts-String→placeobj-Handle ist BL-143, D3), `<citationref>` (das Hinzufügen/
+ * Entfernen ganzer Zitate ist nicht Teil dieses Cuts) und alles Unbekannte (INV-PT).
+ */
+function eventKinder(orig: XmlNode, cur: Event): XmlNode[] {
+  let children = setzeText(orig.children, DTD_ORDER.event, 'type', tagToGrampsType(cur.type, cur.eventType));
+  children = setzeDate(children, DTD_ORDER.event, orig, cur.date, cur.datePhrase);
+  children = setzeText(children, DTD_ORDER.event, 'description', cur.value);
+  return children;
+}
+
+/**
+ * Aktualisiert die erkannten Kinder eines geänderten `<citation>`-Records: `<page>`,
+ * `<confidence>` (QUAY→confidence) und `<sourceref hlink>`. Die `<confidence>` wird NUR
+ * neu geschrieben, wenn der Nutzer die QUAY tatsächlich geändert hat — sonst bleibt der
+ * Original-Wert erhalten (D4 ist verlustbehaftet: 4→3; ohne diesen Schutz würde ein reiner
+ * Seiten-Edit ein „Very High"(4) still auf 3 herabstufen). Datum/Notizen/`srcattribute`
+ * des Zitats bleiben Passthrough (nicht ins Modell projiziert).
+ */
+function citationKinder(orig: XmlNode, cur: Citation, index: GrampsRefIndex): XmlNode[] {
+  let children = setzeText(orig.children, DTD_ORDER.citation, 'page', cur.page);
+  const origConf = firstChild(orig, 'confidence')?.text ?? '';
+  const conf = confidenceToQuay(origConf) === cur.quay ? origConf : String(cur.quay);
+  children = setzeText(children, DTD_ORDER.citation, 'confidence', conf);
+  return setzeAttribut(children, DTD_ORDER.citation, 'sourceref', 'hlink', toHandle(cur.sourceId, index));
+}
+
 // ── Gleichheit: nur die projizierten Felder zählen ──────────────────────────────────────
 
 const personGleich = (a: Person, b: Person): boolean =>
@@ -250,6 +311,20 @@ const repoGleich = (a: Repository, b: Repository): boolean =>
   a.name === b.name && a.type === b.type && a.www === b.www;
 
 const noteGleich = (a: Note, b: Note): boolean => a.text === b.text;
+
+// Event: nur die SCHREIBBAREN projizierten Felder zählen. `place` ist absichtlich AUSGENOMMEN
+// (der Orts-String lässt sich ohne die volle placeobj-Projektion — BL-143 — nicht in ein
+// Handle zurückschreiben; ein reiner Orts-Edit bleibt vorerst folgenlos, statt Unsinn zu
+// schreiben). Zitate sind eigene Records und zählen hier nicht mit.
+const eventGleich = (a: Event, b: Event): boolean =>
+  a.type === b.type &&
+  a.eventType === b.eventType &&
+  (a.date ?? null) === (b.date ?? null) &&
+  a.datePhrase === b.datePhrase &&
+  a.value === b.value;
+
+const citationGleich = (a: Citation, b: Citation): boolean =>
+  a.sourceId === b.sourceId && a.page === b.page && a.quay === b.quay;
 
 // ── Synthese neuer Records ──────────────────────────────────────────────────────────────
 
@@ -304,6 +379,91 @@ function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
   return { ...sec, children: kinder };
 }
 
+// ── GETEILTE Sektionen (Events/Zitate): handle-adressiert, ohne Synthese/Löschung ─────────
+// Anders als die besessenen Records liegen Events/Zitate im Modell NICHT in einem Store,
+// sondern verstreut über Person/Familie — und dieselbe Quelle/derselbe Event kann von
+// mehreren Ownern referenziert und dabei in MEHRERE unabhängige Modell-Kopien projiziert
+// worden sein. Deshalb: (a) Zuordnung über das `grampsHandle`, nicht die id; (b) je Handle
+// werden ALLE Kopien gesammelt — ein geteilter Record gilt als geändert, sobald IRGENDEINE
+// Kopie von der Original-Projektion abweicht (der Nutzer kann jede Kopie editiert haben);
+// (c) ein `<event>`/`<citation>` ohne Modell-Owner (nur Witness-Rolle → ASSO, oder gelöscht)
+// bleibt PASSTHROUGH — das Hinzufügen/Entfernen ganzer geteilter Records berührt die Owner-
+// eventref/citationref-Liste und ist NICHT Teil dieses Cuts (ADR-v9-114 D5-Plan).
+
+interface GeteilteSektion<T> {
+  section: string;
+  item: string;
+  /** Handle → alle Modell-Kopien dieses geteilten Records. */
+  map: Map<string, T[]>;
+  project: (n: XmlNode) => T;
+  gleich: (projiziert: T, aktuell: T) => boolean;
+  kinder: (orig: XmlNode, cur: T) => XmlNode[];
+}
+
+function verarbeiteGeteilteSektion<T>(root: XmlNode, s: GeteilteSektion<T>): XmlNode | null {
+  const sec = firstChild(root, s.section);
+  if (!sec) return null; // geteilte Sektionen entstehen in diesem Cut nicht neu
+  const kinder: XmlNode[] = [];
+  for (const node of sec.children) {
+    if (node.tag !== s.item) {
+      kinder.push(node);
+      continue;
+    }
+    const copies = s.map.get(attr(node, 'handle'));
+    if (!copies || copies.length === 0) {
+      kinder.push(node); // kein Modell-Owner → Passthrough (byte-treu)
+      continue;
+    }
+    const orig = s.project(node);
+    const geaendert = copies.find((c) => !s.gleich(orig, c)); // erste abweichende Kopie gewinnt
+    if (!geaendert) {
+      kinder.push(node); // IDENTISCH — byte-treu
+      continue;
+    }
+    kinder.push({ ...node, children: s.kinder(node, geaendert) });
+  }
+  return { ...sec, children: kinder };
+}
+
+// ── Handle→Modell-Kopien für die geteilten Records ───────────────────────────────────────
+// Nur Objekte MIT `grampsHandle` (GRAMPS-Ursprung) zählen; leere Main-Slots und GEDCOM-
+// Events (Handle null) fallen weg.
+
+function allEvents(db: Database): Event[] {
+  const out: Event[] = [];
+  for (const p of db.individuals.values()) out.push(p.birth, p.chr, p.death, p.buri, ...p.events);
+  for (const f of db.families.values()) out.push(f.marriage, f.engagement, ...f.events);
+  return out;
+}
+
+function pushByHandle<T extends { grampsHandle: string | null }>(m: Map<string, T[]>, c: T): void {
+  if (!c.grampsHandle) return;
+  const list = m.get(c.grampsHandle);
+  if (list) list.push(c);
+  else m.set(c.grampsHandle, [c]);
+}
+
+function buildEventMap(db: Database): Map<string, Event[]> {
+  const m = new Map<string, Event[]>();
+  for (const e of allEvents(db)) pushByHandle(m, e);
+  return m;
+}
+
+function buildCitationMap(db: Database): Map<string, Citation[]> {
+  const m = new Map<string, Citation[]>();
+  const add = (c: Citation): void => pushByHandle(m, c);
+  for (const p of db.individuals.values()) {
+    p.nameCitations.forEach(add);
+    p.topLevelCitations.forEach(add);
+    p.extraNames.forEach((n) => n.citations.forEach(add));
+    p.childOf.forEach((cl) => cl.citations.forEach(add));
+    p.associations.forEach((a) => a.citations.forEach(add));
+  }
+  for (const f of db.families.values()) f.citations.forEach(add);
+  for (const e of allEvents(db)) e.citations.forEach(add);
+  return m;
+}
+
 /**
  * Projiziert `db` in den GRAMPS-Baum. Unveränderte Records bleiben identisch; geänderte
  * behalten ihren Passthrough; neue kommen hinzu, gelöschte fallen weg. Reine Funktion —
@@ -336,6 +496,21 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   ersetzt.set('notes', verarbeiteSektion(root, {
     section: 'notes', item: 'note', map: db.notes,
     project: projectNote, gleich: noteGleich, kinder: noteKinder,
+  }));
+
+  // GETEILTE Records (Events/Zitate): handle-adressiert, ohne Synthese/Löschung. Die
+  // Re-Projektion zum Vergleich braucht dieselben Auflöser wie der Parser (Orts-String,
+  // Quellen-Handle→id) — buildEnrichContext stellt sie aus dem Baum + Schreib-Index.
+  const enrich = buildEnrichContext(root, index);
+  ersetzt.set('events', verarbeiteGeteilteSektion(root, {
+    section: 'events', item: 'event', map: buildEventMap(db),
+    project: (n) => projectGrampsEvent(n, enrich.resolvePlace),
+    gleich: eventGleich, kinder: eventKinder,
+  }));
+  ersetzt.set('citations', verarbeiteGeteilteSektion(root, {
+    section: 'citations', item: 'citation', map: buildCitationMap(db),
+    project: (n) => projectGrampsCitation(n, enrich.resolveSourceId),
+    gleich: citationGleich, kinder: (orig, cur) => citationKinder(orig, cur, index),
   }));
 
   for (const kind of root.children) {

@@ -51,6 +51,13 @@ export interface Citation {
   eval: EvidenceEval | null;
   /** = media[0].file (OBJE/FILE), NICHT page. */
   deepLinkUrl: string;
+  /**
+   * Roundtrip-Fidelity: Handle des geteilten GRAMPS-`<citation>`-Records, aus dem dieses
+   * Zitat projiziert wurde (ADR-v9-11/114). Nur auf der GRAMPS-Seite gesetzt; GEDCOM ignoriert
+   * es (bleibt null). Das Write-Back ordnet ein geändertes Modell-Zitat über das Handle
+   * wieder seinem `<citation>`-Record zu (BL-142). `null` = kein GRAMPS-Ursprung / neu.
+   */
+  grampsHandle: string | null;
 }
 
 /** FAMC-Mitgliedschaft als Kind — Beziehungstyp lebt INDI-seitig (INV-P4). */
@@ -113,6 +120,14 @@ export interface Event {
   media: MediaRef[];
   /** INV-P5: bewahrt leere-aber-vorhandene Blöcke (`1 BIRT` ohne Sub-Tags). */
   seen: boolean;
+  /**
+   * Roundtrip-Fidelity: Handle des geteilten GRAMPS-`<event>`-Records, aus dem dieses
+   * Ereignis projiziert wurde (ADR-v9-11/114). GRAMPS-Events sind Top-Level und geteilt;
+   * das Handle ordnet ein geändertes Modell-Event beim Write-Back wieder seinem `<events>`-
+   * Record zu (BL-142). Nur GRAMPS-seitig gesetzt; GEDCOM ignoriert es. `null` = kein
+   * GRAMPS-Ursprung / neu (GEDCOM-Import, leerer Main-Slot).
+   */
+  grampsHandle: string | null;
 }
 
 export interface Person {
