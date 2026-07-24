@@ -14,7 +14,7 @@
 // sie den AppState-Chokepoint direkt aufruft (INV-ARCH-1, Schale -> Dienste). Der
 // GRAMPS-Text ist bereits ENTPACKT (der Picker gunzip-t, s. picker-adapter.ts).
 import { parseXMLText } from '../../core/interop';
-import { applyPlaceResolution } from '../../services/places';
+import { applyPlaceResolution, mergeGrampsPlaces } from '../../services/places';
 import type { AppState } from './app-state.svelte';
 import type { PlacesPersister } from './places-persister';
 import type { LoadGedcomTextResult } from './load-gedcom-text';
@@ -32,9 +32,18 @@ export async function loadGrampsText(
 ): Promise<LoadGedcomTextResult> {
   const parsed = parseXMLText(xml);
 
+  // BL-143: parseXMLText hat die NATIVEN placeObjects/hofObjects aus den `<placeobj>`-Records
+  // der Datei gefüllt (Quelle der Wahrheit). Mit dem persistierten orte.json MERGEN statt
+  // überschreiben — sonst gingen Datei-Hierarchie/Koordinaten verloren. Der Merge übernimmt
+  // aus orte.json nur, was die Datei nicht hält (datei-fremde/gebootete Höfe, app-privater
+  // shortName); für den Rest gewinnt der native Datei-Stand.
   const loaded = await persister.load();
-  parsed.db.placeObjects = loaded.placeObjects;
-  parsed.db.hofObjects = loaded.hofObjects;
+  const merged = mergeGrampsPlaces(
+    { placeObjects: parsed.db.placeObjects, hofObjects: parsed.db.hofObjects },
+    { placeObjects: loaded.placeObjects, hofObjects: loaded.hofObjects },
+  );
+  parsed.db.placeObjects = merged.placeObjects;
+  parsed.db.hofObjects = merged.hofObjects;
 
   const resolution = applyPlaceResolution(parsed.db);
 

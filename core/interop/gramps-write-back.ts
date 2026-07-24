@@ -34,6 +34,7 @@
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
 import type { Citation, Database, Event, Family, Note, Person, Repository, Source } from '../model/types';
+import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
@@ -48,9 +49,11 @@ import {
 } from './gramps';
 import type { GrampsRefIndex } from './gramps';
 import { buildEnrichContext } from './gramps-enrich';
-import { projectGrampsEvent, tagToGrampsType } from './gramps-events';
+import { descriptionIsAddress, projectGrampsEvent, tagToGrampsType } from './gramps-events';
+import { projectBuildingHof, projectPlaceobj } from './gramps-places';
 import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
+import { parseCoord } from './gedcom-parse';
 
 /** Kind-Reihenfolge laut grampsxml.dtd 1.7.2 — maßgeblich für das EINFÜGEN neuer Elemente. */
 const DTD_ORDER: Record<string, string[]> = {
@@ -69,6 +72,8 @@ const DTD_ORDER: Record<string, string[]> = {
     'attribute', 'noteref', 'citationref', 'objref', 'tagref'],
   citation: ['daterange', 'datespan', 'dateval', 'datestr', 'page', 'confidence',
     'noteref', 'objref', 'srcattribute', 'sourceref', 'tagref'],
+  placeobj: ['ptitle', 'pname', 'code', 'coord', 'placeref', 'location', 'url',
+    'noteref', 'objref', 'tagref'],
 };
 
 /** Die vier GRAMPS-Datums-Tags (Choice-Gruppe in event/citation). */
@@ -381,7 +386,8 @@ function noteKinder(orig: XmlNode, cur: Note): XmlNode[] {
 function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.event, 'type', tagToGrampsType(cur.type, cur.eventType));
   children = setzeDate(children, DTD_ORDER.event, orig, cur.date, cur.datePhrase);
-  children = setzeText(children, DTD_ORDER.event, 'description', cur.value);
+  // BL-143: bei RESI/PROP trägt `<description>` die Adresse (event.addr), sonst den Wert.
+  children = setzeText(children, DTD_ORDER.event, 'description', eventDescription(cur));
   children = reconcileRefs(children, DTD_ORDER.event, 'citationref', () => true,
     cur.citations.map((c) => citHandle(wb, c)), citationref);
   return children;
@@ -425,16 +431,21 @@ const repoGleich = (a: Repository, b: Repository): boolean =>
 
 const noteGleich = (a: Note, b: Note): boolean => a.text === b.text;
 
+// Der `<description>`-Wert eines Events: bei RESI/PROP die Adresse (event.addr), sonst der
+// Freitext-Wert (BL-143). Genau die Umkehrung von `projectGrampsEvent`.
+const eventDescription = (e: Event): string => (descriptionIsAddress(e.type) ? e.addr : e.value);
+
 // Event: nur die SCHREIBBAREN projizierten Felder zählen. `place` ist absichtlich AUSGENOMMEN
 // (der Orts-String lässt sich ohne die volle placeobj-Projektion — BL-143 — nicht in ein
 // Handle zurückschreiben; ein reiner Orts-Edit bleibt vorerst folgenlos, statt Unsinn zu
-// schreiben). Zitate sind eigene Records und zählen hier nicht mit.
+// schreiben). Zitate sind eigene Records und zählen hier nicht mit. `<description>` deckt je
+// nach Typ `value` ODER `addr` ab (RESI/PROP, BL-143) — `eventDescription` löst das auf.
 const eventGleich = (a: Event, b: Event): boolean =>
   a.type === b.type &&
   a.eventType === b.eventType &&
   (a.date ?? null) === (b.date ?? null) &&
   a.datePhrase === b.datePhrase &&
-  a.value === b.value;
+  eventDescription(a) === eventDescription(b);
 
 const citationGleich = (a: Citation, b: Citation): boolean =>
   a.sourceId === b.sourceId && a.page === b.page && a.quay === b.quay;
@@ -722,6 +733,171 @@ function bereinigeVerwaiste(root: XmlNode): XmlNode {
   return { ...root, children };
 }
 
+// ── GETEILTE Sektion `<places>` (BL-143) ────────────────────────────────────────────────
+// Orte sind — wie Events/Zitate — Top-Level-`<placeobj>`-Records, von Events per `<place
+// hlink>` geteilt. Anders als jene sind sie im Modell aber 1:1 auf `db.placeObjects` (Schlüssel
+// = placeobj-`id`, z. B. P0000) bzw. Building-Höfe (`hof.grampsId`) abgebildet — kein Multi-
+// Kopie-Problem. Deshalb ein eigener Durchlauf (verwandt mit `verarbeiteSektion`, aber er
+// aktualisiert AUCH das `type`-ATTRIBUT des placeobj, nicht nur Kinder). Unverändert →
+// IDENTISCHER Knoten (byte-treu, net_delta=0 beim reinen Laden/Speichern). AUS RESI/PROP-
+// Adressen gebootete Höfe (`grampsId` fehlt) sind NICHT hier — ihre Adresse round-trippt über
+// das Event-`<description>` (Stage A), nicht als eigenes placeobj (sonst net_delta≠0).
+
+/** Ein Ort ODER ein Building-Hof, adressiert über die placeobj-`id`. */
+type PlaceEntry = { place: PlaceObject } | { hof: HofObject };
+
+const sameYear = (a: number | null, b: number | null): boolean => (a ?? null) === (b ?? null);
+
+/** Setzt/entfernt ein Attribut am Knoten selbst (z. B. `type` am `<placeobj>`). */
+function setzeKnotenAttr(node: XmlNode, name: string, wert: string): XmlNode {
+  const hat = node.attrs.some(([k]) => k === name);
+  if (wert === '') return hat ? { ...node, attrs: node.attrs.filter(([k]) => k !== name) } : node;
+  if (attr(node, name) === wert) return node;
+  const attrs = hat
+    ? node.attrs.map(([k, v]) => (k === name ? [k, wert] : [k, v]) as [string, string])
+    : [...node.attrs, [name, wert] as [string, string]];
+  return { ...node, attrs };
+}
+
+/** Geo-Koordinate zurück ins `N52.15`/`E7.33`-Wire-Format (parseCoord ist die Umkehr). */
+function coordWire(n: number, kind: 'lat' | 'long'): string {
+  const pos = kind === 'lat' ? 'N' : 'E';
+  const neg = kind === 'lat' ? 'S' : 'W';
+  return (n < 0 ? neg : pos) + Math.abs(n);
+}
+
+/**
+ * Setzt das `<coord>`-Element. UNVERÄNDERTE Koordinaten behalten den ORIGINAL-Knoten (byte-
+ * treu — GRAMPS' eigene Präzision `E7.333333` bleibt, statt durch Parse→Emit zu driften);
+ * beide null → Element entfernt; sonst neu gesetzt (nur bei echter Änderung).
+ */
+function setzeCoord(children: XmlNode[], lat: number | null, long: number | null): XmlNode[] {
+  const idx = children.findIndex((c) => c.tag === 'coord');
+  if (idx >= 0) {
+    const alt = children[idx];
+    if (lat === null && long === null) return children.filter((_, i) => i !== idx);
+    if (parseCoord(attr(alt, 'lat')) === lat && parseCoord(attr(alt, 'long')) === long) return children;
+    const neu = [...children];
+    neu[idx] = { ...alt, attrs: [['lat', coordWire(lat!, 'lat')], ['long', coordWire(long!, 'long')]] };
+    return neu;
+  }
+  if (lat === null && long === null) return children;
+  const neu = [...children];
+  neu.splice(einfuegePosition(children, DTD_ORDER.placeobj, 'coord'), 0,
+    knoten('coord', '', [['lat', coordWire(lat!, 'lat')], ['long', coordWire(long!, 'long')]]));
+  return neu;
+}
+
+/**
+ * Reconciliation der `<pname>`-Liste aus `pnames` (mehrwertig): vorhandene `<pname>` mit
+ * gleichem `value` bleiben AN IHRER STELLE (bewahren `lang`/Datums-Kinder byte-treu), entfallene
+ * fallen weg, neue kommen an die DTD-Position. `value` ist der Schlüssel (der Anzeigename).
+ */
+function reconcilePnames(children: XmlNode[], pnames: readonly { value: string }[]): XmlNode[] {
+  const alt = new Map(children.filter((c) => c.tag === 'pname').map((c) => [attr(c, 'value'), c]));
+  const want = pnames.map((n) => n.value);
+  const neuePnames = want.map((v) => alt.get(v) ?? knoten('pname', '', [['value', v]]));
+  const ersteIdx = children.findIndex((c) => c.tag === 'pname');
+  const ohne = children.filter((c) => c.tag !== 'pname');
+  const ziel = ersteIdx >= 0
+    ? children.slice(0, ersteIdx).filter((c) => c.tag !== 'pname').length
+    : einfuegePosition(ohne, DTD_ORDER.placeobj, 'pname');
+  const out = [...ohne];
+  out.splice(ziel, 0, ...neuePnames);
+  return out;
+}
+
+/**
+ * Reconciliation der `<placeref>`-Kette (enclosedBy): vorhandene Refs mit gleichem Ziel-Handle
+ * bleiben AN IHRER STELLE (bewahren ihre `<dateval>`-Kinder), entfallene fallen weg, neue
+ * kommen ans Ende des Ref-Blocks. Ziel-Handle = `toHandle(placeId)`.
+ */
+function reconcilePlacerefs(children: XmlNode[], enclosedBy: readonly { placeId: string }[], index: GrampsRefIndex): XmlNode[] {
+  return reconcileRefs(children, DTD_ORDER.placeobj, 'placeref', () => true,
+    enclosedBy.map((r) => toHandle(r.placeId, index)),
+    (h) => knoten('placeref', '', [['hlink', h]]));
+}
+
+// Gleichheit: nur die schreibbaren projizierten Felder. `dateRaw` ist abgeleitet (aus from/to
+// projiziert), zählt nicht mit; `note`/`existsFrom`/… haben kein GRAMPS-Pendant (Passthrough).
+const sameNames = (a: PlaceObject['pnames'], b: PlaceObject['pnames']): boolean =>
+  a.length === b.length && a.every((n, i) => n.value === b[i].value && sameYear(n.from, b[i].from) && sameYear(n.to, b[i].to));
+const sameRefs = (a: PlaceObject['enclosedBy'], b: PlaceObject['enclosedBy']): boolean =>
+  a.length === b.length && a.every((r, i) => r.placeId === b[i].placeId && sameYear(r.from, b[i].from) && sameYear(r.to, b[i].to));
+
+const placeGleich = (a: PlaceObject, b: PlaceObject): boolean =>
+  a.title === b.title && a.type === b.type && a.lat === b.lat && a.long === b.long &&
+  sameNames(a.pnames, b.pnames) && sameRefs(a.enclosedBy, b.enclosedBy);
+
+const hofGleich = (a: HofObject, b: HofObject): boolean =>
+  a.villageId === b.villageId && a.lat === b.lat && a.long === b.long &&
+  (a.addrs[0]?.value ?? '') === (b.addrs[0]?.value ?? '');
+
+/** Ist der `<placeobj>`-Knoten unverändert gegenüber seinem Modell-Eintrag? */
+function placeobjUnveraendert(node: XmlNode, entry: PlaceEntry, index: GrampsRefIndex): boolean {
+  const resolve = (h: string): string => index.handleToId.get(h) ?? h;
+  if ('place' in entry) {
+    if (attr(node, 'type') === 'Building') return false; // Ort ↔ Building-Wechsel = Änderung
+    return placeGleich(projectPlaceobj(node, resolve), entry.place);
+  }
+  if (attr(node, 'type') !== 'Building') return false;
+  return hofGleich(projectBuildingHof(node, resolve, new Map()), entry.hof);
+}
+
+/** Aktualisiert einen geänderten `<placeobj>`-Knoten (Attribut `type` + erkannte Kinder). */
+function updatePlaceobj(node: XmlNode, entry: PlaceEntry, index: GrampsRefIndex): XmlNode {
+  if ('place' in entry) {
+    const po = entry.place;
+    let children = setzeText(node.children, DTD_ORDER.placeobj, 'ptitle', po.title);
+    children = reconcilePnames(children, po.pnames);
+    children = setzeCoord(children, po.lat, po.long);
+    children = reconcilePlacerefs(children, po.enclosedBy, index);
+    return { ...setzeKnotenAttr(node, 'type', po.type), children };
+  }
+  const hof = entry.hof;
+  const addr = hof.addrs[0]?.value ?? '';
+  let children = setzeText(node.children, DTD_ORDER.placeobj, 'ptitle', addr);
+  children = reconcilePnames(children, [{ value: addr }]);
+  children = setzeCoord(children, hof.lat, hof.long);
+  children = reconcilePlacerefs(children, hof.villageId ? [{ placeId: hof.villageId }] : [], index);
+  return { ...setzeKnotenAttr(node, 'type', 'Building'), children };
+}
+
+/** Synthetisiert einen NEUEN `<placeobj>` (Ort oder Building-Hof) für einen model-only-Eintrag. */
+function synthPlaceobj(id: string, entry: PlaceEntry, index: GrampsRefIndex): XmlNode {
+  const node = knoten('placeobj', '', [['handle', neuesHandle(id)], ['change', '0'], ['id', id]]);
+  return updatePlaceobj(node, entry, index);
+}
+
+/** id (placeobj-`id` bzw. `hof.grampsId`) → Modell-Eintrag; Building-Höfe nur MIT grampsId. */
+function buildPlaceMap(db: Database): Map<string, PlaceEntry> {
+  const m = new Map<string, PlaceEntry>();
+  for (const [id, po] of db.placeObjects) m.set(id, { place: po });
+  for (const hof of db.hofObjects.values()) if (hof.grampsId) m.set(hof.grampsId, { hof });
+  return m;
+}
+
+/** Durchlauf der `<places>`-Sektion: unverändert → identisch, geändert → aktualisiert, model-los → entfernt, model-only → synthetisiert. */
+function verarbeitePlaces(root: XmlNode, map: Map<string, PlaceEntry>, index: GrampsRefIndex): XmlNode | null {
+  const sec = firstChild(root, 'places');
+  const gesehen = new Set<string>();
+  const kinder: XmlNode[] = [];
+  for (const node of sec ? sec.children : []) {
+    if (node.tag !== 'placeobj') { kinder.push(node); continue; }
+    const key = grampsKey(node);
+    gesehen.add(key);
+    const entry = map.get(key);
+    if (!entry) continue; // im Modell gelöscht → weglassen
+    kinder.push(placeobjUnveraendert(node, entry, index) ? node : updatePlaceobj(node, entry, index));
+  }
+  for (const [key, entry] of map) {
+    if (gesehen.has(key)) continue;
+    kinder.push(synthPlaceobj(key, entry, index));
+  }
+  if (!sec) return kinder.length ? knoten('places', '', [], kinder) : null;
+  return { ...sec, children: kinder };
+}
+
 /**
  * Projiziert `db` in den GRAMPS-Baum. Unveränderte Records bleiben identisch; geänderte
  * behalten ihren Passthrough; neue kommen hinzu, gelöschte/verwaiste fallen weg. Reine
@@ -777,10 +953,13 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
     synth: (id, cur) => synthCitation(id, cur, wb),
   }));
 
+  // GETEILTE Records `<places>` (BL-143): Orts-/Building-Hof-Edits zurückschreiben.
+  ersetzt.set('places', verarbeitePlaces(root, buildPlaceMap(db), index));
+
   const sektionen: XmlNode[] = [];
   for (const kind of root.children) {
     if (!ersetzt.has(kind.tag)) {
-      sektionen.push(kind); // places, objects, header … unangetastet
+      sektionen.push(kind); // objects, header … unangetastet
       continue;
     }
     const neu = ersetzt.get(kind.tag);

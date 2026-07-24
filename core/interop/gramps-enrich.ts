@@ -26,6 +26,13 @@ export interface EnrichContext {
   citationOf: (handle: string) => XmlNode | null;
   /** `<place hlink>` → Orts-String (placeobj ptitle, ersatzweise erster pname). D3. */
   resolvePlace: (handle: string) => string;
+  /**
+   * `<place hlink>` → native Modell-Bindung (placeId ODER hofId), aus der projizierten
+   * `<places>`-Sektion (BL-143). Bindet den Event-Ort direkt an das native placeobj — kein
+   * String-Matching (robuster als der findByName-Fallback in applyPlaceResolution). `null`,
+   * wenn das Handle kein bekanntes placeobj trifft (Fremd-/Dangling-Verweis).
+   */
+  resolvePlaceLink: (handle: string) => { placeId?: string; hofId?: string } | null;
   /** `<sourceref hlink>` → Quellen-Modell-`id` (BL-136-Handle→id). */
   resolveSourceId: (handle: string) => string;
 }
@@ -42,8 +49,16 @@ function indexSection(root: XmlNode, section: string, item: string): Map<string,
   return m;
 }
 
-/** Baut die Auflösungs-Kontexte aus dem Baum (Events/Citations/Placeobj + BL-136-Index). */
-export function buildEnrichContext(root: XmlNode, index: GrampsRefIndex): EnrichContext {
+/**
+ * Baut die Auflösungs-Kontexte aus dem Baum (Events/Citations/Placeobj + BL-136-Index).
+ * `placeLink` (BL-143, aus `projectPlaces`) bindet `<place hlink>` nativ an placeId/hofId;
+ * ohne Argument (Write-Back-Aufrufer, der nur den String braucht) bleibt die Bindung leer.
+ */
+export function buildEnrichContext(
+  root: XmlNode,
+  index: GrampsRefIndex,
+  placeLink?: Map<string, { placeId?: string; hofId?: string }>,
+): EnrichContext {
   const events = indexSection(root, 'events', 'event');
   const citations = indexSection(root, 'citations', 'citation');
   const places = indexSection(root, 'places', 'placeobj');
@@ -58,6 +73,7 @@ export function buildEnrichContext(root: XmlNode, index: GrampsRefIndex): Enrich
       const pname = firstChild(p, 'pname');
       return pname ? attr(pname, 'value') : '';
     },
+    resolvePlaceLink: (h) => placeLink?.get(h) ?? null,
     resolveSourceId: (h) => index.handleToId.get(h) ?? h,
   };
 }
@@ -68,6 +84,15 @@ function projectEventRef(ref: XmlNode, ctx: EnrichContext): Event | null {
   if (!eventNode) return null;
   const e = projectGrampsEvent(eventNode, ctx.resolvePlace);
   e.citations = collectCitations(eventNode, ctx.citationOf, ctx.resolveSourceId);
+  // BL-143: den Event-Ort NATIV ans placeobj binden (placeId/hofId per handle→id), statt ihn
+  // dem String-Resolver zu überlassen. `event.place` behält den ptitle-String (Anzeige).
+  const placeRef = firstChild(eventNode, 'place');
+  if (placeRef) {
+    const link = ctx.resolvePlaceLink(attr(placeRef, 'hlink'));
+    // Building-Bindung setzt BEIDES (hofId + dessen Dorf-placeId); Verwaltungs-Bindung nur placeId.
+    if (link?.hofId != null) e.hofId = link.hofId;
+    if (link?.placeId != null) e.placeId = link.placeId;
+  }
   return e;
 }
 

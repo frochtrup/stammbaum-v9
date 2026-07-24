@@ -81,6 +81,16 @@ export interface HofObject {
   govId: string | null;
   govTypes: string[] | null;
   schemaVersion: number;
+  /**
+   * Roundtrip-Fidelity: die GRAMPS-`id` (P0000) des `<placeobj type="Building">`, aus dem
+   * dieser Hof projiziert wurde (BL-143). Optional — gesetzt NUR für Building-Ursprungs-Höfe;
+   * `null`/fehlend bei GEDCOM-Höfen und bei Höfen, die aus einer RESI/PROP-`<description>`
+   * gebootet wurden (deren Adresse round-trippt über das Event-`<description>`, NICHT als
+   * eigenes `<placeobj>` — sonst entstünde beim reinen Laden/Speichern net_delta≠0). Nur der
+   * placeobj-Write-Back liest es; GEDCOM ignoriert es. Die `id` selbst bleibt deterministisch
+   * (`_hof_<addrSlug>_<villageSlug>`), damit die Hof-Identität formatunabhängig gilt.
+   */
+  grampsId?: string | null;
 }
 
 /** Nach oben abgeschlossene Sammlung der aufgelösten Orts-/Hof-Welt. */

@@ -14,20 +14,22 @@ import { applyPlaceResolution } from '../../services/places';
 
 const grampsXml = readFileSync(join(__dirname, '../fixtures/events-mini.small.gramps'), 'utf8');
 
-describe('BL-141 — GRAMPS-Orts-Strings → placeId (String-Weg)', () => {
-  it('bindet den projizierten Event-Ort an eine placeId und legt das PlaceObject an', () => {
+describe('BL-141/143 — GRAMPS-Orts-Bindung', () => {
+  it('bindet den Event-Ort NATIV beim Parsen an das placeobj (BL-143, ersetzt den String-Weg)', () => {
     const { db } = parseXMLText(grampsXml);
-    const vorher = db.individuals.get('I0001')!.birth;
-    expect(vorher.place).toBe('Ochtrup'); // BL-140: ptitle als String
-    expect(vorher.placeId).toBeNull(); // noch nicht aufgelöst
+    const birth = db.individuals.get('I0001')!.birth;
+    // BL-143: der `<place hlink>` bindet direkt ans native placeobj (P0001) — schon beim
+    // Parsen, ohne String-Resolution. `event.place` behält den ptitle-String (Anzeige).
+    expect(birth.place).toBe('Ochtrup');
+    expect(birth.placeId).toBe('P0001');
+    expect(db.placeObjects.get('P0001')?.title).toBe('Ochtrup');
 
+    // applyPlaceResolution ist idempotent: die native Bindung bleibt, kein Duplikat-Seed.
     const res = applyPlaceResolution(db);
-
     const nachher = db.individuals.get('I0001')!.birth;
-    expect(nachher.place).toBe('Ochtrup'); // String bleibt
-    expect(nachher.placeId).not.toBeNull(); // jetzt gebunden
-    expect(db.placeObjects.get(nachher.placeId!)?.title).toBe('Ochtrup');
-    expect(res.placeObjectsGrew).toBe(true);
+    expect(nachher.placeId).toBe('P0001');
+    expect(db.placeObjects.size).toBe(1); // kein zweiter „Ochtrup"
+    expect(res.placeObjectsGrew).toBe(false);
   });
 
   it('ist derselbe Dienst wie beim GEDCOM-Import — kein zweiter Pfad', () => {

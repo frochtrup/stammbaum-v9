@@ -62,6 +62,20 @@ export function tagToGrampsType(tag: string, eventType: string): string {
 }
 
 /**
+ * Event-Typen, deren `<description>` eine ADRESSE ist (nicht Beruf/Notiz) — das Wohn- bzw.
+ * Grundstücks-Ereignis (BL-143). GRAMPS kennt keine Event-`<address>`; die Straße/Hausnummer
+ * (`Nienborger Damm 1`) steht bei diesen Typen im `<description>`. Für sie projiziert die
+ * description auf `event.addr` (füttert den Hof-Apparat — Identität = villageId+addr — und
+ * wird beim GEDCOM-Export zu `ADDR`), NICHT auf `value`; symmetrisch im Write-Back. Nur
+ * RESI/PROP: eine OCCU-`<description>` ist der Beruf (`Diplom-Ingenieur`), eine CENS-
+ * `<description>` eine Notiz — beide bleiben `value`.
+ */
+const ADDRESS_DESC_TAGS = new Set(['RESI', 'PROP']);
+export function descriptionIsAddress(tag: string): boolean {
+  return ADDRESS_DESC_TAGS.has(tag);
+}
+
+/**
  * Ein GRAMPS-`<event>`-Knoten → Modell-`Event`. `resolvePlace` liefert den Orts-String zu
  * einem `<place hlink>` (D3: nur String; die Auflösung placeobj→ptitle stellt der Aufrufer).
  * Zitate bleiben hier leer — sie kommen in Stufe 1c (`<citationref>`) dazu.
@@ -75,7 +89,11 @@ export function projectGrampsEvent(eventNode: XmlNode, resolvePlace: (hlink: str
   // Fidelity-id des geteilten <event>-Records (E0000, ersatzweise Handle): stabiler
   // Zuordnungsschlüssel fürs Write-Back (BL-142/144, id-basiert wie alle Refs — BL-136).
   ev.grampsId = attr(eventNode, 'id') || attr(eventNode, 'handle') || null;
-  ev.value = firstChild(eventNode, 'description')?.text ?? '';
+  // BL-143: bei RESI/PROP ist die <description> die Adresse → event.addr (Hof-Apparat/ADDR-
+  // Export); sonst der Freitext-Wert (Beruf/Notiz) → event.value. Symmetrisch im Write-Back.
+  const desc = firstChild(eventNode, 'description')?.text ?? '';
+  if (descriptionIsAddress(tag)) ev.addr = desc;
+  else ev.value = desc;
   const d = grampsDateOf(eventNode);
   ev.date = d.date;
   ev.datePhrase = d.datePhrase;

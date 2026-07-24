@@ -5,6 +5,8 @@ export { PlacesSyncService } from './places-sync-service';
 export type { LoadedPlaces, ConflictWarning, ReconcileResult, SyncBase } from './places-sync-service';
 export { createPlacesSyncService } from './create-places-sync-service';
 export { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from './apply-resolution';
+export { mergeGrampsPlaces } from './merge-gramps-places';
+export type { GrampsPlaceState } from './merge-gramps-places';
 export type { ApplyResolutionResult } from './apply-resolution';
 export { IdbPlacesStore } from './idb-places-store';
 export { LocalStorageDeviceIdProvider } from './device-id-adapter';

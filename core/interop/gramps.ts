@@ -17,6 +17,7 @@ import { parseXml, serializeXml, attr, firstChild, childrenByTag } from './xml-t
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { applyDatabaseToXml } from './gramps-write-back';
 import { buildEnrichContext, enrichPerson, enrichFamily } from './gramps-enrich';
+import { projectPlaces } from './gramps-places';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
 export interface GrampsParsed {
@@ -59,7 +60,11 @@ export interface GrampsRefIndex {
 // `id` referenziert (BL-142/144): das Write-Back braucht `id → handle`, um Owner-`<eventref>`/
 // `<citationref>` zu schreiben. Handles sind global eindeutig, ein Index über alle Sektionen
 // bleibt korrekt (die zusätzlichen Einträge stören keine Person-/Quellen-Auflösung).
-const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes', 'events', 'citations'];
+// `places` ist seit BL-143 mit aufgenommen: `<placeref hlink>` (enclosedBy-Kette) und der
+// Village-Verweis eines Building-Hofs referenzieren placeobjs per Handle; das Modell hält sie
+// über ihre `id` (P0000). Ohne diesen Eintrag blieben placeobj-Referenzen als rohe Handles
+// stehen (id↔handle für den placeobj-Write-Back gälte ebenfalls nicht).
+const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes', 'events', 'citations', 'places'];
 
 export function buildRefIndex(root: XmlNode): GrampsRefIndex {
   const handleToId = new Map<string, string>();
@@ -154,9 +159,15 @@ export function parseXMLText(xml: string): GrampsParsed {
   // Handle→id-Index über den ganzen Baum, bevor irgendeine Referenz projiziert wird
   // (BL-136): Familien-/Quellen-Referenzen zeigen dann auf Store-Schlüssel, nicht Handles.
   const index = buildRefIndex(root);
+  // BL-143: die native `<places>`-Sektion (Verwaltungshierarchie + Building-Höfe) VOR den
+  // Events projizieren — die Events binden ihren `<place hlink>` dann direkt an die native
+  // placeId/hofId (kein String-Seeding nötig; der Village-Seed überspringt aufgelöste Events).
+  const projectedPlaces = projectPlaces(root, (h) => index.handleToId.get(h) ?? h);
+  db.placeObjects = projectedPlaces.placeObjects;
+  db.hofObjects = projectedPlaces.hofObjects;
   // Auflösungs-Kontext für die Lese-Anreicherung (BL-140 Stufe 1d): Ereignisse/Zitate/Orte
   // liegen als Top-Level-Records vor und werden je Person/Familie per Handle nachgezogen.
-  const enrich = buildEnrichContext(root, index);
+  const enrich = buildEnrichContext(root, index, projectedPlaces.linkByHandle);
 
   const peopleSec = firstChild(root, 'people');
   if (peopleSec) {
