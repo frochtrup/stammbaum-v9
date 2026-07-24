@@ -9,10 +9,15 @@
 // INV-ARCH-1 gilt hier NICHT (das ist services/, nicht core/) — Plattform-Referenzen
 // sind in Adaptern ausdrücklich erlaubt und vorgesehen (Spec 02 §7).
 
+import type { DocFormat } from './doc-format';
+
 /** Die eine Arbeitskopie (INV-FILE-1): aktueller Dateitext + Name + optionaler FS-Handle. */
 export interface WorkingCopy {
+  /** Kanonischer Text: GEDCOM roh, GRAMPS als ENTPACKTES XML (gzip nur beim Datei-Export). */
   text: string;
   name: string;
+  /** Format der Arbeitskopie — steuert Auto-Load-Pfad + Auto-Save-Serializer (BL-139). */
+  format?: DocFormat;
   /** Undurchsichtiges Handle-Objekt (z. B. FileSystemFileHandle) — nur für Tier-1-Save relevant. */
   handle?: unknown;
 }
@@ -21,6 +26,7 @@ export interface WorkingCopy {
 export interface ImportResult {
   text: string;
   name: string;
+  format: DocFormat;
   handle?: unknown;
 }
 
@@ -46,8 +52,10 @@ export interface WorkingCopyStore {
 
 /** Ergebnis eines Öffnen-Vorgangs über den Picker-Adapter. */
 export interface PickedFile {
+  /** Entpackter Text (GRAMPS gunzip-XML / GEDCOM roh). */
   text: string;
   name: string;
+  format: DocFormat;
   handle?: unknown;
 }
 

@@ -19,6 +19,7 @@
   import { exportFileName } from '../../../services/file';
   import type { FileService } from '../../../services/file';
   import type { AppState } from '../../shell/app-state.svelte';
+  import { untrack } from 'svelte';
   import { baseNameOf, exportGedcom, type UiExportFormat } from '../../shell/save-action';
 
   interface Props {
@@ -32,14 +33,26 @@
   }
   const { appState, fileService, handle, referenceYear }: Props = $props();
 
-  const FORMATE: ReadonlyArray<{ id: UiExportFormat; label: string }> = [
+  // GRAMPS wird NUR angeboten, wenn ein `.gramps` geladen ist (dann round-trippt der Export
+  // voll — BL-139/140/142/144); aus einem GEDCOM-Ursprung wäre ein GRAMPS-Export hohl
+  // (ADR-v9-113). Umgekehrt bleiben die GEDCOM-Cross-Exporte aus einem GRAMPS-Dokument
+  // erlaubt (GEDCOM ist Master, das Modell ist vollständig).
+  const FORMATE = $derived<ReadonlyArray<{ id: UiExportFormat; label: string }>>([
+    ...(appState.docFormat === 'gramps'
+      ? [{ id: 'gramps' as const, label: 'GRAMPS (nativ, Round-trip)' }]
+      : []),
     { id: 'gedcom-5.5.1', label: 'GEDCOM 5.5.1 (Standard)' },
     { id: 'gedcom-strict', label: 'GEDCOM 5.5.1 strict (ohne Hersteller-Tags)' },
     { id: 'gedcom-7.0', label: 'GEDCOM 7.0' },
-  ];
+  ]);
 
-  let format = $state<UiExportFormat>('gedcom-5.5.1');
+  // Anfangs-Default = natives Format des geladenen Dokuments (nur EINMAL beim Öffnen der
+  // Fläche gelesen — `untrack`, die Fläche wird pro Navigation frisch erzeugt).
+  let format = $state<UiExportFormat>(untrack(() => (appState.docFormat === 'gramps' ? 'gramps' : 'gedcom-5.5.1')));
   let anonymize = $state(false);
+  // Die Schwärzung arbeitet auf GEDCOM-Records (Spec 13 §7) — für den GRAMPS-Export nicht
+  // umgesetzt; dann wird sie ignoriert (Checkbox deaktiviert, kein stiller Un-Anon-Export).
+  const anonAktiv = $derived(anonymize && format !== 'gramps');
   let status = $state<'idle' | 'busy'>('idle');
   let notice = $state('');
 
@@ -47,8 +60,8 @@
   const gesamt = $derived(appState.db.individuals.size);
   // Nur rechnen, wenn die Zahl auch gezeigt wird — ein BFS über den ganzen Bestand bei
   // jedem Tastendruck an einer anderen Stelle wäre Arbeit ohne Betrachter.
-  const geschwaerzt = $derived(anonymize ? buildLivingSet(appState.db, jahr).size : 0);
-  const zielname = $derived(exportFileName(baseNameOf(appState.fileName), format, anonymize));
+  const geschwaerzt = $derived(anonAktiv ? buildLivingSet(appState.db, jahr).size : 0);
+  const zielname = $derived(exportFileName(baseNameOf(appState.fileName), format, anonAktiv));
   // Der Zielname wird nur gezeigt, wenn er vom Original ABWEICHT — bei einem reinen
   // 5.5.1-Export ohne Schwärzung ist er derselbe Name, und die Zeile wäre Rauschen
   // (dieser Fall ist ohnehin der Speichern-Knopf direkt darüber).
@@ -59,7 +72,7 @@
     notice = '';
     notice = await exportGedcom(appState, fileService, {
       format,
-      anonymizeReferenceYear: anonymize ? jahr : undefined,
+      anonymizeReferenceYear: anonAktiv ? jahr : undefined,
       handle,
     });
     status = 'idle';
@@ -83,11 +96,16 @@
     </label>
 
     <label class="export-view__check">
-      <input type="checkbox" checked={anonymize} onchange={(e) => (anonymize = e.currentTarget.checked)} />
-      <span>Lebende Personen anonymisieren (DSGVO)</span>
+      <input
+        type="checkbox"
+        checked={anonymize}
+        disabled={format === 'gramps'}
+        onchange={(e) => (anonymize = e.currentTarget.checked)}
+      />
+      <span>Lebende Personen anonymisieren (DSGVO){format === 'gramps' ? ' — nur für GEDCOM' : ''}</span>
     </label>
 
-    {#if anonymize}
+    {#if anonAktiv}
       <p class="export-view__count" role="status">
         {geschwaerzt} von {gesamt} Personen werden geschwärzt — Name, Daten und Ereignisse fallen weg,
         Familienlinks bleiben. Die Originaldatei wird dabei nie überschrieben.

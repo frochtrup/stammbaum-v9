@@ -91,7 +91,11 @@ function mimeTypeFor(format: ExportFormat): string {
 export async function exportViaOnePipe(fileService: FileService, req: ExportRequest): Promise<SaveResult> {
   const anonymize = req.anonymizeReferenceYear != null;
   const filename = exportFileName(req.baseName, req.format, anonymize);
-  const isInPlaceCapable = req.format === 'gedcom-5.5.1' && !anonymize;
+  // In-place-fähig sind die beiden NATIVEN Round-trip-Formate (5.5.1 und GRAMPS) — sie
+  // behalten Endung + Inhalt der Originaldatei. Strict/GED7 bekommen einen anderen Dateinamen
+  // (Cross-Export), Anonymisierung nie in-place. Der Aufrufer reicht `handle` ohnehin nur,
+  // wenn das Exportformat dem geladenen entspricht (save-action.ts).
+  const isInPlaceCapable = (req.format === 'gedcom-5.5.1' || req.format === 'gramps') && !anonymize;
 
   let bytes: string | Uint8Array;
   if (req.format === 'gramps') {

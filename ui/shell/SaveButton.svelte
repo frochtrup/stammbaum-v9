@@ -8,7 +8,7 @@
   // hier) und reicht es unverändert durch. Nur der Standard-GEDCOM-5.5.1-Pfad — GED7/
   // Strict/GRAMPS/Anonymisierung sind nicht Teil dieser Aktion (separater Export-Dialog,
   // nicht Teil dieser Scheibe).
-  import { saveGedcom } from './save-action';
+  import { saveCurrentDoc } from './save-action';
   import type { FileService } from '../../services/file';
   import type { AppState } from './app-state.svelte';
 
@@ -29,7 +29,7 @@
   async function handleClick() {
     status = 'saving';
     notice = '';
-    notice = await saveGedcom(appState, fileService, handle);
+    notice = await saveCurrentDoc(appState, fileService, handle);
     status = 'idle';
   }
 </script>

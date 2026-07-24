@@ -9,7 +9,7 @@
 //
 // Bewusst framework-frei (kein Rune-State): der Aufrufer hält seinen eigenen
 // "speichert gerade"-Zustand, diese Funktion tut nur die Arbeit und meldet das Ergebnis.
-import { exportViaOnePipe, exportFileName } from '../../services/file';
+import { exportViaOnePipe, exportFileName, gzipCodec } from '../../services/file';
 import type { ExportFormat, FileService } from '../../services/file';
 import type { AppState } from './app-state.svelte';
 
@@ -19,24 +19,31 @@ export function baseNameOf(fileName: string): string {
 }
 
 /**
- * Die GEDCOM-Formate, die die Oberfläche anbietet. GRAMPS fehlt bewusst: die App hält
- * nie ein `grampsDoc`, und der Cross-Export aus dem Modell liefert eine Datei ohne
- * Ereignisse, Orte, Zitate und Daten (BL-139/ADR-v9-113).
+ * Die Formate, die die Oberfläche anbieten KANN. GRAMPS ist nur dann eine sinnvolle Wahl,
+ * wenn tatsächlich ein `.gramps` geladen ist (dann round-trippt der Export voll, BL-139/140/
+ * 142/144) — ein GRAMPS-Cross-Export aus einem GEDCOM-Ursprung wäre hohl (ADR-v9-113). Die
+ * Export-Fläche filtert `gramps` deshalb anhand von `appState.docFormat` heraus.
  */
-export type UiExportFormat = Exclude<ExportFormat, 'gramps'>;
+export type UiExportFormat = ExportFormat;
+
+/** Das native (in-place-fähige) Exportformat des geladenen Dokuments. */
+function nativeFormatOf(appState: AppState): ExportFormat {
+  return appState.docFormat === 'gramps' ? 'gramps' : 'gedcom-5.5.1';
+}
 
 export interface ExportRequestUi {
   format: UiExportFormat;
   /** Gesetzt = anonymisierter Export; der Wert ist das Bezugsjahr (injiziert, TST-3). */
   anonymizeReferenceYear?: number;
-  /** FS-Handle der Originaldatei; wird bei Anon/Strict/GED7 vom Rohr ignoriert. */
+  /** FS-Handle der Originaldatei; wird nur bei format==geladenem Format (in-place) genutzt. */
   handle?: unknown;
 }
 
 /**
  * DER EINE Export-Vorgang der Schale: Speichern-Knopf, ⌘S und die Export-Fläche laufen
  * hier durch. Liefert den anzuzeigenden Hinweis zurück (nie einen Wurf — der Aufrufer
- * soll eine Meldung zeigen, nicht abstürzen).
+ * soll eine Meldung zeigen, nicht abstürzen). Verzweigt formatabhängig zwischen GEDCOM-Doc
+ * und GRAMPS-Doc (+ gzip), aber NUR in der Doc-Wahl — das Save-Rohr bleibt eins (INV-FILE-2).
  */
 export async function exportGedcom(
   appState: AppState,
@@ -45,16 +52,19 @@ export async function exportGedcom(
 ): Promise<string> {
   const baseName = baseNameOf(appState.fileName);
   const anonymize = req.anonymizeReferenceYear != null;
-  // In-place ist nur der unveränderte 5.5.1-Pfad; alles andere bekommt einen neuen
-  // Dateinamen, den die Meldung nennt — sonst sucht der Nutzer eine Datei, die anders heißt.
-  const inPlaceCapable = req.format === 'gedcom-5.5.1' && !anonymize;
+  const isGramps = req.format === 'gramps';
+  // In-place nur, wenn das Exportformat DEM GELADENEN entspricht (gleiche Endung + gleiches
+  // Format wie der Handle zeigt) und nicht anonymisiert wird — sonst neuer Dateiname/Download.
+  const inPlaceCapable = req.format === nativeFormatOf(appState) && !anonymize;
   const filename = exportFileName(baseName, req.format, anonymize);
   try {
     const result = await exportViaOnePipe(fileService, {
       format: req.format,
       baseName,
-      gedcomDoc: appState.buildGedcomDoc(),
-      handle: req.handle,
+      gedcomDoc: isGramps ? undefined : appState.buildGedcomDoc(),
+      grampsDoc: isGramps ? appState.buildGrampsDoc() : undefined,
+      gzip: isGramps ? gzipCodec : undefined,
+      handle: inPlaceCapable ? req.handle : undefined,
       anonymizeReferenceYear: req.anonymizeReferenceYear,
     });
     if (!result.ok) return 'Speichern abgebrochen.';
@@ -67,14 +77,15 @@ export async function exportGedcom(
 }
 
 /**
- * Speichern = ein Export im Standardformat, ohne Schwärzung. Bewusst dieselbe Funktion
- * dahinter (INV-UI-4): wer den Tier-Fallback oder den Dateinamen ändert, ändert ihn für
- * Knopf, Kürzel UND Export-Fläche.
+ * Speichern = ein Export im NATIVEN Format des geladenen Dokuments (GEDCOM 5.5.1 bzw.
+ * GRAMPS — Round-trip), ohne Schwärzung. Bewusst dieselbe Funktion dahinter (INV-UI-4):
+ * wer den Tier-Fallback oder den Dateinamen ändert, ändert ihn für Knopf, Kürzel UND
+ * Export-Fläche.
  */
-export async function saveGedcom(
+export async function saveCurrentDoc(
   appState: AppState,
   fileService: FileService,
   handle?: unknown,
 ): Promise<string> {
-  return exportGedcom(appState, fileService, { format: 'gedcom-5.5.1', handle });
+  return exportGedcom(appState, fileService, { format: nativeFormatOf(appState), handle });
 }

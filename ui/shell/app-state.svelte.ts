@@ -56,8 +56,9 @@ import {
   type ApplyImportResult,
 } from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
-import type { GedNode } from '../../core/interop';
-import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
+import type { GedNode, GrampsParsed, XmlDocument } from '../../core/interop';
+import { applyDatabaseToRoots, serializeGedcom, applyDatabaseToXml, buildXMLText } from '../../core/interop';
+import type { DocFormat } from '../../services/file';
 import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -110,6 +111,24 @@ export interface AppState {
    * denselben internen roots-Projektions-Schritt mit serialize() (kein zweiter Pfad).
    */
   buildGedcomDoc(): { db: Database; roots: GedNode[] };
+  /**
+   * Format des aktuell geladenen Dokuments (BL-139). Steuert den Auto-Save-Serializer
+   * (GEDCOM-Text vs. GRAMPS-XML) und ob die Export-Fläche `gramps` anbietet (nur wenn ein
+   * `.gramps` geladen ist — ein Cross-Export aus GEDCOM-Ursprung wäre hohl, ADR-v9-113).
+   */
+  readonly docFormat: DocFormat;
+  /**
+   * Kommando: lädt ein GRAMPS-Dokument (`parseXMLText`-Ergebnis) — das Gegenstück zu
+   * `loadDatabase` für die GRAMPS-Seite. `doc` ist der Passthrough-XML-Baum (BL-139/144).
+   */
+  loadGrampsDoc(db: Database, fileName: string, doc: XmlDocument): void;
+  /**
+   * Kommando: wie `buildGedcomDoc()`, aber für GRAMPS — projiziert den db-Stand in den
+   * gehaltenen GRAMPS-Baum (`applyDatabaseToXml`) und liefert `{ db, doc }` für das
+   * Export-Rohr (`exportViaOnePipe` gzip-t selbst). Übernimmt das projizierte Doc intern
+   * als neuen Baum (derselbe Idempotenz-Kurzschluss wie `buildGedcomDoc`).
+   */
+  buildGrampsDoc(): GrampsParsed;
   /** Kommando: Upsert eines PlaceObject (`savePlaceObject(model)`-Muster, Spec 20 §1.7 [K]). */
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
@@ -374,6 +393,12 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   // nur unnötigen Proxy-Overhead auf einem potenziell großen Baum (analog `db` selbst,
   // das ebenfalls $state.raw ist statt tief-reaktiv).
   let roots: GedNode[] = [];
+  // GRAMPS-Gegenstück zu `roots` (BL-139): der Passthrough-XML-Baum des zuletzt geladenen
+  // GRAMPS-Dokuments, oder null bei GEDCOM. `docFormat` ist der explizite Format-Schalter —
+  // er entscheidet, welchen Serializer das stille Auto-Save nutzt und ob die Export-Fläche
+  // GRAMPS anbietet. Bewusst KEIN $state (analog `roots`): kein View liest den Baum direkt.
+  let grampsDoc: XmlDocument | null = null;
+  let docFormat: DocFormat = 'gedcom';
   // Undo/Redo (BL-01, ADR-v9-92). Der Stack hält Referenzen auf frühere `db`-Stände;
   // dass diese Stände gültig BLEIBEN, garantiert die Copy-on-Write-Disziplin der
   // Kommandos (core/model/draft.ts, verriegelt in tests/ui/app-state-cow.test.ts).
@@ -423,7 +448,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     roots = applyDatabaseToRoots(db, roots);
     return roots;
   };
-  const serializeInternal = (): string => serializeGedcom({ db, roots: projectRoots() });
+  // GRAMPS-Projektion (BL-139), Spiegel zu projectRoots: schreibt den db-Stand in den
+  // gehaltenen GRAMPS-Baum zurück und übernimmt das Ergebnis als neuen Baum.
+  const projectGramps = (): XmlDocument => {
+    grampsDoc = applyDatabaseToXml(db, grampsDoc ?? { prolog: '', root: { tag: 'database', attrs: [], children: [], text: '' } });
+    return grampsDoc;
+  };
+  // Format-bewusster Auto-Save-Text (Arbeitskopie): GRAMPS als ENTPACKTES XML (gzip erst
+  // beim Datei-Export), GEDCOM als roher Text.
+  const serializeInternal = (): string =>
+    docFormat === 'gramps' ? buildXMLText({ db, doc: projectGramps() }) : serializeGedcom({ db, roots: projectRoots() });
   // Zieht die von einem Hof-Merge gemeldete Umhängung (`hofRemap`, Verlierer → Überlebender)
   // auf alle referenzierenden Ereignisse nach — copy-on-write, es werden nur die Owner
   // geklont, deren Ereignisse tatsächlich auf einen Verlierer zeigten (ADR-v9-92). Leerer
@@ -481,17 +515,34 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = nextDb;
       fileName = nextFileName;
       roots = nextRoots ?? [];
+      grampsDoc = null; // GEDCOM-Ladepfad: kein GRAMPS-Baum, kein GRAMPS-Export angeboten
+      docFormat = 'gedcom';
       // Ein Undo über eine Dateiöffnung hinweg gibt es nicht (ADR-v9-92 Punkt 5) — die
       // abgelegten Zustände gehören zu einem anderen Dokument. Zugleich wird hier der
       // „Revert to Saved"-Bezugspunkt gesetzt (Spec 20 §1.2, Fallback bei leerem Stack).
       stackClear();
       savedState = nextDb;
     },
+    loadGrampsDoc(nextDb, nextFileName, nextDoc) {
+      db = nextDb;
+      fileName = nextFileName;
+      grampsDoc = nextDoc;
+      roots = []; // GRAMPS-Ladepfad: kein GEDCOM-Passthrough
+      docFormat = 'gramps';
+      stackClear();
+      savedState = nextDb;
+    },
+    get docFormat() {
+      return docFormat;
+    },
     serialize() {
       return serializeInternal();
     },
     buildGedcomDoc() {
       return { db, roots: projectRoots() };
+    },
+    buildGrampsDoc() {
+      return { db, doc: projectGramps() };
     },
     savePlace(model) {
       // Bewusst eine plain Map, keine SvelteMap: db ist $state.raw (nicht tief reaktiv) —

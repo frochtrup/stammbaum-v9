@@ -37,7 +37,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
       placeObjects: [place('P1', { title: 'Ochtrup' })],
       hofObjects: [hof('H1', 'P1')]
     };
-    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json' });
+    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json', format: 'gedcom' });
     const handleStore = createMockPlacesFileHandleStore(null);
     const store = createMockPlacesStore(null); // lokal: noch nie etwas gespeichert.
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId('dev-LOCAL'), createMockClock(1000)));
@@ -81,7 +81,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
       placeObjects: [place('P_IMPORTED_ONLY', { title: 'Nur importiert' })],
       hofObjects: []
     };
-    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json' });
+    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json', format: 'gedcom' });
     const handleStore = createMockPlacesFileHandleStore(null);
 
     const result = await importPlacesFile(picker, handleStore, persister);
@@ -102,7 +102,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
       hofObjects: []
     };
     const fakeHandle = { id: 'orte-json-handle' };
-    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json', handle: fakeHandle });
+    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json', format: 'gedcom', handle: fakeHandle });
     const handleStore = createMockPlacesFileHandleStore(null);
     const store = createMockPlacesStore(null);
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000)));
@@ -121,7 +121,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
       placeObjects: [],
       hofObjects: []
     };
-    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json' }); // kein handle
+    const picker = mockPicker({ text: JSON.stringify(importedWrapper), name: 'orte.json', format: 'gedcom' }); // kein handle
     const handleStore = createMockPlacesFileHandleStore({ id: 'bereits-bekannt' });
     const store = createMockPlacesStore(null);
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000)));
@@ -133,7 +133,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
   });
 
   it('wirft einen klaren Fehler bei kaputtem JSON, statt still zu importieren (kein Absturz, Aufrufer fängt/zeigt ihn)', async () => {
-    const picker = mockPicker({ text: '{ kaputtes json', name: 'orte.json' });
+    const picker = mockPicker({ text: '{ kaputtes json', name: 'orte.json', format: 'gedcom' });
     const handleStore = createMockPlacesFileHandleStore(null);
     const store = createMockPlacesStore(null);
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000)));
@@ -145,7 +145,7 @@ describe('importPlacesFile — Bytes rein, INV-FILE-1-Analogie (ein Handle-Store
   });
 
   it('wirft einen klaren Fehler bei fremdem JSON-Format (z. B. eine andere App-Datei), statt still zu importieren', async () => {
-    const picker = mockPicker({ text: JSON.stringify({ unrelated: true }), name: 'irgendwas.json' });
+    const picker = mockPicker({ text: JSON.stringify({ unrelated: true }), name: 'irgendwas.json', format: 'gedcom' });
     const handleStore = createMockPlacesFileHandleStore(null);
     const store = createMockPlacesStore(null);
     const persister = createPlacesPersister(new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000)));

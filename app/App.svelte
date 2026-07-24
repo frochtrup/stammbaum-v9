@@ -20,7 +20,7 @@
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
   import { createFileService, type FileService } from '../services/file';
-  import { loadGedcomText } from '../ui/shell/load-gedcom-text';
+  import { loadDocText } from '../ui/shell/load-doc-text';
   import BottomNav from '../ui/shell/BottomNav.svelte';
   import Sidebar from '../ui/shell/Sidebar.svelte';
   import {
@@ -45,7 +45,7 @@
   import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
   import { isNavCommand, type Command } from '../ui/shell/command-palette-model';
-  import { saveGedcom } from '../ui/shell/save-action';
+  import { saveCurrentDoc } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
@@ -103,7 +103,7 @@
       // Stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1) — fire-and-forget,
       // analog persistPlaces oben. Ändert NICHT die echte Datei (das macht erst der
       // explizite "Speichern"-Button über exportViaOnePipe, s. SaveButton.svelte).
-      fileService.saveWorkingCopy(text, appState.fileName, fileHandle).catch((err) => {
+      fileService.saveWorkingCopy(text, appState.fileName, fileHandle, appState.docFormat).catch((err) => {
         console.error('persistWorkingCopy', err);
       });
     },
@@ -119,7 +119,7 @@
       const copy = await fileService.loadWorkingCopy();
       if (!copy) return;
       fileHandle = copy.handle;
-      const result = await loadGedcomText(copy.text, copy.name, appState, persister);
+      const result = await loadDocText(copy.format ?? 'gedcom', copy.text, copy.name, appState, persister);
       placesEditNotice = result.placesNotice;
     })();
 
@@ -296,7 +296,7 @@
 
   async function runSave() {
     if (!appState.fileName) return;
-    placesEditNotice = await saveGedcom(appState, fileService, fileHandle);
+    placesEditNotice = await saveCurrentDoc(appState, fileService, fileHandle);
   }
 
   // Tastenkürzel der Schale (BL-01 Undo/Redo, BL-08 Speichern/Escape, BL-93 Palette).
