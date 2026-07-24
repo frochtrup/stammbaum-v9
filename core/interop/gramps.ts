@@ -16,6 +16,7 @@ import type { Database, Person, Family, Source, Repository, Note } from '../mode
 import { parseXml, serializeXml, attr, firstChild, childrenByTag } from './xml-tree';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { applyDatabaseToXml } from './gramps-write-back';
+import { buildEnrichContext, enrichPerson, enrichFamily } from './gramps-enrich';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
 export interface GrampsParsed {
@@ -149,11 +150,15 @@ export function parseXMLText(xml: string): GrampsParsed {
   // Handle→id-Index über den ganzen Baum, bevor irgendeine Referenz projiziert wird
   // (BL-136): Familien-/Quellen-Referenzen zeigen dann auf Store-Schlüssel, nicht Handles.
   const index = buildRefIndex(root);
+  // Auflösungs-Kontext für die Lese-Anreicherung (BL-140 Stufe 1d): Ereignisse/Zitate/Orte
+  // liegen als Top-Level-Records vor und werden je Person/Familie per Handle nachgezogen.
+  const enrich = buildEnrichContext(root, index);
 
   const peopleSec = firstChild(root, 'people');
   if (peopleSec) {
     for (const person of childrenByTag(peopleSec, 'person')) {
       const p = projectPerson(person);
+      enrichPerson(p, person, enrich);
       db.individuals.set(p.id, p);
     }
   }
@@ -162,6 +167,7 @@ export function parseXMLText(xml: string): GrampsParsed {
   if (familiesSec) {
     for (const family of childrenByTag(familiesSec, 'family')) {
       const f = projectFamily(family, index);
+      enrichFamily(f, family, enrich);
       db.families.set(f.id, f);
     }
   }
