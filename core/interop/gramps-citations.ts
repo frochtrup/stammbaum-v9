@@ -33,10 +33,11 @@ export function projectGrampsCitation(citationNode: XmlNode, resolveSourceId: (h
   return makeCitation(sourceId, {
     page: firstChild(citationNode, 'page')?.text ?? '',
     quay: confidenceToQuay(firstChild(citationNode, 'confidence')?.text ?? ''),
-    // Fidelity-Handle des geteilten <citation>-Records: ordnet das Zitat beim Write-Back
-    // wieder seinem Record zu (BL-142). Das Handle steht am Record selbst, nicht am
-    // <citationref>, damit dieselbe Quelle byte-treu round-trippt, egal wer sie referenziert.
-    grampsHandle: attr(citationNode, 'handle') || null,
+    // Fidelity-id des geteilten <citation>-Records (C0000, ersatzweise Handle): ordnet das
+    // Zitat beim Write-Back über seine stabile id wieder seinem Record zu (BL-142/144,
+    // id-basiert wie alle GRAMPS-Refs — BL-136). Dieselbe Quelle round-trippt byte-treu,
+    // egal wer sie referenziert.
+    grampsId: attr(citationNode, 'id') || attr(citationNode, 'handle') || null,
   });
 }
 

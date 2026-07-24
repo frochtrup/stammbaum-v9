@@ -55,7 +55,11 @@ export interface GrampsRefIndex {
   handles: Set<string>;
 }
 
-const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes'];
+// Events/Citations sind mit aufgenommen, seit das Modell auch geteilte Records über ihre
+// `id` referenziert (BL-142/144): das Write-Back braucht `id → handle`, um Owner-`<eventref>`/
+// `<citationref>` zu schreiben. Handles sind global eindeutig, ein Index über alle Sektionen
+// bleibt korrekt (die zusätzlichen Einträge stören keine Person-/Quellen-Auflösung).
+const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes', 'events', 'citations'];
 
 export function buildRefIndex(root: XmlNode): GrampsRefIndex {
   const handleToId = new Map<string, string>();

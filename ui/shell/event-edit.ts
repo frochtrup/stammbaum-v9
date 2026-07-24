@@ -132,7 +132,7 @@ export function computeDate(e: EditableEvent): string | null {
 /** Baut ein Event-Objekt aus dem AKTUELLEN Formularzustand (nicht nur dem gespeicherten
  *  Original) — für `linkEventToPlace`/`linkEventToHof`, die den vollen Event-Kontext
  *  (Typ/Datum/Ort/Adresse) für die Jahres-Ableitung + Reprojektion brauchen. Felder ohne
- *  Formular-Entsprechung (lati/long/datePhrase/media/seen/grampsHandle) sind hier neutral belegt — sie
+ *  Formular-Entsprechung (lati/long/datePhrase/media/seen/grampsId) sind hier neutral belegt — sie
  *  fließen weder in die Jahres-Ableitung noch in buildPlacForGedcom ein. */
 export function liveEventFrom(e: EditableEvent): Event {
   return {
@@ -151,7 +151,7 @@ export function liveEventFrom(e: EditableEvent): Event {
     citations: e.citations,
     media: [],
     seen: true,
-    grampsHandle: null,
+    grampsId: null,
   };
 }
 

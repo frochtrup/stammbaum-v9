@@ -6,7 +6,7 @@
 // wird per `<eventref role>` von mehreren Personen/Familien referenziert, ein `<citation>`
 // per `<citationref>` von Event/Name/Person. Das Modell hält sie NICHT in einem eigenen
 // Store, sondern verteilt unter `person.birth`/`events[]`/`family.marriage`/`event.citations`
-// … . Deshalb trägt jedes Modell-`Event`/`Citation` seit BL-142 sein `grampsHandle`
+// … . Deshalb trägt jedes Modell-`Event`/`Citation` seit BL-142 seine `grampsId`
 // (Fidelity-Feld) — der einzige verlässliche Weg, ein geändertes Modell-Objekt wieder
 // seinem `<events>`/`<citations>`-Record zuzuordnen (Positions-/Inhalts-Matching wäre fragil).
 //
@@ -120,7 +120,7 @@ describe('GRAMPS-Event-Write-Back: Änderungen am Event-Record kommen an', () =>
 
   it('schreibt einen geänderten Ereignistyp in <type> (custom EVEN nutzt eventType wörtlich)', () => {
     const parsed = parseXMLText(FIX);
-    const custom = parsed.db.individuals.get('I0001')!.events.find((e) => e.grampsHandle === '_e3')!;
+    const custom = parsed.db.individuals.get('I0001')!.events.find((e) => e.grampsId === 'E0002')!;
     custom.eventType = 'Beruf';
 
     const ev = eventById(applyDatabaseToXml(parsed.db, parsed.doc), 'E0002')!;
@@ -146,7 +146,7 @@ describe('GRAMPS-Event-Write-Back: Änderungen am Event-Record kommen an', () =>
   it('behält unbekannte/passthrough-Kinder eines GEÄNDERTEN Events (INV-PT)', () => {
     const parsed = parseXMLText(FIX);
     // E0002 trägt ein <_fremdtag foo="bar"/> — ein Datums-Edit darf es nicht mitnehmen.
-    parsed.db.individuals.get('I0001')!.events.find((e) => e.grampsHandle === '_e3')!.date = '1931';
+    parsed.db.individuals.get('I0001')!.events.find((e) => e.grampsId === 'E0002')!.date = '1931';
 
     const ev = eventById(applyDatabaseToXml(parsed.db, parsed.doc), 'E0002')!;
     expect(ev.children.some((c) => c.tag === '_fremdtag')).toBe(true);

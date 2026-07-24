@@ -34,6 +34,7 @@
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
 import type { Citation, Database, Event, Family, Note, Person, Repository, Source } from '../model/types';
+import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 import {
@@ -199,9 +200,104 @@ function toHandle(ref: string, index: GrampsRefIndex): string {
   return index.idToHandle.get(ref) ?? ref;
 }
 
+// ── Schreib-Kontext für geteilte Records (Events/Zitate), BL-144 ─────────────────────────
+// Neu HINZUGEFÜGTE Events/Zitate haben (noch) keine `grampsId`. Der Vor-Pass `assignNewIds`
+// vergibt jedem eine frische, im Bestand eindeutige id + Handle und trägt beide in den Index
+// ein; die Maps hier merken sich die Zuordnung Objekt→id für diesen einen Build-Lauf. So
+// findet die Owner-Reconciliation (eventref/citationref) und die Record-Synthese dasselbe
+// Handle. `db` wird NICHT mutiert (Reinheit) — die id lebt nur im Ausgabe-Baum; nach
+// Speichern+Neuladen trägt das dann geparste Objekt sie regulär als `grampsId`.
+interface Wb {
+  index: GrampsRefIndex;
+  evId: Map<Event, string>;
+  citId: Map<Citation, string>;
+}
+
+/** Effektive id eines Events/Zitats: die eigene `grampsId`, sonst die frisch vergebene. */
+const effEvId = (wb: Wb, e: Event): string | null => e.grampsId ?? wb.evId.get(e) ?? null;
+const effCitId = (wb: Wb, c: Citation): string | null => c.grampsId ?? wb.citId.get(c) ?? null;
+/** Datei-Handle eines Events/Zitats über seine (effektive) id (Index nach `assignNewIds`). */
+const evHandle = (wb: Wb, e: Event): string => {
+  const id = effEvId(wb, e);
+  return id ? toHandle(id, wb.index) : '';
+};
+const citHandle = (wb: Wb, c: Citation): string => {
+  const id = effCitId(wb, c);
+  return id ? toHandle(id, wb.index) : '';
+};
+
+/** Die vom Personen-Owner besessenen (Rolle „Primary") Events — nur die vorhandenen. */
+function personOwnedEvents(p: Person): Event[] {
+  return [p.birth, p.chr, p.death, p.buri, ...p.events].filter(isEventPresent);
+}
+/** Die vom Familien-Owner besessenen (Rolle „Family") Events — nur die vorhandenen. */
+function familyOwnedEvents(f: Family): Event[] {
+  return [f.marriage, f.engagement, ...f.events].filter(isEventPresent);
+}
+
+const hlinksOf = (children: XmlNode[], tag: string, keep?: (n: XmlNode) => boolean): string[] =>
+  children.filter((c) => c.tag === tag && (!keep || keep(c))).map((c) => attr(c, 'hlink'));
+
+/** Zwei Handle-Listen als Menge gleich (Reihenfolge egal — Add/Remove-Erkennung)? */
+function sameHandleSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sb = new Set(b);
+  return a.every((h) => sb.has(h));
+}
+
+/**
+ * Reconciliation einer mehrwertigen Referenzliste (`<eventref>`/`<citationref>`) OHNE die
+ * vorhandenen Refs umzuordnen — nur das erhält die Byte-Treue am unveränderten Bestand:
+ *   - „verwaltete" Refs (Rolle passt), deren Ziel-Handle nicht mehr gewollt ist → entfernt;
+ *   - unverwaltete Refs (andere Rolle, z. B. Witness) → unangetastet durchgereicht;
+ *   - neue gewollte Handles (im Modell, noch kein Ref) → als frischer Ref ans Ende des
+ *     bestehenden Ref-Blocks angefügt (DTD-korrekt, `makeRef` setzt Rolle/Attribute).
+ * `wantHandles` ist die Modell-Sollmenge (Reihenfolge nur für neue Refs relevant).
+ */
+function reconcileRefs(
+  children: XmlNode[],
+  ordnung: string[],
+  tag: string,
+  isManaged: (ref: XmlNode) => boolean,
+  wantHandles: string[],
+  makeRef: (handle: string) => XmlNode,
+): XmlNode[] {
+  const want = new Set(wantHandles);
+  const vorhanden = new Set<string>();
+  const kept: XmlNode[] = [];
+  let letzterRefIdx = -1;
+  for (const c of children) {
+    if (c.tag === tag && isManaged(c)) {
+      const h = attr(c, 'hlink');
+      if (!want.has(h)) continue; // entfernt
+      vorhanden.add(h);
+    }
+    kept.push(c);
+    if (c.tag === tag) letzterRefIdx = kept.length - 1;
+  }
+  const neu = wantHandles.filter((h) => h !== '' && !vorhanden.has(h)).map(makeRef);
+  if (neu.length === 0) return kept.length === children.length ? children : kept;
+  const pos = letzterRefIdx >= 0 ? letzterRefIdx + 1 : einfuegePosition(kept, ordnung, tag);
+  const out = [...kept];
+  out.splice(pos, 0, ...neu);
+  return out;
+}
+
 // ── Aktualisierung je Entität (nur die erkannten Elemente) ──────────────────────────────
 
-function personKinder(orig: XmlNode, cur: Person): XmlNode[] {
+/** Rolle „Primary" oder fehlend zählt als Personen-Owner (spiegelt `ownedEvents` beim Lesen). */
+const personEventRole = (r: XmlNode): boolean => {
+  const role = attr(r, 'role');
+  return role === 'Primary' || role === '';
+};
+const familyEventRole = (r: XmlNode): boolean => {
+  const role = attr(r, 'role');
+  return role === 'Family' || role === '';
+};
+const eventref = (role: string) => (h: string): XmlNode => knoten('eventref', '', [['hlink', h], ['role', role]]);
+const citationref = (h: string): XmlNode => knoten('citationref', '', [['hlink', h]]);
+
+function personKinder(orig: XmlNode, cur: Person, wb: Wb): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.person, 'gender', cur.sex);
 
   const nameIdx = children.findIndex((c) => c.tag === 'name');
@@ -211,15 +307,24 @@ function personKinder(orig: XmlNode, cur: Person): XmlNode[] {
   nk = setzeText(nk, DTD_ORDER.name, 'surname', cur.surname);
   nk = setzeText(nk, DTD_ORDER.name, 'title', cur.prefix);
   nk = setzeText(nk, DTD_ORDER.name, 'nick', cur.nick);
+  nk = reconcileRefs(nk, DTD_ORDER.name, 'citationref', () => true,
+    cur.nameCitations.map((c) => citHandle(wb, c)), citationref);
   const nameNeu = { ...nameAlt, children: nk };
 
   children = [...children];
   if (nameIdx >= 0) children[nameIdx] = nameNeu;
   else children.splice(einfuegePosition(children, DTD_ORDER.person, 'name'), 0, nameNeu);
+
+  // Add/Remove (BL-144): Eventrefs (Rolle Primary) + direkte Person-Zitate (topLevelCitations).
+  children = reconcileRefs(children, DTD_ORDER.person, 'eventref', personEventRole,
+    personOwnedEvents(cur).map((e) => evHandle(wb, e)), eventref('Primary'));
+  children = reconcileRefs(children, DTD_ORDER.person, 'citationref', () => true,
+    cur.topLevelCitations.map((c) => citHandle(wb, c)), citationref);
   return children;
 }
 
-function familyKinder(orig: XmlNode, cur: Family, index: GrampsRefIndex): XmlNode[] {
+function familyKinder(orig: XmlNode, cur: Family, wb: Wb): XmlNode[] {
+  const index = wb.index;
   let children = setzeAttribut(orig.children, DTD_ORDER.family, 'father', 'hlink', toHandle(cur.husband ?? '', index));
   children = setzeAttribut(children, DTD_ORDER.family, 'mother', 'hlink', toHandle(cur.wife ?? '', index));
 
@@ -238,9 +343,15 @@ function familyKinder(orig: XmlNode, cur: Family, index: GrampsRefIndex): XmlNod
   const ziel = ersteIdx >= 0
     ? children.slice(0, ersteIdx).filter((c) => c.tag !== 'childref').length
     : einfuegePosition(ohne, DTD_ORDER.family, 'childref');
-  const out = [...ohne];
-  out.splice(ziel, 0, ...neueRefs);
-  return out;
+  children = [...ohne];
+  children.splice(ziel, 0, ...neueRefs);
+
+  // Add/Remove (BL-144): Eventrefs (Rolle Family) + Familien-Zitate.
+  children = reconcileRefs(children, DTD_ORDER.family, 'eventref', familyEventRole,
+    familyOwnedEvents(cur).map((e) => evHandle(wb, e)), eventref('Family'));
+  children = reconcileRefs(children, DTD_ORDER.family, 'citationref', () => true,
+    cur.citations.map((c) => citHandle(wb, c)), citationref);
+  return children;
 }
 
 function sourceKinder(orig: XmlNode, cur: Source, index: GrampsRefIndex): XmlNode[] {
@@ -263,14 +374,16 @@ function noteKinder(orig: XmlNode, cur: Note): XmlNode[] {
 
 /**
  * Aktualisiert die ERKANNTEN Kinder eines geänderten `<event>`-Records: `<type>` (Rück-
- * abbildung `tagToGrampsType`), das Datums-Element und `<description>`. NICHT angetastet:
- * `<place>` (Orts-String→placeobj-Handle ist BL-143, D3), `<citationref>` (das Hinzufügen/
- * Entfernen ganzer Zitate ist nicht Teil dieses Cuts) und alles Unbekannte (INV-PT).
+ * abbildung `tagToGrampsType`), das Datums-Element, `<description>` und — seit BL-144 — die
+ * `<citationref>`-Liste (Add/Remove von Zitaten am Event). NICHT angetastet: `<place>`
+ * (Orts-String→placeobj-Handle ist BL-143, D3) und alles Unbekannte (INV-PT).
  */
-function eventKinder(orig: XmlNode, cur: Event): XmlNode[] {
+function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.event, 'type', tagToGrampsType(cur.type, cur.eventType));
   children = setzeDate(children, DTD_ORDER.event, orig, cur.date, cur.datePhrase);
   children = setzeText(children, DTD_ORDER.event, 'description', cur.value);
+  children = reconcileRefs(children, DTD_ORDER.event, 'citationref', () => true,
+    cur.citations.map((c) => citHandle(wb, c)), citationref);
   return children;
 }
 
@@ -326,6 +439,37 @@ const eventGleich = (a: Event, b: Event): boolean =>
 const citationGleich = (a: Citation, b: Citation): boolean =>
   a.sourceId === b.sourceId && a.page === b.page && a.quay === b.quay;
 
+// ── Owner-Gleichheit inkl. Referenz-Mengen (BL-144) ─────────────────────────────────────
+// Ein Owner (Person/Familie) gilt zusätzlich als geändert, wenn sich die MENGE seiner
+// besessenen Event-/Zitat-Refs ändert (Add/Remove) — NICHT, wenn nur ein Feld INNERHALB
+// eines referenzierten Events/Zitats editiert wurde (das ändert den geteilten Record, nicht
+// den Owner; BL-142). Bleibt die Menge gleich, ist der Owner-Knoten byte-treu identisch.
+
+function personGleichNode(node: XmlNode, cur: Person, wb: Wb): boolean {
+  if (!personGleich(projectPerson(node), cur)) return false;
+  if (!sameHandleSet(hlinksOf(node.children, 'eventref', personEventRole),
+    personOwnedEvents(cur).map((e) => evHandle(wb, e)))) return false;
+  if (!sameHandleSet(hlinksOf(node.children, 'citationref'),
+    cur.topLevelCitations.map((c) => citHandle(wb, c)))) return false;
+  const name = firstChild(node, 'name');
+  const nameRefs = name ? hlinksOf(name.children, 'citationref') : [];
+  return sameHandleSet(nameRefs, cur.nameCitations.map((c) => citHandle(wb, c)));
+}
+
+function familyGleichNode(node: XmlNode, cur: Family, wb: Wb): boolean {
+  if (!familyGleich(projectFamily(node, wb.index), cur)) return false;
+  if (!sameHandleSet(hlinksOf(node.children, 'eventref', familyEventRole),
+    familyOwnedEvents(cur).map((e) => evHandle(wb, e)))) return false;
+  return sameHandleSet(hlinksOf(node.children, 'citationref'),
+    cur.citations.map((c) => citHandle(wb, c)));
+}
+
+/** Event unverändert? Felder (BL-142) UND die Zitat-Ref-Menge (BL-144). */
+function eventUnveraendert(node: XmlNode, cur: Event, resolvePlace: (h: string) => string, wb: Wb): boolean {
+  if (!eventGleich(projectGrampsEvent(node, resolvePlace), cur)) return false;
+  return sameHandleSet(hlinksOf(node.children, 'citationref'), cur.citations.map((c) => citHandle(wb, c)));
+}
+
 // ── Synthese neuer Records ──────────────────────────────────────────────────────────────
 
 function neuerRecord(tag: string, id: string, kinder: (orig: XmlNode) => XmlNode[]): XmlNode {
@@ -346,6 +490,12 @@ interface Sektion<T> {
   /** Original-Knoten → Modell (dieselbe Vorschrift wie der Parser). */
   project: (n: XmlNode) => T;
   gleich: (projiziert: T, aktuell: T) => boolean;
+  /**
+   * Alternativ zu `gleich` ein KNOTEN-basierter Vergleich (BL-144): Owner (Person/Familie)
+   * müssen zusätzlich ihre Event-/Zitat-Ref-MENGE vergleichen, die `project` bewusst NICHT
+   * mitprojiziert. Ist gesetzt, ersetzt er `gleich(project(node), cur)`.
+   */
+  gleichNode?: (node: XmlNode, aktuell: T) => boolean;
   kinder: (orig: XmlNode, cur: T) => XmlNode[];
 }
 
@@ -363,7 +513,8 @@ function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
     gesehen.add(key);
     const cur = s.map.get(key);
     if (!cur) continue; // gelöscht → weglassen
-    if (s.gleich(s.project(node), cur)) {
+    const unveraendert = s.gleichNode ? s.gleichNode(node, cur) : s.gleich(s.project(node), cur);
+    if (unveraendert) {
       kinder.push(node); // IDENTISCHER Knoten — byte-treu
       continue;
     }
@@ -379,55 +530,50 @@ function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
   return { ...sec, children: kinder };
 }
 
-// ── GETEILTE Sektionen (Events/Zitate): handle-adressiert, ohne Synthese/Löschung ─────────
+// ── GETEILTE Sektionen (Events/Zitate) ──────────────────────────────────────────────────
 // Anders als die besessenen Records liegen Events/Zitate im Modell NICHT in einem Store,
-// sondern verstreut über Person/Familie — und dieselbe Quelle/derselbe Event kann von
-// mehreren Ownern referenziert und dabei in MEHRERE unabhängige Modell-Kopien projiziert
-// worden sein. Deshalb: (a) Zuordnung über das `grampsHandle`, nicht die id; (b) je Handle
-// werden ALLE Kopien gesammelt — ein geteilter Record gilt als geändert, sobald IRGENDEINE
-// Kopie von der Original-Projektion abweicht (der Nutzer kann jede Kopie editiert haben);
-// (c) ein `<event>`/`<citation>` ohne Modell-Owner (nur Witness-Rolle → ASSO, oder gelöscht)
-// bleibt PASSTHROUGH — das Hinzufügen/Entfernen ganzer geteilter Records berührt die Owner-
-// eventref/citationref-Liste und ist NICHT Teil dieses Cuts (ADR-v9-114 D5-Plan).
+// sondern verstreut über Person/Familie — und dieselbe id kann von mehreren Ownern
+// referenziert und dabei in MEHRERE unabhängige Modell-Kopien projiziert worden sein.
+// Deshalb: (a) Zuordnung über die eindeutige `grampsId` (nicht das Handle — BL-136/144);
+// (b) je id werden ALLE Kopien gesammelt, geändert sobald IRGENDEINE abweicht; (c) ein
+// Record ohne Modell-Owner (Witness-Rolle/entfernt) bleibt PASSTHROUGH; (d) NEUE Records
+// (BL-144) werden aus `neu` synthetisiert. Das Entfernen verwaister Records passiert NICHT
+// hier, sondern zentral am Schluss (`bereinigeVerwaiste`), wo die Owner-Refs schon stehen.
 
 interface GeteilteSektion<T> {
   section: string;
   item: string;
-  /** Handle → alle Modell-Kopien dieses geteilten Records. */
+  /** grampsId → alle vorhandenen Modell-Kopien dieses geteilten Records. */
   map: Map<string, T[]>;
-  project: (n: XmlNode) => T;
-  gleich: (projiziert: T, aktuell: T) => boolean;
+  unveraendert: (node: XmlNode, cur: T) => boolean;
   kinder: (orig: XmlNode, cur: T) => XmlNode[];
+  /** Neue Records (BL-144): frische id + das Modell-Objekt. */
+  neu: Array<{ id: string; cur: T }>;
+  synth: (id: string, cur: T) => XmlNode;
 }
 
 function verarbeiteGeteilteSektion<T>(root: XmlNode, s: GeteilteSektion<T>): XmlNode | null {
   const sec = firstChild(root, s.section);
-  if (!sec) return null; // geteilte Sektionen entstehen in diesem Cut nicht neu
   const kinder: XmlNode[] = [];
-  for (const node of sec.children) {
+  for (const node of sec ? sec.children : []) {
     if (node.tag !== s.item) {
       kinder.push(node);
       continue;
     }
-    const copies = s.map.get(attr(node, 'handle'));
+    const copies = s.map.get(grampsKey(node));
     if (!copies || copies.length === 0) {
       kinder.push(node); // kein Modell-Owner → Passthrough (byte-treu)
       continue;
     }
-    const orig = s.project(node);
-    const geaendert = copies.find((c) => !s.gleich(orig, c)); // erste abweichende Kopie gewinnt
-    if (!geaendert) {
-      kinder.push(node); // IDENTISCH — byte-treu
-      continue;
-    }
-    kinder.push({ ...node, children: s.kinder(node, geaendert) });
+    const geaendert = copies.find((c) => !s.unveraendert(node, c)); // erste abweichende Kopie gewinnt
+    kinder.push(geaendert ? { ...node, children: s.kinder(node, geaendert) } : node);
   }
+  for (const { id, cur } of s.neu) kinder.push(s.synth(id, cur)); // Synthese (BL-144)
+  if (!sec) return kinder.length ? knoten(s.section, '', [], kinder) : null;
   return { ...sec, children: kinder };
 }
 
-// ── Handle→Modell-Kopien für die geteilten Records ───────────────────────────────────────
-// Nur Objekte MIT `grampsHandle` (GRAMPS-Ursprung) zählen; leere Main-Slots und GEDCOM-
-// Events (Handle null) fallen weg.
+// ── id→Modell-Kopien für die geteilten Records (nur VORHANDENE, id gesetzt) ──────────────
 
 function allEvents(db: Database): Event[] {
   const out: Event[] = [];
@@ -436,22 +582,22 @@ function allEvents(db: Database): Event[] {
   return out;
 }
 
-function pushByHandle<T extends { grampsHandle: string | null }>(m: Map<string, T[]>, c: T): void {
-  if (!c.grampsHandle) return;
-  const list = m.get(c.grampsHandle);
+function pushById<T extends { grampsId: string | null }>(m: Map<string, T[]>, c: T): void {
+  if (!c.grampsId) return;
+  const list = m.get(c.grampsId);
   if (list) list.push(c);
-  else m.set(c.grampsHandle, [c]);
+  else m.set(c.grampsId, [c]);
 }
 
 function buildEventMap(db: Database): Map<string, Event[]> {
   const m = new Map<string, Event[]>();
-  for (const e of allEvents(db)) pushByHandle(m, e);
+  for (const e of allEvents(db)) pushById(m, e);
   return m;
 }
 
 function buildCitationMap(db: Database): Map<string, Citation[]> {
   const m = new Map<string, Citation[]>();
-  const add = (c: Citation): void => pushByHandle(m, c);
+  const add = (c: Citation): void => pushById(m, c);
   for (const p of db.individuals.values()) {
     p.nameCitations.forEach(add);
     p.topLevelCitations.forEach(add);
@@ -464,25 +610,140 @@ function buildCitationMap(db: Database): Map<string, Citation[]> {
   return m;
 }
 
+// ── Neue id-Vergabe für hinzugefügte Events/Zitate (BL-144) ──────────────────────────────
+
+function collectExistingIds(root: XmlNode, section: string, item: string): Set<string> {
+  const ids = new Set<string>();
+  const sec = firstChild(root, section);
+  if (sec) for (const n of childrenByTag(sec, item)) { const id = attr(n, 'id'); if (id) ids.add(id); }
+  return ids;
+}
+
+/** Fortlaufender id-Generator `<prefix>NNNN`, kollisionsfrei gegen den vorhandenen Bestand. */
+function idGenerator(prefix: string, existing: Set<string>): () => string {
+  let n = 0;
+  const re = new RegExp(`^${prefix}(\\d+)$`);
+  for (const id of existing) { const m = re.exec(id); if (m) n = Math.max(n, parseInt(m[1], 10) + 1); }
+  return () => {
+    let id: string;
+    do { id = prefix + String(n++).padStart(4, '0'); } while (existing.has(id));
+    existing.add(id);
+    return id;
+  };
+}
+
+/**
+ * Vor-Pass: vergibt jedem NEUEN (vorhandenen, `grampsId`-losen) Event/Zitat eine frische
+ * eindeutige id + Handle und trägt beide in den Schreib-Index ein. Deterministische Reihen-
+ * folge (Personen dann Familien; Slots dann `events[]`; Zitatlisten) → stabile ids über
+ * wiederholte Builds. `db` wird NICHT mutiert — die Zuordnung lebt in `wb`.
+ */
+function assignNewIds(db: Database, root: XmlNode, index: GrampsRefIndex): Wb {
+  const wb: Wb = { index, evId: new Map(), citId: new Map() };
+  const nextEv = idGenerator('E', collectExistingIds(root, 'events', 'event'));
+  const nextCit = idGenerator('C', collectExistingIds(root, 'citations', 'citation'));
+  const allocHandle = (id: string): void => {
+    let h = neuesHandle(id);
+    let i = 0;
+    while (index.handles.has(h)) h = neuesHandle(`${id}_${++i}`);
+    index.handles.add(h);
+    index.idToHandle.set(id, h);
+    index.handleToId.set(h, id);
+  };
+  const newEvent = (e: Event): void => {
+    if (e.grampsId || wb.evId.has(e)) return;
+    const id = nextEv();
+    allocHandle(id);
+    wb.evId.set(e, id);
+  };
+  const newCit = (c: Citation): void => {
+    if (c.grampsId || wb.citId.has(c)) return;
+    const id = nextCit();
+    allocHandle(id);
+    wb.citId.set(c, id);
+  };
+  for (const p of db.individuals.values()) {
+    p.nameCitations.forEach(newCit);
+    p.topLevelCitations.forEach(newCit);
+    for (const e of personOwnedEvents(p)) { newEvent(e); e.citations.forEach(newCit); }
+  }
+  for (const f of db.families.values()) {
+    f.citations.forEach(newCit);
+    for (const e of familyOwnedEvents(f)) { newEvent(e); e.citations.forEach(newCit); }
+  }
+  return wb;
+}
+
+function synthEvent(id: string, e: Event, wb: Wb): XmlNode {
+  const node = knoten('event', '', [['handle', toHandle(id, wb.index)], ['change', '0'], ['id', id]]);
+  return { ...node, children: eventKinder(node, e, wb) };
+}
+
+function synthCitation(id: string, c: Citation, wb: Wb): XmlNode {
+  const node = knoten('citation', '', [['handle', toHandle(id, wb.index)], ['change', '0'], ['id', id]]);
+  return { ...node, children: citationKinder(node, c, wb.index) };
+}
+
+// ── Verwaiste geteilte Records entfernen (BL-144) ────────────────────────────────────────
+
+function collectRefHandles(root: XmlNode, tag: string): Set<string> {
+  const out = new Set<string>();
+  const walk = (n: XmlNode): void => {
+    if (n.tag === tag) { const h = attr(n, 'hlink'); if (h) out.add(h); }
+    for (const c of n.children) walk(c);
+  };
+  walk(root);
+  return out;
+}
+
+/**
+ * Entfernt `<event>`/`<citation>`-Records, auf die nach der Owner-Reconciliation KEIN Ref
+ * mehr zeigt. Fixpunkt-Iteration, weil ein entfernter Event ein nur-von-ihm referenziertes
+ * Zitat verwaisen lassen kann (Kaskade) — erst wenn ein Durchlauf nichts mehr entfernt, ist
+ * das Ergebnis stabil (und damit idempotent).
+ */
+function bereinigeVerwaiste(root: XmlNode): XmlNode {
+  let children = root.children;
+  for (;;) {
+    const refEv = collectRefHandles({ ...root, children }, 'eventref');
+    const refCit = collectRefHandles({ ...root, children }, 'citationref');
+    let geaendert = false;
+    children = children.map((sec) => {
+      const item = sec.tag === 'events' ? 'event' : sec.tag === 'citations' ? 'citation' : null;
+      if (!item) return sec;
+      const refs = item === 'event' ? refEv : refCit;
+      const kept = sec.children.filter((c) => c.tag !== item || refs.has(attr(c, 'handle')));
+      if (kept.length === sec.children.length) return sec;
+      geaendert = true;
+      return { ...sec, children: kept };
+    });
+    if (!geaendert) break;
+  }
+  return { ...root, children };
+}
+
 /**
  * Projiziert `db` in den GRAMPS-Baum. Unveränderte Records bleiben identisch; geänderte
- * behalten ihren Passthrough; neue kommen hinzu, gelöschte fallen weg. Reine Funktion —
- * der übergebene Baum wird nicht mutiert.
+ * behalten ihren Passthrough; neue kommen hinzu, gelöschte/verwaiste fallen weg. Reine
+ * Funktion — der übergebene Baum (und `db`) werden nicht mutiert.
  */
 export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument {
   const root = doc.root;
   const index = buildWriteIndex(root, db);
+  const wb = assignNewIds(db, root, index); // neue Event-/Zitat-ids+Handles, füllt den Index
 
-  const sektionen: XmlNode[] = [];
   const ersetzt = new Map<string, XmlNode | null>();
   ersetzt.set('people', verarbeiteSektion(root, {
     section: 'people', item: 'person', map: db.individuals,
-    project: projectPerson, gleich: personGleich, kinder: personKinder,
+    project: projectPerson, gleich: personGleich,
+    gleichNode: (n, cur) => personGleichNode(n, cur, wb),
+    kinder: (orig, cur) => personKinder(orig, cur, wb),
   }));
   ersetzt.set('families', verarbeiteSektion(root, {
     section: 'families', item: 'family', map: db.families,
     project: (n) => projectFamily(n, index), gleich: familyGleich,
-    kinder: (orig, cur) => familyKinder(orig, cur, index),
+    gleichNode: (n, cur) => familyGleichNode(n, cur, wb),
+    kinder: (orig, cur) => familyKinder(orig, cur, wb),
   }));
   ersetzt.set('sources', verarbeiteSektion(root, {
     section: 'sources', item: 'source', map: db.sources,
@@ -498,33 +759,37 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
     project: projectNote, gleich: noteGleich, kinder: noteKinder,
   }));
 
-  // GETEILTE Records (Events/Zitate): handle-adressiert, ohne Synthese/Löschung. Die
-  // Re-Projektion zum Vergleich braucht dieselben Auflöser wie der Parser (Orts-String,
-  // Quellen-Handle→id) — buildEnrichContext stellt sie aus dem Baum + Schreib-Index.
+  // GETEILTE Records (Events/Zitate): Feld-Edits an Vorhandenen (BL-142) + Synthese Neuer
+  // (BL-144). Die Re-Projektion zum Vergleich braucht dieselben Auflöser wie der Parser.
   const enrich = buildEnrichContext(root, index);
   ersetzt.set('events', verarbeiteGeteilteSektion(root, {
     section: 'events', item: 'event', map: buildEventMap(db),
-    project: (n) => projectGrampsEvent(n, enrich.resolvePlace),
-    gleich: eventGleich, kinder: eventKinder,
+    unveraendert: (n, cur) => eventUnveraendert(n, cur, enrich.resolvePlace, wb),
+    kinder: (orig, cur) => eventKinder(orig, cur, wb),
+    neu: [...wb.evId].map(([cur, id]) => ({ id, cur })),
+    synth: (id, cur) => synthEvent(id, cur, wb),
   }));
   ersetzt.set('citations', verarbeiteGeteilteSektion(root, {
     section: 'citations', item: 'citation', map: buildCitationMap(db),
-    project: (n) => projectGrampsCitation(n, enrich.resolveSourceId),
-    gleich: citationGleich, kinder: (orig, cur) => citationKinder(orig, cur, index),
+    unveraendert: (n, cur) => citationGleich(projectGrampsCitation(n, enrich.resolveSourceId), cur),
+    kinder: (orig, cur) => citationKinder(orig, cur, index),
+    neu: [...wb.citId].map(([cur, id]) => ({ id, cur })),
+    synth: (id, cur) => synthCitation(id, cur, wb),
   }));
 
+  const sektionen: XmlNode[] = [];
   for (const kind of root.children) {
     if (!ersetzt.has(kind.tag)) {
-      sektionen.push(kind); // events, citations, places, objects, header … unangetastet
+      sektionen.push(kind); // places, objects, header … unangetastet
       continue;
     }
     const neu = ersetzt.get(kind.tag);
     if (neu) sektionen.push(neu);
     ersetzt.delete(kind.tag);
   }
-  // Sektionen, die es im Baum noch gar nicht gab (erste neue Quelle in einer Datei ohne
-  // <sources>): ans Ende — die DTD-Reihenfolge der Sektionen ist frei.
+  // Sektionen, die es im Baum noch gar nicht gab (erste neue Quelle/erstes neue Event in
+  // einer Datei ohne <sources>/<events>): ans Ende — die DTD-Sektionsreihenfolge ist frei.
   for (const neu of ersetzt.values()) if (neu) sektionen.push(neu);
 
-  return { prolog: doc.prolog, root: { ...root, children: sektionen } };
+  return { prolog: doc.prolog, root: bereinigeVerwaiste({ ...root, children: sektionen }) };
 }
