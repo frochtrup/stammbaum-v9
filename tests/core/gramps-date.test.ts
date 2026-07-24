@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { XmlNode } from '../../core/interop/xml-tree';
-import { grampsDateOf, grampsDateToGedcom, isoToGedcom } from '../../core/interop/gramps-date';
+import { grampsDateOf, grampsDateToGedcom, isoToGedcom, gedcomToGramps } from '../../core/interop/gramps-date';
 
 /** Minimaler XmlNode-Bauer für Datums-Elemente. */
 function node(tag: string, attrs: Record<string, string> = {}): XmlNode {
@@ -68,4 +68,54 @@ describe('grampsDateToGedcom — Bereich/Spanne/Text', () => {
 describe('grampsDateOf — findet das Datums-Kind im Eltern-Knoten', () => {
   it('findet dateval', () => expect(grampsDateOf(parentWith(node('dateval', { val: '1967' }))).date).toBe('1967'));
   it('kein Datums-Kind → leer', () => expect(grampsDateOf(parentWith(null))).toEqual({ date: null, datePhrase: '' }));
+});
+
+describe('gedcomToGramps — Rückrichtung (GEDCOM-String → GRAMPS-Element)', () => {
+  const el = (date: string | null, phrase = ''): unknown => gedcomToGramps(date, phrase);
+  it('exaktes Datum → dateval mit ISO', () => expect(el('16 FEB 1967')).toEqual({ tag: 'dateval', attrs: [['val', '1967-02-16']] }));
+  it('Jahr+Monat / nur Jahr', () => {
+    expect(el('FEB 1967')).toEqual({ tag: 'dateval', attrs: [['val', '1967-02']] });
+    expect(el('1967')).toEqual({ tag: 'dateval', attrs: [['val', '1967']] });
+  });
+  it('Modifier → type', () => {
+    expect(el('ABT 1875')).toEqual({ tag: 'dateval', attrs: [['val', '1875'], ['type', 'about']] });
+    expect(el('BEF 1875')).toEqual({ tag: 'dateval', attrs: [['val', '1875'], ['type', 'before']] });
+    expect(el('AFT 1875')).toEqual({ tag: 'dateval', attrs: [['val', '1875'], ['type', 'after']] });
+    expect(el('FROM 1985')).toEqual({ tag: 'dateval', attrs: [['val', '1985'], ['type', 'from']] });
+    expect(el('TO 2005')).toEqual({ tag: 'dateval', attrs: [['val', '2005'], ['type', 'to']] });
+  });
+  it('Qualität → quality', () => {
+    expect(el('CAL 1900')).toEqual({ tag: 'dateval', attrs: [['val', '1900'], ['quality', 'calculated']] });
+    expect(el('EST 1900')).toEqual({ tag: 'dateval', attrs: [['val', '1900'], ['quality', 'estimated']] });
+  });
+  it('BET → daterange, FROM…TO → datespan', () => {
+    expect(el('BET 1970 AND 1974')).toEqual({ tag: 'daterange', attrs: [['start', '1970'], ['stop', '1974']] });
+    expect(el('FROM 1973 TO 1977')).toEqual({ tag: 'datespan', attrs: [['start', '1973'], ['stop', '1977']] });
+  });
+  it('Freitext → datestr; leer → null', () => {
+    expect(el(null, 'Ostern 1945')).toEqual({ tag: 'datestr', attrs: [['val', 'Ostern 1945']] });
+    expect(el(null, '')).toBeNull();
+    expect(el('')).toBeNull();
+  });
+});
+
+describe('Roundtrip GRAMPS → GEDCOM → GRAMPS (Element-Treue)', () => {
+  const cases: XmlNode[] = [
+    node('dateval', { val: '1967-02-16' }),
+    node('dateval', { val: '1967-02' }),
+    node('dateval', { val: '1875', type: 'about' }),
+    node('dateval', { val: '1875', type: 'before' }),
+    node('dateval', { val: '1985', type: 'from' }),
+    node('dateval', { val: '2005', type: 'to' }),
+    node('dateval', { val: '1900', quality: 'calculated' }),
+    node('daterange', { start: '1970', stop: '1974' }),
+    node('datespan', { start: '1973-03-02', stop: '1977' }),
+  ];
+  it('jedes Element round-trippt attributgetreu', () => {
+    for (const original of cases) {
+      const { date, datePhrase } = grampsDateToGedcom(original);
+      const back = gedcomToGramps(date, datePhrase);
+      expect(back, JSON.stringify(original.attrs)).toEqual({ tag: original.tag, attrs: original.attrs });
+    }
+  });
 });

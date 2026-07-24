@@ -108,6 +108,82 @@ export function grampsDateToGedcom(dateNode: XmlNode): GrampsDate {
   }
 }
 
+// ── Rückrichtung: GEDCOM-Datumsstring → GRAMPS-Datumselement (BL-142-Vorbereitung) ────────
+//
+// Spiegelbild des Lesewegs. Genutzt wird der bestehende `parseDateValue` (core/model,
+// derselbe Parser wie das Formular — kein zweiter) für die Zerlegung; die ISO-Bildung
+// spiegelt GRAMPS' `get_iso_date` (unbekannte Teile → `????`/`-??`/weggelassen). Nur für
+// EDITIERTE Daten aufgerufen — unveränderte behalten ihren Original-Knoten (D5).
+
+import { parseDateValue } from '../model/gedcom-date';
+
+/** Das zu schreibende GRAMPS-Datumselement: Tag + Attribute in DTD-Reihenfolge. */
+export interface GrampsDateElement {
+  tag: 'dateval' | 'daterange' | 'datespan' | 'datestr';
+  attrs: Array<[string, string]>;
+}
+
+const MONTH_NUM: Record<string, number> = Object.fromEntries(
+  MONTH.map((m, i) => [m, i]).filter(([m]) => m !== ''),
+) as Record<string, number>;
+
+const pad = (n: number, width: number): string => String(n).padStart(width, '0');
+
+/** (Tag, Monatscode, Jahr) → GRAMPS-ISO (`get_iso_date`-Form). Unbekanntes → `????`/`-??`/„". */
+function isoFromParts(day: number | null, month: string | null, year: number | null): string {
+  const y = year == null ? 0 : Math.abs(year);
+  const mo = month == null ? 0 : (MONTH_NUM[month] ?? 0);
+  const d = day == null ? 0 : day;
+  const ys = y === 0 ? '????' : pad(y, 4);
+  const ms = mo === 0 ? (d === 0 ? '' : '-??') : '-' + pad(mo, 2);
+  const ds = d === 0 ? '' : '-' + pad(d, 2);
+  const ret = ys + ms + ds;
+  return ret.replace(/[-?]/g, '') === '' ? '' : ret;
+}
+
+/** GEDCOM-Datumsstring (mit Qualifier) → GRAMPS-Datumselement. */
+function convertDateString(raw: string): GrampsDateElement {
+  const s = raw.trim();
+  // `parseDateValue` kennt kein offenes „TO x" (nur BET/FROM als Bereichsköpfe) — direkt.
+  if (/^TO\b/i.test(s)) {
+    const p = parseDateValue(s.replace(/^TO\b/i, '').trim());
+    return { tag: 'dateval', attrs: [['val', isoFromParts(p.day, p.month, p.year)], ['type', 'to']] };
+  }
+  const p = parseDateValue(s);
+  const iso = isoFromParts(p.day, p.month, p.year);
+  switch (p.qualifier) {
+    case 'ABT':
+      return { tag: 'dateval', attrs: [['val', iso], ['type', 'about']] };
+    case 'BEF':
+      return { tag: 'dateval', attrs: [['val', iso], ['type', 'before']] };
+    case 'AFT':
+      return { tag: 'dateval', attrs: [['val', iso], ['type', 'after']] };
+    case 'CAL':
+      return { tag: 'dateval', attrs: [['val', iso], ['quality', 'calculated']] };
+    case 'EST':
+      return { tag: 'dateval', attrs: [['val', iso], ['quality', 'estimated']] };
+    case 'BET':
+      return { tag: 'daterange', attrs: [['start', iso], ['stop', isoFromParts(p.day2, p.month2, p.year2)]] };
+    case 'FROM':
+      // Offenes „FROM x" → dateval type=from; „FROM x TO y" (rechte Grenze da) → datespan.
+      return p.year2 != null || p.month2 != null || p.day2 != null
+        ? { tag: 'datespan', attrs: [['start', iso], ['stop', isoFromParts(p.day2, p.month2, p.year2)]] }
+        : { tag: 'dateval', attrs: [['val', iso], ['type', 'from']] };
+    default:
+      return { tag: 'dateval', attrs: [['val', iso]] };
+  }
+}
+
+/**
+ * Modell-`Event.date` (+ `datePhrase`) → GRAMPS-Datumselement, oder `null` wenn kein Datum.
+ * `date` gewinnt über `datePhrase`; ein reiner Freitext (date leer) wird `datestr`.
+ */
+export function gedcomToGramps(date: string | null, datePhrase: string): GrampsDateElement | null {
+  if (date && date.trim() !== '') return convertDateString(date);
+  if (datePhrase && datePhrase.trim() !== '') return { tag: 'datestr', attrs: [['val', datePhrase]] };
+  return null;
+}
+
 const DATE_TAGS = new Set(['dateval', 'daterange', 'datespan', 'datestr']);
 
 /** Findet das erste GRAMPS-Datums-Kind eines Eltern-Knotens (event/citation/name). */
