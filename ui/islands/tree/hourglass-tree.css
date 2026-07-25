@@ -49,6 +49,21 @@
   height: 100%;
   overflow: auto;
   cursor: grab;
+  /* Flex + `margin:auto` am Kind zentriert den Inhalt, wenn er passt, und lässt ihn vom
+     Anfang an scrollen, wenn er größer ist (margin:auto → 0 bei Überlauf; anders als
+     justify-content:center, das den Anfang abschneidet). */
+  display: flex;
+}
+
+/* Trägt die SKALIERTE Grundfläche (Größe per JS gesetzt) und klemmt die unskalierte
+   `__wrap`-Layout-Box (die `transform: scale` nicht schrumpft) darauf, damit der
+   Scroll-Container die tatsächliche Größe misst. `margin:auto` zentriert deklarativ,
+   `flex:none` verhindert, dass der Flex-Container die Grundfläche staucht. */
+.tree-island__scale-wrap {
+  position: relative;
+  overflow: hidden;
+  margin: auto;
+  flex: none;
 }
 
 .tree-island__wrap {

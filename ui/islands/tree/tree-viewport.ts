@@ -112,12 +112,20 @@ export function createTreeViewport(
 
   const scrollEl = document.createElement('div');
   scrollEl.className = 'tree-island__scroll';
+  // Zwischen-Ebene mit der SKALIERTEN Grundfläche (Orakel: v8 `treeScaleWrap`): `wrapEl`
+  // wird per `transform: scale` verkleinert, was seine Layout-Box NICHT schrumpft — der
+  // Scroll-Container würde also die unskalierte Breite messen und den Inhalt weder korrekt
+  // scrollen noch zentrieren können. `scaleWrapEl` trägt die tatsächliche (skalierte) Größe
+  // und wird per Margin mittig gesetzt, wenn der Inhalt kleiner als das Viewport ist.
+  const scaleWrapEl = document.createElement('div');
+  scaleWrapEl.className = 'tree-island__scale-wrap';
   const wrapEl = document.createElement('div');
   wrapEl.className = 'tree-island__wrap';
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'tree-island__svg');
   wrapEl.appendChild(svg);
-  scrollEl.appendChild(wrapEl);
+  scaleWrapEl.appendChild(wrapEl);
+  scrollEl.appendChild(scaleWrapEl);
   container.innerHTML = '';
   container.appendChild(scrollEl);
   container.appendChild(fsBtn); // NACH dem Scroll-Layer: liegt darüber, ohne z-index-Turnen
@@ -132,6 +140,15 @@ export function createTreeViewport(
   function applyZoom(): void {
     wrapEl.style.transform = zoomScale !== 1 ? `scale(${zoomScale})` : '';
     wrapEl.style.transformOrigin = '0 0';
+  }
+
+  /** Setzt NUR die skalierte Grundfläche des `scaleWrap` (= sichtbare Größe nach dem
+   *  `transform: scale` des `wrap`). Die Zentrierung selbst macht CSS (`margin: auto` im
+   *  Flex-`scroll`): passt der Inhalt, ist er mittig; ist er größer, wird `margin:auto` zu 0
+   *  und der Container scrollt vom Anfang an — deklarativ, ohne rAF-Timing. */
+  function sizeContent(frame: DiagramLayoutFrame): void {
+    scaleWrapEl.style.width = `${Math.round(frame.width * zoomScale)}px`;
+    scaleWrapEl.style.height = `${Math.round(frame.height * zoomScale)}px`;
   }
 
   function render(): void {
@@ -156,29 +173,41 @@ export function createTreeViewport(
     svg.setAttribute('width', String(frame.width));
     svg.setAttribute('height', String(frame.height));
     svg.setAttribute('viewBox', `0 0 ${frame.width} ${frame.height}`);
-
     applyZoom();
-    autoFitAndCenter(frame);
+    sizeContent(frame); // sofort korrekt zentriert (CSS margin:auto), auch vor dem Auto-Fit
+    scheduleReflow();
   }
 
-  function autoFitAndCenter(frame: DiagramLayoutFrame): void {
-    // Desktop Auto-Fit (Spec 20 §1.3 [K]): initial so skalieren, dass der Baum ins
-    // Viewport passt. rAF statt Timeout, damit Layout/Größe vom Browser committed ist.
+  /** Wartet frameweise, bis der Container tatsächlich eine Größe hat, dann Auto-Fit. Nötig,
+   *  weil ein Modus-Wechsel (destroy+remount im selben Svelte-Flush) den Container für einen
+   *  Frame auf 0 kollabieren lässt — ein einzelner rAF misst dann `cw=0` und der Baum bliebe
+   *  unskaliert. Gedeckelt, damit eine dauerhaft unsichtbare Insel nicht endlos pollt. */
+  function scheduleReflow(attempt = 0): void {
     requestAnimationFrame(() => {
-      const cw = scrollEl.clientWidth;
-      const ch = scrollEl.clientHeight;
-      if (cw > 0 && ch > 0 && !detectPortrait()) {
-        const fit = Math.min(1, cw / frame.width, ch / frame.height);
-        if (fit > 0 && fit < 1) {
-          zoomScale = Math.round(fit * 100) / 100;
-          applyZoom();
-        }
+      if (scrollEl.clientWidth <= 0 && attempt < 10) {
+        scheduleReflow(attempt + 1);
+        return;
       }
-      if (cw > 0 && ch > 0) {
-        scrollEl.scrollLeft = Math.max(0, frame.centerX * zoomScale - cw / 2);
-        scrollEl.scrollTop = Math.max(0, frame.centerY * zoomScale - ch * 0.4);
-      }
+      reflow();
     });
+  }
+
+  /** Auto-Fit (Desktop, Spec 20 §1.3 [K]): skaliert einen zu großen Baum herunter, bis er ins
+   *  Viewport passt. Idempotent: `fit` bemisst sich an der UNSKALIERTEN `frame`-Breite. Die
+   *  Zentrierung macht CSS — hier wird nach dem Zoom nur die Grundfläche nachgezogen. */
+  function reflow(): void {
+    if (!lastFrame) return;
+    const cw = scrollEl.clientWidth;
+    const ch = scrollEl.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+    if (!detectPortrait()) {
+      const fit = Math.min(1, cw / lastFrame.width, ch / lastFrame.height);
+      // ABRUNDEN, nicht runden: Aufrunden (0,406 → 0,41) macht den Inhalt minimal größer als
+      // das Viewport und erzeugt einen 1–2px-Überlauf, der die margin:auto-Zentrierung kippt.
+      zoomScale = fit < 1 ? Math.floor(fit * 100) / 100 : 1;
+      applyZoom();
+    }
+    sizeContent(lastFrame);
   }
 
   function setFullscreen(next: boolean): void {
@@ -293,6 +322,13 @@ export function createTreeViewport(
   };
   window.addEventListener('resize', onResize);
 
+  // Container-Größe kann sich unabhängig vom Fenster ändern (Modus-Wechsel, Sidebar,
+  // verzögerter Layout-Commit) — dann NUR neu einpassen/zentrieren (kein Layout-Neubau).
+  // Beobachtet den Container (nicht `scrollEl`), dessen Größe unabhängig vom Inhalt ist —
+  // so kann eine durch `positionContent` ausgelöste Scrollleiste keine Rückkopplung erzeugen.
+  const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => reflow()) : null;
+  resizeObserver?.observe(container);
+
   return {
     render,
     toggleFullscreen() {
@@ -316,6 +352,7 @@ export function createTreeViewport(
       scrollEl.removeEventListener('touchend', onTouchEnd);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
+      resizeObserver?.disconnect();
       if (resizeTimer) clearTimeout(resizeTimer);
       container.innerHTML = '';
       container.classList.remove('tree-island', 'tree-island--fullscreen');
