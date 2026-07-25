@@ -15,7 +15,9 @@
     "lint": "eslint . && tsc --noEmit && npm run check:svelte",
     "check:svelte": "svelte-check --tsconfig ./tsconfig.check.json --threshold error",
     "check:arch": "node tests/arch-boundary/check-arch-boundary.mjs",
-    "check:csp": "node tests/csp/check-csp.mjs"
+    "check:csp": "node tests/csp/check-csp.mjs",
+    "handbuch": "node tools/handbuch/build-handbook.mjs",
+    "handbuch:anon": "node tools/handbuch/anonymize-ged.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -27,6 +29,7 @@
     "eslint-plugin-svelte": "^3.20.0",
     "fast-check": "^4.8.0",
     "happy-dom": "^20.10.6",
+    "puppeteer-core": "^25.3.0",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.3",
     "typescript": "^6.0.3",

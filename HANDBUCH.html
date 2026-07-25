@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stammbaum — Benutzerhandbuch (v9)</title>
+<style>
+  :root {
+    --gold: #b8962e;
+    --gold-light: #d4a843;
+    --app-bg: #f8f6f2;
+    --app-card: #ffffff;
+    --app-border: #ddd8cc;
+    --text-main: #2a2218;
+    --text-dim: #8a7a5a;
+    --pink: #c26080;
+    --blue: #5080c2;
+    --green: #4a8a4a;
+    --page-bg: #f8f5f0;
+    --page-text: #2a2218;
+    --accent: #6b4c1e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--page-bg);
+    color: var(--page-text);
+    font-size: 16px;
+    line-height: 1.7;
+    margin: 0;
+  }
+
+  /* Deckblatt */
+  .cover {
+    background: var(--app-bg);
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 60px 40px;
+    page-break-after: always;
+  }
+  .cover .tree-icon { font-size: 4em; margin-bottom: 0.3em; }
+  .cover h1 { font-size: 2.8em; color: var(--gold); margin: 0 0 0.2em; letter-spacing: 2px; }
+  .cover .subtitle { font-size: 1.35em; color: var(--text-dim); margin-bottom: 1.6em; }
+  .cover .version {
+    font-size: 1em; color: var(--gold-light);
+    border: 1px solid var(--gold); padding: 6px 20px;
+    border-radius: 20px; margin-bottom: 2.4em;
+  }
+  .cover .tagline {
+    font-size: 1.05em; color: var(--text-main); max-width: 520px;
+    line-height: 1.8; border-top: 1px solid var(--app-border); padding-top: 1.6em;
+  }
+
+  .content { max-width: 860px; margin: 0 auto; padding: 40px 30px 80px; }
+
+  /* Inhaltsverzeichnis */
+  .toc {
+    background: white; border: 1px solid #ddd; border-left: 4px solid var(--gold);
+    padding: 26px 34px; margin: 30px 0 10px; border-radius: 4px;
+  }
+  .toc h2 { color: var(--accent); font-size: 1.3em; margin: 0 0 0.8em; padding-bottom: 0.4em; border-bottom: 1px solid #eee; border-left: none; padding-left: 0; }
+  .toc ol { padding-left: 1.4em; margin: 0; }
+  .toc li { margin: 0.35em 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  h1.chapter {
+    font-size: 1.9em; color: var(--accent);
+    border-bottom: 3px solid var(--gold); padding-bottom: 0.35em;
+    margin: 2.2em 0 0.9em; scroll-margin-top: 12px;
+  }
+  h2 { font-size: 1.35em; color: var(--accent); margin: 1.8em 0 0.6em; padding-left: 10px; border-left: 3px solid var(--gold); }
+  h3 { font-size: 1.12em; color: #4a3010; margin: 1.4em 0 0.4em; font-style: italic; }
+  p { margin: 0.7em 0; }
+  ul, ol { margin: 0.6em 0; }
+  li { margin: 0.3em 0; }
+  code { background: #efeae0; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+
+  /* Hinweisboxen */
+  .tip, .info, .warning, .important {
+    padding: 13px 18px; border-radius: 6px; margin: 1.2em 0; font-size: 0.95em;
+  }
+  .tip { background: #f0f8f0; border-left: 4px solid var(--green); }
+  .info { background: #f0f4ff; border-left: 4px solid var(--blue); }
+  .warning { background: #fff8f0; border-left: 4px solid #c26020; }
+  .important { background: #fff0f5; border-left: 4px solid var(--pink); }
+  .tip::before { content: "Tipp: "; font-weight: bold; color: var(--green); }
+  .info::before { content: "Hinweis: "; font-weight: bold; color: var(--blue); }
+  .warning::before { content: "Achtung: "; font-weight: bold; color: #c26020; }
+  .important::before { content: "Wichtig: "; font-weight: bold; color: var(--pink); }
+
+  /* Screenshots */
+  .shot-row { display: flex; gap: 30px; align-items: flex-start; margin: 1.4em 0 1.8em; flex-wrap: wrap; }
+  .shot-row .prose { flex: 1; min-width: 240px; }
+  figure.phone {
+    width: 260px; flex-shrink: 0; margin: 0;
+    background: #d9d4c8; border: 5px solid #bfb8a6; border-radius: 26px;
+    padding: 8px; box-shadow: 0 10px 34px rgba(0,0,0,0.28);
+  }
+  figure.phone img { width: 100%; display: block; border-radius: 18px; }
+  figure.phone figcaption, figure.wide figcaption {
+    font-size: 0.82em; color: var(--text-dim); text-align: center;
+    margin-top: 8px; font-style: italic; line-height: 1.4;
+  }
+  figure.wide { margin: 1.6em auto; max-width: 760px; }
+  figure.wide img {
+    width: 100%; display: block; border-radius: 8px;
+    border: 1px solid var(--app-border); box-shadow: 0 8px 26px rgba(0,0,0,0.2);
+  }
+  .center { text-align: center; }
+
+  /* Legende/Symboltabelle */
+  table.ref { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.92em; }
+  table.ref th, table.ref td { border: 1px solid var(--app-border); padding: 7px 11px; text-align: left; vertical-align: top; }
+  table.ref th { background: #efe9dd; color: var(--accent); }
+  table.ref td:first-child { white-space: nowrap; font-weight: bold; }
+
+  .badge { display: inline-block; border-radius: 10px; padding: 0 7px; font-size: 0.82em; border: 1px solid; }
+  .badge.q { color: var(--pink); border-color: var(--pink); }
+  .badge.g { color: var(--green); border-color: var(--green); }
+
+  /* Schrittanleitungen */
+  ol.steps { counter-reset: step; padding: 0; list-style: none; margin: 1em 0; }
+  ol.steps li { counter-increment: step; display: flex; gap: 14px; margin: 0.7em 0; align-items: flex-start; }
+  ol.steps li::before {
+    content: counter(step); background: var(--gold); color: white;
+    min-width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82em; font-weight: bold; flex-shrink: 0; margin-top: 3px;
+    font-family: -apple-system, sans-serif;
+  }
+  /* Workflow-/Praxis-Kasten */
+  .workflow {
+    background: #fbf7ee; border: 1px solid #e6dcc4; border-left: 4px solid var(--gold);
+    border-radius: 6px; padding: 16px 20px; margin: 1.4em 0;
+  }
+  .workflow h3 { margin-top: 0; color: var(--accent); font-style: normal; }
+  .practice { background: #f0f8f0; border-left: 4px solid var(--green); padding: 13px 18px; border-radius: 6px; margin: 1.2em 0; font-size: 0.95em; }
+  .practice::before { content: "Gute Praxis: "; font-weight: bold; color: var(--green); }
+  dl.faq dt { font-weight: bold; color: var(--accent); margin-top: 1.1em; }
+  dl.faq dd { margin: 0.3em 0 0 0; }
+
+  .lead { font-size: 1.08em; color: #43331c; }
+  hr { border: none; border-top: 1px solid var(--app-border); margin: 2.4em 0; }
+  .muted { color: var(--text-dim); font-size: 0.9em; }
+  footer { text-align: center; color: var(--text-dim); font-size: 0.85em; margin-top: 3em; padding-top: 1.4em; border-top: 1px solid var(--app-border); }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="tree-icon">🌳</div>
+  <h1>STAMMBAUM</h1>
+  <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
+  <div class="version">Benutzerhandbuch · Version 9.0 · Stand 2026-07-25</div>
+  <div class="tagline">
+    Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
+    offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
+    dabei jedes Detail Ihrer Daten.
+  </div>
+</div>
+
+<div class="content">
+
+<div class="toc">
+  <h2>Inhaltsverzeichnis</h2>
+  <ol>
+    <li><a href="#k1">Was ist Stammbaum?</a></li>
+    <li><a href="#k2">Die ersten Schritte</a></li>
+    <li><a href="#k3">Die Oberfläche verstehen</a></li>
+    <li><a href="#k4">Personen — das Herzstück</a></li>
+    <li><a href="#k5">Familien</a></li>
+    <li><a href="#k6">Quellen und Archive</a></li>
+    <li><a href="#k7">Orte</a></li>
+    <li><a href="#k8">Höfe</a></li>
+    <li><a href="#k9">Diagramme: Baum, Karte, Zeitleiste</a></li>
+    <li><a href="#k10">Statistik</a></li>
+    <li><a href="#k11">Forschung: Aufgaben, Protokoll, Hypothesen</a></li>
+    <li><a href="#k12">Qualität und Datenprüfung</a></li>
+    <li><a href="#k13">Suchen und Finden</a></li>
+    <li><a href="#k14">Speichern und Sichern</a></li>
+    <li><a href="#k15">Datenformate und Import/Export</a></li>
+    <li><a href="#k16">Was noch folgt</a></li>
+    <li><a href="#k17">Gute Praxis auf einen Blick</a></li>
+    <li><a href="#k18">Häufige Fragen</a></li>
+    <li><a href="#k19">Umstieg von anderen Programmen</a></li>
+    <li><a href="#k20">Checkliste für einen guten Start</a></li>
+    <li><a href="#anhang">Anhang A: Symbole und Tastaturkürzel</a></li>
+    <li><a href="#anhangB">Anhang B: Das GEDCOM-Dateiformat</a></li>
+    <li><a href="#anhangC">Anhang C: Das GRAMPS-Dateiformat</a></li>
+    <li><a href="#anhangD">Anhang D: Technischer Überblick</a></li>
+  </ol>
+  <p class="muted" style="margin-top:1em">
+    Alle Abbildungen in diesem Handbuch stammen aus der laufenden App mit einem
+    Beispiel-Stammbaum (rund 2.800 Personen).
+  </p>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k1">1. Was ist Stammbaum?</h1>
+
+<p class="lead">
+  Stammbaum ist ein Programm zum Erfassen, Ordnen und Auswerten von Familiengeschichte.
+  Es läuft als <strong>Web-App (PWA)</strong> direkt im Browser Ihres iPhones, iPads
+  oder Computers — und lässt sich wie eine echte App zum Startbildschirm hinzufügen.
+</p>
+
+<h2>Was die App auszeichnet</h2>
+<ul>
+  <li><strong>Kein Server, kein Konto.</strong> Ihre Daten bleiben auf Ihrem Gerät.
+      Es gibt keine Anmeldung und keine Cloud, in die etwas hochgeladen wird.</li>
+  <li><strong>Offline nutzbar.</strong> Einmal geladen, funktioniert die App auch ohne
+      Internet. Eine Anzeige in der Schale signalisiert, wenn Sie offline sind.</li>
+  <li><strong>Standardformate.</strong> Sie öffnet <strong>GEDCOM 5.5.1</strong> und
+      <strong>GRAMPS</strong>-Dateien und schreibt sie wieder — ohne Ihre Daten zu
+      verstümmeln (siehe <a href="#k15">Kapitel 15</a>).</li>
+  <li><strong>Fünf Kern-Datenarten:</strong> Personen, Familien, Quellen, Orte und Höfe —
+      dazu Diagramme, Statistik und ein Forschungs-Arbeitsbereich.</li>
+</ul>
+
+<div class="info">
+  Dieses Handbuch beschreibt nur Funktionen, die tatsächlich gebaut und in der App
+  erreichbar sind. Geplante, aber noch nicht fertige Bereiche sind in
+  <a href="#k16">Kapitel 16</a> gesammelt und in der App mit „(folgt)" gekennzeichnet.
+</div>
+
+<h2>Was Sie zum Loslegen brauchen</h2>
+<p>
+  Einen aktuellen Browser (Safari, Chrome oder Edge) und optional eine eigene
+  GEDCOM- oder GRAMPS-Datei. Zum Ausprobieren genügt der eingebaute Demo-Stammbaum.
+</p>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k2">2. Die ersten Schritte</h1>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Demo-Stammbaum laden</h2>
+    <p>
+      Beim ersten Start ist die App leer. Der schnellste Weg hineinzuschnuppern:
+    </p>
+    <ol>
+      <li>Unten rechts auf <strong>Mehr</strong> tippen.</li>
+      <li><strong>Datei</strong> wählen.</li>
+      <li><strong>Demo laden</strong> antippen.</li>
+    </ol>
+    <p>
+      Der Demo-Stammbaum durchläuft dieselbe Lade-Verarbeitung wie eine echte Datei —
+      Sie sehen also genau, wie sich Ihre eigenen Daten verhalten werden.
+    </p>
+    <h3>Eigene Datei öffnen</h3>
+    <p>
+      Über <strong>Mehr → Datei → Datei öffnen (GEDCOM/GRAMPS)</strong> wählen Sie eine
+      Datei von Ihrem Gerät. GEDCOM wird als Text, GRAMPS (gepacktes XML) automatisch
+      entpackt eingelesen.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/24-datei.png" alt="Datei-Menü mit Öffnen, Demo laden, Export und Vergleich">
+    <figcaption>Das Datei-Menü unter „Mehr"</figcaption>
+  </figure>
+</div>
+
+<div class="tip">
+  Was Sie einmal geladen und gespeichert haben, wird als <em>Arbeitskopie</em> im
+  Gerät behalten und beim nächsten Start automatisch wieder geöffnet — Sie müssen die
+  Datei nicht jedes Mal neu wählen.
+</div>
+
+<div class="workflow">
+  <h3>Der übliche Weg — von der Datei zur belegten Forschung</h3>
+  <p>
+    Wenn Sie mit einer bestehenden Datei arbeiten, hat sich diese Reihenfolge bewährt.
+    Die einzelnen Schritte sind in den folgenden Kapiteln ausführlich erklärt.
+  </p>
+  <ol class="steps">
+    <li><strong>Öffnen &amp; sichten.</strong> Datei laden und mit dem
+        <a href="#k12">Qualitäts-Dashboard</a> einen ersten Eindruck der Datenlage
+        gewinnen.</li>
+    <li><strong>Orte ordnen.</strong> Den <a href="#k7">Orts-Bestand</a> importieren,
+        Dubletten zusammenführen, Text-Orte mit Ortsobjekten verknüpfen — danach greifen
+        Karte, Statistik und Ortszeitgenossen.</li>
+    <li><strong>Ergänzen &amp; belegen.</strong> Fehlende Ereignisse eintragen und
+        <a href="#k6">jede Angabe mit einer Quelle</a> versehen.</li>
+    <li><strong>Forschen mit Plan.</strong> Offene Fragen als
+        <a href="#k11">Aufgabe</a> festhalten, Recherche im <a href="#k11">Protokoll</a>
+        dokumentieren, Schlussfolgerungen als <a href="#k11">Hypothese</a> prüfen.</li>
+    <li><strong>Prüfen &amp; sichern.</strong> <a href="#k12">Befunde abarbeiten</a> und
+        die Datei bewusst <a href="#k14">zurückschreiben</a>.</li>
+  </ol>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k3">3. Die Oberfläche verstehen</h1>
+
+<p class="lead">
+  Stammbaum ordnet alles nach <strong>Rollen</strong>: Es gibt <em>Entitäten</em>
+  (die fünf Datenarten), <em>Ansichten</em> (Diagramme und Statistik) und
+  <em>Arbeit</em> (Suche, Aufgaben, Datei). Auf dem Handy und auf dem Computer sieht
+  das leicht unterschiedlich aus, folgt aber überall demselben Register.
+</p>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/26-mehr.png" alt="Das Mehr-Menü mit Karte, Zeitleiste, Datei, Statistik">
+    <figcaption>Das „Mehr"-Menü bündelt Ansichten und Werkzeuge</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Auf dem Handy: Bottom-Navigation</h2>
+    <p>
+      Unten liegen fünf Tasten: <strong>Baum</strong>, <strong>Personen</strong>,
+      <strong>Suche</strong>, <strong>Aufgaben</strong> und <strong>Mehr</strong>.
+      Die Reihe direkt darunter wechselt je nach Bereich — bei den Datenarten sind das
+      die Segmente <em>Personen · Familien · Quellen · Orte · Höfe</em>.
+    </p>
+    <p>
+      Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik, das
+      Datei-Menü — und (noch in Arbeit) Story, Ausgaben und Einstellungen.
+    </p>
+  </div>
+</div>
+
+<h2>Auf dem Computer: Seitenleiste und zwei Spalten</h2>
+<p>
+  Ab einer Fensterbreite von etwa 900&nbsp;Pixeln ersetzt eine <strong>Seitenleiste</strong>
+  die untere Navigationsleiste. Sie zeigt alle Ziele nach Rolle gruppiert
+  (ENTITÄTEN · ANSICHTEN · ARBEIT). Zusätzlich erscheint die
+  <strong>Zwei-Spalten-Ansicht</strong>: links die Liste, rechts sofort die
+  Detailansicht des gewählten Eintrags.
+</p>
+
+<figure class="wide">
+  <img src="handbuch-assets/30-desktop-liste.png" alt="Desktop-Ansicht mit Seitenleiste links, Personenliste und Detailspalte">
+  <figcaption>Computer-Ansicht: Seitenleiste, Personenliste und Detailspalte nebeneinander</figcaption>
+</figure>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Befehlspalette (⌘K)</h2>
+    <p>
+      Auf dem Computer öffnet <code>⌘K</code> (bzw. <code>Strg+K</code>) eine
+      Befehlspalette: Tippen Sie ein Ziel wie „Karte" oder einen Namen, und springen
+      Sie mit der Eingabetaste direkt dorthin.
+    </p>
+    <h3>Rückgängig und Wiederherstellen</h3>
+    <p>
+      Oben in der Kopfzeile liegen die Pfeile <strong>↶ Rückgängig</strong> und
+      <strong>↷ Wiederherstellen</strong>. Jede Änderung lässt sich schrittweise
+      zurücknehmen; <strong>Zum geladenen Stand</strong> verwirft alle Änderungen seit
+      dem letzten Laden.
+    </p>
+  </div>
+  <figure class="phone" style="width:340px">
+    <img src="handbuch-assets/32-command-palette.png" alt="Befehlspalette mit Eingabe Karte und Sprungziel">
+    <figcaption>Die Befehlspalette (⌘K) springt zu jedem Ziel</figcaption>
+  </figure>
+</div>
+
+<div class="info">
+  Jeder Bereich merkt sich seine eigene Auswahl. Wechseln Sie von der Karte zur
+  Personenliste und zurück, ist auf der Karte noch dieselbe Auswahl aktiv wie zuvor.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k4">4. Personen — das Herzstück</h1>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Die Personenliste</h2>
+    <p>
+      Alle Personen alphabetisch, gruppiert nach Anfangsbuchstabe. Jede Zeile zeigt
+      Namen sowie Geburts- und Sterbedaten (mit Ort, sofern vorhanden).
+    </p>
+    <ul>
+      <li><strong>↕ Name</strong> schaltet die Sortierung um.</li>
+      <li>Das <strong>Suchfeld</strong> filtert sofort nach Namen.</li>
+      <li><strong>+ Neue Person</strong> legt einen neuen Datensatz an.</li>
+    </ul>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/01-personenliste.png" alt="Personenliste mit alphabetischer Gruppierung">
+    <figcaption>Die Personenliste mit Sortier- und Suchleiste</figcaption>
+  </figure>
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/02-person-filter.png" alt="Filter-Panel mit Geschlecht, Geburtsjahr, Ort und Lücken-Filtern">
+    <figcaption>Der Filter blendet gezielt ein oder aus</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Filtern und Werkzeuge</h2>
+    <p>
+      <strong>Filter</strong> öffnet ein Panel: nach <em>Geschlecht</em>,
+      <em>Geburtsjahr von–bis</em>, <em>Geburtsort</em> sowie nach fehlenden Angaben
+      (<em>kein Sterbedatum, keine Quellen, keine Eltern</em>). „Filter zurücksetzen"
+      räumt alles wieder auf.
+    </p>
+    <p>
+      <strong>Werkzeuge</strong> öffnet die Zusatzfunktionen — darunter
+      <strong>Duplikate suchen</strong> (siehe unten).
+    </p>
+  </div>
+</div>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Die Detailansicht einer Person</h2>
+    <p>
+      Ereignisse sind nach Typ gruppiert — <em>Lebensdaten</em>, <em>Beruf</em>,
+      <em>Wohnen &amp; Eigentum</em> und so weiter. Zu jedem Ereignis sehen Sie:
+    </p>
+    <ul>
+      <li>Datum und Ort (der <strong>Ort ist anklickbar</strong> und führt zur Karte
+          oder zum Ort-Steckbrief),</li>
+      <li>einen <span class="badge g">◎</span>-Kreis, wenn Koordinaten vorliegen, und
+          einen Pfeil <strong>↗</strong> zum Sprung auf die Karte,</li>
+      <li><span class="badge q">§9</span>-Marken für die verknüpften Quellen.</li>
+    </ul>
+    <p>
+      Oben führen <strong>✎ Bearbeiten</strong> und <strong>⧖ Im Baum anzeigen</strong>
+      weiter; <strong>+ Wohnort</strong> und <strong>+ Ereignis</strong> ergänzen neue
+      Einträge.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/04-person-detail.png" alt="Personen-Detail mit gruppierten Ereignissen, Quellen-Badges und Koordinaten-Icons">
+    <figcaption>Personen-Detail: Ereignisse nach Typ, mit Quellen und Koordinaten</figcaption>
+  </figure>
+</div>
+
+<div class="workflow">
+  <h3>So legen Sie eine Person an</h3>
+  <ol class="steps">
+    <li>In der Personenliste auf <strong>+ Neue Person</strong> tippen.</li>
+    <li>Namen und Geschlecht eintragen. Der Name wird beim Speichern automatisch in
+        Vor- und Nachname zerlegt — Sie müssen nichts doppelt eingeben.</li>
+    <li>Über <strong>+ Ereignis</strong> und <strong>+ Wohnort</strong> die
+        Lebensdaten ergänzen (siehe unten).</li>
+    <li>Die Person mit den Eltern bzw. einer Familie verbinden (siehe
+        <a href="#k5">Kapitel 5</a>).</li>
+  </ol>
+</div>
+
+<h2>So erfassen Sie ein Ereignis</h2>
+<p>
+  Jedes Ereignis (Geburt, Heirat, Beruf, Wohnort …) trägt Datum, Ort und Quellen.
+  Zwei Felder verdienen besondere Aufmerksamkeit:
+</p>
+
+<h3>Das Datum</h3>
+<p>
+  Datumsangaben dürfen unscharf sein — genau wie in der echten Forschung. Erlaubt sind
+  volle Daten, nur Jahre, sowie Näherungen mit <code>um</code>, <code>vor</code>,
+  <code>nach</code> und Zeiträume (<code>zwischen … und …</code>). Erfundene
+  Genauigkeit hilft niemandem — tragen Sie ein, was die Quelle hergibt.
+</p>
+
+<h3>Der Ort</h3>
+<p>
+  Ein Ort ist zunächst nur Text. Sein voller Wert entsteht erst, wenn er mit einem
+  <a href="#k7">Ortsobjekt</a> verknüpft ist: Erst dann erscheint er auf der Karte,
+  zählt in der Statistik richtig und verbindet Zeitgenossen.
+</p>
+
+<div class="practice">
+  Verknüpfen Sie Orte, statt sie nur einzutippen. Ein anklickbarer, unterstrichener Ort
+  in der Ereigniszeile ist verknüpft; ein grauer, nicht anklickbarer Ort ist reiner Text
+  und wartet noch auf seine Zuordnung.
+</div>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Doppelte Personen finden und zusammenführen</h2>
+    <p>
+      Über <strong>Werkzeuge → Duplikate suchen</strong> vergleicht die App alle Personen
+      paarweise und schlägt mögliche Dubletten vor (nach Namen, Daten und Verwandtschaft
+      gewichtet). Im Zusammenführen-Dialog entscheiden Sie feldweise, welche Angaben
+      erhalten bleiben. Ein Paar, das kein Duplikat ist, lässt sich dauerhaft als
+      „kein Duplikat" merken, damit es nicht wieder vorgeschlagen wird.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/03-person-werkzeuge.png" alt="Werkzeuge-Panel mit Duplikate suchen">
+    <figcaption>Das Werkzeuge-Panel öffnet u.&nbsp;a. die Duplikatsuche</figcaption>
+  </figure>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k5">5. Familien</h1>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/06-familienliste.png" alt="Familienliste mit Ehepaaren">
+    <figcaption>Die Familienliste</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/07-familie-detail.png" alt="Familien-Detail mit Eltern, Ereignissen und Kinderliste">
+    <figcaption>Familien-Detail mit Eltern, Heirat und Kindern</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      Der Bereich <strong>Familien</strong> listet alle Ehen/Verbindungen; ein
+      Sortier-Umschalter mit drei Zuständen und ein Filter helfen beim Finden.
+    </p>
+    <h3>Die Familien-Detailansicht</h3>
+    <ul>
+      <li><strong>Eltern</strong> — Ehemann und Ehefrau, jeweils anklickbar.</li>
+      <li>Familien-Ereignisse wie <strong>Verlobung</strong> und <strong>Heirat</strong>
+          (mit Ort, Koordinaten und Quellen wie bei Personen).</li>
+      <li><strong>Kinder</strong> — die Liste ist anklickbar; über
+          „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder.</li>
+    </ul>
+    <p>
+      Ereignisse, die zu Personen <em>und</em> Familien gehören (etwa eine Heirat),
+      teilen sich dieselbe Ereigniszeile — Sie pflegen sie nur an einer Stelle.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k6">6. Quellen und Archive</h1>
+
+<div class="shot-row">
+  <div class="prose">
+    <p>
+      Quellen belegen Ihre Angaben. Der Bereich <strong>Quellen</strong> hat zwei
+      Segmente: <strong>Quellen</strong> und <strong>Archive</strong> (Repositorien).
+      Die Quellenliste zeigt jede Quelle mit der Zahl ihrer Referenzen.
+    </p>
+    <h3>Die Quellen-Detailansicht</h3>
+    <ul>
+      <li>Titel, Verlag/Fundstelle (z.&nbsp;B. eine Matricula-Adresse),</li>
+      <li><strong>Referenzen</strong> — welche Personen und Ereignisse diese Quelle
+          zitieren,</li>
+      <li>je Zitat die Beweiskraft als <span class="badge g">QUAY 3</span>-Marke.</li>
+    </ul>
+    <h3>Evidenzbewertung</h3>
+    <p>
+      Zu jedem Quellenbezug lässt sich eine Bewertung nach drei Achsen erfassen
+      (Herkunft, Information, Beweiskraft). Die Beweiskraft fließt in die
+      QUAY-Anzeige ein.
+    </p>
+    <h3>Archive</h3>
+    <p>
+      Archive/Repositorien werden mit Detailansicht und Signatur geführt und lassen
+      sich beim Anlegen einer Quelle über einen Picker zuordnen.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/08-quellenliste.png" alt="Quellenliste mit Segmenten Quellen und Archive">
+    <figcaption>Die Quellenliste</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/09-quelle-detail.png" alt="Quellen-Detail mit Fundstelle, Referenzen und QUAY-Bewertung">
+    <figcaption>Quellen-Detail mit Fundstelle und Referenzen</figcaption>
+  </figure>
+</div>
+
+<div class="workflow">
+  <h3>So belegen Sie eine Angabe</h3>
+  <ol class="steps">
+    <li>Die Quelle einmalig anlegen (Titel, Fundstelle, ggf. Archiv).</li>
+    <li>Beim Ereignis die Quelle zuordnen — dieselbe Quelle kann viele Ereignisse
+        belegen.</li>
+    <li>Die <strong>Beweiskraft</strong> und die Evidenz-Achsen bewerten. Die Bewertung
+        erscheint als <span class="badge g">QUAY</span>-Marke an der Ereigniszeile.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Belegen Sie jede Tatsache, und trennen Sie sauber: <em>Was</em> steht in der Quelle
+  (das Ereignis) von <em>wie verlässlich</em> die Quelle ist (die Beweiskraft) von
+  <em>was Sie daraus schließen</em> (der <a href="#k11">Hypothese</a>). Diese drei
+  Ebenen bewusst getrennt zu halten, ist der Kern soliden genealogischen Arbeitens.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k7">7. Orte</h1>
+
+<p class="lead">
+  Orte sind in Stammbaum eigene Objekte — nicht nur Text in einem Ereignis. Das
+  erlaubt Verwaltungshierarchien, Namensvarianten über die Zeit, Koordinaten und
+  saubere Zusammenführung von Schreibvarianten.
+</p>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/10-ortsliste.png" alt="Ortsliste mit Anreicherungs-Badges und Filter Ohne Bezug">
+    <figcaption>Ortsliste mit Anreicherungs-Status und Referenz-Filter</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Die Ortsliste</h2>
+    <ul>
+      <li><strong>Varianten gruppiert</strong> fasst gleichnamige Schreibweisen zusammen.</li>
+      <li>Die Umschalter <strong>Orte (N)</strong> / <strong>Ohne Bezug (N)</strong>
+          trennen genutzte von nicht referenzierten Orten.</li>
+      <li>Badges wie <em>Hierarchie</em> und <em>ohne Zusatzangaben</em> sowie ein
+          kleiner Ring zeigen den <strong>Anreicherungsgrad</strong> an.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Der Ort-Steckbrief</h2>
+    <ul>
+      <li><strong>Verwaltungszugehörigkeit</strong> als Kette (anklickbare Glieder) —
+          über „Zugehörigkeit bearbeiten" mit Zeiträumen pflegbar.</li>
+      <li><strong>Ereignisse nach Typ</strong>: welche Personen an diesem Ort geboren
+          wurden, heirateten usw. — mit Quellen-Badges.</li>
+      <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
+      <li>Ein Namens-Zeitstrahl hält historische Namensvarianten fest.</li>
+    </ul>
+    <p>
+      Alle Ortsfelder sind editierbar. „Ort löschen" setzt die betroffenen Ereignisse
+      kaskadierend auf ihren Textstand zurück.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/11-ort-steckbrief.png" alt="Ort-Steckbrief mit Zugehörigkeit, Ereignissen und Quellen">
+    <figcaption>Ort-Steckbrief mit Zugehörigkeit und Ereignissen</figcaption>
+  </figure>
+</div>
+
+<h2>Verknüpfen, prüfen, zusammenführen</h2>
+<ul>
+  <li><strong>Text → Ort verknüpfen:</strong> Ein reiner Orts-String im Ereignis wird
+      einem Ortsobjekt zugeordnet — die Anzeige aktualisiert sich sofort.</li>
+  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab.</li>
+  <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
+      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
+</ul>
+
+<h2>Orts-Datei importieren und exportieren</h2>
+<p>
+  Über <strong>Datei → Orte importieren / Orte exportieren</strong> pflegen Sie einen
+  wiederverwendbaren Orts-Bestand (Koordinaten, Hierarchien, Namensvarianten) als
+  JSON-Datei. Beim Import werden vorhandene Orte angereichert und die Ereignisse neu
+  aufgelöst — dadurch erscheinen die Marker auf der Karte (siehe <a href="#k9">Kapitel 9</a>).
+</p>
+
+<div class="workflow">
+  <h3>So halten Sie Ihre Orte sauber</h3>
+  <ol class="steps">
+    <li><strong>Anreichern:</strong> einen vorhandenen <a href="#k7">Orts-Bestand</a>
+        (Koordinaten, Hierarchien) importieren.</li>
+    <li><strong>Zusammenführen:</strong> im Werkzeuge-Bereich die Massen-Dedup laufen
+        lassen und Schreibvarianten desselben Ortes bündeln.</li>
+    <li><strong>Verknüpfen:</strong> übrige Text-Orte einem Ortsobjekt zuordnen — die
+        Anzeige aktualisiert sich sofort.</li>
+    <li><strong>Prüfen:</strong> die Orts-Review-Liste abarbeiten und den Filter
+        <em>„Ohne Bezug"</em> nutzen, um verwaiste Orte aufzuräumen.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Ordnen Sie die Orte früh — am besten direkt nach dem Import. Viele spätere Funktionen
+  (Karte, Statistik, Ortszeitgenossen, Migrationswege) hängen daran, dass Ereignisse an
+  echten Ortsobjekten hängen und nicht an losem Text.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k8">8. Höfe</h1>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/12-hoefeliste.png" alt="Höfe-Liste gruppiert nach Dorf mit Straße und Hausnummer">
+    <figcaption>Höfe nach Dorf, Straße und Hausnummer</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/13-hof-detail.png" alt="Hof-Detail mit Adressvarianten und Bewohnern">
+    <figcaption>Hof-Detail: Adressvarianten und Bewohner</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      Ein <strong>Hof</strong> ist eine feinere Ortsebene — eine Adresse innerhalb
+      eines Dorfes. Die Höfe-Liste gruppiert nach Dorf und zeigt darunter Straße und
+      Hausnummer.
+    </p>
+    <ul>
+      <li>Alle Hof-Felder sind editierbar; eine <strong>Umbenennung wirkt durchgängig</strong>
+          — auf allen referenzierenden Ereigniszeilen.</li>
+      <li><strong>Hof-Review</strong> und <strong>Massen-Zusammenführung</strong>
+          bereinigen den Bestand analog zu den Orten.</li>
+      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k9">9. Diagramme: Baum, Karte, Zeitleiste</h1>
+
+<p class="lead">
+  Der Bereich <strong>Baum</strong> ist zugleich der Umschalter für die grafischen
+  Ansichten: <strong>Baum</strong>, <strong>Karte</strong> und <strong>Zeitleiste</strong>
+  (Story folgt). Jede Ansicht merkt sich ihre eigene Auswahl.
+</p>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Der Sanduhr-Baum</h2>
+    <p>
+      Die Sanduhr zeigt eine Person (den Probanden) in der Mitte, die Vorfahren
+      darüber und die Nachkommen darunter. Die kleinen Ziffern sind die
+      <strong>Kekulé-Nummern</strong> (1 = Proband, 2 = Vater, 3 = Mutter …); der
+      farbige Rand codiert das Geschlecht. Mehrfach-Ehen werden korrekt dargestellt.
+    </p>
+    <p>
+      Über <strong>⤢ Vollbild</strong> nutzen Sie den ganzen Bildschirm; ein Tippen auf
+      eine Kachel wechselt den Probanden.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/14-sanduhr.png" alt="Sanduhr-Baum mit Vorfahren oben und Nachkommen unten">
+    <figcaption>Der Sanduhr-Baum mit Kekulé-Nummerierung</figcaption>
+  </figure>
+</div>
+
+<h2>Die interaktive Karte</h2>
+<p>
+  Die Karte hat drei Modi: <strong>Orte</strong> (alle Orte und Höfe mit Koordinaten —
+  braune Kreise für Dörfer, blaue Rauten für Höfe), <strong>Personen</strong> (eine
+  animierbare Lebens-/Wanderungslinie einer gewählten Person, mit Abspiel-Steuerung)
+  und <strong>Migrationen</strong>.
+</p>
+
+<figure class="wide">
+  <img src="handbuch-assets/15-karte-orte.png" alt="Karte im Orte-Modus mit Orts- und Hof-Markern über Deutschland">
+  <figcaption>Karte, Modus „Orte": Dörfer (braun) und Höfe (blau) mit Koordinaten</figcaption>
+</figure>
+
+<div class="info">
+  Marker erscheinen nur für Orte mit hinterlegten Koordinaten. Diese kommen aus dem
+  Orts-Bestand (siehe <a href="#k7">Kapitel 7</a>, „Orte importieren"). Ohne
+  Koordinaten bleibt die Karte leer — dann zuerst den Orts-Bestand importieren.
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/16-karte-personen.png" alt="Karte im Personen-Modus mit Abspiel-Steuerung">
+    <figcaption>Karte, Modus „Personen": Lebensweg einer Person abspielen</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      Im Modus <strong>Personen</strong> wählen Sie oben eine Person und lassen ihren
+      Lebensweg mit <strong>▶ Abspielen</strong> animieren — Station für Station, mit
+      einstellbarer <em>Geschwindigkeit</em> und optionalem <em>Loop</em>.
+      <strong>■ Zurücksetzen</strong> stellt den Anfang wieder her.
+    </p>
+  </div>
+</div>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Die Zeitleiste</h2>
+    <p>
+      Die Zeitleiste stellt das Leben einer Person (oder mehrerer im Vergleich) in
+      <strong>Bahnen</strong> dar: Leben, Wohnorte, Beruf, Familie, Sonstiges. Über
+      <strong>⊕ Person hinzufügen</strong> wählen Sie, wen die Leiste zeigt.
+    </p>
+    <ul>
+      <li>Umschalter <strong>Swim-Lane</strong> / <strong>Dekaden</strong>.</li>
+      <li>Ein Kontextband <strong>Historische Ereignisse</strong> (Krieg, Seuche,
+          Politik, Religion, Natur) lässt sich zuschalten und filtern — im Beispiel
+          etwa „1933 NS-Machtübernahme".</li>
+    </ul>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/17-zeitleiste.png" alt="Zeitleiste mit Bahnen und historischem Kontextband">
+    <figcaption>Zeitleiste mit Lebens-Bahnen und historischem Kontext</figcaption>
+  </figure>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k10">10. Statistik</h1>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/18-statistik.png" alt="Statistik mit Übersichtskacheln, Geschlecht, Datenvollständigkeit und Lebensspannen">
+    <figcaption>Die interaktive Statistik-Ansicht</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      <strong>Mehr → Statistik</strong> wertet den ganzen Bestand aus:
+    </p>
+    <ul>
+      <li><strong>Übersicht</strong> — Anzahl Personen, Familien, Quellen, Orte,
+          Archive, Medien.</li>
+      <li><strong>Geschlecht</strong> als Balken mit Prozenten.</li>
+      <li><strong>Datenvollständigkeit</strong> — Anteil mit Geburtsdatum/-ort,
+          Sterbedatum, Quelle usw.</li>
+      <li><strong>Lebensspannen</strong> — Durchschnitt, Median, Minimum, Maximum.</li>
+    </ul>
+    <p>
+      Derselbe Rechenkern liegt der Live-Ansicht und (künftig) dem gedruckten Report
+      zugrunde; er rechnet über die aufgelösten Orte, nicht über rohe Textfelder.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k11">11. Forschung: Aufgaben, Protokoll, Hypothesen</h1>
+
+<p class="lead">
+  Der Bereich <strong>Aufgaben</strong> ist Ihr Forschungs-Arbeitsplatz mit vier
+  Segmenten: <strong>Aufgaben</strong>, <strong>Protokoll</strong>,
+  <strong>Hypothesen</strong> und <strong>Dashboard</strong> (Kapitel 12). Jeder
+  Eintrag hängt an einer Person oder Familie.
+</p>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Aufgaben und Kanban-Board</h2>
+    <p>
+      Aufgaben sind offene To-dos Ihrer Recherche. Sie lassen sich als
+      <strong>Liste</strong> oder als <strong>Board</strong> anzeigen — das Board ordnet
+      sie nach Bearbeitungsstatus (<em>Offen</em>, <em>In Arbeit</em> …). Mit
+      „→ In Arbeit" verschieben Sie eine Karte. Jede Karte nennt die zugehörige Person.
+    </p>
+    <p>
+      <strong>+ Aufgabe</strong> legt eine neue an (Text, Kategorie, Ziel-Person,
+      optional eine Quelle). Ein Filter grenzt die Ansicht ein.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/20-aufgaben.png" alt="Aufgabenliste mit Liste/Board-Umschalter">
+    <figcaption>Aufgaben als Liste …</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/20b-aufgaben-board.png" alt="Kanban-Board mit Aufgabenkarten in der Spalte Offen">
+    <figcaption>… oder als Kanban-Board</figcaption>
+  </figure>
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/22-hypothesen.png" alt="Hypothesen-Liste mit Status, Konfidenz und Beweisführung">
+    <figcaption>Hypothesen mit Status und Konfidenz</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/21-protokoll.png" alt="Forschungsprotokoll mit Eintrag, Datum und Status">
+    <figcaption>Forschungsprotokoll mit Suchanfrage und Status</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Hypothesen</h2>
+    <p>
+      Eine Hypothese hält eine Annahme fest — mit <strong>Status</strong>
+      (Offen / Bestätigt / Verworfen), einer eigenen <strong>Konfidenz</strong>
+      (bewusst getrennt von der Quellen-Beweiskraft) und einer Beweisführung. Belege
+      werden als Quellen-Referenzen angehängt.
+    </p>
+    <h2>Forschungsprotokoll</h2>
+    <p>
+      Das <strong>Protokoll</strong> dokumentiert jeden Rechercheschritt: Datum,
+      Archiv, Quelle, Suchanfrage, Ergebnis und Notiz — mit Status wie „Ausstehend".
+      So bleibt nachvollziehbar, wo Sie schon gesucht haben.
+    </p>
+  </div>
+</div>
+
+<div class="workflow">
+  <h3>Forschen mit Plan — der Kreislauf</h3>
+  <p>
+    Aufgaben, Protokoll und Hypothesen sind kein Selbstzweck, sondern bilden zusammen
+    einen nachvollziehbaren Forschungsprozess:
+  </p>
+  <ol class="steps">
+    <li><strong>Frage</strong> als <em>Aufgabe</em> festhalten
+        („Taufeintrag von X finden").</li>
+    <li><strong>Suchen</strong> — jeden Schritt (auch erfolglose!) im <em>Protokoll</em>
+        vermerken: Archiv, Quelle, Suchanfrage, Ergebnis.</li>
+    <li><strong>Schlussfolgern</strong> — eine <em>Hypothese</em> formulieren, mit
+        Belegen und einer ehrlichen Konfidenz.</li>
+    <li><strong>Bestätigen oder verwerfen</strong> — die Hypothese auf Grundlage der
+        Belege abschließen und die gesicherte Tatsache in die Daten übernehmen.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Notieren Sie auch die <em>ergebnislose</em> Suche. „In diesem Kirchenbuch nicht
+  gefunden" ist ein Forschungsergebnis — es bewahrt Sie und andere davor, dieselbe
+  Quelle ein zweites Mal vergeblich zu durchsuchen.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k12">12. Qualität und Datenprüfung</h1>
+
+<div class="shot-row">
+  <div class="prose">
+    <p>
+      Das <strong>Dashboard</strong> (Aufgaben → Dashboard) fasst die Datengüte
+      zusammen und stützt sich auf eine <strong>Regel-Engine</strong>, die den ganzen
+      Bestand prüft.
+    </p>
+    <ul>
+      <li>Ein Gesamtwert <strong>„% befundfrei"</strong> und Zähler für
+          <strong>Fehler</strong>, <strong>Warnungen</strong>, <strong>Hinweise</strong>
+          und <strong>saubere</strong> Personen.</li>
+      <li>Der <strong>Lückenradar</strong> zeigt Abdeckungsgrade (Geburtsdatum,
+          Geburtsort, Quelle mit Bewertung …).</li>
+      <li><strong>Brennpunkte</strong> listen konkrete Auffälligkeiten je Person —
+          etwa „zu jung bei Geburt" oder ein unplausibles Heiratsalter.</li>
+    </ul>
+    <p>
+      Über <strong>Filter</strong>, <strong>✓ Bericht</strong> und das Zahnrad steuern
+      Sie Umfang und Regel-Konfiguration.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/23-dashboard.png" alt="Qualitäts-Dashboard mit Ampel, Lückenradar und Brennpunkten">
+    <figcaption>Qualitäts-Dashboard mit Lückenradar und Brennpunkten</figcaption>
+  </figure>
+</div>
+
+<div class="info">
+  Die Regel-Konfiguration ist geräte-lokal: Sie reist nicht mit der Genealogie-Datei
+  und verändert Ihre GEDCOM-/GRAMPS-Datei nicht.
+</div>
+
+<div class="workflow">
+  <h3>So arbeiten Sie Befunde ab</h3>
+  <ol class="steps">
+    <li>Mit den roten <strong>Fehlern</strong> beginnen — sie deuten auf echte
+        Widersprüche (etwa ein Kind, das nach dem Tod des Vaters geboren wurde).</li>
+    <li>Jeden <strong>Brennpunkt</strong> antippen, die Person öffnen und den
+        Widerspruch entweder korrigieren oder mit einer Quelle erklären.</li>
+    <li>Über den <strong>Lückenradar</strong> gezielt Lücken schließen (fehlende
+        Geburtsorte, unbelegte Angaben).</li>
+    <li>Den Fortschritt am Wert <strong>„% befundfrei"</strong> und an den Zählern
+        verfolgen.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Nicht jede Warnung ist ein Fehler. Ein ungewöhnliches Heiratsalter kann historisch
+  völlig korrekt sein. Ziel ist nicht „alles grün", sondern dass jeder verbliebene
+  Befund <em>bewusst</em> so stehen bleibt — idealerweise durch eine Quelle gedeckt.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k13">13. Suchen und Finden</h1>
+
+<div class="shot-row">
+  <div class="prose">
+    <p>
+      Die <strong>Suche</strong> (untere Leiste) durchsucht alle fünf Datenarten
+      gleichzeitig — Personen, Familien, Quellen, Orte und Höfe — und führt Sie direkt
+      zum Treffer. Innerhalb einer Liste filtert zusätzlich das jeweilige Suchfeld
+      sofort mit.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/19-suche.png" alt="Globale Suche über alle Datenarten">
+    <figcaption>Globale Suche über alle fünf Datenarten</figcaption>
+  </figure>
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k14">14. Speichern und Sichern</h1>
+
+<h2>Zwei Wege zu speichern</h2>
+<p>
+  Stammbaum nutzt <strong>ein</strong> Export-Rohr mit zwei Stufen: Wo der Browser es
+  erlaubt, schreibt die App <strong>direkt in Ihre Datei</strong> zurück; sonst wird
+  die Datei zum <strong>Herunterladen</strong> bzw. Teilen angeboten. In beiden Fällen
+  entsteht dieselbe, formattreue Ausgabe.
+</p>
+
+<h2>Arbeitskopie und Auto-Load</h2>
+<p>
+  Ihr aktueller Stand wird als Arbeitskopie im Gerät gehalten und beim nächsten Start
+  automatisch geladen. Sie verlieren also nichts, wenn Sie den Tab schließen.
+</p>
+
+<h2>Rückgängig und „Zum geladenen Stand"</h2>
+<ul>
+  <li><strong>Undo/Redo</strong> nimmt einzelne Änderungen schrittweise zurück
+      (Snapshot-Verlauf).</li>
+  <li><strong>Zum geladenen Stand</strong> verwirft alle Änderungen seit dem letzten
+      Laden/Speichern.</li>
+</ul>
+
+<div class="warning">
+  Die App speichert nicht von selbst in Ihre Datei. Nutzen Sie am Ende einer Sitzung
+  bewusst den Export bzw. das Zurückschreiben, damit Ihre Datei auf dem neuesten Stand
+  ist.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k15">15. Datenformate und Import/Export</h1>
+
+<h2>Welche Formate?</h2>
+<ul>
+  <li><strong>GEDCOM 5.5.1</strong> — öffnen und schreiben (Standardformat).</li>
+  <li><strong>GEDCOM „Strict"</strong> und <strong>GEDCOM 7.0</strong> — als
+      Export-Formate im selben Export-Rohr (die Formatwahl bestimmt Serialisierer und
+      Dateiendung).</li>
+  <li><strong>GRAMPS</strong> — lesen und schreiben; Änderungen (Namen, Geschlecht,
+      Quellen, Ereignisse …) werden zurückgeschrieben.</li>
+</ul>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>In anderes Format exportieren</h2>
+    <p>
+      Über <strong>Datei → In anderes Format exportieren</strong> wählen Sie das
+      Zielformat (5.5.1 / Strict / GED7) und optional eine
+      <strong>Anonymisierung</strong> — mit Zähler, wie viele von wie vielen Personen
+      betroffen sind. So geben Sie einen Auszug weiter, ohne lebende Personen
+      preiszugeben.
+    </p>
+    <h2>Datenerhalt (Roundtrip)</h2>
+    <p>
+      Das Kernversprechen: Was hineingeht, kommt unverfälscht wieder heraus. Felder,
+      die die App nicht selbst bearbeitet, werden unverändert durchgereicht — Ihre
+      Datei verliert beim Öffnen und Speichern nichts.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/25-export.png" alt="Export-Fläche mit Formatwahl und Anonymisierung">
+    <figcaption>Export mit Formatwahl und Anonymisierung</figcaption>
+  </figure>
+</div>
+
+<h2>Dateien vergleichen</h2>
+<p>
+  <strong>Datei → Mit zweiter Datei vergleichen</strong> stellt einen zweiten Bestand
+  gegenüber: Die App klassifiziert Personen (sichere / mögliche / unsichere
+  Entsprechung) und zeigt je Feld <em>Ergänzungen</em>, <em>Konflikte</em> und
+  <em>Identisches</em> — Sie entscheiden feldweise, was übernommen wird.
+</p>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k16">16. Was noch folgt</h1>
+
+<p class="lead">
+  Ehrlichkeitshalber: Die folgenden Bereiche sind geplant und in der App teils schon
+  als „(folgt)" sichtbar, aber noch <strong>nicht</strong> nutzbar. Sie sind hier
+  aufgeführt, damit Sie wissen, was heute fehlt.
+</p>
+<ul>
+  <li><strong>Story / Biografie</strong> — erzählte Lebensgeschichten mit Karte und Download.</li>
+  <li><strong>Ausgaben / Druck</strong> — Familienbuch, Ahnenliste, Ortsbuch,
+      Hofchronik und weitere Druckvorlagen.</li>
+  <li><strong>Fächer-Diagramm</strong> und <strong>Nachkommen-Baum</strong> — bislang
+      gibt es nur die Sanduhr.</li>
+  <li><strong>Beziehungsrechner</strong> — Verwandtschaftsgrad zwischen zwei Personen.</li>
+  <li><strong>GOV-Import</strong> für historische Ortszugehörigkeiten (die Felder
+      existieren, der importierende Weg fehlt noch).</li>
+  <li><strong>Assoziationen</strong> (Zeugen, Paten, Informanten) in der Oberfläche —
+      im Datenkern bereits vorhanden.</li>
+  <li><strong>Einstellungen</strong>.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k17">17. Gute Praxis auf einen Blick</h1>
+
+<ul>
+  <li><strong>Belegen vor Behaupten.</strong> Jede Tatsache verdient eine Quelle. Eine
+      unbelegte Angabe ist eine Hypothese, keine Tatsache.</li>
+  <li><strong>Orte verknüpfen, nicht tippen.</strong> Erst als Ortsobjekt entfaltet ein
+      Ort seinen Wert (Karte, Statistik, Zeitgenossen).</li>
+  <li><strong>Unschärfe zulassen.</strong> <code>um 1750</code> ist ehrlicher als ein
+      erfundenes exaktes Datum.</li>
+  <li><strong>Drei Ebenen trennen:</strong> Quelle (Beweiskraft) — Tatsache (Ereignis) —
+      Schlussfolgerung (Hypothese).</li>
+  <li><strong>Auch Erfolgloses protokollieren.</strong> Wo Sie schon gesucht haben, ist
+      wertvolles Wissen.</li>
+  <li><strong>Regelmäßig sichern.</strong> Die App speichert nicht von selbst in Ihre
+      Datei — schreiben Sie bewusst zurück.</li>
+  <li><strong>Datenpflege ist laufend.</strong> Orte aufräumen und das Dashboard prüfen
+      gehören zur Routine, nicht ans Projektende.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k18">18. Häufige Fragen</h1>
+
+<dl class="faq">
+  <dt>Wo sind meine Daten gespeichert? Sind sie sicher?</dt>
+  <dd>Ausschließlich auf Ihrem Gerät. Es gibt keinen Server und kein Konto; nichts wird
+      hochgeladen. Sichern Sie zusätzlich, indem Sie die Datei regelmäßig exportieren.</dd>
+
+  <dt>Muss ich speichern?</dt>
+  <dd>Ihr Zwischenstand bleibt automatisch als Arbeitskopie erhalten und wird beim
+      Neustart geladen. In <em>Ihre</em> Datei schreiben Sie aber bewusst über das
+      Datei-Menü zurück (siehe <a href="#k14">Kapitel 14</a>).</dd>
+
+  <dt>Ich habe aus Versehen etwas geändert — was nun?</dt>
+  <dd>Nutzen Sie <strong>↶ Rückgängig</strong> oder verwerfen Sie alle Änderungen seit
+      dem Laden mit <strong>Zum geladenen Stand</strong>.</dd>
+
+  <dt>Die Karte bleibt leer.</dt>
+  <dd>Es fehlen Koordinaten. Importieren Sie zuerst einen Orts-Bestand
+      (<a href="#k7">Kapitel 7</a>); erst dann erscheinen Marker.</dd>
+
+  <dt>Kann ich die App ohne Internet nutzen?</dt>
+  <dd>Ja. Einmal geladen, funktioniert sie offline; eine Anzeige signalisiert den
+      Offline-Zustand.</dd>
+
+  <dt>Was ist der Unterschied zwischen einem Ort und einem Hof?</dt>
+  <dd>Ein Ort ist ein Dorf/eine Gemeinde; ein Hof ist eine Adresse <em>innerhalb</em>
+      eines Ortes (Straße, Hausnummer). Siehe <a href="#k8">Kapitel 8</a>.</dd>
+
+  <dt>Gehen beim Öffnen und Speichern Daten verloren?</dt>
+  <dd>Nein. Felder, die die App nicht selbst bearbeitet, werden unverändert
+      durchgereicht (siehe <a href="#k15">Kapitel 15</a>).</dd>
+
+  <dt>Wie gebe ich einen Auszug weiter, ohne Lebende preiszugeben?</dt>
+  <dd>Beim Export die <strong>Anonymisierung</strong> aktivieren
+      (<a href="#k15">Kapitel 15</a>).</dd>
+</dl>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k19">19. Umstieg von anderen Programmen</h1>
+
+<p>
+  Stammbaum liest die verbreiteten Austauschformate. Der beste Weg aus einem anderen
+  Programm ist daher der Export als <strong>GEDCOM 5.5.1</strong> — oder, aus GRAMPS,
+  die native <strong>GRAMPS</strong>-Datei.
+</p>
+<ol class="steps">
+  <li>Im Ausgangsprogramm als GEDCOM 5.5.1 (oder GRAMPS-Datei) exportieren.</li>
+  <li>In Stammbaum über <strong>Mehr → Datei → Datei öffnen</strong> einlesen.</li>
+  <li>Die Orte ordnen (<a href="#k7">Kapitel 7</a>) und mit dem
+      <a href="#k12">Dashboard</a> die Datenlage prüfen.</li>
+</ol>
+<div class="info">
+  Dank des formattreuen Durchreichens bleibt beim Öffnen auch das erhalten, was
+  Stammbaum selbst (noch) nicht bearbeitet. Vergleichen Sie zwei Bestände bei Bedarf
+  über <strong>Datei → Mit zweiter Datei vergleichen</strong>.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k20">20. Checkliste für einen guten Start</h1>
+
+<ol class="steps">
+  <li>Datei geladen und einmal probehalber zurückgeschrieben (der Speicherweg
+      funktioniert).</li>
+  <li>Orts-Bestand importiert, Dubletten zusammengeführt, Text-Orte verknüpft.</li>
+  <li>Dashboard angesehen — die größten Lücken und Fehler sind bekannt.</li>
+  <li>Für die wichtigsten Personen sind die Kernquellen erfasst und bewertet.</li>
+  <li>Offene Fragen als Aufgaben notiert.</li>
+  <li>Ein Sicherungsexport liegt an einem zweiten Ort.</li>
+</ol>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhang">Anhang A: Symbole und Tastaturkürzel</h1>
+
+<h2>Symbole in Listen und Detailansichten</h2>
+<table class="ref">
+  <tr><th>Symbol</th><th>Bedeutung</th></tr>
+  <tr><td><span class="badge g">◎</span></td><td>Für dieses Ereignis liegen Koordinaten vor.</td></tr>
+  <tr><td>↗</td><td>Auf der Karte anzeigen.</td></tr>
+  <tr><td><span class="badge q">§3</span></td><td>Verknüpfte Quelle (die Nummer verweist auf den Quelleneintrag).</td></tr>
+  <tr><td><span class="badge g">QUAY 3</span></td><td>Beweiskraft eines Quellenbezugs (0–3).</td></tr>
+  <tr><td>✎</td><td>Bearbeiten.</td></tr>
+  <tr><td>⧖</td><td>Im Baum anzeigen.</td></tr>
+  <tr><td>↶ / ↷</td><td>Rückgängig / Wiederherstellen.</td></tr>
+  <tr><td>braune Kreise / blaue Rauten</td><td>Auf der Karte: Dörfer bzw. Höfe.</td></tr>
+</table>
+
+<h2>Untere Navigation (Handy)</h2>
+<table class="ref">
+  <tr><th>Tab</th><th>Führt zu</th></tr>
+  <tr><td>⧖ Baum</td><td>Grafische Ansichten (Baum, Karte, Zeitleiste).</td></tr>
+  <tr><td>👤 Personen</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe).</td></tr>
+  <tr><td>🔍 Suche</td><td>Globale Suche über alle Datenarten.</td></tr>
+  <tr><td>☑ Aufgaben</td><td>Forschung: Aufgaben, Protokoll, Hypothesen, Dashboard.</td></tr>
+  <tr><td>⋯ Mehr</td><td>Statistik, Datei-Menü, weitere Werkzeuge.</td></tr>
+</table>
+
+<h2>Tastaturkürzel (Computer)</h2>
+<table class="ref">
+  <tr><th>Kürzel</th><th>Wirkung</th></tr>
+  <tr><td>⌘K / Strg+K</td><td>Befehlspalette öffnen.</td></tr>
+  <tr><td>⌘S / Strg+S</td><td>Speichern.</td></tr>
+  <tr><td>Esc</td><td>Dialog/Panel schließen.</td></tr>
+</table>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhangB">Anhang B: Das GEDCOM-Dateiformat</h1>
+
+<p>
+  <strong>GEDCOM</strong> ist das seit Jahrzehnten verbreitete Austauschformat für
+  genealogische Daten. Es ist eine reine Textdatei aus nummerierten Zeilen
+  (<code>0 @I1@ INDI</code>, <code>1 NAME …</code>). Stammbaum liest und schreibt es
+  nativ.
+</p>
+
+<h2>Datenerhalt (Roundtrip &amp; Passthrough)</h2>
+<p>
+  Das zentrale Versprechen: <strong>Was hineingeht, kommt unverfälscht wieder heraus.</strong>
+  Intern bewahrt Stammbaum den vollständigen Zeilenbaum der Datei. Felder, die die App
+  selbst bearbeitet, werden aus dem Modell geschrieben; alle übrigen — auch fremde oder
+  seltene Tags — werden als <strong>Passthrough</strong> unverändert durchgereicht. Ein
+  erneutes Speichern ohne Änderung erzeugt bit-gleiche Ausgabe; es geht nichts verloren.
+</p>
+
+<h2>Export-Formate</h2>
+<table class="ref">
+  <tr><th>Format</th><th>Zweck</th></tr>
+  <tr><td>GEDCOM 5.5.1</td><td>Standardformat, verlustfrei inkl. der App-eigenen Zusatz-Tags.</td></tr>
+  <tr><td>GEDCOM 5.5.1 „Strict"</td><td>Maximale Fremdkompatibilität: alle proprietären <code>_</code>-Tags werden weggelassen oder auf Standard-Tags abgebildet. Bewusst nicht verlustfrei, aber von jedem Programm lesbar.</td></tr>
+  <tr><td>GEDCOM 7.0</td><td>Die moderne Fassung des Standards mit aktualisierten Strukturen.</td></tr>
+</table>
+
+<h3>Abbildung im „Strict"-Export</h3>
+<table class="ref">
+  <tr><th>App-Tag</th><th>wird zu</th></tr>
+  <tr><td>_UID</td><td>REFN (mit <code>2 TYPE UID</code>)</td></tr>
+  <tr><td>Rufname</td><td>NICK</td></tr>
+  <tr><td>Kind-Verhältnis (_FREL/_MREL)</td><td>PEDI</td></tr>
+  <tr><td>Aufgaben/Protokoll/Hypothesen/Evidenz</td><td>weggelassen</td></tr>
+</table>
+
+<h3>Ausgewählte Anpassungen im GEDCOM-7.0-Export</h3>
+<table class="ref">
+  <tr><th>5.5.1</th><th>7.0</th></tr>
+  <tr><td>geteilte Notiz (NOTE)</td><td>SNOTE</td></tr>
+  <tr><td>externe ID (REFN)</td><td>EXID</td></tr>
+  <tr><td>bestätigtes Fehlen („Kein bekanntes Ereignis: …")</td><td>NO-Struktur</td></tr>
+  <tr><td>Rolle einer Assoziation (RELA)</td><td>ROLE</td></tr>
+</table>
+
+<h2>Proprietäre Tags der App</h2>
+<p>
+  Für Funktionen, die GEDCOM nicht kennt, verwendet Stammbaum eigene, mit Unterstrich
+  beginnende Tags. Sie reisen im vollen 5.5.1-Export mit und werden von anderen
+  Programmen ignoriert; im „Strict"-Export entfallen sie.
+</p>
+<table class="ref">
+  <tr><th>Tag</th><th>Inhalt</th></tr>
+  <tr><td>_TASK</td><td>Forschungsaufgabe (<a href="#k11">Kapitel 11</a>)</td></tr>
+  <tr><td>_RLOG</td><td>Forschungsprotokoll-Eintrag</td></tr>
+  <tr><td>_HYPO</td><td>Hypothese samt Konfidenz und Belegen</td></tr>
+  <tr><td>_EVAL</td><td>Evidenzbewertung eines Quellenbezugs</td></tr>
+</table>
+
+<div class="info">
+  Referenz: die offiziellen Spezifikationen
+  <a href="https://gedcom.io/specifications/ged551.pdf">GEDCOM 5.5.1</a> und
+  <a href="https://gedcom.io/specifications/FamilySearchGEDCOMv7.html">GEDCOM 7.0</a>
+  (gedcom.io).
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhangC">Anhang C: Das GRAMPS-Dateiformat</h1>
+
+<p>
+  <strong>GRAMPS</strong> ist ein freies Genealogieprogramm; seine native Datei
+  (<code>.gramps</code>) ist ein <strong>gzip-komprimiertes XML</strong>. Stammbaum
+  entpackt sie beim Öffnen automatisch und kann sie wieder schreiben.
+</p>
+
+<h2>Datenerhalt und Write-Back</h2>
+<p>
+  Wie bei GEDCOM ist der struktur-erhaltende XML-Baum die Grundlage der Treue: Der
+  Writer gibt den geparsten Baum <strong>idempotent</strong> wieder (unverändertes
+  Speichern erzeugt identisches XML). Ihre Änderungen im Modell werden gezielt in diesen
+  Baum <strong>zurückgeschrieben</strong> — Namen, Geschlecht, Quellen und Zitate,
+  Notizen, Ereignisse und Daten sowie das Hinzufügen und Entfernen ganzer geteilter
+  Datensätze.
+</p>
+
+<h2>Was übernommen wird</h2>
+<ul>
+  <li>Personen und Familien mit ihren Verknüpfungen,</li>
+  <li>Ereignisse und (auch unscharfe) Daten,</li>
+  <li>Quellen, Zitate und Archive,</li>
+  <li>Orte samt ihrer <strong>Hierarchie</strong> (die in das Orts-Modell projiziert wird),</li>
+  <li>Notizen und Tags (Farbmarkierungen).</li>
+</ul>
+
+<div class="info">
+  Referenz: die
+  <a href="https://www.gramps-project.org/wiki/index.php/Gramps_XML">GRAMPS-XML-Dokumentation</a>
+  (gramps-project.org).
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhangD">Anhang D: Technischer Überblick</h1>
+
+<p>
+  Dieser Abschnitt richtet sich an technisch Interessierte und erklärt, wie Stammbaum
+  aufgebaut ist.
+</p>
+
+<h2>Architektur</h2>
+<ul>
+  <li><strong>Framework-freier Kern.</strong> Das Datenmodell und die gesamte
+      Genealogie-Logik (Parser, Writer, Ortsauflösung, Auswertungen) sind reine,
+      DOM- und framework-freie Funktionen — headless test- und wiederverwendbar.</li>
+  <li><strong>Reaktive Schale in Svelte 5.</strong> Listen, Formulare und Detailansichten;
+      die Schale hält nur den Zustand und ruft den Kern auf.</li>
+  <li><strong>Imperative SVG-Inseln.</strong> Die Diagramme (Sanduhr, Karte, Zeitleiste)
+      rendern in einen von der Schale gestellten leeren Container.</li>
+  <li><strong>Persistenz im Browser.</strong> Die Arbeitskopie und der Orts-Spiegel liegen
+      in der IndexedDB des Geräts.</li>
+  <li><strong>PWA / Offline.</strong> Ein Service Worker macht die App nach dem ersten
+      Laden offline lauffähig; ein Manifest erlaubt die Installation zum Startbildschirm.</li>
+</ul>
+
+<h2>Orts- und Hofauflösung</h2>
+<p>
+  Orts-Strings aus Ereignissen werden gegen <em>Ortsobjekte</em> aufgelöst; eine feinere
+  Adressebene bilden die <em>Höfe</em>. Diese Auflösung ist die Grundlage für Karte,
+  Statistik, Ortszeitgenossen und Migrationswege (siehe <a href="#k7">Kapitel 7</a>).
+</p>
+
+<h2>Anonymisierung beim Export</h2>
+<p>
+  Der anonymisierte Export schützt Lebende in drei Stufen: (1) datumsbasiert gilt als
+  lebend, wer kein Sterbedatum hat und weniger als 100 Jahre vor dem Bezugsjahr geboren
+  ist; (2) diese Einstufung breitet sich vorsichtig nur über <em>undatierte</em>
+  Verwandte aus; (3) Personen ganz ohne Datum gelten sicherheitshalber als lebend.
+  Anonyme Personen behalten nur „Lebende Person", Geschlecht und Familienverknüpfungen;
+  Familien mit einem lebenden Partner verlieren ihre Ereignisdetails.
+</p>
+
+<footer>
+  Stammbaum · Benutzerhandbuch Version 9.0 · Stand 2026-07-25<br>
+  Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
+</footer>
+
+</div>
+</body>
+</html>
