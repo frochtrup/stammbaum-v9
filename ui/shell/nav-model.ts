@@ -17,8 +17,8 @@
 // (INV-ARCH-2). Der reaktive Teil (welches Ziel ist gerade aktiv) lebt getrennt in
 // route.svelte.ts.
 
-/** Die drei Rollen aus Spec 21 §1. Bestimmt die Sidebar-Gruppierung (BL-06). */
-export type NavRole = 'entity' | 'lens' | 'work';
+/** Die vier Rollen aus Spec 21 §1. Bestimmt die Sidebar-Gruppierung (BL-06). */
+export type NavRole = 'entity' | 'lens' | 'work' | 'research';
 
 /** Entitäten (Spec 21 §1): Datenkategorien zum Browsen/Bearbeiten. */
 export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof';
@@ -42,14 +42,20 @@ export function isLensTarget(id: RouteTarget): id is LensTargetId {
 }
 
 /**
- * Segmente der Aufgaben-/Forschungsfläche (ResearchTab.svelte).
+ * Die vier Forschungsflächen (ResearchTab.svelte): Aufgaben · Protokoll · Hypothesen ·
+ * Dashboard.
  *
- * Bewusst KEINE eigenen NAV_TARGETS-Einträge: sie sind Werkzeuge INNERHALB des Ziels
- * 'tasks', nicht eigene Ziele (INV-UI-2, dieselbe Begründung wie Orts-/Hof-Review).
- * Sie stehen hier, weil die Route sich das zuletzt offene Segment merken muss — genau
- * wie bei den Entitäts-Segmenten (`entityTarget`).
+ * Seit ADR-v9-116 sind das ERSTKLASSIGE Nav-Ziele der Rolle 'research' (eigene
+ * NAV_TARGETS-Einträge, eigene Sidebar-Gruppe „Forschung") — exakt wie die Entitäten,
+ * nicht mehr Werkzeuge INNERHALB von 'tasks'. Mobil erreicht sie eine Segment-Reihe unter
+ * dem ☑ Aufgaben-Slot (`bottomNavSlotFor(research) → 'tasks'`), auf Desktop führt die
+ * Sidebar sie direkt; INV-UI-2 bleibt gewahrt (genau ein kanonischer Weg je Formfaktor,
+ * dieselbe Bauform wie bei den Entitäten). Die Route merkt sich das zuletzt offene Ziel
+ * (`researchTarget`), genau wie `entityTarget`/`lensTarget`.
  */
-export type ResearchSegmentId = 'tasks' | 'log' | 'hypotheses' | 'quality';
+export type ResearchTargetId = 'tasks' | 'log' | 'hypotheses' | 'quality';
+/** Rückwärtskompatibler Alias — die Route/ResearchTab sprachen bisher von „Segment". */
+export type ResearchSegmentId = ResearchTargetId;
 
 /**
  * Anzeige-Modi der beiden Diagramm-Lenses (Karte: Orte/Personen/Migrationen; Zeitleiste:
@@ -83,6 +89,9 @@ export type NavTargetId =
   | 'story'
   | 'search'
   | 'tasks'
+  | 'log'
+  | 'hypotheses'
+  | 'quality'
   | 'file'
   | 'reports'
   | 'settings';
@@ -97,7 +106,7 @@ export interface NavTargetDef {
 
 /**
  * Reihenfolge folgt Spec 21 §3 (Sidebar-Gruppen) wörtlich: Entitäten, dann Ansichten,
- * dann Arbeit. Die Bottom-Nav und der Mehr-Hub haben eigene, mobil begründete
+ * dann Forschung, dann Arbeit. Die Bottom-Nav und der Mehr-Hub haben eigene, mobil begründete
  * Reihenfolgen (s. u.) — die weichen bewusst ab, ziehen ihre Beschriftungen/Symbole
  * aber aus DIESER Tabelle.
  *
@@ -121,8 +130,14 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'timeline', role: 'lens', icon: '⏱', label: 'Zeitleiste', implemented: true },
   { id: 'stats', role: 'lens', icon: '📊', label: 'Statistik', implemented: true },
   { id: 'story', role: 'lens', icon: '📖', label: 'Story', implemented: false },
+  // Dashboard führt die Forschungs-Gruppe an — auf Sidebar (Desktop) UND mobiler
+  // Segment-Reihe dieselbe Ordnung (ADR-v9-116). Default-Landung bleibt dennoch „Aufgaben"
+  // (route-Default 'tasks'): Reihenfolge ≠ Default, s. ResearchTab/route.
+  { id: 'quality', role: 'research', icon: '📈', label: 'Dashboard', implemented: true },
+  { id: 'tasks', role: 'research', icon: '☑', label: 'Aufgaben', implemented: true },
+  { id: 'log', role: 'research', icon: '📋', label: 'Protokoll', implemented: true },
+  { id: 'hypotheses', role: 'research', icon: '💡', label: 'Hypothesen', implemented: true },
   { id: 'search', role: 'work', icon: '🔍', label: 'Suche', implemented: true },
-  { id: 'tasks', role: 'work', icon: '☑', label: 'Aufgaben', implemented: true },
   { id: 'file', role: 'work', icon: '📁', label: 'Datei', implemented: true },
   { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: false },
   { id: 'settings', role: 'work', icon: '⚙', label: 'Einstellungen', implemented: false },
@@ -144,6 +159,15 @@ export const ENTITY_TARGETS: readonly NavTargetDef[] = targetsByRole('entity');
 
 export function isEntityTarget(id: RouteTarget): id is EntityTargetId {
   return ENTITY_TARGETS.some((t) => t.id === id);
+}
+
+/** Die vier Forschungsziele der Rolle 'research' — die Sidebar-Gruppe „Forschung"
+ *  (ADR-v9-116). Analog zu ENTITY_TARGETS: eine Projektion des einen Registers, keine
+ *  zweite Ziel-Liste. */
+export const RESEARCH_TARGETS: readonly NavTargetDef[] = targetsByRole('research');
+
+export function isResearchTarget(id: RouteTarget): id is ResearchTargetId {
+  return RESEARCH_TARGETS.some((t) => t.id === id);
 }
 
 /**
@@ -225,7 +249,10 @@ export function moreHubItems(): readonly NavTargetDef[] {
 export function bottomNavSlotFor(target: RouteTarget): BottomNavSlot {
   if (isEntityTarget(target)) return 'person';
   if (isLensTarget(target)) return 'tree';
-  if (target === 'search' || target === 'tasks') return target;
+  // Alle vier Forschungsziele hängen am ☑ Aufgaben-Slot — exakt wie die Entitäten am
+  // Personen-Slot: „Aufgaben ist der Einstieg in die Forschung" (Spec 21 §2, ADR-v9-116).
+  if (isResearchTarget(target)) return 'tasks';
+  if (target === 'search') return 'search';
   return 'more';
 }
 

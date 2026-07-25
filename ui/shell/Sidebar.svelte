@@ -4,8 +4,8 @@
   // die Bottom-Nav.
   //
   // Kein verbreitertes Mobile-Layout: die Sidebar zeigt ALLE Ziele flach und
-  // BESCHRIFTET, nach den drei Rollen des Rollenmodells gruppiert (Spec 21 §1) —
-  // Entitäten, Ansichten, Arbeit. Genau das löst die v8-Befunde B1 (Ziele ohne
+  // BESCHRIFTET, nach den vier Rollen des Rollenmodells gruppiert (Spec 21 §1) —
+  // Entitäten, Ansichten, Forschung, Arbeit. Genau das löst die v8-Befunde B1 (Ziele ohne
   // Nav-Button), B5 (Desktop = Mobile + Spalten) und B6 (kryptische Icon-Leiste)
   // strukturell auf, statt sie kleiner zu machen.
   //
@@ -33,6 +33,7 @@
   const GROUPS: { role: NavRole; label: string }[] = [
     { role: 'entity', label: 'Entitäten' },
     { role: 'lens', label: 'Ansichten' },
+    { role: 'research', label: 'Forschung' },
     { role: 'work', label: 'Arbeit' },
   ];
 </script>

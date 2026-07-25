@@ -26,6 +26,7 @@
   import {
     bottomNavSlotFor,
     isEntityTarget,
+    isResearchTarget,
     type BottomNavSlot,
     type EntityTargetId,
     type NavTargetId,
@@ -202,6 +203,10 @@
     // Bis ADR-v9-102 stand hier `setTarget('tree')` — der Slot sprang stur auf den Baum,
     // während der Slot direkt daneben sich sein Segment längst merkte.
     else if (slot === 'tree') route.openLens();
+    // "Aufgaben" ist genauso der Einstieg in die FORSCHUNG (Spec 21 §2, ADR-v9-116), nicht
+    // stur auf "Aufgaben": der Slot führt auf das zuletzt offene Forschungsziel zurück
+    // (Aufgaben/Protokoll/Hypothesen/Dashboard) — dieselbe Merker-Logik wie Personen/Baum.
+    else if (slot === 'tasks') route.openResearch();
     else route.setTarget(slot);
   }
 
@@ -404,7 +409,7 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
-    {:else if shownTarget === 'tasks'}
+    {:else if isResearchTarget(shownTarget)}
       <ResearchTab
         {appState}
         {route}

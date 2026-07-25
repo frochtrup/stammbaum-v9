@@ -19,6 +19,7 @@
 import {
   isEntityTarget,
   isLensTarget,
+  isResearchTarget,
   type EntityTargetId,
   type LensTargetId,
   type MapModeId,
@@ -54,12 +55,14 @@ export interface Route {
    */
   readonly lensTarget: LensTargetId;
   /**
-   * Zuletzt offenes Segment der Aufgaben-/Forschungsfläche.
+   * Zuletzt offenes Forschungsziel — welche Fläche die Forschungs-Gruppe zeigt.
    *
-   * Dritte Ausprägung desselben Merkers (ResearchTab: Aufgaben · Protokoll · Hypothesen
-   * · Qualität). Lag bis ADR-v9-102 als komponenten-lokales `$state` in
-   * ResearchTab.svelte und fiel deshalb bei jedem Verlassen der Fläche auf "Aufgaben"
-   * zurück.
+   * Dritte Ausprägung desselben Merkers (Aufgaben · Protokoll · Hypothesen · Dashboard),
+   * exakt parallel zu `entityTarget`/`lensTarget`: seit ADR-v9-116 sind die vier Flächen
+   * erstklassige Nav-Ziele der Rolle 'research', und dieser Merker wird — wie
+   * `entityTarget` — ausschließlich über `setTarget()` gepflegt (kein Sonder-Setter mehr).
+   * Lag bis ADR-v9-102 als komponenten-lokales `$state` in ResearchTab.svelte und fiel
+   * deshalb bei jedem Verlassen der Fläche auf "Aufgaben" zurück.
    */
   readonly researchTarget: ResearchSegmentId;
   /**
@@ -78,8 +81,8 @@ export interface Route {
   openEntities(): void;
   /** Zurück in die Lens-Fläche, auf die zuletzt dort offene Ansicht. */
   openLens(): void;
-  /** Segment der Aufgaben-/Forschungsfläche wechseln (merkt es sich für den Rückweg). */
-  setResearchTarget(segment: ResearchSegmentId): void;
+  /** Zurück in die Forschungs-Fläche, auf das zuletzt dort offene Ziel. */
+  openResearch(): void;
   /** Anzeige-Modus der Karte-Lens wechseln (merkt ihn sich für den Rückweg). */
   setMapMode(mode: MapModeId): void;
   /** Anzeige-Modus der Zeitleiste-Lens wechseln (merkt ihn sich für den Rückweg). */
@@ -110,7 +113,9 @@ export function createRoute(options: RouteOptions = {}): Route {
   let lensTarget = $state<LensTargetId>(
     options.lensTarget ?? (isLensTarget(initialTarget) ? initialTarget : 'tree'),
   );
-  let researchTarget = $state<ResearchSegmentId>(options.researchTarget ?? 'tasks');
+  let researchTarget = $state<ResearchSegmentId>(
+    options.researchTarget ?? (isResearchTarget(initialTarget) ? initialTarget : 'tasks'),
+  );
   let mapMode = $state<MapModeId>(options.mapMode ?? 'orte');
   let timelineMode = $state<TimelineModeId>(options.timelineMode ?? 'swim');
 
@@ -136,6 +141,7 @@ export function createRoute(options: RouteOptions = {}): Route {
     setTarget(next) {
       if (isEntityTarget(next)) entityTarget = next;
       if (isLensTarget(next)) lensTarget = next;
+      if (isResearchTarget(next)) researchTarget = next;
       target = next;
     },
     openEntities() {
@@ -144,8 +150,8 @@ export function createRoute(options: RouteOptions = {}): Route {
     openLens() {
       target = lensTarget;
     },
-    setResearchTarget(segment) {
-      researchTarget = segment;
+    openResearch() {
+      target = researchTarget;
     },
     setMapMode(next) {
       mapMode = next;
