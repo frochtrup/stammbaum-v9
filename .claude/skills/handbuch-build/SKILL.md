@@ -15,8 +15,9 @@ aus einer **anonymisierten**, reichhaltigen Beispieldatei — nie aus echten Fam
 
 ## Wann ausführen
 - Nach jedem PR mit im Handbuch **sichtbarer** Wirkung (neuer Screen, geändertes Layout,
-  neues Feature). Solche Änderungen werden vorab als Zeile unter `## [Unreleased]` in
-  [`HANDBUCH-CHANGELOG.md`](../../../HANDBUCH-CHANGELOG.md) getrackt (Basisroutine).
+  neues Feature). **Kein manuelles Changelog-Tracking mehr:** der Lauf erzeugt den
+  [`HANDBUCH-CHANGELOG.md`](../../../HANDBUCH-CHANGELOG.md)-Eintrag selbst aus den git-Commits
+  seit dem letzten Handbuch-Bau — zwischenzeitliche Code-Änderungen sind automatisch drin.
 - Der Nutzer gestattet den Lauf; committet wird **nicht** automatisch.
 
 ## Ein Befehl
@@ -25,11 +26,14 @@ npm run handbuch
 ```
 Das startet den Dev-Server, legt `tools/handbuch/fixtures/demo-rich.anon.ged` als
 `app/public/demo.ged` ein, erzeugt alle `handbuch-assets/*.png` neu, räumt auf, zählt die
-Version hoch, macht aus `[Unreleased]` eine datierte Changelog-Version und stempelt die
-Version ins HTML.
+Version hoch, **erzeugt den Changelog-Eintrag automatisch aus git** (Commits im Fenster
+`<letzter Commit an HANDBUCH.html>..HEAD`, gefiltert auf `feat`/`fix`/`perf` an
+`app`/`ui`/`core`/`services`) und stempelt die Version ins HTML.
 
-Optionen: `-- --notes "Text"` (zusätzliche Changelog-Zeile), `-- --version 9.3`
-(Version explizit), `-- --skip-capture` (nur Version/Changelog, keine Screenshots).
+Optionen: `-- --dry-run` (Changelog-Eintrag nur anzeigen), `-- --notes "a ;; b"`
+(optionale redaktionelle Zeile[n]), `-- --since <ref>` (Basis übersteuern),
+`-- --all-commits` (auch andere Commit-Typen), `-- --version 9.3` (Version explizit),
+`-- --skip-capture` (nur Version/Changelog, keine Screenshots).
 
 ## Voraussetzungen
 - `puppeteer-core` (devDependency) und **System-Chrome** (Pfad ggf. über `CHROME_PATH`).

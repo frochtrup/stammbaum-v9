@@ -9,15 +9,22 @@
 //   3. Vite-Dev-Server starten und auf den Port warten.
 //   4. capture.mjs laufen lassen → handbuch-assets/*.png neu erzeugen.
 //   5. Server stoppen, demo.ged zurücklegen.
-//   6. Version hochzählen, Changelog [Unreleased] → datierte Version, HTML stempeln.
+//   6. Version hochzählen, Changelog AUTOMATISCH aus den git-Commits seit dem letzten
+//      Handbuch-Bau erzeugen (kein manuell gepflegtes [Unreleased] mehr), HTML stempeln.
 //
-// Nichts wird committet — der Nutzer prüft den Diff und committet bewusst.
+// Das Änderungsfenster ist `<letzter Commit an HANDBUCH.html>..HEAD` — es braucht KEIN
+// manuell gepflegtes Changelog: alle zwischenzeitlichen Code-Änderungen (feat/fix/perf an
+// app/ui/core/services) werden automatisch aufgelistet. Nichts wird committet — der Nutzer
+// prüft den Diff und committet bewusst.
 //
-// Optionen:  --notes "…"   zusätzliche Changelog-Zeile
+// Optionen:  --dry-run      nur anzeigen, was ins Changelog käme (schreibt nichts)
+//            --notes "a ;; b"  optionale, rein redaktionelle Zusatzzeile(n) (mit ' ;; ' getrennt)
+//            --since <ref>  Basis-Commit übersteuern (statt „letzter HANDBUCH.html-Commit")
+//            --all-commits  auch Nicht-feat/fix/perf-Commits im Fenster aufnehmen
 //            --version X.Y  Version explizit setzen (sonst Minor-Bump)
 //            --skip-capture nur Version/Changelog aktualisieren (kein Server/Screenshots)
 
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, copyFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -90,25 +97,66 @@ if (!has('--skip-capture')) {
   log('Server gestoppt, demo.ged wiederhergestellt.');
 }
 
-// --- 6. Version + Changelog + HTML-Stempel ---
+// --- 6. Version + Changelog (AUTOMATISCH aus git) + HTML-Stempel ---
 const vinfo = JSON.parse(readFileSync(VFILE, 'utf8'));
 function bumpMinor(v) { const [maj, min] = v.split('.').map(Number); return `${maj}.${(min || 0) + 1}`; }
 const nextVersion = arg('--version', bumpMinor(vinfo.version));
 const today = new Date().toISOString().slice(0, 10);
+const dryRun = has('--dry-run');
 
-// Changelog: [Unreleased] → [next] (datiert)
-let cl = readFileSync(CHANGELOG, 'utf8');
-const relMatch = cl.match(/## \[Unreleased\]\s*\n([\s\S]*?)\n---/);
-let unreleased = relMatch ? relMatch[1].trim() : '';
-const notes = arg('--notes', '');
-if (notes) unreleased = (unreleased ? unreleased + '\n' : '') + `- ${notes}`;
-const emptyMarker = /Noch keine unveröffentlichten/;
-const body = (!unreleased || emptyMarker.test(unreleased))
-  ? '- Screenshots neu erzeugt (keine gesonderten Textänderungen vermerkt).'
-  : unreleased;
-const freshUnreleased = '## [Unreleased]\n\n_(Noch keine unveröffentlichten Änderungen. Neue Zeilen hier eintragen.)_\n\n---\n';
+function git(cmd) { try { return execSync(`git ${cmd}`, { cwd: REPO, encoding: 'utf8' }).trim(); } catch { return ''; } }
+
+// Basis: der letzte COMMIT, der HANDBUCH.html verändert hat = der letzte Handbuch-Bau.
+// Dieser Lauf stempelt HANDBUCH.html nur im Arbeitsbaum (kein Commit), `git log` sieht also
+// den vorigen Bau. Damit ergibt sich das Änderungsfenster OHNE ein manuell gepflegtes Feld
+// und ohne manuell gepflegtes Changelog — genau die Commits seit dem letzten Handbuch.
+// Übersteuerbar mit `--since <ref>`.
+const base = arg('--since', '') || git('log -1 --format=%H -- HANDBUCH.html');
+
+// Relevante Code-Änderungen im Fenster base..HEAD sammeln. Pfad-Filter (nur echter App-Code)
+// plus Typ-Filter (feat/fix/perf) — `--all-commits` hebt den Typ-Filter auf.
+const APP_PATHS = 'app ui core services';
+const includeAll = has('--all-commits');
+const TYPE = /^(feat|fix|perf)(\(|:|!)/i;
+const bullets = [];
+if (base) {
+  const raw = git(`log --no-merges --pretty=format:%h%x1f%s ${base}..HEAD -- ${APP_PATHS}`);
+  for (const line of raw ? raw.split('\n') : []) {
+    const i = line.indexOf('\x1f');
+    if (i < 0) continue;
+    const hash = line.slice(0, i);
+    const subj = line.slice(i + 1).trim();
+    if (!subj) continue;
+    if (!includeAll && !TYPE.test(subj)) continue;
+    bullets.push(`- ${subj} (\`${hash}\`)`);
+  }
+}
+// Optionale, rein handbuch-redaktionelle Zusatzzeile (z. B. „Screenshot verbessert") — die
+// EINZIGE manuelle Eingabe, und sie ist optional. Mehrere via " ;; " trennen.
+for (const n of arg('--notes', '').split(' ;; ').map((s) => s.trim()).filter(Boolean)) {
+  bullets.push(`- ${n}`);
+}
+
+const prov = base
+  ? `_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (\`${base.slice(0, 7)}\`…HEAD) erzeugt._`
+  : `_Kein Basis-Commit gefunden (HANDBUCH.html noch nie committet) — bitte einmalig \`--since <ref>\` setzen._`;
+const body = bullets.length
+  ? `${prov}\n\n${bullets.join('\n')}`
+  : `${prov}\n\n- Nur Screenshots neu erzeugt — keine relevanten Code-Änderungen im Fenster.`;
 const newEntry = `## [${nextVersion}] — ${today}\n\n${body}\n`;
-cl = cl.replace(/## \[Unreleased\][\s\S]*?\n---\n/, `${freshUnreleased}\n${newEntry}\n---\n`);
+
+if (dryRun) {
+  log('DRY-RUN — es wird nichts geschrieben. Vorschau des Changelog-Eintrags:\n');
+  console.log(newEntry);
+  log(`(Version würde auf ${nextVersion} steigen; HANDBUCH.html/Changelog/Version bleiben unangetastet.)`);
+  process.exit(0);
+}
+
+// Changelog: neuen datierten Block direkt nach dem Kopf einfügen. Etwaigen alten,
+// jetzt obsoleten [Unreleased]-Block entfernen (der manuelle Kanal entfällt).
+let cl = readFileSync(CHANGELOG, 'utf8');
+cl = cl.replace(/## \[Unreleased\][\s\S]*?\n---\n/, '');
+cl = cl.replace(/\n---\n/, `\n---\n\n${newEntry}\n---\n`);
 writeFileSync(CHANGELOG, cl);
 
 // HTML stempeln (Cover-Badge + Footer)
@@ -117,8 +165,8 @@ const stamp = `Version ${nextVersion} · Stand ${today}`;
 html = html.replace(/Version \d+(?:\.\d+)? · Stand [^<]+/g, stamp);
 writeFileSync(HTML, html);
 
-// Versionsdatei fortschreiben
-writeFileSync(VFILE, JSON.stringify({ version: nextVersion, date: today }, null, 2) + '\n');
+// Versionsdatei fortschreiben (builtAtCommit rein informativ; die Basis kommt aus git log).
+writeFileSync(VFILE, JSON.stringify({ version: nextVersion, date: today, builtAtCommit: git('rev-parse HEAD') || null }, null, 2) + '\n');
 
-log(`Handbuch auf ${stamp} gestempelt.`);
+log(`Handbuch auf ${stamp} gestempelt. Changelog aus ${bullets.length} Commit(s)/Notiz(en) erzeugt.`);
 log('Fertig. Bitte Diff prüfen und bewusst committen (Handbuch + Assets + Changelog).');

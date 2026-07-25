@@ -2,21 +2,18 @@
 
 Versionsverlauf des Benutzerhandbuchs ([HANDBUCH.html](HANDBUCH.html)).
 
-**Arbeitsweise (Teil der Basisroutinen):** Jeder PR, der etwas **im Handbuch
-Sichtbares** ändert — ein neues Feature, eine geänderte Ansicht, ein neuer Screen —
-trägt eine Zeile unter **[Unreleased]** ein. Beim nächsten Lauf von
-`npm run handbuch` (Skill `/handbuch-build`) werden die Screenshots neu erzeugt, die
-Version hochgezählt und der Unreleased-Block zu einer datierten Version gemacht.
+**Arbeitsweise — vollautomatisch, kein manuell gepflegtes Changelog.** Beim Lauf von
+`npm run handbuch` (Skill `/handbuch-build`) erzeugt der Orchestrator diesen Eintrag
+selbst: Er liest die git-Commits im Fenster *„letzter Commit an `HANDBUCH.html`" … HEAD*
+und listet alle user-relevanten Code-Änderungen (`feat`/`fix`/`perf` an
+`app`/`ui`/`core`/`services`) auf. Es gibt **keinen `[Unreleased]`-Block mehr** und keine
+Zeile, die von Hand eingetragen werden muss — zwischenzeitliche Code-Änderungen sind
+automatisch berücksichtigt. Optional lässt sich mit `--notes "…"` eine rein
+redaktionelle Zusatzzeile ergänzen; `--dry-run` zeigt den Eintrag vorab.
 
 Die Illustrationen entstehen aus einer **anonymisierten** Beispieldatei
 (`tools/handbuch/fixtures/demo-rich.anon.ged`) — reichhaltig, aber ohne echte
 Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
-
----
-
-## [Unreleased]
-
-_(Noch keine unveröffentlichten Änderungen. Neue Zeilen hier eintragen.)_
 
 ---
 
