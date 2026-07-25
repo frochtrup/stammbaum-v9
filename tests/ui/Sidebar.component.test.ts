@@ -27,14 +27,15 @@ describe('Sidebar — Projektion des Ziel-Registers (INV-UI-15)', () => {
     render(Sidebar, { props: { active: 'person', onNavigate: vi.fn() } });
 
     const groups = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(groups).toEqual(['Entitäten', 'Ansichten', 'Forschung', 'Arbeit']);
+    // "Daten" statt "Entitäten" (ADR-v9-122) — EINE Rollen-Label-Quelle, Handy = Desktop.
+    expect(groups).toEqual(['Daten', 'Ansichten', 'Forschung', 'Arbeit']);
   });
 
   it('führt in jeder Gruppe genau die Ziele dieser Rolle', () => {
     render(Sidebar, { props: { active: 'person', onNavigate: vi.fn() } });
 
     for (const [role, label] of [
-      ['entity', 'Entitäten'],
+      ['entity', 'Daten'],
       ['lens', 'Ansichten'],
       ['research', 'Forschung'],
       ['work', 'Arbeit'],

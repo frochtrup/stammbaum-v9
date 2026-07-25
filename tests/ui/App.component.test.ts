@@ -139,7 +139,7 @@ describe('App — Formfaktor schaltet Navigation UND Layout um (Spec 21 §3, BL-
     // Segmentreihe (mobile Sub-Navigation) ist da …
     expect(screen.getByRole('tab', { name: 'Orte' })).toBeTruthy();
     // … und die Sidebar-Gruppenüberschriften sind es nicht.
-    expect(screen.queryByRole('heading', { level: 2, name: 'Entitäten' })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Daten' })).toBeNull();
   });
 
   it('ersetzt auf Desktop die Bottom-Nav durch die Sidebar und lässt die Segmentreihe weg', async () => {
@@ -148,7 +148,7 @@ describe('App — Formfaktor schaltet Navigation UND Layout um (Spec 21 §3, BL-
     render(App, { props: { fileService, persister: mockPersister(), layoutEnv: layoutEnvFor(true) } });
 
     // Sidebar da: die drei Rollen-Gruppen aus Spec 21 §1.
-    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Entitäten' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Daten' })).toBeTruthy());
     expect(screen.getByRole('heading', { level: 2, name: 'Ansichten' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Arbeit' })).toBeTruthy();
 
@@ -179,7 +179,7 @@ describe('App — Formfaktor schaltet Navigation UND Layout um (Spec 21 §3, BL-
     layout.start(layoutEnvFor(true));
 
     // Kein Leerlauf: die Personenliste (Entitäten-Einstieg) ist da.
-    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Entitäten' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Daten' })).toBeTruthy());
     expect(screen.getByRole('button', { name: /＋ Neue Person/ })).toBeTruthy();
   });
 });

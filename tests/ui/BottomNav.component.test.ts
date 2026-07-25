@@ -11,7 +11,9 @@ describe('BottomNav — 5 feste Ziele, deutlicher Aktiv-Zustand', () => {
   it('rendert genau die 5 spezifizierten Ziele', () => {
     render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
 
-    for (const label of ['Baum', 'Personen', 'Suche', 'Aufgaben', 'Mehr']) {
+    // Gruppen-Slots tragen den Rollen-Namen (ADR-v9-122): "Ansichten"/"Daten"/"Forschung"
+    // statt "Baum"/"Personen"/"Aufgaben" — deckungsgleich mit den Sidebar-Gruppen.
+    for (const label of ['Ansichten', 'Daten', 'Suche', 'Forschung', 'Mehr']) {
       expect(screen.getByText(new RegExp(label))).toBeTruthy();
     }
   });
@@ -19,11 +21,11 @@ describe('BottomNav — 5 feste Ziele, deutlicher Aktiv-Zustand', () => {
   it('markiert das aktive Ziel strukturell (aria-current + Klasse), nicht nur farblich', () => {
     render(BottomNav, { props: { active: 'person', onNavigate: vi.fn() } });
 
-    const personButton = screen.getByRole('button', { name: /Personen/ });
+    const personButton = screen.getByRole('button', { name: /Daten/ });
     expect(personButton.getAttribute('aria-current')).toBe('page');
     expect(personButton.className).toContain('bottom-nav__item--active');
 
-    const treeButton = screen.getByRole('button', { name: /Baum/ });
+    const treeButton = screen.getByRole('button', { name: /Ansichten/ });
     expect(treeButton.getAttribute('aria-current')).toBeNull();
     expect(treeButton.className).not.toContain('bottom-nav__item--active');
   });

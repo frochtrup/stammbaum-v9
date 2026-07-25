@@ -16,6 +16,7 @@ import {
   RESEARCH_TARGETS,
   MORE_HUB_ORDER,
   NAV_TARGETS,
+  NAV_ROLE_LABELS,
   bottomNavItems,
   LENS_SLOT_TARGETS,
   bottomNavSlotFor,
@@ -26,6 +27,7 @@ import {
   navTargetById,
   targetsByRole,
   type NavTargetId,
+  type BottomNavSlot,
 } from '../../ui/shell/nav-model';
 import { createRoute } from '../../ui/shell/route.svelte';
 
@@ -69,15 +71,32 @@ describe('Ziel-Register — eine Beschreibung je Ziel (INV-UI-15)', () => {
 });
 
 describe('Projektionen — keine Fläche führt eine eigene Ziel-Liste', () => {
-  it('Bottom-Nav zieht Symbol und Beschriftung aus dem Register', () => {
+  it('Bottom-Nav zieht Symbole aus dem Register; Gruppen-Slots tragen den Rollen-Namen (ADR-v9-122)', () => {
     const items = bottomNavItems();
     expect(items.map((i) => i.id)).toEqual([...BOTTOM_NAV_SLOTS]);
     // 'more' ist der eine Slot ohne Register-Eintrag (Hub-Fläche, kein Ziel).
+    // Symbole kommen weiterhin IMMER aus dem Register.
     for (const item of items.filter((i) => i.id !== 'more')) {
-      const def = navTargetById(item.id as NavTargetId);
-      expect(item.label).toBe(def.label);
-      expect(item.icon).toBe(def.icon);
+      expect(item.icon).toBe(navTargetById(item.id as NavTargetId).icon);
     }
+    // Die drei Gruppen-Einstiegs-Slots werden nach ihrer ROLLE benannt (= Sidebar-Gruppe),
+    // damit Handy und Desktop dieselbe Gruppe gleich benennen — nicht mehr nach dem
+    // Default-Ziel ("Personen"/"Baum"/"Aufgaben").
+    const label = (id: BottomNavSlot) => items.find((i) => i.id === id)!.label;
+    expect(label('person')).toBe(NAV_ROLE_LABELS.entity); // "Daten"
+    expect(label('tree')).toBe(NAV_ROLE_LABELS.lens); // "Ansichten"
+    expect(label('tasks')).toBe(NAV_ROLE_LABELS.research); // "Forschung"
+    // 'search' ist ein Einzel-Ziel-Slot (kein Gruppen-Einstieg) → Ziel-Label bleibt.
+    expect(label('search')).toBe(navTargetById('search').label); // "Suche"
+  });
+
+  it('Rollen-Labels sind EINE Quelle für Sidebar-Gruppen UND Gruppen-Bottom-Slots (ADR-v9-122)', () => {
+    expect(NAV_ROLE_LABELS).toEqual({
+      entity: 'Daten',
+      lens: 'Ansichten',
+      research: 'Forschung',
+      work: 'Arbeit',
+    });
   });
 
   it('Mehr-Hub zeigt ausschließlich Register-Ziele', () => {
