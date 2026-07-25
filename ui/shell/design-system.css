@@ -143,6 +143,13 @@ textarea::placeholder {
   letter-spacing: 0.03em;
 }
 
+/* Disambiguierendes Sekundärmerkmal (Geburtsjahr/-ort) neben einem Namen — EINE Quelle
+   (INV-UI-4/INV-UI-6, BL-109) für die drei Forschungslisten (Aufgaben/Protokoll/Hypothesen). */
+.stb-entity-summary {
+  color: var(--stb-text-muted);
+  font-size: 0.68rem;
+}
+
 /* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
    zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
    Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung

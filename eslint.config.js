@@ -25,9 +25,12 @@ const SVELTE_ALTFAELLE = {
   // TasksView.svelte (war 676) ist raus: bei BL-04 inhaltlich angefasst und dabei
   // zerlegt — das Aufgaben-Formular wurde nach TaskForm.svelte extrahiert, die Datei
   // liegt jetzt bei 598 Zeilen und läuft gegen die reguläre 600er-Schwelle.
-  'ui/views/hof/HofDetail.svelte': 641,
-  'ui/views/person/PersonDetail.svelte': 632,
-  'ui/views/hypotheses/HypothesesView.svelte': 608
+  'ui/views/hof/HofDetail.svelte': 641
+  // PersonDetail.svelte: war 632, bei BL-61 die Familien-Liste nach PersonFamilies.svelte
+  // und die Beweisführung nach ProofSummaryNote.svelte extrahiert — jetzt ~514 Zeilen,
+  // Altfall abbezahlt/entfallen (läuft gegen die reguläre 600er-Schwelle).
+  // HypothesesView.svelte: war 608, bei BL-56/BL-58 das Formular nach HypothesisForm.svelte
+  // extrahiert (wie TaskForm/LogForm) — jetzt ~300 Zeilen, Altfall abbezahlt/entfallen.
 };
 
 const MAX_LINES_SVELTE = 600;

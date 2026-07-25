@@ -24,12 +24,18 @@
   import { layout } from '../shell/layout.svelte';
   import TasksView from './tasks/TasksView.svelte';
   import LogView from './research-log/LogView.svelte';
+  import type { LogPrefill } from './research-log/log-model';
+  import { linkLogToTask } from '../../core/research/index';
   import HypothesesView from './hypotheses/HypothesesView.svelte';
   import QualityDashboard from './quality/QualityDashboard.svelte';
+  import ProjectBar from './research-projects/ProjectBar.svelte';
+  import type { ProjectsState } from '../shell/projects-state.svelte';
 
   interface Props {
     appState: AppState;
     route: Route;
+    /** Forschungsprojekte + aktive Auswahl (BL-58) — scopen Aufgaben/Protokoll/Hypothesen. */
+    projects: ProjectsState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -38,6 +44,7 @@
   const {
     appState,
     route,
+    projects,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -54,6 +61,16 @@
 
   const activeSegment = $derived(route.researchTarget);
 
+  // BL-65 UI-Kurzweg „aus Aufgabe → Protokoll": aus der Aufgabe direkt einen offenen,
+  // verknüpften Protokolleintrag anlegen (undo-fähig über appState) und ins Protokoll-
+  // Segment wechseln — der Eintrag steht dort (neueste zuerst) mit „🔗 aus Aufgabe"-
+  // Rückverweis, bereit zum Vervollständigen (Ergebnis/Notiz per ✎).
+  function startLogFromTask(pf: LogPrefill) {
+    const today = new Date().toISOString().slice(0, 10);
+    appState.addLogEntry(pf.kind, pf.entityId, linkLogToTask(pf.task, today));
+    route.setTarget('log');
+  }
+
   // Wie EntityTab.selectSegment: setzt das Ziel über die EINE Routen-Quelle (der
   // researchTarget-Merker zieht in setTarget mit, ADR-v9-116) — kein Sonder-Setter.
   function selectSegment(segment: (typeof segments)[number]) {
@@ -62,6 +79,10 @@
 </script>
 
 <div class="research-tab">
+  <!-- Projekt-Chip-Selektor GENAU EINMAL oberhalb der Segmente (BL-58, INV-UI-11) —
+       scoped Aufgaben/Protokoll/Hypothesen gemeinsam, in BEIDEN Formfaktoren. -->
+  <ProjectBar {projects} />
+
   <!-- Die Forschungs-Segmentreihe ist die MOBILE Sub-Navigation (Spec 21 §2). Auf Desktop
        führt die Sidebar dieselben vier Ziele beschriftet und dauerhaft in der Gruppe
        „Forschung" (Spec 21 §3, ADR-v9-116) — beides gleichzeitig wären zwei Wege zum
@@ -85,14 +106,15 @@
   {/if}
 
   {#if activeSegment === 'tasks'}
-    <TasksView {appState} {onNavigateToPerson} {onNavigateToFamily} />
+    <TasksView {appState} {onNavigateToPerson} {onNavigateToFamily} onStartLogFromTask={startLogFromTask} scope={projects.activeScope} />
   {:else if activeSegment === 'log'}
-    <LogView {appState} {onNavigateToPerson} {onNavigateToFamily} />
+    <LogView {appState} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
   {:else if activeSegment === 'hypotheses'}
-    <HypothesesView {appState} {onNavigateToPerson} {onNavigateToFamily} />
+    <HypothesesView {appState} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
   {:else if activeSegment === 'quality'}
     <QualityDashboard
       {appState}
+      scope={projects.activeScope}
       {onNavigateToPerson}
       {onNavigateToFamily}
       {onNavigateToPlace}

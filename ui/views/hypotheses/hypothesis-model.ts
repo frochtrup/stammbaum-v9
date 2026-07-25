@@ -3,36 +3,43 @@
 // ui/views/tasks/tasks-model.ts (collectAllTasks) — DOM-frei testbar (TST-5), liest
 // AUSSCHLIESSLICH über db.individuals/db.families (Chokepoint-Zugriff, Spec 02 §3).
 import type { Database } from '../../../core/model/types';
-import type { Hypothesis, HypothesisStatus } from '../../../core/research/types';
-import { displayName } from '../../shell/person-display';
+import type { PlaceContext } from '../../../core/places';
+import type { Hypothesis, HypothesisStatus, ProjectScope } from '../../../core/research/types';
+import { matchesScope } from '../../../core/research/index';
+import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
-import type { TaskEntityKind } from '../tasks/tasks-model';
+import { entityInScope, type TaskEntityKind } from '../tasks/tasks-model';
 
 /** Eine Hypothese zusammen mit ihrer Trägerentität (analog TaskEntry). */
 export interface HypothesisEntry {
   kind: TaskEntityKind;
   entityId: string;
   entityLabel: string;
+  /** Disambiguierendes Sekundärmerkmal (INV-UI-6, BL-109) — s. TaskEntry.entitySummary. */
+  entitySummary: string;
   hypothesis: Hypothesis;
 }
 
 /**
  * Sammelt ALLE Hypothesen über Personen UND Familien (analog collectAllTasks). Reine
  * Funktion, kein eigener Zustand — ein Kommando (Hypothese hinzufügen/ändern) →
- * Chokepoints neu lesen → diese Funktion erneut aufrufen.
+ * Chokepoints neu lesen → diese Funktion erneut aufrufen. `ctx` optional (INV-UI-6, BL-109).
  */
-export function collectAllHypotheses(db: Database): HypothesisEntry[] {
+export function collectAllHypotheses(db: Database, ctx?: PlaceContext, scope?: ProjectScope | null): HypothesisEntry[] {
   const out: HypothesisEntry[] = [];
   for (const [id, p] of db.individuals) {
+    if (scope && !matchesScope(p, scope)) continue;
+    const summary = ctx ? yearPlaceSummary(p.birth, ctx) : '';
     for (const hypothesis of p.hypotheses) {
-      out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), hypothesis });
+      out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), entitySummary: summary, hypothesis });
     }
   }
   for (const [id] of db.families) {
+    if (!entityInScope(db, 'family', id, scope)) continue;
     const label = familyLabelFor(db, id);
     const f = db.families.get(id)!;
     for (const hypothesis of f.hypotheses) {
-      out.push({ kind: 'family', entityId: id, entityLabel: label, hypothesis });
+      out.push({ kind: 'family', entityId: id, entityLabel: label, entitySummary: '', hypothesis });
     }
   }
   return out;

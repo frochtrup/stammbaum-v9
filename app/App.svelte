@@ -16,6 +16,8 @@
   // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
+  import { createProjectsState } from '../ui/shell/projects-state.svelte';
+  import { IdbProjectsStore } from '../services/research/index';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
@@ -83,6 +85,9 @@
   }: Props = $props();
 
   const viewState = createViewState();
+  // Forschungsprojekte (BL-58): app-privat, geräteweit in IndexedDB. Hier EINMAL erzeugt,
+  // damit die aktive Projekt-Auswahl das Wegnavigieren aus der Forschungsfläche überlebt.
+  const projectsState = createProjectsState(new IdbProjectsStore());
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -123,6 +128,9 @@
       const result = await loadDocText(copy.format ?? 'gedcom', copy.text, copy.name, appState, persister);
       placesEditNotice = result.placesNotice;
     })();
+
+    // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
+    void projectsState.load();
 
     // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
     // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
@@ -413,6 +421,7 @@
       <ResearchTab
         {appState}
         {route}
+        projects={projectsState}
         onNavigateToPerson={openPersonFromSearch}
         onNavigateToFamily={openFamilyFromSearch}
         onNavigateToPlace={openPlaceFromSearch}

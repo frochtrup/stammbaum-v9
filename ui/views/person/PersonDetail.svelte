@@ -20,6 +20,8 @@
   import { displayName } from '../../shell/person-display';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
+  import PersonFamilies from './PersonFamilies.svelte';
+  import ProofSummaryNote from './ProofSummaryNote.svelte';
   import { makeEvent } from '../../../core/model/factory';
   import { isEventPresent, isEventEmpty } from '../../../core/model';
   import { eventTypeLabel } from '../../shell/event-labels';
@@ -380,59 +382,13 @@
     {#if detail.families.length > 0}
       <section class="person-detail__section">
         <h3>Familien</h3>
-        <ul class="person-detail__families">
-          {#each detail.families as fam (fam.familyId + fam.role)}
-            <li>
-              {#if onNavigateToFamily}
-                <!-- INV-UI-12: die Navigation zur Familien-Detailseite hängt am Rollen-Label
-                     selbst (Herkunftsfamilie/Eigene Familie), statt an einem separaten
-                     „Familie ansehen →"-Text daneben. -->
-                <button
-                  type="button"
-                  class="stb-role-label person-detail__family-role-link"
-                  onclick={() => onNavigateToFamily(fam.familyId)}
-                  use:tooltip={'Familien-Detail öffnen'}
-                >
-                  {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
-                </button>
-              {:else}
-                <span class="stb-role-label">
-                  {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
-                </span>
-              {/if}
-              {#if fam.members.length === 0}
-                <span class="person-detail__family-label">{fam.label}</span>
-              {:else}
-                {#each fam.members as member (member.personId)}
-                  <button
-                    type="button"
-                    class="person-detail__family-link"
-                    onclick={() => goToPerson(member.personId)}
-                  >
-                    {member.name}{#if member.summary}<span class="person-detail__family-children-summary">({member.summary})</span>{/if}
-                  </button>
-                {/each}
-              {/if}
-              {#if fam.children.length > 0}
-                <span class="person-detail__family-children">
-                  <span class="person-detail__family-children-label">Kinder:</span>
-                  {#each fam.children as child, i (child.personId)}
-                    <button
-                      type="button"
-                      class="person-detail__family-link"
-                      onclick={() => goToPerson(child.personId)}
-                    >
-                      {child.name}{#if child.summary}<span class="person-detail__family-children-summary">({child.summary})</span>{/if}
-                    </button>{#if i < fam.children.length - 1}<span class="person-detail__family-children-sep">,</span>{/if}
-                  {/each}
-                </span>
-              {/if}
-            </li>
-          {/each}
-        </ul>
+        <PersonFamilies families={detail.families} onGoToPerson={goToPerson} {onNavigateToFamily} />
       </section>
     {/if}
 
+    {#if detail.person.hypotheses.length > 0}
+      <ProofSummaryNote person={detail.person} />
+    {/if}
     <DeleteEntityButton
       label="Person löschen"
       message={`Person „${displayName(detail.person) || detail.person.id}" wirklich löschen? Sie wird aus allen Familien, Assoziationen und Patenschaften entfernt; eine dadurch leer werdende Familie wird mitgelöscht. Andere Personen und Ereignisse bleiben bestehen.`}
@@ -555,78 +511,4 @@
     flex: 0 0 auto;
   }
 
-  .person-detail__families {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .person-detail__families li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--stb-surface-2);
-    flex-wrap: wrap;
-  }
-
-  /* .person-detail__family-role entfällt — Rollen-Label kommt jetzt aus dem
-     geteilten .stb-role-label (design-system.css, INV-UI-4). */
-
-  .person-detail__family-label {
-    color: var(--stb-text-dim);
-  }
-
-  .person-detail__family-link {
-    background: transparent;
-    border: none;
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    padding: 0;
-    font: inherit;
-    text-decoration: underline;
-  }
-
-  .person-detail__family-children {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem;
-  }
-
-  .person-detail__family-children-label {
-    color: var(--stb-text-dim);
-    font-size: 0.82rem;
-  }
-
-  .person-detail__family-children-sep {
-    color: var(--stb-text-dim);
-    margin-right: -0.15rem;
-  }
-
-  .person-detail__family-children-summary {
-    color: var(--stb-text-dim);
-    font-size: 0.82rem;
-    text-decoration: none;
-    margin-left: 0.2rem;
-  }
-
-  /* Rollen-Label als Link zur Familien-Detailseite (INV-UI-12) — behält die
-     .stb-role-label-Optik (klein/GROSS/gedimmt), wird nur klickbar + unterstrichen bei Hover. */
-  .person-detail__family-role-link {
-    background: transparent;
-    border: none;
-    padding: 0;
-    /* NUR font-family erben — font-size/transform/letter-spacing/color kommen aus
-       .stb-role-label; das `font`-Shorthand würde deren font-size überschreiben. */
-    font-family: inherit;
-    cursor: pointer;
-    text-decoration: none;
-  }
-
-  .person-detail__family-role-link:hover,
-  .person-detail__family-role-link:focus-visible {
-    color: var(--stb-gold-light);
-    text-decoration: underline;
-  }
 </style>

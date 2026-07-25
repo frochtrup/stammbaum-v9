@@ -31,7 +31,8 @@
     type TaskEntry,
   } from './tasks-model';
   import { newTaskId } from './tasks-commands';
-  import type { TaskStatus } from '../../../core/research/types';
+  import type { LogPrefill } from '../research-log/log-model';
+  import type { TaskStatus, ProjectScope } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import FilterBar from '../../shell/FilterBar.svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
@@ -43,8 +44,13 @@
      * den übrigen onNavigate*-Callback-Mustern, Spec-Auftrag "kanonischer Weg"). */
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
+    /** UI-Kurzweg „→ Protokoll" (BL-65): ins Protokoll-Segment wechseln und das
+     *  Formular aus dieser Aufgabe vorbelegen (ResearchTab verdrahtet das). */
+    onStartLogFromTask?: (pf: LogPrefill) => void;
+    /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
+    scope?: ProjectScope | null;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
+  const { appState, onNavigateToPerson, onNavigateToFamily, onStartLogFromTask, scope = null }: Props = $props();
 
   /** Status-Auswahl. `open` ist der Default — davon abweichend zählt `FilterBar` "· 1". */
   const DEFAULT_FILTER: TaskFilter = 'open';
@@ -66,7 +72,7 @@
     text: '', category: '', sourceRef: '', kind: 'person', entityId: '',
   });
 
-  const allTasks = $derived(collectAllTasks(appState.db));
+  const allTasks = $derived(collectAllTasks(appState.db, appState.placeContext, scope));
   const filteredTasks = $derived(filterTasks(allTasks, filter));
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
@@ -122,6 +128,12 @@
   function goToEntity(entry: TaskEntry) {
     if (entry.kind === 'person') onNavigateToPerson?.(entry.entityId);
     else onNavigateToFamily?.(entry.entityId);
+  }
+
+  /** BL-65: „→ Protokoll" — ins Protokoll-Segment wechseln, Formular aus dieser Aufgabe
+   *  vorbelegt (Trägerentität + taskId + evtl. Quellenbezug). */
+  function startLog(entry: TaskEntry) {
+    onStartLogFromTask?.({ kind: entry.kind, entityId: entry.entityId, task: entry.task });
   }
 
   function exportMd() {
@@ -191,9 +203,13 @@
                   <button type="button" class="tasks-view__card-entity" onclick={() => goToEntity(entry)}>
                     {entry.entityLabel} ›
                   </button>
+                  {#if entry.entitySummary}<span class="stb-entity-summary tasks-view__entity-summary">{entry.entitySummary}</span>{/if}
                   <p class="tasks-view__card-text">{entry.task.text}</p>
                   <div class="tasks-view__card-foot">
                     {#if entry.task.category}<span class="tasks-view__card-cat">{entry.task.category}</span>{/if}
+                    {#if onStartLogFromTask}
+                      <button type="button" class="tasks-view__log-btn" onclick={() => startLog(entry)} title="Protokolleintrag aus dieser Aufgabe anlegen">🔍 Protokoll</button>
+                    {/if}
                     <button type="button" class="tasks-view__advance-btn" onclick={() => advance(entry)}>
                       → {statusLabel[nextTaskStatus(entry.task.status)]}
                     </button>
@@ -214,6 +230,7 @@
             <button type="button" class="tasks-view__entity-link" onclick={() => goToEntity(entry)}>
               {entry.entityLabel} ›
             </button>
+            {#if entry.entitySummary}<span class="stb-entity-summary tasks-view__entity-summary">{entry.entitySummary}</span>{/if}
             <div class="tasks-view__row-main">
               <span class="tasks-view__row-text">{entry.task.text}</span>
               <select
@@ -228,6 +245,9 @@
               </select>
             </div>
             <div class="tasks-view__row-actions">
+              {#if onStartLogFromTask}
+                <button type="button" class="tasks-view__row-btn" onclick={() => startLog(entry)} aria-label="Protokolleintrag aus dieser Aufgabe anlegen" title="→ Protokoll">🔍</button>
+              {/if}
               <button type="button" class="tasks-view__row-btn" onclick={() => openEditForm(entry)} aria-label="Aufgabe bearbeiten">✎</button>
               <button type="button" class="tasks-view__row-btn" onclick={() => remove(entry)} aria-label="Aufgabe löschen">×</button>
             </div>
@@ -313,6 +333,11 @@
     cursor: pointer;
     padding: 0;
     text-decoration: underline;
+    flex-basis: 100%;
+  }
+
+  /* Farbe/Größe kommen aus .stb-entity-summary (INV-UI-4); hier nur das Board-Layout-Detail. */
+  .tasks-view__entity-summary {
     flex-basis: 100%;
   }
 
@@ -433,6 +458,17 @@
     background: var(--stb-surface-3);
     border: 1px solid var(--stb-gold-dim);
     color: var(--stb-text);
+    border-radius: var(--stb-radius-control);
+    padding: 0.2rem 0.5rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+
+  /* BL-65 „→ Protokoll" im Board-Karten-Fuß — dezenter als der Advance-Button. */
+  .tasks-view__log-btn {
+    background: transparent;
+    border: 1px solid var(--stb-surface-3);
+    color: var(--stb-text-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.2rem 0.5rem;
     font-size: 0.72rem;

@@ -13,18 +13,48 @@
 // werden dynamisch aus den tatsächlich vorkommenden Werten gruppiert; die v8-Label
 // bleiben nur als UI-seitige Presets (s. TasksView.svelte `CATEGORY_PRESETS`).
 import type { Database } from '../../../core/model/types';
-import type { ResearchTask, TaskStatus } from '../../../core/research/types';
+import type { PlaceContext } from '../../../core/places';
+import type { ResearchTask, TaskStatus, ProjectScope } from '../../../core/research/types';
 import { isTaskDone } from '../../../core/research/task';
-import { displayName } from '../../shell/person-display';
+import { matchesScope } from '../../../core/research/index';
+import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
 
 export type TaskEntityKind = 'person' | 'family';
+
+/**
+ * Fällt eine Trägerentität in den aktiven Projekt-Scope (BL-58)? `scope` null/undefined =
+ * kein aktives Projekt = keine Einschränkung. Personen über `matchesScope`; eine Familie
+ * gilt als im Scope, wenn mindestens ein Ehepartner im Scope liegt (die Familie hat selbst
+ * keinen Nachnamen/kein Geburtsdatum). Geteilt von allen drei Forschungslisten (INV-UI-4).
+ */
+export function entityInScope(
+  db: Database,
+  kind: TaskEntityKind,
+  entityId: string,
+  scope: ProjectScope | null | undefined,
+): boolean {
+  if (!scope) return true;
+  if (kind === 'person') {
+    const p = db.individuals.get(entityId);
+    return !!p && matchesScope(p, scope);
+  }
+  const f = db.families.get(entityId);
+  if (!f) return false;
+  return [f.husband, f.wife].some((id) => {
+    const sp = id ? db.individuals.get(id) : undefined;
+    return !!sp && matchesScope(sp, scope);
+  });
+}
 
 /** Eine Aufgabe zusammen mit ihrer Trägerentität (Spec 20 §1.11: "globale Liste"). */
 export interface TaskEntry {
   kind: TaskEntityKind;
   entityId: string;
   entityLabel: string;
+  /** Disambiguierendes Sekundärmerkmal der Trägerperson (Geburtsjahr/-ort, INV-UI-6,
+   *  BL-109) — leer bei Familien und wenn kein PlaceContext übergeben wurde (Export). */
+  entitySummary: string;
   task: ResearchTask;
 }
 
@@ -32,19 +62,26 @@ export interface TaskEntry {
  * Sammelt ALLE Aufgaben über Personen UND Familien (Orakel: `_collectAllTasks`).
  * Reine Funktion, kein eigener Zustand — ein Kommando (Task hinzufügen/ändern) →
  * Chokepoints (db.individuals/db.families) neu lesen → diese Funktion erneut aufrufen.
+ *
+ * `ctx` optional: die Listen-Views reichen `appState.placeContext` durch, damit zwei
+ * gleichnamige Personen unterscheidbare Gruppen-Kopfzeilen bekommen (INV-UI-6, BL-109);
+ * die reinen Zähl-/Export-Aufrufer (openTaskCount, exportTasksMarkdown) lassen es weg.
  */
-export function collectAllTasks(db: Database): TaskEntry[] {
+export function collectAllTasks(db: Database, ctx?: PlaceContext, scope?: ProjectScope | null): TaskEntry[] {
   const out: TaskEntry[] = [];
   for (const [id, p] of db.individuals) {
+    if (scope && !matchesScope(p, scope)) continue;
+    const summary = ctx ? yearPlaceSummary(p.birth, ctx) : '';
     for (const task of p.tasks) {
-      out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), task });
+      out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), entitySummary: summary, task });
     }
   }
   for (const [id] of db.families) {
+    if (!entityInScope(db, 'family', id, scope)) continue;
     const label = familyLabelFor(db, id);
     const f = db.families.get(id)!;
     for (const task of f.tasks) {
-      out.push({ kind: 'family', entityId: id, entityLabel: label, task });
+      out.push({ kind: 'family', entityId: id, entityLabel: label, entitySummary: '', task });
     }
   }
   return out;

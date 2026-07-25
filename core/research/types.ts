@@ -25,7 +25,9 @@ export interface ResearchTask {
 }
 
 // --- §2 Forschungsprotokoll (Log) -------------------------------------------
-export type LogResult = 'found' | 'notfound' | 'pending';
+// 'partial' („teilweise"): trennt „nichts gefunden" von „Fund, aber unvollständig"
+// und trägt damit die Wiedervorlage (Spec 12 §2, Spec 20 §1.11b, BL-135).
+export type LogResult = 'found' | 'partial' | 'notfound' | 'pending';
 
 /**
  * LogEntry — EIN protokollierter Sucheintrag. Bewusst OHNE eigene `id` (v8-Parität,

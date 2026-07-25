@@ -18,7 +18,7 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -32,6 +32,9 @@ export const STORE_VAL_CONFIG = 'val-config';
  * app-lokal wie die Regel-Konfiguration: eine Nutzer-Einschätzung über den eigenen
  * Bestand, keine genealogische Aussage, die mit der Datei reisen müsste (LP-1). */
 export const STORE_DEDUP_IGNORED = 'dedup-ignored';
+/** Forschungsprojekte (Spec 12 §5, Spec 30 §2.2, BL-58) — app-lokal/geräteweit, reisen
+ * NICHT mit der Genealogie-Datei; der GEDCOM-Writer bleibt unberührt (LP-1). */
+export const STORE_PROJECTS = 'research-projects';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -56,6 +59,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_DEDUP_IGNORED)) {
           db.createObjectStore(STORE_DEDUP_IGNORED);
+        }
+        if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
+          db.createObjectStore(STORE_PROJECTS);
         }
       };
       req.onsuccess = () => resolve(req.result);

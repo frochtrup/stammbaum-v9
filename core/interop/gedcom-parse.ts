@@ -174,7 +174,7 @@ function parseTask(node: GedNode): ResearchTask {
  *   2 REPO <repoRef>         (roher @Rxx@-Xref)
  *   2 SOUR <sourceRef>       (roher @Sxx@-Xref)
  *   2 _QUERY <query>
- *   2 _RESULT <found|notfound|pending>
+ *   2 _RESULT <found|partial|notfound|pending>
  *   2 NOTE <note>            (CONT-fähig, mehrzeilig)
  *   2 _TASKID <taskId>       (v9-Erweiterung, ADR-v9-36 — kein Oracle-Vorbild)
  * LogEntry hat KEINE eigene id (index-adressiert, v8-Parität). Aus dem Passthrough
@@ -183,7 +183,9 @@ function parseTask(node: GedNode): ResearchTask {
 function parseLogEntry(node: GedNode): LogEntry {
   const raw = childValue(node, '_RESULT');
   const result: LogResult =
-    raw === 'found' || raw === 'notfound' || raw === 'pending' ? raw : 'pending';
+    raw === 'found' || raw === 'partial' || raw === 'notfound' || raw === 'pending'
+      ? raw
+      : 'pending';
   const repo = child(node, 'REPO');
   const sour = child(node, 'SOUR');
   const noteNode = child(node, 'NOTE');
