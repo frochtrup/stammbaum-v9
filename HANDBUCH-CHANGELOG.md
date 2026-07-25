@@ -16,7 +16,34 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ## [Unreleased]
 
-_(Noch keine unveröffentlichten Änderungen. Neue Zeilen hier eintragen.)_
+- **Entitäten löschen:** Person, Familie, Quelle und Archiv haben jeweils unten im Detail
+  eine „… löschen"-Schaltfläche (mit Rückfrage). Das Löschen räumt alle Verweise sauber auf
+  (Familien-Rollen, Kindlisten, Zitate, Archiv-Bezüge), sodass keine kaputten Verknüpfungen
+  zurückbleiben; eine dadurch völlig leere Familie wird automatisch mitentfernt. Andere
+  Personen und Ereignisse bleiben bestehen.
+- **Ereigniszeile — doppelte Adress-/Notizangabe ausgeblendet:** ist die Notiz einer
+  Ereigniszeile zeichengleich zur Adresse, wird sie nicht mehr doppelt angezeigt.
+- **Forschung als eigene Sidebar-Kategorie (Desktop):** Aufgaben, Protokoll, Hypothesen und
+  Dashboard sind jetzt eigene, beschriftete Einträge einer neuen Sidebar-Gruppe „Forschung"
+  (statt Segmente hinter einem einzelnen „Aufgaben"-Eintrag). In der mobilen Segment-Reihe
+  steht das **Dashboard an erster Stelle**.
+- **Forschungsprojekte:** ein Projekt-Chip-Selektor oberhalb der Forschungs-Segmente bündelt
+  Aufgaben, Protokoll, Hypothesen und Dashboard auf einen Ausschnitt. Ein Projekt wird über
+  Nachname, Ort und Zeitraum abgegrenzt (jede Achse ist optional, leere Achse schränkt nicht
+  ein); die Projekte bleiben geräteweit auf diesem Gerät und reisen **nicht** mit der Datei.
+- **Protokoll — Ergebnis „teilweise":** vierter Ergebniswert neben gefunden/nichts
+  gefunden/ausstehend, für „Fund, aber unvollständig" (trägt die Wiedervorlage).
+- **Protokoll — Timeline-Umschalter:** Umschalten zwischen personenweiser Gruppierung und
+  einer chronologischen Research-Timeline (neueste zuerst) — gleiche Einträge, andere Sicht.
+- **Aus einer Aufgabe direkt ins Protokoll:** die Schaltfläche „🔍 Protokoll" an einer
+  Aufgabe legt einen vorbefüllten, verknüpften Protokolleintrag an; die Protokollzeile zeigt
+  die auslösende Aufgabe als Rückverweis.
+- **Disambiguierung in den Forschungslisten:** Aufgaben, Protokoll und Hypothesen zeigen bei
+  namensgleichen Personen zusätzlich das Geburtsjahr/den Geburtsort als Unterscheidungsmerkmal.
+- **Beweisführungsnotiz im Personendetail:** eine automatisch berechnete, rein lesende
+  Zusammenfassung (Reifegrad „% aufgelöst" · Quellenlage mit Evidenz-/QUAY-Anteil ·
+  bestätigte/offene/verworfene Hypothesen) — erscheint, sobald die Person mindestens eine
+  Hypothese trägt.
 
 ---
 
