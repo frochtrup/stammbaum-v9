@@ -2,22 +2,21 @@
 // (Spec 02 §5, Spec 20 §1.3 [K]). Framework-freies Vanilla-JS. Rechnet NUR aus dem
 // Modell (computeTreeLayout, tree-layout.ts) — nie aus dem Live-DOM.
 //
-// Seit ADR-v9-123 trägt diese Datei nur noch das SANDUHR-SPEZIFISCHE: die Karten-/Linien-/
-// Badge-Darstellung und die Übersetzung des Layout-Modells in DOM. Das Gemeinsame aller
-// drei Baum-Inseln (Gerüst, Drag-Pan, Pinch-Zoom, Vollbild, Auto-Fit, Tastatur-Dispatch)
-// lebt EINMAL im geteilten `tree-viewport.ts` (INV-UI-4). Diese Insel liefert dem Viewport
-// nur eine `draw()`-Funktion: sie zeichnet in die gestellten Flächen und gibt ihr Layout-
-// Modell (Maße/Zentrum/navTargets) zurück; Rezentrierung/Zoom/Resize = kompletter
-// Neu-Aufbau (kein Fein-Diffing, Spec 02 §5). Nach oben ausschließlich über Callbacks.
+// Seit ADR-v9-123 trägt diese Datei nur noch das SANDUHR-SPEZIFISCHE: die Übersetzung
+// des Layout-Modells in DOM plus die drei sanduhr-eigenen Zusatz-Badges (Kekule-Nummer,
+// ⚭N-Mehrfachehe, Geschwisterzähler). Das Gemeinsame aller Baum-Inseln lebt EINMAL: das
+// Gerüst/die Gesten im geteilten `tree-viewport.ts`, der Karten-/Linien-/Heirats-Renderer
+// in `tree-cards.ts` (INV-UI-4). Diese Insel liefert dem Viewport nur eine `draw()`, die
+// in die gestellten Flächen zeichnet und ihr Layout-Modell (Maße/Zentrum/navTargets)
+// zurückgibt; Rezentrierung/Zoom/Resize = kompletter Neu-Aufbau (Spec 02 §5). Nach oben
+// ausschließlich über Callbacks.
 import type { Database, PersonId } from '../../../core/model/types';
 import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
 import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
+import { appendPersonCard, appendConnector, appendMarriageButton } from './tree-cards';
 // Geteilter Tooltip (INV-UI-12/ADR-v9-87): hier IMPERATIV aufgerufen (kein Svelte-`use:`),
-// da die Insel framework-frei ist. `tooltip.ts` ist zur Laufzeit reines DOM (nur Typ-Import
-// aus svelte/action, erased) — INV-ARCH bleibt gewahrt. Kein destroy nötig — Karten werden
-// je Render neu gebaut, die Listener sterben mit dem entfernten Knoten.
+// da die Insel framework-frei ist. `tooltip.ts` ist zur Laufzeit reines DOM.
 import { tooltip } from '../../shell/tooltip';
-import { displayNameOr } from '../../shell/person-display';
 
 export interface TreeMountCallbacks {
   /** Klick auf eine Ahnen-/Ehepartner-/Kind-Karte -> Rezentrierung auf diese Person. */
@@ -47,8 +46,6 @@ export interface TreeIslandHandle {
   readonly currentId: PersonId | null;
 }
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
 /**
  * Mountet die Sanduhr-Insel in `container` über den geteilten Baum-Viewport. Alle
  * Gesten-/Tastatur-Listener liegen im Viewport und werden von `destroy()` wieder entfernt.
@@ -65,74 +62,33 @@ export function mountHourglassTree(
   // den Container) und reicht es über `ctx.portrait` an `draw()`.
   let maxAncestorLevels = initialOptions.maxAncestorLevels;
 
-  function svgLine(svg: SVGSVGElement, x1: number, y1: number, x2: number, y2: number, dashed: boolean): void {
-    const el = document.createElementNS(SVG_NS, 'line');
-    el.setAttribute('x1', String(x1));
-    el.setAttribute('y1', String(y1));
-    el.setAttribute('x2', String(x2));
-    el.setAttribute('y2', String(y2));
-    el.setAttribute('class', 'tree-island__line' + (dashed ? ' tree-island__line--half' : ''));
-    if (dashed) el.setAttribute('stroke-dasharray', '4 3');
-    svg.appendChild(el);
-  }
+  function makeCard(ctx: DrawContext, layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number], peekZIndex: number): void {
+    const div = appendPersonCard(
+      ctx,
+      db,
+      {
+        id: card.id,
+        x: card.x,
+        y: card.y,
+        width: card.width,
+        height: card.height,
+        isCenter: card.isCenter,
+        isHalf: card.isHalfSibling,
+        isSibling: card.isSibling,
+        isPeek: card.isPeek,
+        zIndex: card.isPeek ? peekZIndex : undefined,
+      },
+      callbacks,
+    );
+    if (!div) return; // leere „?"-Karte oder Person fehlt — keine Zusatz-Badges
 
-  function makeCard(ctx: DrawContext, layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number], peekIndex: number): void {
-    const div = document.createElement('div');
-    div.className =
-      'tree-island__card' +
-      (card.isCenter ? ' tree-island__card--center' : '') +
-      (card.isSibling ? ' tree-island__card--sibling' : '') +
-      (card.isHalfSibling ? ' tree-island__card--half' : '') +
-      (card.isPeek ? ' tree-island__card--peek' : '');
-    div.style.left = `${Math.round(card.x)}px`;
-    div.style.top = `${Math.round(card.y)}px`;
-    div.style.width = `${card.width}px`;
-    div.style.height = `${card.height}px`;
-    // Peek-Stapel (Orakel: v8 `zidx = nSibs - i + 5`): jüngere Stapelkarte deckt ältere
-    // teilweise ab, jeweils oben auf dem Stapel liegend.
-    if (card.isPeek) div.style.zIndex = String(peekIndex + 1);
-
-    if (!card.id) {
-      div.classList.add('tree-island__card--empty');
-      div.textContent = '?';
-      ctx.wrap.appendChild(div);
-      return;
-    }
-
-    const person = db.individuals.get(card.id);
-    if (!person) return;
-    div.dataset.sex = person.sex;
-    div.setAttribute('tabindex', '0');
-    div.setAttribute('role', 'button');
-    div.dataset.personId = card.id;
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'tree-island__name';
-    nameEl.textContent = displayNameOr(person, card.id);
-    div.appendChild(nameEl);
-
-    const by = (person.birth.date || '').match(/\d{4}/)?.[0];
-    const dy = (person.death.date || '').match(/\d{4}/)?.[0];
-    const yr = [by ? `*${by}` : '', dy ? `†${dy}` : ''].filter(Boolean).join(' ');
-    if (yr) {
-      const yrEl = document.createElement('div');
-      yrEl.className = 'tree-island__year';
-      yrEl.textContent = yr;
-      div.appendChild(yrEl);
-    }
-
+    // ── Sanduhr-eigene Zusatz-Badges (der gemeinsame Renderer kennt sie nicht) ──
     if (card.kekule) {
       const kEl = document.createElement('div');
       kEl.className = 'tree-island__kekule';
       tooltip(kEl, `Kekule-Nr. ${card.kekule} (Proband = 1)`);
       kEl.textContent = String(card.kekule);
       div.appendChild(kEl);
-    }
-    if (card.isHalfSibling) {
-      const halfEl = document.createElement('div');
-      halfEl.className = 'tree-island__half-badge';
-      halfEl.textContent = '½';
-      div.appendChild(halfEl);
     }
     if (card.isCenter && layout.marriageCount > 1) {
       const marrEl = document.createElement('div');
@@ -149,25 +105,6 @@ export function mountHourglassTree(
       sibCountEl.textContent = String(layout.siblingCountBadge);
       div.appendChild(sibCountEl);
     }
-
-    const handler = () => {
-      if (card.isCenter) {
-        callbacks.onSelectCenter?.(card.id!);
-      } else {
-        callbacks.onSelect(card.id!);
-      }
-    };
-    div.addEventListener('click', () => {
-      if (ctx.shouldSuppressClick()) return; // Klick nach Drag unterdrücken (Orakel-Verhalten)
-      handler();
-    });
-    div.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handler();
-      }
-    });
-    ctx.wrap.appendChild(div);
   }
 
   // Die Insel-Zeichenfunktion: rechnet das Layout, zeichnet Linien/Karten/Badges in die
@@ -184,9 +121,9 @@ export function mountHourglassTree(
     ctx.wrap.querySelectorAll('.tree-island__card, .tree-island__marr-btn, .tree-island__sib-more').forEach((el) => el.remove());
     ctx.svg.innerHTML = '';
 
-    for (const c of layout.connectors) svgLine(ctx.svg, c.x1, c.y1, c.x2, c.y2, c.dashed);
+    for (const c of layout.connectors) appendConnector(ctx.svg, c.x1, c.y1, c.x2, c.y2, c.dashed);
     let peekIndex = 0;
-    for (const card of layout.cards) makeCard(ctx, layout, card, card.isPeek ? peekIndex++ : 0);
+    for (const card of layout.cards) makeCard(ctx, layout, card, card.isPeek ? peekIndex++ + 1 : 0);
 
     if (layout.siblingOverflow) {
       // „…"-Kappungs-Indikator (Orakel: `tree-sib-more`) — Geschwister, die trotz
@@ -204,17 +141,7 @@ export function mountHourglassTree(
     }
 
     if (layout.marriageBadge && callbacks.onSelectFamily) {
-      const badge = layout.marriageBadge;
-      const btn = document.createElement('div');
-      btn.className = 'tree-island__marr-btn';
-      btn.style.left = `${Math.round(badge.x)}px`;
-      btn.style.top = `${Math.round(badge.y)}px`;
-      btn.style.width = `${Math.round(badge.width)}px`;
-      btn.style.height = `${Math.round(badge.height)}px`;
-      tooltip(btn, 'Familie öffnen');
-      btn.textContent = '⚭';
-      btn.addEventListener('click', () => callbacks.onSelectFamily!(badge.familyId));
-      ctx.wrap.appendChild(btn);
+      appendMarriageButton(ctx, layout.marriageBadge, callbacks.onSelectFamily);
     }
 
     return {

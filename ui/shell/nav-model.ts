@@ -71,6 +71,8 @@ export type ResearchSegmentId = ResearchTargetId;
  */
 export type MapModeId = 'orte' | 'person' | 'migr';
 export type TimelineModeId = 'swim' | 'decade';
+/** Anzeige-Modus der Baum-Lens (Sanduhr · Nachkommen · Fächer, Spec 21 §1/§8, ADR-v9-123). */
+export type TreeModeId = 'hourglass' | 'descendant';
 
 /**
  * Alle Navigationsziele der App.
