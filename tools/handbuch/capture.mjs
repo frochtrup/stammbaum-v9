@@ -33,7 +33,10 @@ const WRAPPER = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'orte.json')
 
 // Ziel-Personen — Pseudonyme aus fixtures/demo-rich.anon.ged (deterministisch stabil).
 // Bei Wechsel der Quell-Fixture neu ableiten (reichste Person mit vielen Beruf-Events).
-const RICH_PERSON = 'Kaspar Hörstmann'; // *1933 Vechta, viele Berufe (Sanduhr-Vater, @I3@)
+// BEWUSST eine VERSTORBENE Person (†1997) für alle Personen-zentrierten Screenshots —
+// so zeigt kein Steckbrief/keine Zeitleiste eine (ggf. lebende) Person, und der Lebenslauf
+// ist vollständig (Nutzer-Vorgabe). @I3@ hat DEAT 7 SEP 1997.
+const RICH_PERSON = 'Kaspar Hörstmann'; // *1933 Vechta, †1997 Ochtrup, viele Berufe (Sanduhr-Vater, @I3@)
 const RICH_SURNAME = 'Hörstmann';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -72,10 +75,20 @@ async function click(text, { contains = false, nth = 0 } = {}) {
   await sleep(450); return ok;
 }
 async function bottomNav(label) {
-  await page.evaluate((label) => {
-    const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').replace(/\s+/g, ' ').trim().endsWith(label));
-    if (b) b.click();
+  // NUR die untere Hauptnavigation (nav.bottom-nav) treffen — NICHT irgendeinen Button, der
+  // zufällig gleich endet. Sonst kollidiert z. B. „Personen" mit dem neuen Protokoll-Segment
+  // „Personen/Timeline": nach dem Seeden steht die App auf Protokoll, und bottomNav('Personen')
+  // klickte den Gruppierungs-Umschalter statt den Tab → alle Folge-Screens blieben auf Protokoll.
+  const ok = await page.evaluate((label) => {
+    const items = [...document.querySelectorAll('nav.bottom-nav .bottom-nav__item')];
+    const b = items.find((x) => {
+      const lbl = x.querySelector('.bottom-nav__label');
+      return lbl && (lbl.textContent || '').replace(/\s*\(folgt\)\s*/, '').trim() === label;
+    });
+    if (b) { b.click(); return true; }
+    return false;
   }, label);
+  if (!ok) console.log('  ! bottomNav nicht gefunden:', label);
   await sleep(650);
 }
 async function shot(name) { await sleep(650); await page.screenshot({ path: `${OUT}/${name}.png` }); console.log('  ✓', name); }
@@ -95,8 +108,11 @@ await page.goto(URL, { waitUntil: 'networkidle2' }); await sleep(1200);
 // Orts-Spiegel VOR dem Laden seeden
 await page.evaluate(async (wrapper) => {
   await new Promise((res, rej) => {
-    const rq = indexedDB.open('stammbaum-v9', 5);
-    rq.onupgradeneeded = () => { const db = rq.result; for (const s of ['working-copy', 'places-mirror', 'places-file-handle', 'val-config', 'dedup-ignored']) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s); };
+    // Version + Store-Liste MÜSSEN mit services/idb-schema.ts übereinstimmen (DB_VERSION,
+    // STORE_*). Eine ältere Version hier bricht mit „VersionError" ab, sobald die App die
+    // DB inzwischen höher gezogen hat — bei jedem Schema-Bump mitziehen.
+    const rq = indexedDB.open('stammbaum-v9', 6);
+    rq.onupgradeneeded = () => { const db = rq.result; for (const s of ['working-copy', 'places-mirror', 'places-file-handle', 'val-config', 'dedup-ignored', 'research-projects']) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s); };
     rq.onsuccess = () => { const db = rq.result; const tx = db.transaction('places-mirror', 'readwrite'); tx.objectStore('places-mirror').put(wrapper, 'current'); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = () => rej(tx.error); };
     rq.onerror = () => rej(rq.error);
   });
@@ -130,19 +146,28 @@ console.log('Screenshots (mobil) …');
 await bottomNav('Personen'); await scrollTop(); await shot('01-personenliste');
 await bottomNav('Personen'); await scrollTop(); await click('Filter'); await shot('02-person-filter'); await click('Filter');
 await bottomNav('Personen'); await scrollTop(); await click('Werkzeuge'); await shot('03-person-werkzeuge');
+// Duplikat-Liste AUS dem bereits offenen Werkzeuge-Blatt (nicht erneut „Werkzeuge" klicken —
+// das würde das Blatt wieder zuklappen). „Duplikate suchen" öffnet die Dedup-Ansicht; der
+// Scan-Knopf trägt denselben Text wie der Werkzeug-Eintrag → per Klasse starten.
+await click('Duplikate suchen'); await sleep(500);
+await page.evaluate(() => { const b = document.querySelector('.person-dedup__scan-btn'); if (b) b.click(); }); await sleep(1800);
+await scrollTop(); await shot('05-duplikate');
+await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
 await bottomNav('Personen'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
+// Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997): „Im Baum
+// anzeigen" setzt den geteilten lensFocus → davon erben gleich Karte-Personen-Modus & Zeitleiste.
+await click('Im Baum anzeigen', { contains: true }); await sleep(1000); await shot('14-sanduhr');
 await bottomNav('Personen'); await click('Familien'); await scrollTop(); await shot('06-familienliste');
 await bottomNav('Personen'); await click('Familien'); await scrollTop(); await click(RICH_SURNAME, { contains: true }); await shot('07-familie-detail');
 await bottomNav('Personen'); await click('Quellen'); await scrollTop(); await shot('08-quellenliste');
 await bottomNav('Personen'); await click('Quellen'); await scrollTop(); await click('KB', { contains: true }); await shot('09-quelle-detail');
 await bottomNav('Personen'); await click('Orte'); await scrollTop(); await shot('10-ortsliste');
-await bottomNav('Personen'); await click('Orte'); await scrollTop(); await click('Burgsteinfurt', { nth: 0 }); await shot('11-ort-steckbrief');
+await bottomNav('Personen'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
 await bottomNav('Personen'); await click('Höfe'); await scrollTop(); await shot('12-hoefeliste');
 await bottomNav('Personen'); await click('Höfe'); await scrollTop(); await click('Oster 141', { nth: 0 }); await shot('13-hof-detail');
 
-await bottomNav('Baum'); await shot('14-sanduhr');
-
-// Karte (Orte) — auf Deutschland (Marker-Median) zoomen
+// Karte (Orte) — auf Deutschland (Marker-Median) zoomen. lensFocus (@I3@, verstorben) wurde
+// bereits oben beim Sanduhr-Schritt gesetzt → der Personen-Modus der Karte erbt ihn.
 await bottomNav('Baum'); await click('Karte'); await sleep(3000);
 for (let i = 0; i < 5; i++) {
   const m = await page.evaluate(() => { const ms = [...document.querySelectorAll('.leaflet-marker-icon')].map((e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }).filter((p) => p.y > 180 && p.y < 1500); if (!ms.length) return null; ms.sort((a, b) => a.x - b.x); const mx = ms[Math.floor(ms.length / 2)].x; ms.sort((a, b) => a.y - b.y); const my = ms[Math.floor(ms.length / 2)].y; return { x: mx, y: my }; });
@@ -151,16 +176,16 @@ for (let i = 0; i < 5; i++) {
 await page.mouse.move(360, 760); await sleep(3000); await shot('15-karte-orte');
 await click('Personen', { nth: 0 }); await sleep(2200); await page.mouse.move(360, 760); await sleep(500); await shot('16-karte-personen');
 
-// Zeitleiste mit Person
-await bottomNav('Baum'); await click('Zeitleiste'); await sleep(900);
-await page.evaluate(() => { const b = document.querySelector('button[aria-label="Person hinzufügen"]'); if (b) b.click(); }); await sleep(800);
-await page.evaluate(() => { const i = document.querySelector('input[role=combobox]'); if (i) i.focus(); });
-await page.keyboard.type(RICH_SURNAME, { delay: 20 }); await sleep(1000);
-await page.evaluate(() => { const o = [...document.querySelectorAll('[role=option]')].find((x) => !/Neue Person/.test(x.textContent)); if (o) o.click(); }); await sleep(1500);
-await shot('17-zeitleiste');
+// Zeitleiste bewusst NICHT hier (mobil) — die Swim-Lanes brauchen Breite; sie wird unten im
+// Desktop-Layout aufgenommen (17-zeitleiste). lensFocus = @I3@ bleibt dafür gesetzt.
 
 await bottomNav('Mehr'); await click('Statistik'); await sleep(900); await scrollTop(); await shot('18-statistik');
-await bottomNav('Suche'); await scrollTop(); await shot('19-suche');
+// Suche als „Halbauswahl" zeigen — ein paar Zeichen vorbelegt, damit gruppierte Treffer
+// über mehrere Datenarten sichtbar sind (statt eines leeren Feldes mit Mindestlängen-Hinweis).
+await bottomNav('Suche'); await scrollTop();
+await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=search]')].find((x) => /Suche über/.test(x.placeholder || '') && x.offsetParent); if (i) i.focus(); });
+await page.keyboard.type('Ochtr', { delay: 40 }); await sleep(900);
+await scrollTop(); await shot('19-suche');
 await bottomNav('Aufgaben'); await click('Aufgaben'); await sleep(300); await shot('20-aufgaben');
 await bottomNav('Aufgaben'); await click('Aufgaben'); await click('Board', { contains: true }); await sleep(500); await shot('20b-aufgaben-board');
 await bottomNav('Aufgaben'); await click('Protokoll'); await sleep(300); await shot('21-protokoll');
@@ -177,6 +202,15 @@ await page.evaluate(() => { const b = [...document.querySelectorAll('button,a,[r
 await click(RICH_PERSON, { contains: true }); await sleep(600); await shot('30-desktop-liste');
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
+await page.keyboard.press('Escape'); await sleep(300);
+
+// Zeitleiste im DESKTOP-Layout — Swim-Lanes über die volle Breite (mobil zu schmal). Der
+// Sidebar-Eintrag „Zeitleiste" führt zum Lens; lensFocus (@I3@, verstorben, ereignisreich)
+// belegt die Leiste automatisch mit genau EINER Person (kein zweiter gleichnamiger Chip).
+// Kürzere Viewport-Höhe, damit der Screenshot eng auf die Bahnen sitzt (kein leerer Boden).
+await click('Zeitleiste'); await sleep(800);
+await page.setViewport({ width: 1280, height: 640, deviceScaleFactor: 2 }); await sleep(900);
+await shot('17-zeitleiste');
 
 await browser.close();
 console.log('fertig — Screenshots in', OUT);

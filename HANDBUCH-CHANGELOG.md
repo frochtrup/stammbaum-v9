@@ -16,6 +16,28 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ## [Unreleased]
 
+_(Noch keine unveröffentlichten Änderungen. Neue Zeilen hier eintragen.)_
+
+---
+
+## [9.1] — 2026-07-25
+
+- **Orts- & Hofkonzept ausführlich erklärt (Kapitel 7):** neue Abschnitte „Das Konzept:
+  zwei Objektarten, eine Wahrheit", „Die Rolle der `orte.json`" (stammbaum-übergreifend,
+  nicht in der GEDCOM-Datei, Geräte-Spiegel, verlustfreier Abgleich) und „Automatisch
+  angelegt, von Hand veredelt" — als eines der Herzstücke der App herausgestellt.
+- **Screenshots gezielt verbessert:** Duplikat-Liste statt Werkzeuge-Blatt bei „Doppelte
+  Personen" (neu: `05-duplikate`), angereicherter Ort **Ochtrup** mit voller datierter
+  Verwaltungskette beim Ort-Steckbrief, **Zeitleiste als Computer-Ansicht** (Swim-Lanes über
+  die volle Breite) mit einer ereignisreichen Person, **Halbauswahl** (Teileingabe „Ochtr")
+  bei der globalen Suche. Alle personenzentrierten Abbildungen zeigen eine **verstorbene**
+  Person.
+- **Anhänge ausgebaut:** GEDCOM — „Was die App bearbeitet / durchreicht" und „Grenzen der
+  Kompatibilität" (voll vs. Strict, Kodierung, unscharfe Daten); GRAMPS — „Bearbeiten und
+  zurückschreiben: Umfang und Grenzen" (native Orts-Verweise, Adressen im Beschreibungsfeld,
+  Idempotenz). Technischer Überblick deutlich vertieft: Schichten-Architektur, Roundtrip als
+  Prüfstein, Orts-/Hofauflösung (Projektions-Invariante, Konventions-Matrix, Auto-Seed,
+  Gleichnamigkeit, Prüfen-Workflow), `orte.json`-Abgleich, Speicher/Undo/Offline.
 - **Entitäten löschen:** Person, Familie, Quelle und Archiv haben jeweils unten im Detail
   eine „… löschen"-Schaltfläche (mit Rückfrage). Das Löschen räumt alle Verweise sauber auf
   (Familien-Rollen, Kindlisten, Zitate, Archiv-Bezüge), sodass keine kaputten Verknüpfungen
