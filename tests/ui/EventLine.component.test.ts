@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EventLine from '../../ui/shell/EventLine.svelte';
-import type { EventLineRow } from '../../ui/shell/event-line-row';
+import { dedupeAddrNote, type EventLineRow } from '../../ui/shell/event-line-row';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeSource } from '../../core/model';
@@ -341,5 +341,82 @@ describe('EventLine — Note/Addr/Value', () => {
     expect(screen.getByText('Bauer')).toBeTruthy();
     expect(screen.getByText('Wall 33')).toBeTruthy();
     expect(screen.getByText('Anmerkung')).toBeTruthy();
+  });
+
+  // §10k/BL-71 (ADR-v9-53 Punkt 12): addr==note (Franz Ransmanns GRAD-Ereignis) darf
+  // nicht doppelt erscheinen — der Notiz-Absatz entfällt, addr bleibt in der Kopfzeile.
+  it('unterdrückt den Notiz-Absatz, wenn note zeichengleich zu addr ist (kein Doppel)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ addr: 'Gronauer Str. 30', note: 'Gronauer Str. 30' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    // addr steht weiter in der Kopfzeile …
+    expect(container.querySelector('.event-line__value')?.textContent).toBe('Gronauer Str. 30');
+    // … der redundante Notiz-Absatz ist weg (genau EIN Vorkommen des Textes).
+    expect(container.querySelector('.event-line__note')).toBeNull();
+    expect(screen.getAllByText('Gronauer Str. 30')).toHaveLength(1);
+  });
+
+  it('behält den Notiz-Absatz, wenn note etwas Anderes trägt als addr/value', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ addr: 'Wall 33', note: 'zusätzliche Anmerkung' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(container.querySelector('.event-line__note')?.textContent).toBe('zusätzliche Anmerkung');
+  });
+});
+
+describe('dedupeAddrNote (§10k/BL-71, reine Logik)', () => {
+  it('blankt note, wenn zeichengleich zu addr', () => {
+    expect(dedupeAddrNote({ note: 'Gronauer Str. 30', addr: 'Gronauer Str. 30', value: '' })).toBe('');
+  });
+
+  it('blankt note, wenn zeichengleich zu value', () => {
+    expect(dedupeAddrNote({ note: 'Bauer', addr: '', value: 'Bauer' })).toBe('');
+  });
+
+  it('vergleicht getrimmt, gibt aber den ungetrimmten Originalwert zurück', () => {
+    expect(dedupeAddrNote({ note: '  Wall 33 ', addr: 'Wall 33', value: '' })).toBe('');
+    expect(dedupeAddrNote({ note: 'Wall 33', addr: '', value: 'etwas Anderes' })).toBe('Wall 33');
+  });
+
+  it('leere Notiz bleibt leer, kollidiert nicht mit leerem addr/value', () => {
+    expect(dedupeAddrNote({ note: '', addr: '', value: '' })).toBe('');
+    expect(dedupeAddrNote({ note: '   ', addr: '', value: '' })).toBe('   ');
+  });
+
+  // REALER Fall (Franz Ransmanns GRAD, MeineDaten_ancestris.ged L819/821): `2 ADDR` trägt
+  // eine `3 CONT`-Fortsetzung, die collectText mit `\n` in addr faltet — note gleicht nur
+  // der ERSTEN Adresszeile, nicht dem ganzen addr. Muss trotzdem entdedupt werden.
+  it('blankt note, wenn sie der ersten Adresszeile entspricht (ADDR mit CONT-Fortsetzung)', () => {
+    expect(
+      dedupeAddrNote({
+        note: 'Staatl. Ing,. Schule für Bauwesen',
+        addr: 'Staatl. Ing,. Schule für Bauwesen\nMünster',
+        value: '',
+      }),
+    ).toBe('');
+  });
+
+  // Kein Teilstring-Schlucken: eine note, die nur ein Präfix EINER Adresszeile ist (keine
+  // ganze Zeile), bleibt erhalten — „Bauer" ist nicht dasselbe wie „Bauernhof".
+  it('lässt eine note stehen, die bloß Teilstring (nicht ganze Zeile) von addr ist', () => {
+    expect(dedupeAddrNote({ note: 'Bauer', addr: 'Bauernhof', value: '' })).toBe('Bauer');
   });
 });
