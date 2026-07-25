@@ -59,7 +59,7 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
     render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
 
     const badge = screen.getByText('§7');
-    expect(badge.className).toContain('src-badge--q2');
+    expect(badge.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('2');
   });
 
   it('der Ortsname selbst ist der Link (kein separater "Ort ansehen →"-Button mehr) UND CoordIndicator sitzt im selben event-line__head (ADR-v9-80)', () => {

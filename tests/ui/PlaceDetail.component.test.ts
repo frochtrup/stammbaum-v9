@@ -648,7 +648,7 @@ describe('PlaceDetail — Quellen als §N-Badges (Spec 21 §10i, INV-UI-4)', () 
     // in der zusammenfassenden Quellen-Sektion). Auf die Quellen-Sektion scopen.
     const citationsSection = container.querySelector('.place-detail__citations') as HTMLElement;
     const badge = within(citationsSection).getByText('§42');
-    expect(badge.className).toContain('src-badge--q3');
+    expect(badge.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
   });
 });
 

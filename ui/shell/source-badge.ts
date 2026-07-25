@@ -1,6 +1,9 @@
-// ui/shell/source-badge.ts — Quellen-Badge-Darstellung (Spec 21 §7): `§N` mit
-// QUAY-Farbindikator q0–q3, Tooltip = Quellentitel. N = numerischer Teil der
-// GEDCOM-ID (z. B. `@S042@` → `§42`), belegt in legacy-v8/UI-DESIGN.md §"Symbole".
+// ui/shell/source-badge.ts — Quellen-Badge-Darstellung (Spec 21 §7): `§N`, Tooltip =
+// Quellentitel. N = numerischer Teil der GEDCOM-ID (z. B. `@S042@` → `§42`), belegt in
+// legacy-v8/UI-DESIGN.md §"Symbole". Die QUAY-Beweiskraft wird NICHT mehr über die
+// Pillen-Farbe kodiert (ADR-v9-118: q0-Rot war fast identisch mit --stb-danger, eine
+// belegte Angabe sah aus wie ein Fehler; die Skala rot→orange→blau→grün war zudem nicht
+// monoton lesbar), sondern über den `QuayMeter` (gefüllte Pips 0..3, Position statt Farbe).
 import type { Citation, Source } from '../../core/model/types';
 
 /** Numerischer Teil einer GEDCOM-ID (`@S042@` → `42`, `S7` → `7`, sonst roh). */
@@ -16,14 +19,10 @@ export function badgeLabel(citation: Citation): string {
   return n;
 }
 
-/** QUAY→CSS-Modifier-Klasse (Spec 21 §7: rot/orange/blau/grün = q0–q3). */
-export function quayClass(citation: Citation): string {
-  return quayClassFor(citation.quay);
-}
-
-/** Wie {@link quayClass}, aber direkt aus dem QUAY-Wert (für Kontexte ohne volles Citation-Objekt). */
-export function quayClassFor(quay: Citation['quay']): string {
-  return `src-badge--q${quay}`;
+/** Screenreader-/Tooltip-Text für den Beweiskraft-Meter (Spec 21 §7, ADR-v9-118):
+ *  die QUAY-Stufe als lesbarer Satz statt reiner Farbe. */
+export function quayAriaLabel(quay: Citation['quay']): string {
+  return `Beweiskraft ${quay} von 3`;
 }
 
 /** Tooltip-Text: Quellenname (Kurzname bevorzugt) + Referenz (PAGE), sofern gesetzt.

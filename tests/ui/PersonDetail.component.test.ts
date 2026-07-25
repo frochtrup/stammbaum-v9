@@ -42,7 +42,8 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     render(PersonDetail, { props: { appState, viewState } });
 
     const badge = screen.getByText('§42');
-    expect(badge.className).toContain('src-badge--q3');
+    // Beweiskraft steckt jetzt im Meter (ADR-v9-118), nicht in der Pillen-Farbklasse.
+    expect(badge.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
     // Tooltip-Text liegt jetzt auf aria-label (geteilter tooltip-Action statt nativem title).
     expect(badge.getAttribute('aria-label')).toBe('KB Ochtrup');
   });

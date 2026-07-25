@@ -1,4 +1,4 @@
-// tests/ui/source-badge.test.ts — §N-Badge + QUAY-Farbindikator (Spec 21 §7).
+// tests/ui/source-badge.test.ts — §N-Badge + QUAY-Beweiskraft-Meter (Spec 21 §7, ADR-v9-118).
 import { describe, expect, it } from 'vitest';
 import { makeCitation, makeSource } from '../../core/model';
 import {
@@ -6,7 +6,7 @@ import {
   badgeNumber,
   badgeTitle,
   badgeLinkHref,
-  quayClass,
+  quayAriaLabel,
 } from '../../ui/shell/source-badge';
 
 describe('badgeNumber/badgeLabel — §N aus dem numerischen ID-Teil', () => {
@@ -30,10 +30,9 @@ describe('badgeNumber/badgeLabel — §N aus dem numerischen ID-Teil', () => {
   });
 });
 
-describe('quayClass — QUAY-Farbindikator q0..q3', () => {
-  it.each([0, 1, 2, 3] as const)('mappt quay=%s auf src-badge--q%s', (q) => {
-    const cit = makeCitation('@S1@', { quay: q });
-    expect(quayClass(cit)).toBe(`src-badge--q${q}`);
+describe('quayAriaLabel — Beweiskraft als lesbares aria-Label (Meter statt Farbe)', () => {
+  it.each([0, 1, 2, 3] as const)('beschreibt quay=%s als "Beweiskraft %s von 3"', (q) => {
+    expect(quayAriaLabel(q)).toBe(`Beweiskraft ${q} von 3`);
   });
 });
 
