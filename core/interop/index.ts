@@ -36,8 +36,9 @@ export {
 
 export { transformGed7 } from './ged7-adapter';
 export { stripStrict } from './strict-adapter';
-export { buildLivingSet, anonymizeIndi } from './anonymize';
+export { buildLivingSet, anonymizeIndi, anonymizeFam, anonymizeDoc } from './anonymize';
 
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
+export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';
 export { parseXml, serializeXml } from './xml-tree';

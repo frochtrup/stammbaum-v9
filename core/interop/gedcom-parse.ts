@@ -29,6 +29,7 @@ import type {
   EvidenceRef,
 } from '../research/types';
 import { normalizeSex } from '../model/sex';
+import { splitGedcomName } from '../model/name-parts';
 import type {
   Person,
   Family,
@@ -173,7 +174,7 @@ function parseTask(node: GedNode): ResearchTask {
  *   2 REPO <repoRef>         (roher @Rxx@-Xref)
  *   2 SOUR <sourceRef>       (roher @Sxx@-Xref)
  *   2 _QUERY <query>
- *   2 _RESULT <found|notfound|pending>
+ *   2 _RESULT <found|partial|notfound|pending>
  *   2 NOTE <note>            (CONT-fähig, mehrzeilig)
  *   2 _TASKID <taskId>       (v9-Erweiterung, ADR-v9-36 — kein Oracle-Vorbild)
  * LogEntry hat KEINE eigene id (index-adressiert, v8-Parität). Aus dem Passthrough
@@ -182,7 +183,9 @@ function parseTask(node: GedNode): ResearchTask {
 function parseLogEntry(node: GedNode): LogEntry {
   const raw = childValue(node, '_RESULT');
   const result: LogResult =
-    raw === 'found' || raw === 'notfound' || raw === 'pending' ? raw : 'pending';
+    raw === 'found' || raw === 'partial' || raw === 'notfound' || raw === 'pending'
+      ? raw
+      : 'pending';
   const repo = child(node, 'REPO');
   const sour = child(node, 'SOUR');
   const noteNode = child(node, 'NOTE');
@@ -251,6 +254,17 @@ function parsePerson(rec: GedNode): Person {
           p.surname = childValue(c, 'SURN');
           p.prefix = childValue(c, 'NPFX');
           p.suffix = childValue(c, 'NSFX');
+          // Untertags sind optional (ADR-v9-112): fehlende Teile aus dem NAME-Wert
+          // ergänzen, sofern er eindeutig zerlegbar ist. FELDWEISE, nicht als Block —
+          // eine Quelle darf `GIVN Anna` bewusst enger setzen als der NAME-Wert
+          // (`Anna Maria /Decker/`) und trotzdem `SURN` weglassen. Ein explizit
+          // gesetztes Untertag wird nie überschrieben.
+          const parts = splitGedcomName(c.value);
+          if (parts) {
+            if (!p.given) p.given = parts.given;
+            if (!p.surname) p.surname = parts.surname;
+            if (!p.suffix) p.suffix = parts.suffix;
+          }
           if (!p.nick) p.nick = childValue(c, 'NICK');
           for (const s of children(c, 'SOUR')) p.nameCitations.push(parseCitation(s));
         }

@@ -13,6 +13,7 @@
 // Sache des Kerns (core/interop) bzw. von export-pipe.ts, das FileService nur benutzt.
 
 import type { FileServiceAdapters, ImportResult, SaveResult, WorkingCopy } from './types';
+import type { DocFormat } from './doc-format';
 
 export class FileService {
   constructor(private readonly adapters: FileServiceAdapters) {}
@@ -24,7 +25,7 @@ export class FileService {
   async pickAndImport(): Promise<ImportResult | null> {
     const picked = await this.adapters.picker.pick();
     if (!picked) return null;
-    const copy: WorkingCopy = { text: picked.text, name: picked.name, handle: picked.handle };
+    const copy: WorkingCopy = { text: picked.text, name: picked.name, format: picked.format, handle: picked.handle };
     await this.adapters.workingCopyStore.save(copy);
     return picked;
   }
@@ -38,11 +39,12 @@ export class FileService {
    * Stilles Zwischenspeichern der Arbeitskopie — jederzeit, plattformunabhängig
    * (Absturz-Recovery/Offline). Ändert NICHT die echte Datei auf der Platte.
    */
-  async saveWorkingCopy(text: string, name?: string, handle?: unknown): Promise<void> {
+  async saveWorkingCopy(text: string, name?: string, handle?: unknown, format?: DocFormat): Promise<void> {
     const existing = await this.adapters.workingCopyStore.load();
     const nextName = name ?? existing?.name ?? '';
     const nextHandle = handle !== undefined ? handle : existing?.handle;
-    await this.adapters.workingCopyStore.save({ text, name: nextName, handle: nextHandle });
+    const nextFormat = format ?? existing?.format ?? 'gedcom';
+    await this.adapters.workingCopyStore.save({ text, name: nextName, format: nextFormat, handle: nextHandle });
   }
 
   /**

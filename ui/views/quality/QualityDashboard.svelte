@@ -31,6 +31,8 @@
     type ValidationConfig,
   } from '../../../core/validate/index';
   import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import { matchesScope } from '../../../core/research/index';
+  import type { ProjectScope } from '../../../core/research/types';
   import { SEVERITY_ICON } from '../validation/validation-model';
 
   interface Props {
@@ -39,6 +41,8 @@
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
     onNavigateToHof?: (id: string) => void;
+    /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung (alle Personen). */
+    scope?: ProjectScope | null;
   }
   const {
     appState,
@@ -46,7 +50,18 @@
     onNavigateToFamily,
     onNavigateToPlace,
     onNavigateToHof,
+    scope = null,
   }: Props = $props();
+
+  // Personenmenge des aktiven Projekts als Set (Spec 20 §1.11g: „die Personenmenge kommt
+  // als Parameter herein"); null = keine Einschränkung. matchesScope ist die Kern-Wahrheit.
+  const scopeSet = $derived(
+    scope
+      ? new Set(
+          [...appState.db.individuals.values()].filter((p) => matchesScope(p, scope)).map((p) => p.id),
+        )
+      : null,
+  );
 
   const FOCUS_FILTERS: { key: FocusFilter; label: string }[] = [
     { key: 'attention', label: 'Handlungsbedarf (Fehler + Warnungen)' },
@@ -83,7 +98,7 @@
     withoutAlreadyTasked(runValidation(appState.db, valConfig), appState.db),
   );
 
-  const dashboard = $derived(buildQualityDashboard(appState.db, findings));
+  const dashboard = $derived(buildQualityDashboard(appState.db, findings, { scope: scopeSet }));
   const rows = $derived(filterFocus(dashboard.focus, focusFilter));
   const activeFilterCount = $derived(focusFilter === DEFAULT_FOCUS ? 0 : 1);
 

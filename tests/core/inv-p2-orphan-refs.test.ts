@@ -47,7 +47,7 @@ describe('INV-P2: verwaiste Referenzen werden gemeldet', () => {
     const db = makeDatabase();
     const p = makePerson('@I1@');
     p.topLevelCitations = [
-      { sourceId: '@S404@', page: '12', quay: 2, note: '', media: [], eval: null, deepLinkUrl: '' },
+      { sourceId: '@S404@', page: '12', quay: 2, note: '', media: [], eval: null, deepLinkUrl: '', grampsId: null },
     ];
     db.individuals.set(p.id, p);
 

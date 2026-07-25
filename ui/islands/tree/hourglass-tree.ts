@@ -16,6 +16,7 @@ import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
 // nur nach stationärem Long-Press. Kein destroy nötig — Karten werden je Render neu gebaut,
 // die Listener sterben mit dem entfernten Knoten (ein globaler Scroll-Listener, kein pro-Knoten).
 import { tooltip } from '../../shell/tooltip';
+import { displayNameOr } from '../../shell/person-display';
 
 export interface TreeMountCallbacks {
   /** Klick auf eine Ahnen-/Ehepartner-/Kind-Karte -> Rezentrierung auf diese Person. */
@@ -35,8 +36,12 @@ export interface TreeMountOptions {
 export interface TreeIslandHandle {
   /** Neu zentrieren auf eine andere Person — kompletter Neu-Aufbau. */
   update(personId: PersonId, options?: TreeMountOptions): void;
-  /** Vollbild-Zustand umschalten (State-Klasse auf dem Container, Spec 21 §3). */
+  /** Vollbild-Zustand umschalten (State-Klasse auf dem Container, Spec 21 §3).
+   *  Die Insel trägt ihren eigenen Schalter (BL-95); dieser Weg bleibt für Tests und
+   *  künftige Tastenkürzel. */
   toggleFullscreen(): void;
+  /** Aktueller Vollbild-Zustand — die Insel ist die einzige Quelle dafür. */
+  readonly isFullscreen: boolean;
   /** Listener entfernen, DOM leeren. */
   destroy(): void;
   /** Aktuell zentrierte Person-ID (für Tests/Diagnose). */
@@ -71,6 +76,30 @@ export function mountHourglassTree(
 
   // ── Container-Grundgerüst (einmalig) ──
   container.classList.add('tree-island');
+
+  // Der Vollbild-Schalter gehört IN die Insel, nicht in die Lens-Kopfzeile darüber
+  // (BL-95/Nutzerbefund 2026-07-21). Zwei Gründe, beide gemessen:
+  //
+  //  1. Er war im Vollbild nicht mehr erreichbar. `.tree-island--fullscreen` ist
+  //     `position: fixed; inset: 0; z-index: 500` und legt sich damit über die Kopfzeile
+  //     UND über die Bottom-Nav: `elementFromPoint` traf am Knopf `tree-island__wrap`, an
+  //     der Navigation `tree-island__scroll` — der Vollbildmodus war eine Einbahnstraße,
+  //     verlassbar nur durch Neuladen der Seite. Ein Schalter INNERHALB der Insel wandert
+  //     mit ihr ins Vollbild und bleibt bedienbar.
+  //  2. Er teilte sich die Zeile mit dem Lens-Umschalter und nahm ihm 79 px, wodurch
+  //     „Story" vollständig aus dem Bild rutschte (BL-95).
+  //
+  // Escape verlässt zusätzlich das Vollbild — dieselbe Erwartung wie bei jedem Overlay
+  // (INV-UI-13-Nachbarschaft); ein Modus, den man nur über EINEN Weg wieder los wird, ist
+  // genau die Falle, die dieser Umbau beseitigt.
+  const fsBtn = document.createElement('button');
+  fsBtn.type = 'button';
+  fsBtn.className = 'tree-island__fs-btn';
+  const setFsLabel = (): void => {
+    fsBtn.textContent = fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild';
+    fsBtn.setAttribute('aria-pressed', String(fullscreen));
+  };
+
   const scrollEl = document.createElement('div');
   scrollEl.className = 'tree-island__scroll';
   const wrapEl = document.createElement('div');
@@ -81,6 +110,18 @@ export function mountHourglassTree(
   scrollEl.appendChild(wrapEl);
   container.innerHTML = '';
   container.appendChild(scrollEl);
+  container.appendChild(fsBtn); // NACH dem Scroll-Layer: liegt darüber, ohne z-index-Turnen
+
+  function setFullscreen(next: boolean): void {
+    if (fullscreen === next) return;
+    fullscreen = next;
+    container.classList.toggle('tree-island--fullscreen', fullscreen);
+    setFsLabel();
+    if (currentId) render(currentId, initialOptions);
+  }
+
+  fsBtn.addEventListener('click', () => setFullscreen(!fullscreen));
+  setFsLabel();
 
   function detectPortrait(): boolean {
     if (initialOptions.portrait != null) return initialOptions.portrait;
@@ -132,7 +173,7 @@ export function mountHourglassTree(
 
     const nameEl = document.createElement('div');
     nameEl.className = 'tree-island__name';
-    nameEl.textContent = person.given || person.surname ? `${person.given} ${person.surname}`.trim() : person.name || card.id;
+    nameEl.textContent = displayNameOr(person, card.id);
     div.appendChild(nameEl);
 
     const by = (person.birth.date || '').match(/\d{4}/)?.[0];
@@ -340,6 +381,11 @@ export function mountHourglassTree(
   // greifen (analog v8: nur „ist ein Eingabefeld fokussiert" schließt aus).
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.repeat) return;
+    if (e.key === 'Escape' && fullscreen) {
+      e.preventDefault();
+      setFullscreen(false);
+      return;
+    }
     const active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || (active as HTMLElement).isContentEditable))
       return;
@@ -384,10 +430,13 @@ export function mountHourglassTree(
       zoomScale = detectPortrait() ? 1 : zoomScale; // Portrait: kein Zoom (Orakel-Verhalten)
       render(nextId, options);
     },
+    /** Bleibt als API-Weg bestehen (Tests, künftige Tastenkürzel) — DELEGIERT aber auf
+     *  denselben Schalter, damit Zustand und Beschriftung nie auseinanderlaufen. */
     toggleFullscreen() {
-      fullscreen = !fullscreen;
-      container.classList.toggle('tree-island--fullscreen', fullscreen);
-      if (currentId) render(currentId, initialOptions);
+      setFullscreen(!fullscreen);
+    },
+    get isFullscreen() {
+      return fullscreen;
     },
     destroy() {
       scrollEl.removeEventListener('mousedown', onMouseDown);

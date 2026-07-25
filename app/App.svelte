@@ -16,16 +16,19 @@
   // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
+  import { createProjectsState } from '../ui/shell/projects-state.svelte';
+  import { IdbProjectsStore } from '../services/research/index';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
   import { createFileService, type FileService } from '../services/file';
-  import { loadGedcomText } from '../ui/shell/load-gedcom-text';
+  import { loadDocText } from '../ui/shell/load-doc-text';
   import BottomNav from '../ui/shell/BottomNav.svelte';
   import Sidebar from '../ui/shell/Sidebar.svelte';
   import {
     bottomNavSlotFor,
     isEntityTarget,
+    isResearchTarget,
     type BottomNavSlot,
     type EntityTargetId,
     type NavTargetId,
@@ -45,7 +48,7 @@
   import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
   import { isNavCommand, type Command } from '../ui/shell/command-palette-model';
-  import { saveGedcom } from '../ui/shell/save-action';
+  import { saveCurrentDoc } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
@@ -82,6 +85,9 @@
   }: Props = $props();
 
   const viewState = createViewState();
+  // Forschungsprojekte (BL-58): app-privat, geräteweit in IndexedDB. Hier EINMAL erzeugt,
+  // damit die aktive Projekt-Auswahl das Wegnavigieren aus der Forschungsfläche überlebt.
+  const projectsState = createProjectsState(new IdbProjectsStore());
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -103,7 +109,7 @@
       // Stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1) — fire-and-forget,
       // analog persistPlaces oben. Ändert NICHT die echte Datei (das macht erst der
       // explizite "Speichern"-Button über exportViaOnePipe, s. SaveButton.svelte).
-      fileService.saveWorkingCopy(text, appState.fileName, fileHandle).catch((err) => {
+      fileService.saveWorkingCopy(text, appState.fileName, fileHandle, appState.docFormat).catch((err) => {
         console.error('persistWorkingCopy', err);
       });
     },
@@ -119,9 +125,12 @@
       const copy = await fileService.loadWorkingCopy();
       if (!copy) return;
       fileHandle = copy.handle;
-      const result = await loadGedcomText(copy.text, copy.name, appState, persister);
+      const result = await loadDocText(copy.format ?? 'gedcom', copy.text, copy.name, appState, persister);
       placesEditNotice = result.placesNotice;
     })();
+
+    // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
+    void projectsState.load();
 
     // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
     // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
@@ -202,6 +211,10 @@
     // Bis ADR-v9-102 stand hier `setTarget('tree')` — der Slot sprang stur auf den Baum,
     // während der Slot direkt daneben sich sein Segment längst merkte.
     else if (slot === 'tree') route.openLens();
+    // "Aufgaben" ist genauso der Einstieg in die FORSCHUNG (Spec 21 §2, ADR-v9-116), nicht
+    // stur auf "Aufgaben": der Slot führt auf das zuletzt offene Forschungsziel zurück
+    // (Aufgaben/Protokoll/Hypothesen/Dashboard) — dieselbe Merker-Logik wie Personen/Baum.
+    else if (slot === 'tasks') route.openResearch();
     else route.setTarget(slot);
   }
 
@@ -296,7 +309,7 @@
 
   async function runSave() {
     if (!appState.fileName) return;
-    placesEditNotice = await saveGedcom(appState, fileService, fileHandle);
+    placesEditNotice = await saveCurrentDoc(appState, fileService, fileHandle);
   }
 
   // Tastenkürzel der Schale (BL-01 Undo/Redo, BL-08 Speichern/Escape, BL-93 Palette).
@@ -404,10 +417,11 @@
         onNavigateToPlace={openPlaceFromSearch}
         onNavigateToHof={openHofFromSearch}
       />
-    {:else if shownTarget === 'tasks'}
+    {:else if isResearchTarget(shownTarget)}
       <ResearchTab
         {appState}
         {route}
+        projects={projectsState}
         onNavigateToPerson={openPersonFromSearch}
         onNavigateToFamily={openFamilyFromSearch}
         onNavigateToPlace={openPlaceFromSearch}

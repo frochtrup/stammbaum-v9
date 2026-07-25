@@ -7,8 +7,10 @@
   // Datei-Picker (services/file) vs. mitgeliefertes Asset (fetch('./demo.ged'), analog
   // Verhaltens-Orakel legacy-v8/storage.js loadDemo() — funktioniert offline, weil
   // demo.ged als Vite-Static-Asset gebündelt ist, s. app/public/demo.ged).
-  // GRAMPS-Import ist NICHT Teil dieser Scheibe (nur GEDCOM).
+  // Der Datei-Picker öffnet GEDCOM ODER GRAMPS (BL-139): der Picker gunzip-t und erkennt das
+  // Format, `loadDocText` verzweigt in den passenden Ladepfad. Demo bleibt GEDCOM.
   import { loadGedcomText } from './load-gedcom-text';
+  import { loadDocText } from './load-doc-text';
   import type { AppState } from './app-state.svelte';
   import type { PlacesPersister } from './places-persister';
   import type { FileService } from '../../services/file';
@@ -47,7 +49,7 @@
         status = 'idle';
         return;
       }
-      const result = await loadGedcomText(picked.text, picked.name, appState, persister);
+      const result = await loadDocText(picked.format, picked.text, picked.name, appState, persister);
       placesNotice = result.placesNotice;
       onImported?.(picked.handle);
       status = 'idle';
@@ -83,7 +85,7 @@
     onclick={handleClick}
     disabled={status === 'loading-file' || status === 'loading-demo'}
   >
-    {status === 'loading-file' ? 'Lade …' : 'Datei öffnen (GEDCOM)'}
+    {status === 'loading-file' ? 'Lade …' : 'Datei öffnen (GEDCOM/GRAMPS)'}
   </button>
   <button
     type="button"

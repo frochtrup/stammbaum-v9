@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOTTOM_NAV_SLOTS,
   ENTITY_TARGETS,
+  RESEARCH_TARGETS,
   MORE_HUB_ORDER,
   NAV_TARGETS,
   bottomNavItems,
@@ -20,6 +21,7 @@ import {
   bottomNavSlotFor,
   isEntityTarget,
   isLensTarget,
+  isResearchTarget,
   moreHubItems,
   navTargetById,
   targetsByRole,
@@ -41,9 +43,19 @@ describe('Ziel-Register — eine Beschreibung je Ziel (INV-UI-15)', () => {
     }
   });
 
-  it('gruppiert nach den drei Rollen aus Spec 21 §1 — lückenlos', () => {
-    const grouped = [...targetsByRole('entity'), ...targetsByRole('lens'), ...targetsByRole('work')];
+  it('gruppiert nach den vier Rollen aus Spec 21 §1 — lückenlos', () => {
+    const grouped = [
+      ...targetsByRole('entity'),
+      ...targetsByRole('lens'),
+      ...targetsByRole('research'),
+      ...targetsByRole('work'),
+    ];
     expect(grouped.length).toBe(NAV_TARGETS.length);
+  });
+
+  it('führt die vier Forschungsziele aus Spec 21 §1 (Rolle research), Dashboard zuerst', () => {
+    // Dashboard ('quality') führt die Gruppe an — Sidebar UND mobile Reihe (ADR-v9-116).
+    expect(RESEARCH_TARGETS.map((t) => t.id)).toEqual(['quality', 'tasks', 'log', 'hypotheses']);
   });
 
   it('führt die fünf Entitäten aus Spec 21 §1 (Archive sind kein eigenes Ziel)', () => {
@@ -81,15 +93,17 @@ describe('Projektionen — keine Fläche führt eine eigene Ziel-Liste', () => {
     // v8-Befund B1 (~11 Ziele, 6 Slots, mehrere davon ohne Nav-Button, Spec 21 §9).
     // Ein Ziel in ZWEI Projektionen wäre B2 (zwei Wege zum selben Ziel, gegen INV-UI-2).
     //
-    // 'more' und 'person' zählen auf der Bottom-Nav-Seite NICHT mit: beide sind Türen,
-    // keine Ziele. 'more' öffnet den Hub (dessen Inhalt über MORE_HUB_ORDER zählt),
-    // 'person' öffnet die Entitäten-Fläche ("Personen ist der Einstieg in die
-    // Entitäten", Spec 21 §2) — dasselbe Ziel wird dort über ENTITY_TARGETS gezählt,
+    // 'more', 'person' und 'tasks' zählen auf der Bottom-Nav-Seite NICHT mit: alle drei
+    // sind Türen, keine Ziele. 'more' öffnet den Hub (Inhalt über MORE_HUB_ORDER),
+    // 'person' öffnet die Entitäten-Fläche (gezählt über ENTITY_TARGETS), und 'tasks'
+    // öffnet die Forschungs-Fläche ("Aufgaben ist der Einstieg in die Forschung", Spec 21
+    // §2 / ADR-v9-116) — die vier Forschungsziele werden über RESEARCH_TARGETS gezählt,
     // nicht zweimal.
     const reachable = [
-      ...BOTTOM_NAV_SLOTS.filter((s) => s !== 'more' && s !== 'person'),
+      ...BOTTOM_NAV_SLOTS.filter((s) => s !== 'more' && s !== 'person' && s !== 'tasks'),
       ...MORE_HUB_ORDER,
       ...ENTITY_TARGETS.map((t) => t.id),
+      ...RESEARCH_TARGETS.map((t) => t.id),
     ];
     const counted = new Map<string, number>();
     for (const id of reachable) counted.set(id, (counted.get(id) ?? 0) + 1);
@@ -118,9 +132,12 @@ describe('bottomNavSlotFor — die drei vormals verstreuten Zuordnungen', () => 
     }
   });
 
-  it('Suche und Aufgaben sind ihr eigener Slot', () => {
+  it('Suche ist ihr eigener Slot', () => {
     expect(bottomNavSlotFor('search')).toBe('search');
-    expect(bottomNavSlotFor('tasks')).toBe('tasks');
+  });
+
+  it('alle vier Forschungsziele hängen am Aufgaben-Slot (ADR-v9-116)', () => {
+    for (const t of RESEARCH_TARGETS) expect(bottomNavSlotFor(t.id), t.id).toBe('tasks');
   });
 
   it('liefert für JEDES Ziel einen existierenden Slot (kein Ziel ohne Aktiv-Markierung)', () => {
@@ -236,17 +253,38 @@ describe('Route — Modus-Merker der beiden Diagramm-Lenses', () => {
   });
 });
 
-describe('Route — Segment-Merker der Aufgaben-/Forschungsfläche', () => {
+// ADR-v9-116: die Forschungsziele sind erstklassige Nav-Ziele der Rolle 'research'; der
+// Merker verhält sich damit exakt wie entityTarget/lensTarget (über setTarget gepflegt).
+describe('Route — Forschungs-Merker (Aufgaben/Protokoll/Hypothesen/Dashboard)', () => {
   it('startet auf "Aufgaben"', () => {
     expect(createRoute().researchTarget).toBe('tasks');
   });
 
-  it('merkt sich das Segment über einen Ausflug in ein anderes Ziel hinweg', () => {
-    const route = createRoute({ target: 'tasks' });
-    route.setResearchTarget('hypotheses');
+  it('merkt sich das Forschungsziel über einen Ausflug in eine andere Rolle hinweg', () => {
+    const route = createRoute();
+    route.setTarget('hypotheses');
     route.setTarget('person');
-    route.setTarget('tasks');
 
     expect(route.researchTarget).toBe('hypotheses');
+
+    // Der Aufgaben-Slot führt auf das zuletzt offene Forschungsziel zurück, nicht stur
+    // auf "Aufgaben" — dieselbe Merker-Logik wie openEntities/openLens.
+    route.openResearch();
+    expect(route.target).toBe('hypotheses');
+  });
+
+  it('lässt den Forschungs-Merker von Nicht-Forschungs-Zielen unberührt', () => {
+    const route = createRoute({ target: 'quality' });
+    for (const id of ['person', 'map', 'search', 'more', 'stats'] as const) {
+      route.setTarget(id);
+      expect(route.researchTarget, id).toBe('quality');
+    }
+  });
+
+  it('isResearchTarget deckt genau die vier Forschungsflächen ab', () => {
+    for (const t of RESEARCH_TARGETS) expect(isResearchTarget(t.id), t.id).toBe(true);
+    expect(isResearchTarget('person')).toBe(false);
+    expect(isResearchTarget('stats')).toBe(false);
+    expect(isResearchTarget('more')).toBe(false);
   });
 });

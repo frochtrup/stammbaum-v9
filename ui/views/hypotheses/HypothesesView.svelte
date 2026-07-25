@@ -14,9 +14,7 @@
   // `FilterBar` statt als Dauer-Pillenreihe (Zuordnungsregel "Filter → immer hinter
   // FilterBar, nie als Dauer-Pillenreihe mit mehr als einem sichtbaren Element").
   import type { AppState } from '../../shell/app-state.svelte';
-  import PersonPicker from '../../shell/PersonPicker.svelte';
-  import FamilyPicker from '../../shell/FamilyPicker.svelte';
-  import SourcePicker from '../../shell/SourcePicker.svelte';
+  import HypothesisForm, { type HypothesisFormValues } from './HypothesisForm.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import {
@@ -28,15 +26,17 @@
     type HypothesisEntry,
   } from './hypothesis-model';
   import { newHypothesisId } from './hypothesis-commands';
-  import type { EvidenceRef, Hypothesis, HypothesisStatus, HypothesisWeight } from '../../../core/research/types';
+  import type { HypothesisStatus, ProjectScope } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
 
   interface Props {
     appState: AppState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
+    /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
+    scope?: ProjectScope | null;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
+  const { appState, onNavigateToPerson, onNavigateToFamily, scope = null }: Props = $props();
 
   /** Status-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
   const DEFAULT_FILTER: HypothesisFilter = 'all';
@@ -47,16 +47,13 @@
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
   let editing = $state<{ kind: TaskEntityKind; entityId: string; id: string } | null>(null);
 
-  let formText = $state('');
-  let formStatus = $state<HypothesisStatus>('open');
-  let formWeight = $state<HypothesisWeight>('medium');
-  let formEvidence = $state<EvidenceRef[]>([]);
-  let formRationale = $state('');
-  let formConclusion = $state('');
-  let formKind = $state<TaskEntityKind>('person');
-  let formEntityId = $state('');
+  // Startwerte des Formulars — HypothesisForm.svelte hält den Eingabe-Zustand selbst.
+  function emptyForm(): HypothesisFormValues {
+    return { text: '', status: 'open', weight: 'medium', evidence: [], rationale: '', conclusion: '', kind: 'person', entityId: '' };
+  }
+  let formInitial = $state<HypothesisFormValues>(emptyForm());
 
-  const allEntries = $derived(collectAllHypotheses(appState.db));
+  const allEntries = $derived(collectAllHypotheses(appState.db, appState.placeContext, scope));
   const filteredEntries = $derived(filterHypotheses(allEntries, filter));
 
   const FILTERS: { key: HypothesisFilter; label: string }[] = [
@@ -70,33 +67,19 @@
     countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
   );
 
-  function resetForm() {
-    formText = '';
-    formStatus = 'open';
-    formWeight = 'medium';
-    formEvidence = [];
-    formRationale = '';
-    formConclusion = '';
-    formKind = 'person';
-    formEntityId = '';
-  }
-
   function openAddForm() {
     editing = null;
-    resetForm();
+    formInitial = emptyForm();
     showForm = true;
   }
 
   function openEditForm(entry: HypothesisEntry) {
     editing = { kind: entry.kind, entityId: entry.entityId, id: entry.hypothesis.id };
-    formText = entry.hypothesis.text;
-    formStatus = entry.hypothesis.status;
-    formWeight = entry.hypothesis.weight;
-    formEvidence = entry.hypothesis.evidence.map((e) => ({ ...e }));
-    formRationale = entry.hypothesis.rationale;
-    formConclusion = entry.hypothesis.conclusion;
-    formKind = entry.kind;
-    formEntityId = entry.entityId;
+    const h = entry.hypothesis;
+    formInitial = {
+      text: h.text, status: h.status, weight: h.weight, evidence: h.evidence.map((e) => ({ ...e })),
+      rationale: h.rationale, conclusion: h.conclusion, kind: entry.kind, entityId: entry.entityId,
+    };
     showForm = true;
   }
 
@@ -105,39 +88,14 @@
     editing = null;
   }
 
-  function addEvidenceRow() {
-    formEvidence = [...formEvidence, { sourceId: '', page: '' }];
-  }
-
-  function removeEvidenceRow(index: number) {
-    formEvidence = formEvidence.filter((_, i) => i !== index);
-  }
-
-  function setEvidenceSource(index: number, sourceId: string) {
-    formEvidence = formEvidence.map((e, i) => (i === index ? { ...e, sourceId } : e));
-  }
-
-  function setEvidencePage(index: number, page: string) {
-    formEvidence = formEvidence.map((e, i) => (i === index ? { ...e, page } : e));
-  }
-
-  const patch = (): Partial<Omit<Hypothesis, 'id'>> => ({
-    text: formText.trim(),
-    status: formStatus,
-    weight: formWeight,
-    evidence: formEvidence.filter((e) => e.sourceId),
-    rationale: formRationale.trim(),
-    conclusion: formConclusion.trim(),
-  });
-
-  function saveForm() {
-    if (!formText.trim()) return;
+  function saveForm(v: HypothesisFormValues) {
+    const patch = { text: v.text, status: v.status, weight: v.weight, evidence: v.evidence, rationale: v.rationale, conclusion: v.conclusion };
     if (editing) {
-      appState.updateHypothesis(editing.kind, editing.entityId, editing.id, patch());
+      appState.updateHypothesis(editing.kind, editing.entityId, editing.id, patch);
     } else {
-      if (!formEntityId) return;
+      if (!v.entityId) return;
       const today = new Date().toISOString().slice(0, 10);
-      appState.addHypothesis(formKind, formEntityId, newHypothesisId(), patch(), today);
+      appState.addHypothesis(v.kind, v.entityId, newHypothesisId(), patch, today);
     }
     closeForm();
   }
@@ -174,128 +132,7 @@
   </div>
 
   {#if showForm}
-    <form class="hyp-view__form" onsubmit={(e) => { e.preventDefault(); saveForm(); }}>
-      <h3 class="hyp-view__form-title">{editing ? 'Hypothese bearbeiten' : 'Hypothese hinzufügen'}</h3>
-
-      <label class="hyp-view__form-field">
-        Behauptung
-        <textarea bind:value={formText} rows="2" placeholder="Was wird vermutet?" required></textarea>
-      </label>
-
-      <div class="hyp-view__form-row">
-        <label class="hyp-view__form-field">
-          Status
-          <select
-            value={formStatus}
-            onchange={(e) => (formStatus = e.currentTarget.value as HypothesisStatus)}
-            aria-label="Status"
-          >
-            <option value="open">Offen</option>
-            <option value="confirmed">Bestätigt</option>
-            <option value="rejected">Verworfen</option>
-          </select>
-        </label>
-        <label class="hyp-view__form-field">
-          Konfidenz
-          <select
-            value={formWeight}
-            onchange={(e) => (formWeight = e.currentTarget.value as HypothesisWeight)}
-            aria-label="Konfidenz"
-          >
-            <option value="low">Niedrig</option>
-            <option value="medium">Mittel</option>
-            <option value="high">Hoch</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="hyp-view__evidence">
-        <div class="hyp-view__evidence-head">
-          <h5>Evidenz</h5>
-          <button type="button" class="hyp-view__add-evidence-btn" onclick={addEvidenceRow}>
-            + Beleg hinzufügen
-          </button>
-        </div>
-        {#each formEvidence as ev, i (i)}
-          <div class="hyp-view__evidence-row">
-            <SourcePicker
-              {appState}
-              value={ev.sourceId || null}
-              onChange={(id) => setEvidenceSource(i, id ?? '')}
-              label={`Evidenz-Quelle ${i + 1}`}
-            />
-            <input
-              type="text"
-              placeholder="Seite"
-              aria-label={`Evidenz-Seite ${i + 1}`}
-              value={ev.page}
-              onchange={(e) => setEvidencePage(i, (e.currentTarget as HTMLInputElement).value)}
-            />
-            <button type="button" class="hyp-view__remove-btn" onclick={() => removeEvidenceRow(i)} aria-label={`Beleg ${i + 1} entfernen`}>✕</button>
-          </div>
-        {/each}
-      </div>
-
-      <label class="hyp-view__form-field">
-        Begründung
-        <textarea bind:value={formRationale} rows="3" placeholder="Beweisführung"></textarea>
-      </label>
-
-      <label class="hyp-view__form-field">
-        Auflösungsnotiz
-        <textarea bind:value={formConclusion} rows="2" placeholder="Wie wurde die Hypothese geklärt?"></textarea>
-      </label>
-
-      {#if !editing}
-        <fieldset class="hyp-view__form-field hyp-view__entity-picker">
-          <legend>Ziel</legend>
-          <div class="hyp-view__kind-toggle">
-            <label>
-              <input
-                type="radio"
-                name="hyp-kind"
-                value="person"
-                checked={formKind === 'person'}
-                onchange={() => { formKind = 'person'; formEntityId = ''; }}
-              />
-              Person
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="hyp-kind"
-                value="family"
-                checked={formKind === 'family'}
-                onchange={() => { formKind = 'family'; formEntityId = ''; }}
-              />
-              Familie
-            </label>
-          </div>
-          {#if formKind === 'person'}
-            <PersonPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => (formEntityId = id ?? '')}
-              label="Ziel-Person"
-              placeholder="Person wählen…"
-            />
-          {:else}
-            <FamilyPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => (formEntityId = id ?? '')}
-              label="Ziel-Familie"
-              placeholder="Familie wählen…"
-            />
-          {/if}
-        </fieldset>
-      {/if}
-
-      <div class="hyp-view__form-actions">
-        <button type="button" class="hyp-view__form-cancel" onclick={closeForm}>Abbrechen</button>
-        <button type="submit" class="hyp-view__form-save">Speichern</button>
-      </div>
-    </form>
+    <HypothesisForm {appState} initial={formInitial} isEditing={!!editing} onSubmit={saveForm} onCancel={closeForm} />
   {/if}
 
   {#if filteredEntries.length === 0}
@@ -310,6 +147,7 @@
             <button type="button" class="hyp-view__entity-link" onclick={() => goToEntity(entry)}>
               {entry.entityLabel} ›
             </button>
+            {#if entry.entitySummary}<span class="stb-entity-summary">{entry.entitySummary}</span>{/if}
             <span class="hyp-view__row-status">{statusLabel(entry.hypothesis.status)}</span>
             <span class="hyp-view__row-weight">Konfidenz: {weightLabel(entry.hypothesis.weight)}</span>
           </div>
@@ -369,151 +207,6 @@
   .hyp-view__empty {
     padding: 1.5rem;
     color: var(--stb-text-dim);
-  }
-
-  .hyp-view__form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.8rem 1rem;
-    background: var(--stb-surface-1);
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .hyp-view__form-title {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--stb-gold-light);
-  }
-
-  .hyp-view__form-row {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .hyp-view__form-row .hyp-view__form-field {
-    flex: 1 1 140px;
-    min-width: 0;
-  }
-
-  .hyp-view__form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-
-  .hyp-view__form-field select,
-  .hyp-view__form-field textarea {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-
-  .hyp-view__evidence {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .hyp-view__evidence-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .hyp-view__evidence-head h5 {
-    margin: 0;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-
-  .hyp-view__add-evidence-btn {
-    background: var(--stb-surface-3);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-text);
-    border-radius: var(--stb-radius-control);
-    padding: 0.2rem 0.5rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-  }
-
-  .hyp-view__evidence-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    align-items: center;
-  }
-
-  .hyp-view__evidence-row input {
-    flex: 1;
-    min-width: 0;
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.4rem;
-    font-size: 0.85rem;
-  }
-
-  .hyp-view__remove-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.9rem;
-    flex: 0 0 auto;
-  }
-
-  .hyp-view__entity-picker {
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem;
-  }
-
-  .hyp-view__entity-picker legend {
-    font-size: 0.78rem;
-    color: var(--stb-gold-light);
-    padding: 0 0.3rem;
-  }
-
-  .hyp-view__kind-toggle {
-    display: flex;
-    gap: 0.8rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--stb-text);
-  }
-
-  .hyp-view__form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-
-  .hyp-view__form-cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .hyp-view__form-save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
   }
 
   .hyp-view__list {

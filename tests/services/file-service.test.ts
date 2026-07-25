@@ -10,7 +10,7 @@ describe('INV-FILE-1 — genau eine Arbeitskopie', () => {
   it('pickAndImport ersetzt eine bestehende Arbeitskopie statt einen zweiten Cache anzulegen', async () => {
     const { adapters, workingCopyStore } = createMockAdapterSet({
       initialWorkingCopy: { text: 'ALT', name: 'alt.ged' },
-      pickResult: { text: 'NEU', name: 'neu.ged' }
+      pickResult: { text: 'NEU', name: 'neu.ged', format: 'gedcom' }
     });
     const svc = new FileService(adapters);
 
@@ -19,7 +19,7 @@ describe('INV-FILE-1 — genau eine Arbeitskopie', () => {
     // save() wurde genau einmal aufgerufen (kein paralleler zweiter Schreibpfad) …
     expect(workingCopyStore.save).toHaveBeenCalledTimes(1);
     // … und der EINE gespeicherte Slot enthält jetzt die neue Kopie, nicht beide.
-    expect(workingCopyStore._peek()).toEqual({ text: 'NEU', name: 'neu.ged', handle: undefined });
+    expect(workingCopyStore._peek()).toEqual({ text: 'NEU', name: 'neu.ged', format: 'gedcom', handle: undefined });
   });
 
   it('saveWorkingCopy überschreibt denselben Slot, statt einen neuen Eintrag anzuhängen', async () => {
@@ -33,8 +33,8 @@ describe('INV-FILE-1 — genau eine Arbeitskopie', () => {
 
     expect(workingCopyStore.save).toHaveBeenCalledTimes(2);
     // Nur EIN aktueller Zustand ist abrufbar — kein Verlauf, kein zweiter Cache.
-    expect(workingCopyStore._peek()).toEqual({ text: 'V3', name: 'datei.ged', handle: undefined });
-    expect(await svc.loadWorkingCopy()).toEqual({ text: 'V3', name: 'datei.ged', handle: undefined });
+    expect(workingCopyStore._peek()).toEqual({ text: 'V3', name: 'datei.ged', format: 'gedcom', handle: undefined });
+    expect(await svc.loadWorkingCopy()).toEqual({ text: 'V3', name: 'datei.ged', format: 'gedcom', handle: undefined });
   });
 
   it('loadWorkingCopy liefert null, wenn keine Arbeitskopie existiert (kein impliziter zweiter Speicher)', async () => {

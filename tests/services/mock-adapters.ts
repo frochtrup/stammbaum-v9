@@ -69,13 +69,19 @@ export function createMockShare(opts: {
 
 export function createMockDownload(): DownloadAdapter & {
   downloadCalls: Array<{ filename: string; mimeType: string }>;
+  /** Die geschriebenen Bytes, separat von downloadCalls — dessen Form prüfen mehrere
+   * Tests per toEqual, und ein zusätzliches Feld dort bräche sie. */
+  downloadBytes: Array<Uint8Array | string>;
 } {
   const downloadCalls: Array<{ filename: string; mimeType: string }> = [];
+  const downloadBytes: Array<Uint8Array | string> = [];
   return {
-    download: vi.fn((_bytes: Uint8Array | string, filename: string, mimeType: string) => {
+    download: vi.fn((bytes: Uint8Array | string, filename: string, mimeType: string) => {
       downloadCalls.push({ filename, mimeType });
+      downloadBytes.push(bytes);
     }),
-    downloadCalls
+    downloadCalls,
+    downloadBytes
   };
 }
 

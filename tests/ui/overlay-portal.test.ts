@@ -15,6 +15,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { anchorPosition } from '../../ui/shell/anchor-position';
 import { portal, anchoredTo } from '../../ui/shell/portal';
 import EventTypeMenu from '../../ui/shell/EventTypeMenu.svelte';
+import Picker from '../../ui/shell/Picker.svelte';
 
 const VIEWPORT = { width: 375, height: 812 };
 
@@ -208,5 +209,76 @@ describe('die Komponenten nutzen den Mechanismus auch wirklich', () => {
 
     expect(document.querySelector('.stb-event-menu__panel')).toBeNull();
     expect(document.querySelector('.stb-event-menu__backdrop')).toBeNull();
+  });
+
+  it('Picker hängt seine Trefferliste an den <body>', async () => {
+    // Der zweite reale Klipp-Fall (BL-110): JEDER Picker sitzt in einem Scroll-Container.
+    // Gemessen an FamilyDetails "Kind hinzufügen": `.family-detail` (`overflow-y: auto`)
+    // endete bei y=333, das Panel reichte bis 568 — die Liste war angeschnitten und die
+    // Treffer unerreichbar.
+    const { container } = render(Picker, {
+      props: {
+        items: [{ id: 'p1', name: 'Anna' }],
+        getId: (x: { id: string }) => x.id,
+        getLabel: (x: { name: string }) => x.name,
+        matches: () => true,
+        value: null,
+        onChange: vi.fn(),
+        label: 'Kind hinzufügen',
+      },
+    });
+    await fireEvent.focus(screen.getByLabelText('Kind hinzufügen'));
+
+    const panel = document.querySelector('.stb-picker__panel');
+    expect(panel?.parentElement).toBe(document.body);
+    expect(container.querySelector('.stb-picker__panel')).toBeNull();
+  });
+
+  it('Picker räumt die Trefferliste beim Schließen wieder ab', async () => {
+    render(Picker, {
+      props: {
+        items: [{ id: 'p1', name: 'Anna' }],
+        getId: (x: { id: string }) => x.id,
+        getLabel: (x: { name: string }) => x.name,
+        matches: () => true,
+        value: null,
+        onChange: vi.fn(),
+        label: 'Kind hinzufügen',
+      },
+    });
+    const feld = screen.getByLabelText('Kind hinzufügen');
+    await fireEvent.focus(feld);
+    await fireEvent.keyDown(feld, { key: 'Escape' });
+
+    expect(document.querySelector('.stb-picker__panel')).toBeNull();
+  });
+
+  it('Picker bleibt offen, wenn der Fokus vom Feld in die portalierte Liste wandert', async () => {
+    // Die Kehrseite des Portals: `focusout` am Feld sieht als relatedTarget einen Knoten,
+    // der KEIN Nachfahre der Komponentenwurzel mehr ist. Ohne die zweite Zugehörigkeits-
+    // Hälfte (`panelEl.contains`) schlösse der eigene Mausklick die Liste, bevor der
+    // `click` den Treffer erreicht — der Picker wäre wieder nicht bedienbar, nur aus einem
+    // anderen Grund.
+    const onChange = vi.fn();
+    render(Picker, {
+      props: {
+        items: [{ id: 'p1', name: 'Anna' }],
+        getId: (x: { id: string }) => x.id,
+        getLabel: (x: { name: string }) => x.name,
+        matches: () => true,
+        value: null,
+        onChange,
+        label: 'Kind hinzufügen',
+      },
+    });
+    const feld = screen.getByLabelText('Kind hinzufügen');
+    await fireEvent.focus(feld);
+    const treffer = screen.getByText('Anna');
+
+    await fireEvent.focusOut(feld, { relatedTarget: treffer });
+    expect(document.querySelector('.stb-picker__panel')).not.toBeNull();
+
+    await fireEvent.click(treffer);
+    expect(onChange).toHaveBeenCalledWith('p1');
   });
 });

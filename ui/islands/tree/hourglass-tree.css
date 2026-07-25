@@ -16,6 +16,34 @@
   z-index: 500;
 }
 
+/* Vollbild-Schalter INNERHALB der Insel (BL-95): im Vollbild legt sich `.tree-island`
+   über Kopfzeile und Bottom-Nav — ein Schalter außerhalb wäre dort unerreichbar und der
+   Modus eine Einbahnstraße. Er liegt im DOM NACH dem Scroll-Layer und braucht deshalb
+   keinen z-index-Wettlauf; `position: absolute` bezieht sich auf `.tree-island`
+   (`position: relative`) und wandert mit ins `position: fixed`-Vollbild. */
+.tree-island__fs-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: var(--stb-surface-2);
+  border: 1px solid var(--stb-gold-dim);
+  color: var(--stb-text);
+  border-radius: var(--stb-radius-control);
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  /* Über dem Diagramm schwebend, aber nicht aufdringlich: bei Berührung/Hover voll da. */
+  opacity: 0.85;
+}
+
+.tree-island__fs-btn:hover,
+.tree-island__fs-btn:focus-visible {
+  opacity: 1;
+  border-color: var(--stb-gold);
+}
+
 .tree-island__scroll {
   width: 100%;
   height: 100%;

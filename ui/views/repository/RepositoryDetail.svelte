@@ -7,6 +7,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import { buildRepositoryDetail } from './repository-detail-model';
   import RepositoryForm from './RepositoryForm.svelte';
 
@@ -103,6 +104,16 @@
         </ul>
       {/if}
     </section>
+
+    <DeleteEntityButton
+      label="Archiv löschen"
+      message={`Archiv „${detail.repository.name || detail.repository.id}" wirklich löschen? Quellen, die auf dieses Archiv verweisen, verlieren nur die Verknüpfung (die Quellen selbst bleiben bestehen).`}
+      onConfirm={() => {
+        appState.deleteRepository(detail.repository.id);
+        editing = false;
+        onBack?.();
+      }}
+    />
   {/if}
 </div>
 

@@ -143,24 +143,40 @@ textarea::placeholder {
   letter-spacing: 0.03em;
 }
 
+/* Disambiguierendes Sekundärmerkmal (Geburtsjahr/-ort) neben einem Namen — EINE Quelle
+   (INV-UI-4/INV-UI-6, BL-109) für die drei Forschungslisten (Aufgaben/Protokoll/Hypothesen). */
+.stb-entity-summary {
+  color: var(--stb-text-muted);
+  font-size: 0.68rem;
+}
+
 /* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
    zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
    Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung
-   mit dunklem Text, kein Zeilenumbruch mit Scroll-Fallback). LensSwitcher und der
-   Karten-Modus-Umschalter (MapLensView) nutzen dieselben Klassen statt eigener
-   Kopien — eine Quelle für dieses eine visuelle Muster. */
+   mit dunklem Text). LensSwitcher und der Karten-Modus-Umschalter (MapLensView)
+   nutzen dieselben Klassen statt eigener Kopien — eine Quelle für dieses eine
+   visuelle Muster. */
 .stb-segment-row {
   display: flex;
   gap: 0.3rem;
   padding: 0.5rem 0.75rem;
-  overflow-x: auto;
-  /* PFLICHT, nicht kosmetisch: `overflow-x: auto` setzt `min-height: auto` auf 0
-     (CSS-Flexbox §4.5) — in einem Spalten-Flex-Container (EntityTab/ResearchTab:
-     `flex-direction: column; height: 100%`) darf dieser Container dann unter seine
-     Inhaltshöhe schrumpfen. Gemessener Ist-Zustand vor dem Fix: Zeile 17,1 px hoch,
-     Pillen 11,6 px bei Top-Offset 8 px → die Hauptnavigation war bei JEDER Breite
-     unten angeschnitten. `flex-shrink: 0` schützt alle .stb-segment-row-Stellen
-     zugleich (INV-UI-4: ein Mechanismus, eine Korrektur). */
+  /* UMBRUCH statt Horizontal-Scroll (Spec 21 §2 „Aktionsreihen brechen um statt
+     horizontal aus dem Bild zu scrollen", §9 B7; BL-95).
+
+     Vorher stand hier `overflow-x: auto`. Gemessen bei 375 px (2026-07-21) ist der
+     Lens-Umschalter die EINZIGE Reihe, die überläuft: er braucht 385 px und hat 351
+     (Karte) bzw. 272 (Baum, wo der Vollbild-Knopf die Zeile teilt) — „Story (folgt)"
+     lag damit vollständig außerhalb, erreichbar nur durch Horizontal-Scroll ohne jede
+     Affordanz, also praktisch unsichtbar. Alle übrigen Reihen passen exakt
+     (EntityTab 375/375, ResearchTab 375/375, Karten-Modi 375/375, ViewModeToggle
+     140/140): für sie ändert der Umbruch NICHTS, er greift erst, wenn es nicht passt.
+
+     Die Schrumpf-Falle von damals ist damit an der Wurzel weg statt abgestützt:
+     `min-height: auto` → 0 (CSS-Flexbox §4.5) galt nur WEGEN `overflow-x: auto`.
+     `flex-shrink: 0` bleibt trotzdem stehen — es kostet nichts und hält die Reihe
+     auch in einem Spalten-Flex-Container auf ihrer Inhaltshöhe (INV-UI-4: ein
+     Mechanismus, eine Korrektur, alle Nutzer der Klasse zugleich). */
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
@@ -173,7 +189,14 @@ textarea::placeholder {
   border: 1px solid var(--stb-surface-3);
   color: var(--stb-text-dim);
   border-radius: var(--stb-radius-control);
-  padding: 0.3rem 0.7rem;
+  /* 0.55rem statt 0.7rem seitlich (BL-95, am laufenden System bei 375 px gemessen): die
+     vier Lens-Pillen brauchten 359,4 px bei 351 px Platz — 8 px zu viel für eine Zeile,
+     nachdem der Vollbild-Knopf die Reihe verlassen hatte. Schmalere Innenabstände geben
+     19 px zurück (4 Pillen × 2 × 2,4 px) und lösen es ohne ein Label zu kürzen. Die
+     Höhe bleibt unangetastet — Tap-Ziele werden nicht kleiner, nur enger beschriftet.
+     Gegengeprüft an den anderen Reihen: EntityTab endete vorher exakt bei 375 px
+     (5 Segmente, kein Spielraum) und danach bei 309 px. */
+  padding: 0.3rem 0.55rem;
   font-size: 0.78rem;
   white-space: nowrap;
   cursor: pointer;

@@ -353,3 +353,70 @@ describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-
     expect(beruf.rows.map((r) => r.year)).toEqual([null, 2007, 2015]);
   });
 });
+
+describe('buildPersonDetail — INV-UI-6 bei Ehepartner und Eltern (BL-64)', () => {
+  // Spec 21 §6c benennt die Lücke wörtlich: `PersonDetail`s `fam.members` (Ehepartner
+  // bei parentIn, Eltern bei childOf) trugen kein Geburtsjahr, obwohl `FamilyDetail`
+  // es für DIESELBEN Personen längst zeigt — zwei Aufrufketten derselben fachlichen
+  // Entscheidung, auseinandergelaufen.
+  function dbMitZweiGleichnamigen() {
+    const db = makeDatabase();
+    db.individuals.set('@ICH@', makePerson('@ICH@', { given: 'Kind', surname: 'Decker' }));
+    db.individuals.set(
+      '@P1@',
+      makePerson('@P1@', { given: 'Anna', surname: 'Decker', birth: makeEvent('BIRT', { date: '1850' }) }),
+    );
+    db.individuals.set(
+      '@P2@',
+      makePerson('@P2@', { given: 'Anna', surname: 'Decker', birth: makeEvent('BIRT', { date: '1875' }) }),
+    );
+    return db;
+  }
+
+  it('gibt dem Ehepartner ein Geburtsjahr (role parentIn)', () => {
+    const db = dbMitZweiGleichnamigen();
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@ICH@', wife: '@P1@' }));
+    db.individuals.get('@ICH@')!.parentIn = ['@F1@'];
+
+    const modell = buildPersonDetail(db, emptyContext(), '@ICH@')!;
+    const partner = modell.families[0].members[0];
+    expect(partner.name).toBe('Anna Decker');
+    expect(partner.summary).toBe('1850');
+  });
+
+  it('gibt den Eltern ein Geburtsjahr (role childOf)', () => {
+    const db = dbMitZweiGleichnamigen();
+    db.families.set('@F1@', makeFamily('@F1@', { wife: '@P2@', children: ['@ICH@'] }));
+    db.individuals.get('@ICH@')!.childOf = [
+      { familyId: '@F1@', pedigree: '', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] },
+    ];
+
+    const modell = buildPersonDetail(db, emptyContext(), '@ICH@')!;
+    const mutter = modell.families[0].members[0];
+    expect(mutter.name).toBe('Anna Decker');
+    expect(mutter.summary).toBe('1875');
+  });
+
+  it('macht zwei gleichnamige Personen tatsächlich unterscheidbar — der Zweck der Regel', () => {
+    // Ohne `summary` stünde in beiden Zeilen dasselbe: „Anna Decker".
+    const db = dbMitZweiGleichnamigen();
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@ICH@', wife: '@P1@' }));
+    db.families.set('@F2@', makeFamily('@F2@', { husband: '@ICH@', wife: '@P2@' }));
+    db.individuals.get('@ICH@')!.parentIn = ['@F1@', '@F2@'];
+
+    const modell = buildPersonDetail(db, emptyContext(), '@ICH@')!;
+    const beschriftungen = modell.families.map((f) => `${f.members[0].name} ${f.members[0].summary}`);
+    expect(new Set(beschriftungen).size).toBe(2);
+  });
+
+  it('bleibt leer, wenn kein Geburtsdatum bekannt ist — kein erfundener Platzhalter', () => {
+    const db = makeDatabase();
+    db.individuals.set('@ICH@', makePerson('@ICH@', { given: 'Kind', surname: 'Decker' }));
+    db.individuals.set('@P1@', makePerson('@P1@', { given: 'Anna', surname: 'Decker' }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@ICH@', wife: '@P1@' }));
+    db.individuals.get('@ICH@')!.parentIn = ['@F1@'];
+
+    const modell = buildPersonDetail(db, emptyContext(), '@ICH@')!;
+    expect(modell.families[0].members[0].summary).toBe('');
+  });
+});

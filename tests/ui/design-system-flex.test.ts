@@ -40,12 +40,16 @@ describe('design-system.css — Flexbox-Schrumpf-Falle bei scrollenden Reihen', 
   it('.stb-segment-row ist gegen Schrumpfen unter die Inhaltshöhe geschützt', () => {
     const body = ruleBody('.stb-segment-row');
 
-    expect(body).toMatch(/overflow-x:\s*auto/);
+    // Die Zusicherung hat sich mit BL-95 gedreht, die Invariante NICHT: die Reihe darf
+    // nicht unter ihre Inhaltshöhe schrumpfen. Der Auslöser der Falle war `overflow-x:
+    // auto` selbst (es setzt `min-height: auto` auf 0); seit die Reihe umbricht statt zu
+    // scrollen, ist die Ursache weg statt abgestützt. Deshalb steht hier jetzt das
+    // Gegenteil der alten Zeile — geprüft wird weiterhin dasselbe Schutzziel.
+    expect(body).not.toMatch(/overflow-x:\s*(auto|scroll)/);
     expect(
       /flex-shrink:\s*0/.test(body) || /flex:\s*0 0/.test(body),
-      '.stb-segment-row hat overflow-x:auto, aber kein flex-shrink:0 — in einem ' +
-        'Spalten-Flex-Container (EntityTab/ResearchTab) werden die Segment-Pillen ' +
-        'dann abgeschnitten.',
+      '.stb-segment-row ohne flex-shrink:0 — in einem Spalten-Flex-Container ' +
+        '(EntityTab/ResearchTab) werden die Segment-Pillen dann abgeschnitten.',
     ).toBe(true);
   });
 

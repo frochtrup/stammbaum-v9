@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EventLine from '../../ui/shell/EventLine.svelte';
-import type { EventLineRow } from '../../ui/shell/event-line-row';
+import { dedupeAddrNote, displayEventValue, type EventLineRow } from '../../ui/shell/event-line-row';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeSource } from '../../core/model';
@@ -341,5 +341,139 @@ describe('EventLine — Note/Addr/Value', () => {
     expect(screen.getByText('Bauer')).toBeTruthy();
     expect(screen.getByText('Wall 33')).toBeTruthy();
     expect(screen.getByText('Anmerkung')).toBeTruthy();
+  });
+
+  // §10k/BL-71 (ADR-v9-53 Punkt 12): addr==note (Franz Ransmanns GRAD-Ereignis) darf
+  // nicht doppelt erscheinen — der Notiz-Absatz entfällt, addr bleibt in der Kopfzeile.
+  it('unterdrückt den Notiz-Absatz, wenn note zeichengleich zu addr ist (kein Doppel)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ addr: 'Gronauer Str. 30', note: 'Gronauer Str. 30' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    // addr steht weiter in der Kopfzeile …
+    expect(container.querySelector('.event-line__value')?.textContent).toBe('Gronauer Str. 30');
+    // … der redundante Notiz-Absatz ist weg (genau EIN Vorkommen des Textes).
+    expect(container.querySelector('.event-line__note')).toBeNull();
+    expect(screen.getAllByText('Gronauer Str. 30')).toHaveLength(1);
+  });
+
+  it('behält den Notiz-Absatz, wenn note etwas Anderes trägt als addr/value', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ addr: 'Wall 33', note: 'zusätzliche Anmerkung' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(container.querySelector('.event-line__note')?.textContent).toBe('zusätzliche Anmerkung');
+  });
+});
+
+// #1 (2026-07-25): GEDCOM-Struktur-Flag `value='Y'` ("Ereignis fand statt, keine
+// Details") darf NICHT als nackter Wert erscheinen — die auslösende Beobachtung war
+// "Heirat Y" im Familien-Detail. Zentral in der geteilten Ereigniszeile gefiltert, damit
+// die strukturgleiche Geschwister-Stelle zur längst gelösten Todes-Sonderbehandlung
+// mitzieht (INV-UI-4).
+describe('EventLine — GEDCOM-Flag value="Y" wird nicht als Wert angezeigt (#1)', () => {
+  it('zeigt für eine Heirat mit value="Y" KEINEN Wert-Text', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ key: 'MARR', label: 'Heirat', value: 'Y' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText('Heirat')).toBeTruthy();
+    expect(screen.queryByText('Y')).toBeNull();
+    expect(container.querySelector('.event-line__value')).toBeNull();
+  });
+
+  it('lässt einen echten Wert (z. B. Beruf) unverändert stehen', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: { ev: row({ label: 'Beruf', value: 'Lehrer' }), appState, viewState, onEdit: vi.fn() },
+    });
+
+    expect(container.querySelector('.event-line__value')?.textContent).toBe('Lehrer');
+  });
+});
+
+describe('displayEventValue (#1, reine Logik)', () => {
+  it('blankt den GEDCOM-Flag-Wert "Y"', () => {
+    expect(displayEventValue('Y')).toBe('');
+  });
+
+  it('blankt "Y" auch mit umgebendem Whitespace', () => {
+    expect(displayEventValue('  Y ')).toBe('');
+  });
+
+  it('lässt echte Werte unverändert (inkl. ungetrimmt)', () => {
+    expect(displayEventValue('Lehrer')).toBe('Lehrer');
+    expect(displayEventValue('  Bauer ')).toBe('  Bauer ');
+  });
+
+  it('trifft NUR das exakte Großbuchstaben-Token, nicht "Yes"/"y"/enthaltenes Y', () => {
+    expect(displayEventValue('Yes')).toBe('Yes');
+    expect(displayEventValue('y')).toBe('y');
+    expect(displayEventValue('Y2')).toBe('Y2');
+  });
+});
+
+describe('dedupeAddrNote (§10k/BL-71, reine Logik)', () => {
+  it('blankt note, wenn zeichengleich zu addr', () => {
+    expect(dedupeAddrNote({ note: 'Gronauer Str. 30', addr: 'Gronauer Str. 30', value: '' })).toBe('');
+  });
+
+  it('blankt note, wenn zeichengleich zu value', () => {
+    expect(dedupeAddrNote({ note: 'Bauer', addr: '', value: 'Bauer' })).toBe('');
+  });
+
+  it('vergleicht getrimmt, gibt aber den ungetrimmten Originalwert zurück', () => {
+    expect(dedupeAddrNote({ note: '  Wall 33 ', addr: 'Wall 33', value: '' })).toBe('');
+    expect(dedupeAddrNote({ note: 'Wall 33', addr: '', value: 'etwas Anderes' })).toBe('Wall 33');
+  });
+
+  it('leere Notiz bleibt leer, kollidiert nicht mit leerem addr/value', () => {
+    expect(dedupeAddrNote({ note: '', addr: '', value: '' })).toBe('');
+    expect(dedupeAddrNote({ note: '   ', addr: '', value: '' })).toBe('   ');
+  });
+
+  // REALER Fall (Franz Ransmanns GRAD, MeineDaten_ancestris.ged L819/821): `2 ADDR` trägt
+  // eine `3 CONT`-Fortsetzung, die collectText mit `\n` in addr faltet — note gleicht nur
+  // der ERSTEN Adresszeile, nicht dem ganzen addr. Muss trotzdem entdedupt werden.
+  it('blankt note, wenn sie der ersten Adresszeile entspricht (ADDR mit CONT-Fortsetzung)', () => {
+    expect(
+      dedupeAddrNote({
+        note: 'Staatl. Ing,. Schule für Bauwesen',
+        addr: 'Staatl. Ing,. Schule für Bauwesen\nMünster',
+        value: '',
+      }),
+    ).toBe('');
+  });
+
+  // Kein Teilstring-Schlucken: eine note, die nur ein Präfix EINER Adresszeile ist (keine
+  // ganze Zeile), bleibt erhalten — „Bauer" ist nicht dasselbe wie „Bauernhof".
+  it('lässt eine note stehen, die bloß Teilstring (nicht ganze Zeile) von addr ist', () => {
+    expect(dedupeAddrNote({ note: 'Bauer', addr: 'Bauernhof', value: '' })).toBe('Bauer');
   });
 });

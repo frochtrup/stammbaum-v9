@@ -25,6 +25,7 @@ describe('collectCitationRefs — alle Zitatstellen über Personen und Familien'
       citations: [makeCitation('@S2@')],
       media: [],
       seen: true,
+      grampsId: null,
     });
     p.topLevelCitations.push(makeCitation('@S3@'));
     p.nameCitations.push(makeCitation('@S4@'));

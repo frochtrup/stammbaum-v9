@@ -10,7 +10,24 @@ import {
   makeRepository,
   makeSource,
 } from '../../core/model';
-import { buildSourceDetail } from '../../ui/views/source/source-detail-model';
+import { buildSourceDetail, hasPageContent } from '../../ui/views/source/source-detail-model';
+
+describe('hasPageContent (#2, reine Logik)', () => {
+  it('false für den Anonymisierungs-Rest ")" und andere reine Satzzeichen/Whitespace', () => {
+    expect(hasPageContent(')')).toBe(false);
+    expect(hasPageContent('')).toBe(false);
+    expect(hasPageContent('   ')).toBe(false);
+    expect(hasPageContent('()')).toBe(false);
+    expect(hasPageContent('— , .')).toBe(false);
+  });
+
+  it('true, sobald mindestens ein Buchstabe oder eine Ziffer enthalten ist', () => {
+    expect(hasPageContent('12')).toBe(true);
+    expect(hasPageContent('S. 93/94')).toBe(true);
+    expect(hasPageContent('fol. iv')).toBe(true);
+    expect(hasPageContent('(12)')).toBe(true);
+  });
+});
 
 describe('buildSourceDetail — Referenzen inkl. PAGE/QUAY + verlinktes Archiv', () => {
   it('gibt null zurück, wenn die id im aktuellen Datenbestand fehlt (definierter Fallback)', () => {

@@ -121,7 +121,7 @@ describe('PlacesFileButtons — Import', () => {
       placeObjects: [place('P_IMPORTIERT', { title: 'Importiert' })],
       hofObjects: [],
     };
-    const { appState } = setup({ pickResult: { text: JSON.stringify(importedWrapper), name: 'orte.json' } });
+    const { appState } = setup({ pickResult: { text: JSON.stringify(importedWrapper), name: 'orte.json', format: 'gedcom' } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Orte importieren/ }));
 
@@ -132,7 +132,7 @@ describe('PlacesFileButtons — Import', () => {
   });
 
   it('zeigt einen Fehlerhinweis bei kaputtem JSON, statt still zu importieren', async () => {
-    setup({ pickResult: { text: '{ kaputt', name: 'orte.json' } });
+    setup({ pickResult: { text: '{ kaputt', name: 'orte.json', format: 'gedcom' } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Orte importieren/ }));
 

@@ -41,7 +41,16 @@
   // Trefferliste INNERHALB der Komponente liegt, würde ein Klick auf einen Treffer damit
   // zusätzlich das Feld anklicken und die eben geschlossene Liste sofort wieder öffnen.
   // Ersatzmuster: `.stb-field` + `.stb-field__caption` (design-system.css).
+  //
+  // Die Trefferliste hängt per `use:anchoredTo` am <body>, nicht im eigenen Teilbaum
+  // (INV-UI-13, [21 §6k]): jeder Aufrufer sitzt in einem Scroll-Container, der sie an
+  // seiner Kante abschneidet. Gemessen an `FamilyDetail`s "Kind hinzufügen"-Picker
+  // (1280×800): `.family-detail` (`overflow-y: auto`) endete bei y=333, das Panel reichte
+  // bis 568 — sichtbar blieben 34 px, die erste Trefferzeile war angeschnitten, alle
+  // weiteren unerreichbar. Derselbe Vorfahren-Typ, dieselbe Ursache wie beim Filter-Panel
+  // (BL-85) und beim Ereignis-Menü; ein höherer z-index hilft dagegen nicht (ADR-v9-97).
   import { untrack } from 'svelte';
+  import { anchoredTo } from './portal';
 
   interface Props {
     items: T[];
@@ -138,6 +147,13 @@
   /** Stabile, instanz-eindeutige id für die aria-controls/activedescendant-Kopplung —
    *  mehrere Picker pro Formular sind der Normalfall (jedes Ereignis hat ein Ort-Feld). */
   const listId = `stb-picker-${crypto.randomUUID().slice(0, 8)}`;
+
+  /** Feld = Bezugspunkt der Platzierung; Panel = der portalierte Teil. Beide als Referenz,
+   *  weil sie nach dem Portal in ZWEI getrennten Teilbäumen liegen, aber EIN Bedienelement
+   *  bilden — s. `istInnen`. */
+  let fieldEl = $state<HTMLElement | undefined>(undefined);
+  let rootEl = $state<HTMLElement | undefined>(undefined);
+  let panelEl = $state<HTMLElement | undefined>(undefined);
 
   const selectedItem = $derived<T | undefined>(
     value != null ? items.find((it) => getId(it) === value) : undefined,
@@ -268,20 +284,31 @@
   }
 
   /** Klick INNERHALB der Komponente (Feld, Zeile, Fußbereich) darf nicht als "nach außen
-   *  geklickt" gelten — sonst schlösse der eigene Mausklick die Liste vor dem Treffer. */
+   *  geklickt" gelten — sonst schlösse der eigene Mausklick die Liste vor dem Treffer.
+   *
+   *  Seit das Panel am <body> hängt, ist "innerhalb" NICHT mehr `contains` eines einzigen
+   *  Knotens: der Fokus wandert beim Klick auf einen Treffer aus dem Feld-Teilbaum in den
+   *  Panel-Teilbaum. Ohne diese zweite Hälfte schlösse `focusout` die Liste noch vor dem
+   *  `click` — der Treffer wäre nicht mehr auswählbar, also genau der Defekt, der hier
+   *  behoben wird, nur eine Stufe später. */
+  function istInnen(next: FocusEvent['relatedTarget']): boolean {
+    if (!(next instanceof Node)) return false;
+    return !!rootEl?.contains(next) || !!panelEl?.contains(next);
+  }
+
   function onFocusOut(e: FocusEvent) {
-    const next = e.relatedTarget;
-    if (next instanceof Node && e.currentTarget instanceof Node && e.currentTarget.contains(next)) return;
+    if (istInnen(e.relatedTarget)) return;
     if (!open) return;
     closeList();
   }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="stb-picker" onfocusout={onFocusOut} onkeydown={onKeydown}>
+<div class="stb-picker" bind:this={rootEl} onfocusout={onFocusOut} onkeydown={onKeydown}>
   <input
     type="text"
     role="combobox"
+    bind:this={fieldEl}
     class="stb-picker__field"
     class:stb-picker__field--has-value={!open && !!selectedLabel}
     aria-label={label}
@@ -304,7 +331,18 @@
   {/if}
 
   {#if open}
-    <div class="stb-picker__panel">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- `onfocusout`/`onkeydown` hier ZUSÄTZLICH: portaliert ist das Panel kein Nachfahre
+         der Wurzel mehr, Ereignisse aus ihm blubbern nicht mehr dorthin. Ohne das bliebe
+         die Liste offen, wenn der Fokus von einem Treffer nach draußen geht, und Escape
+         wäre bei fokussiertem Treffer wirkungslos. -->
+    <div
+      class="stb-picker__panel"
+      bind:this={panelEl}
+      use:anchoredTo={fieldEl}
+      onfocusout={onFocusOut}
+      onkeydown={onKeydown}
+    >
       <!-- Eigener Name, NICHT derselbe wie am Feld: zwei Elemente mit identischem
            zugänglichen Namen sind für Screenreader-Nutzer nicht unterscheidbar. -->
       <ul class="stb-picker__results" role="listbox" id={listId} aria-label={`${label} — Treffer`}>
@@ -406,13 +444,19 @@
 
   /* Über dem Folgeinhalt schwebend statt ihn wegzuschieben: das Feld sitzt oft mitten in
      einem Formular, ein aufschiebendes Panel ließe die darunterliegenden Zeilen bei jedem
-     Tastendruck springen. */
+     Tastendruck springen.
+
+     Die Koordinaten kommen aus `anchoredTo` (ui/shell/portal.ts) als Viewport-Werte: nach
+     dem Umhängen an den <body> gibt es keinen positionierten Vorfahren mehr, auf den sich
+     `absolute` beziehen könnte. Die Breite kommt aus derselben Messung — ein Panel, das
+     unter seinem Feld bündig steht, ist die einzige Breite, die hier je gewollt war
+     (vorher `left: 0; right: 0` gegenüber dem Feld). */
   .stb-picker__panel {
-    position: absolute;
-    z-index: 20;
-    left: 0;
-    right: 0;
-    top: calc(100% + 2px);
+    position: fixed;
+    z-index: var(--stb-z-modal);
+    left: var(--stb-anchor-left, 0);
+    top: var(--stb-anchor-top, 0);
+    width: var(--stb-anchor-width, 16rem);
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-card);

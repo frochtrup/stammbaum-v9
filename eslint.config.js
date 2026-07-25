@@ -25,9 +25,12 @@ const SVELTE_ALTFAELLE = {
   // TasksView.svelte (war 676) ist raus: bei BL-04 inhaltlich angefasst und dabei
   // zerlegt — das Aufgaben-Formular wurde nach TaskForm.svelte extrahiert, die Datei
   // liegt jetzt bei 598 Zeilen und läuft gegen die reguläre 600er-Schwelle.
-  'ui/views/hof/HofDetail.svelte': 641,
-  'ui/views/person/PersonDetail.svelte': 621,
-  'ui/views/hypotheses/HypothesesView.svelte': 608
+  'ui/views/hof/HofDetail.svelte': 641
+  // PersonDetail.svelte: war 632, bei BL-61 die Familien-Liste nach PersonFamilies.svelte
+  // und die Beweisführung nach ProofSummaryNote.svelte extrahiert — jetzt ~514 Zeilen,
+  // Altfall abbezahlt/entfallen (läuft gegen die reguläre 600er-Schwelle).
+  // HypothesesView.svelte: war 608, bei BL-56/BL-58 das Formular nach HypothesisForm.svelte
+  // extrahiert (wie TaskForm/LogForm) — jetzt ~300 Zeilen, Altfall abbezahlt/entfallen.
 };
 
 const MAX_LINES_SVELTE = 600;
@@ -36,7 +39,7 @@ const maxLinesRule = (max) => ({
 });
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'tools/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...svelte.configs['flat/recommended'],
@@ -136,6 +139,33 @@ export default tseslint.config(
             'SvelteElement[name.name="label"] SvelteElement[name.name=/^(Picker|PersonPicker|FamilyPicker|SourcePicker|RepositoryPicker|EventPlaceField|EventAddrField)$/]',
           message:
             'Ein Picker darf nicht in einem <label> stehen (TST-18, Spec 32): das <label> leitet den Klick auf eine Trefferzeile an das Feld weiter und öffnet die Liste sofort wieder. Nutze <div class="stb-field"> + <span class="stb-field__caption">.'
+        }
+      ]
+    }
+  },
+  {
+    // TST-19 (Spec 32, ADR-v9-112): Personennamen werden NICHT von Hand zusammengesetzt.
+    //
+    // Bewusst ENG gefasst — verboten ist die Komposition (`${p.given} ${p.surname}`), nicht
+    // der Feldzugriff. Seit der Parser die Felder beim Einlesen füllt, ist `p.given` zu lesen
+    // korrekt; ein Pauschalverbot wäre die konservative Regel „aus Prinzip" und würde
+    // legitime Stellen treffen (Vornamen-Statistik, Validierungsregeln, Suchheuhaufen).
+    //
+    // Was der Selbstbau dagegen verlässlich verliert: Präfix und Suffix, und den Rückfall
+    // für namenlose Personen. Alle drei Diagramm-Inseln hatten genau diese Zeile — die
+    // Sanduhr zeigte deshalb „Theodor Hermann /Zurloh/" mit Schrägstrichen. Ersatz:
+    // `displayName(p)` aus ui/shell/person-display.ts (mit `fallback`-Argument, wo eine
+    // ID sinnvoller ist als der Platzhalter), bzw. `composeGedcomName()` für den rohen
+    // GEDCOM-NAME-Wert.
+    files: ['ui/**/*.ts', 'ui/**/*.svelte', 'services/**/*.ts'],
+    ignores: ['ui/shell/person-display.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'TemplateLiteral:has(MemberExpression[property.name="surname"])',
+          message:
+            'Personennamen nicht von Hand zusammensetzen (TST-19, Spec 32): `${p.given} ${p.surname}` verliert Präfix/Suffix und den Rückfall für namenlose Personen. Nutze displayName(p) aus ui/shell/person-display.ts — oder composeGedcomName() für den rohen GEDCOM-NAME-Wert.'
         }
       ]
     }

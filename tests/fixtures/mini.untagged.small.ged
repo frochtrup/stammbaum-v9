@@ -1,0 +1,36 @@
+0 HEAD
+1 SOUR HANDGESCHRIEBEN
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Theodor Hermann /Zurloh/
+1 SEX M
+1 BIRT
+2 DATE 1800
+1 _WEIRD unbekannter passthrough tag
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Elisabeth /Wellmann/
+1 SEX F
+1 BIRT
+2 DATE 1800
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Johann Theodor /Zurloh/
+1 SEX M
+1 BIRT
+2 DATE 1829
+1 FAMC @F1@
+0 @I4@ INDI
+1 NAME van /Beethoven/ Jr.
+1 SEX M
+0 @I5@ INDI
+1 NAME Anna Maria
+1 SEX F
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 TRLR

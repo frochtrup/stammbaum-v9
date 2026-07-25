@@ -51,6 +51,15 @@ export interface Citation {
   eval: EvidenceEval | null;
   /** = media[0].file (OBJE/FILE), NICHT page. */
   deepLinkUrl: string;
+  /**
+   * Roundtrip-Fidelity: die eindeutige GRAMPS-`id` (C0000) des GETEILTEN `<citation>`-Records,
+   * aus dem dieses Zitat projiziert wurde (ADR-v9-11/114). Wie alle GRAMPS-Referenzen zeigt
+   * das Modell auf die `id`, NICHT das Datei-`handle` (BL-136): mehrfach genutzte Zitate sind
+   * über ihre stabile id identifizierbar/zusammenführbar, das Handle→id/id→Handle stellt
+   * `buildRefIndex`. Nur GRAMPS-seitig gesetzt; GEDCOM ignoriert es. `null` = kein GRAMPS-
+   * Ursprung / neu (dann vergibt das Write-Back eine frische id + Handle).
+   */
+  grampsId: string | null;
 }
 
 /** FAMC-Mitgliedschaft als Kind — Beziehungstyp lebt INDI-seitig (INV-P4). */
@@ -113,6 +122,15 @@ export interface Event {
   media: MediaRef[];
   /** INV-P5: bewahrt leere-aber-vorhandene Blöcke (`1 BIRT` ohne Sub-Tags). */
   seen: boolean;
+  /**
+   * Roundtrip-Fidelity: die eindeutige GRAMPS-`id` (E0000) des GETEILTEN `<event>`-Records,
+   * aus dem dieses Ereignis projiziert wurde (ADR-v9-11/114). GRAMPS-Events sind Top-Level und
+   * werden von mehreren Ownern per `<eventref>` geteilt; das Modell hält ihre stabile `id`,
+   * NICHT das Datei-`handle` (BL-136), das `buildRefIndex` beidseitig auflöst. Nur GRAMPS-
+   * seitig gesetzt; GEDCOM ignoriert es. `null` = kein GRAMPS-Ursprung / neu (GEDCOM-Import,
+   * leerer Main-Slot; beim Write-Back bekommt ein neues Event eine frische id + Handle).
+   */
+  grampsId: string | null;
 }
 
 export interface Person {

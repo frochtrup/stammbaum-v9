@@ -7,13 +7,31 @@ import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '..
 import { formatDateForDisplay } from '../../core/model/gedcom-date';
 import { surnameOf } from '../../core/model/name-parts';
 
-/** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
-export function displayName(p: Person): string {
+/**
+ * Anzeigename mit selbst gewähltem Rückfall für den namenlosen Fall.
+ *
+ * WOFÜR: in Listen und Formularen ist der Platzhalter „(ohne Namen)" richtig, in den
+ * Diagramm-Inseln dagegen die Person-ID — dort stünde sonst auf mehreren Karten derselbe
+ * Text und die Records wären nicht auseinanderzuhalten.
+ *
+ * WARUM EIGENE FUNKTION statt eines optionalen zweiten Parameters an `displayName`:
+ * (1) `displayName(p) || p.id` beim Aufrufer erreicht den Rückfall NIE, weil der
+ * Platzhalter wahrheitswertig ist — diese Falle hat hier bereits zugeschlagen; (2) ein
+ * optionaler Parameter macht `.map(displayName)` still falsch, weil der Array-Index als
+ * `fallback` ankäme (fünf solcher Aufrufstellen existieren — der Compiler hat sie beim
+ * ersten Versuch angezeigt).
+ */
+export function displayNameOr(p: Person, fallback: string): string {
   if (p.given || p.surname) {
     return [p.prefix, p.given, p.surname, p.suffix].filter(Boolean).join(' ').trim();
   }
   const cleaned = p.name.replace(/\//g, ' ').replace(/\s+/g, ' ').trim();
-  return cleaned || '(ohne Namen)';
+  return cleaned || fallback;
+}
+
+/** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
+export function displayName(p: Person): string {
+  return displayNameOr(p, '(ohne Namen)');
 }
 
 /**

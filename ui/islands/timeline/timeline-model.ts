@@ -36,6 +36,8 @@
 import type { Database, Event, Person, PersonId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { eventYear, buildListPlaceName } from '../../../core/places';
+import { givenOf, surnameOf } from '../../../core/model/name-parts';
+import { displayNameOr } from '../../shell/person-display';
 import { HIST_EVENTS, type HistEvent } from './historical-events';
 
 /** Swim-Lane-Kategorie (Orakel: `_SL_LANES`-IDs, wörtlich übernommen). */
@@ -167,7 +169,7 @@ export function collectPersonEvents(db: Database, ctx: PlaceContext, personId: P
     if (family.marriage.seen && family.marriage.date) {
       const partnerId = person.id === family.husband ? family.wife : family.husband;
       const partner = partnerId ? db.individuals.get(partnerId) : null;
-      const partnerName = partner ? partner.surname || partner.given || '' : '';
+      const partnerName = partner ? surnameOf(partner) || givenOf(partner) : '';
       const label = 'Heirat' + (partnerName ? ': ' + partnerName : '');
       evs.push({
         personIdx: 0,
@@ -184,7 +186,7 @@ export function collectPersonEvents(db: Database, ctx: PlaceContext, personId: P
     for (const childId of family.children) {
       const child = db.individuals.get(childId);
       if (!child?.birth.seen) continue;
-      const childName = child.given || child.name || childId;
+      const childName = givenOf(child) || childId;
       evs.push({
         personIdx: 0,
         personId,
@@ -570,8 +572,7 @@ export function personColor(idx: number): string {
 }
 
 export function personDisplayName(p: Person): string {
-  const full = `${p.given} ${p.surname}`.trim();
-  return full || p.name || p.id;
+  return displayNameOr(p, p.id);
 }
 
 export type { HistEvent };

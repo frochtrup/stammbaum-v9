@@ -6,6 +6,8 @@ import { makeLogEntry } from '../../core/research/index';
 import { addLogEntry } from '../../ui/views/research-log/log-commands';
 import {
   collectAllLogEntries,
+  buildResearchTimeline,
+  groupLogByEntity,
   filterLogEntries,
   resultLabel,
   exportLogMarkdown,
@@ -39,6 +41,23 @@ describe('collectAllLogEntries — sammelt über Personen UND Familien, neueste 
   });
 });
 
+describe('BL-56: Research-Timeline (chronologisch) ⇄ personenweise gruppiert', () => {
+  it('buildResearchTimeline liefert die flache, datums-absteigende Reihenfolge', () => {
+    const rows = buildResearchTimeline(dbWithEntries());
+    expect(rows.map((r) => r.entry.query)).toEqual(['neuester Eintrag', 'Fam-Eintrag', 'ältester Eintrag']);
+  });
+
+  it('groupLogByEntity bündelt je Trägerentität, Zeilen behalten ihre Datums-Reihenfolge', () => {
+    const groups = groupLogByEntity(buildResearchTimeline(dbWithEntries()));
+    // Gruppen-Reihenfolge = erstes Auftreten (jüngster Eintrag zuerst): Person hat den
+    // neuesten Eintrag (2026-07-05), die Familie kommt danach (2026-07-03).
+    expect(groups.map((g) => g.entityId)).toEqual(['@I1@', '@F1@']);
+    const person = groups.find((g) => g.entityId === '@I1@')!;
+    expect(person.rows.map((r) => r.entry.query)).toEqual(['neuester Eintrag', 'ältester Eintrag']);
+    expect(groups.find((g) => g.entityId === '@F1@')!.rows).toHaveLength(1);
+  });
+});
+
 describe('filterLogEntries — filtert nach Suchergebnis', () => {
   it('"all" liefert alles unverändert', () => {
     const rows = collectAllLogEntries(dbWithEntries());
@@ -54,8 +73,9 @@ describe('filterLogEntries — filtert nach Suchergebnis', () => {
 });
 
 describe('resultLabel — deutsche Labels für LogResult', () => {
-  it('liefert die drei erwarteten Labels', () => {
+  it('liefert die vier erwarteten Labels (inkl. „Teilweise", BL-135)', () => {
     expect(resultLabel('found')).toBe('Gefunden');
+    expect(resultLabel('partial')).toBe('Teilweise');
     expect(resultLabel('notfound')).toBe('Nichts gefunden');
     expect(resultLabel('pending')).toBe('Ausstehend');
   });

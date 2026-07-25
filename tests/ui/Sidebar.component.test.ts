@@ -23,11 +23,11 @@ describe('Sidebar — Projektion des Ziel-Registers (INV-UI-15)', () => {
     expect(screen.getAllByRole('button').length).toBe(NAV_TARGETS.length);
   });
 
-  it('gruppiert nach den drei Rollen aus Spec 21 §1, in der Spec-Reihenfolge', () => {
+  it('gruppiert nach den vier Rollen aus Spec 21 §1, in der Spec-Reihenfolge', () => {
     render(Sidebar, { props: { active: 'person', onNavigate: vi.fn() } });
 
     const groups = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(groups).toEqual(['Entitäten', 'Ansichten', 'Arbeit']);
+    expect(groups).toEqual(['Entitäten', 'Ansichten', 'Forschung', 'Arbeit']);
   });
 
   it('führt in jeder Gruppe genau die Ziele dieser Rolle', () => {
@@ -36,6 +36,7 @@ describe('Sidebar — Projektion des Ziel-Registers (INV-UI-15)', () => {
     for (const [role, label] of [
       ['entity', 'Entitäten'],
       ['lens', 'Ansichten'],
+      ['research', 'Forschung'],
       ['work', 'Arbeit'],
     ] as const) {
       const list = screen.getByRole('list', { name: label });

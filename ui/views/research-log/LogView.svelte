@@ -20,21 +20,20 @@
   // dessen Panel. Der 🕒-Timeline-Umschalter (Spec 20 §1.11b, noch offen) bekommt später
   // den dritten Slot über `ViewModeToggle` — analog TasksView, nicht als eigenes Icon.
   import type { AppState } from '../../shell/app-state.svelte';
-  import PersonPicker from '../../shell/PersonPicker.svelte';
-  import FamilyPicker from '../../shell/FamilyPicker.svelte';
-  import SourcePicker from '../../shell/SourcePicker.svelte';
-  import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
-  import Picker from '../../shell/Picker.svelte';
+  import LogForm, { type LogFormValues } from './LogForm.svelte';
   import {
-    collectAllLogEntries,
+    buildResearchTimeline,
+    groupLogByEntity,
     filterLogEntries,
     resultLabel,
     exportLogMarkdown,
+    linkedTaskText,
     type LogFilter,
     type LogEntryRow,
   } from './log-model';
+  import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
   import { makeLogEntry } from '../../../core/research/index';
-  import type { LogResult } from '../../../core/research/types';
+  import type { LogResult, ProjectScope } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -44,44 +43,42 @@
     appState: AppState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
+    /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
+    scope?: ProjectScope | null;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily }: Props = $props();
+  const { appState, onNavigateToPerson, onNavigateToFamily, scope = null }: Props = $props();
 
   /** Ergebnis-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
   const DEFAULT_FILTER: LogFilter = 'all';
 
   let filter = $state<LogFilter>(DEFAULT_FILTER);
+  // BL-56: personenweise gruppiert (Spec-Basis) ⇄ chronologische Research-Timeline —
+  // über den geteilten ViewModeToggle, gleiche Daten, reine Darstellungsvariante.
+  let logMode = $state<'grouped' | 'timeline'>('grouped');
   let showForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus. Index-Adressierung (kein id, s. Kopf).
   let editing = $state<{ kind: TaskEntityKind; entityId: string; index: number } | null>(null);
 
-  let formDate = $state('');
-  let formRepoRef = $state('');
-  let formSourceRef = $state('');
-  let formQuery = $state('');
-  let formResult = $state<LogResult>('pending');
-  let formNote = $state('');
-  let formTaskId = $state('');
-  let formKind = $state<TaskEntityKind>('person');
-  let formEntityId = $state('');
+  // Startwerte des Formulars — LogForm.svelte hält den Eingabe-Zustand selbst (Muster
+  // wie TaskForm). Im Anlege-Modus die leere Vorbelegung (heutiges Datum).
+  function emptyForm(): LogFormValues {
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      repoRef: '', sourceRef: '', query: '', result: 'pending', note: '', taskId: '',
+      kind: 'person', entityId: '',
+    };
+  }
+  let formInitial = $state<LogFormValues>(emptyForm());
 
-  const allEntries = $derived(collectAllLogEntries(appState.db));
+  const allEntries = $derived(buildResearchTimeline(appState.db, appState.placeContext, scope));
   const filteredEntries = $derived(filterLogEntries(allEntries, filter));
-
-  // Offene Aufgaben derselben Zielentität (Auftrags-Vorgabe: "ein einfaches <select>
-  // über die offenen Aufgaben derselben Zielentität", jetzt über die generische
-  // Picker-Shell direkt statt eines flachen <select>) — nur sinnvoll befüllt, sobald
-  // eine Zielentität gewählt ist.
-  const targetTasks = $derived.by(() => {
-    if (!formEntityId) return [];
-    const owner = formKind === 'person' ? appState.db.individuals.get(formEntityId) : appState.db.families.get(formEntityId);
-    return owner ? owner.tasks.filter((t) => t.status !== 'done') : [];
-  });
+  const groups = $derived(groupLogByEntity(filteredEntries));
 
   const FILTERS: { key: LogFilter; label: string }[] = [
     { key: 'all', label: 'Alle' },
     { key: 'found', label: 'Gefunden' },
+    { key: 'partial', label: 'Teilweise' },
     { key: 'notfound', label: 'Nichts gefunden' },
     { key: 'pending', label: 'Ausstehend' },
   ];
@@ -90,35 +87,15 @@
     countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
   );
 
-  function resetForm() {
-    formDate = new Date().toISOString().slice(0, 10);
-    formRepoRef = '';
-    formSourceRef = '';
-    formQuery = '';
-    formResult = 'pending';
-    formNote = '';
-    formTaskId = '';
-    formKind = 'person';
-    formEntityId = '';
-  }
-
   function openAddForm() {
     editing = null;
-    resetForm();
+    formInitial = emptyForm();
     showForm = true;
   }
 
   function openEditForm(row: LogEntryRow) {
     editing = { kind: row.kind, entityId: row.entityId, index: row.index };
-    formDate = row.entry.date;
-    formRepoRef = row.entry.repoRef;
-    formSourceRef = row.entry.sourceRef;
-    formQuery = row.entry.query;
-    formResult = row.entry.result;
-    formNote = row.entry.note;
-    formTaskId = row.entry.taskId;
-    formKind = row.kind;
-    formEntityId = row.entityId;
+    formInitial = { ...row.entry, kind: row.kind, entityId: row.entityId };
     showForm = true;
   }
 
@@ -127,21 +104,13 @@
     editing = null;
   }
 
-  function saveForm() {
-    const entry = makeLogEntry({
-      date: formDate,
-      repoRef: formRepoRef,
-      sourceRef: formSourceRef,
-      query: formQuery.trim(),
-      result: formResult,
-      note: formNote.trim(),
-      taskId: formTaskId,
-    });
+  function saveForm(values: LogFormValues) {
+    const entry = makeLogEntry(values);
     if (editing) {
       appState.updateLogEntry(editing.kind, editing.entityId, editing.index, entry);
     } else {
-      if (!formEntityId) return;
-      appState.addLogEntry(formKind, formEntityId, entry);
+      if (!values.entityId) return;
+      appState.addLogEntry(values.kind, values.entityId, entry);
     }
     closeForm();
   }
@@ -189,162 +158,70 @@
         ↓ Als Markdown exportieren
       </button>
     </FilterBar>
+    <ViewModeToggle
+      modes={[
+        { id: 'grouped', label: '👤 Personen' },
+        { id: 'timeline', label: '🕒 Timeline' },
+      ]}
+      value={logMode}
+      onChange={(id) => (logMode = id as 'grouped' | 'timeline')}
+      ariaLabel="Protokoll-Ansicht wählen"
+    />
     <button type="button" class="log-view__add-btn" onclick={openAddForm}>+ Eintrag</button>
   </div>
 
   {#if showForm}
-    <form class="log-view__form" onsubmit={(e) => { e.preventDefault(); saveForm(); }}>
-      <h3 class="log-view__form-title">{editing ? 'Eintrag bearbeiten' : 'Eintrag hinzufügen'}</h3>
-
-      <div class="log-view__form-row">
-        <label class="log-view__form-field">
-          Datum
-          <input type="date" bind:value={formDate} />
-        </label>
-        <label class="log-view__form-field">
-          Ergebnis
-          <select
-            value={formResult}
-            onchange={(e) => (formResult = e.currentTarget.value as LogResult)}
-            aria-label="Ergebnis"
-          >
-            <option value="pending">Ausstehend</option>
-            <option value="found">Gefunden</option>
-            <option value="notfound">Nichts gefunden</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="log-view__form-field stb-field">
-        <span class="stb-field__caption">Archiv</span>
-        <RepositoryPicker
-          {appState}
-          value={formRepoRef || null}
-          onChange={(id) => (formRepoRef = id ?? '')}
-          allowNone={true}
-          noneLabel="– kein Archiv –"
-          label="Archiv"
-        />
-      </div>
-
-      <div class="log-view__form-field stb-field">
-        <span class="stb-field__caption">Quelle</span>
-        <SourcePicker
-          {appState}
-          value={formSourceRef || null}
-          onChange={(id) => (formSourceRef = id ?? '')}
-          allowNone={true}
-          noneLabel="– keine Quelle –"
-          label="Quelle"
-        />
-      </div>
-
-      <label class="log-view__form-field">
-        Suchbegriff
-        <input type="text" bind:value={formQuery} placeholder="Wonach wurde gesucht?" />
-      </label>
-
-      <label class="log-view__form-field">
-        Notiz
-        <textarea bind:value={formNote} rows="2" placeholder="Ergebnis / Beobachtungen"></textarea>
-      </label>
-
-      {#if !editing}
-        <fieldset class="log-view__form-field log-view__entity-picker">
-          <legend>Ziel</legend>
-          <div class="log-view__kind-toggle">
-            <label>
-              <input
-                type="radio"
-                name="log-kind"
-                value="person"
-                checked={formKind === 'person'}
-                onchange={() => { formKind = 'person'; formEntityId = ''; formTaskId = ''; }}
-              />
-              Person
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="log-kind"
-                value="family"
-                checked={formKind === 'family'}
-                onchange={() => { formKind = 'family'; formEntityId = ''; formTaskId = ''; }}
-              />
-              Familie
-            </label>
-          </div>
-          {#if formKind === 'person'}
-            <PersonPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => { formEntityId = id ?? ''; formTaskId = ''; }}
-              label="Ziel-Person"
-              placeholder="Person wählen…"
-            />
-          {:else}
-            <FamilyPicker
-              {appState}
-              value={formEntityId || null}
-              onChange={(id) => { formEntityId = id ?? ''; formTaskId = ''; }}
-              label="Ziel-Familie"
-              placeholder="Familie wählen…"
-            />
-          {/if}
-        </fieldset>
-      {/if}
-
-      {#if formEntityId}
-        <div class="log-view__form-field stb-field">
-          <span class="stb-field__caption">Aufgaben-Bezug (optional)</span>
-          <Picker
-            items={targetTasks}
-            getId={(t) => t.id}
-            getLabel={(t) => t.text}
-            matches={(t, q) => t.text.toLowerCase().includes(q.trim().toLowerCase())}
-            value={formTaskId || null}
-            onChange={(id) => (formTaskId = id ?? '')}
-            allowNone={true}
-            noneLabel="– keine Aufgabe –"
-            label="Aufgaben-Bezug"
-            placeholder="Aufgabe wählen…"
-          />
-        </div>
-      {/if}
-
-      <div class="log-view__form-actions">
-        <button type="button" class="log-view__form-cancel" onclick={closeForm}>Abbrechen</button>
-        <button type="submit" class="log-view__form-save">Speichern</button>
-      </div>
-    </form>
+    <LogForm {appState} initial={formInitial} isEditing={!!editing} onSubmit={saveForm} onCancel={closeForm} />
   {/if}
+
+  {#snippet logRow(row: LogEntryRow)}
+    <div
+      class="log-view__row"
+      class:log-view__row--found={row.entry.result === 'found'}
+      class:log-view__row--partial={row.entry.result === 'partial'}
+    >
+      <div class="log-view__row-head">
+        {#if logMode === 'timeline'}
+          <button type="button" class="log-view__entity-link" onclick={() => goToEntity(row)}>{row.entityLabel} ›</button>
+          {#if row.entitySummary}<span class="stb-entity-summary">{row.entitySummary}</span>{/if}
+        {/if}
+        <span class="log-view__row-date">{row.entry.date || '(kein Datum)'}</span>
+        <span class="log-view__row-result">{resultLabel(row.entry.result)}</span>
+      </div>
+      <p class="log-view__row-query">{row.entry.query || '(kein Suchbegriff)'}</p>
+      {#if linkedTaskText(appState.db, row)}<p class="log-view__row-task">🔗 aus Aufgabe: {linkedTaskText(appState.db, row)}</p>{/if}
+      {#if row.entry.note}<p class="log-view__row-note">{row.entry.note}</p>{/if}
+      <div class="log-view__row-meta">
+        {#if row.entry.repoRef}<span class="stb-pill">{repoName(row.entry.repoRef)}</span>{/if}
+        {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(row.entry.sourceRef)}</span>{/if}
+      </div>
+      <div class="log-view__row-actions">
+        <button type="button" class="log-view__row-btn" onclick={() => openEditForm(row)} aria-label="Eintrag bearbeiten">✎</button>
+        <button type="button" class="log-view__row-btn" onclick={() => remove(row)} aria-label="Eintrag löschen">×</button>
+      </div>
+    </div>
+  {/snippet}
 
   {#if filteredEntries.length === 0}
     <p class="log-view__empty">
       {filter === 'all' ? 'Keine Protokoll-Einträge vorhanden' : `Keine Einträge mit Ergebnis "${resultLabel(filter as LogResult)}"`}
     </p>
-  {:else}
+  {:else if logMode === 'timeline'}
     <div class="log-view__list">
       {#each filteredEntries as row (row.kind + row.entityId + row.index)}
-        <div class="log-view__row" class:log-view__row--found={row.entry.result === 'found'}>
-          <div class="log-view__row-head">
-            <button type="button" class="log-view__entity-link" onclick={() => goToEntity(row)}>
-              {row.entityLabel} ›
-            </button>
-            <span class="log-view__row-date">{row.entry.date || '(kein Datum)'}</span>
-            <span class="log-view__row-result">{resultLabel(row.entry.result)}</span>
-          </div>
-          <p class="log-view__row-query">{row.entry.query || '(kein Suchbegriff)'}</p>
-          {#if row.entry.note}<p class="log-view__row-note">{row.entry.note}</p>{/if}
-          <div class="log-view__row-meta">
-            {#if row.entry.repoRef}<span class="stb-pill">{repoName(row.entry.repoRef)}</span>{/if}
-            {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(row.entry.sourceRef)}</span>{/if}
-          </div>
-          <div class="log-view__row-actions">
-            <button type="button" class="log-view__row-btn" onclick={() => openEditForm(row)} aria-label="Eintrag bearbeiten">✎</button>
-            <button type="button" class="log-view__row-btn" onclick={() => remove(row)} aria-label="Eintrag löschen">×</button>
-          </div>
+        {@render logRow(row)}
+      {/each}
+    </div>
+  {:else}
+    <div class="log-view__list">
+      {#each groups as group (group.kind + group.entityId)}
+        <div class="log-view__group-head">
+          <button type="button" class="log-view__entity-link" onclick={() => goToEntity(group.rows[0])}>{group.entityLabel} ›</button>
+          {#if group.entitySummary}<span class="stb-entity-summary">{group.entitySummary}</span>{/if}
         </div>
+        {#each group.rows as row (row.kind + row.entityId + row.index)}
+          {@render logRow(row)}
+        {/each}
       {/each}
     </div>
   {/if}
@@ -388,98 +265,6 @@
     color: var(--stb-text-dim);
   }
 
-  .log-view__form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.8rem 1rem;
-    background: var(--stb-surface-1);
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  .log-view__form-title {
-    margin: 0;
-    font-size: 1rem;
-    color: var(--stb-gold-light);
-  }
-
-  .log-view__form-row {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .log-view__form-row .log-view__form-field {
-    flex: 1 1 140px;
-    min-width: 0;
-  }
-
-  .log-view__form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-
-  .log-view__form-field input[type='text'],
-  .log-view__form-field input[type='date'],
-  .log-view__form-field select,
-  .log-view__form-field textarea {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.4rem 0.6rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-  }
-
-  .log-view__entity-picker {
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem;
-  }
-
-  .log-view__entity-picker legend {
-    font-size: 0.78rem;
-    color: var(--stb-gold-light);
-    padding: 0 0.3rem;
-  }
-
-  .log-view__kind-toggle {
-    display: flex;
-    gap: 0.8rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--stb-text);
-  }
-
-  .log-view__form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-  }
-
-  .log-view__form-cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .log-view__form-save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
   .log-view__list {
     display: flex;
     flex-direction: column;
@@ -496,6 +281,11 @@
 
   .log-view__row--found {
     border-left: 3px solid var(--stb-quay-3);
+  }
+
+  /* „Teilweise": Fund, aber unvollständig — amber, zwischen Fund (grün) und nichts. */
+  .log-view__row--partial {
+    border-left: 3px solid var(--stb-quay-1);
   }
 
   .log-view__row-head {
@@ -537,6 +327,21 @@
     margin: 0;
     color: var(--stb-text-dim);
     font-size: 0.85rem;
+  }
+
+  /* BL-65 „⇄": Rückverweis auf die auslösende Aufgabe. */
+  .log-view__row-task {
+    margin: 0;
+    color: var(--stb-text-muted);
+    font-size: 0.75rem;
+  }
+
+  /* BL-56: Personen-Kopfzeile der gruppierten Ansicht. */
+  .log-view__group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem 0.1rem;
   }
 
   .log-view__row-meta {

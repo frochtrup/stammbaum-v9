@@ -8,7 +8,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { buildSourceDetail, type SourceReferenceRow } from './source-detail-model';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
+  import { buildSourceDetail, hasPageContent, type SourceReferenceRow } from './source-detail-model';
   import { quayClassFor } from '../../shell/source-badge';
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
@@ -67,8 +68,7 @@
   >
     {ref.ownerLabel}
   </button>
-  <span class="source-detail__ref-context">{ref.context}</span>
-  {#if ref.page}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
+  {#if hasPageContent(ref.page)}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
   <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
     QUAY {ref.quay}
   </span>
@@ -133,6 +133,16 @@
         <EventsByType groups={detail.referencesByType} row={refRow} resetKey={sourceId} />
       {/if}
     </section>
+
+    <DeleteEntityButton
+      label="Quelle löschen"
+      message={`Quelle „${detail.source.abbr || detail.source.title || detail.source.id}" wirklich löschen? Alle Zitate auf diese Quelle werden entfernt (die zitierenden Personen/Familien/Ereignisse selbst bleiben bestehen).`}
+      onConfirm={() => {
+        appState.deleteSource(detail.source.id);
+        editing = false;
+        onBack?.();
+      }}
+    />
   {/if}
 </div>
 
@@ -226,11 +236,10 @@
     text-decoration: underline;
   }
 
-  .source-detail__ref-context {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-  }
-
+  /* #2 (2026-07-25): der Referenz-Kontext ("Person"/"Geburt"/…) steht bereits im
+     Gruppen-Header (EventsByType rendert `{group.type} ({N})`, gruppiert nach genau
+     diesem `context`) — ihn zusätzlich je Zeile zu wiederholen war reine Redundanz
+     ("Person (1)" über einer Zeile "… Person S. …"). Deshalb kein `.ref-context` mehr. */
   .source-detail__ref-page {
     color: var(--stb-text-dim);
     font-size: 0.85rem;

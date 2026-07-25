@@ -23,13 +23,13 @@ import type { PlaceObject, HofObject } from '../../core/places';
 import {
   makeDatabase,
   savePerson as savePersonCmd,
-  deletePerson as deletePersonCmd,
+  deletePersonCascade as deletePersonCmd,
   saveFamily as saveFamilyCmd,
-  deleteFamily as deleteFamilyCmd,
+  deleteFamilyCascade as deleteFamilyCmd,
   saveSource as saveSourceCmd,
-  deleteSource as deleteSourceCmd,
+  deleteSourceCascade as deleteSourceCmd,
   saveRepository as saveRepositoryCmd,
-  deleteRepository as deleteRepositoryCmd,
+  deleteRepositoryCascade as deleteRepositoryCmd,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -56,8 +56,9 @@ import {
   type ApplyImportResult,
 } from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
-import type { GedNode } from '../../core/interop';
-import { applyDatabaseToRoots, serializeGedcom } from '../../core/interop';
+import type { GedNode, GrampsParsed, XmlDocument } from '../../core/interop';
+import { applyDatabaseToRoots, serializeGedcom, applyDatabaseToXml, buildXMLText } from '../../core/interop';
+import type { DocFormat } from '../../services/file';
 import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -110,6 +111,24 @@ export interface AppState {
    * denselben internen roots-Projektions-Schritt mit serialize() (kein zweiter Pfad).
    */
   buildGedcomDoc(): { db: Database; roots: GedNode[] };
+  /**
+   * Format des aktuell geladenen Dokuments (BL-139). Steuert den Auto-Save-Serializer
+   * (GEDCOM-Text vs. GRAMPS-XML) und ob die Export-Fläche `gramps` anbietet (nur wenn ein
+   * `.gramps` geladen ist — ein Cross-Export aus GEDCOM-Ursprung wäre hohl, ADR-v9-113).
+   */
+  readonly docFormat: DocFormat;
+  /**
+   * Kommando: lädt ein GRAMPS-Dokument (`parseXMLText`-Ergebnis) — das Gegenstück zu
+   * `loadDatabase` für die GRAMPS-Seite. `doc` ist der Passthrough-XML-Baum (BL-139/144).
+   */
+  loadGrampsDoc(db: Database, fileName: string, doc: XmlDocument): void;
+  /**
+   * Kommando: wie `buildGedcomDoc()`, aber für GRAMPS — projiziert den db-Stand in den
+   * gehaltenen GRAMPS-Baum (`applyDatabaseToXml`) und liefert `{ db, doc }` für das
+   * Export-Rohr (`exportViaOnePipe` gzip-t selbst). Übernimmt das projizierte Doc intern
+   * als neuen Baum (derselbe Idempotenz-Kurzschluss wie `buildGedcomDoc`).
+   */
+  buildGrampsDoc(): GrampsParsed;
   /** Kommando: Upsert eines PlaceObject (`savePlaceObject(model)`-Muster, Spec 20 §1.7 [K]). */
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
@@ -122,16 +141,21 @@ export interface AppState {
    * bleibt dadurch nach jedem Save aktuell (Spec 14 §3.1).
    */
   savePerson(model: Person): void;
-  /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
+  /**
+   * Kommando: entfernt eine Person referenz-auflösend (`deletePersonCascade`) — aus allen
+   * Familien-Slots/Kindlisten, Assoziationen und Aliassen ausgehängt; eine dadurch völlig
+   * leer werdende Familie wird mitgelöscht. Andere Personen/Ereignisse bleiben bestehen.
+   */
   deletePerson(id: PersonId): void;
   /**
    * Kommando: führt `loserId` in `winnerId` zusammen (BL-103/BL-104, Spec 20 §1.12).
    *
-   * ANDERS als `savePerson` + `deletePerson` hängt der Kern hier ALLE Referenzen auf den
-   * Verlierer um (Family.husband/wife/children, Person.aliases, Association.personRef) —
-   * die naive Kombination hinterlässt gegengeprüft drei Waisen (INV-P2,
-   * `tests/core/merge-persons.test.ts`). Rückgängig über den regulären Undo-Stack, weil
-   * es wie jedes andere Kommando über `commit` läuft.
+   * ANDERS als das referenz-AUFLÖSENDE `deletePerson` (Referenzen werden gelöst/entfernt)
+   * hängt der Merge hier ALLE Referenzen auf den Verlierer auf den GEWINNER um
+   * (Family.husband/wife/children, Person.aliases, Association.personRef) — ein naives
+   * `savePerson(winner)` + nacktes `deletePerson(loser)` (core/model/commands.ts) hinterließe
+   * gegengeprüft drei Waisen (INV-P2, `tests/core/merge-persons.test.ts`). Rückgängig über den
+   * regulären Undo-Stack, weil es wie jedes andere Kommando über `commit` läuft.
    */
   mergePerson(winnerId: PersonId, loserId: PersonId, selections?: MergeSelections): void;
   /**
@@ -154,7 +178,11 @@ export interface AppState {
    * Reaktivität an beiden betroffenen Aggregaten greift (analog addTask/updateTask unten).
    */
   saveFamily(model: Family): void;
-  /** Kommando: entfernt eine Familie (per id, keine Kaskade — analog deleteFamily im Kern). */
+  /**
+   * Kommando: entfernt eine Familie referenz-auflösend (`deleteFamilyCascade`) — die
+   * Person-Seite (parentIn/childOf) aller Beteiligten wird gelöst, die Personen selbst
+   * bleiben bestehen (kein Kaskaden-Löschen).
+   */
   deleteFamily(id: FamilyId): void;
   /**
    * Kommando: Upsert einer Quelle (`saveSource(model)`-Muster, Spec 20 §2). Source ist ein
@@ -162,11 +190,17 @@ export interface AppState {
    * savePlace, KEINE Sync-Logik wie bei saveFamily nötig.
    */
   saveSource(model: Source): void;
-  /** Kommando: entfernt eine Quelle (per id, keine Kaskade — analog deletePlace). */
+  /**
+   * Kommando: entfernt eine Quelle referenz-auflösend (`deleteSourceCascade`) — alle Zitate,
+   * die auf sie zeigen, werden an jeder Träger-Stelle entfernt.
+   */
   deleteSource(id: SourceId): void;
   /** Kommando: Upsert eines Archivs (`saveRepository(model)`-Muster, Spec 20 §2). */
   saveRepository(model: Repository): void;
-  /** Kommando: entfernt ein Archiv (per id, keine Kaskade). */
+  /**
+   * Kommando: entfernt ein Archiv referenz-auflösend (`deleteRepositoryCascade`) — der
+   * repo-Verweis jeder darauf zeigenden Quelle wird gelöst.
+   */
   deleteRepository(id: RepoId): void;
   /**
    * Kommando: Dubletten-Merge — führt EINEN ODER MEHRERE `mergedIds` in `survivorId`
@@ -374,6 +408,12 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   // nur unnötigen Proxy-Overhead auf einem potenziell großen Baum (analog `db` selbst,
   // das ebenfalls $state.raw ist statt tief-reaktiv).
   let roots: GedNode[] = [];
+  // GRAMPS-Gegenstück zu `roots` (BL-139): der Passthrough-XML-Baum des zuletzt geladenen
+  // GRAMPS-Dokuments, oder null bei GEDCOM. `docFormat` ist der explizite Format-Schalter —
+  // er entscheidet, welchen Serializer das stille Auto-Save nutzt und ob die Export-Fläche
+  // GRAMPS anbietet. Bewusst KEIN $state (analog `roots`): kein View liest den Baum direkt.
+  let grampsDoc: XmlDocument | null = null;
+  let docFormat: DocFormat = 'gedcom';
   // Undo/Redo (BL-01, ADR-v9-92). Der Stack hält Referenzen auf frühere `db`-Stände;
   // dass diese Stände gültig BLEIBEN, garantiert die Copy-on-Write-Disziplin der
   // Kommandos (core/model/draft.ts, verriegelt in tests/ui/app-state-cow.test.ts).
@@ -423,7 +463,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     roots = applyDatabaseToRoots(db, roots);
     return roots;
   };
-  const serializeInternal = (): string => serializeGedcom({ db, roots: projectRoots() });
+  // GRAMPS-Projektion (BL-139), Spiegel zu projectRoots: schreibt den db-Stand in den
+  // gehaltenen GRAMPS-Baum zurück und übernimmt das Ergebnis als neuen Baum.
+  const projectGramps = (): XmlDocument => {
+    grampsDoc = applyDatabaseToXml(db, grampsDoc ?? { prolog: '', root: { tag: 'database', attrs: [], children: [], text: '' } });
+    return grampsDoc;
+  };
+  // Format-bewusster Auto-Save-Text (Arbeitskopie): GRAMPS als ENTPACKTES XML (gzip erst
+  // beim Datei-Export), GEDCOM als roher Text.
+  const serializeInternal = (): string =>
+    docFormat === 'gramps' ? buildXMLText({ db, doc: projectGramps() }) : serializeGedcom({ db, roots: projectRoots() });
   // Zieht die von einem Hof-Merge gemeldete Umhängung (`hofRemap`, Verlierer → Überlebender)
   // auf alle referenzierenden Ereignisse nach — copy-on-write, es werden nur die Owner
   // geklont, deren Ereignisse tatsächlich auf einen Verlierer zeigten (ADR-v9-92). Leerer
@@ -481,17 +530,34 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       db = nextDb;
       fileName = nextFileName;
       roots = nextRoots ?? [];
+      grampsDoc = null; // GEDCOM-Ladepfad: kein GRAMPS-Baum, kein GRAMPS-Export angeboten
+      docFormat = 'gedcom';
       // Ein Undo über eine Dateiöffnung hinweg gibt es nicht (ADR-v9-92 Punkt 5) — die
       // abgelegten Zustände gehören zu einem anderen Dokument. Zugleich wird hier der
       // „Revert to Saved"-Bezugspunkt gesetzt (Spec 20 §1.2, Fallback bei leerem Stack).
       stackClear();
       savedState = nextDb;
     },
+    loadGrampsDoc(nextDb, nextFileName, nextDoc) {
+      db = nextDb;
+      fileName = nextFileName;
+      grampsDoc = nextDoc;
+      roots = []; // GRAMPS-Ladepfad: kein GEDCOM-Passthrough
+      docFormat = 'gramps';
+      stackClear();
+      savedState = nextDb;
+    },
+    get docFormat() {
+      return docFormat;
+    },
     serialize() {
       return serializeInternal();
     },
     buildGedcomDoc() {
       return { db, roots: projectRoots() };
+    },
+    buildGrampsDoc() {
+      return { db, doc: projectGramps() };
     },
     savePlace(model) {
       // Bewusst eine plain Map, keine SvelteMap: db ist $state.raw (nicht tief reaktiv) —
@@ -590,7 +656,10 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit({ ...db, individuals: savePersonCmd(db.individuals, model) }, { workingCopy: true });
     },
     deletePerson(id) {
-      commit({ ...db, individuals: deletePersonCmd(db.individuals, id) }, { workingCopy: true });
+      // Referenz-auflösend: der Kern hängt die Person aus allen Familien/Assoziationen/
+      // Aliassen aus und löscht eine dadurch leer werdende Familie mit — liefert deshalb ein
+      // vollständiges neues Database (deletePersonCascade, ADR-v9-…), nicht nur die Map.
+      commit(deletePersonCmd(db, id), { workingCopy: true });
     },
     applyImport(imported, matches, selections, sourceConfig) {
       const result = applyImportPatchCmd(db, imported, matches, selections, sourceConfig);
@@ -620,13 +689,17 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit({ ...db, sources: saveSourceCmd(db.sources, model) }, { workingCopy: true });
     },
     deleteSource(id) {
-      commit({ ...db, sources: deleteSourceCmd(db.sources, id) }, { workingCopy: true });
+      // Referenz-auflösend: entfernt alle Zitate auf die Quelle an jeder Träger-Stelle
+      // (deleteSourceCascade) → vollständiges neues Database.
+      commit(deleteSourceCmd(db, id), { workingCopy: true });
     },
     saveRepository(model) {
       commit({ ...db, repositories: saveRepositoryCmd(db.repositories, model) }, { workingCopy: true });
     },
     deleteRepository(id) {
-      commit({ ...db, repositories: deleteRepositoryCmd(db.repositories, id) }, { workingCopy: true });
+      // Referenz-auflösend: löst den repo-Verweis jeder darauf zeigenden Quelle
+      // (deleteRepositoryCascade) → vollständiges neues Database.
+      commit(deleteRepositoryCmd(db, id), { workingCopy: true });
     },
     linkEventToPlace(event, placeId) {
       const ctx = placeContext;

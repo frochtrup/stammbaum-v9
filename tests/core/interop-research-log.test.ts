@@ -70,6 +70,29 @@ describe('interop research-log — Parse', () => {
     const { db } = parseGedcom(src);
     expect(db.individuals.get('@I1@')!.researchLog[0].result).toBe('pending');
   });
+
+  it('_RESULT partial wird als "partial" geparst (BL-135, kein Fallback auf pending)', () => {
+    const src = [
+      '0 HEAD', '1 GEDC', '2 VERS 5.5.1',
+      '0 @I1@ INDI',
+      '1 _RLOG',
+      '2 _QUERY Kirchenbuch 1830',
+      '2 _RESULT partial',
+      '0 TRLR',
+    ].join('\n');
+    const { db } = parseGedcom(src);
+    expect(db.individuals.get('@I1@')!.researchLog[0].result).toBe('partial');
+  });
+
+  it('ein "partial"-Eintrag überlebt den Write-Back-Roundtrip (LP-1)', () => {
+    const doc = parseGedcom(FIXTURE);
+    doc.db.individuals.get('@I1@')!.researchLog[1].result = 'partial';
+    const out = serializeAfterWriteBack(doc);
+    expect(out).toContain('2 _RESULT partial');
+    const log = parseGedcom(out).db.individuals.get('@I1@')!.researchLog;
+    expect(log[1].result).toBe('partial');
+    expect(log[0].result).toBe('found'); // Nachbar unangetastet
+  });
 });
 
 describe('interop research-log — Write-Back Roundtrip', () => {

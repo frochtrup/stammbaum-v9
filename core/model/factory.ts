@@ -52,6 +52,7 @@ export function makeEvent(type: string, patch: Partial<Event> = {}): Event {
     citations: [],
     media: [],
     seen: false,
+    grampsId: null,
     ...patch,
   };
 }
@@ -174,6 +175,7 @@ export function makeCitation(
     media: [],
     eval: null,
     deepLinkUrl: '',
+    grampsId: null,
   };
   return { ...base, ...patch };
 }

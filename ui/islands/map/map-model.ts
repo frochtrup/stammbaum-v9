@@ -22,6 +22,7 @@
 import type { Database, Event, Person, PersonId, PlaceId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { eventCoords, eventHofId, eventPlaceId, eventYear, type Coords } from '../../../core/places';
+import { displayNameOr } from '../../shell/person-display';
 
 export interface PlacePoint {
   placeId: PlaceId;
@@ -253,8 +254,7 @@ export function findFocusPoint(places: PlacePoint[], focusId: string | null | un
 }
 
 function personDisplayName(p: Person): string {
-  const full = `${p.given} ${p.surname}`.trim();
-  return full || p.name || p.id;
+  return displayNameOr(p, p.id);
 }
 
 /**

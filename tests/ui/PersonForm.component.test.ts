@@ -66,7 +66,7 @@ describe('PersonForm — Identität speichern', () => {
     person.cause = 'Typhus';
     person.events.push({
       type: 'OCCU', value: 'Bauer', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
-      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true,
+      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true, grampsId: null,
     });
 
     render(PersonForm, { props: { appState, person } });

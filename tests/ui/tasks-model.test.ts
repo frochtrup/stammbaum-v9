@@ -2,10 +2,12 @@
 // §1.11 [K]). Kein DOM nötig — kein besonderes Test-Environment-Directive gesetzt
 // (läuft mit dem globalen 'node'-Environment, s. vitest.config.ts, analog app-state.test.ts).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model/index';
+import { makeDatabase, makePerson, makeFamily, makeEvent } from '../../core/model/index';
+import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { makeTask } from '../../core/research/index';
 import {
   collectAllTasks,
+  entityInScope,
   openTaskCount,
   formatBadgeCount,
   filterTasks,
@@ -38,6 +40,56 @@ describe('collectAllTasks — globale Sammlung über Personen UND Familien', () 
     const db = makeDatabase();
     db.individuals.set('@I1@', makePerson('@I1@'));
     expect(collectAllTasks(db)).toEqual([]);
+  });
+
+  it('filtert nach aktivem Projekt-Scope (BL-58): nur Personen im Scope liefern Einträge', () => {
+    const db = makeDatabase();
+    const decker = makePerson('@I1@', { given: 'Johann', surname: 'Decker' });
+    decker.tasks.push(makeTask('t1', { text: 'a', created: '2026-01-01' }));
+    const meyer = makePerson('@I2@', { given: 'Otto', surname: 'Meyer' });
+    meyer.tasks.push(makeTask('t2', { text: 'b', created: '2026-01-01' }));
+    db.individuals.set('@I1@', decker);
+    db.individuals.set('@I2@', meyer);
+
+    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personIds: [] };
+    const all = collectAllTasks(db, undefined, null);
+    const scoped = collectAllTasks(db, undefined, scope);
+    expect(all).toHaveLength(2);
+    expect(scoped.map((e) => e.entityId)).toEqual(['@I1@']); // Meyer fällt raus
+  });
+
+  it('entityInScope: eine Familie liegt im Scope, wenn ein Ehepartner im Scope liegt (BL-58)', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Johann', surname: 'Decker' }));
+    const f = makeFamily('@F1@');
+    f.husband = '@I1@';
+    db.families.set('@F1@', f);
+    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personIds: [] };
+    expect(entityInScope(db, 'family', '@F1@', scope)).toBe(true);
+    expect(entityInScope(db, 'family', '@F1@', { ...scope, surnames: ['Meyer'] })).toBe(false);
+    expect(entityInScope(db, 'family', '@F1@', null)).toBe(true); // kein Scope = keine Einschränkung
+  });
+
+  it('setzt entitySummary (Geburtsjahr/-ort) je Person nur bei übergebenem PlaceContext — INV-UI-6/BL-109', () => {
+    const db = makeDatabase();
+    // Zwei GLEICHNAMIGE Personen, nur übers Geburtsjahr unterscheidbar (der auslösende Fall).
+    for (const [id, year] of [['@I1@', '1850'], ['@I2@', '1875']] as const) {
+      const p = makePerson(id);
+      p.given = 'Otto';
+      p.surname = 'Meyer';
+      p.birth = makeEvent('BIRT', { date: year, place: 'Ochtrup' });
+      p.tasks.push(makeTask('t_' + id, { text: 'x', created: '2026-01-01' }));
+      db.individuals.set(id, p);
+    }
+    const ctx: PlaceContext = { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+
+    // OHNE ctx (Export/Zählung): kein Sekundärmerkmal.
+    expect(collectAllTasks(db).every((e) => e.entitySummary === '')).toBe(true);
+
+    // MIT ctx (Listen-Views): jede Person trägt ihr disambiguierendes Jahr/Ort.
+    const withCtx = collectAllTasks(db, ctx);
+    expect(withCtx.find((e) => e.entityId === '@I1@')?.entitySummary).toBe('1850, Ochtrup');
+    expect(withCtx.find((e) => e.entityId === '@I2@')?.entitySummary).toBe('1875, Ochtrup');
   });
 });
 

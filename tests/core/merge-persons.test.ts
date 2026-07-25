@@ -162,9 +162,13 @@ describe('mergePersons — Feldauswahl (ADR-v9-104: alle Skalarfelder)', () => {
     expect(next.individuals.get('@WIN@')!.surname).toBe('Decker');
   });
 
-  it('leitet den Anzeigenamen aus der getroffenen Auswahl ab', () => {
+  it('leitet den rohen NAME-Wert aus der getroffenen Auswahl ab — MIT Schrägstrichen', () => {
+    // `Person.name` ist der ROHE GEDCOM-NAME-Wert: der Parser übernimmt ihn verbatim,
+    // `emitPerson` schreibt ihn verbatim in die `1 NAME`-Zeile. Die frühere Erwartung
+    // "Anne Dekker" (ohne Trenner) hätte nach einem Merge eine NAME-Zeile erzeugt, in der
+    // der Nachname nicht mehr als solcher erkennbar ist — ADR-v9-112.
     const next = mergePersons(db([win, lose]), '@WIN@', '@LOSER@', { given: 'loser', surname: 'loser' });
-    expect(next.individuals.get('@WIN@')!.name).toBe('Anne Dekker');
+    expect(next.individuals.get('@WIN@')!.name).toBe('Anne /Dekker/');
   });
 
   it('behandelt Geschlecht "U" wie leer', () => {

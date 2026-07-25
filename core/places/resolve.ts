@@ -174,8 +174,17 @@ function resolveOne(
     return { event: ev, path };
   };
 
-  // 1. Durchreich-REPROJECT — bereits gelinkt (GRAMPS-Parser / voriger Load).
-  if (ev.placeId != null || ev.hofId != null) {
+  // 1. Durchreich-REPROJECT — bereits gelinkt. AUSNAHME (BL-143): ein GRAMPS-nativ ans DORF
+  //    gebundenes RESI/PROP-Event (placeId vom Parser aus `<place hlink>`) mit noch offener
+  //    ADDR trägt seinen Hof NICHT — es fällt zu den ADDR-Hof-Pfaden B/B' durch (Dorf-Scope =
+  //    ev.placeId). Das ist genau die Orthogonalität von Konvention 2 (PLAC=Dorf, ADDR=Hof,
+  //    s. Schritt 3), nur ist das Dorf hier schon vom Parser gebunden statt aus Schritt 3.
+  //    Die dazwischenliegenden PLAC→Dorf-Pfade 2–5 sind dann gegenstandslos (placeId != null
+  //    ⇒ sie greifen ohnehin nicht) und werden übersprungen.
+  const offenerAddrHof =
+    ev.hofId == null && ev.placeId != null && ev.addr !== '' && hofTypeAllowed &&
+    !isAddrJustVillage(ev.addr, ev.placeId, ctx);
+  if (!offenerAddrHof && (ev.placeId != null || ev.hofId != null)) {
     return { resolved: reproject('reproject'), review: null };
   }
 
@@ -197,7 +206,11 @@ function resolveOne(
   })();
 
   // 2. Pfad A — PLAC-Leitsegment matcht Hof im Dorf-Anker (existierender Hof).
-  if (hofTypeAllowed && isRich && leadSeg && anchorVillageId != null) {
+  //    `ev.placeId == null`-Guard (BL-143): bei nativ vorgebundenem Dorf (GRAMPS) NICHT das
+  //    PLAC-Leitsegment als Hof deuten und die placeId überschreiben — der Hof kommt dort aus
+  //    der ADDR (B/B'). Für den regulären Fluss ist der Guard ein No-op (Schritt 1 hätte bei
+  //    gesetzter placeId längst returniert), er ändert nur den neuen Durchfall-Pfad.
+  if (hofTypeAllowed && ev.placeId == null && isRich && leadSeg && anchorVillageId != null) {
     const hid = ctx.hofs.findByAddr(leadSeg, year, anchorVillageId);
     if (hid != null) {
       ev.hofId = hid;

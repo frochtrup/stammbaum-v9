@@ -18,7 +18,7 @@
   import type { AppState } from './app-state.svelte';
   import type { ViewState } from './view-state.svelte';
   import type { LensId } from './lens-model';
-  import type { EventLineRow } from './event-line-row';
+  import { dedupeAddrNote, displayEventValue, type EventLineRow } from './event-line-row';
   import SourceBadge from './SourceBadge.svelte';
   import CoordIndicator from './CoordIndicator.svelte';
   import { tooltip } from './tooltip';
@@ -96,12 +96,22 @@
   // Zeile still zu "1930,Ochtrup" zusammenzog. Ein Ausdruck entgeht dem Trim — und
   // das Leerzeichen ist zugleich die Umbruchstelle zwischen Datum und Ortskette.
   const dateSep = $derived(ev.dateLabel && ev.placeLabel ? ', ' : '');
+
+  // §10k/BL-71: Notiz-Absatz weglassen, wenn er zeichengleich zu addr/value ist (beide
+  // stehen schon in der Kopfzeile) — reine Anzeige-Dedup, Rohwerte bleiben unangetastet
+  // (Untersuchung ADR-v9-53 Punkt 12: Einzelfall der Quelldaten, kein Parser-Muster).
+  const displayNote = $derived(dedupeAddrNote(ev));
+
+  // GEDCOM-Struktur-Flag `Y` ("Ereignis fand statt, keine Details") ist kein Anzeige-
+  // wert — sonst erscheint z. B. "Heirat Y". Zentral hier für alle Konsumenten gefiltert
+  // (displayEventValue, event-line-row.ts) statt in jedem *-detail-model einzeln.
+  const shownValue = $derived(displayEventValue(ev.value));
 </script>
 
 <li class="event-line">
   <div class="event-line__head">
     <span class="event-line__label">{ev.label}</span>
-    {#if ev.value}<span class="event-line__value">{ev.value}</span>{/if}
+    {#if shownValue}<span class="event-line__value">{shownValue}</span>{/if}
     {#if ev.addr}<span class="event-line__value">{ev.addr}</span>{/if}
     {#if ev.dateLabel || ev.placeLabel}
       <span class="event-line__date">
@@ -142,7 +152,7 @@
       </button>
     </span>
   </div>
-  {#if ev.note}<p class="event-line__note">{ev.note}</p>{/if}
+  {#if displayNote}<p class="event-line__note">{displayNote}</p>{/if}
 </li>
 
 <style>

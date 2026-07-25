@@ -74,6 +74,7 @@ describe('IndexedDB-Schema — genau EIN zentraler Öffner (Regressionstest)', (
     expect(upgradeBlock).toMatch(/STORE_WORKING_COPY/);
     expect(upgradeBlock).toMatch(/STORE_PLACES_MIRROR/);
     expect(upgradeBlock).toMatch(/STORE_PLACES_FILE_HANDLE/);
+    expect(upgradeBlock).toMatch(/STORE_PROJECTS/); // BL-58
   });
 
   it('STORE_PLACES_FILE_HANDLE ist ein eigener Store-Name, GETRENNT von STORE_WORKING_COPY/STORE_PLACES_MIRROR (ADR-v9-70)', () => {
