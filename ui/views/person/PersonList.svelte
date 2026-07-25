@@ -21,6 +21,7 @@
     defaultPersonFilters,
     type PersonFilters,
     type PersonSortMode,
+    type PersonRow,
   } from './person-list-model';
 
   interface Props {
@@ -49,6 +50,13 @@
   const groups = $derived(buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters));
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
+
+  // Namenlose (die "#"-Gruppe) werden als EINE kollabierbare Zeile gezeigt statt einzeln
+  // gelistet (ADR-v9-121) — sonst öffnet die Liste mit einem Stapel „(ohne Namen)"/„?".
+  // Bei aktiver Suche/Filterung stets aufgeklappt, sonst würden namenlose Treffer versteckt.
+  let namelessExpanded = $state(false);
+  const hasActiveQuery = $derived(query.trim() !== '' || activeFilterCount > 0);
+  const namelessOpen = $derived(namelessExpanded || hasActiveQuery);
 
   function selectPerson(id: string) {
     viewState.setCurrent('person', id);
@@ -152,37 +160,58 @@
       {/if}
     </div>
 
+    {#snippet personRows(rows: PersonRow[])}
+      <ul class="person-list__rows">
+        {#each rows as row (row.id)}
+          <li>
+            <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
+              <span class="person-list__name-line">
+                <span class="person-list__name">{row.name}</span>
+                {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
+              </span>
+              <span class="person-list__meta">
+                {#if row.birthSummary}
+                  <span use:tooltip={row.birthPlaceFull || undefined}>* {row.birthSummary}</span>
+                {/if}
+                {#if row.deathSummary}
+                  <span use:tooltip={row.deathPlaceFull || undefined}>† {row.deathSummary}</span>
+                {/if}
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/snippet}
+
     {#if !hasResults}
       <p class="person-list__empty">Keine Personen gefunden.</p>
     {:else}
       {#each groups as group (group.letter ?? '·')}
-        <div class="person-list__group">
-          {#if group.letter !== null}
-            <div class="person-list__letter" role="separator" aria-label="Buchstabe {group.letter}">
-              {group.letter}
-            </div>
-          {/if}
-          <ul class="person-list__rows">
-            {#each group.rows as row (row.id)}
-              <li>
-                <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
-                  <span class="person-list__name-line">
-                    <span class="person-list__name">{row.name}</span>
-                    {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
-                  </span>
-                  <span class="person-list__meta">
-                    {#if row.birthSummary}
-                      <span use:tooltip={row.birthPlaceFull || undefined}>* {row.birthSummary}</span>
-                    {/if}
-                    {#if row.deathSummary}
-                      <span use:tooltip={row.deathPlaceFull || undefined}>† {row.deathSummary}</span>
-                    {/if}
-                  </span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </div>
+        {#if group.nameless}
+          <div class="person-list__group person-list__group--nameless">
+            <button
+              type="button"
+              class="person-list__nameless-toggle"
+              aria-expanded={namelessOpen}
+              onclick={() => (namelessExpanded = !namelessExpanded)}
+            >
+              <span class="person-list__nameless-chevron" aria-hidden="true">{namelessOpen ? '▾' : '▸'}</span>
+              {group.rows.length} ohne Namen
+            </button>
+            {#if namelessOpen}
+              {@render personRows(group.rows)}
+            {/if}
+          </div>
+        {:else}
+          <div class="person-list__group">
+            {#if group.letter !== null}
+              <div class="person-list__letter" role="separator" aria-label="Buchstabe {group.letter}">
+                {group.letter}
+              </div>
+            {/if}
+            {@render personRows(group.rows)}
+          </div>
+        {/if}
       {/each}
     {/if}
   {/if}
@@ -335,6 +364,36 @@
     font-weight: 700;
     padding: 0.2rem 1rem;
     font-family: var(--stb-font-title);
+  }
+
+  /* Sammelzeile der Namenlosen — sieht aus wie ein Buchstaben-Trenner, ist aber ein
+     klickbarer Toggle (ADR-v9-121). */
+  .person-list__nameless-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: var(--stb-surface-3);
+    color: var(--stb-gold-light);
+    font-weight: 700;
+    font-family: var(--stb-font-title);
+    border: none;
+    border-bottom: 1px solid var(--stb-surface-2);
+    padding: 0.35rem 1rem;
+    text-align: left;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+  }
+
+  .person-list__nameless-toggle:hover,
+  .person-list__nameless-toggle:focus-visible {
+    background: var(--stb-surface-2);
+  }
+
+  .person-list__nameless-chevron {
+    color: var(--stb-text-dim);
+    font-size: 0.8em;
   }
 
   .person-list__rows {

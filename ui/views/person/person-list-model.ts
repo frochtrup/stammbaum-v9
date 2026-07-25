@@ -7,7 +7,7 @@
 import type { Database, Person, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { eventYear, buildListPlaceName } from '../../../core/places';
-import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel } from '../../shell/person-display';
+import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel, NAMELESS_LETTER } from '../../shell/person-display';
 
 export type PersonSortMode = 'name' | 'birthDate';
 
@@ -57,6 +57,10 @@ export interface PersonGroup {
   /** Buchstaben-Trenner-Wert; im Datum-Sortier-Modus stets null (keine Gruppierung). */
   letter: string | null;
   rows: PersonRow[];
+  /** Die Sammel-Gruppe der Namenlosen (`letter === NAMELESS_LETTER`) — die View rendert
+   *  sie als kollabierbare „N ohne Namen"-Zeile statt einzeln (ADR-v9-121). Im Datum-Modus
+   *  stets false (keine Buchstaben-Gruppierung). */
+  nameless: boolean;
 }
 
 /** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]). */
@@ -174,7 +178,7 @@ export function filterAndSortPersons(
 export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: PersonSortMode): PersonGroup[] {
   if (sortMode === 'birthDate') {
     if (persons.length === 0) return [];
-    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx)) }];
+    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx)), nameless: false }];
   }
 
   const groups: PersonGroup[] = [];
@@ -183,7 +187,7 @@ export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: 
   for (const p of persons) {
     const letter = sortLetter(p);
     if (!current || current.letter !== letter) {
-      current = { letter, rows: [] };
+      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER };
       groups.push(current);
     }
     current.rows.push(toRow(p, ctx));
