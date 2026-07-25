@@ -16,11 +16,17 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { Route } from '../../shell/route.svelte';
-  import type { Database } from '../../../core/model/types';
+  import type { Database, PersonId } from '../../../core/model/types';
   import type { TreeModeId } from '../../shell/nav-model';
   import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
   import type { LensId } from '../../shell/lens-model';
+  import type { CardRing } from '../../islands/tree/tree-cards';
+  // Vollständigkeits-Ring (BL-121): dieselbe Befundschwere wie das Qualitäts-Dashboard
+  // (computePersonSeverity, INV-UI-4) — die Insel bekommt sie vorberechnet, wertet nichts aus.
+  import { configFromStored, defaultConfig, type ValidationConfig } from '../../../core/validate/index';
+  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import { buildTreeRings } from './tree-ring-model';
 
   interface Props {
     appState: AppState;
@@ -45,6 +51,25 @@
   const treeMode = $derived<TreeModeId>(route?.treeMode ?? 'hourglass');
   const focusId = $derived(viewState.getCurrent('lensFocus') ?? firstAvailablePersonId());
 
+  // ── Vollständigkeits-Ring (BL-121, Spec 21 §8) ──
+  // Regel-Konfiguration wie im Dashboard nachladen (dieselbe Quelle → gleiche Ringe/Ampel).
+  let valConfig = $state<ValidationConfig>(defaultConfig());
+  const valStore = new IdbValConfigStore();
+  $effect(() => {
+    let cancelled = false;
+    loadValConfig(valStore)
+      .then((stored) => {
+        if (!cancelled) valConfig = configFromStored(stored);
+      })
+      .catch(() => {
+        /* Defaults behalten. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+  const ringByPerson = $derived(buildTreeRings(appState.db, valConfig));
+
   const TREE_MODES = [
     { id: 'hourglass', label: 'Sanduhr' },
     { id: 'descendant', label: 'Nachkommen' },
@@ -60,21 +85,29 @@
     viewState.setCurrent('lensFocus', id);
   }
 
-  function mountFor(mode: TreeModeId, container: HTMLDivElement, db: Database, id: string): TreeIslandHandle {
+  function mountFor(
+    mode: TreeModeId,
+    container: HTMLDivElement,
+    db: Database,
+    id: string,
+    ring: ReadonlyMap<PersonId, CardRing>,
+  ): TreeIslandHandle {
     const callbacks = {
       onSelect: recenter,
       onSelectCenter: (pid: string) => onOpenPersonDetail?.(pid),
       onSelectFamily: (fid: string) => onNavigateToFamily?.(fid),
     };
-    if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks);
+    // Der Ring gilt nur für die Rechteck-Karten (Sanduhr/Nachkommen), nicht den Fächer (§8).
+    if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks, { ringByPerson: ring });
     if (mode === 'fan') return mountFanChart(container, db, id, callbacks);
-    return mountHourglassTree(container, db, id, callbacks);
+    return mountHourglassTree(container, db, id, callbacks, { ringByPerson: ring });
   }
 
   $effect(() => {
     const id = focusId;
     const db = appState.db;
     const mode = treeMode;
+    const ring = ringByPerson;
     if (!containerEl || !id) return;
     // Modus- oder Datensatz-Wechsel: alte Insel abbauen und neu mounten (Spec 02 §5).
     if (handle && (mounted?.mode !== mode || mounted?.db !== db)) {
@@ -82,10 +115,10 @@
       handle = null;
     }
     if (!handle) {
-      handle = mountFor(mode, containerEl, db, id);
+      handle = mountFor(mode, containerEl, db, id, ring);
       mounted = { mode, db };
     } else {
-      handle.update(id);
+      handle.update(id, { ringByPerson: ring });
     }
   });
 

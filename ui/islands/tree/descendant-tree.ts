@@ -28,6 +28,7 @@ export function mountDescendantTree(
 ): TreeIslandHandle {
   let currentId: PersonId | null = personId;
   let generations = initialOptions.generations;
+  let ringByPerson = initialOptions.ringByPerson;
 
   function draw(ctx: DrawContext): DiagramLayoutFrame | null {
     if (!currentId) return null;
@@ -43,7 +44,8 @@ export function mountDescendantTree(
     for (const c of layout.connectors) appendConnector(ctx.svg, c.x1, c.y1, c.x2, c.y2);
 
     for (const card of layout.cards) {
-      const div = appendPersonCard(ctx, db, card, callbacks);
+      const ring = card.id ? ringByPerson?.get(card.id) : undefined;
+      const div = appendPersonCard(ctx, db, { ...card, ring }, callbacks);
       if (div && card.hasMore) {
         // ▼ „mehr Nachkommen" — am Generationen-Rand abgeschnitten; Klick auf die Karte
         // rezentriert ohnehin (macht das Kind zur neuen Wurzel mit eigenen Generationen).
@@ -79,6 +81,7 @@ export function mountDescendantTree(
     update(nextId, options: DescendantMountOptions = {}) {
       currentId = nextId;
       if (options.generations !== undefined) generations = options.generations;
+      if (options.ringByPerson !== undefined) ringByPerson = options.ringByPerson;
       viewport.render();
     },
     toggleFullscreen() {

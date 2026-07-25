@@ -39,6 +39,10 @@
 
   /* Aktion */
   --stb-danger: #c04040;
+  /* Warnstufe (Spec 20 §3): orange zwischen Hinweis (gold) und Fehler (danger). Bislang nur
+     als Fallback im Dashboard-Score referenziert; seit BL-121 echter Token, den Dashboard
+     UND Baum-Vollständigkeits-Ring (Spec 21 §8) teilen. */
+  --stb-warn: #d9a441;
 
   /* QUAY-Status-Palette (Spec 21 §7): rot/orange/blau/grün = q0..q3.
      NICHT (mehr) die Beweiskraft-Anzeige der Quellen-Pille — die trägt seit ADR-v9-118

@@ -13,7 +13,7 @@
 import type { Database, PersonId } from '../../../core/model/types';
 import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
 import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
-import { appendPersonCard, appendConnector, appendMarriageButton } from './tree-cards';
+import { appendPersonCard, appendConnector, appendMarriageButton, type CardRing } from './tree-cards';
 // Geteilter Tooltip (INV-UI-12/ADR-v9-87): hier IMPERATIV aufgerufen (kein Svelte-`use:`),
 // da die Insel framework-frei ist. `tooltip.ts` ist zur Laufzeit reines DOM.
 import { tooltip } from '../../shell/tooltip';
@@ -31,6 +31,8 @@ export interface TreeMountOptions {
   /** Erzwingt Portrait/Landscape statt Container-Maße zu messen (v. a. für Tests). */
   portrait?: boolean;
   maxAncestorLevels?: number;
+  /** Vorberechnete Vollständigkeits-Ringe je Person (BL-121); fehlt = keine Ringe. */
+  ringByPerson?: ReadonlyMap<PersonId, CardRing>;
 }
 
 export interface TreeIslandHandle {
@@ -61,6 +63,7 @@ export function mountHourglassTree(
   // Nur `maxAncestorLevels` ist sanduhr-eigen; `portrait` misst der Viewport (er besitzt
   // den Container) und reicht es über `ctx.portrait` an `draw()`.
   let maxAncestorLevels = initialOptions.maxAncestorLevels;
+  let ringByPerson = initialOptions.ringByPerson;
 
   function makeCard(ctx: DrawContext, layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number], peekZIndex: number): void {
     const div = appendPersonCard(
@@ -77,6 +80,7 @@ export function mountHourglassTree(
         isSibling: card.isSibling,
         isPeek: card.isPeek,
         zIndex: card.isPeek ? peekZIndex : undefined,
+        ring: card.id ? ringByPerson?.get(card.id) : undefined,
       },
       callbacks,
     );
@@ -164,6 +168,7 @@ export function mountHourglassTree(
     update(nextId, options = {}) {
       currentId = nextId;
       if (options.maxAncestorLevels !== undefined) maxAncestorLevels = options.maxAncestorLevels;
+      if (options.ringByPerson !== undefined) ringByPerson = options.ringByPerson;
       viewport.render();
     },
     toggleFullscreen() {

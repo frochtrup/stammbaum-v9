@@ -104,6 +104,21 @@
   overflow: hidden;
 }
 
+/* Vollständigkeits-Ring (BL-121, Spec 21 §8): farbiger Halo am Kartenrand, wenn Daten
+   fehlen. Stufung aus der Per-Person-Befundschwere (dieselbe wie das Dashboard, kein
+   zweiter Validator) — Hinweis→gold, Warnung→orange, Fehler→rot. `box-shadow` statt
+   Border, damit der Geschlechts-Border-left (unten) unberührt bleibt; statisch (kein
+   Übergang), daher unabhängig von prefers-reduced-motion. */
+.tree-island__card[data-severity='info'] {
+  box-shadow: 0 0 0 2px var(--stb-gold);
+}
+.tree-island__card[data-severity='warn'] {
+  box-shadow: 0 0 0 2px var(--stb-warn);
+}
+.tree-island__card[data-severity='error'] {
+  box-shadow: 0 0 0 2px var(--stb-danger);
+}
+
 .tree-island__card[data-sex='M'] {
   border-left: 3px solid var(--stb-sex-m);
 }

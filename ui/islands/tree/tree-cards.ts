@@ -7,9 +7,18 @@
 // hängt der Aufrufer an die zurückgegebene Kachel — der gemeinsame Kern ist Rahmen,
 // Geschlecht, Name, Jahre, ½-Badge, Klick/Enter → Auswahl.
 import type { Database, PersonId } from '../../../core/model/types';
+import type { Severity } from '../../../core/validate/types';
 import type { DrawContext } from './tree-viewport';
 import { tooltip } from '../../shell/tooltip';
 import { displayNameOr } from '../../shell/person-display';
+
+/** Vollständigkeits-Ring einer Karte (BL-121, Spec 21 §8): vorberechnete Befundschwere +
+ *  Tooltip-Text (die konkret fehlenden Felder) — reiner Rendering-Input, keine Regel-
+ *  Auswertung in der Insel. `null`/fehlt = sauber (kein Ring). */
+export interface CardRing {
+  severity: Severity;
+  tooltip: string;
+}
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -31,6 +40,8 @@ export interface PersonCardSpec {
   /** Stapel-z-index (Peek-Stapel der Sanduhr, Geschwisterstapel der Nachkommen — jeweils
    *  spätere Karte oben). Nur gesetzt, wenn Karten sich bewusst überlappen. */
   zIndex?: number;
+  /** Vollständigkeits-Ring (BL-121) — vorberechnet, `undefined` = sauber. */
+  ring?: CardRing;
 }
 
 export interface CardCallbacks {
@@ -77,6 +88,13 @@ export function appendPersonCard(
   div.setAttribute('tabindex', '0');
   div.setAttribute('role', 'button');
   div.dataset.personId = spec.id;
+
+  // Vollständigkeits-Ring (BL-121): Farbe je Schwere über CSS (`data-severity`), Tooltip
+  // nennt die konkret fehlenden Felder. Die Insel wertet NICHTS aus — beides kommt fertig.
+  if (spec.ring) {
+    div.dataset.severity = spec.ring.severity;
+    if (spec.ring.tooltip) tooltip(div, spec.ring.tooltip);
+  }
 
   const nameEl = document.createElement('div');
   nameEl.className = 'tree-island__name';
