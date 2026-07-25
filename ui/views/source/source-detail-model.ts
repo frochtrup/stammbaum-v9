@@ -35,6 +35,17 @@ export interface SourceDetailModel {
   referencesByType: EventGroup<SourceReferenceRow>[];
 }
 
+/**
+ * #2 (2026-07-25): `citation.page` wird roh angezeigt (`S. {page}`). Die Demo-Fixture
+ * enthält einen Anonymisierungs-Rest `2 PAGE )` — ohne Prüfung erscheint „S. )". Der
+ * Rohwert bleibt byte-treu erhalten (LP-1); rein anzeigeseitig wird eine Seitenangabe nur
+ * dann gerendert, wenn sie überhaupt etwas Bezeichnendes trägt — mindestens einen
+ * Buchstaben oder eine Ziffer (reine Satzzeichen/Whitespace sind keine Fundstelle).
+ */
+export function hasPageContent(page: string): boolean {
+  return /[\p{L}\p{N}]/u.test(page);
+}
+
 function ownerLabel(db: Database, kind: 'person' | 'family', id: string): string {
   if (kind === 'person') {
     const p = db.individuals.get(id);

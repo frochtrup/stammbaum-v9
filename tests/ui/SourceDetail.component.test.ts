@@ -32,7 +32,9 @@ describe('SourceDetail — Referenzen inkl. PAGE/QUAY (Component)', () => {
     render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
 
     expect(screen.getByText('Anna Bauer')).toBeTruthy();
-    expect(screen.getByText('Geburt')).toBeTruthy();
+    // #2 (2026-07-25): der Kontext ("Geburt") steht NUR im Gruppen-Header, nicht mehr
+    // zusätzlich je Zeile — deshalb hier gegen den Header "Geburt (1)" geprüft.
+    expect(screen.getByText('Geburt (1)')).toBeTruthy();
     expect(screen.getByText('S. 12')).toBeTruthy();
     expect(screen.getByText('QUAY 3')).toBeTruthy();
   });
@@ -84,6 +86,46 @@ describe('SourceDetail — Referenzen inkl. PAGE/QUAY (Component)', () => {
   });
 });
 
+describe('SourceDetail — Anzeige-Härtung (#2, 2026-07-25)', () => {
+  it('rendert KEIN "S. )" für eine Seitenangabe ohne bezeichnenden Inhalt (Anonymisierungs-Rest "2 PAGE )")', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.citations.push(makeCitation('@S1@', { page: ')', quay: 3 }));
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    // Zeile erscheint (Person + QUAY), aber ohne die sinnlose Seitenangabe.
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+    expect(screen.getByText('QUAY 3')).toBeTruthy();
+    expect(screen.queryByText(/S\./)).toBeNull();
+  });
+
+  it('wiederholt den Kontext NICHT je Zeile (steht nur im Gruppen-Header)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.citations.push(makeCitation('@S1@', { page: '12' }));
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S1@', makeSource('@S1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    // "Geburt" erscheint GENAU einmal — als Gruppen-Header "Geburt (1)", nicht zusätzlich
+    // als nackter Kontext-Text in der Zeile (früher doppelt).
+    expect(screen.getByText('Geburt (1)')).toBeTruthy();
+    expect(screen.queryByText('Geburt')).toBeNull();
+  });
+});
+
 describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', () => {
   it('gruppiert Referenzen nach Kontext-Typ mit "Typ (N)"-Untertitel', () => {
     const appState = createAppState();
@@ -121,18 +163,22 @@ describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', ()
     const groupHeader = screen.getByText('Geburt (45)');
     expect(groupHeader).toBeTruthy();
     expect(groupHeader.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryAllByText('Geburt')).toHaveLength(0);
+    // #2 (2026-07-25): sichtbare Zeilen werden über die Eigentümer-Buttons gezählt (der
+    // frühere Zähl-Anker, die je Zeile wiederholte Kontext-Beschriftung "Geburt", ist als
+    // Redundanz entfallen — der Kontext steht jetzt nur im Gruppen-Header).
+    const ownerRows = () => screen.queryAllByRole('button', { name: /Person\d+ Bauer/ });
+    expect(ownerRows()).toHaveLength(0);
 
     await fireEvent.click(groupHeader);
 
     expect(groupHeader.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getAllByText('Geburt')).toHaveLength(30);
+    expect(ownerRows()).toHaveLength(30);
     const loadMoreBtn = screen.getByText('15 weitere laden');
     expect(loadMoreBtn).toBeTruthy();
 
     await fireEvent.click(loadMoreBtn);
 
-    expect(screen.getAllByText('Geburt')).toHaveLength(45);
+    expect(ownerRows()).toHaveLength(45);
     expect(screen.queryByText(/weitere laden/)).toBeNull();
   });
 });

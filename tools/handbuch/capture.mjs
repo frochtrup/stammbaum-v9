@@ -52,7 +52,20 @@ async function click(text, { contains = false, nth = 0 } = {}) {
     const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const all = [...document.querySelectorAll('button,[role=tab],[role=button],a,summary,label,div,li,span')];
     const m = all.filter((el) => { const t = norm(el.textContent); return contains ? t.includes(text) : t === text; });
-    m.sort((a, b) => norm(a.textContent).length - norm(b.textContent).length);
+    // NUR bei EXAKT-Treffern echte Bedien-Elemente bevorzugen: ein umschließender
+    // <div>/<span> kann denselben (gleich langen) Text tragen wie der Button, den er
+    // umschließt — z. B. `.stb-filterbar` um den einzigen "Filter"-Trigger. `.click()` auf
+    // so einem Wrapper löst den Button-onclick NICHT aus (Click propagiert nach oben, nicht
+    // nach unten) → das Panel bliebe zu (02/03 zeigten die Liste roh). Diese Kollision gibt
+    // es nur bei Exakt-Gleichheit. Bei `contains`-Treffern bleibt die reine Längen-Heuristik
+    // (spezifischstes Blatt-Element, dessen Klick nach oben zum Button propagiert) — sonst
+    // träfe ein mehrdeutiger Teiltext wie "Kaspar Hörstmann" eine ANDERE, kürzere Zeile als
+    // die gemeinte (04/30 zeigten sonst den kargen statt des reichen Datensatzes).
+    const interactive = (el) => el.matches('button,a,summary,label,[role=tab],[role=button]') ? 1 : 0;
+    m.sort((a, b) => {
+      if (!contains) { const d = interactive(b) - interactive(a); if (d) return d; }
+      return norm(a.textContent).length - norm(b.textContent).length;
+    });
     const el = m[nth]; if (!el) return false; el.scrollIntoView({ block: 'center' }); el.click(); return true;
   }, text, contains, nth);
   if (!ok) console.log('  ! nicht gefunden:', text);

@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EventLine from '../../ui/shell/EventLine.svelte';
-import { dedupeAddrNote, type EventLineRow } from '../../ui/shell/event-line-row';
+import { dedupeAddrNote, displayEventValue, type EventLineRow } from '../../ui/shell/event-line-row';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeCitation, makeDatabase, makeSource } from '../../core/model';
@@ -379,6 +379,63 @@ describe('EventLine — Note/Addr/Value', () => {
     });
 
     expect(container.querySelector('.event-line__note')?.textContent).toBe('zusätzliche Anmerkung');
+  });
+});
+
+// #1 (2026-07-25): GEDCOM-Struktur-Flag `value='Y'` ("Ereignis fand statt, keine
+// Details") darf NICHT als nackter Wert erscheinen — die auslösende Beobachtung war
+// "Heirat Y" im Familien-Detail. Zentral in der geteilten Ereigniszeile gefiltert, damit
+// die strukturgleiche Geschwister-Stelle zur längst gelösten Todes-Sonderbehandlung
+// mitzieht (INV-UI-4).
+describe('EventLine — GEDCOM-Flag value="Y" wird nicht als Wert angezeigt (#1)', () => {
+  it('zeigt für eine Heirat mit value="Y" KEINEN Wert-Text', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: {
+        ev: row({ key: 'MARR', label: 'Heirat', value: 'Y' }),
+        appState,
+        viewState,
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(screen.getByText('Heirat')).toBeTruthy();
+    expect(screen.queryByText('Y')).toBeNull();
+    expect(container.querySelector('.event-line__value')).toBeNull();
+  });
+
+  it('lässt einen echten Wert (z. B. Beruf) unverändert stehen', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    const { container } = render(EventLine, {
+      props: { ev: row({ label: 'Beruf', value: 'Lehrer' }), appState, viewState, onEdit: vi.fn() },
+    });
+
+    expect(container.querySelector('.event-line__value')?.textContent).toBe('Lehrer');
+  });
+});
+
+describe('displayEventValue (#1, reine Logik)', () => {
+  it('blankt den GEDCOM-Flag-Wert "Y"', () => {
+    expect(displayEventValue('Y')).toBe('');
+  });
+
+  it('blankt "Y" auch mit umgebendem Whitespace', () => {
+    expect(displayEventValue('  Y ')).toBe('');
+  });
+
+  it('lässt echte Werte unverändert (inkl. ungetrimmt)', () => {
+    expect(displayEventValue('Lehrer')).toBe('Lehrer');
+    expect(displayEventValue('  Bauer ')).toBe('  Bauer ');
+  });
+
+  it('trifft NUR das exakte Großbuchstaben-Token, nicht "Yes"/"y"/enthaltenes Y', () => {
+    expect(displayEventValue('Yes')).toBe('Yes');
+    expect(displayEventValue('y')).toBe('y');
+    expect(displayEventValue('Y2')).toBe('Y2');
   });
 });
 

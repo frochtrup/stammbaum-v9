@@ -60,3 +60,25 @@ export function dedupeAddrNote(row: Pick<EventLineRow, 'note' | 'addr' | 'value'
   if (n === row.value.trim() || n === addr || n === addrFirstLine) return '';
   return row.note;
 }
+
+/**
+ * GEDCOM-Ereigniswert `Y` ist ein STRUKTUR-Flag ("das Ereignis fand statt, sonst keine
+ * Angaben" — GEDCOM 5.5.1 `EVENT_DETAIL`/`<<FAMILY_EVENT_STRUCTURE>>`, z. B. `1 MARR Y`),
+ * KEIN anzuzeigender Inhalt. Ungefiltert erscheint er als nacktes „Y" in der Kopfzeile —
+ * am sichtbarsten als „Heirat Y" im Familien-Detail.
+ *
+ * Die Todes-Projektion kennt diese Regel längst (`value='Y'` zählt dort NICHT als „echte
+ * Daten" — person-detail-model.ts / core/model/event.ts §48), aber die GETEILTE
+ * Ereigniszeile zog die strukturgleiche Geschwister-Stelle (MARR/ENGA u. a.) nicht mit.
+ * Deshalb hier ZENTRAL an der einen Render-Stelle (EventLine.svelte), die JEDER Konsument
+ * durchläuft (Person/Familie/Hof/Ort) — statt den Filter in jedem *-detail-model einzeln
+ * zu wiederholen (INV-UI-4, „ALLE Geschwister-Stellen mitziehen").
+ *
+ * Rein ANZEIGE-seitig (wie dedupeAddrNote): der Rohwert im Modell/Export bleibt
+ * unangetastet (LP-1). Vergleich getrimmt; `Y` ist ein GEDCOM-Großbuchstaben-Token.
+ *
+ * Gibt den anzuzeigenden Wert zurück (`''` = nichts zeigen).
+ */
+export function displayEventValue(value: string): string {
+  return value.trim() === 'Y' ? '' : value;
+}
