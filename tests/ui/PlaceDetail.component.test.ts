@@ -647,8 +647,8 @@ describe('PlaceDetail — Quellen als §N-Badges (Spec 21 §10i, INV-UI-4)', () 
     // Das Zitat erscheint zweimal (Spec 21 §10h: pro Ereigniszeile UND — dedupliziert —
     // in der zusammenfassenden Quellen-Sektion). Auf die Quellen-Sektion scopen.
     const citationsSection = container.querySelector('.place-detail__citations') as HTMLElement;
-    const badge = within(citationsSection).getByText('§42');
-    expect(badge.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
+    const label = within(citationsSection).getByText('KB Ochtrup');
+    expect(label.closest('.src-badge')?.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
   });
 });
 

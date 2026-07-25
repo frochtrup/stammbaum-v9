@@ -12,8 +12,25 @@ export function badgeNumber(sourceId: string): string {
   return m ? m[1] : sourceId.replace(/[@]/g, '');
 }
 
-/** `§N`, optional mit Seiten-Suffix `§N·Seite` wenn die Seite kurz genug ist (≤5 Z.). */
-export function badgeLabel(citation: Citation): string {
+/** Obergrenze für die Marken-Beschriftung (Dichte-Kontrakt, ADR-v9-120): ein
+ *  menschenlesbarer Quellenname ist breiter als eine ID — damit die Informationsdichte
+ *  pro Ereigniszeile nicht einbricht (in den echten Daten liegt der Kurzname/Titel im
+ *  Median bei ~37 Zeichen), wird das SICHTBARE Label hart gekappt. Der volle Name steht
+ *  im Tooltip ({@link badgeTitle}); die Insel-Verifikation prüft die reale 3-Quellen-Zeile. */
+export const MAX_BADGE_LABEL = 18;
+
+function truncateLabel(s: string): string {
+  return s.length <= MAX_BADGE_LABEL ? s : `${s.slice(0, MAX_BADGE_LABEL - 1).trimEnd()}…`;
+}
+
+/** Marken-Beschriftung: der menschenlesbare Quellenname (Kurzname bevorzugt, sonst Titel),
+ *  auf {@link MAX_BADGE_LABEL} gekürzt. Nur wenn die Quelle fehlt oder namenlos ist, greift
+ *  der kompakte ID-Fallback `§N` (optional `§N·Seite`, Seite ≤5 Z.). Der volle Name + Seite
+ *  liegt im Tooltip ({@link badgeTitle}). Vorher zeigte die Marke die Datensatz-ID (`§42`) —
+ *  für Menschen bedeutungslos (ADR-v9-120). */
+export function badgeLabel(citation: Citation, source?: Source): string {
+  const name = (source?.abbr || source?.title || '').trim();
+  if (name) return truncateLabel(name);
   const n = `§${badgeNumber(citation.sourceId)}`;
   if (citation.page && citation.page.length <= 5) return `${n}·${citation.page}`;
   return n;

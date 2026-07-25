@@ -35,11 +35,11 @@
       use:tooltip={tip}
       onclick={() => onSelect(citation.sourceId)}
     >
-      {badgeLabel(citation)}<QuayMeter quay={citation.quay} />
+      <span class="src-badge__label">{badgeLabel(citation, source)}</span><QuayMeter quay={citation.quay} />
     </button>
   {:else}
     <span class="src-badge" aria-label={tip} use:tooltip={tip}>
-      {badgeLabel(citation)}<QuayMeter quay={citation.quay} />
+      <span class="src-badge__label">{badgeLabel(citation, source)}</span><QuayMeter quay={citation.quay} />
     </span>
   {/if}
   {#if href}
@@ -82,6 +82,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.28em;
+    max-width: 100%;
     font-size: 0.62rem;
     line-height: 1;
     padding: 0.2em 0.45em;
@@ -90,6 +91,16 @@
     color: var(--stb-gold-light);
     background: var(--stb-surface-3);
     border: 1px solid var(--stb-gold-dim);
+  }
+
+  /* Dichte-Schutz zusätzlich zur Zeichen-Kappung in badgeLabel (ADR-v9-120): auf schmalen
+     Zeilen bindet die CSS-Ellipse die sichtbare Breite responsiv, der volle Name bleibt im
+     Tooltip. Der Meter (Geschwister) bleibt davon unberührt sichtbar. */
+  .src-badge__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 11em;
   }
 
   button.src-badge--clickable {

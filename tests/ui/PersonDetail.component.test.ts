@@ -41,11 +41,13 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
 
     render(PersonDetail, { props: { appState, viewState } });
 
-    const badge = screen.getByText('§42');
-    // Beweiskraft steckt jetzt im Meter (ADR-v9-118), nicht in der Pillen-Farbklasse.
-    expect(badge.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
-    // Tooltip-Text liegt jetzt auf aria-label (geteilter tooltip-Action statt nativem title).
-    expect(badge.getAttribute('aria-label')).toBe('KB Ochtrup');
+    // Marke zeigt jetzt den lesbaren Quellennamen (ADR-v9-120), nicht §42.
+    const label = screen.getByText('KB Ochtrup');
+    const pill = label.closest('.src-badge')!;
+    // Beweiskraft steckt im Meter (ADR-v9-118), nicht in der Pillen-Farbklasse.
+    expect(pill.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
+    // Tooltip-Text liegt auf aria-label (geteilter tooltip-Action statt nativem title).
+    expect(pill.getAttribute('aria-label')).toBe('KB Ochtrup');
   });
 
   it('zeigt einen CoordIndicator + OpenStreetMap-Link, wenn das Ereignis Koordinaten hat (ADR-v9-80 Punkt 2)', () => {
@@ -215,7 +217,7 @@ describe('PersonDetail — Ort-Link + CoordIndicator in EINER Ereigniszeile (ADR
 
     render(PersonDetail, { props: { appState, viewState } });
 
-    const badge = screen.getByText('§42');
+    const badge = screen.getByText('KB Ochtrup');
     expect(badge.closest('.event-line__head')).toBeTruthy();
   });
 });

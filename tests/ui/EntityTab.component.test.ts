@@ -146,7 +146,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     render(EntityTab, { props: { appState, viewState, route: createRoute() } });
 
-    await fireEvent.click(screen.getByText('§1'));
+    await fireEvent.click(screen.getByText('KB Ochtrup'));
 
     const sourceTabs = screen.getAllByRole('tab', { name: 'Quellen' });
     expect(sourceTabs.some((tab) => tab.getAttribute('aria-selected') === 'true')).toBe(true);
