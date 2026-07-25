@@ -17,6 +17,7 @@
     "check:arch": "node tests/arch-boundary/check-arch-boundary.mjs",
     "check:csp": "node tests/csp/check-csp.mjs",
     "handbuch": "node tools/handbuch/build-handbook.mjs",
+    "handbuch:text-review": "node tools/handbuch/text-review.mjs",
     "handbuch:anon": "node tools/handbuch/anonymize-ged.mjs"
   },
   "devDependencies": {

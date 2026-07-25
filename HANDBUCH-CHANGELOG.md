@@ -11,6 +11,11 @@ Zeile, die von Hand eingetragen werden muss — zwischenzeitliche Code-Änderung
 automatisch berücksichtigt. Optional lässt sich mit `--notes "…"` eine rein
 redaktionelle Zusatzzeile ergänzen; `--dry-run` zeigt den Eintrag vorab.
 
+Der **Handbuch-Text** (`HANDBUCH.html`) wird davon getrennt gepflegt: `npm run
+handbuch:text-review` (läuft auch am Anfang jedes Baus) erkennt, welche Features neue
+Prosa brauchen und weist sie einem Abschnitt zu — die Anpassung erfolgt dann von Hand
+bzw. per Agent (Skill `/handbuch-build`).
+
 Die Illustrationen entstehen aus einer **anonymisierten** Beispieldatei
 (`tools/handbuch/fixtures/demo-rich.anon.ged`) — reichhaltig, aber ohne echte
 Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).

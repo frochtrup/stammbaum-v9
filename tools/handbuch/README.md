@@ -5,9 +5,28 @@ laufenden App, illustriert mit einer **anonymisierten, reichhaltigen** Beispield
 
 ## Schnellstart
 ```bash
-npm run handbuch
+npm run handbuch:text-review   # 1) welche Features brauchen neuen TEXT? → Prosa anpassen
+npm run handbuch               # 2) Screenshots + Version + Changelog (zeigt den Bericht erneut)
 ```
 Danach den Diff prüfen und bewusst committen (siehe Skill `/handbuch-build`).
+
+## Zwei Ebenen der Aktualisierung
+Ein Handbuch-Update hat **zwei** Teile, die nicht verwechselt werden dürfen:
+
+1. **Screenshots + Changelog + Version** — *vollautomatisch* (`npm run handbuch`, s. u.).
+2. **Prosa** (`HANDBUCH.html`-Text) — *nicht* automatisierbar (Deutsch schreiben ist eine
+   Urteilsfrage). Aber der **Bedarf** wird automatisch erkannt und pro Feature einem Abschnitt
+   zugewiesen; die Umsetzung erledigt der Agent/Mensch anhand dieses Berichts.
+
+## Textabgleich: Prosa-Bedarf erkennen (`text-review.mjs`)
+`npm run handbuch:text-review` listet alle user-relevanten Commits seit dem letzten
+Handbuch-Bau (dasselbe Fenster wie der Changelog) und weist jedem per Schlüsselwort-Heuristik
+den **wahrscheinlich betroffenen Handbuch-Abschnitt** zu — plus BL-/ADR-Referenzen und den
+Hinweis „Thema existiert (anpassen)" vs. „evtl. neu (ergänzen)". Der Bericht läuft auch am
+**Anfang jedes `npm run handbuch`** automatisch mit (unterdrückbar via `--skip-text-review`).
+Er *blockiert nicht* — die Prosa-Edits liegen zum Bauzeitpunkt oft schon uncommittet vor.
+Standard-Exit ist 0 (freundlich); mit `--exit-code` liefert er die Zahl offener Punkte
+zurück (CI-/Prozess-Gate). Die Abschnitts-Heuristik lebt in `changes.mjs` (`SECTION_MAP`).
 
 ## Changelog: automatisch aus git (kein manueller Kanal)
 Der Orchestrator erzeugt den [`HANDBUCH-CHANGELOG.md`](../../HANDBUCH-CHANGELOG.md)-Eintrag
@@ -32,7 +51,9 @@ Handbuch-**Text** (`HANDBUCH.html`) will bei Bedarf noch von Hand nachgezogen we
 |-------|-------|
 | `anonymize-ged.mjs` | Wandelt eine echte (private) GEDCOM in eine anonymisierte Beispieldatei: Personennamen werden deterministisch pseudonymisiert (gleicher Name → gleiches Pseudonym), Foto-/Dateipfade neutralisiert. **Erhalten bleiben** Struktur, Daten, Verwandtschaft, Quellen und die **reale Ortsgeografie** (öffentlich; die Verknüpfung Ort/Hof → reale Person ist durch die Pseudonymisierung ohnehin gekappt). |
 | `capture.mjs` | Fährt die App headless (puppeteer-core + System-Chrome), seedt den Orts-Spiegel und etwas Forschungsdaten und schießt alle `handbuch-assets/*.png`. |
-| `build-handbook.mjs` | Orchestrator: demo.ged umlegen → Dev-Server → capture → aufräumen → Version-Bump, **Changelog automatisch aus git** (s. o.), HTML-Stempel. |
+| `changes.mjs` | Geteilte git-Analyse (Änderungsfenster, Commit-Auswahl, Abschnitts-Heuristik `SECTION_MAP`) — EINE Quelle für Changelog **und** Textabgleich. |
+| `text-review.mjs` | Textabgleich-Bericht: welche Features seit dem letzten Bau brauchen neue **Prosa**, und in welchem Abschnitt. |
+| `build-handbook.mjs` | Orchestrator: Textabgleich zeigen → demo.ged umlegen → Dev-Server → capture → aufräumen → Version-Bump, **Changelog automatisch aus git** (s. o.), HTML-Stempel. |
 | `fixtures/demo-rich.anon.ged` | Die **committefähige** anonymisierte Beispieldatei (≈2.800 Personen). |
 | `fixtures/orte.json` | Orts-Anreicherung (Koordinaten/Hierarchien) — öffentliche Geografie, für Kartenmarker. |
 | `handbuch.version.json` | Aktuelle Handbuch-Version (Minor-Bump je Lauf) + `builtAtCommit` (informativ). |

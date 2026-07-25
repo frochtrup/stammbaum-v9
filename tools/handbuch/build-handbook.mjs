@@ -17,17 +17,25 @@
 // app/ui/core/services) werden automatisch aufgelistet. Nichts wird committet — der Nutzer
 // prüft den Diff und committet bewusst.
 //
-// Optionen:  --dry-run      nur anzeigen, was ins Changelog käme (schreibt nichts)
-//            --notes "a ;; b"  optionale, rein redaktionelle Zusatzzeile(n) (mit ' ;; ' getrennt)
-//            --since <ref>  Basis-Commit übersteuern (statt „letzter HANDBUCH.html-Commit")
-//            --all-commits  auch Nicht-feat/fix/perf-Commits im Fenster aufnehmen
-//            --version X.Y  Version explizit setzen (sonst Minor-Bump)
-//            --skip-capture nur Version/Changelog aktualisieren (kein Server/Screenshots)
+// Zu Beginn läuft der TEXT-ABGLEICH (tools/handbuch/text-review.mjs): er listet die Features
+// seit dem letzten Bau und den vermutlich betroffenen Handbuch-Abschnitt — damit die PROSA
+// (nicht nur die Screenshots) nachgezogen wird. Er blockiert nicht (Edits liegen oft schon
+// uncommittet vor); die Anpassung erledigt der Agent/Mensch nach Skill /handbuch-build.
+//
+// Optionen:  --dry-run         nur anzeigen, was ins Changelog käme (schreibt nichts)
+//            --notes "a ;; b"   optionale, rein redaktionelle Zusatzzeile(n) (mit ' ;; ' getrennt)
+//            --since <ref>      Basis-Commit übersteuern (statt „letzter HANDBUCH.html-Commit")
+//            --all-commits      auch Nicht-feat/fix/perf-Commits im Fenster aufnehmen
+//            --skip-text-review den Text-Abgleich-Bericht am Anfang unterdrücken
+//            --version X.Y      Version explizit setzen (sonst Minor-Bump)
+//            --skip-capture     nur Version/Changelog aktualisieren (kein Server/Screenshots)
 
-import { spawn, execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, copyFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { resolveBase, collectCommits, git as gitIn } from './changes.mjs';
+import { gatherTextReview, printTextReview } from './text-review.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..', '..');
@@ -53,6 +61,16 @@ if (!existsSync(FIX)) die(`Anonymisierte Fixture fehlt: ${FIX}\n  → zuerst: no
 if (!existsSync(HTML)) die(`HANDBUCH.html fehlt: ${HTML}`);
 try { await import('puppeteer-core'); } catch { die('puppeteer-core fehlt → npm install -D puppeteer-core'); }
 if (!has('--skip-capture') && !existsSync(CHROME)) die(`Chrome nicht gefunden: ${CHROME} (CHROME_PATH setzen)`);
+
+// --- 1b. Textabgleich zuerst zeigen: welche Features brauchen NEUEN TEXT, nicht nur neue
+// Screenshots? Rein informativ (blockiert nicht — die Prosa-Edits liegen zum Bauzeitpunkt oft
+// schon uncommittet im Arbeitsbaum). Die eigentliche Anpassung erledigt der Agent/Mensch nach
+// dem Skill /handbuch-build; hier wird der Bedarf sichtbar gemacht, nicht auf Erinnerung gebaut.
+let openTextPoints = 0;
+if (!has('--skip-text-review')) {
+  openTextPoints = printTextReview(gatherTextReview({ since: arg('--since', ''), includeAll: has('--all-commits') }));
+  if (openTextPoints > 0) log(`Hinweis: ${openTextPoints} Punkt(e) für Text-Abgleich — vor dem Commit prüfen, dass HANDBUCH.html sie abdeckt.`);
+}
 
 let viteProc = null;
 let demoSwapped = false;
@@ -104,33 +122,11 @@ const nextVersion = arg('--version', bumpMinor(vinfo.version));
 const today = new Date().toISOString().slice(0, 10);
 const dryRun = has('--dry-run');
 
-function git(cmd) { try { return execSync(`git ${cmd}`, { cwd: REPO, encoding: 'utf8' }).trim(); } catch { return ''; } }
-
-// Basis: der letzte COMMIT, der HANDBUCH.html verändert hat = der letzte Handbuch-Bau.
-// Dieser Lauf stempelt HANDBUCH.html nur im Arbeitsbaum (kein Commit), `git log` sieht also
-// den vorigen Bau. Damit ergibt sich das Änderungsfenster OHNE ein manuell gepflegtes Feld
-// und ohne manuell gepflegtes Changelog — genau die Commits seit dem letzten Handbuch.
-// Übersteuerbar mit `--since <ref>`.
-const base = arg('--since', '') || git('log -1 --format=%H -- HANDBUCH.html');
-
-// Relevante Code-Änderungen im Fenster base..HEAD sammeln. Pfad-Filter (nur echter App-Code)
-// plus Typ-Filter (feat/fix/perf) — `--all-commits` hebt den Typ-Filter auf.
-const APP_PATHS = 'app ui core services';
-const includeAll = has('--all-commits');
-const TYPE = /^(feat|fix|perf)(\(|:|!)/i;
-const bullets = [];
-if (base) {
-  const raw = git(`log --no-merges --pretty=format:%h%x1f%s ${base}..HEAD -- ${APP_PATHS}`);
-  for (const line of raw ? raw.split('\n') : []) {
-    const i = line.indexOf('\x1f');
-    if (i < 0) continue;
-    const hash = line.slice(0, i);
-    const subj = line.slice(i + 1).trim();
-    if (!subj) continue;
-    if (!includeAll && !TYPE.test(subj)) continue;
-    bullets.push(`- ${subj} (\`${hash}\`)`);
-  }
-}
+// Fenster + relevante Commits kommen aus dem geteilten Modul (dieselbe Quelle wie der
+// Text-Abgleich oben) — kein manuell gepflegtes Feld, kein manuell gepflegtes Changelog.
+const base = resolveBase(REPO, arg('--since', ''));
+const commits = collectCommits(REPO, base, { includeAll: has('--all-commits') });
+const bullets = commits.map((c) => `- ${c.subject} (\`${c.hash}\`)`);
 // Optionale, rein handbuch-redaktionelle Zusatzzeile (z. B. „Screenshot verbessert") — die
 // EINZIGE manuelle Eingabe, und sie ist optional. Mehrere via " ;; " trennen.
 for (const n of arg('--notes', '').split(' ;; ').map((s) => s.trim()).filter(Boolean)) {
@@ -166,7 +162,8 @@ html = html.replace(/Version \d+(?:\.\d+)? · Stand [^<]+/g, stamp);
 writeFileSync(HTML, html);
 
 // Versionsdatei fortschreiben (builtAtCommit rein informativ; die Basis kommt aus git log).
-writeFileSync(VFILE, JSON.stringify({ version: nextVersion, date: today, builtAtCommit: git('rev-parse HEAD') || null }, null, 2) + '\n');
+writeFileSync(VFILE, JSON.stringify({ version: nextVersion, date: today, builtAtCommit: gitIn(REPO, 'rev-parse HEAD') || null }, null, 2) + '\n');
 
 log(`Handbuch auf ${stamp} gestempelt. Changelog aus ${bullets.length} Commit(s)/Notiz(en) erzeugt.`);
+if (openTextPoints > 0) log(`ERINNERUNG: ${openTextPoints} Feature(s) im Fenster — vor dem Commit sicherstellen, dass HANDBUCH.html den TEXT dazu enthält (Bericht oben).`);
 log('Fertig. Bitte Diff prüfen und bewusst committen (Handbuch + Assets + Changelog).');
