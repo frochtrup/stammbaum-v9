@@ -74,6 +74,12 @@ Fixture verifizieren (reichste Person mit vielen Ereignissen für die Detail-Scr
   Sanduhr, Karte-Personen, Zeitleiste, Desktop-Liste) zeigen bewusst eine **verstorbene**
   Person (`RICH_PERSON` in `capture.mjs`, aktuell @I3@ †1997). Beim Wechsel der Fixture eine
   neue verstorbene, ereignisreiche Person wählen.
+- **„Nach oben"-Navigation bleibt erhalten.** `HANDBUCH.html` trägt eine schwebende
+  Schaltfläche zurück zum Inhaltsverzeichnis (`id="to-top"`) — bewusst *inhaltsunabhängig*
+  (ein festes Element, kein Marker je Kapitel), damit sie bei neuen Kapiteln automatisch
+  wirksam bleibt, ohne Nachpflegen. `build-handbook.mjs` **erzwingt** ihr Vorhandensein als
+  Vorbedingung: fehlt `id="to-top"`, bricht der Lauf ab. Ein Handbuch-Umbau darf sie also
+  nicht still entfernen.
 - Läuft **lokal** (System-Chrome, Dev-Server) — nicht in CI.
 
 ## Lessons Learnt (Screenshot-Pipeline)

@@ -12,7 +12,7 @@
     --app-card: #ffffff;
     --app-border: #ddd8cc;
     --text-main: #2a2218;
-    --text-dim: #8a7a5a;
+    --text-dim: #7a6a48;
     --pink: #c26080;
     --blue: #5080c2;
     --green: #4a8a4a;
@@ -43,7 +43,7 @@
   .cover h1 { font-size: 2.8em; color: var(--gold); margin: 0 0 0.2em; letter-spacing: 2px; }
   .cover .subtitle { font-size: 1.35em; color: var(--text-dim); margin-bottom: 1.6em; }
   .cover .version {
-    font-size: 1em; color: var(--gold-light);
+    font-size: 1em; color: var(--accent);
     border: 1px solid var(--gold); padding: 6px 20px;
     border-radius: 20px; margin-bottom: 2.4em;
   }
@@ -93,6 +93,10 @@
   /* Screenshots */
   .shot-row { display: flex; gap: 30px; align-items: flex-start; margin: 1.4em 0 1.8em; flex-wrap: wrap; }
   .shot-row .prose { flex: 1; min-width: 240px; }
+  /* Zwei-Phone-Reihen: die Prosa (mit ihrer erklärenden Überschrift) zuerst über
+     voller Breite, die beiden Screenshots darunter nebeneinander — sonst rutscht die
+     Überschrift unter die Bilder, die sie eigentlich einführt. */
+  .shot-row.pair .prose { flex-basis: 100%; order: -1; }
   figure.phone {
     width: 260px; flex-shrink: 0; margin: 0;
     background: #d9d4c8; border: 5px solid #bfb8a6; border-radius: 26px;
@@ -124,7 +128,7 @@
   ol.steps { counter-reset: step; padding: 0; list-style: none; margin: 1em 0; }
   ol.steps li { counter-increment: step; display: flex; gap: 14px; margin: 0.7em 0; align-items: flex-start; }
   ol.steps li::before {
-    content: counter(step); background: var(--gold); color: white;
+    content: counter(step); background: var(--accent); color: white;
     min-width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.82em; font-weight: bold; flex-shrink: 0; margin-top: 3px;
@@ -145,6 +149,30 @@
   hr { border: none; border-top: 1px solid var(--app-border); margin: 2.4em 0; }
   .muted { color: var(--text-dim); font-size: 0.9em; }
   footer { text-align: center; color: var(--text-dim); font-size: 0.85em; margin-top: 3em; padding-top: 1.4em; border-top: 1px solid var(--app-border); }
+
+  /* „Nach oben"-Navigation: eine schwebende Schaltfläche zurück zum Inhaltsverzeichnis.
+     Bewusst INHALTSUNABHÄNGIG — ein einziges festes Element, kein Marker je Kapitel;
+     damit bleibt sie bei neuen Kapiteln automatisch wirksam (kein Nachpflegen). */
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  #toc { scroll-margin-top: 16px; }
+  #to-top {
+    position: fixed; right: 22px; bottom: 22px; z-index: 50;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px 9px 13px; border-radius: 22px;
+    background: var(--accent); color: #fff; text-decoration: none;
+    font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 0.9em; font-weight: bold;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  #to-top:hover { background: #543c17; }
+  #to-top .arrow { font-size: 1.1em; line-height: 1; }
+  @media (max-width: 520px) {
+    #to-top { right: 14px; bottom: 14px; padding: 10px 13px; }
+    #to-top .label { display: none; }   /* auf schmalen Geräten nur der Pfeil */
+  }
+  @media print { #to-top { display: none !important; } }
 </style>
 </head>
 <body>
@@ -163,7 +191,7 @@
 
 <div class="content">
 
-<div class="toc">
+<div class="toc" id="toc">
   <h2>Inhaltsverzeichnis</h2>
   <ol>
     <li><a href="#k1">Was ist Stammbaum?</a></li>
@@ -385,7 +413,7 @@
   </figure>
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/02-person-filter.png" alt="Filter-Panel mit Geschlecht, Geburtsjahr, Ort und Lücken-Filtern">
     <figcaption>Der Filter blendet gezielt ein oder aus</figcaption>
@@ -521,7 +549,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k5">5. Familien</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/06-familienliste.png" alt="Familienliste mit Ehepaaren">
     <figcaption>Die Familienliste</figcaption>
@@ -553,7 +581,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k6">6. Quellen und Archive</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <div class="prose">
     <p>
       Quellen belegen Ihre Angaben. Der Bereich <strong>Quellen</strong> hat zwei
@@ -796,7 +824,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k8">8. Höfe</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/12-hoefeliste.png" alt="Höfe-Liste gruppiert nach Dorf mit Straße und Hausnummer">
     <figcaption>Höfe nach Dorf, Straße und Hausnummer</figcaption>
@@ -956,7 +984,7 @@
   Projekte bleiben auf diesem Gerät und reisen <em>nicht</em> mit der Genealogie-Datei.
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <div class="prose">
     <h2>Aufgaben und Kanban-Board</h2>
     <p>
@@ -980,7 +1008,7 @@
   </figure>
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/22-hypothesen.png" alt="Hypothesen-Liste mit Status, Konfidenz und Beweisführung">
     <figcaption>Hypothesen mit Status und Konfidenz</figcaption>
@@ -1619,5 +1647,28 @@
 </footer>
 
 </div>
+
+<a id="to-top" href="#toc" aria-label="Zurück zum Inhaltsverzeichnis">
+  <span class="arrow" aria-hidden="true">↑</span><span class="label">Inhalt</span>
+</a>
+<noscript><style>#to-top { opacity: 1; transform: none; pointer-events: auto; }</style></noscript>
+<script>
+  // „Nach oben": erscheint, sobald das Deckblatt weitgehend weggescrollt ist, und springt
+  // zum Inhaltsverzeichnis. Inhaltsunabhängig — ein festes Element, kein Marker je Kapitel;
+  // bleibt bei neuen Kapiteln automatisch wirksam. Ohne JS zeigt <noscript> es dauerhaft.
+  (function () {
+    var btn = document.getElementById('to-top');
+    if (!btn) return;
+    var cover = document.querySelector('.cover');
+    function limit() { return cover ? cover.offsetHeight * 0.6 : 400; }
+    function update() {
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      btn.classList.toggle('show', y > limit());
+    }
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+  })();
+</script>
 </body>
 </html>

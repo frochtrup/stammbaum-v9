@@ -59,6 +59,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // --- 1. Vorbedingungen ---
 if (!existsSync(FIX)) die(`Anonymisierte Fixture fehlt: ${FIX}\n  → zuerst: node tools/handbuch/anonymize-ged.mjs <quelle.ged> ${FIX}`);
 if (!existsSync(HTML)) die(`HANDBUCH.html fehlt: ${HTML}`);
+// Die „Nach oben"-Navigation ist fester Bestandteil des Handbuchs (inhaltsunabhängige,
+// schwebende Schaltfläche — bleibt bei neuen Kapiteln automatisch wirksam). Ein späterer
+// Umbau darf sie nicht STILL entfernen: hier erzwungen statt nur dokumentiert. Siehe README.
+if (!/id="to-top"/.test(readFileSync(HTML, 'utf8')))
+  die('„Nach oben"-Navigation fehlt in HANDBUCH.html (Element id="to-top"). Sie muss erhalten bleiben — siehe tools/handbuch/README.md („Wichtig").');
 try { await import('puppeteer-core'); } catch { die('puppeteer-core fehlt → npm install -D puppeteer-core'); }
 if (!has('--skip-capture') && !existsSync(CHROME)) die(`Chrome nicht gefunden: ${CHROME} (CHROME_PATH setzen)`);
 
