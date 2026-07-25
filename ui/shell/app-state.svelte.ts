@@ -23,13 +23,13 @@ import type { PlaceObject, HofObject } from '../../core/places';
 import {
   makeDatabase,
   savePerson as savePersonCmd,
-  deletePerson as deletePersonCmd,
+  deletePersonCascade as deletePersonCmd,
   saveFamily as saveFamilyCmd,
-  deleteFamily as deleteFamilyCmd,
+  deleteFamilyCascade as deleteFamilyCmd,
   saveSource as saveSourceCmd,
-  deleteSource as deleteSourceCmd,
+  deleteSourceCascade as deleteSourceCmd,
   saveRepository as saveRepositoryCmd,
-  deleteRepository as deleteRepositoryCmd,
+  deleteRepositoryCascade as deleteRepositoryCmd,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -141,16 +141,21 @@ export interface AppState {
    * bleibt dadurch nach jedem Save aktuell (Spec 14 §3.1).
    */
   savePerson(model: Person): void;
-  /** Kommando: entfernt eine Person (per id, keine Kaskade — analog deletePlace). */
+  /**
+   * Kommando: entfernt eine Person referenz-auflösend (`deletePersonCascade`) — aus allen
+   * Familien-Slots/Kindlisten, Assoziationen und Aliassen ausgehängt; eine dadurch völlig
+   * leer werdende Familie wird mitgelöscht. Andere Personen/Ereignisse bleiben bestehen.
+   */
   deletePerson(id: PersonId): void;
   /**
    * Kommando: führt `loserId` in `winnerId` zusammen (BL-103/BL-104, Spec 20 §1.12).
    *
-   * ANDERS als `savePerson` + `deletePerson` hängt der Kern hier ALLE Referenzen auf den
-   * Verlierer um (Family.husband/wife/children, Person.aliases, Association.personRef) —
-   * die naive Kombination hinterlässt gegengeprüft drei Waisen (INV-P2,
-   * `tests/core/merge-persons.test.ts`). Rückgängig über den regulären Undo-Stack, weil
-   * es wie jedes andere Kommando über `commit` läuft.
+   * ANDERS als das referenz-AUFLÖSENDE `deletePerson` (Referenzen werden gelöst/entfernt)
+   * hängt der Merge hier ALLE Referenzen auf den Verlierer auf den GEWINNER um
+   * (Family.husband/wife/children, Person.aliases, Association.personRef) — ein naives
+   * `savePerson(winner)` + nacktes `deletePerson(loser)` (core/model/commands.ts) hinterließe
+   * gegengeprüft drei Waisen (INV-P2, `tests/core/merge-persons.test.ts`). Rückgängig über den
+   * regulären Undo-Stack, weil es wie jedes andere Kommando über `commit` läuft.
    */
   mergePerson(winnerId: PersonId, loserId: PersonId, selections?: MergeSelections): void;
   /**
@@ -173,7 +178,11 @@ export interface AppState {
    * Reaktivität an beiden betroffenen Aggregaten greift (analog addTask/updateTask unten).
    */
   saveFamily(model: Family): void;
-  /** Kommando: entfernt eine Familie (per id, keine Kaskade — analog deleteFamily im Kern). */
+  /**
+   * Kommando: entfernt eine Familie referenz-auflösend (`deleteFamilyCascade`) — die
+   * Person-Seite (parentIn/childOf) aller Beteiligten wird gelöst, die Personen selbst
+   * bleiben bestehen (kein Kaskaden-Löschen).
+   */
   deleteFamily(id: FamilyId): void;
   /**
    * Kommando: Upsert einer Quelle (`saveSource(model)`-Muster, Spec 20 §2). Source ist ein
@@ -181,11 +190,17 @@ export interface AppState {
    * savePlace, KEINE Sync-Logik wie bei saveFamily nötig.
    */
   saveSource(model: Source): void;
-  /** Kommando: entfernt eine Quelle (per id, keine Kaskade — analog deletePlace). */
+  /**
+   * Kommando: entfernt eine Quelle referenz-auflösend (`deleteSourceCascade`) — alle Zitate,
+   * die auf sie zeigen, werden an jeder Träger-Stelle entfernt.
+   */
   deleteSource(id: SourceId): void;
   /** Kommando: Upsert eines Archivs (`saveRepository(model)`-Muster, Spec 20 §2). */
   saveRepository(model: Repository): void;
-  /** Kommando: entfernt ein Archiv (per id, keine Kaskade). */
+  /**
+   * Kommando: entfernt ein Archiv referenz-auflösend (`deleteRepositoryCascade`) — der
+   * repo-Verweis jeder darauf zeigenden Quelle wird gelöst.
+   */
   deleteRepository(id: RepoId): void;
   /**
    * Kommando: Dubletten-Merge — führt EINEN ODER MEHRERE `mergedIds` in `survivorId`
@@ -641,7 +656,10 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit({ ...db, individuals: savePersonCmd(db.individuals, model) }, { workingCopy: true });
     },
     deletePerson(id) {
-      commit({ ...db, individuals: deletePersonCmd(db.individuals, id) }, { workingCopy: true });
+      // Referenz-auflösend: der Kern hängt die Person aus allen Familien/Assoziationen/
+      // Aliassen aus und löscht eine dadurch leer werdende Familie mit — liefert deshalb ein
+      // vollständiges neues Database (deletePersonCascade, ADR-v9-…), nicht nur die Map.
+      commit(deletePersonCmd(db, id), { workingCopy: true });
     },
     applyImport(imported, matches, selections, sourceConfig) {
       const result = applyImportPatchCmd(db, imported, matches, selections, sourceConfig);
@@ -671,13 +689,17 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit({ ...db, sources: saveSourceCmd(db.sources, model) }, { workingCopy: true });
     },
     deleteSource(id) {
-      commit({ ...db, sources: deleteSourceCmd(db.sources, id) }, { workingCopy: true });
+      // Referenz-auflösend: entfernt alle Zitate auf die Quelle an jeder Träger-Stelle
+      // (deleteSourceCascade) → vollständiges neues Database.
+      commit(deleteSourceCmd(db, id), { workingCopy: true });
     },
     saveRepository(model) {
       commit({ ...db, repositories: saveRepositoryCmd(db.repositories, model) }, { workingCopy: true });
     },
     deleteRepository(id) {
-      commit({ ...db, repositories: deleteRepositoryCmd(db.repositories, id) }, { workingCopy: true });
+      // Referenz-auflösend: löst den repo-Verweis jeder darauf zeigenden Quelle
+      // (deleteRepositoryCascade) → vollständiges neues Database.
+      commit(deleteRepositoryCmd(db, id), { workingCopy: true });
     },
     linkEventToPlace(event, placeId) {
       const ctx = placeContext;

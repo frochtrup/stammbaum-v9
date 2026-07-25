@@ -12,6 +12,7 @@
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
@@ -431,6 +432,16 @@
         </ul>
       </section>
     {/if}
+
+    <DeleteEntityButton
+      label="Person löschen"
+      message={`Person „${displayName(detail.person) || detail.person.id}" wirklich löschen? Sie wird aus allen Familien, Assoziationen und Patenschaften entfernt; eine dadurch leer werdende Familie wird mitgelöscht. Andere Personen und Ereignisse bleiben bestehen.`}
+      onConfirm={() => {
+        appState.deletePerson(detail.person.id);
+        editing = false;
+        onBack?.();
+      }}
+    />
   {/if}
 </div>
 

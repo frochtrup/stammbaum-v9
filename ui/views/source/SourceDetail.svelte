@@ -8,6 +8,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import { buildSourceDetail, hasPageContent, type SourceReferenceRow } from './source-detail-model';
   import { quayClassFor } from '../../shell/source-badge';
   import EventsByType from '../../shell/EventsByType.svelte';
@@ -132,6 +133,16 @@
         <EventsByType groups={detail.referencesByType} row={refRow} resetKey={sourceId} />
       {/if}
     </section>
+
+    <DeleteEntityButton
+      label="Quelle löschen"
+      message={`Quelle „${detail.source.abbr || detail.source.title || detail.source.id}" wirklich löschen? Alle Zitate auf diese Quelle werden entfernt (die zitierenden Personen/Familien/Ereignisse selbst bleiben bestehen).`}
+      onConfirm={() => {
+        appState.deleteSource(detail.source.id);
+        editing = false;
+        onBack?.();
+      }}
+    />
   {/if}
 </div>
 

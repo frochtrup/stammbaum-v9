@@ -15,6 +15,7 @@
   import { isEventPresent } from '../../../core/model';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
@@ -359,6 +360,15 @@
         </div>
       </section>
     {/if}
+
+    <DeleteEntityButton
+      label="Familie löschen"
+      message={`Familie „${detail.label}" wirklich löschen? Die zugeordneten Personen (Eltern/Kinder) bleiben bestehen und verlieren nur diese Familienzugehörigkeit.`}
+      onConfirm={() => {
+        appState.deleteFamily(detail.family.id);
+        onBack?.();
+      }}
+    />
 
     {#if modal && modalEvent}
       <EventEditModal

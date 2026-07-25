@@ -55,3 +55,9 @@ export {
   saveRepository,
   deleteRepository,
 } from './commands';
+export {
+  deletePersonCascade,
+  deleteFamilyCascade,
+  deleteSourceCascade,
+  deleteRepositoryCascade,
+} from './delete-cascade';
