@@ -12,6 +12,7 @@
   import '../../islands/tree/hourglass-tree.css';
   import { mountHourglassTree, type TreeIslandHandle } from '../../islands/tree/hourglass-tree';
   import { mountDescendantTree } from '../../islands/tree/descendant-tree';
+  import { mountFanChart } from '../../islands/tree/fan-chart';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { Route } from '../../shell/route.svelte';
@@ -47,6 +48,7 @@
   const TREE_MODES = [
     { id: 'hourglass', label: 'Sanduhr' },
     { id: 'descendant', label: 'Nachkommen' },
+    { id: 'fan', label: 'Fächer' },
   ];
 
   function firstAvailablePersonId(): string | null {
@@ -64,9 +66,9 @@
       onSelectCenter: (pid: string) => onOpenPersonDetail?.(pid),
       onSelectFamily: (fid: string) => onNavigateToFamily?.(fid),
     };
-    return mode === 'descendant'
-      ? mountDescendantTree(container, db, id, callbacks)
-      : mountHourglassTree(container, db, id, callbacks);
+    if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks);
+    if (mode === 'fan') return mountFanChart(container, db, id, callbacks);
+    return mountHourglassTree(container, db, id, callbacks);
   }
 
   $effect(() => {

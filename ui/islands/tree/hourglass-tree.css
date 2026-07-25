@@ -201,3 +201,46 @@
   font-size: 0.6rem;
   color: var(--stb-gold-dim);
 }
+
+/* ── Fächer-Diagramm (BL-123): Halbkreis-Segmente + Proband-Kreis, theme-treu über die
+   geteilten Geschlechts-Tokens (Spec 21 §7, M blau / F rosa), Generations-Abstufung über
+   `fill-opacity` aus dem Layout. ── */
+.tree-island__fan-seg {
+  stroke: var(--stb-bg);
+  stroke-width: 1.5;
+  fill: var(--stb-surface-3);
+}
+.tree-island__fan-seg[data-sex='M'] {
+  fill: var(--stb-sex-m);
+}
+.tree-island__fan-seg[data-sex='F'] {
+  fill: var(--stb-sex-f);
+}
+.tree-island__fan-seg--empty {
+  fill: var(--stb-surface-1);
+  fill-opacity: 0.5;
+}
+.tree-island__fan-seg[data-person-id]:hover {
+  fill-opacity: 1;
+}
+
+.tree-island__fan-proband {
+  stroke: var(--stb-bg);
+  stroke-width: 2;
+  fill: var(--stb-surface-3);
+}
+.tree-island__fan-proband[data-sex='M'] {
+  fill: var(--stb-sex-m);
+}
+.tree-island__fan-proband[data-sex='F'] {
+  fill: var(--stb-sex-f);
+}
+
+.tree-island__fan-text {
+  fill: var(--stb-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  pointer-events: none;
+}
+.tree-island__fan-text--dim {
+  fill: var(--stb-text-dim);
+}
