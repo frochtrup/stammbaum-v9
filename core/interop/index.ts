@@ -38,6 +38,8 @@ export { transformGed7 } from './ged7-adapter';
 export { stripStrict } from './strict-adapter';
 export { buildLivingSet, anonymizeIndi, anonymizeFam, anonymizeDoc } from './anonymize';
 
+export { modelEquiv, type Diff } from './model-equiv';
+
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
 export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';
