@@ -102,6 +102,46 @@ function einfuegePosition(children: XmlNode[], ordnung: string[], tag: string): 
   return nach || children.length;
 }
 
+// ── Passthrough-Übernahme beim Merge (BL-165, ADR-v9-129) ───────────────────────────────
+/** Byte-strukturelle Gleichheit zweier XmlNodes (Tag/Text/Attribute-in-Reihenfolge/Kinder). */
+function xmlNodeEqual(a: XmlNode, b: XmlNode): boolean {
+  if (a.tag !== b.tag || a.text !== b.text || a.attrs.length !== b.attrs.length || a.children.length !== b.children.length) return false;
+  for (let i = 0; i < a.attrs.length; i++) if (a.attrs[i][0] !== b.attrs[i][0] || a.attrs[i][1] !== b.attrs[i][1]) return false;
+  for (let i = 0; i < a.children.length; i++) if (!xmlNodeEqual(a.children[i], b.children[i])) return false;
+  return true;
+}
+
+/** Un-modellierter, referenz-FREIER `<person>`-Passthrough der absorbierten Verlierer-Records.
+ *  Ausgeschlossen: `gender`/`name` (modelliert) und alle `hlink`-Referenzen (eventref/citationref/
+ *  childof/…) — die sind entweder modell-gemergt oder family-seitig behandelt, nicht blind kopierbar. */
+function collectGrampsPersonCarry(ids: string[] | undefined, byKey: Map<string, XmlNode>): XmlNode[] {
+  if (!ids || ids.length === 0) return [];
+  const out: XmlNode[] = [];
+  for (const id of ids) {
+    const rec = byKey.get(id);
+    if (!rec) continue; // schon materialisiert / nicht mehr im Baum → No-Op
+    for (const c of rec.children) {
+      if (c.tag === 'gender' || c.tag === 'name') continue;
+      if (attr(c, 'hlink')) continue;
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+/** Hängt den Verlierer-Passthrough an DTD-korrekter Position an, byte-strukturell dedupliziert
+ *  (kumulativ gegen den wachsenden Satz). Alle betroffenen Person-Passthrough-Elemente
+ *  (`attribute`/`url`/`address`/`lds_ord`) sind {0:M} → kein Kardinalitäts-1-Konflikt. */
+function appendGrampsCarry(children: XmlNode[], carried: XmlNode[], ordnung: string[]): XmlNode[] {
+  let result = children;
+  for (const c of carried) {
+    if (result.some((x) => xmlNodeEqual(x, c))) continue;
+    result = [...result];
+    result.splice(einfuegePosition(result, ordnung, c.tag), 0, c);
+  }
+  return result;
+}
+
 /**
  * Setzt ein Text-Element auf `wert`: vorhandenes Element an seiner Stelle aktualisieren,
  * fehlendes an der DTD-Position einfügen, leeres entfernen. Vorhandene Attribute und
@@ -908,12 +948,21 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   const index = buildWriteIndex(root, db);
   const wb = assignNewIds(db, root, index); // neue Event-/Zitat-ids+Handles, füllt den Index
 
+  // BL-165: `<person>`-Nodes nach id indizieren, um den Passthrough per Dedup absorbierter
+  // Verlierer (Person.mergedRecordIds) aus dem EINGANGS-Baum zu holen (solange sie da stehen).
+  const personNodes = new Map<string, XmlNode>();
+  for (const n of firstChild(root, 'people')?.children ?? []) if (n.tag === 'person') personNodes.set(grampsKey(n), n);
+
   const ersetzt = new Map<string, XmlNode | null>();
   ersetzt.set('people', verarbeiteSektion(root, {
     section: 'people', item: 'person', map: db.individuals,
     project: projectPerson, gleich: personGleich,
-    gleichNode: (n, cur) => personGleichNode(n, cur, wb),
-    kinder: (orig, cur) => personKinder(orig, cur, wb),
+    // Bei ECHTEM Carry (Verlierer-Passthrough vorhanden) den Identitäts-Fast-Path überspringen,
+    // damit der Passthrough angehängt wird; sonst byte-treu wie bisher.
+    gleichNode: (n, cur) =>
+      collectGrampsPersonCarry(cur.mergedRecordIds, personNodes).length === 0 && personGleichNode(n, cur, wb),
+    kinder: (orig, cur) =>
+      appendGrampsCarry(personKinder(orig, cur, wb), collectGrampsPersonCarry(cur.mergedRecordIds, personNodes), DTD_ORDER.person),
   }));
   ersetzt.set('families', verarbeiteSektion(root, {
     section: 'families', item: 'family', map: db.families,
