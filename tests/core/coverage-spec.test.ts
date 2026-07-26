@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GEDCOM_551_TAGS,
-  GEDCOM_7_ADDITIONS,
+  GEDCOM_70_TAGS,
   GEDCOM_NONSTANDARD_MODELED,
   GRAMPS_172_ELEMENTS,
   GRAMPS_MODELED,
@@ -23,30 +23,37 @@ const sortedDiff = (universe: readonly string[], modeled: ReadonlySet<string>) =
   universe.filter((x) => !modeled.has(x)).sort();
 
 describe('Coverage gegen die öffentliche Spec (BL-162) — GEDCOM', () => {
-  it('Universum ist längen-gepinnt (5.5.1 Appendix A) — Versionswechsel erzwingt Revision', () => {
+  it('Universen sind längen-gepinnt (5.5.1 Appendix A + 7.0 Registry) — Versionswechsel erzwingt Revision', () => {
     expect(GEDCOM_551_TAGS.length).toBe(135);
     expect(uniq(GEDCOM_551_TAGS).size).toBe(135); // keine Duplikate
+    expect(GEDCOM_70_TAGS.length).toBe(141); // BL-163
+    expect(uniq(GEDCOM_70_TAGS).size).toBe(141);
   });
 
-  it('jeder MODELLIERTE Standard-Tag ist im Universum verortet (keine unerklärte Drift)', () => {
-    // Nicht-`_`-Erweiterungstags müssen aus 5.5.1 ODER den 7.0-Zusätzen ODER der bewusst
-    // geführten Nicht-Standard-Liste stammen. Ein Tag, der nirgends verortet ist, ist ein
-    // Fehler (verkappte Erweiterung oder Tippfehler im recognized-Set).
-    const universe = new Set([...GEDCOM_551_TAGS, ...GEDCOM_7_ADDITIONS, ...GEDCOM_NONSTANDARD_MODELED]);
+  it('jeder MODELLIERTE Standard-Tag ist im Universum (5.5.1 ∪ 7.0) verortet (keine unerklärte Drift)', () => {
+    // Nicht-`_`-Erweiterungstags müssen aus 5.5.1 ODER 7.0 ODER der bewusst geführten
+    // Nicht-Standard-Liste stammen. Ein Tag, der nirgends verortet ist, ist ein Fehler
+    // (verkappte Erweiterung oder Tippfehler im recognized-Set).
+    const universe = new Set([...GEDCOM_551_TAGS, ...GEDCOM_70_TAGS, ...GEDCOM_NONSTANDARD_MODELED]);
     const unplaced = [...MODELED_GEDCOM_TAGS].filter((t) => !t.startsWith('_') && !universe.has(t));
     expect(unplaced).toEqual([]);
   });
 
-  it('Coverage-Report: modellierte vs. passthrough-only 5.5.1-Tags (At-Risk bei Cross-Family)', () => {
-    const modeled = GEDCOM_551_TAGS.filter((t) => MODELED_GEDCOM_TAGS.has(t));
-    const passthrough = sortedDiff(GEDCOM_551_TAGS, MODELED_GEDCOM_TAGS);
-    expect(modeled.length + passthrough.length).toBe(GEDCOM_551_TAGS.length); // Partition vollständig
-    // eslint-disable-next-line no-console
-    console.log(
-      `[BL-162] GEDCOM 5.5.1: ${modeled.length}/${GEDCOM_551_TAGS.length} Standard-Tags modelliert, ` +
-        `${passthrough.length} passthrough-only (bei Cross-Family verloren):\n  ${passthrough.join(' ')}`,
-    );
-    expect(passthrough.length).toBeGreaterThan(0); // es GIBT eine At-Risk-Menge (Nenner > Zähler)
+  it('Coverage-Report: modellierte vs. passthrough-only Tags, je 5.5.1 UND 7.0 (At-Risk bei Cross-Family)', () => {
+    for (const [name, universe] of [
+      ['5.5.1', GEDCOM_551_TAGS],
+      ['7.0', GEDCOM_70_TAGS],
+    ] as const) {
+      const modeled = universe.filter((t) => MODELED_GEDCOM_TAGS.has(t));
+      const passthrough = sortedDiff(universe, MODELED_GEDCOM_TAGS);
+      expect(modeled.length + passthrough.length).toBe(universe.length); // Partition vollständig
+      // eslint-disable-next-line no-console
+      console.log(
+        `[BL-162/163] GEDCOM ${name}: ${modeled.length}/${universe.length} Standard-Tags modelliert, ` +
+          `${passthrough.length} passthrough-only (bei Cross-Family verloren):\n  ${passthrough.join(' ')}`,
+      );
+      expect(passthrough.length).toBeGreaterThan(0); // Nenner > Zähler
+    }
   });
 });
 

@@ -14,14 +14,15 @@
 // — dieselbe Instanz, die in der App auch die Bottom-Nav-Markierung speist.
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import type { ComponentProps } from 'svelte';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { makeDatabase } from '../../core/model';
 import { createRoute, type Route } from '../../ui/shell/route.svelte';
 import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { FileService } from '../../services/file/file-service';
 import { PlacesSyncService } from '../../services/places';
-import { createMockAdapterSet } from '../services/mock-adapters';
+import { createMockAdapterSet, createMockPicker } from '../services/mock-adapters';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 import {
@@ -185,6 +186,56 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
     for (const label of ['Karte', 'Zeitleiste', 'Statistik', 'Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy();
+    }
+  });
+});
+
+describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung (ADR-v9-123)', () => {
+  const mockPlacesFileIO = () => ({
+    placesStore: createMockPlacesStore(null),
+    handleStore: createMockPlacesFileHandleStore(),
+    picker: createMockPicker(null),
+  });
+
+  it('ohne geladene Datei: genau EINE Primäraktion, und das ist „Datei öffnen"', () => {
+    const { container } = renderMore(createRoute({ target: 'file' }));
+
+    const primaries = container.querySelectorAll('[data-variant="primary"]');
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0].textContent).toMatch(/Datei öffnen/);
+    // Kein fileName → kein „Speichern" (SaveButton rendert nur mit geladener Datei).
+    expect(screen.queryByText('Speichern')).toBeNull();
+  });
+
+  it('mit geladener Datei: „Speichern" wird primär, „Datei öffnen" sekundär', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    const { container } = renderMore(createRoute({ target: 'file' }), { appState });
+
+    const primaries = container.querySelectorAll('[data-variant="primary"]');
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0].textContent).toMatch(/Speichern/);
+    expect(screen.getByRole('button', { name: /Datei öffnen/ }).getAttribute('data-variant')).toBe('secondary');
+  });
+
+  it('Orte-Aktionen sind sekundär und stehen in der abgesetzten „Orts-Bestand"-Region', () => {
+    renderMore(createRoute({ target: 'file' }), { placesFileIO: mockPlacesFileIO() });
+
+    const region = screen.getByRole('group', { name: /Orts-Bestand/ });
+    const exp = within(region).getByRole('button', { name: /Orte exportieren/ });
+    expect(exp.getAttribute('data-variant')).toBe('secondary');
+    expect(within(region).getByRole('button', { name: /Orte importieren/ })).toBeTruthy();
+    // Die Orte-Aktionen sind NICHT primär (andere Datei, Nebensache).
+    expect(region.querySelector('[data-variant="primary"]')).toBeNull();
+  });
+
+  it('gruppiert nach Funktion: Überschriften Laden/Sichern/Orts-Bestand/Austausch', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    renderMore(createRoute({ target: 'file' }), { appState, placesFileIO: mockPlacesFileIO() });
+
+    for (const name of [/^Laden$/, /^Sichern$/, /Orts-Bestand/, /^Austausch$/]) {
+      expect(screen.getByRole('heading', { name })).toBeTruthy();
     }
   });
 });

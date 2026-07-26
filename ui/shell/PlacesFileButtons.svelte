@@ -74,7 +74,7 @@
 
 <div class="places-file-bar">
   <div class="places-file-bar__action">
-    <button type="button" class="places-file-bar__button" onclick={handleExport} disabled={exportStatus === 'busy'}>
+    <button type="button" class="places-file-bar__button" data-variant="secondary" onclick={handleExport} disabled={exportStatus === 'busy'}>
       {exportStatus === 'busy' ? 'Exportiere …' : 'Orte exportieren'}
     </button>
     {#if exportNotice}
@@ -83,7 +83,7 @@
   </div>
 
   <div class="places-file-bar__action">
-    <button type="button" class="places-file-bar__button" onclick={handleImport} disabled={importStatus === 'busy'}>
+    <button type="button" class="places-file-bar__button" data-variant="secondary" onclick={handleImport} disabled={importStatus === 'busy'}>
       {importStatus === 'busy' ? 'Importiere …' : 'Orte importieren'}
     </button>
     {#if importNotice}
@@ -106,10 +106,12 @@
     flex-wrap: wrap;
   }
 
+  /* Sekundär/outline (ADR-v9-123): der Orts-Bestand ist eine Nebenaktion auf einer ANDEREN
+     Datei — nicht so schwer wie die Primäraktion (Öffnen/Speichern). */
   .places-file-bar__button {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
+    background: transparent;
+    color: var(--stb-gold);
+    border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.5rem 0.9rem;
     font-weight: 600;

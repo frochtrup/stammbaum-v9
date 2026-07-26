@@ -29,12 +29,26 @@ export const GEDCOM_551_TAGS: readonly string[] = [
   'WIFE', 'WILL', 'WWW',
 ];
 
-// ── GEDCOM 7.0-Zusätze, die das Modell handhabt (nicht in 5.5.1) ──
-//   Code-gegründet aus `ged7-adapter.ts` (transformGed7): NOTE→SNOTE, REFN→EXID, sowie
-//   EMAIL (5.5.1: EMAI) und CREA (Erstellungsdatum). KEINE vollständige 7.0-Enumeration —
-//   die authoritative maschinenlesbare 7.0-Quelle ist die FamilySearch-Registry (der HTML-
-//   Summarizer lieferte eine erkennbar unvollständige Liste); volle 7.0-Abdeckung ist offen.
-export const GEDCOM_7_ADDITIONS: readonly string[] = ['SNOTE', 'EXID', 'EMAIL', 'CREA'];
+// ── GEDCOM 7.0 — Standard-Tags (141), aus der maschinenlesbaren FamilySearch-Registry (BL-163) ──
+//   Quelle: github.com/FamilySearch/GEDCOM-registries, `structure/standard/*.yaml` (je Struktur
+//   ein YAML mit `standard tag` + `uri`). Extraktion 2026-07-26 aus dem Repo-Tarball: distinkte
+//   `standard tag` aller Strukturen mit `/v7/`-URI — NICHT via HTML-Summarizer (der lieferte eine
+//   erkennbar unvollständige Liste; BURI/DEAT/GIVN fehlten). Gegengeprüft: alle Modell-7.0-Tags
+//   (SNOTE/EXID/EMAIL/CREA) + INDI/FAM/PHRASE/MIME/SCHMA/UID enthalten.
+export const GEDCOM_70_TAGS: readonly string[] = [
+  'ABBR', 'ADDR', 'ADOP', 'ADR1', 'ADR2', 'ADR3', 'AGE', 'AGNC', 'ALIA', 'ANCI', 'ANUL', 'ASSO',
+  'AUTH', 'BAPL', 'BAPM', 'BARM', 'BASM', 'BIRT', 'BLES', 'BURI', 'CALN', 'CAST', 'CAUS', 'CENS',
+  'CHAN', 'CHIL', 'CHR', 'CHRA', 'CITY', 'CONF', 'CONL', 'CONT', 'COPR', 'CORP', 'CREA', 'CREM',
+  'CROP', 'CTRY', 'DATA', 'DATE', 'DEAT', 'DESI', 'DEST', 'DIV', 'DIVF', 'DSCR', 'EDUC', 'EMAIL',
+  'EMIG', 'ENDL', 'ENGA', 'EVEN', 'EXID', 'FACT', 'FAM', 'FAMC', 'FAMS', 'FAX', 'FCOM', 'FILE',
+  'FORM', 'GEDC', 'GIVN', 'GRAD', 'HEAD', 'HEIGHT', 'HUSB', 'IDNO', 'IMMI', 'INDI', 'INIL', 'LANG',
+  'LATI', 'LEFT', 'LONG', 'MAP', 'MARB', 'MARC', 'MARL', 'MARR', 'MARS', 'MEDI', 'MIME', 'NAME',
+  'NATI', 'NATU', 'NCHI', 'NICK', 'NMR', 'NO', 'NOTE', 'NPFX', 'NSFX', 'OBJE', 'OCCU', 'ORDN',
+  'PAGE', 'PEDI', 'PHON', 'PHRASE', 'PLAC', 'POST', 'PROB', 'PROP', 'PUBL', 'QUAY', 'REFN', 'RELI',
+  'REPO', 'RESI', 'RESN', 'RETI', 'ROLE', 'SCHMA', 'SDATE', 'SEX', 'SLGC', 'SLGS', 'SNOTE', 'SOUR',
+  'SPFX', 'SSN', 'STAE', 'STAT', 'SUBM', 'SURN', 'TAG', 'TEMP', 'TEXT', 'TIME', 'TITL', 'TOP',
+  'TRAN', 'TRLR', 'TYPE', 'UID', 'VERS', 'WIDTH', 'WIFE', 'WILL', 'WWW',
+];
 
 // ── GRAMPS XML DTD v1.7.2 — ALLE 107 <!ELEMENT>-Deklarationen ──
 //   Exakt die Version, die "Unsere Familie.gramps" deklariert ("-//Gramps//DTD Gramps XML 1.7.2//EN").
@@ -79,7 +93,7 @@ export const GRAMPS_MODELED: readonly string[] = [
 // ── GEDCOM-Tags, deren DATEN der Parser ins Modell projiziert ("modelliert") ──
 //   Standard-Tags + v9-Erweiterungs-Tags (`_`). Einzige Wahrheitsquelle; der BL-155-Census
 //   (_coverage-audit.census.test.ts) UND coverage-spec.test.ts (BL-162) importieren sie hier.
-//   Nicht-`_` und nicht in 5.5.1: SNOTE/EXID/EMAIL/CREA (→ GEDCOM_7_ADDITIONS) sowie MILI
+//   Nicht-`_` und nicht in 5.5.1: SNOTE/EXID/EMAIL/CREA (→ GEDCOM_70_TAGS) sowie MILI
 //   (verbreitete, nicht-standardisierte Militärdienst-Erweiterung — bewusst als solche geführt).
 export const MODELED_GEDCOM_TAGS: ReadonlySet<string> = new Set(
   ('ABBR ADDR ADOP ALIA ASSO AUTH BAPM BIRT BURI CALN CAUS CENS CHAN CHIL CHR CONC CONF CONT CREA DATE DEAT DIV EDUC EMAIL EMIG ENGA EVEN EXID FACT FAM FAMC FAMS FILE FORM GEDC GIVN GRAD HEAD HUSB IMMI INDI LATI LONG MAP MARR MEDI MILI NAME NATU NICK NOTE NPFX NSFX OBJE OCCU PAGE PEDI PHON PLAC PROP PUBL QUAY REFN RELA RELI REPO RESI RESN ROLE SEX SNOTE SOUR SURN TEXT TIME TITL TRLR TYPE VERS WIFE WWW ' +

@@ -103,27 +103,49 @@
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'file'}
+      <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-123): Laden · Sichern ·
+           Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen
+           (keine Datei) bzw. Speichern (Datei geladen), s. openIsPrimary. -->
       <div class="more-view__file">
-        <ImportButton {appState} {persister} {fileService} {onImported} />
-        <SaveButton {appState} {fileService} handle={fileHandle} />
-        {#if placesFileIO}
-          <PlacesFileButtons {appState} {fileService} {persister} {placesFileIO} />
+        <section class="more-view__group" role="group" aria-labelledby="filegrp-load">
+          <h3 id="filegrp-load" class="stb-role-label more-view__group-label">Laden</h3>
+          <ImportButton {appState} {persister} {fileService} {onImported} openIsPrimary={!appState.fileName} />
+        </section>
+
+        {#if appState.fileName}
+          <section class="more-view__group" role="group" aria-labelledby="filegrp-save">
+            <h3 id="filegrp-save" class="stb-role-label more-view__group-label">Sichern</h3>
+            <SaveButton {appState} {fileService} handle={fileHandle} />
+          </section>
         {/if}
-        <!-- Export in ein anderes Format (BL-119) steht UNTER dem Speichern-Knopf und
-             aufklappbar: der Normalfall ist Speichern, ein Strict-/GED7-/anonymisierter
-             Export ist die Ausnahme. Kein eigenes Nav-Ziel (ADR-v9-113). -->
-        <details class="more-view__compare">
-          <summary>In anderes Format exportieren</summary>
-          <ExportView {appState} {fileService} handle={fileHandle} />
-        </details>
-        <!-- Import-Vergleich (BL-107) sitzt bei den Datei-Aktionen, nicht in einem
-             Entitäts-Segment: er arbeitet auf einer ZWEITEN Datei, nicht auf dem
-             geladenen Bestand. Aufklappbar, weil er selten gebraucht wird und die
-             Datei-Fläche sonst mit einer vollen Arbeitsfläche startet. -->
-        <details class="more-view__compare">
-          <summary>Mit zweiter Datei vergleichen</summary>
-          <ImportCompareView {appState} {fileService} />
-        </details>
+
+        {#if placesFileIO}
+          <!-- Eigene, abgesetzte Gruppe: die orte.json-Aktionen betreffen den geräteüber-
+               greifenden Orts-Bestand, NICHT die geladene Genealogie-Datei (eigener FS-Handle/
+               Picker, ADR-v9-70) — deshalb visuell getrennt und sekundär (ADR-v9-123). -->
+          <section class="more-view__group more-view__group--aside" role="group" aria-labelledby="filegrp-places">
+            <h3 id="filegrp-places" class="stb-role-label more-view__group-label">Orts-Bestand (orte.json)</h3>
+            <p class="more-view__group-hint">Betrifft den geräteübergreifenden Orts-Bestand, nicht Ihren Stammbaum.</p>
+            <PlacesFileButtons {appState} {fileService} {persister} {placesFileIO} />
+          </section>
+        {/if}
+
+        <section class="more-view__group" role="group" aria-labelledby="filegrp-exchange">
+          <h3 id="filegrp-exchange" class="stb-role-label more-view__group-label">Austausch</h3>
+          <!-- Export in ein anderes Format (BL-119): aufklappbar, weil der Normalfall
+               Speichern ist und ein Strict-/GED7-/anonymisierter Export die Ausnahme
+               (kein eigenes Nav-Ziel, ADR-v9-113). -->
+          <details class="more-view__compare">
+            <summary>In anderes Format exportieren</summary>
+            <ExportView {appState} {fileService} handle={fileHandle} />
+          </details>
+          <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
+               geladenen Bestand. Aufklappbar, weil selten gebraucht. -->
+          <details class="more-view__compare">
+            <summary>Mit zweiter Datei vergleichen</summary>
+            <ImportCompareView {appState} {fileService} />
+          </details>
+        </section>
       </div>
     {:else}
       <ComingSoonPanel label="{openEntry.icon} {openEntry.label}" />
@@ -191,8 +213,34 @@
   .more-view__file {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1.25rem;
     padding: 0.75rem;
+    /* Auf breiten Screens (Tablet-Portrait) nicht links kleben (ADR-v9-123). */
+    width: 100%;
+    max-width: 32rem;
+    margin: 0 auto;
+  }
+
+  .more-view__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .more-view__group-label {
+    margin: 0;
+  }
+
+  /* „Orts-Bestand" sichtbar abgesetzt — andere Datei als der Stammbaum. */
+  .more-view__group--aside {
+    border-top: 1px solid var(--stb-surface-3);
+    padding-top: 1rem;
+  }
+
+  .more-view__group-hint {
+    margin: 0;
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
   }
 
   .more-view__back {

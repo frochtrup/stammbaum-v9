@@ -36,7 +36,7 @@
 
 {#if appState.fileName}
   <div class="save-bar">
-    <button type="button" class="save-bar__button" onclick={handleClick} disabled={status === 'saving'}>
+    <button type="button" class="save-bar__button" data-variant="primary" onclick={handleClick} disabled={status === 'saving'}>
       {status === 'saving' ? 'Speichere …' : 'Speichern'}
     </button>
     {#if notice}

@@ -30,8 +30,13 @@
      * hat keinen echten Handle, ein zuvor gemerkter Handle einer anderen Datei darf nicht
      * stehen bleiben (sonst würde "Speichern" versehentlich in die falsche Datei schreiben). */
     onImported?: (handle: unknown) => void;
+    /** Ist „Datei öffnen" die Primäraktion (gefüllt) oder sekundär (outline)? Der Aufrufer
+     *  (MoreView) macht sie primär, solange KEINE Datei geladen ist; sobald eine geladen ist,
+     *  wird „Speichern" die Primäraktion und Öffnen sekundär — genau EINE gefüllte Fläche
+     *  je Zustand (ADR-v9-123). „Demo laden" ist immer sekundär. */
+    openIsPrimary?: boolean;
   }
-  const { appState, persister, fileService, onImported }: Props = $props();
+  const { appState, persister, fileService, onImported, openIsPrimary = true }: Props = $props();
 
   let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
@@ -82,6 +87,7 @@
   <button
     type="button"
     class="import-bar__button"
+    data-variant={openIsPrimary ? 'primary' : 'secondary'}
     onclick={handleClick}
     disabled={status === 'loading-file' || status === 'loading-demo'}
   >
@@ -89,7 +95,8 @@
   </button>
   <button
     type="button"
-    class="import-bar__button import-bar__button--secondary"
+    class="import-bar__button"
+    data-variant="secondary"
     onclick={handleDemoClick}
     disabled={status === 'loading-file' || status === 'loading-demo'}
   >
@@ -117,25 +124,31 @@
     flex-wrap: wrap;
   }
 
+  /* EIN Layout, zwei Varianten (ADR-v9-123): gefüllt = Primär, outline = Sekundär —
+     gesteuert über data-variant, damit „genau eine Primärfläche" testbar bleibt. */
   .import-bar__button {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
+    border: 1px solid transparent;
     border-radius: var(--stb-radius-control);
     padding: 0.5rem 0.9rem;
     font-weight: 600;
     cursor: pointer;
   }
 
+  .import-bar__button[data-variant='primary'] {
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    border-color: var(--stb-gold);
+  }
+
+  .import-bar__button[data-variant='secondary'] {
+    background: transparent;
+    color: var(--stb-gold);
+    border-color: var(--stb-gold-dim);
+  }
+
   .import-bar__button:disabled {
     opacity: 0.6;
     cursor: default;
-  }
-
-  .import-bar__button--secondary {
-    background: transparent;
-    color: var(--stb-gold);
-    border: 1px solid var(--stb-gold-dim);
   }
 
   .import-bar__filename {
