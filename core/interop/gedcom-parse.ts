@@ -108,14 +108,20 @@ function parseCitation(sourNode: GedNode): Citation {
 const RECOGNIZED_OBJE_SUB = new Set(['FILE', 'TITL', 'NOTE', '_DATE', '_PRIM']);
 
 /**
- * Projiziert eine inline-OBJE in eine referenz-spezifische MediaCitation (ADR-v9-124).
- * `mediaId` = der FILE-Pfad (content-adressiert); die globalen Felder (form/type) leben
- * in `db.media`, assembliert von `collectMedia`. Unbekannte Kinder bleiben in `extra`.
+ * Projiziert eine OBJE-Referenz in eine referenz-spezifische MediaCitation (ADR-v9-124).
+ * Deckt BEIDE vom Standard erlaubten Formen ab:
+ *  - **Pointer** `n OBJE @M1@` (5.5.1 optional, **7.0 die einzige Form**): `mediaId` = der
+ *    Xref-Wert; die globalen Felder liegen im Top-Level-`0 @M1@ OBJE`-Record.
+ *  - **Inline** `n OBJE`→`FILE`→… (nur 5.5.1): `mediaId` = der FILE-Pfad (content-adressiert).
+ * Globale Felder (form/type) leben in `db.media` (`collectMedia`). Unbekannte Kinder
+ * (z. B. `_SCBK`, 7.0-`CROP`) bleiben in `extra`. Kontextfrei (Dirty-Check-tauglich).
  */
 function parseMedia(objeNode: GedNode): MediaCitation {
   const fileNode = child(objeNode, 'FILE');
   const noteNode = child(objeNode, 'NOTE');
-  return makeMediaCitation(fileNode ? fileNode.value : '', {
+  // Pointer-Form: der Wert (`@M1@`) IST die Identität; inline: der FILE-Pfad.
+  const mediaId = objeNode.value || (fileNode ? fileNode.value : '');
+  return makeMediaCitation(mediaId, {
     title: childValue(objeNode, 'TITL'),
     date: childValue(objeNode, '_DATE'),
     note: noteNode ? collectText(noteNode) : '',
@@ -125,23 +131,28 @@ function parseMedia(objeNode: GedNode): MediaCitation {
 }
 
 /**
- * Assembliert `db.media` in einem Post-Pass über den Passthrough-Baum (ADR-v9-124):
- * jede OBJE — inline unter einem Record ODER als Top-Level-Record — wird nach FILE
- * dedupliziert. Erst-Vorkommen gewinnt (form/type sind aus dem Dateiformat abgeleitet
- * und in der Praxis über Referenzen hinweg konstant). Kontextfrei, damit der isolierte
- * Einzel-Record-Parse (Dirty-Check) davon unberührt bleibt.
+ * Assembliert `db.media` in einem Post-Pass über den Passthrough-Baum (ADR-v9-124).
+ * Identität je OBJE, die eigene Mediendaten trägt:
+ *  - **Top-Level-Record** `0 @M1@ OBJE` → `id` = Xref (`@M1@`) — die kanonische Identität
+ *    der Pointer-Referenzen.
+ *  - **Inline-OBJE** `n OBJE`→`FILE` (kein Xref, kein Pointer-Wert) → `id` = FILE-Pfad.
+ *  - **Pointer-Referenzen** (`n OBJE @M1@`, Wert gesetzt, kein Xref) tragen KEINE eigenen
+ *    Mediendaten → übersprungen (ihr Ziel-Record wird separat erfasst).
+ * Medientyp = `MEDI` unter `FORM` (Standard; `_TYPE` ist eine v8-interne Größe, kein
+ * GEDCOM-Tag). Kontextfrei, damit der isolierte Einzel-Record-Parse unberührt bleibt.
  */
 function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
   const out = new Map<MediaId, Media>();
   const visit = (node: GedNode): void => {
     if (node.tag === 'OBJE') {
       const fileNode = child(node, 'FILE');
-      const id = fileNode ? fileNode.value : '';
+      // Xref (Record) hat Vorrang; sonst inline via FILE; Pointer (nur value) → kein id.
+      const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
       if (id && !out.has(id)) {
         const formNode = fileNode ? child(fileNode, 'FORM') : null;
         const form = formNode ? formNode.value : '';
         const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
-        out.set(id, makeMedia(id, { form, type }));
+        out.set(id, makeMedia(id, { file: fileNode ? fileNode.value : id, form, type }));
       }
     }
     for (const c of node.children) visit(c);

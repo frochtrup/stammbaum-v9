@@ -58,25 +58,31 @@ function coordValue(n: number, kind: 'LATI' | 'LONG'): string {
 }
 
 /**
- * Rekonstruiert eine inline-OBJE aus MediaCitation + globalem Media (ADR-v9-124).
- * Invers zu `parseMedia`/`collectMedia`: TITL/FILE(→FORM→MEDI)/NOTE/_DATE/_PRIM aus dem
- * Modell, `extra` (z. B. `_SCBK`) verbatim. Ohne `media`-Auflösung fällt FILE auf die
- * `mediaId` (= Dateipfad) zurück; FORM/MEDI fehlen dann (nur bei Direkt-Aufrufen ohne db).
+ * Rekonstruiert eine OBJE-Referenz aus MediaCitation + globalem Media (ADR-v9-124).
+ * Invers zu `parseMedia`/`collectMedia`, deckt BEIDE Standard-Formen ab:
+ *  - **Pointer** (`mediaId` = Xref `@M1@`, 7.0-Pflicht): `n OBJE @M1@` + Link-Felder;
+ *    FILE/FORM liegen im Top-Level-Record (Passthrough), werden hier NICHT dupliziert —
+ *    so bleibt der Zeiger beim Editieren erhalten (kein Fabrizieren eines leeren FILE).
+ *  - **Inline** (`mediaId` = FILE-Pfad, nur 5.5.1): `n OBJE`→`FILE`(→`FORM`→`MEDI`).
+ * `extra` (z. B. `_SCBK`, 7.0-`CROP`) verbatim.
  */
 function mediaNode(mc: MediaCitation, media?: Media): GedNode {
-  const file = media ? media.file : mc.mediaId;
-  const form = media ? media.form : '';
-  const type = media ? media.type : '';
+  const isPointer = /^@.+@$/.test(mc.mediaId);
   const kids: GedNode[] = [];
   if (mc.title) kids.push(N('TITL', mc.title));
-  const fileKids: GedNode[] = [];
-  if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
-  kids.push(N('FILE', file, fileKids));
+  if (!isPointer) {
+    const file = media ? media.file : mc.mediaId;
+    const form = media ? media.form : '';
+    const type = media ? media.type : '';
+    const fileKids: GedNode[] = [];
+    if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
+    kids.push(N('FILE', file, fileKids));
+  }
   if (mc.note) kids.push(textNode('NOTE', mc.note));
   if (mc.date) kids.push(N('_DATE', mc.date));
   if (mc.primary) kids.push(N('_PRIM', 'Y'));
   for (const e of mc.extra) kids.push(e);
-  return N('OBJE', '', kids);
+  return N('OBJE', isPointer ? mc.mediaId : '', kids);
 }
 
 /** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/NOTE/OBJE (parseCitation ist die Umkehr). */
