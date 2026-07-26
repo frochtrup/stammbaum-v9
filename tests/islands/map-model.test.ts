@@ -67,6 +67,16 @@ describe('placesWithCoords — Orte-Modus (Orakel: _renderOrteModus)', () => {
     expect(points.map((p) => p.placeId)).toEqual(['P1']);
   });
 
+  it('Marker-Titel kommt aus placeDisplayName: shortName schlägt title (INV-UI-14, BL-87)', () => {
+    const db = makeDatabase();
+    addPlace(db, 'P1', 'Frankfurt am Main', 50.1, 8.7);
+    db.placeObjects.get('P1')!.shortName = 'Frankfurt';
+
+    const points = placesWithCoords(db, contextFor(db));
+
+    expect(points[0].title).toBe('Frankfurt');
+  });
+
   it('zählt unterschiedliche Personen je Ort über deren Geburts-/Sterbe-Events', () => {
     const db = makeDatabase();
     addPlace(db, 'P1', 'Dorf A', 51.5, 10.0);
