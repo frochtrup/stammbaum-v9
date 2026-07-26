@@ -505,12 +505,17 @@ function parseFamily(rec: GedNode): Family {
 function parseSource(rec: GedNode): Source {
   const id = rec.xref ?? '';
   const s = makeSource(id);
-  s.abbr = childValue(rec, 'ABBR');
+  // ABBR/AUTH/PUBL CONT-fähig lesen (symmetrisch zu emitSource): mehrzeilige Freitext-Werte
+  // (GRAMPS) werden gefaltet statt an der ersten Zeile abgeschnitten. Einzeilig identisch.
+  const abbr = child(rec, 'ABBR');
+  if (abbr) s.abbr = collectText(abbr);
   const titl = child(rec, 'TITL');
   if (titl) s.title = collectText(titl);
-  s.author = childValue(rec, 'AUTH');
+  const auth = child(rec, 'AUTH');
+  if (auth) s.author = collectText(auth);
   s.date = childValue(rec, 'DATE');
-  s.publisher = childValue(rec, 'PUBL');
+  const publ = child(rec, 'PUBL');
+  if (publ) s.publisher = collectText(publ);
   const text = child(rec, 'TEXT');
   if (text) s.text = collectText(text);
   const repo = child(rec, 'REPO');

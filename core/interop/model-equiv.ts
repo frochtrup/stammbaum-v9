@@ -148,14 +148,25 @@ function bucketize<T>(items: Iterable<T>, sig: (t: T) => string): Map<string, T[
 /**
  * Paart a-Entitäten mit b-Entitäten über gleiche Signatur, order-stabil innerhalb
  * eines Buckets. Identität (a===b, gleiche Map, gleiche Reihenfolge) ⇒ Selbst-Paarung.
+ *
+ * `sigB` (default = `sigA`) erlaubt SEITENSPEZIFISCHE Signaturen: Signaturen, die
+ * Referenzen über die OWNING-db auflösen (Familie → Partner-Signaturen), müssen für die
+ * b-Seite den b-Resolver nutzen — sonst schlägt das Matching unter cross-family REMAPPTEN
+ * IDs fehl (a: `I0001`, b: `@I1@`), obwohl die Strukturen äquivalent sind. Für id-freie
+ * Signaturen (Person/Quelle/Notiz/Ereignis) sind beide Seiten identisch (Default greift).
  */
-function matchBySig<T>(as: Iterable<T>, bs: Iterable<T>, sig: (t: T) => string): Matched<T> {
-  const bBuckets = bucketize(bs, sig);
+function matchBySig<T>(
+  as: Iterable<T>,
+  bs: Iterable<T>,
+  sigA: (t: T) => string,
+  sigB: (t: T) => string = sigA,
+): Matched<T> {
+  const bBuckets = bucketize(bs, sigB);
   const pairs: Array<[T, T]> = [];
   const onlyA: T[] = [];
   const consumed = new Map<string, number>();
   for (const a of as) {
-    const k = sig(a);
+    const k = sigA(a);
     const bArr = bBuckets.get(k);
     const used = consumed.get(k) ?? 0;
     if (bArr && used < bArr.length) {
@@ -440,10 +451,11 @@ function compareCollection<T>(
   sig: (t: T) => string,
   cmp: (a: T, b: T) => void,
   diffs: Diff[],
+  sigB: (t: T) => string = sig,
 ): void {
-  const m = matchBySig(as, bs, sig);
+  const m = matchBySig(as, bs, sig, sigB);
   for (const a of m.onlyA) diffs.push({ entity, key: sig(a), path: '', kind: 'missing', a: sig(a) });
-  for (const b of m.onlyB) diffs.push({ entity, key: sig(b), path: '', kind: 'extra', b: sig(b) });
+  for (const b of m.onlyB) diffs.push({ entity, key: sigB(b), path: '', kind: 'extra', b: sigB(b) });
   for (const [a, b] of m.pairs) cmp(a, b);
 }
 
@@ -482,6 +494,9 @@ export function modelEquiv(a: Database, b: Database): Diff[] {
     (f) => familySig(f, ra.resolvePerson),
     (fa, fb) => compareFamily(fa, fb, ra, rb, diffs),
     diffs,
+    // b-Seite MUSS mit dem b-Resolver signieren (cross-family remappte Partner-IDs) —
+    // sonst false-mismatch aller Familien. Für a===b identisch zum a-Sig (Default-Verhalten).
+    (f) => familySig(f, rb.resolvePerson),
   );
   compareCollection(
     'source',
@@ -522,6 +537,8 @@ export function modelEquiv(a: Database, b: Database): Diff[] {
     (h) => hofSig(h, ra.resolvePlace),
     (ha, hb) => compareHof(ha, hb, ra.resolvePlace, rb.resolvePlace, diffs),
     diffs,
+    // Wie bei Familie: die b-Seite löst villageId über den b-Resolver auf (cross-family).
+    (h) => hofSig(h, rb.resolvePlace),
   );
 
   return diffs;

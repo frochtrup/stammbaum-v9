@@ -323,11 +323,14 @@ export function emitFamily(f: Family, ctx?: PlaceContext, media?: MediaLookup): 
 
 export function emitSource(s: Source, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
-  if (s.abbr) kids.push(N('ABBR', s.abbr));
+  // Freitext-Felder CONT-fähig (textNode): GRAMPS-Quellen können mehrzeilige ABBR/AUTH/PUBL
+  // tragen; ein roher `\n` im value erzeugte sonst eine level-lose Fortsetzungszeile
+  // (malformed GEDCOM). Für einzeilige Werte identisch zu N(tag,value) — native unberührt.
+  if (s.abbr) kids.push(textNode('ABBR', s.abbr));
   if (s.title) kids.push(textNode('TITL', s.title));
-  if (s.author) kids.push(N('AUTH', s.author));
+  if (s.author) kids.push(textNode('AUTH', s.author));
   if (s.date) kids.push(N('DATE', s.date));
-  if (s.publisher) kids.push(N('PUBL', s.publisher));
+  if (s.publisher) kids.push(textNode('PUBL', s.publisher));
   if (s.text) kids.push(textNode('TEXT', s.text));
   if (s.repo) {
     const rkids: GedNode[] = [];
