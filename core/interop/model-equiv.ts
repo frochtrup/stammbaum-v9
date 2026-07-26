@@ -80,10 +80,17 @@ function normVal(s: string | null | undefined): string {
 
 // ── Signaturen (id-frei, überleben das Remapping) ─────────────────────────────
 
+// Signatur über die IDENTIFIZIERENDEN Namens-TEILE, nicht den zusammengesetzten
+// `name`-String (BL-159): Cross-Family rekonstruiert die NAME-Zeile format-spezifisch
+// (GEDCOM `Dr.-Ing. Franz /Decker/` vs. GRAMPS `given /surname/`) — der String ist damit
+// für die id-freie Paarung zerbrechlich (1431/2795 Personen sonst nicht paarbar). given/
+// surname/sex/Kern-Daten sind erhaltungspflichtig UND format-stabil. `prefix`/`suffix`
+// (Titel/Zusatz) bleiben BEWUSST draußen — sie sind nicht identitätsstiftend (ein „Dr."
+// macht keine andere Person, INV: prefix ist ein Nicht-Signatur-Feld) und werden weiter
+// als FELD verglichen (comparePerson), ebenso der `name`-String selbst.
 function personSig(p: Person): string {
   return [
     'P',
-    norm(p.name),
     norm(p.given),
     norm(p.surname),
     p.sex,
