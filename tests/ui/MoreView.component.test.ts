@@ -190,7 +190,7 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
   });
 });
 
-describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung (ADR-v9-123)', () => {
+describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung (ADR-v9-128)', () => {
   const mockPlacesFileIO = () => ({
     placesStore: createMockPlacesStore(null),
     handleStore: createMockPlacesFileHandleStore(),

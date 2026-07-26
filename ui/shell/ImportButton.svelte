@@ -33,7 +33,7 @@
     /** Ist „Datei öffnen" die Primäraktion (gefüllt) oder sekundär (outline)? Der Aufrufer
      *  (MoreView) macht sie primär, solange KEINE Datei geladen ist; sobald eine geladen ist,
      *  wird „Speichern" die Primäraktion und Öffnen sekundär — genau EINE gefüllte Fläche
-     *  je Zustand (ADR-v9-123). „Demo laden" ist immer sekundär. */
+     *  je Zustand (ADR-v9-128). „Demo laden" ist immer sekundär. */
     openIsPrimary?: boolean;
   }
   const { appState, persister, fileService, onImported, openIsPrimary = true }: Props = $props();
@@ -124,7 +124,7 @@
     flex-wrap: wrap;
   }
 
-  /* EIN Layout, zwei Varianten (ADR-v9-123): gefüllt = Primär, outline = Sekundär —
+  /* EIN Layout, zwei Varianten (ADR-v9-128): gefüllt = Primär, outline = Sekundär —
      gesteuert über data-variant, damit „genau eine Primärfläche" testbar bleibt. */
   .import-bar__button {
     border: 1px solid transparent;

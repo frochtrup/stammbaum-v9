@@ -106,7 +106,7 @@
     flex-wrap: wrap;
   }
 
-  /* Sekundär/outline (ADR-v9-123): der Orts-Bestand ist eine Nebenaktion auf einer ANDEREN
+  /* Sekundär/outline (ADR-v9-128): der Orts-Bestand ist eine Nebenaktion auf einer ANDEREN
      Datei — nicht so schwer wie die Primäraktion (Öffnen/Speichern). */
   .places-file-bar__button {
     background: transparent;

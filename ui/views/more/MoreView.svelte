@@ -103,7 +103,7 @@
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'file'}
-      <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-123): Laden · Sichern ·
+      <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen
            (keine Datei) bzw. Speichern (Datei geladen), s. openIsPrimary. -->
       <div class="more-view__file">
@@ -122,7 +122,7 @@
         {#if placesFileIO}
           <!-- Eigene, abgesetzte Gruppe: die orte.json-Aktionen betreffen den geräteüber-
                greifenden Orts-Bestand, NICHT die geladene Genealogie-Datei (eigener FS-Handle/
-               Picker, ADR-v9-70) — deshalb visuell getrennt und sekundär (ADR-v9-123). -->
+               Picker, ADR-v9-70) — deshalb visuell getrennt und sekundär (ADR-v9-128). -->
           <section class="more-view__group more-view__group--aside" role="group" aria-labelledby="filegrp-places">
             <h3 id="filegrp-places" class="stb-role-label more-view__group-label">Orts-Bestand (orte.json)</h3>
             <p class="more-view__group-hint">Betrifft den geräteübergreifenden Orts-Bestand, nicht Ihren Stammbaum.</p>
@@ -215,7 +215,7 @@
     flex-direction: column;
     gap: 1.25rem;
     padding: 0.75rem;
-    /* Auf breiten Screens (Tablet-Portrait) nicht links kleben (ADR-v9-123). */
+    /* Auf breiten Screens (Tablet-Portrait) nicht links kleben (ADR-v9-128). */
     width: 100%;
     max-width: 32rem;
     margin: 0 auto;
