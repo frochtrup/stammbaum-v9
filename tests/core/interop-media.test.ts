@@ -33,9 +33,9 @@ describe('Media-Identität (ADR-v9-124): gleiche Datei → EIN Media, N MediaCit
     expect(anna).toBeDefined();
     expect(anna!.id).toBe('fotos/anna.jpg');
     expect(anna!.file).toBe('fotos/anna.jpg');
-    expect(anna!.form).toBe('jpg');
+    expect(anna!.form).toBe('image/jpeg');
     const urkunde = db.media.get('scans/urkunde.pdf');
-    expect(urkunde!.form).toBe('pdf');
+    expect(urkunde!.form).toBe('application/pdf');
   });
 
   it('dieselbe Datei ergibt mehrere referenz-spezifische MediaCitations mit eigenen Feldern', () => {
@@ -103,7 +103,7 @@ describe('Media Pointer-Form (@M@-Record, 5.5.1 optional / 7.0 Pflicht, ADR-v9-1
     const m = db.media.get('@M1@')!;
     expect(m.id).toBe('@M1@');
     expect(m.file).toBe('fotos/gemeinsam.jpg');
-    expect(m.form).toBe('jpg');
+    expect(m.form).toBe('image/jpeg');
     expect(m.type).toBe('PHOTO'); // MEDI unter FORM (Standard), nicht _TYPE
     // Drei Referenzen (I1 zweimal, I2 einmal), alle mit derselben Identität.
     const i1 = db.individuals.get('@I1@')!;

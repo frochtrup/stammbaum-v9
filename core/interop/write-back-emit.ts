@@ -26,6 +26,7 @@ import type {
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { mimeToGedForm } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
 export type MediaLookup = ReadonlyMap<MediaId, Media>;
@@ -74,7 +75,8 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
   if (mc.title) kids.push(N('TITL', mc.title));
   if (!isPointer) {
     const file = media ? media.file : mc.mediaId;
-    const form = media ? media.form : '';
+    // Output-Rückübersetzung (ADR-v9-126): kanonisches MIME → GEDCOM-5.5.1-FORM-Endung.
+    const form = media ? mimeToGedForm(media.form, file) : '';
     const type = media ? media.type : '';
     const fileKids: GedNode[] = [];
     if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
@@ -92,8 +94,9 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
  * FILE(→FORM→MEDI) + globaler TITL. Nur für `wireOrigin==='record'`-Medien.
  */
 export function emitMediaRecord(m: Media): GedNode {
+  const form = mimeToGedForm(m.form, m.file);
   const fileKids: GedNode[] = [];
-  if (m.form) fileKids.push(N('FORM', m.form, m.type ? [N('MEDI', m.type)] : []));
+  if (form) fileKids.push(N('FORM', form, m.type ? [N('MEDI', m.type)] : []));
   const kids: GedNode[] = [N('FILE', m.file, fileKids)];
   if (m.title) kids.push(N('TITL', m.title));
   return N('OBJE', '', kids, m.id);

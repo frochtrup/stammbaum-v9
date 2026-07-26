@@ -47,6 +47,7 @@ import type {
 } from '../model/types';
 import { parseTree, child, children, childValue, unescapeAt } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
+import { formToMime } from './media-mime';
 import type { ParsedGedcom } from './types';
 
 // Sonder-Ereignisse mit festem Modell-Slot (Spec 10 §5.1).
@@ -155,13 +156,15 @@ export function projectMediaRecord(node: GedNode): Media | null {
   const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
   if (!id) return null;
   const formNode = fileNode ? child(fileNode, 'FORM') : null;
-  const form = formNode ? formNode.value : '';
+  const file = fileNode ? fileNode.value : id;
+  // Input-Kanonisierung (ADR-v9-126): FORM-Endung → einheitliches MIME (Narrow-Waist).
+  const form = formToMime(formNode ? formNode.value : '', file);
   const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
   // Globaler Titel NUR bei Top-Level-Records (TITL unter FILE [7.0] oder unter OBJE [5.5.1]);
   // bei Inline liegt der Titel referenz-spezifisch auf der MediaCitation.
   const titleNode = isRecord ? (child(node, 'TITL') ?? (fileNode ? child(fileNode, 'TITL') : null)) : null;
   return makeMedia(id, {
-    file: fileNode ? fileNode.value : id,
+    file,
     form,
     type,
     title: titleNode ? collectText(titleNode) : '',
