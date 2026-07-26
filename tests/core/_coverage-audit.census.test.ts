@@ -12,6 +12,7 @@ import { parseGedcom } from '../../core/interop';
 import { parseXml } from '../../core/interop';
 import type { GedNode } from '../../core/interop';
 import type { XmlNode } from '../../core/interop';
+import { MODELED_GEDCOM_TAGS } from './spec-universe';
 
 // Portabler Ausgabeort (os-tmp) — die JSON-Dumps sind reine Diagnose-Artefakte für den
 // Coverage-Report (BL-155), nicht Teil der Suite-Semantik. In CI (ohne gitignored Fixture)
@@ -20,11 +21,8 @@ const OUT = tmpdir();
 const FX = (n: string) => join(__dirname, '../fixtures', n);
 
 // Vom GEDCOM-Parser erkannte (projizierte) Tags — alles andere überlebt nur passthrough.
-const GED_RECOGNIZED = new Set(
-  ('ABBR ADDR ADOP ALIA ASSO AUTH BAPM BIRT BURI CALN CAUS CENS CHAN CHIL CHR CONC CONF CONT CREA DATE DEAT DIV EDUC EMAIL EMIG ENGA EVEN EXID FACT FAM FAMC FAMS FILE FORM GEDC GIVN GRAD HEAD HUSB IMMI INDI LATI LONG MAP MARR MEDI MILI NAME NATU NICK NOTE NPFX NSFX OBJE OCCU PAGE PEDI PHON PLAC PROP PUBL QUAY REFN RELA RELI REPO RESI RESN ROLE SEX SNOTE SOUR SURN TEXT TIME TITL TRLR TYPE VERS WIFE WWW ' +
-    '_CAT _CONCL _DATE _FAURL _FREL _HSTAT _HWGT _HYPO _ID _MREL _PRIM _QUERY _RATIO _RESULT _RLOG _RTYPE _TASK _TASKID _TSTAT _UID')
-    .split(/\s+/),
-);
+// Einzige Wahrheitsquelle in spec-universe.ts (geteilt mit coverage-spec.test.ts, BL-162).
+const GED_RECOGNIZED = MODELED_GEDCOM_TAGS;
 
 function topRecordTag(rec: GedNode): string {
   return rec.tag;
