@@ -32,16 +32,37 @@
   /* Text */
   --stb-text: #f2e8d4;
   --stb-text-dim: #a0906e;
-  --stb-text-muted: #5a4e38;
+  --stb-text-muted: #94845e; /* AA-lesbar (~5:1 vs --stb-bg, ~4.6:1 vs surface-1), bleibt
+                                unter --stb-text-dim (Hierarchie). War #5a4e38 ≈ 2,2:1 —
+                                unlesbar für Rollen-Labels/Nav-Gruppen/Metadaten (ADR-v9-119,
+                                Kontrakt: tests/ui/text-contrast.test.ts). */
 
   /* Aktion */
   --stb-danger: #c04040;
+  /* Warnstufe (Spec 20 §3): orange zwischen Hinweis (gold) und Fehler (danger). Bislang nur
+     als Fallback im Dashboard-Score referenziert; seit BL-121 echter Token, den Dashboard
+     UND Baum-Vollständigkeits-Ring (Spec 21 §8) teilen. */
+  --stb-warn: #d9a441;
 
-  /* QUAY-Farbindikator (Spec 21 §7): rot/orange/blau/grün = q0..q3 */
+  /* QUAY-Status-Palette (Spec 21 §7): rot/orange/blau/grün = q0..q3.
+     NICHT (mehr) die Beweiskraft-Anzeige der Quellen-Pille — die trägt seit ADR-v9-118
+     der QuayMeter (s. --stb-quay-meter-* unten). Diese vier bleiben als GENERISCHE
+     Status-Palette in Dedup-/Review-Ansichten in Nutzung (HofReview, PlaceDedupView,
+     PersonDedupView, LogView, HypothesesView, ImportCompareView) — deshalb hier
+     unverändert. Wer sie anfasst, prüft alle diese Konsumenten. */
   --stb-quay-0: #c0504a;
   --stb-quay-1: #c8874a;
   --stb-quay-2: #4a80c8;
   --stb-quay-3: #4ac86e;
+
+  /* Beweiskraft-Meter der Quellen-Pille (Spec 21 §7, ADR-v9-118, QuayMeter.svelte).
+     Bewusst getrennt von --stb-quay-0..3: die Stufe wird über die ANZAHL gefüllter Pips
+     kodiert, Farbe nur redundant. Monoton amber→gold→grün (kein Blau-Bruch), Stufe 0 = 0
+     Pips (KEINE Farbe → keine Kollision mit --stb-danger). Leerer Pip = --stb-text-muted. */
+  --stb-quay-meter-1: #d08a5a;
+  --stb-quay-meter-2: #c8a84a;
+  --stb-quay-meter-3: #5ad07a;
+  --stb-quay-meter-empty: #5a4e38;
 
   /* Geschlecht (Spec 21 §7: "Geschlecht im Baum: data-sex -> Border-Farbe, M blau,
      F rosa, U keine"). Eine zentrale Quelle statt unabhängig gedrifteter Hex-Werte je

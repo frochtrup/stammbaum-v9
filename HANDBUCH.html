@@ -12,7 +12,7 @@
     --app-card: #ffffff;
     --app-border: #ddd8cc;
     --text-main: #2a2218;
-    --text-dim: #8a7a5a;
+    --text-dim: #7a6a48;
     --pink: #c26080;
     --blue: #5080c2;
     --green: #4a8a4a;
@@ -43,7 +43,7 @@
   .cover h1 { font-size: 2.8em; color: var(--gold); margin: 0 0 0.2em; letter-spacing: 2px; }
   .cover .subtitle { font-size: 1.35em; color: var(--text-dim); margin-bottom: 1.6em; }
   .cover .version {
-    font-size: 1em; color: var(--gold-light);
+    font-size: 1em; color: var(--accent);
     border: 1px solid var(--gold); padding: 6px 20px;
     border-radius: 20px; margin-bottom: 2.4em;
   }
@@ -93,6 +93,10 @@
   /* Screenshots */
   .shot-row { display: flex; gap: 30px; align-items: flex-start; margin: 1.4em 0 1.8em; flex-wrap: wrap; }
   .shot-row .prose { flex: 1; min-width: 240px; }
+  /* Zwei-Phone-Reihen: die Prosa (mit ihrer erklärenden Überschrift) zuerst über
+     voller Breite, die beiden Screenshots darunter nebeneinander — sonst rutscht die
+     Überschrift unter die Bilder, die sie eigentlich einführt. */
+  .shot-row.pair .prose { flex-basis: 100%; order: -1; }
   figure.phone {
     width: 260px; flex-shrink: 0; margin: 0;
     background: #d9d4c8; border: 5px solid #bfb8a6; border-radius: 26px;
@@ -124,7 +128,7 @@
   ol.steps { counter-reset: step; padding: 0; list-style: none; margin: 1em 0; }
   ol.steps li { counter-increment: step; display: flex; gap: 14px; margin: 0.7em 0; align-items: flex-start; }
   ol.steps li::before {
-    content: counter(step); background: var(--gold); color: white;
+    content: counter(step); background: var(--accent); color: white;
     min-width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.82em; font-weight: bold; flex-shrink: 0; margin-top: 3px;
@@ -145,6 +149,30 @@
   hr { border: none; border-top: 1px solid var(--app-border); margin: 2.4em 0; }
   .muted { color: var(--text-dim); font-size: 0.9em; }
   footer { text-align: center; color: var(--text-dim); font-size: 0.85em; margin-top: 3em; padding-top: 1.4em; border-top: 1px solid var(--app-border); }
+
+  /* „Nach oben"-Navigation: eine schwebende Schaltfläche zurück zum Inhaltsverzeichnis.
+     Bewusst INHALTSUNABHÄNGIG — ein einziges festes Element, kein Marker je Kapitel;
+     damit bleibt sie bei neuen Kapiteln automatisch wirksam (kein Nachpflegen). */
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  #toc { scroll-margin-top: 16px; }
+  #to-top {
+    position: fixed; right: 22px; bottom: 22px; z-index: 50;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px 9px 13px; border-radius: 22px;
+    background: var(--accent); color: #fff; text-decoration: none;
+    font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 0.9em; font-weight: bold;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  #to-top:hover { background: #543c17; }
+  #to-top .arrow { font-size: 1.1em; line-height: 1; }
+  @media (max-width: 520px) {
+    #to-top { right: 14px; bottom: 14px; padding: 10px 13px; }
+    #to-top .label { display: none; }   /* auf schmalen Geräten nur der Pfeil */
+  }
+  @media print { #to-top { display: none !important; } }
 </style>
 </head>
 <body>
@@ -153,7 +181,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.1 · Stand 2026-07-25</div>
+  <div class="version">Benutzerhandbuch · Version 9.3 · Stand 2026-07-26</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -163,7 +191,7 @@
 
 <div class="content">
 
-<div class="toc">
+<div class="toc" id="toc">
   <h2>Inhaltsverzeichnis</h2>
   <ol>
     <li><a href="#k1">Was ist Stammbaum?</a></li>
@@ -295,10 +323,12 @@
 <h1 class="chapter" id="k3">3. Die Oberfläche verstehen</h1>
 
 <p class="lead">
-  Stammbaum ordnet alles nach <strong>Rollen</strong>: Es gibt <em>Entitäten</em>
-  (die fünf Datenarten), <em>Ansichten</em> (Diagramme und Statistik) und
-  <em>Arbeit</em> (Suche, Aufgaben, Datei). Auf dem Handy und auf dem Computer sieht
-  das leicht unterschiedlich aus, folgt aber überall demselben Register.
+  Stammbaum ordnet alles nach <strong>Rollen</strong>: Es gibt <em>Daten</em>
+  (die fünf Datenarten), <em>Ansichten</em> (Diagramme und Statistik),
+  <em>Forschung</em> (Dashboard, Aufgaben, Protokoll, Hypothesen) und <em>Arbeit</em>
+  (Suche, Datei). Auf dem Handy und auf dem Computer sieht das leicht unterschiedlich
+  aus, folgt aber überall demselben Register — und benennt dieselbe Gruppe auf beiden
+  Geräten gleich.
 </p>
 
 <div class="shot-row">
@@ -309,10 +339,10 @@
   <div class="prose">
     <h2>Auf dem Handy: Bottom-Navigation</h2>
     <p>
-      Unten liegen fünf Tasten: <strong>Baum</strong>, <strong>Personen</strong>,
-      <strong>Suche</strong>, <strong>Aufgaben</strong> und <strong>Mehr</strong>.
-      Die Reihe direkt darunter wechselt je nach Bereich — bei den Datenarten sind das
-      die Segmente <em>Personen · Familien · Quellen · Orte · Höfe</em>.
+      Unten liegen fünf Tasten: <strong>Ansichten</strong>, <strong>Daten</strong>,
+      <strong>Suche</strong>, <strong>Forschung</strong> und <strong>Mehr</strong>.
+      Die Reihe direkt darunter wechselt je nach Bereich — unter <strong>Daten</strong>
+      sind das die Segmente <em>Personen · Familien · Quellen · Orte · Höfe</em>.
     </p>
     <p>
       Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik, das
@@ -325,7 +355,7 @@
 <p>
   Ab einer Fensterbreite von etwa 900&nbsp;Pixeln ersetzt eine <strong>Seitenleiste</strong>
   die untere Navigationsleiste. Sie zeigt alle Ziele nach Rolle gruppiert
-  (ENTITÄTEN · ANSICHTEN · FORSCHUNG · ARBEIT — die Gruppe <em>Forschung</em> bündelt
+  (DATEN · ANSICHTEN · FORSCHUNG · ARBEIT — die Gruppe <em>Forschung</em> bündelt
   Dashboard, Aufgaben, Protokoll und Hypothesen). Zusätzlich erscheint die
   <strong>Zwei-Spalten-Ansicht</strong>: links die Liste, rechts sofort die
   Detailansicht des gewählten Eintrags.
@@ -371,7 +401,11 @@
     <h2>Die Personenliste</h2>
     <p>
       Alle Personen alphabetisch, gruppiert nach Anfangsbuchstabe. Jede Zeile zeigt
-      Namen sowie Geburts- und Sterbedaten (mit Ort, sofern vorhanden).
+      Namen sowie Geburts- und Sterbedaten (mit Ort, sofern vorhanden). Personen ohne
+      verwertbaren Namen (leer oder nur „?") stehen ganz oben zu einer aufklappbaren
+      Zeile <strong>„N ohne Namen"</strong> zusammengefasst — so öffnet die Liste nicht
+      mit lauter Unbekannten; ein Tippen zeigt sie einzeln (bei aktiver Suche sind sie
+      automatisch aufgeklappt).
     </p>
     <ul>
       <li><strong>↕ Name</strong> schaltet die Sortierung um.</li>
@@ -385,7 +419,7 @@
   </figure>
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/02-person-filter.png" alt="Filter-Panel mit Geschlecht, Geburtsjahr, Ort und Lücken-Filtern">
     <figcaption>Der Filter blendet gezielt ein oder aus</figcaption>
@@ -421,7 +455,10 @@
           oder zum Ort-Steckbrief),</li>
       <li>einen <span class="badge g">◎</span>-Kreis, wenn Koordinaten vorliegen, und
           einen Pfeil <strong>↗</strong> zum Sprung auf die Karte,</li>
-      <li><span class="badge q">§9</span>-Marken für die verknüpften Quellen.</li>
+      <li><strong>Quellen-Marken</strong> zeigen den <em>Kurznamen der Quelle</em> — ein
+          Tippen öffnet die Quelle; ein kleiner Punkte-Balken daneben ist die
+          <em>Beweiskraft</em> (0–3 gefüllte Punkte). Nur eine namenlose Quelle erscheint
+          ersatzweise als Nummer <span class="badge q">§N</span>.</li>
     </ul>
     <p>
       Oben führen <strong>✎ Bearbeiten</strong> und <strong>⧖ Im Baum anzeigen</strong>
@@ -521,7 +558,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k5">5. Familien</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/06-familienliste.png" alt="Familienliste mit Ehepaaren">
     <figcaption>Die Familienliste</figcaption>
@@ -553,7 +590,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k6">6. Quellen und Archive</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <div class="prose">
     <p>
       Quellen belegen Ihre Angaben. Der Bereich <strong>Quellen</strong> hat zwei
@@ -565,7 +602,8 @@
       <li>Titel, Verlag/Fundstelle (z.&nbsp;B. eine Matricula-Adresse),</li>
       <li><strong>Referenzen</strong> — welche Personen und Ereignisse diese Quelle
           zitieren,</li>
-      <li>je Zitat die Beweiskraft als <span class="badge g">QUAY 3</span>-Marke.</li>
+      <li>je Zitat die Beweiskraft als <span class="badge g">QUAY 3</span>-Marke mit
+          einem kleinen Punkte-Balken (0–3 gefüllte Punkte).</li>
     </ul>
     <h3>Evidenzbewertung</h3>
     <p>
@@ -596,7 +634,8 @@
     <li>Beim Ereignis die Quelle zuordnen — dieselbe Quelle kann viele Ereignisse
         belegen.</li>
     <li>Die <strong>Beweiskraft</strong> und die Evidenz-Achsen bewerten. Die Bewertung
-        erscheint als <span class="badge g">QUAY</span>-Marke an der Ereigniszeile.</li>
+        erscheint als Punkte-Balken (0–3 gefüllte Punkte) an der Quellen-Marke der
+        Ereigniszeile.</li>
   </ol>
 </div>
 
@@ -796,7 +835,7 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k8">8. Höfe</h1>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/12-hoefeliste.png" alt="Höfe-Liste gruppiert nach Dorf mit Straße und Hausnummer">
     <figcaption>Höfe nach Dorf, Straße und Hausnummer</figcaption>
@@ -825,28 +864,86 @@
 <h1 class="chapter" id="k9">9. Diagramme: Baum, Karte, Zeitleiste</h1>
 
 <p class="lead">
-  Der Bereich <strong>Baum</strong> ist zugleich der Umschalter für die grafischen
-  Ansichten: <strong>Baum</strong>, <strong>Karte</strong> und <strong>Zeitleiste</strong>
+  Der Bereich <strong>Ansichten</strong> ist der Umschalter für die grafischen
+  Darstellungen: <strong>Baum</strong>, <strong>Karte</strong> und <strong>Zeitleiste</strong>
   (Story folgt). Jede Ansicht merkt sich ihre eigene Auswahl.
+</p>
+
+<h2>Der Baum: drei Ansichten</h2>
+<p>
+  Die Baum-Ansicht kennt drei Darstellungen, umschaltbar über die Leiste
+  <strong>Sanduhr · Nachkommen · Fächer</strong> direkt über dem Diagramm. Die gewählte
+  Ansicht bleibt erhalten, auch wenn Sie zwischendurch zu Karte oder Zeitleiste wechseln.
+  Jedes Diagramm lässt sich per <strong>⤢ Vollbild</strong> auf den ganzen Bildschirm
+  ziehen und passt sich automatisch mittig ein; ein Tippen auf eine Kachel (bzw. ein
+  Fächer-Segment) wechselt den Probanden, die Pfeiltasten ↑ ↓ → navigieren zwischen den
+  Personen.
 </p>
 
 <div class="shot-row">
   <div class="prose">
-    <h2>Der Sanduhr-Baum</h2>
+    <h3>Sanduhr</h3>
     <p>
-      Die Sanduhr zeigt eine Person (den Probanden) in der Mitte, die Vorfahren
-      darüber und die Nachkommen darunter. Die kleinen Ziffern sind die
-      <strong>Kekulé-Nummern</strong> (1 = Proband, 2 = Vater, 3 = Mutter …); der
-      farbige Rand codiert das Geschlecht. Mehrfach-Ehen werden korrekt dargestellt.
-    </p>
-    <p>
-      Über <strong>⤢ Vollbild</strong> nutzen Sie den ganzen Bildschirm; ein Tippen auf
-      eine Kachel wechselt den Probanden.
+      Die Sanduhr zeigt den Probanden in der Mitte, die Vorfahren darüber, seine Kinder und
+      Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
+      (1 = Proband, 2 = Vater, 3 = Mutter …); der farbige Rand codiert das Geschlecht.
+      Mehrfach-Ehen (<strong>⚭N</strong>) und Halbgeschwister (<strong>½</strong>) werden
+      eigens markiert.
     </p>
   </div>
   <figure class="phone">
-    <img src="handbuch-assets/14-sanduhr.png" alt="Sanduhr-Baum mit Vorfahren oben und Nachkommen unten">
-    <figcaption>Der Sanduhr-Baum mit Kekulé-Nummerierung</figcaption>
+    <img src="handbuch-assets/14-sanduhr.png" alt="Sanduhr-Baum mit Vorfahren oben, Kekulé-Nummern und farbigen Vollständigkeits-Ringen">
+    <figcaption>Der Sanduhr-Baum mit Kekulé-Nummerierung und Vollständigkeits-Ringen</figcaption>
+  </figure>
+</div>
+
+<h3>Nachkommen-Baum</h3>
+<p>
+  Der Nachkommen-Baum stellt eine Person an die Spitze und fächert ihre Kinder, Enkel und
+  weitere Generationen (einstellbar 2 bis 7) nach unten auf — mit den Ehepartnern rechts,
+  den Geschwistern links und T-förmigen Verbindungslinien. Das kleine <strong>▼</strong>
+  an einer Kachel zeigt, dass es unterhalb noch weitergeht; ein Tippen darauf rückt diese
+  Person in die Spitze.
+</p>
+<figure class="wide">
+  <img src="handbuch-assets/14b-nachkommen.png" alt="Nachkommen-Baum: der Proband oben, seine Nachfahren generationsweise darunter">
+  <figcaption>Nachkommen-Baum: der Proband oben, seine Nachfahren generationsweise darunter</figcaption>
+</figure>
+
+<h3>Fächer</h3>
+<p>
+  Der Fächer zeigt die Vorfahren als konzentrische Halbkreis-Ringe (3 bis 6 Generationen):
+  der Proband unten in der Mitte, die Vaterseite links, die Mutterseite rechts, jede
+  Generation ein Ring weiter außen. Eine kompakte Übersicht über die gesamte Ahnenschaft
+  auf einen Blick — blau für Männer, rosa für Frauen.
+</p>
+<figure class="wide">
+  <img src="handbuch-assets/14c-faecher.png" alt="Fächer-Diagramm: die Vorfahren als konzentrische Halbkreis-Ringe">
+  <figcaption>Fächer-Diagramm: die Vorfahren als konzentrische Halbkreis-Ringe</figcaption>
+</figure>
+
+<div class="shot-row">
+  <div class="prose">
+    <h3>Vollständigkeits-Ringe</h3>
+    <p>
+      Karten mit fehlenden oder unbelegten Angaben tragen einen farbigen Ring:
+      <strong>goldgelb</strong> für einen Hinweis, <strong>orange</strong> für eine Warnung,
+      <strong>rot</strong> für einen Fehler. Die Stufung stammt aus derselben Prüfung wie das
+      <a href="#k12">Qualitäts-Dashboard</a> (Kapitel 12) — kein zweiter Maßstab. Fahren Sie
+      mit der Maus über eine Karte, nennt ein Hinweisfeld die konkret fehlenden Angaben. So
+      sehen Sie direkt im Baum, wo noch Arbeit wartet.
+    </p>
+    <h3>Als Bild oder Poster exportieren</h3>
+    <p>
+      Über <strong>↓ Export</strong> (rechts in der Umschalt-Leiste) speichern Sie das gerade
+      gezeigte Diagramm als <strong>PNG-Bild</strong> oder als <strong>A1-Poster (SVG)</strong> —
+      Letzteres verlustfrei und in Druckgröße, etwa für die Wand. Der Export enthält alles,
+      was Sie sehen: Namen, Jahre, Geschlechtsfarben und die Vollständigkeits-Ringe.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/14d-export.png" alt="Baum-Ansicht mit geöffnetem Export-Menü: PNG-Bild oder A1-Poster">
+    <figcaption>Das Export-Menü: PNG-Bild oder A1-Poster (SVG)</figcaption>
   </figure>
 </div>
 
@@ -944,7 +1041,7 @@
 <p>
   Auf dem Computer bildet die Forschung eine eigene, beschriftete
   <strong>Seitenleisten-Gruppe „Forschung"</strong>; auf dem Handy erreichen Sie sie über
-  <strong>Aufgaben</strong> in der unteren Leiste, mit dem <strong>Dashboard an erster
+  <strong>Forschung</strong> in der unteren Leiste, mit dem <strong>Dashboard an erster
   Stelle</strong> der Segmentreihe.
 </p>
 
@@ -956,7 +1053,7 @@
   Projekte bleiben auf diesem Gerät und reisen <em>nicht</em> mit der Genealogie-Datei.
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <div class="prose">
     <h2>Aufgaben und Kanban-Board</h2>
     <p>
@@ -980,7 +1077,7 @@
   </figure>
 </div>
 
-<div class="shot-row">
+<div class="shot-row pair">
   <figure class="phone">
     <img src="handbuch-assets/22-hypothesen.png" alt="Hypothesen-Liste mit Status, Konfidenz und Beweisführung">
     <figcaption>Hypothesen mit Status und Konfidenz</figcaption>
@@ -1202,8 +1299,6 @@
   <li><strong>Story / Biografie</strong> — erzählte Lebensgeschichten mit Karte und Download.</li>
   <li><strong>Ausgaben / Druck</strong> — Familienbuch, Ahnenliste, Ortsbuch,
       Hofchronik und weitere Druckvorlagen.</li>
-  <li><strong>Fächer-Diagramm</strong> und <strong>Nachkommen-Baum</strong> — bislang
-      gibt es nur die Sanduhr.</li>
   <li><strong>Beziehungsrechner</strong> — Verwandtschaftsgrad zwischen zwei Personen.</li>
   <li><strong>GOV-Import</strong> für historische Ortszugehörigkeiten (die Felder
       existieren, der importierende Weg fehlt noch).</li>
@@ -1311,8 +1406,8 @@
   <tr><th>Symbol</th><th>Bedeutung</th></tr>
   <tr><td><span class="badge g">◎</span></td><td>Für dieses Ereignis liegen Koordinaten vor.</td></tr>
   <tr><td>↗</td><td>Auf der Karte anzeigen.</td></tr>
-  <tr><td><span class="badge q">§3</span></td><td>Verknüpfte Quelle (die Nummer verweist auf den Quelleneintrag).</td></tr>
-  <tr><td><span class="badge g">QUAY 3</span></td><td>Beweiskraft eines Quellenbezugs (0–3).</td></tr>
+  <tr><td>Quellen-Marke</td><td>Verknüpfte Quelle — zeigt deren <strong>Kurznamen</strong> (nur bei namenloser Quelle die interne Nummer <span class="badge q">§N</span>); der kleine Punkte-Balken daneben ist die Beweiskraft (0–3 gefüllte Punkte).</td></tr>
+  <tr><td><span class="badge g">QUAY 3</span></td><td>Beweiskraft eines Quellenbezugs (0–3), als Punkte-Balken (so viele gefüllte Punkte wie die Stufe).</td></tr>
   <tr><td>✎</td><td>Bearbeiten.</td></tr>
   <tr><td>⧖</td><td>Im Baum anzeigen.</td></tr>
   <tr><td>↶ / ↷</td><td>Rückgängig / Wiederherstellen.</td></tr>
@@ -1322,10 +1417,10 @@
 <h2>Untere Navigation (Handy)</h2>
 <table class="ref">
   <tr><th>Tab</th><th>Führt zu</th></tr>
-  <tr><td>⧖ Baum</td><td>Grafische Ansichten (Baum, Karte, Zeitleiste).</td></tr>
-  <tr><td>👤 Personen</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe).</td></tr>
+  <tr><td>⧖ Ansichten</td><td>Grafische Ansichten (Baum, Karte, Zeitleiste).</td></tr>
+  <tr><td>👤 Daten</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe).</td></tr>
   <tr><td>🔍 Suche</td><td>Globale Suche über alle Datenarten.</td></tr>
-  <tr><td>☑ Aufgaben</td><td>Forschung: Aufgaben, Protokoll, Hypothesen, Dashboard.</td></tr>
+  <tr><td>☑ Forschung</td><td>Forschung: Aufgaben, Protokoll, Hypothesen, Dashboard.</td></tr>
   <tr><td>⋯ Mehr</td><td>Statistik, Datei-Menü, weitere Werkzeuge.</td></tr>
 </table>
 
@@ -1614,10 +1709,33 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.1 · Stand 2026-07-25<br>
+  Stammbaum · Benutzerhandbuch Version 9.3 · Stand 2026-07-26<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
 </div>
+
+<a id="to-top" href="#toc" aria-label="Zurück zum Inhaltsverzeichnis">
+  <span class="arrow" aria-hidden="true">↑</span><span class="label">Inhalt</span>
+</a>
+<noscript><style>#to-top { opacity: 1; transform: none; pointer-events: auto; }</style></noscript>
+<script>
+  // „Nach oben": erscheint, sobald das Deckblatt weitgehend weggescrollt ist, und springt
+  // zum Inhaltsverzeichnis. Inhaltsunabhängig — ein festes Element, kein Marker je Kapitel;
+  // bleibt bei neuen Kapiteln automatisch wirksam. Ohne JS zeigt <noscript> es dauerhaft.
+  (function () {
+    var btn = document.getElementById('to-top');
+    if (!btn) return;
+    var cover = document.querySelector('.cover');
+    function limit() { return cover ? cover.offsetHeight * 0.6 : 400; }
+    function update() {
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      btn.classList.toggle('show', y > limit());
+    }
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+  })();
+</script>
 </body>
 </html>

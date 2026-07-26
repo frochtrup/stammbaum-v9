@@ -13,7 +13,7 @@
 // PersonId im Modell vorkommt. Ein von Hand gepflegter Vergleich könnte eine vergessen —
 // der Wächter nicht.
 import { describe, it, expect } from 'vitest';
-import { makeDatabase, makePerson, makeFamily, makeEvent, makeCitation } from '../../core/model/factory';
+import { makeDatabase, makePerson, makeFamily, makeEvent, makeCitation, makeMediaCitation } from '../../core/model/factory';
 import { findOrphanRefs, checkIndiFamConsistency } from '../../core/model/integrity';
 import { mergePersons, MERGEABLE_PERSON_FIELDS } from '../../core/dedup';
 import { savePerson, deletePerson } from '../../core/model/commands';
@@ -246,12 +246,12 @@ describe('mergePersons — Mengen werden vereinigt, nie gewählt', () => {
   it('führt Ereignisse, Medien, Notizen und Forschungsdaten zusammen', () => {
     const a = makePerson('@WIN@', {
       events: [makeEvent('OCCU', { value: 'Bauer' })],
-      media: [{ file: 'a.jpg', title: 'A' }],
+      media: [makeMediaCitation('a.jpg', { title: 'A' })],
       noteText: 'Notiz A',
     });
     const b = makePerson('@LOSER@', {
       events: [makeEvent('RESI', { addr: 'Hof 1' })],
-      media: [{ file: 'b.jpg', title: 'B' }],
+      media: [makeMediaCitation('b.jpg', { title: 'B' })],
       noteText: 'Notiz B',
       researchLog: [{ date: '2026-01-01', repoRef: '', sourceRef: '', query: 'q', result: 'pending', note: '', taskId: '' }],
     });

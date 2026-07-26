@@ -10,7 +10,8 @@
 // Bewusst framework-frei (kein Rune-State): der Aufrufer hält seinen eigenen
 // "speichert gerade"-Zustand, diese Funktion tut nur die Arbeit und meldet das Ergebnis.
 import { exportViaOnePipe, exportFileName, gzipCodec } from '../../services/file';
-import type { ExportFormat, FileService } from '../../services/file';
+import type { ExportFormat, FileService, DocFormat } from '../../services/file';
+import type { ParsedGedcom, GrampsParsed, XmlDocument } from '../../core/interop';
 import type { AppState } from './app-state.svelte';
 
 /** Dateiname ohne Endung — Basis für den Export-Namen. */
@@ -19,16 +20,46 @@ export function baseNameOf(fileName: string): string {
 }
 
 /**
- * Die Formate, die die Oberfläche anbieten KANN. GRAMPS ist nur dann eine sinnvolle Wahl,
- * wenn tatsächlich ein `.gramps` geladen ist (dann round-trippt der Export voll, BL-139/140/
- * 142/144) — ein GRAMPS-Cross-Export aus einem GEDCOM-Ursprung wäre hohl (ADR-v9-113). Die
- * Export-Fläche filtert `gramps` deshalb anhand von `appState.docFormat` heraus.
+ * Die Formate, die die Oberfläche anbieten KANN — seit BL-160/ADR-v9-127 ALLE (GRAMPS
+ * eingeschlossen, ADR-v9-113 Befund E5 ist damit überholt): jedes Format ist aus JEDEM
+ * geladenen `db` exportierbar, auch wenn es einer ANDEREN Familie angehört als das
+ * Quell-Doc (Cross-Family-Export, `exportCrossFamily` unten synthetisiert dann direkt aus
+ * dem Modell statt aus einem — nicht existenten — Passthrough-Baum dieses Formats).
  */
 export type UiExportFormat = ExportFormat;
 
 /** Das native (in-place-fähige) Exportformat des geladenen Dokuments. */
 function nativeFormatOf(appState: AppState): ExportFormat {
   return appState.docFormat === 'gramps' ? 'gramps' : 'gedcom-5.5.1';
+}
+
+/**
+ * Ziel-Familie eines Exportformats (die beiden GEDCOM-Varianten neben 5.5.1 zählen
+ * ebenfalls als 'gedcom' — nur GRAMPS bildet die andere Familie). Exportiert, damit die
+ * Export-Fläche (ExportView.svelte) dieselbe Cross-Family-Erkennung fürs Labeling nutzt,
+ * statt sie ein zweites Mal nachzubauen (INV-UI-4-Grundsatz auf eine Nicht-CSS-Regel).
+ */
+export function formatFamily(format: ExportFormat): DocFormat {
+  return format === 'gramps' ? 'gramps' : 'gedcom';
+}
+
+/**
+ * Cross-Family-Export (BL-160, ADR-v9-127): entscheidet, ob das angeforderte Format zur
+ * Familie des GELADENEN Dokuments passt (dann die bestehende native Passthrough-Projektion,
+ * `buildGedcomDoc`/`buildGrampsDoc` — Roundtrip-Treue, LP-1, unangetastet) oder einer ANDEREN
+ * Familie angehört (dann `appState.buildCrossFamilyDoc()`, das den Zielbaum direkt aus dem
+ * Modell synthetisiert, KEIN Quell-Doc dieser Familie vorausgesetzt). Das ist die EINE Naht,
+ * über die jedes Format aus jedem geladenen `db` exportierbar wird — kein zweiter Pfad daneben.
+ */
+export function exportCrossFamily(
+  appState: AppState,
+  format: ExportFormat,
+): { gedcomDoc?: ParsedGedcom; grampsDoc?: GrampsParsed | XmlDocument } {
+  const targetFamily = formatFamily(format);
+  if (targetFamily !== appState.docFormat) {
+    return appState.buildCrossFamilyDoc(targetFamily);
+  }
+  return targetFamily === 'gramps' ? { grampsDoc: appState.buildGrampsDoc() } : { gedcomDoc: appState.buildGedcomDoc() };
 }
 
 export interface ExportRequestUi {
@@ -55,14 +86,18 @@ export async function exportGedcom(
   const isGramps = req.format === 'gramps';
   // In-place nur, wenn das Exportformat DEM GELADENEN entspricht (gleiche Endung + gleiches
   // Format wie der Handle zeigt) und nicht anonymisiert wird — sonst neuer Dateiname/Download.
+  // Ein Cross-Family-Format (BL-160) erfüllt das nie: nativeFormatOf(appState) liegt IMMER
+  // in der Familie des geladenen Dokuments, ein Cross-Format nie — Download+neuer Dateiname
+  // sind also bereits durch diese eine Bedingung erzwungen, kein Extra-Zweig nötig.
   const inPlaceCapable = req.format === nativeFormatOf(appState) && !anonymize;
   const filename = exportFileName(baseName, req.format, anonymize);
   try {
+    const { gedcomDoc, grampsDoc } = exportCrossFamily(appState, req.format);
     const result = await exportViaOnePipe(fileService, {
       format: req.format,
       baseName,
-      gedcomDoc: isGramps ? undefined : appState.buildGedcomDoc(),
-      grampsDoc: isGramps ? appState.buildGrampsDoc() : undefined,
+      gedcomDoc,
+      grampsDoc,
       gzip: isGramps ? gzipCodec : undefined,
       handle: inPlaceCapable ? req.handle : undefined,
       anonymizeReferenceYear: req.anonymizeReferenceYear,

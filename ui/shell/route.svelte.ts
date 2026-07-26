@@ -25,6 +25,7 @@ import {
   type MapModeId,
   type ResearchSegmentId,
   type TimelineModeId,
+  type TreeModeId,
   type RouteTarget,
 } from './nav-model';
 
@@ -75,6 +76,13 @@ export interface Route {
    */
   readonly mapMode: MapModeId;
   readonly timelineMode: TimelineModeId;
+  /**
+   * Anzeige-Modus der Baum-Lens (Sanduhr · Nachkommen · Fächer). Sechste Ausprägung
+   * desselben Merkers (analog `mapMode`/`timelineMode`, ADR-v9-123): ohne ihn fiele der
+   * Baum bei jeder Rückkehr auf die Sanduhr zurück, statt den zuletzt gewählten Modus zu
+   * halten (Spec 21 §4: „jede Lens behält ihren eigenen Anzeige-Modus").
+   */
+  readonly treeMode: TreeModeId;
   /** Ziel setzen; ist es ein Entitäts-/Lens-Ziel, zieht der jeweilige Merker mit. */
   setTarget(target: RouteTarget): void;
   /** Zurück in die Entitäten-Fläche, auf das zuletzt dort offene Segment. */
@@ -87,6 +95,8 @@ export interface Route {
   setMapMode(mode: MapModeId): void;
   /** Anzeige-Modus der Zeitleiste-Lens wechseln (merkt ihn sich für den Rückweg). */
   setTimelineMode(mode: TimelineModeId): void;
+  /** Anzeige-Modus der Baum-Lens wechseln (merkt ihn sich für den Rückweg). */
+  setTreeMode(mode: TreeModeId): void;
 }
 
 export interface RouteOptions {
@@ -102,6 +112,8 @@ export interface RouteOptions {
   mapMode?: MapModeId;
   /** Start-Modus der Zeitleiste-Lens. */
   timelineMode?: TimelineModeId;
+  /** Start-Modus der Baum-Lens. */
+  treeMode?: TreeModeId;
 }
 
 export function createRoute(options: RouteOptions = {}): Route {
@@ -118,6 +130,7 @@ export function createRoute(options: RouteOptions = {}): Route {
   );
   let mapMode = $state<MapModeId>(options.mapMode ?? 'orte');
   let timelineMode = $state<TimelineModeId>(options.timelineMode ?? 'swim');
+  let treeMode = $state<TreeModeId>(options.treeMode ?? 'hourglass');
 
   return {
     get target() {
@@ -137,6 +150,9 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     get timelineMode() {
       return timelineMode;
+    },
+    get treeMode() {
+      return treeMode;
     },
     setTarget(next) {
       if (isEntityTarget(next)) entityTarget = next;
@@ -158,6 +174,9 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     setTimelineMode(next) {
       timelineMode = next;
+    },
+    setTreeMode(next) {
+      treeMode = next;
     },
   };
 }

@@ -69,6 +69,10 @@ export interface PlaceReviewResult {
  */
 function candidateLabel(ctx: PlaceContext, id: PlaceId, year: number | null): string {
   const chain = ctx.places.enclosureChainAsOf(id, year);
+  // §6l-Ausnahme (Review-Klasse P): hier ist UNTERSCHEIDEN der Zweck, nicht Überfliegen —
+  // die Kandidatenliste behält bewusst die volle Kette und, ohne Kette, den `title` (NICHT
+  // `placeDisplayName`, dessen `shortName` genau die Unterscheidung verwischen würde).
+  // eslint-disable-next-line no-restricted-syntax -- dokumentierte INV-UI-14-Ausnahme, Spec 21 §6l
   return chain.length ? chain.join(' › ') : (ctx.places.byId(id)?.title ?? id);
 }
 

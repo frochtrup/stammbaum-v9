@@ -39,6 +39,7 @@
       class="bottom-nav__item"
       class:bottom-nav__item--active={active === item.id}
       aria-current={active === item.id ? 'page' : undefined}
+      data-slot={item.id}
       onclick={() => onNavigate(item.id)}
     >
       <span class="bottom-nav__bar" aria-hidden="true"></span>

@@ -35,7 +35,8 @@ import type {
   Database,
   Event,
   Family,
-  MediaRef,
+  Media,
+  MediaCitation,
   Person,
   Repository,
   Source,
@@ -54,12 +55,15 @@ import {
   parseFamilyPublic,
   parseSourcePublic,
   parseRepositoryPublic,
+  projectMediaRecord,
 } from './gedcom-parse';
 import {
   emitPerson,
   emitFamily,
   emitSource,
   emitRepository,
+  emitMediaRecord,
+  type MediaLookup,
 } from './write-back-emit';
 
 /** Tags, die der jeweilige Entitätstyp ins Modell projiziert (= „erkannt"). Alles andere
@@ -80,6 +84,8 @@ const RECOGNIZED_SOURCE = new Set([
   'ABBR', 'TITL', 'AUTH', 'DATE', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
 ]);
 const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL']);
+// Medien-Record `0 @M@ OBJE` (ADR-v9-125): FILE (+FORM/MEDI darunter) + globaler TITL.
+const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL']);
 
 /**
  * Projiziert ein editiertes `db` zurück in den Passthrough-Baum. Liefert einen NEUEN
@@ -99,8 +105,10 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
     places: makePlaceRegistry(db.placeObjects),
     hofs: makeHofRegistry(db.hofObjects),
   };
+  // Medien-Auflösung (ADR-v9-124) ebenfalls INTERN aus db (kein neuer Parameter, wie ctx).
+  const media: MediaLookup = db.media;
   // Welche IDs sind bereits im Baum vertreten? (für Neu-Erkennung)
-  const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>() };
+  const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>(), OBJE: new Set<string>() };
   let trlrIndex = -1;
 
   for (const rec of roots) {
@@ -110,7 +118,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, ctx));
+        out.push(personNode(rec, cur, ctx, media));
         break;
       }
       case 'FAM': {
@@ -118,7 +126,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur, ctx));
+        out.push(familyNode(rec, cur, ctx, media));
         break;
       }
       case 'SOUR': {
@@ -128,7 +136,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.SOUR.add(id);
         const cur = db.sources.get(id);
         if (!cur) break;
-        out.push(sourceNode(rec, cur));
+        out.push(sourceNode(rec, cur, media));
         break;
       }
       case 'REPO': {
@@ -137,6 +145,16 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         const cur = db.repositories.get(id);
         if (!cur) break;
         out.push(repoNode(rec, cur));
+        break;
+      }
+      case 'OBJE': {
+        // Top-Level-Medien-Record (ADR-v9-125). Inline/Pointer-OBJE stehen nie auf Level 0.
+        const id = rec.xref ?? '';
+        if (!id) { out.push(rec); break; }
+        seen.OBJE.add(id);
+        const cur = db.media.get(id);
+        if (!cur) break; // aus db.media entfernt → Record fällt weg
+        out.push(mediaRecordNode(rec, cur));
         break;
       }
       case 'TRLR':
@@ -151,10 +169,13 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
   // Neue Records (im Modell, nicht im Baum) vor TRLR (bzw. am Ende) einfügen.
   const additions: GedNode[] = [];
-  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, ctx));
-  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, ctx));
-  for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s));
+  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, ctx, media));
+  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, ctx, media));
+  for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s, media));
   for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
+  // Neue record-basierte Medien (ADR-v9-125): nur `wireOrigin==='record'` sind Top-Level-Records;
+  // inline-Medien leben am Verweis und werden nie als eigener Record geschrieben.
+  for (const m of db.media.values()) if (m.wireOrigin === 'record' && !seen.OBJE.has(m.id)) additions.push(emitMediaRecord(m));
 
   if (additions.length) {
     if (trlrIndex >= 0) out.splice(trlrIndex, 0, ...additions);
@@ -165,25 +186,30 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
 // ── Pro-Entität: unverändert? → Original-Knoten. Sonst feldweise aktualisieren. ─────────
 
-function personNode(orig: GedNode, cur: Person, ctx: PlaceContext): GedNode {
+function personNode(orig: GedNode, cur: Person, ctx: PlaceContext, media: MediaLookup): GedNode {
   const projected = parsePersonPublic(orig);
   if (personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx));
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx, media));
 }
-function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext): GedNode {
+function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext, media: MediaLookup): GedNode {
   const projected = parseFamilyPublic(orig);
   if (familyEqual(projected, cur, ctx)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, ctx));
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, ctx, media));
 }
-function sourceNode(orig: GedNode, cur: Source): GedNode {
+function sourceNode(orig: GedNode, cur: Source, media: MediaLookup): GedNode {
   const projected = parseSourcePublic(orig);
   if (sourceEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, emitSource);
+  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media));
 }
 function repoNode(orig: GedNode, cur: Repository): GedNode {
   const projected = parseRepositoryPublic(orig);
   if (repoEqual(projected, cur)) return orig;
   return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository);
+}
+function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
+  const projected = projectMediaRecord(orig);
+  if (projected && mediaRecordEqual(projected, cur)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord);
 }
 
 /**
@@ -272,10 +298,31 @@ function citationsEqual(a: Citation[], b: Citation[]): boolean {
   return true;
 }
 
-function mediaEqual(a: MediaRef[], b: MediaRef[]): boolean {
+function nodeEqual(a: GedNode, b: GedNode): boolean {
+  if (a.tag !== b.tag || a.value !== b.value || a.xref !== b.xref) return false;
+  if (a.children.length !== b.children.length) return false;
+  for (let i = 0; i < a.children.length; i++) {
+    if (!nodeEqual(a.children[i], b.children[i])) return false;
+  }
+  return true;
+}
+
+// MediaCitation-Vergleich (ADR-v9-124): referenz-spezifische Felder + Passthrough-`extra`.
+// Die globalen Felder (form/type) leben in db.media und sind hier bewusst NICHT Teil des
+// Dirty-Checks — ein reiner Global-Feld-Edit ohne Berührung des Owner-Records ist ein
+// UI-Zeit-Belang (BL-126), nicht Teil dieses Kern-Vorbaus.
+function mediaEqual(a: MediaCitation[], b: MediaCitation[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].file !== b[i].file || a[i].title !== b[i].title) return false;
+    const x = a[i], y = b[i];
+    if (
+      x.mediaId !== y.mediaId || x.title !== y.title || x.date !== y.date ||
+      x.note !== y.note || x.primary !== y.primary
+    ) return false;
+    if (x.extra.length !== y.extra.length) return false;
+    for (let j = 0; j < x.extra.length; j++) {
+      if (!nodeEqual(x.extra[j], y.extra[j])) return false;
+    }
   }
   return true;
 }
@@ -429,4 +476,10 @@ function repoEqual(a: Repository, b: Repository): boolean {
     a.phone === b.phone && a.www === b.www && a.email === b.email &&
     a.findingAid === b.findingAid && a.lastChanged === b.lastChanged
   );
+}
+
+// Medien-Record-Vergleich (ADR-v9-125): die GLOBALEN Felder — hier wird eine Änderung an
+// Datei/Format/Typ/Titel erkannt (die natürliche Stelle, EIN Record statt jeder Referenz).
+function mediaRecordEqual(a: Media, b: Media): boolean {
+  return a.file === b.file && a.form === b.form && a.type === b.type && a.title === b.title;
 }

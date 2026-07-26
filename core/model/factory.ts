@@ -9,11 +9,14 @@ import type {
   Event,
   Database,
   Citation,
+  Media,
+  MediaCitation,
   PersonId,
   FamilyId,
   SourceId,
   RepoId,
   NoteId,
+  MediaId,
   Quay,
   EvidenceEval,
 } from './types';
@@ -26,6 +29,7 @@ export function makeDatabase(): Database {
     sources: new Map(),
     repositories: new Map(),
     notes: new Map(),
+    media: new Map(),
     placeObjects: new Map(),
     hofObjects: new Map(),
     placForm: '',
@@ -161,6 +165,19 @@ export function makeRepository(id: RepoId, patch: Partial<Repository> = {}): Rep
 
 export function makeNote(id: NoteId, patch: Partial<Note> = {}): Note {
   return { id, type: 'NOTE', text: '', ...patch };
+}
+
+/** Top-Level-Medium (ADR-v9-125). `id` content-adressiert (Xref/Pfad/GRAMPS-id). */
+export function makeMedia(id: MediaId, patch: Partial<Media> = {}): Media {
+  return { id, file: id, form: '', type: '', title: '', wireOrigin: 'inline', lastChanged: '', ...patch };
+}
+
+/** Referenz-spezifische Medienverknüpfung. */
+export function makeMediaCitation(
+  mediaId: MediaId,
+  patch: Partial<Omit<MediaCitation, 'mediaId'>> = {},
+): MediaCitation {
+  return { mediaId, title: '', date: '', note: '', primary: false, extra: [], ...patch };
 }
 
 export function makeCitation(

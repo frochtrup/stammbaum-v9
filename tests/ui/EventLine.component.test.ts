@@ -290,8 +290,8 @@ describe('EventLine — Quellen-Badges (unverändert übernommen)', () => {
       },
     });
 
-    const badge = screen.getByText('§42');
-    expect(badge.className).toContain('src-badge--q3');
+    const label = screen.getByText('KB Ochtrup');
+    expect(label.closest('.src-badge')?.querySelector('.quay-meter')?.getAttribute('data-quay')).toBe('3');
   });
 });
 

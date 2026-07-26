@@ -21,7 +21,7 @@
 //   _yearFrom()-Parsing-Funktion.
 // - Nachname-Aggregation: surnameCandidate() (ADR-v9-18) statt p.surname direkt — konsistent
 //   mit Personen-/Familien-Sortierung (sonst leer bei reiner GEDCOM-Slash-Form).
-// - Medien-Zählung: MediaRef.file (core/model/types.ts) — dasselbe Feld wie im Orakel.
+// - Medien-Zählung: MediaCitation.mediaId (= Dateipfad, ADR-v9-124) — dasselbe Feld wie im Orakel.
 // - Quellen-Vorhanden-Check: Person.topLevelCitations/nameCitations + birth/death.citations
 //   + events[].citations (alle Citation[]-Fundstellen aus core/model/types.ts).
 import type { Database, Event, Person } from '../../../core/model/types';
@@ -136,7 +136,7 @@ function personHasSources(p: Person): boolean {
 const PHOTO_RE = /\.(jpe?g|png|gif|webp|heic|heif)$/i;
 
 function personHasPhoto(p: Person): boolean {
-  return p.media.some((m) => PHOTO_RE.test(m.file));
+  return p.media.some((m) => PHOTO_RE.test(m.mediaId));
 }
 
 /** Ortsname eines Events: placeDisplayName(place) (Spec 11 §5), sonst der rohe
@@ -181,9 +181,9 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
 
   // ── Übersicht ──
   const mediaFiles = new Set<string>();
-  for (const p of persons) for (const m of p.media) if (m.file) mediaFiles.add(m.file);
-  for (const f of families) if (f.marriage.media) for (const m of f.marriage.media) if (m.file) mediaFiles.add(m.file);
-  for (const s of db.sources.values()) for (const m of s.media) if (m.file) mediaFiles.add(m.file);
+  for (const p of persons) for (const m of p.media) if (m.mediaId) mediaFiles.add(m.mediaId);
+  for (const f of families) if (f.marriage.media) for (const m of f.marriage.media) if (m.mediaId) mediaFiles.add(m.mediaId);
+  for (const s of db.sources.values()) for (const m of s.media) if (m.mediaId) mediaFiles.add(m.mediaId);
 
   const overview: Kachel[] = [
     { label: 'Personen', value: n },

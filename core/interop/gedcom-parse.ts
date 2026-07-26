@@ -14,6 +14,8 @@ import {
   makeNote,
   makeEvent,
   makeCitation,
+  makeMedia,
+  makeMediaCitation,
 } from '../model/factory';
 import { makeTask } from '../research/task';
 import { makeLogEntry } from '../research/log';
@@ -38,11 +40,14 @@ import type {
   Note,
   Event,
   Citation,
-  MediaRef,
+  Media,
+  MediaCitation,
+  MediaId,
   Quay,
 } from '../model/types';
 import { parseTree, child, children, childValue, unescapeAt } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
+import { formToMime } from './media-mime';
 import type { ParsedGedcom } from './types';
 
 // Sonder-Ereignisse mit festem Modell-Slot (Spec 10 §5.1).
@@ -94,15 +99,88 @@ function parseCitation(sourNode: GedNode): Citation {
   for (const obje of children(sourNode, 'OBJE')) {
     cit.media.push(parseMedia(obje));
   }
-  if (cit.media.length) cit.deepLinkUrl = cit.media[0].file;
+  if (cit.media.length) cit.deepLinkUrl = cit.media[0].mediaId;
   return cit;
 }
 
-function parseMedia(objeNode: GedNode): MediaRef {
-  return {
-    file: childValue(objeNode, 'FILE'),
+// OBJE-Kinder mit eigenem Modell-Feld (parseMedia/mediaNode sind zueinander invers).
+// FILE trägt zusätzlich das globale FORM/MEDI (→ db.media, s. collectMedia). Alles
+// andere (z. B. `_SCBK`) landet verbatim in MediaCitation.extra (INV-PT, edit-sicher).
+const RECOGNIZED_OBJE_SUB = new Set(['FILE', 'TITL', 'NOTE', '_DATE', '_PRIM']);
+
+/**
+ * Projiziert eine OBJE-Referenz in eine referenz-spezifische MediaCitation (ADR-v9-124).
+ * Deckt BEIDE vom Standard erlaubten Formen ab:
+ *  - **Pointer** `n OBJE @M1@` (5.5.1 optional, **7.0 die einzige Form**): `mediaId` = der
+ *    Xref-Wert; die globalen Felder liegen im Top-Level-`0 @M1@ OBJE`-Record.
+ *  - **Inline** `n OBJE`→`FILE`→… (nur 5.5.1): `mediaId` = der FILE-Pfad (content-adressiert).
+ * Globale Felder (form/type) leben in `db.media` (`collectMedia`). Unbekannte Kinder
+ * (z. B. `_SCBK`, 7.0-`CROP`) bleiben in `extra`. Kontextfrei (Dirty-Check-tauglich).
+ */
+function parseMedia(objeNode: GedNode): MediaCitation {
+  const fileNode = child(objeNode, 'FILE');
+  const noteNode = child(objeNode, 'NOTE');
+  // Pointer-Form: der Wert (`@M1@`) IST die Identität; inline: der FILE-Pfad.
+  const mediaId = objeNode.value || (fileNode ? fileNode.value : '');
+  return makeMediaCitation(mediaId, {
     title: childValue(objeNode, 'TITL'),
+    date: childValue(objeNode, '_DATE'),
+    note: noteNode ? collectText(noteNode) : '',
+    primary: childValue(objeNode, '_PRIM') === 'Y',
+    extra: objeNode.children.filter((c) => !RECOGNIZED_OBJE_SUB.has(c.tag)),
+  });
+}
+
+/**
+ * Assembliert `db.media` in einem Post-Pass über den Passthrough-Baum (ADR-v9-124).
+ * Identität je OBJE, die eigene Mediendaten trägt:
+ *  - **Top-Level-Record** `0 @M1@ OBJE` → `id` = Xref (`@M1@`) — die kanonische Identität
+ *    der Pointer-Referenzen.
+ *  - **Inline-OBJE** `n OBJE`→`FILE` (kein Xref, kein Pointer-Wert) → `id` = FILE-Pfad.
+ *  - **Pointer-Referenzen** (`n OBJE @M1@`, Wert gesetzt, kein Xref) tragen KEINE eigenen
+ *    Mediendaten → übersprungen (ihr Ziel-Record wird separat erfasst).
+ * Medientyp = `MEDI` unter `FORM` (Standard; `_TYPE` ist eine v8-interne Größe, kein
+ * GEDCOM-Tag). Kontextfrei, damit der isolierte Einzel-Record-Parse unberührt bleibt.
+ */
+/**
+ * Projiziert EINE OBJE, die eigene Mediendaten trägt, in ein `Media` (ADR-v9-125) —
+ * Top-Level-Record (`node.xref` gesetzt, `wireOrigin='record'`, globaler TITL) ODER
+ * inline-OBJE mit FILE (`wireOrigin='inline'`). Eine reine Pointer-Referenz
+ * (`n OBJE @M1@`, Wert gesetzt, kein Xref) trägt keine Daten → `null`. Kontextfrei
+ * (Dirty-Check-tauglich), invers zu `emitMediaRecord`/`mediaNode`.
+ */
+export function projectMediaRecord(node: GedNode): Media | null {
+  if (node.tag !== 'OBJE') return null;
+  const fileNode = child(node, 'FILE');
+  const isRecord = !!node.xref;
+  const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
+  if (!id) return null;
+  const formNode = fileNode ? child(fileNode, 'FORM') : null;
+  const file = fileNode ? fileNode.value : id;
+  // Input-Kanonisierung (ADR-v9-126): FORM-Endung → einheitliches MIME (Narrow-Waist).
+  const form = formToMime(formNode ? formNode.value : '', file);
+  const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
+  // Globaler Titel NUR bei Top-Level-Records (TITL unter FILE [7.0] oder unter OBJE [5.5.1]);
+  // bei Inline liegt der Titel referenz-spezifisch auf der MediaCitation.
+  const titleNode = isRecord ? (child(node, 'TITL') ?? (fileNode ? child(fileNode, 'TITL') : null)) : null;
+  return makeMedia(id, {
+    file,
+    form,
+    type,
+    title: titleNode ? collectText(titleNode) : '',
+    wireOrigin: isRecord ? 'record' : 'inline',
+  });
+}
+
+function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
+  const out = new Map<MediaId, Media>();
+  const visit = (node: GedNode): void => {
+    const m = projectMediaRecord(node);
+    if (m && !out.has(m.id)) out.set(m.id, m);
+    for (const c of node.children) visit(c);
   };
+  for (const rec of roots) visit(rec);
+  return out;
 }
 
 /** Event-Projektion aus einem Ereignis-Knoten (BIRT/EVEN/OCCU/…). */
@@ -427,12 +505,17 @@ function parseFamily(rec: GedNode): Family {
 function parseSource(rec: GedNode): Source {
   const id = rec.xref ?? '';
   const s = makeSource(id);
-  s.abbr = childValue(rec, 'ABBR');
+  // ABBR/AUTH/PUBL CONT-fähig lesen (symmetrisch zu emitSource): mehrzeilige Freitext-Werte
+  // (GRAMPS) werden gefaltet statt an der ersten Zeile abgeschnitten. Einzeilig identisch.
+  const abbr = child(rec, 'ABBR');
+  if (abbr) s.abbr = collectText(abbr);
   const titl = child(rec, 'TITL');
   if (titl) s.title = collectText(titl);
-  s.author = childValue(rec, 'AUTH');
+  const auth = child(rec, 'AUTH');
+  if (auth) s.author = collectText(auth);
   s.date = childValue(rec, 'DATE');
-  s.publisher = childValue(rec, 'PUBL');
+  const publ = child(rec, 'PUBL');
+  if (publ) s.publisher = collectText(publ);
   const text = child(rec, 'TEXT');
   if (text) s.text = collectText(text);
   const repo = child(rec, 'REPO');
@@ -526,6 +609,8 @@ export function parseGedcom(text: string): ParsedGedcom {
         break;
     }
   }
+  // Globale Medien-Identität aus dem gesamten Baum assemblieren (ADR-v9-124).
+  db.media = collectMedia(roots);
   return { db, roots };
 }
 

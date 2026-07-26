@@ -16,7 +16,9 @@ import type {
   Citation,
   Event,
   Family,
-  MediaRef,
+  Media,
+  MediaCitation,
+  MediaId,
   Person,
   Repository,
   Source,
@@ -24,6 +26,10 @@ import type {
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { mimeToGedForm } from './media-mime';
+
+/** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
+export type MediaLookup = ReadonlyMap<MediaId, Media>;
 
 /** Knoten-Konstruktor (level dient nur der Diagnose; writeNode leitet Tiefe aus dem Baum ab). */
 export function N(tag: string, value: string, children: GedNode[] = [], xref: string | null = null): GedNode {
@@ -52,19 +58,57 @@ function coordValue(n: number, kind: 'LATI' | 'LONG'): string {
   return (n < 0 ? negative : positive) + Math.abs(n);
 }
 
-function mediaNode(m: MediaRef): GedNode {
-  const kids: GedNode[] = [N('FILE', m.file)];
+/**
+ * Rekonstruiert eine OBJE-Referenz aus MediaCitation + globalem Media (ADR-v9-124).
+ * Invers zu `parseMedia`/`collectMedia`, deckt BEIDE Standard-Formen ab:
+ *  - **Pointer** (`mediaId` = Xref `@M1@`, 7.0-Pflicht): `n OBJE @M1@` + Link-Felder;
+ *    FILE/FORM liegen im Top-Level-Record (Passthrough), werden hier NICHT dupliziert —
+ *    so bleibt der Zeiger beim Editieren erhalten (kein Fabrizieren eines leeren FILE).
+ *  - **Inline** (`mediaId` = FILE-Pfad, nur 5.5.1): `n OBJE`→`FILE`(→`FORM`→`MEDI`).
+ * `extra` (z. B. `_SCBK`, 7.0-`CROP`) verbatim.
+ */
+function mediaNode(mc: MediaCitation, media?: Media): GedNode {
+  // Wire-Form aus der Media-Herkunft (ADR-v9-125): Record → Pointer, Inline → inline.
+  // Fallback (kein Lookup): Xref-Form der mediaId.
+  const isPointer = media ? media.wireOrigin === 'record' : /^@.+@$/.test(mc.mediaId);
+  const kids: GedNode[] = [];
+  if (mc.title) kids.push(N('TITL', mc.title));
+  if (!isPointer) {
+    const file = media ? media.file : mc.mediaId;
+    // Output-Rückübersetzung (ADR-v9-126): kanonisches MIME → GEDCOM-5.5.1-FORM-Endung.
+    const form = media ? mimeToGedForm(media.form, file) : '';
+    const type = media ? media.type : '';
+    const fileKids: GedNode[] = [];
+    if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
+    kids.push(N('FILE', file, fileKids));
+  }
+  if (mc.note) kids.push(textNode('NOTE', mc.note));
+  if (mc.date) kids.push(N('_DATE', mc.date));
+  if (mc.primary) kids.push(N('_PRIM', 'Y'));
+  for (const e of mc.extra) kids.push(e);
+  return N('OBJE', isPointer ? mc.mediaId : '', kids);
+}
+
+/**
+ * Top-Level-Medien-Record `0 @M@ OBJE` (ADR-v9-125) — invers zu `projectMediaRecord`.
+ * FILE(→FORM→MEDI) + globaler TITL. Nur für `wireOrigin==='record'`-Medien.
+ */
+export function emitMediaRecord(m: Media): GedNode {
+  const form = mimeToGedForm(m.form, m.file);
+  const fileKids: GedNode[] = [];
+  if (form) fileKids.push(N('FORM', form, m.type ? [N('MEDI', m.type)] : []));
+  const kids: GedNode[] = [N('FILE', m.file, fileKids)];
   if (m.title) kids.push(N('TITL', m.title));
-  return N('OBJE', '', kids);
+  return N('OBJE', '', kids, m.id);
 }
 
 /** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/NOTE/OBJE (parseCitation ist die Umkehr). */
-function citationNode(c: Citation): GedNode {
+function citationNode(c: Citation, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (c.page) kids.push(N('PAGE', c.page));
   if (c.quay !== 0) kids.push(N('QUAY', String(c.quay)));
   if (c.note) kids.push(textNode('NOTE', c.note));
-  for (const m of c.media) kids.push(mediaNode(m));
+  for (const m of c.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N('SOUR', c.sourceId, kids);
 }
 
@@ -85,7 +129,7 @@ function placValue(ev: Event, ctx?: PlaceContext): string {
 }
 
 /** Ereignis-Knoten (BIRT/OCCU/…) — parseEvent ist die Umkehr; nur „seen" Ereignisse. */
-function eventNode(ev: Event, ctx?: PlaceContext): GedNode {
+function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (ev.eventType) kids.push(N('TYPE', ev.eventType));
   if (ev.date !== null) kids.push(N('DATE', ev.date));
@@ -104,8 +148,8 @@ function eventNode(ev: Event, ctx?: PlaceContext): GedNode {
   // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
   if (ev.addr) kids.push(textNode('ADDR', ev.addr));
   if (ev.note) kids.push(textNode('NOTE', ev.note));
-  for (const c of ev.citations) kids.push(citationNode(c));
-  for (const m of ev.media) kids.push(mediaNode(m));
+  for (const c of ev.citations) kids.push(citationNode(c, media));
+  for (const m of ev.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N(ev.type, ev.value, kids);
 }
 
@@ -171,7 +215,7 @@ function hypothesisNode(h: Hypothesis): GedNode {
 /** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI).
  *  `ctx` (optional): PlaceContext für die Live-PLAC-Berechnung (ADR-v9-47). Ohne ctx
  *  fällt die PLAC-Emission auf den `ev.place`-Cache zurück. */
-export function emitPerson(p: Person, ctx?: PlaceContext): GedNode {
+export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
 
   if (p.name || p.given || p.surname || p.prefix || p.suffix || p.nick || p.nameCitations.length) {
@@ -181,7 +225,7 @@ export function emitPerson(p: Person, ctx?: PlaceContext): GedNode {
     if (p.prefix) nameKids.push(N('NPFX', p.prefix));
     if (p.suffix) nameKids.push(N('NSFX', p.suffix));
     if (p.nick) nameKids.push(N('NICK', p.nick));
-    for (const c of p.nameCitations) nameKids.push(citationNode(c));
+    for (const c of p.nameCitations) nameKids.push(citationNode(c, media));
     kids.push(N('NAME', p.name, nameKids));
   }
   if (p.sex && p.sex !== 'U') kids.push(N('SEX', p.sex));
@@ -192,15 +236,15 @@ export function emitPerson(p: Person, ctx?: PlaceContext): GedNode {
   if (p.www) kids.push(N('WWW', p.www));
   if (p.uid) kids.push(N('_UID', p.uid));
 
-  if (p.birth.seen) kids.push(eventNode(p.birth, ctx));
-  if (p.chr.seen) kids.push(eventNode(p.chr, ctx));
+  if (p.birth.seen) kids.push(eventNode(p.birth, ctx, media));
+  if (p.chr.seen) kids.push(eventNode(p.chr, ctx, media));
   if (p.death.seen) {
-    const dn = eventNode(p.death, ctx);
+    const dn = eventNode(p.death, ctx, media);
     if (p.cause) dn.children.push(N('CAUS', p.cause));
     kids.push(dn);
   }
-  if (p.buri.seen) kids.push(eventNode(p.buri, ctx));
-  for (const ev of p.events) kids.push(eventNode(ev, ctx));
+  if (p.buri.seen) kids.push(eventNode(p.buri, ctx, media));
+  for (const ev of p.events) kids.push(eventNode(ev, ctx, media));
 
   for (const link of p.childOf) {
     const fkids: GedNode[] = [];
@@ -218,16 +262,16 @@ export function emitPerson(p: Person, ctx?: PlaceContext): GedNode {
     const akids: GedNode[] = [];
     if (assoc.role) akids.push(N('RELA', assoc.role));
     if (assoc.note) akids.push(N('NOTE', assoc.note));
-    for (const c of assoc.citations) akids.push(citationNode(c));
+    for (const c of assoc.citations) akids.push(citationNode(c, media));
     kids.push(N('ASSO', assoc.personRef ? assoc.personRef : '', akids));
   }
 
-  for (const m of p.media) kids.push(mediaNode(m));
+  for (const m of p.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
 
   if (p.noteText) kids.push(textNode('NOTE', p.noteText));
   for (const nr of p.noteRefs) kids.push(N('NOTE', nr));
 
-  for (const c of p.topLevelCitations) kids.push(citationNode(c));
+  for (const c of p.topLevelCitations) kids.push(citationNode(c, media));
 
   for (const ex of p.exids) {
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];
@@ -258,16 +302,16 @@ function chanNode(lastChanged: string): GedNode {
 
 // --- Family (FAM) -----------------------------------------------------------------------
 
-export function emitFamily(f: Family, ctx?: PlaceContext): GedNode {
+export function emitFamily(f: Family, ctx?: PlaceContext, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (f.husband) kids.push(N('HUSB', f.husband));
   if (f.wife) kids.push(N('WIFE', f.wife));
   for (const cid of f.children) kids.push(N('CHIL', cid));
-  if (f.marriage.seen) kids.push(eventNode(f.marriage, ctx));
-  if (f.engagement.seen) kids.push(eventNode(f.engagement, ctx));
-  for (const ev of f.events) kids.push(eventNode(ev, ctx));
+  if (f.marriage.seen) kids.push(eventNode(f.marriage, ctx, media));
+  if (f.engagement.seen) kids.push(eventNode(f.engagement, ctx, media));
+  for (const ev of f.events) kids.push(eventNode(ev, ctx, media));
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
-  for (const c of f.citations) kids.push(citationNode(c));
+  for (const c of f.citations) kids.push(citationNode(c, media));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));
   for (const t of f.tasks) kids.push(taskNode(t));
   for (const l of f.researchLog) kids.push(logEntryNode(l));
@@ -277,13 +321,16 @@ export function emitFamily(f: Family, ctx?: PlaceContext): GedNode {
 
 // --- Source (SOUR) ----------------------------------------------------------------------
 
-export function emitSource(s: Source): GedNode {
+export function emitSource(s: Source, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
-  if (s.abbr) kids.push(N('ABBR', s.abbr));
+  // Freitext-Felder CONT-fähig (textNode): GRAMPS-Quellen können mehrzeilige ABBR/AUTH/PUBL
+  // tragen; ein roher `\n` im value erzeugte sonst eine level-lose Fortsetzungszeile
+  // (malformed GEDCOM). Für einzeilige Werte identisch zu N(tag,value) — native unberührt.
+  if (s.abbr) kids.push(textNode('ABBR', s.abbr));
   if (s.title) kids.push(textNode('TITL', s.title));
-  if (s.author) kids.push(N('AUTH', s.author));
+  if (s.author) kids.push(textNode('AUTH', s.author));
   if (s.date) kids.push(N('DATE', s.date));
-  if (s.publisher) kids.push(N('PUBL', s.publisher));
+  if (s.publisher) kids.push(textNode('PUBL', s.publisher));
   if (s.text) kids.push(textNode('TEXT', s.text));
   if (s.repo) {
     const rkids: GedNode[] = [];
@@ -298,7 +345,7 @@ export function emitSource(s: Source): GedNode {
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];
     kids.push(N('REFN', ex.value, ekids));
   }
-  for (const m of s.media) kids.push(mediaNode(m));
+  for (const m of s.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N('SOUR', '', kids, s.id);
 }
 

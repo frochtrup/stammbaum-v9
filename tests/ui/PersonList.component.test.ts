@@ -10,7 +10,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeMediaCitation } from '../../core/model';
 
 function seedAppState() {
   const appState = createAppState();
@@ -182,7 +182,7 @@ describe('PersonList — 📎-Medien-Badge (ADR-v9-79 Punkt 3)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     const withMedia = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
-    withMedia.media.push({ file: 'foto.jpg', title: '' });
+    withMedia.media.push(makeMediaCitation('foto.jpg'));
     db.individuals.set('@I1@', withMedia);
     db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Meyer' }));
     appState.loadDatabase(db, 'test.ged');
@@ -221,5 +221,56 @@ describe('PersonList — "＋ Neue Person" (Spec 20 §2)', () => {
 
     expect(onCreate).toHaveBeenCalledWith('@I1@');
     expect(appState.db.individuals.has('@I1@')).toBe(true);
+  });
+});
+
+describe('PersonList — Namenlose gruppiert/kollabiert (ADR-v9-121)', () => {
+  function seedWithNameless() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    const a = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    db.individuals.set('@I1@', a);
+    const n1 = makePerson('@I2@'); // namenlos → "(ohne Namen)"
+    n1.noteText = 'Findmich';
+    db.individuals.set('@I2@', n1);
+    db.individuals.set('@I3@', makePerson('@I3@')); // namenlos
+    appState.loadDatabase(db, 'test.ged');
+    return appState;
+  }
+
+  it('zeigt standardmäßig eine Sammelzeile „N ohne Namen“ statt der einzelnen Namenlosen', () => {
+    const appState = seedWithNameless();
+    render(PersonList, { props: { appState, viewState: createViewState() } });
+
+    expect(screen.getByRole('button', { name: /2 ohne Namen/ })).toBeTruthy();
+    // die einzelnen Namenlosen sind eingeklappt (nicht im DOM sichtbar gelistet)
+    expect(screen.queryByText('(ohne Namen)')).toBeNull();
+    // benannte Person bleibt normal sichtbar
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+  });
+
+  it('ein Klick auf die Sammelzeile klappt die Namenlosen auf', async () => {
+    const appState = seedWithNameless();
+    render(PersonList, { props: { appState, viewState: createViewState() } });
+
+    const toggle = screen.getByRole('button', { name: /2 ohne Namen/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    await fireEvent.click(toggle);
+
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByText('(ohne Namen)')).toHaveLength(2);
+  });
+
+  it('bei aktiver Suche werden namenlose Treffer sichtbar, ohne dass man aufklappen muss', async () => {
+    const appState = seedWithNameless();
+    render(PersonList, { props: { appState, viewState: createViewState() } });
+
+    await fireEvent.input(screen.getByRole('searchbox', { name: 'Personen durchsuchen' }), {
+      target: { value: 'Findmich' },
+    });
+
+    // genau der eine namenlose Treffer ist ohne Toggle sichtbar
+    expect(screen.getByText('(ohne Namen)')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /1 ohne Namen/ })).toBeTruthy();
   });
 });

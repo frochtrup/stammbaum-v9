@@ -74,21 +74,20 @@ async function click(text, { contains = false, nth = 0 } = {}) {
   if (!ok) console.log('  ! nicht gefunden:', text);
   await sleep(450); return ok;
 }
-async function bottomNav(label) {
-  // NUR die untere Hauptnavigation (nav.bottom-nav) treffen — NICHT irgendeinen Button, der
-  // zufällig gleich endet. Sonst kollidiert z. B. „Personen" mit dem neuen Protokoll-Segment
-  // „Personen/Timeline": nach dem Seeden steht die App auf Protokoll, und bottomNav('Personen')
-  // klickte den Gruppierungs-Umschalter statt den Tab → alle Folge-Screens blieben auf Protokoll.
-  const ok = await page.evaluate((label) => {
-    const items = [...document.querySelectorAll('nav.bottom-nav .bottom-nav__item')];
-    const b = items.find((x) => {
-      const lbl = x.querySelector('.bottom-nav__label');
-      return lbl && (lbl.textContent || '').replace(/\s*\(folgt\)\s*/, '').trim() === label;
-    });
+async function bottomNav(slot) {
+  // Trifft den Bottom-Nav-Slot über seine STABILE Id (`data-slot`, = nav-model `item.id`:
+  // 'tree'|'person'|'search'|'tasks'|'more'), NICHT über den sichtbaren Text. Grund: das
+  // Label ist umbenennbar (ADR-v9-122 machte aus „Personen/Baum/Aufgaben" → „Daten/Ansichten/
+  // Forschung") und das Symbol könnte folgen — beides würde eine Text-/Icon-Suche still auf
+  // den falschen Screen führen. `data-slot` ist die eine Wahrheit und driftet nicht mit der
+  // Beschriftung. (Der Selektor bleibt auf `nav.bottom-nav` skopiert, damit ein gleichnamiges
+  // Segment anderswo nicht kollidiert.)
+  const ok = await page.evaluate((slot) => {
+    const b = document.querySelector(`nav.bottom-nav .bottom-nav__item[data-slot="${slot}"]`);
     if (b) { b.click(); return true; }
     return false;
-  }, label);
-  if (!ok) console.log('  ! bottomNav nicht gefunden:', label);
+  }, slot);
+  if (!ok) console.log('  ! bottomNav-Slot nicht gefunden:', slot);
   await sleep(650);
 }
 async function shot(name) { await sleep(650); await page.screenshot({ path: `${OUT}/${name}.png` }); console.log('  ✓', name); }
@@ -119,23 +118,23 @@ await page.evaluate(async (wrapper) => {
 }, WRAPPER);
 
 console.log('Demo laden …');
-await bottomNav('Mehr'); await click('Datei'); await click('Demo laden'); await sleep(5500);
+await bottomNav('more'); await click('Datei'); await click('Demo laden'); await sleep(5500);
 
 // ---- Forschungsdaten seeden ----
 console.log('Forschungsdaten seeden …');
-await bottomNav('Aufgaben');
+await bottomNav('tasks');
 for (const t of [
   'Taufeintrag im Kirchenbuch Ochtrup 1720–1740 prüfen',
   'Sterbeurkunde beim Standesamt Ochtrup anfragen',
   'Heiratsregister St. Lamberti (Matricula) S. 93 auswerten',
   'Auswanderer-Listen Bremerhaven → USA durchsuchen',
 ]) { await click('+ Aufgabe', { contains: true }); await fill('Was ist zu tun?', t); await pickTarget(RICH_SURNAME); await save(); }
-await bottomNav('Aufgaben'); await click('Hypothesen');
+await bottomNav('tasks'); await click('Hypothesen');
 for (const [txt, rat] of [
   ['Die Person stammt aus dem Kirchspiel Ochtrup (Kreis Steinfurt)', 'Gleicher Familienname am selben Ort, passender Altersabstand, namensgleicher Taufpate.'],
   ['Die Linie wanderte um 1855 über Bremerhaven nach Mississippi aus', 'Namensgleiche Person in den Vicksburg-Kirchenbüchern; Registerlücke ab 1854.'],
 ]) { await click('+ Hypothese', { contains: true }); await sleep(300); await fill('Was wird vermutet?', txt); await fill('Beweisführung', rat); await pickTarget(RICH_SURNAME); await save(); }
-await bottomNav('Aufgaben'); await click('Protokoll');
+await bottomNav('tasks'); await click('Protokoll');
 await click('+ Eintrag', { contains: true }); await sleep(300);
 await fill('Wonach wurde gesucht?', 'Taufeinträge im Kirchenbuch Ochtrup 1770–1780');
 await fill('Ergebnis / Beobachtungen', 'Zwei mögliche Treffer auf S. 93/94; Verfilmung bestellt, Vatername unleserlich.');
@@ -143,9 +142,9 @@ await pickTarget(RICH_SURNAME); await save();
 
 // ---- MOBIL ----
 console.log('Screenshots (mobil) …');
-await bottomNav('Personen'); await scrollTop(); await shot('01-personenliste');
-await bottomNav('Personen'); await scrollTop(); await click('Filter'); await shot('02-person-filter'); await click('Filter');
-await bottomNav('Personen'); await scrollTop(); await click('Werkzeuge'); await shot('03-person-werkzeuge');
+await bottomNav('person'); await scrollTop(); await shot('01-personenliste');
+await bottomNav('person'); await scrollTop(); await click('Filter'); await shot('02-person-filter'); await click('Filter');
+await bottomNav('person'); await scrollTop(); await click('Werkzeuge'); await shot('03-person-werkzeuge');
 // Duplikat-Liste AUS dem bereits offenen Werkzeuge-Blatt (nicht erneut „Werkzeuge" klicken —
 // das würde das Blatt wieder zuklappen). „Duplikate suchen" öffnet die Dedup-Ansicht; der
 // Scan-Knopf trägt denselben Text wie der Werkzeug-Eintrag → per Klasse starten.
@@ -153,22 +152,28 @@ await click('Duplikate suchen'); await sleep(500);
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__scan-btn'); if (b) b.click(); }); await sleep(1800);
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
-await bottomNav('Personen'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
+await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
 // Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997): „Im Baum
 // anzeigen" setzt den geteilten lensFocus → davon erben gleich Karte-Personen-Modus & Zeitleiste.
 await click('Im Baum anzeigen', { contains: true }); await sleep(1000); await shot('14-sanduhr');
-await bottomNav('Personen'); await click('Familien'); await scrollTop(); await shot('06-familienliste');
-await bottomNav('Personen'); await click('Familien'); await scrollTop(); await click(RICH_SURNAME, { contains: true }); await shot('07-familie-detail');
-await bottomNav('Personen'); await click('Quellen'); await scrollTop(); await shot('08-quellenliste');
-await bottomNav('Personen'); await click('Quellen'); await scrollTop(); await click('KB', { contains: true }); await shot('09-quelle-detail');
-await bottomNav('Personen'); await click('Orte'); await scrollTop(); await shot('10-ortsliste');
-await bottomNav('Personen'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
-await bottomNav('Personen'); await click('Höfe'); await scrollTop(); await shot('12-hoefeliste');
-await bottomNav('Personen'); await click('Höfe'); await scrollTop(); await click('Oster 141', { nth: 0 }); await shot('13-hof-detail');
+// Export-Menü (BL-124) am Handy: EIN Einstiegspunkt „↓ Export" öffnet PNG/A1-Poster.
+// EXAKTER Text, nicht contains: bei `contains` gewinnt bei Gleich-Länge der umschließende
+// `.tree-view__export`-<div> (dessen Klick den Button-onclick NICHT auslöst); nur der
+// Exakt-Pfad bevorzugt das interaktive Element (s. click()-Kommentar). Nächster Schritt
+// navigiert ohnehin weg → kein Schließen nötig.
+await click('↓ Export'); await sleep(500); await shot('14d-export');
+await bottomNav('person'); await click('Familien'); await scrollTop(); await shot('06-familienliste');
+await bottomNav('person'); await click('Familien'); await scrollTop(); await click(RICH_SURNAME, { contains: true }); await shot('07-familie-detail');
+await bottomNav('person'); await click('Quellen'); await scrollTop(); await shot('08-quellenliste');
+await bottomNav('person'); await click('Quellen'); await scrollTop(); await click('KB', { contains: true }); await shot('09-quelle-detail');
+await bottomNav('person'); await click('Orte'); await scrollTop(); await shot('10-ortsliste');
+await bottomNav('person'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
+await bottomNav('person'); await click('Höfe'); await scrollTop(); await shot('12-hoefeliste');
+await bottomNav('person'); await click('Höfe'); await scrollTop(); await click('Oster 141', { nth: 0 }); await shot('13-hof-detail');
 
 // Karte (Orte) — auf Deutschland (Marker-Median) zoomen. lensFocus (@I3@, verstorben) wurde
 // bereits oben beim Sanduhr-Schritt gesetzt → der Personen-Modus der Karte erbt ihn.
-await bottomNav('Baum'); await click('Karte'); await sleep(3000);
+await bottomNav('tree'); await click('Karte'); await sleep(3000);
 for (let i = 0; i < 5; i++) {
   const m = await page.evaluate(() => { const ms = [...document.querySelectorAll('.leaflet-marker-icon')].map((e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }).filter((p) => p.y > 180 && p.y < 1500); if (!ms.length) return null; ms.sort((a, b) => a.x - b.x); const mx = ms[Math.floor(ms.length / 2)].x; ms.sort((a, b) => a.y - b.y); const my = ms[Math.floor(ms.length / 2)].y; return { x: mx, y: my }; });
   if (!m) break; await page.mouse.move(m.x, m.y); await page.mouse.wheel({ deltaY: -350 }); await sleep(1400);
@@ -179,21 +184,21 @@ await click('Personen', { nth: 0 }); await sleep(2200); await page.mouse.move(36
 // Zeitleiste bewusst NICHT hier (mobil) — die Swim-Lanes brauchen Breite; sie wird unten im
 // Desktop-Layout aufgenommen (17-zeitleiste). lensFocus = @I3@ bleibt dafür gesetzt.
 
-await bottomNav('Mehr'); await click('Statistik'); await sleep(900); await scrollTop(); await shot('18-statistik');
+await bottomNav('more'); await click('Statistik'); await sleep(900); await scrollTop(); await shot('18-statistik');
 // Suche als „Halbauswahl" zeigen — ein paar Zeichen vorbelegt, damit gruppierte Treffer
 // über mehrere Datenarten sichtbar sind (statt eines leeren Feldes mit Mindestlängen-Hinweis).
-await bottomNav('Suche'); await scrollTop();
+await bottomNav('search'); await scrollTop();
 await page.evaluate(() => { const i = [...document.querySelectorAll('input[type=search]')].find((x) => /Suche über/.test(x.placeholder || '') && x.offsetParent); if (i) i.focus(); });
 await page.keyboard.type('Ochtr', { delay: 40 }); await sleep(900);
 await scrollTop(); await shot('19-suche');
-await bottomNav('Aufgaben'); await click('Aufgaben'); await sleep(300); await shot('20-aufgaben');
-await bottomNav('Aufgaben'); await click('Aufgaben'); await click('Board', { contains: true }); await sleep(500); await shot('20b-aufgaben-board');
-await bottomNav('Aufgaben'); await click('Protokoll'); await sleep(300); await shot('21-protokoll');
-await bottomNav('Aufgaben'); await click('Hypothesen'); await sleep(300); await shot('22-hypothesen');
-await bottomNav('Aufgaben'); await click('Dashboard'); await sleep(900); await scrollTop(); await shot('23-dashboard');
-await bottomNav('Mehr'); await click('Datei'); await shot('24-datei');
-await bottomNav('Mehr'); await click('Datei'); await click('In anderes Format exportieren', { contains: true }); await shot('25-export');
-await bottomNav('Mehr'); await shot('26-mehr');
+await bottomNav('tasks'); await click('Aufgaben'); await sleep(300); await shot('20-aufgaben');
+await bottomNav('tasks'); await click('Aufgaben'); await click('Board', { contains: true }); await sleep(500); await shot('20b-aufgaben-board');
+await bottomNav('tasks'); await click('Protokoll'); await sleep(300); await shot('21-protokoll');
+await bottomNav('tasks'); await click('Hypothesen'); await sleep(300); await shot('22-hypothesen');
+await bottomNav('tasks'); await click('Dashboard'); await sleep(900); await scrollTop(); await shot('23-dashboard');
+await bottomNav('more'); await click('Datei'); await shot('24-datei');
+await bottomNav('more'); await click('Datei'); await click('In anderes Format exportieren', { contains: true }); await shot('25-export');
+await bottomNav('more'); await shot('26-mehr');
 
 // ---- DESKTOP ----
 console.log('Screenshots (Desktop) …');
@@ -203,6 +208,13 @@ await click(RICH_PERSON, { contains: true }); await sleep(600); await shot('30-d
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
 await page.keyboard.press('Escape'); await sleep(300);
+
+// Baum-Modi (Desktop, breit): Nachkommen-Baum und Fächer brauchen die Breite (mobil zu
+// eng); die Sanduhr-Ringe zeigt der Handy-Shot 14. lensFocus (@I3@) ist gesetzt.
+await page.evaluate(() => { const b = [...document.querySelectorAll('button,a,[role=button]')].find((x) => /Baum/.test(x.textContent || '')); if (b) b.click(); }); await sleep(1300);
+await click('Nachkommen'); await sleep(1300); await shot('14b-nachkommen');
+await click('Fächer'); await sleep(1300); await shot('14c-faecher');
+await click('Sanduhr'); await sleep(600);
 
 // Zeitleiste im DESKTOP-Layout — Swim-Lanes über die volle Breite (mobil zu schmal). Der
 // Sidebar-Eintrag „Zeitleiste" führt zum Lens; lensFocus (@I3@, verstorben, ereignisreich)

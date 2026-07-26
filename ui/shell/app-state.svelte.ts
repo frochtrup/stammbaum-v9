@@ -56,8 +56,15 @@ import {
   type ApplyImportResult,
 } from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
-import type { GedNode, GrampsParsed, XmlDocument } from '../../core/interop';
-import { applyDatabaseToRoots, serializeGedcom, applyDatabaseToXml, buildXMLText } from '../../core/interop';
+import type { GedNode, GrampsParsed, XmlDocument, ParsedGedcom } from '../../core/interop';
+import {
+  applyDatabaseToRoots,
+  serializeGedcom,
+  applyDatabaseToXml,
+  buildXMLText,
+  buildGedcomTreeFromModel,
+  buildGrampsTreeFromModel,
+} from '../../core/interop';
 import type { DocFormat } from '../../services/file';
 import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
 import { collectAllEvents } from './all-events';
@@ -129,6 +136,17 @@ export interface AppState {
    * als neuen Baum (derselbe Idempotenz-Kurzschluss wie `buildGedcomDoc`).
    */
   buildGrampsDoc(): GrampsParsed;
+  /**
+   * Kommando: synthetisiert einen KOMPLETTEN Baum der angegebenen Ziel-Familie direkt aus
+   * dem aktuellen `db`-Stand — unabhängig davon, ob überhaupt ein Quell-Doc dieser Familie
+   * existiert (Cross-Family-Export, BL-160, ADR-v9-127; s. `exportCrossFamily` in
+   * ui/shell/save-action.ts, das dies vom nativen Passthrough-Pfad abgrenzt). Nutzt
+   * `buildGedcomTreeFromModel`/`buildGrampsTreeFromModel` (core/interop, BL-157/158) — NICHT
+   * `buildGedcomDoc`/`buildGrampsDoc`, die einen Passthrough-Baum DIESES Formats voraussetzen
+   * (der bei einer Fremd-Familie nicht existiert, ADR-v9-113 Befund 3). Reine Lese-Projektion:
+   * rührt weder `db` noch den gehaltenen Passthrough-Baum (`roots`/`grampsDoc`) an.
+   */
+  buildCrossFamilyDoc(targetFamily: DocFormat): { gedcomDoc?: ParsedGedcom; grampsDoc?: XmlDocument };
   /** Kommando: Upsert eines PlaceObject (`savePlaceObject(model)`-Muster, Spec 20 §1.7 [K]). */
   savePlace(model: PlaceObject): void;
   /** Kommando: entfernt ein PlaceObject. */
@@ -558,6 +576,13 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     },
     buildGrampsDoc() {
       return { db, doc: projectGramps() };
+    },
+    buildCrossFamilyDoc(targetFamily) {
+      // Reine Synthese aus `db` — KEIN Bezug auf `roots`/`grampsDoc` (die gehören dem
+      // jeweils NATIVEN Passthrough-Pfad, den ein Cross-Export gerade nicht hat).
+      return targetFamily === 'gramps'
+        ? { grampsDoc: buildGrampsTreeFromModel(db) }
+        : { gedcomDoc: { db, roots: buildGedcomTreeFromModel(db) } };
     },
     savePlace(model) {
       // Bewusst eine plain Map, keine SvelteMap: db ist $state.raw (nicht tief reaktiv) —

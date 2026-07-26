@@ -3,7 +3,7 @@
 // deshalb Unit- statt Component-Test (Testpyramide, Spec 32 §6). Ein Test pro Sektion:
 // leere DB, zu wenig Datenpunkte -> Sektion fehlt, genug Datenpunkte -> korrekte Werte.
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makeFamily, makePerson, makeCitation } from '../../core/model';
+import { makeDatabase, makeFamily, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, savePlaceObject, type PlaceContext } from '../../core/places';
 import { computeStatistics } from '../../ui/views/stats/stats-model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
@@ -37,9 +37,9 @@ describe('computeStatistics — Übersicht-Kacheln', () => {
   it('zählt Personen/Familien/Quellen/Orte/Archive/Medien dedupliziert', () => {
     const db = makeDatabase();
     const p1 = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
-    p1.media.push({ file: 'foto1.jpg', title: '' });
+    p1.media.push(makeMediaCitation('foto1.jpg'));
     const p2 = makePerson('@I2@', { given: 'Anna', surname: 'Klein' });
-    p2.media.push({ file: 'foto1.jpg', title: '' }); // gleiche Datei -> dedupliziert
+    p2.media.push(makeMediaCitation('foto1.jpg')); // gleiche Datei -> dedupliziert
     db.individuals.set('@I1@', p1);
     db.individuals.set('@I2@', p2);
     db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
@@ -99,7 +99,7 @@ describe('computeStatistics — Datenvollständigkeit', () => {
     p1.birth.date = '1 JAN 1900';
     p1.death.date = '1 JAN 1970';
     p1.topLevelCitations.push(makeCitation('@S1@'));
-    p1.media.push({ file: 'bild.jpg', title: '' });
+    p1.media.push(makeMediaCitation('bild.jpg'));
     const p2 = makePerson('@I2@'); // sonst leer
     db.individuals.set('@I1@', p1);
     db.individuals.set('@I2@', p2);

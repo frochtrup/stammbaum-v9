@@ -4,7 +4,7 @@
 // Test bewusst `seen` (ein reines Bookkeeping-Flag zählt hier als "leer") — s. Kommentar
 // an core/model/event.ts.
 import { describe, it, expect } from 'vitest';
-import { makeEvent, makeCitation, isEventEmpty, isEventPresent } from '../../../core/model/index';
+import { makeEvent, makeCitation, makeMediaCitation, isEventEmpty, isEventPresent } from '../../../core/model/index';
 
 describe('isEventEmpty', () => {
   it('ein frisch angelegtes Event (makeEvent, keine weiteren Felder) ist leer', () => {
@@ -39,7 +39,7 @@ describe('isEventEmpty', () => {
   });
 
   it('ist NICHT leer, sobald Medien vorhanden sind (nicht über EventEditModal löschbar — Datenverlust-Vermeidung)', () => {
-    const ev = makeEvent('OCCU', { media: [{ file: 'foto.jpg', title: '' }] });
+    const ev = makeEvent('OCCU', { media: [makeMediaCitation('foto.jpg')] });
     expect(isEventEmpty(ev)).toBe(false);
   });
 });

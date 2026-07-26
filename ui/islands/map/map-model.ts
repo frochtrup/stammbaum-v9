@@ -21,7 +21,7 @@
 // das wäre ein Chokepoint-Bypass.
 import type { Database, Event, Person, PersonId, PlaceId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { eventCoords, eventHofId, eventPlaceId, eventYear, type Coords } from '../../../core/places';
+import { eventCoords, eventHofId, eventPlaceId, eventYear, placeDisplayName, type Coords } from '../../../core/places';
 import { displayNameOr } from '../../shell/person-display';
 
 export interface PlacePoint {
@@ -112,7 +112,9 @@ export function placesWithCoords(db: Database, ctx: PlaceContext): PlacePoint[] 
     if (pl.lat == null || pl.long == null) continue;
     points.push({
       placeId: pl.id,
-      title: pl.title || pl.id,
+      // Marker = Übersichts-/Listen-Kontext (INV-UI-14, [21 §6l], BL-87): der anzuzeigende
+      // Name über den Chokepoint, nie `pl.title` direkt (kein zweiter Ort für dieselbe Regel).
+      title: placeDisplayName(pl),
       lat: pl.lat,
       long: pl.long,
       personCount: villageCounts.get(pl.id)?.size ?? 0,
@@ -167,7 +169,7 @@ export function personBiographyPoints(db: Database, ctx: PlaceContext, personId:
     const placeId = eventPlaceId(ev, ctx);
     const title =
       (hofId != null ? ctx.hofs.byId(hofId)?.addrs.at(-1)?.value : null) ||
-      (placeId != null ? ctx.places.byId(placeId)?.title : null) ||
+      (placeId != null ? placeDisplayName(ctx.places.byId(placeId)) : null) ||
       ev.place ||
       ev.addr ||
       '';

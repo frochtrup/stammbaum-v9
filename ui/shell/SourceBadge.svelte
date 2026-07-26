@@ -1,11 +1,15 @@
 <script lang="ts">
-  // ui/shell/SourceBadge.svelte — §N-Badge mit QUAY-Farbindikator (Spec 21 §7).
+  // ui/shell/SourceBadge.svelte — §N-Badge mit Beweiskraft-Meter (Spec 21 §7, ADR-v9-118).
+  // Die Pille kodiert PRÄSENZ ("diese Angabe ist belegt", durchgängig gold, nie rot);
+  // die QUAY-Beweiskraft trägt der QuayMeter (gefüllte Pips 0..3). Damit sieht ein Beleg
+  // nie mehr aus wie ein Fehler (früher: q0-Rot ≈ --stb-danger).
   // Optionaler onSelect-Callback (Spec 20 §1.6 [K]): navigiert zur Quellen-Detailseite.
   // Ohne Callback bleibt es eine reine, nicht-interaktive Anzeige (z. B. künftige
   // Kontexte ohne Quellen-Tab-Zugriff) — INV-UI-2: EIN kanonischer Klick-Weg, kein
   // zweiter Navigations-Pfad daneben.
   import type { Citation, Source } from '../../core/model/types';
-  import { badgeLabel, quayClass, badgeTitle, badgeLinkHref } from './source-badge';
+  import { badgeLabel, badgeTitle, badgeLinkHref } from './source-badge';
+  import QuayMeter from './QuayMeter.svelte';
   import { tooltip } from './tooltip';
 
   interface Props {
@@ -26,16 +30,16 @@
   {#if onSelect}
     <button
       type="button"
-      class="src-badge src-badge--clickable {quayClass(citation)}"
+      class="src-badge src-badge--clickable"
       aria-label={tip}
       use:tooltip={tip}
       onclick={() => onSelect(citation.sourceId)}
     >
-      {badgeLabel(citation)}
+      <span class="src-badge__label">{badgeLabel(citation, source)}</span><QuayMeter quay={citation.quay} />
     </button>
   {:else}
-    <span class="src-badge {quayClass(citation)}" aria-label={tip} use:tooltip={tip}>
-      {badgeLabel(citation)}
+    <span class="src-badge" aria-label={tip} use:tooltip={tip}>
+      <span class="src-badge__label">{badgeLabel(citation, source)}</span><QuayMeter quay={citation.quay} />
     </span>
   {/if}
   {#if href}
@@ -72,16 +76,31 @@
     color: var(--stb-gold);
   }
 
+  /* Präsenz-Kanal: EINE affirmative Farbe (Gold) für „belegt" — nie QUAY-abhängig,
+     nie Alarm-Rot. Die Beweiskraft trägt der eingebettete QuayMeter (ADR-v9-118). */
   .src-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28em;
+    max-width: 100%;
     font-size: 0.62rem;
     line-height: 1;
     padding: 0.2em 0.45em;
     border-radius: 9px;
     font-weight: 600;
-    color: var(--stb-text);
+    color: var(--stb-gold-light);
     background: var(--stb-surface-3);
     border: 1px solid var(--stb-gold-dim);
+  }
+
+  /* Dichte-Schutz zusätzlich zur Zeichen-Kappung in badgeLabel (ADR-v9-120): auf schmalen
+     Zeilen bindet die CSS-Ellipse die sichtbare Breite responsiv, der volle Name bleibt im
+     Tooltip. Der Meter (Geschwister) bleibt davon unberührt sichtbar. */
+  .src-badge__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 11em;
   }
 
   button.src-badge--clickable {
@@ -92,21 +111,6 @@
   button.src-badge--clickable:hover,
   button.src-badge--clickable:focus-visible {
     background: var(--stb-surface-2);
-  }
-  .src-badge--q0 {
-    border-color: var(--stb-quay-0);
-    color: var(--stb-quay-0);
-  }
-  .src-badge--q1 {
-    border-color: var(--stb-quay-1);
-    color: var(--stb-quay-1);
-  }
-  .src-badge--q2 {
-    border-color: var(--stb-quay-2);
-    color: var(--stb-quay-2);
-  }
-  .src-badge--q3 {
-    border-color: var(--stb-quay-3);
-    color: var(--stb-quay-3);
+    border-color: var(--stb-gold);
   }
 </style>

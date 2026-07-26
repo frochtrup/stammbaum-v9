@@ -4,7 +4,7 @@
 // selbst ist aber reine Funktion, deshalb hier statt als Component-Test, s. TST-5
 // Testpyramide).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import {
   buildPersonGroups,
@@ -21,7 +21,7 @@ describe('Medien-Badge (Spec 20 §1.4 [K], ADR-v9-79 Punkt 3) — hasMedia-Feld 
   it('Person mit Medien-Eintrag → hasMedia=true', () => {
     const db = makeDatabase();
     const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
-    p.media.push({ file: 'foto.jpg', title: '' });
+    p.media.push(makeMediaCitation('foto.jpg'));
     db.individuals.set('@I1@', p);
 
     const groups = buildPersonGroups(db, emptyContext());
@@ -76,6 +76,30 @@ describe('buildPersonGroups — alphabetische Gruppierung mit Buchstaben-Trenner
 
     expect(groups).toHaveLength(1);
     expect(groups[0].letter).toBe('#');
+  });
+
+  it('markiert die "#"-Gruppe als nameless=true, alphabetische Gruppen als false (ADR-v9-121)', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@')); // namenlos → "#"
+    db.individuals.set('@I2@', makePerson('@I2@')); // namenlos → "#"
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Anna', surname: 'Bauer' }));
+
+    const groups = buildPersonGroups(db, emptyContext());
+
+    const nameless = groups.find((g) => g.nameless);
+    expect(nameless).toBeTruthy();
+    expect(nameless!.letter).toBe('#');
+    expect(nameless!.rows).toHaveLength(2); // beide Namenlosen in EINER Gruppe
+    expect(groups.find((g) => g.letter === 'B')?.nameless).toBe(false);
+  });
+
+  it('im Geburtsdatum-Modus ist keine Gruppe nameless (kein Kollabieren ohne Buchstaben-Trenner)', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@'));
+
+    const groups = buildPersonGroups(db, emptyContext(), 'birthDate');
+
+    expect(groups.every((g) => g.nameless === false)).toBe(true);
   });
 
   it('zeigt Geburts-/Sterbejahr in der Zeilen-Zusammenfassung, wenn im Modell vorhanden', () => {

@@ -1,0 +1,134 @@
+// core/interop/enum-maps.ts — gebündelte, beidseitige Enum-/Wert-Abbildungen (BL-156, ADR-v9-127).
+//
+// EIN kohärenter Ort für die Enum-Übersetzungen zwischen Modell und Wire-Formaten, die bisher
+// über gramps-events / gramps-citations / strict-adapter verstreut lagen. Die Cross-Family-
+// Emission (BL-157/158) baut den Zielbaum aus dem Modell und braucht daher JEDE Richtung —
+// hier gebündelt, auf Vollständigkeit gebracht und beidseitig getestet (Bijektivität auf den
+// bekannten Werten; unbekannte Werte werden DEFINIERT — verlustschonend — behandelt, LP-1).
+//
+// Vereinfachen vor Erfinden: die vorhandenen Funktionen (grampsTypeToTag/tagToGrampsType,
+// confidenceToQuay, die _FREL/_MREL→PEDI-Regex aus strict-adapter) ziehen HIERHER; die alten
+// Module re-exportieren sie, damit kein bestehender Import bricht (kein Native-Test berührt).
+//
+// Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1), build-frei testbar (INV-ARCH-2).
+
+import type { Quay } from '../model/types';
+
+// ── 1. Ereignistyp: GEDCOM-Tag ↔ GRAMPS-<type> ────────────────────────────────
+// Nur Built-ins, deren Tag das Modell kennt (SPECIAL_EVENT_TAGS ∪ EVENT_TAGS in
+// gedcom-parse.ts). Die GRAMPS-Strings sind die `xml_str`-Spalte aus `gen/lib/eventtype.py::
+// _DATAMAP`. Alles Übrige (Built-ins ohne 1:1-Tag UND Custom-/deutsche Typen) → `EVEN` mit
+// `eventType` = wörtlicher GRAMPS-Typ (verlustfrei, D1/D5).
+
+export const TAG_BY_GRAMPS: Record<string, string> = {
+  Birth: 'BIRT',
+  Death: 'DEAT',
+  Christening: 'CHR',
+  Burial: 'BURI',
+  Baptism: 'BAPM',
+  Confirmation: 'CONF',
+  Adopted: 'ADOP',
+  Census: 'CENS',
+  Occupation: 'OCCU',
+  Residence: 'RESI',
+  Education: 'EDUC',
+  Emigration: 'EMIG',
+  Immigration: 'IMMI',
+  Naturalization: 'NATU',
+  Graduation: 'GRAD',
+  Property: 'PROP',
+  'Military Service': 'MILI',
+  Marriage: 'MARR',
+  Engagement: 'ENGA',
+  Divorce: 'DIV',
+};
+
+export const GRAMPS_BY_TAG: Record<string, string> = Object.fromEntries(
+  Object.entries(TAG_BY_GRAMPS).map(([g, t]) => [t, g]),
+);
+
+/** GRAMPS-Typ → `{ tag, eventType }`. Nicht kartiert → `EVEN` + wörtlicher Typ. */
+export function grampsTypeToTag(grampsType: string): { tag: string; eventType: string } {
+  const tag = TAG_BY_GRAMPS[grampsType];
+  return tag ? { tag, eventType: '' } : { tag: 'EVEN', eventType: grampsType };
+}
+
+/** GEDCOM-Tag (+ `eventType`) → GRAMPS-Typ-String. Umkehrung für das Write-Back/Cross-Emit. */
+export function tagToGrampsType(tag: string, eventType: string): string {
+  if (tag === 'EVEN' || tag === 'FACT') return eventType || 'Event';
+  return GRAMPS_BY_TAG[tag] ?? (eventType || tag);
+}
+
+// ── 2. QUAY ↔ GRAMPS-<confidence> ─────────────────────────────────────────────
+// GEDCOM-QUAY: 0–3. GRAMPS-<confidence>: 0–4 (4 = Very High). D4 ist verlustbehaftet in
+// EINE Richtung (4→3 via min); die Rückrichtung ist die identische Zahl (0–3 → "0".."3").
+
+/** GRAMPS-`<confidence>` (0–4) → GEDCOM-QUAY (0–3). 4 (Very High) und 3 (High) → 3. */
+export function confidenceToQuay(text: string): Quay {
+  const n = parseInt(text, 10);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return (n >= 3 ? 3 : n) as Quay;
+}
+
+/** GEDCOM-QUAY (0–3) → GRAMPS-`<confidence>`-String. Die Modell-Zahl IST der Confidence-Level. */
+export function quayToConfidence(quay: Quay): string {
+  return String(quay);
+}
+
+// ── 3. PEDI ↔ GRAMPS-childref-Relation (frel/mrel) ────────────────────────────
+// Modell-`ChildLink.pedigree` = GEDCOM-PEDI-Enum {birth,adopted,foster,sealing,''}. GRAMPS
+// trägt die Relation je Kind als `frel`/`mrel`-Attribut am `<childref>` (Werte aus
+// `gen/lib/childreftype.py`: Birth/Adopted/Stepchild/Sponsored/Foster/Unknown/Custom).
+// `sealing` (LDS) hat KEIN GRAMPS-Built-in → als Custom-String "Sealing" emittiert (verlust-
+// schonend). Unbekannte GRAMPS-Relationen (Stepchild/Sponsored/Unknown/Custom) haben keinen
+// PEDI-Wert → leeres PEDI (kein Rateversuch; der Rohbaum sichert die Fidelity über INV-PT).
+
+export type Pedigree = 'birth' | 'adopted' | 'foster' | 'sealing' | '';
+
+const REL_BY_PEDI: Record<Exclude<Pedigree, ''>, string> = {
+  birth: 'Birth',
+  adopted: 'Adopted',
+  foster: 'Foster',
+  sealing: 'Sealing',
+};
+
+/** PEDI-Enum → GRAMPS-childref-Relation (frel/mrel). Leeres PEDI → leere Relation. */
+export function pediToChildrefRel(pedi: Pedigree): string {
+  return pedi === '' ? '' : REL_BY_PEDI[pedi];
+}
+
+/**
+ * GRAMPS-childref-Relation (frel/mrel) ODER GEDCOM-`_FREL`/`_MREL`-Wert (auch deutsch) →
+ * PEDI-Enum. Unbekannt/leer → '' (definiert). Trägt die aus der `_REPO_MODELLED`-/Strict-
+ * Lehre bewährte Regex-Erkennung (deutsch + englisch), damit strict-adapter dieselbe Quelle
+ * nutzt statt einer zweiten Kopie.
+ */
+export function childrefRelToPedi(rel: string): Pedigree {
+  const s = rel.trim().toLowerCase();
+  if (s === '') return '';
+  if (/^(adopt|adoptiv|adopted)/.test(s)) return 'adopted';
+  if (/^(foster|pflege)/.test(s)) return 'foster';
+  if (/^(seal|siegel)/.test(s)) return 'sealing';
+  if (/^(birth|geburt|leiblich|natural)/.test(s)) return 'birth';
+  return '';
+}
+
+// ── 4. MEDI (GEDCOM-Medientyp-Enum unter FORM) ────────────────────────────────
+// MEDI ist die GEDCOM-5.5.1-Standard-Enum für die ART des Mediums (Foto/Buch/…), getrennt
+// vom Dateiformat FORM/MIME (das media-mime.ts kanonisiert). GRAMPS hat KEIN direktes
+// Gegenstück — der Medientyp ist GEDCOM-nativ; auf GEDCOM-Ebene round-trippt er über
+// `Media.type`, GRAMPS→GEDCOM kann ihn nicht befüllen (leer), GEDCOM→GRAMPS trägt ihn nicht
+// als eigenes Feld (Coverage-Kandidat BL-155-Report). Deshalb hier nur eine kanonisierende
+// Normalisierung mit VERLUSTFREIEM Durchreichen unbekannter Werte (kein stiller Verlust).
+
+export const MEDI_TYPES = new Set<string>([
+  'audio', 'book', 'card', 'electronic', 'fiche', 'film', 'magazine', 'manuscript',
+  'map', 'newspaper', 'photo', 'tombstone', 'video',
+]);
+
+/** Bekannter MEDI-Wert → kanonisch (lowercase); unbekannter → getrimmt durchgereicht. */
+export function normalizeMedi(value: string): string {
+  const v = value.trim();
+  const lower = v.toLowerCase();
+  return MEDI_TYPES.has(lower) ? lower : v;
+}

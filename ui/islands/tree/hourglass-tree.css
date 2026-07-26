@@ -49,6 +49,21 @@
   height: 100%;
   overflow: auto;
   cursor: grab;
+  /* Flex + `margin:auto` am Kind zentriert den Inhalt, wenn er passt, und lässt ihn vom
+     Anfang an scrollen, wenn er größer ist (margin:auto → 0 bei Überlauf; anders als
+     justify-content:center, das den Anfang abschneidet). */
+  display: flex;
+}
+
+/* Trägt die SKALIERTE Grundfläche (Größe per JS gesetzt) und klemmt die unskalierte
+   `__wrap`-Layout-Box (die `transform: scale` nicht schrumpft) darauf, damit der
+   Scroll-Container die tatsächliche Größe misst. `margin:auto` zentriert deklarativ,
+   `flex:none` verhindert, dass der Flex-Container die Grundfläche staucht. */
+.tree-island__scale-wrap {
+  position: relative;
+  overflow: hidden;
+  margin: auto;
+  flex: none;
 }
 
 .tree-island__wrap {
@@ -87,6 +102,21 @@
   color: var(--stb-text);
   cursor: pointer;
   overflow: hidden;
+}
+
+/* Vollständigkeits-Ring (BL-121, Spec 21 §8): farbiger Halo am Kartenrand, wenn Daten
+   fehlen. Stufung aus der Per-Person-Befundschwere (dieselbe wie das Dashboard, kein
+   zweiter Validator) — Hinweis→gold, Warnung→orange, Fehler→rot. `box-shadow` statt
+   Border, damit der Geschlechts-Border-left (unten) unberührt bleibt; statisch (kein
+   Übergang), daher unabhängig von prefers-reduced-motion. */
+.tree-island__card[data-severity='info'] {
+  box-shadow: 0 0 0 2px var(--stb-gold);
+}
+.tree-island__card[data-severity='warn'] {
+  box-shadow: 0 0 0 2px var(--stb-warn);
+}
+.tree-island__card[data-severity='error'] {
+  box-shadow: 0 0 0 2px var(--stb-danger);
 }
 
 .tree-island__card[data-sex='M'] {
@@ -189,4 +219,58 @@
   left: 3px;
   font-size: 0.65rem;
   color: var(--stb-gold-dim);
+}
+
+/* „▼ mehr Nachkommen" — am Generationen-Rand des Nachkommen-Baums abgeschnittene Kinder
+   (Orakel: `tree-desc-more`), unten-mittig an der Karte. */
+.tree-island__desc-more {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6rem;
+  color: var(--stb-gold-dim);
+}
+
+/* ── Fächer-Diagramm (BL-123): Halbkreis-Segmente + Proband-Kreis, theme-treu über die
+   geteilten Geschlechts-Tokens (Spec 21 §7, M blau / F rosa), Generations-Abstufung über
+   `fill-opacity` aus dem Layout. ── */
+.tree-island__fan-seg {
+  stroke: var(--stb-bg);
+  stroke-width: 1.5;
+  fill: var(--stb-surface-3);
+}
+.tree-island__fan-seg[data-sex='M'] {
+  fill: var(--stb-sex-m);
+}
+.tree-island__fan-seg[data-sex='F'] {
+  fill: var(--stb-sex-f);
+}
+.tree-island__fan-seg--empty {
+  fill: var(--stb-surface-1);
+  fill-opacity: 0.5;
+}
+.tree-island__fan-seg[data-person-id]:hover {
+  fill-opacity: 1;
+}
+
+.tree-island__fan-proband {
+  stroke: var(--stb-bg);
+  stroke-width: 2;
+  fill: var(--stb-surface-3);
+}
+.tree-island__fan-proband[data-sex='M'] {
+  fill: var(--stb-sex-m);
+}
+.tree-island__fan-proband[data-sex='F'] {
+  fill: var(--stb-sex-f);
+}
+
+.tree-island__fan-text {
+  fill: var(--stb-text);
+  font-family: system-ui, -apple-system, sans-serif;
+  pointer-events: none;
+}
+.tree-island__fan-text--dim {
+  fill: var(--stb-text-dim);
 }

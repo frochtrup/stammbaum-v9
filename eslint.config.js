@@ -171,6 +171,29 @@ export default tseslint.config(
     }
   },
   {
+    // INV-UI-14 (Spec 21 §6l, ADR-v9-90/-100, BL-88): Kein View bildet den Anzeigenamen
+    // eines Orts selbst — `ctx.places.byId(id).title` ist der Weg, über den das zuletzt in
+    // die Karten-Insel gesickert war (BL-87). `placeDisplayName(po)` (= shortName || title ||
+    // id) ist der EINZIGE erlaubte Weg (INV-UI-4), `buildListPlaceName(ev, ctx)` der Listen-
+    // Zwilling mit Hof-/Kettenlogik — beide in core/places. Bewusst ENG auf den Resolver-
+    // Pfad `.places.byId(...).title` gefasst (nicht ein pauschales `.title`-Verbot, das
+    // Quellen/Aufgaben/Personen träfe); `.byId` ist orts-/hof-spezifisch, Höfe haben kein
+    // `title` → false-positive-frei. Die zwei dokumentierten Ketten-Ausnahmen (§6l: Review-
+    // Klasse P, Massen-Dedup) tragen ein begründetes `eslint-disable`.
+    files: ['ui/**/*.ts', 'ui/**/*.svelte'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[property.name='title'][object.callee.property.name='byId'][object.callee.object.property.name='places']",
+          message:
+            'Kein View liest den Ortstitel direkt (INV-UI-14, Spec 21 §6l): `places.byId(id).title` verliert shortName und die Kurzname-Regel. Nutze placeDisplayName(po) bzw. buildListPlaceName(ev, ctx) aus core/places.'
+        }
+      ]
+    }
+  },
+  {
     // Service Worker (BL-02): eigener globaler Scope — `self` ist der
     // ServiceWorkerGlobalScope, `clients`/`caches` gibt es nur hier. Die Datei liegt
     // in app/public/ und wird verbatim ausgeliefert, ist also klassisches Skript

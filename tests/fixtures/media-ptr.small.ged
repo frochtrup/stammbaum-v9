@@ -1,0 +1,26 @@
+0 HEAD
+1 SOUR ANCESTRIS
+2 VERS 14.0
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Bo /Zeiger/
+1 SEX M
+1 OBJE @M1@
+2 TITL Porträt (Ref A)
+1 OBJE @M1@
+2 _PRIM Y
+2 _SCBK Y
+0 @I2@ INDI
+1 NAME Co /Zeiger/
+1 SEX F
+1 OBJE @M1@
+2 TITL Porträt (Ref B)
+0 @M1@ OBJE
+1 FILE fotos/gemeinsam.jpg
+2 FORM jpg
+3 MEDI PHOTO
+1 TITL Gemeinsames Foto
+0 TRLR

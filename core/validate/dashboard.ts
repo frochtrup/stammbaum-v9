@@ -22,6 +22,7 @@ import {
 } from './facts';
 import type { Database, Person, PersonId } from '../model/types';
 import type { Finding, Severity } from './types';
+import { computePersonSeverity } from './person-severity';
 
 /** Ein Balken des Lückenradars. `base` ist die Bezugsmenge, nicht immer `total`. */
 export interface RadarBar {
@@ -122,21 +123,17 @@ export function buildQualityDashboard(
     if (!scope || scope.has(p.id)) persons.push(p);
   }
 
-  // Befunde je Person bündeln. Befunde ohne Trägerperson (Orte/Höfe) und solche an
-  // Personen ausserhalb des Scopes gehören nicht in diese personbezogene Auswertung —
-  // sie bleiben dem vollständigen Prüfbericht (§1.11h) vorbehalten.
+  // Befunde je Person bündeln — über die geteilte Projektion (ADR-v9-123, INV-UI-4): EIN
+  // Bewertungsmechanismus, den auch der Baum-Ring (BL-121) liest. Befunde ohne Trägerperson
+  // (Orte/Höfe) und solche ausserhalb des Scopes gehören nicht in diese personbezogene
+  // Auswertung — sie bleiben dem vollständigen Prüfbericht (§1.11h) vorbehalten.
   const inScope = new Set<PersonId>(persons.map((p) => p.id));
-  const byPerson = new Map<PersonId, { error: Finding[]; warn: Finding[]; info: Finding[] }>();
+  const byPerson = computePersonSeverity(findings, inScope);
   const counts = { error: 0, warn: 0, info: 0 };
-  for (const f of findings) {
-    if (!f.personId || !inScope.has(f.personId)) continue;
-    let g = byPerson.get(f.personId);
-    if (!g) {
-      g = { error: [], warn: [], info: [] };
-      byPerson.set(f.personId, g);
-    }
-    g[f.severity].push(f);
-    counts[f.severity]++;
+  for (const g of byPerson.values()) {
+    counts.error += g.error.length;
+    counts.warn += g.warn.length;
+    counts.info += g.info.length;
   }
 
   const ampel = { error: 0, warn: 0, infoOnly: 0, clean: 0 };
@@ -149,10 +146,9 @@ export function buildQualityDashboard(
   for (const p of persons) {
     const g = byPerson.get(p.id);
     if (!g) ampel.clean++;
-    else if (g.error.length) ampel.error++;
-    else if (g.warn.length) ampel.warn++;
-    else if (g.info.length) ampel.infoOnly++;
-    else ampel.clean++;
+    else if (g.severity === 'error') ampel.error++;
+    else if (g.severity === 'warn') ampel.warn++;
+    else ampel.infoOnly++;
 
     if (g) {
       focus.push({

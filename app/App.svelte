@@ -400,6 +400,8 @@
       <TreeView
         {appState}
         {viewState}
+        {route}
+        {fileService}
         onOpenPersonDetail={openPersonDetailFromTree}
         onNavigateToFamily={openFamilyFromTree}
         onNavigateLens={navigateLens}

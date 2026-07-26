@@ -71,6 +71,8 @@ export type ResearchSegmentId = ResearchTargetId;
  */
 export type MapModeId = 'orte' | 'person' | 'migr';
 export type TimelineModeId = 'swim' | 'decade';
+/** Anzeige-Modus der Baum-Lens (Sanduhr · Nachkommen · Fächer, Spec 21 §1/§8, ADR-v9-123). */
+export type TreeModeId = 'hourglass' | 'descendant' | 'fan';
 
 /**
  * Alle Navigationsziele der App.
@@ -155,6 +157,21 @@ export function targetsByRole(role: NavRole): readonly NavTargetDef[] {
   return NAV_TARGETS.filter((t) => t.role === role);
 }
 
+/**
+ * Anzeigename je Rolle/Gruppe — EINE Quelle für die Sidebar-Gruppen-Header (Desktop) UND
+ * die drei Gruppen-Einstiegs-Slots der Bottom-Nav (Mobil), damit dieselbe Gruppe auf
+ * beiden Formfaktoren GLEICH heißt (ADR-v9-122). Vorher gab es zwei Quellen: Sidebar.svelte
+ * hielt eine eigene `GROUPS`-Liste, und die Bottom-Nav borgte sich das Label ihres Default-
+ * Ziels ("Personen"/"Baum"/"Aufgaben") — dieselbe Gruppe hatte je nach Gerät zwei Namen,
+ * und mobil kollidierte der Tab-Name „Personen" mit dem gleichnamigen Segment darunter.
+ */
+export const NAV_ROLE_LABELS: Record<NavRole, string> = {
+  entity: 'Daten',
+  lens: 'Ansichten',
+  research: 'Forschung',
+  work: 'Arbeit',
+};
+
 export const ENTITY_TARGETS: readonly NavTargetDef[] = targetsByRole('entity');
 
 export function isEntityTarget(id: RouteTarget): id is EntityTargetId {
@@ -187,7 +204,9 @@ export type BottomNavSlot = 'tree' | 'person' | 'search' | 'tasks' | 'more';
 /** Der Hub-Slot, der kein Ziel ist (s. RouteTarget) — trägt Symbol/Label selbst. */
 export const MORE_SLOT = { id: 'more', icon: '⋯', label: 'Mehr', implemented: true } as const;
 
-/** Reihenfolge der Bottom-Nav (Spec 21 §2 wörtlich: Baum · Personen · Suche · Aufgaben · Mehr). */
+/** Reihenfolge der Bottom-Nav-Slots (Spec 21 §2). Die drei Gruppen-Slots werden nach ihrer
+ *  ROLLE beschriftet (Ansichten · Daten · … · Forschung, ADR-v9-122), die Slot-IDS bleiben
+ *  aber ihr Default-Ziel (tree/person/tasks) — daher hier weiterhin diese IDs. */
 export const BOTTOM_NAV_SLOTS: readonly BottomNavSlot[] = ['tree', 'person', 'search', 'tasks', 'more'];
 
 export interface NavItemView {
@@ -197,17 +216,33 @@ export interface NavItemView {
   implemented: boolean;
 }
 
-/** Projektion für BottomNav.svelte — Symbole/Beschriftungen kommen aus dem Register. */
-export function bottomNavItems(): NavItemView[] {
-  return BOTTOM_NAV_SLOTS.map((slot) =>
-    slot === 'more'
-      ? { ...MORE_SLOT }
-      : { id: slot, ...pickView(navTargetById(slot)) },
-  );
-}
+/**
+ * Drei Bottom-Slots sind Gruppen-Einstiege — sie eröffnen eine ganze Rolle (mehrere Ziele
+ * über die Segment-Reihe) und werden deshalb nach ihrer ROLLE benannt (= Sidebar-Gruppe,
+ * ADR-v9-122), nicht nach ihrem Default-Ziel. 'search' ist KEIN Gruppen-Einstieg
+ * (Datei/Ausgaben/Einstellungen hängen am Mehr-Hub, nicht am Such-Slot) und behält sein
+ * Ziel-Label „Suche".
+ */
+const GROUP_ENTRY_SLOT_ROLE: Partial<Record<BottomNavSlot, NavRole>> = {
+  person: 'entity',
+  tree: 'lens',
+  tasks: 'research',
+};
 
-function pickView(def: NavTargetDef): { icon: string; label: string; implemented: boolean } {
-  return { icon: def.icon, label: def.label, implemented: def.implemented };
+/** Projektion für BottomNav.svelte — Symbole aus dem Register; Gruppen-Slots tragen den
+ *  Rollen-Namen (NAV_ROLE_LABELS), Einzel-Ziel-Slots ihr Ziel-Label. */
+export function bottomNavItems(): NavItemView[] {
+  return BOTTOM_NAV_SLOTS.map((slot) => {
+    if (slot === 'more') return { ...MORE_SLOT };
+    const def = navTargetById(slot);
+    const role = GROUP_ENTRY_SLOT_ROLE[slot];
+    return {
+      id: slot,
+      icon: def.icon,
+      label: role ? NAV_ROLE_LABELS[role] : def.label,
+      implemented: def.implemented,
+    };
+  });
 }
 
 /**

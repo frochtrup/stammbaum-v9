@@ -28,6 +28,8 @@ export { runValidation, countBySeverity, sortFindings, withoutAlreadyTasked } fr
 export { buildContext, reachableFrom, hofsWithResidence } from './context';
 export { distanceKm } from './geo';
 export { buildQualityDashboard, filterFocus } from './dashboard';
+export { computePersonSeverity } from './person-severity';
+export type { PersonFindings } from './person-severity';
 export type {
   DashboardOptions,
   FocusFilter,

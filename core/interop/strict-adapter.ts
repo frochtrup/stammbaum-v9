@@ -12,6 +12,7 @@
 // Reiner Knotenbaum-Transform.
 
 import type { GedNode } from './gedcom-tree';
+import { childrefRelToPedi } from './enum-maps';
 
 function cloneNode(n: GedNode): GedNode {
   return {
@@ -23,14 +24,10 @@ function cloneNode(n: GedNode): GedNode {
   };
 }
 
-/** _FREL/_MREL-Werte (auch deutsch) → GEDCOM-PEDI-Enum. */
+/** _FREL/_MREL-Werte (auch deutsch) → GEDCOM-PEDI-Enum, '' → kein PEDI. Kanonische Erkennung
+ *  in enum-maps.ts (BL-156, dieselbe Quelle wie die GRAMPS-childref-Relation). */
 function relToPedi(v: string): string | null {
-  const s = v.trim().toLowerCase();
-  if (/^(adopt|adoptiv|adopted)/.test(s)) return 'adopted';
-  if (/^(foster|pflege)/.test(s)) return 'foster';
-  if (/^(seal|siegel)/.test(s)) return 'sealing';
-  if (/^(birth|geburt|leiblich|natural)/.test(s)) return 'birth';
-  return null;
+  return childrefRelToPedi(v) || null;
 }
 
 /**

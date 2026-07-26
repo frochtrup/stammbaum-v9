@@ -18,48 +18,11 @@ import type { XmlNode } from './xml-tree';
 import { attr, firstChild } from './xml-tree';
 import { grampsDateOf } from './gramps-date';
 
-/**
- * GRAMPS-`<type>`-Wert → GEDCOM-Tag. Nur Built-ins, deren Tag das Modell kennt
- * (SPECIAL_EVENT_TAGS ∪ EVENT_TAGS in gedcom-parse.ts). GRAMPS-Strings sind die
- * `xml_str`-Spalte aus `eventtype.py::_DATAMAP`.
- */
-const TAG_BY_GRAMPS: Record<string, string> = {
-  Birth: 'BIRT',
-  Death: 'DEAT',
-  Christening: 'CHR',
-  Burial: 'BURI',
-  Baptism: 'BAPM',
-  Confirmation: 'CONF',
-  Adopted: 'ADOP',
-  Census: 'CENS',
-  Occupation: 'OCCU',
-  Residence: 'RESI',
-  Education: 'EDUC',
-  Emigration: 'EMIG',
-  Immigration: 'IMMI',
-  Naturalization: 'NATU',
-  Graduation: 'GRAD',
-  Property: 'PROP',
-  'Military Service': 'MILI',
-  Marriage: 'MARR',
-  Engagement: 'ENGA',
-  Divorce: 'DIV',
-};
-const GRAMPS_BY_TAG: Record<string, string> = Object.fromEntries(
-  Object.entries(TAG_BY_GRAMPS).map(([g, t]) => [t, g]),
-);
-
-/** GRAMPS-Typ → `{ tag, eventType }`. Nicht kartiert → `EVEN` + wörtlicher Typ. */
-export function grampsTypeToTag(grampsType: string): { tag: string; eventType: string } {
-  const tag = TAG_BY_GRAMPS[grampsType];
-  return tag ? { tag, eventType: '' } : { tag: 'EVEN', eventType: grampsType };
-}
-
-/** GEDCOM-Tag (+ `eventType`) → GRAMPS-Typ-String. Umkehrung für das Write-Back. */
-export function tagToGrampsType(tag: string, eventType: string): string {
-  if (tag === 'EVEN' || tag === 'FACT') return eventType || 'Event';
-  return GRAMPS_BY_TAG[tag] ?? (eventType || tag);
-}
+// Ereignistyp-Tabelle GRAMPS-`<type>` ↔ GEDCOM-Tag lebt seit BL-156 kanonisch in enum-maps.ts
+// (gebündelt mit QUAY/PEDI/MEDI); hier importiert (interner Gebrauch) + re-exportiert, damit
+// bestehende Importe unverändert bleiben (kein Native-Test berührt).
+import { grampsTypeToTag, tagToGrampsType } from './enum-maps';
+export { grampsTypeToTag, tagToGrampsType };
 
 /**
  * Event-Typen, deren `<description>` eine ADRESSE ist (nicht Beruf/Notiz) — das Wohn- bzw.

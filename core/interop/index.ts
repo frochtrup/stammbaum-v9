@@ -38,6 +38,24 @@ export { transformGed7 } from './ged7-adapter';
 export { stripStrict } from './strict-adapter';
 export { buildLivingSet, anonymizeIndi, anonymizeFam, anonymizeDoc } from './anonymize';
 
+export { modelEquiv, type Diff } from './model-equiv';
+
+export {
+  grampsTypeToTag,
+  tagToGrampsType,
+  confidenceToQuay,
+  quayToConfidence,
+  pediToChildrefRel,
+  childrefRelToPedi,
+  normalizeMedi,
+  type Pedigree,
+} from './enum-maps';
+export { remapIdsForFormat, mappedOr, type IdRemap, type TargetFormat } from './id-remap';
+
+// Cross-Family-Vollbaum-Synthese aus dem Modell (ADR-v9-127, BL-157/158).
+export { buildGedcomTreeFromModel } from './build-gedcom-from-model';
+export { buildGrampsTreeFromModel } from './build-gramps-from-model';
+
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
 export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';

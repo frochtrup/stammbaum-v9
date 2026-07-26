@@ -117,7 +117,7 @@ describe('Write-Back: geändertes Feld an bestehendem Record (INV-PT bleibt gewa
     expect(lg).toContain('2 FILE bild.jpg');
     expect(lg).toContain('4 LATI N52.15');
     expect(rp.birth.date).toBe('12 MAR 1890');
-    expect(rp.media[0].file).toBe('bild.jpg');
+    expect(rp.media[0].mediaId).toBe('bild.jpg');
   });
 
   it('nur das geänderte Feld unterscheidet sich; alle anderen Modellfelder gleich', () => {
@@ -132,7 +132,7 @@ describe('Write-Back: geändertes Feld an bestehendem Record (INV-PT bleibt gewa
     // Name/Geburt/Medien unberührt.
     expect(rp.given).toBe(before.given);
     expect(rp.birth.date).toBe(before.birth.date);
-    expect(rp.media[0].file).toBe(before.media[0].file);
+    expect(rp.media[0].mediaId).toBe(before.media[0].mediaId);
   });
 
   it('idempotent ab Edit: zweiter Write-Back-Durchlauf ist stabil (out1===out2)', () => {

@@ -49,12 +49,17 @@ export function surnameCandidate(p: Person): string {
   return surnameOf(p) || p.given || p.name;
 }
 
+/** Sammel-Trenner-Wert für Personen ohne alphabetisch sortierbaren Namen (namenlos oder
+ *  reine Platzhalter wie „?"). Die Personen-Liste fasst diese Gruppe zu einer
+ *  kollabierbaren „N ohne Namen"-Zeile zusammen (ADR-v9-121). */
+export const NAMELESS_LETTER = '#';
+
 /** Erster Buchstabe des Nachnamens für den Alphabet-Trenner der Personen-Liste. */
 export function sortLetter(p: Person): string {
   const ch = surnameCandidate(p).trim().charAt(0).toUpperCase();
   // Kein alphabetisches Zeichen ermittelbar (auch kein GEDCOM-NAME vorhanden) →
   // Sammel-Buchstaben, statt versehentlich das Platzhalter-"(" von displayName zu sortieren.
-  return /[A-ZÄÖÜ]/.test(ch) ? ch : '#';
+  return /[A-ZÄÖÜ]/.test(ch) ? ch : NAMELESS_LETTER;
 }
 
 /**

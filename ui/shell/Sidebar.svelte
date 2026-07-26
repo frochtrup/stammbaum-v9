@@ -19,7 +19,7 @@
   // das Ziel hier DIREKT markiert: `bottomNavSlotFor()` bündelt Ziele auf fünf Slots,
   // weil die Bottom-Nav nur fünf hat — die Sidebar hat für jedes Ziel eine eigene
   // Zeile und braucht diese Bündelung nicht.
-  import { targetsByRole, type NavRole, type NavTargetId, type RouteTarget } from './nav-model';
+  import { targetsByRole, NAV_ROLE_LABELS, type NavRole, type NavTargetId, type RouteTarget } from './nav-model';
 
   interface Props {
     active: RouteTarget;
@@ -29,13 +29,11 @@
   }
   const { active, onNavigate, openTaskBadge }: Props = $props();
 
-  // Reihenfolge und Beschriftung der Gruppen folgen Spec 21 §3 wörtlich.
-  const GROUPS: { role: NavRole; label: string }[] = [
-    { role: 'entity', label: 'Entitäten' },
-    { role: 'lens', label: 'Ansichten' },
-    { role: 'research', label: 'Forschung' },
-    { role: 'work', label: 'Arbeit' },
-  ];
+  // Reihenfolge der Gruppen folgt Spec 21 §3 wörtlich; die Beschriftung kommt aus der
+  // EINEN Rollen-Label-Quelle (NAV_ROLE_LABELS, ADR-v9-122) — dieselbe, die auch die
+  // Gruppen-Bottom-Slots benennt, damit Handy und Desktop nicht auseinanderdriften.
+  const GROUP_ROLES: readonly NavRole[] = ['entity', 'lens', 'research', 'work'];
+  const GROUPS = GROUP_ROLES.map((role) => ({ role, label: NAV_ROLE_LABELS[role] }));
 </script>
 
 <nav class="sidebar" aria-label="Hauptnavigation">

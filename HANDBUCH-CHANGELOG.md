@@ -22,6 +22,33 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.3] — 2026-07-26
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`9e80724`…HEAD) erzeugt._
+
+- feat(islands): BL-124 — Diagramm-Export PNG + A1-Vektorposter (`dbb41b0`)
+- feat(places): BL-87 + BL-88 — Ortsname-Chokepoint in der Karten-Insel + Lint-Gate (`37ed5e8`)
+- feat(islands): BL-121 — Vollständigkeits-Heatmap-Ring am Kartenrand (`f194ae8`)
+- feat(validate): BL-152 — Per-Person-Severity als geteilte Projektion (`1640653`)
+- fix(islands): Baum/Fächer im Viewport zentrieren (BL-151, ADR-v9-123) (`f20abab`)
+- feat(islands): BL-123 — Fan-Chart (Halbkreis-Segmente) (`05b3e9f`)
+- feat(islands): BL-122 — Nachkommen-Baum (top-down, Gen 2-7) (`948ab0c`)
+- feat(islands): BL-151 — geteilter tree-viewport, Sanduhr umgestellt (`87bf586`)
+
+---
+
+## [9.2] — 2026-07-25
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`a2dfe15`…HEAD) erzeugt._
+
+- feat(ui): Handy und Desktop benennen Nav-Gruppen gleich (ADR-v9-122) (`c33ccc3`)
+- feat(ui): Namenlose als kollabierbare "N ohne Namen"-Zeile (ADR-v9-121) (`0fe156b`)
+- feat(ui): Quellen-Marke zeigt lesbaren Namen statt Datensatz-ID (ADR-v9-120) (`c75b80a`)
+- fix(a11y): Text-Token-Kontrast auf WCAG AA anheben (ADR-v9-119) (`c3033ea`)
+- feat(ui): QUAY-Beweiskraft als Meter statt Pillenfarbe (ADR-v9-118) (`0b30cc8`)
+
+---
+
 ## [9.1] — 2026-07-25
 
 - **Orts- & Hofkonzept ausführlich erklärt (Kapitel 7):** neue Abschnitte „Das Konzept:

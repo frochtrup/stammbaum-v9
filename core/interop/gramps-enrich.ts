@@ -20,6 +20,7 @@ import { attr, childrenByTag, firstChild } from './xml-tree';
 import type { GrampsRefIndex } from './gramps';
 import { distributeFamilyEvents, distributePersonEvents, projectGrampsEvent } from './gramps-events';
 import { collectCitations } from './gramps-citations';
+import { grampsMediaRefs } from './gramps-media';
 
 export interface EnrichContext {
   eventOf: (handle: string) => XmlNode | null;
@@ -35,6 +36,8 @@ export interface EnrichContext {
   resolvePlaceLink: (handle: string) => { placeId?: string; hofId?: string } | null;
   /** `<sourceref hlink>` → Quellen-Modell-`id` (BL-136-Handle→id). */
   resolveSourceId: (handle: string) => string;
+  /** handle→id für `<objref hlink>`→`Media.id` (ADR-v9-125). */
+  handleToId: Map<string, string>;
 }
 
 function indexSection(root: XmlNode, section: string, item: string): Map<string, XmlNode> {
@@ -75,6 +78,7 @@ export function buildEnrichContext(
     },
     resolvePlaceLink: (h) => placeLink?.get(h) ?? null,
     resolveSourceId: (h) => index.handleToId.get(h) ?? h,
+    handleToId: index.handleToId,
   };
 }
 
@@ -84,6 +88,7 @@ function projectEventRef(ref: XmlNode, ctx: EnrichContext): Event | null {
   if (!eventNode) return null;
   const e = projectGrampsEvent(eventNode, ctx.resolvePlace);
   e.citations = collectCitations(eventNode, ctx.citationOf, ctx.resolveSourceId);
+  e.media = grampsMediaRefs(eventNode, ctx.handleToId);
   // BL-143: den Event-Ort NATIV ans placeobj binden (placeId/hofId per handle→id), statt ihn
   // dem String-Resolver zu überlassen. `event.place` behält den ptitle-String (Anzeige).
   const placeRef = firstChild(eventNode, 'place');
@@ -113,6 +118,7 @@ export function enrichPerson(p: Person, node: XmlNode, ctx: EnrichContext): void
   const nameNode = firstChild(node, 'name');
   if (nameNode) p.nameCitations = collectCitations(nameNode, ctx.citationOf, ctx.resolveSourceId);
   p.topLevelCitations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId);
+  p.media = grampsMediaRefs(node, ctx.handleToId);
 
   const dist = distributePersonEvents(ownedEvents(node, 'Primary', ctx));
   p.birth = dist.birth;

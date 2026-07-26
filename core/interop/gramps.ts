@@ -17,6 +17,7 @@ import { parseXml, serializeXml, attr, firstChild, childrenByTag } from './xml-t
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { applyDatabaseToXml } from './gramps-write-back';
 import { buildEnrichContext, enrichPerson, enrichFamily } from './gramps-enrich';
+import { collectGrampsMedia, grampsMediaRefs } from './gramps-media';
 import { projectPlaces } from './gramps-places';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
@@ -64,7 +65,10 @@ export interface GrampsRefIndex {
 // Village-Verweis eines Building-Hofs referenzieren placeobjs per Handle; das Modell hält sie
 // über ihre `id` (P0000). Ohne diesen Eintrag blieben placeobj-Referenzen als rohe Handles
 // stehen (id↔handle für den placeobj-Write-Back gälte ebenfalls nicht).
-const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes', 'events', 'citations', 'places'];
+// `objects` seit ADR-v9-125 mit aufgenommen: `<objref hlink>` referenziert Medien-Records per
+// Handle; das Modell hält sie über ihre `id` (O0000). Ohne diesen Eintrag bliebe die mediaId
+// ein roher Handle (und der object-Write-Back-`id↔handle` gälte ebenfalls nicht).
+const REF_SECTIONS = ['people', 'families', 'sources', 'repositories', 'notes', 'events', 'citations', 'places', 'objects'];
 
 export function buildRefIndex(root: XmlNode): GrampsRefIndex {
   const handleToId = new Map<string, string>();
@@ -129,6 +133,7 @@ export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   s.publisher = firstChild(source, 'spubinfo')?.text ?? '';
   const reporef = firstChild(source, 'reporef');
   if (reporef) s.repo = resolveRef(attr(reporef, 'hlink'), index);
+  s.media = grampsMediaRefs(source, index.handleToId);
   return s;
 }
 
@@ -165,6 +170,8 @@ export function parseXMLText(xml: string): GrampsParsed {
   const projectedPlaces = projectPlaces(root, (h) => index.handleToId.get(h) ?? h);
   db.placeObjects = projectedPlaces.placeObjects;
   db.hofObjects = projectedPlaces.hofObjects;
+  // Medien-Records (ADR-v9-125): <object> → db.media; <objref> je Owner → MediaCitation.
+  db.media = collectGrampsMedia(root);
   // Auflösungs-Kontext für die Lese-Anreicherung (BL-140 Stufe 1d): Ereignisse/Zitate/Orte
   // liegen als Top-Level-Records vor und werden je Person/Familie per Handle nachgezogen.
   const enrich = buildEnrichContext(root, index, projectedPlaces.linkByHandle);

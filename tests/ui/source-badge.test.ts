@@ -1,39 +1,76 @@
-// tests/ui/source-badge.test.ts — §N-Badge + QUAY-Farbindikator (Spec 21 §7).
+// tests/ui/source-badge.test.ts — §N-Badge + QUAY-Beweiskraft-Meter (Spec 21 §7, ADR-v9-118).
 import { describe, expect, it } from 'vitest';
-import { makeCitation, makeSource } from '../../core/model';
+import { makeCitation, makeSource, makeMediaCitation } from '../../core/model';
 import {
   badgeLabel,
   badgeNumber,
   badgeTitle,
   badgeLinkHref,
-  quayClass,
+  quayAriaLabel,
+  MAX_BADGE_LABEL,
 } from '../../ui/shell/source-badge';
 
-describe('badgeNumber/badgeLabel — §N aus dem numerischen ID-Teil', () => {
+describe('badgeNumber — Zahl aus dem numerischen ID-Teil', () => {
   it('extrahiert die Zahl aus einer GEDCOM-ID wie @S042@', () => {
     expect(badgeNumber('@S042@')).toBe('042');
   });
+});
 
-  it('baut das Label §N ohne Seiten-Suffix, wenn keine Seite gesetzt ist', () => {
+describe('badgeLabel — menschenlesbarer Quellenname statt Datensatz-ID (ADR-v9-120)', () => {
+  it('zeigt den Kurznamen (abbr) der Quelle, nicht die ID', () => {
     const cit = makeCitation('@S42@');
-    expect(badgeLabel(cit)).toBe('§42');
+    const src = makeSource('@S42@', { abbr: 'KB Ochtrup', title: 'Kirchenbuch Ochtrup, Band 3' });
+    expect(badgeLabel(cit, src)).toBe('KB Ochtrup');
   });
 
-  it('hängt eine kurze Seitenangabe (<=5 Zeichen) als Suffix an', () => {
-    const cit = makeCitation('@S42@', { page: '15' });
-    expect(badgeLabel(cit)).toBe('§42·15');
+  it('fällt auf den Titel zurück, wenn kein Kurzname gesetzt ist', () => {
+    const cit = makeCitation('@S42@');
+    const src = makeSource('@S42@', { title: 'Aufsatz Hörstmann' });
+    expect(badgeLabel(cit, src)).toBe('Aufsatz Hörstmann');
   });
 
-  it('lässt eine zu lange Seitenangabe weg (>5 Zeichen)', () => {
-    const cit = makeCitation('@S42@', { page: 'S. 15-22 ff' });
-    expect(badgeLabel(cit)).toBe('§42');
+  it('die Seite landet NICHT im Label, sondern im Tooltip (Dichte)', () => {
+    const cit = makeCitation('@S42@', { page: 'S. 42' });
+    const src = makeSource('@S42@', { abbr: 'KB Ochtrup' });
+    expect(badgeLabel(cit, src)).toBe('KB Ochtrup');
+  });
+
+  // --- Dichte-Kontrakt: die Marke darf pro Zeile nicht ausufern -------------------
+  it('kürzt einen langen Namen auf höchstens MAX_BADGE_LABEL Zeichen mit „…“', () => {
+    const long = 'Adressbuch Kreis Steinfurt 1951'; // 31 Z. — realer Median liegt bei ~37
+    const cit = makeCitation('@S1@');
+    const label = badgeLabel(cit, makeSource('@S1@', { abbr: long }));
+    expect(label.length).toBeLessThanOrEqual(MAX_BADGE_LABEL);
+    expect(label.endsWith('…')).toBe(true);
+    expect(label.startsWith('Adressbuch')).toBe(true); // Anfang bleibt erkennbar
+  });
+
+  it('lässt einen kurzen Namen ungekürzt (kein „…“)', () => {
+    const cit = makeCitation('@S1@');
+    expect(badgeLabel(cit, makeSource('@S1@', { abbr: 'Duesmann' }))).toBe('Duesmann');
+  });
+
+  // --- Fallback §N: nur wenn die Quelle fehlt oder namenlos ist --------------------
+  it('fällt auf §N zurück, wenn die Quelle nicht (mehr) existiert', () => {
+    expect(badgeLabel(makeCitation('@S42@'), undefined)).toBe('§42');
+  });
+
+  it('fällt auf §N zurück, wenn die Quelle weder Kurzname noch Titel hat', () => {
+    expect(badgeLabel(makeCitation('@S42@'), makeSource('@S42@', { abbr: '', title: '' }))).toBe('§42');
+  });
+
+  it('im §N-Fallback hängt eine kurze Seite (<=5 Z.) als Suffix an', () => {
+    expect(badgeLabel(makeCitation('@S42@', { page: '15' }), undefined)).toBe('§42·15');
+  });
+
+  it('im §N-Fallback wird eine zu lange Seite (>5 Z.) weggelassen', () => {
+    expect(badgeLabel(makeCitation('@S42@', { page: 'S. 15-22 ff' }), undefined)).toBe('§42');
   });
 });
 
-describe('quayClass — QUAY-Farbindikator q0..q3', () => {
-  it.each([0, 1, 2, 3] as const)('mappt quay=%s auf src-badge--q%s', (q) => {
-    const cit = makeCitation('@S1@', { quay: q });
-    expect(quayClass(cit)).toBe(`src-badge--q${q}`);
+describe('quayAriaLabel — Beweiskraft als lesbares aria-Label (Meter statt Farbe)', () => {
+  it.each([0, 1, 2, 3] as const)('beschreibt quay=%s als "Beweiskraft %s von 3"', (q) => {
+    expect(quayAriaLabel(q)).toBe(`Beweiskraft ${q} von 3`);
   });
 });
 
@@ -70,7 +107,7 @@ describe('badgeTitle — Tooltip zeigt den Quellentitel, nicht die GEDCOM-ID', (
 describe('badgeLinkHref — ↗-Weblink aus Zitat-Medium bzw. PAGE-als-URL', () => {
   it('nimmt die erste http(s)-Medien-Datei', () => {
     const cit = makeCitation('@S1@', {
-      media: [{ file: 'https://example.org/rec/42', title: '' }],
+      media: [makeMediaCitation('https://example.org/rec/42')],
     });
     expect(badgeLinkHref(cit)).toBe('https://example.org/rec/42');
   });
@@ -88,7 +125,7 @@ describe('badgeLinkHref — ↗-Weblink aus Zitat-Medium bzw. PAGE-als-URL', () 
   it('liefert "" bei nicht-URL-Medien und normalem PAGE-Text', () => {
     const cit = makeCitation('@S1@', {
       page: 'S. 42',
-      media: [{ file: 'scans/kb.jpg', title: 'Scan' }],
+      media: [makeMediaCitation('scans/kb.jpg', { title: 'Scan' })],
     });
     expect(badgeLinkHref(cit)).toBe('');
   });

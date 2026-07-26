@@ -20,6 +20,8 @@ export {
   makeRepository,
   makeNote,
   makeCitation,
+  makeMedia,
+  makeMediaCitation,
 } from './factory';
 export { isEventPresent, isEventEmpty } from './event';
 export {

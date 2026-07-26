@@ -10,7 +10,7 @@
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import { buildSourceDetail, hasPageContent, type SourceReferenceRow } from './source-detail-model';
-  import { quayClassFor } from '../../shell/source-badge';
+  import QuayMeter from '../../shell/QuayMeter.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
 
@@ -69,8 +69,9 @@
     {ref.ownerLabel}
   </button>
   {#if hasPageContent(ref.page)}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
-  <span class="source-detail__ref-quay {quayClassFor(ref.quay)}">
+  <span class="source-detail__ref-quay">
     QUAY {ref.quay}
+    <QuayMeter quay={ref.quay} />
   </span>
 {/snippet}
 
@@ -245,29 +246,18 @@
     font-size: 0.85rem;
   }
 
+  /* Neutrale „QUAY N"-Marke + Meter (ADR-v9-118): der Zahlenwert steht hier explizit,
+     die Stufe zusätzlich als Pips — keine QUAY-Farbklasse mehr (kein Alarm-Rot für q0). */
   .source-detail__ref-quay {
     margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
     font-size: 0.7rem;
     font-weight: 600;
+    color: var(--stb-text-dim);
     padding: 0.1em 0.4em;
     border-radius: 9px;
     border: 1px solid var(--stb-gold-dim);
-  }
-
-  .source-detail__ref-quay.src-badge--q0 {
-    border-color: var(--stb-quay-0);
-    color: var(--stb-quay-0);
-  }
-  .source-detail__ref-quay.src-badge--q1 {
-    border-color: var(--stb-quay-1);
-    color: var(--stb-quay-1);
-  }
-  .source-detail__ref-quay.src-badge--q2 {
-    border-color: var(--stb-quay-2);
-    color: var(--stb-quay-2);
-  }
-  .source-detail__ref-quay.src-badge--q3 {
-    border-color: var(--stb-quay-3);
-    color: var(--stb-quay-3);
   }
 </style>
