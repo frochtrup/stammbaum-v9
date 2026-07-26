@@ -4,7 +4,7 @@
 // selbst ist aber reine Funktion, deshalb hier statt als Component-Test, s. TST-5
 // Testpyramide).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import {
   buildPersonGroups,
@@ -21,7 +21,7 @@ describe('Medien-Badge (Spec 20 §1.4 [K], ADR-v9-79 Punkt 3) — hasMedia-Feld 
   it('Person mit Medien-Eintrag → hasMedia=true', () => {
     const db = makeDatabase();
     const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
-    p.media.push({ file: 'foto.jpg', title: '' });
+    p.media.push(makeMediaCitation('foto.jpg'));
     db.individuals.set('@I1@', p);
 
     const groups = buildPersonGroups(db, emptyContext());

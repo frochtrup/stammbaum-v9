@@ -56,7 +56,7 @@ const HTTP_RE = /^https?:\/\//i;
  *  (`deepLinkUrl`/OBJE-FILE), dann PAGE-als-URL als Altdaten-Fallback (analog v8
  *  `citTagsHtml`). '' = kein Link, dann wird kein ↗ gerendert. */
 export function badgeLinkHref(citation: Citation): string {
-  const mediaUrl = citation.media.find((m) => HTTP_RE.test(m.file))?.file;
+  const mediaUrl = citation.media.find((m) => HTTP_RE.test(m.mediaId))?.mediaId;
   if (mediaUrl) return mediaUrl;
   if (HTTP_RE.test(citation.deepLinkUrl)) return citation.deepLinkUrl;
   if (HTTP_RE.test(citation.page)) return citation.page;

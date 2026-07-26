@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   makeCitation,
+  makeMediaCitation,
   dedupeCitations,
   setCitationQuay,
   suggestQuayFromEval,
@@ -90,19 +91,19 @@ describe('INV-C2: quay und eval unabhängig', () => {
 describe('Weblink der Quellenreferenz (deepLinkUrl/OBJE-FILE, Spec 10 §5.3)', () => {
   it('citationUrl liefert die erste http(s)-Medien-Datei', () => {
     const c = makeCitation('@S1@', {
-      media: [{ file: 'https://example.org/rec/42', title: '' }],
+      media: [makeMediaCitation('https://example.org/rec/42')],
     });
     expect(citationUrl(c)).toBe('https://example.org/rec/42');
   });
 
   it('citationUrl ignoriert echte (nicht-URL) Medien und liefert dann ""', () => {
-    const c = makeCitation('@S1@', { media: [{ file: 'scans/kb.jpg', title: 'Scan' }] });
+    const c = makeCitation('@S1@', { media: [makeMediaCitation('scans/kb.jpg', { title: 'Scan' })] });
     expect(citationUrl(c)).toBe('');
   });
 
   it('setCitationUrl legt ein OBJE/FILE-Medium an und hält deepLinkUrl konsistent', () => {
     const c = setCitationUrl(makeCitation('@S1@'), 'https://example.org/rec/42');
-    expect(c.media).toEqual([{ file: 'https://example.org/rec/42', title: '' }]);
+    expect(c.media).toEqual([makeMediaCitation('https://example.org/rec/42')]);
     expect(c.deepLinkUrl).toBe('https://example.org/rec/42');
     expect(citationUrl(c)).toBe('https://example.org/rec/42');
   });
@@ -116,14 +117,14 @@ describe('Weblink der Quellenreferenz (deepLinkUrl/OBJE-FILE, Spec 10 §5.3)', (
   });
 
   it('setCitationUrl lässt echte Medien unangetastet und ersetzt nur die URL', () => {
-    const scan = { file: 'scans/kb.jpg', title: 'Scan' };
+    const scan = makeMediaCitation('scans/kb.jpg', { title: 'Scan' });
     let c = makeCitation('@S1@', { media: [scan] });
     c = setCitationUrl(c, 'https://example.org/a');
-    expect(c.media).toEqual([scan, { file: 'https://example.org/a', title: '' }]);
+    expect(c.media).toEqual([scan, makeMediaCitation('https://example.org/a')]);
     // echter Scan bleibt media[0] → deepLinkUrl bleibt der Scan, Weblink weiter auffindbar
     expect(c.deepLinkUrl).toBe('scans/kb.jpg');
     expect(citationUrl(c)).toBe('https://example.org/a');
     c = setCitationUrl(c, 'https://example.org/b');
-    expect(c.media).toEqual([scan, { file: 'https://example.org/b', title: '' }]);
+    expect(c.media).toEqual([scan, makeMediaCitation('https://example.org/b')]);
   });
 });

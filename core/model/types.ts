@@ -6,6 +6,11 @@ import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 // unter isolatedModules erased, kein Laufzeit-Zyklus (Model ↔ Places, gleiche Schicht).
 import type { PlaceObject as PlaceObjectT, HofObject as HofObjectT } from '../places/types';
 
+// GedNode ist die generische Passthrough-Zeile (INV-PT); MediaCitation.extra hält
+// unbekannte OBJE-Kinder verbatim. Type-only-Import → unter isolatedModules erased,
+// kein Laufzeit-Zyklus (Model liest nur den Struktur-Typ, keine Interop-Logik).
+import type { GedNode } from '../interop/gedcom-tree';
+
 // --- ID-Typen (GEDCOM-Konvention @Ixx@/@Fxx@/@Sxx@/@Rxx@/@Nxx@) ---
 export type PersonId = string;
 export type FamilyId = string;
@@ -14,6 +19,8 @@ export type RepoId = string;
 export type NoteId = string;
 export type PlaceId = string;
 export type HofId = string;
+/** Medien-Identität (ADR-v9-124): = der `FILE`-Pfad selbst, app-intern, NICHT serialisiert. */
+export type MediaId = string;
 
 export type Sex = 'M' | 'F' | 'U';
 
@@ -33,10 +40,40 @@ export interface EvidenceEval {
   informant?: string;
 }
 
-export interface MediaRef {
-  /** Relativer Pfad (bezogen auf Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
+/**
+ * Globaler Datensatz EINES Mediums (Spec 10 §4, ADR-v9-124). Lebt in `db.media`,
+ * keyed by `id` (= `file`). Trägt die globalen, referenz-übergreifenden Felder —
+ * „Speichern (alle Ref.)" ändert nur hier.
+ */
+export interface Media {
+  /** = `file` (content-adressiert). App-intern, wird NIE ins Wire-Format geschrieben. */
+  id: MediaId;
+  /** FILE — relativer Pfad (Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
   file: string;
+  /** FORM — Dateiformat (jpg, pdf, …). */
+  form: string;
+  /** MEDI — Medientyp (Foto/Dokument/…); in den Import-Daten meist leer. */
+  type: string;
+  lastChanged: string;
+}
+
+/**
+ * Referenz-spezifische Verknüpfung EIN Medium ↔ EINE Entität/Ereignis/Zitat
+ * (Spec 10 §4). Gleiche Rollenverteilung wie `Source`/`Citation`.
+ */
+export interface MediaCitation {
+  /** FK auf `Media.id` (= der Dateipfad). */
+  mediaId: MediaId;
+  /** TITL — Beschriftung NUR für diesen Kontext. */
   title: string;
+  /** _DATE — Aufnahmedatum in diesem Kontext. */
+  date: string;
+  /** NOTE. */
+  note: string;
+  /** _PRIM — Hauptfoto/-dokument für DIESEN Datensatz. */
+  primary: boolean;
+  /** Unbekannte OBJE-Kinder (z. B. `_SCBK`) verbatim erhalten (INV-PT, edit-sicher). */
+  extra: GedNode[];
 }
 
 export type Quay = 0 | 1 | 2 | 3;
@@ -47,9 +84,9 @@ export interface Citation {
   page: string;
   quay: Quay;
   note: string;
-  media: MediaRef[];
+  media: MediaCitation[];
   eval: EvidenceEval | null;
-  /** = media[0].file (OBJE/FILE), NICHT page. */
+  /** = media[0].mediaId (OBJE/FILE-Pfad), NICHT page. */
   deepLinkUrl: string;
   /**
    * Roundtrip-Fidelity: die eindeutige GRAMPS-`id` (C0000) des GETEILTEN `<citation>`-Records,
@@ -119,7 +156,7 @@ export interface Event {
   addr: string;
   note: string;
   citations: Citation[];
-  media: MediaRef[];
+  media: MediaCitation[];
   /** INV-P5: bewahrt leere-aber-vorhandene Blöcke (`1 BIRT` ohne Sub-Tags). */
   seen: boolean;
   /**
@@ -169,7 +206,7 @@ export interface Person {
   parentIn: FamilyId[];
   associations: Association[];
 
-  media: MediaRef[];
+  media: MediaCitation[];
   noteText: string;
   noteRefs: NoteId[];
 
@@ -220,7 +257,7 @@ export interface Source {
   callMedia: string;
   dataEvents: SourceDataEvent[];
   externalRefs: { value: string; type: string }[];
-  media: MediaRef[];
+  media: MediaCitation[];
   lastChanged: string;
 }
 
@@ -253,6 +290,8 @@ export interface Database {
   sources: Map<SourceId, Source>;
   repositories: Map<RepoId, Repository>;
   notes: Map<NoteId, Note>;
+  /** Globale Medien-Identität (ADR-v9-124), keyed by MediaId (= Dateipfad). */
+  media: Map<MediaId, Media>;
   // placeObjects/hofObjects (Spec 11): konkrete Form aus dem Orts-Kern.
   placeObjects: Map<PlaceId, PlaceObjectT>;
   hofObjects: Map<HofId, HofObjectT>;

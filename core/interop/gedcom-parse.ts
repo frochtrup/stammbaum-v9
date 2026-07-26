@@ -14,6 +14,8 @@ import {
   makeNote,
   makeEvent,
   makeCitation,
+  makeMedia,
+  makeMediaCitation,
 } from '../model/factory';
 import { makeTask } from '../research/task';
 import { makeLogEntry } from '../research/log';
@@ -38,7 +40,9 @@ import type {
   Note,
   Event,
   Citation,
-  MediaRef,
+  Media,
+  MediaCitation,
+  MediaId,
   Quay,
 } from '../model/types';
 import { parseTree, child, children, childValue, unescapeAt } from './gedcom-tree';
@@ -94,15 +98,56 @@ function parseCitation(sourNode: GedNode): Citation {
   for (const obje of children(sourNode, 'OBJE')) {
     cit.media.push(parseMedia(obje));
   }
-  if (cit.media.length) cit.deepLinkUrl = cit.media[0].file;
+  if (cit.media.length) cit.deepLinkUrl = cit.media[0].mediaId;
   return cit;
 }
 
-function parseMedia(objeNode: GedNode): MediaRef {
-  return {
-    file: childValue(objeNode, 'FILE'),
+// OBJE-Kinder mit eigenem Modell-Feld (parseMedia/mediaNode sind zueinander invers).
+// FILE trägt zusätzlich das globale FORM/MEDI (→ db.media, s. collectMedia). Alles
+// andere (z. B. `_SCBK`) landet verbatim in MediaCitation.extra (INV-PT, edit-sicher).
+const RECOGNIZED_OBJE_SUB = new Set(['FILE', 'TITL', 'NOTE', '_DATE', '_PRIM']);
+
+/**
+ * Projiziert eine inline-OBJE in eine referenz-spezifische MediaCitation (ADR-v9-124).
+ * `mediaId` = der FILE-Pfad (content-adressiert); die globalen Felder (form/type) leben
+ * in `db.media`, assembliert von `collectMedia`. Unbekannte Kinder bleiben in `extra`.
+ */
+function parseMedia(objeNode: GedNode): MediaCitation {
+  const fileNode = child(objeNode, 'FILE');
+  const noteNode = child(objeNode, 'NOTE');
+  return makeMediaCitation(fileNode ? fileNode.value : '', {
     title: childValue(objeNode, 'TITL'),
+    date: childValue(objeNode, '_DATE'),
+    note: noteNode ? collectText(noteNode) : '',
+    primary: childValue(objeNode, '_PRIM') === 'Y',
+    extra: objeNode.children.filter((c) => !RECOGNIZED_OBJE_SUB.has(c.tag)),
+  });
+}
+
+/**
+ * Assembliert `db.media` in einem Post-Pass über den Passthrough-Baum (ADR-v9-124):
+ * jede OBJE — inline unter einem Record ODER als Top-Level-Record — wird nach FILE
+ * dedupliziert. Erst-Vorkommen gewinnt (form/type sind aus dem Dateiformat abgeleitet
+ * und in der Praxis über Referenzen hinweg konstant). Kontextfrei, damit der isolierte
+ * Einzel-Record-Parse (Dirty-Check) davon unberührt bleibt.
+ */
+function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
+  const out = new Map<MediaId, Media>();
+  const visit = (node: GedNode): void => {
+    if (node.tag === 'OBJE') {
+      const fileNode = child(node, 'FILE');
+      const id = fileNode ? fileNode.value : '';
+      if (id && !out.has(id)) {
+        const formNode = fileNode ? child(fileNode, 'FORM') : null;
+        const form = formNode ? formNode.value : '';
+        const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
+        out.set(id, makeMedia(id, { form, type }));
+      }
+    }
+    for (const c of node.children) visit(c);
   };
+  for (const rec of roots) visit(rec);
+  return out;
 }
 
 /** Event-Projektion aus einem Ereignis-Knoten (BIRT/EVEN/OCCU/…). */
@@ -526,6 +571,8 @@ export function parseGedcom(text: string): ParsedGedcom {
         break;
     }
   }
+  // Globale Medien-Identität aus dem gesamten Baum assemblieren (ADR-v9-124).
+  db.media = collectMedia(roots);
   return { db, roots };
 }
 

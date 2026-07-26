@@ -10,7 +10,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeMediaCitation } from '../../core/model';
 
 function seedAppState() {
   const appState = createAppState();
@@ -182,7 +182,7 @@ describe('PersonList — 📎-Medien-Badge (ADR-v9-79 Punkt 3)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     const withMedia = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
-    withMedia.media.push({ file: 'foto.jpg', title: '' });
+    withMedia.media.push(makeMediaCitation('foto.jpg'));
     db.individuals.set('@I1@', withMedia);
     db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Meyer' }));
     appState.loadDatabase(db, 'test.ged');

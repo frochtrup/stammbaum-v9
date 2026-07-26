@@ -1,0 +1,38 @@
+0 HEAD
+1 SOUR ANCESTRIS
+2 VERS 14.0
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Bild/
+2 GIVN Anna
+2 SURN Bild
+1 SEX F
+1 OBJE
+2 TITL Portrait Anna
+2 FILE fotos/anna.jpg
+3 FORM jpg
+2 _SCBK Y
+2 _PRIM Y
+1 BIRT
+2 DATE 1 JAN 1900
+2 OBJE
+3 TITL Anna als Kind
+3 FILE fotos/anna.jpg
+4 FORM jpg
+3 NOTE Aufnahme im Garten
+1 SOUR @S1@
+2 PAGE 5
+2 OBJE
+3 TITL Scan Urkunde
+3 FILE scans/urkunde.pdf
+4 FORM pdf
+0 @S1@ SOUR
+1 TITL Standesamt Ochtrup
+1 OBJE
+2 TITL Titelblatt
+2 FILE scans/urkunde.pdf
+3 FORM pdf
+0 TRLR

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import SourceCitationRow from '../../ui/shell/SourceCitationRow.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makeDatabase, makeSource, makeCitation } from '../../core/model';
+import { makeDatabase, makeSource, makeCitation, makeMediaCitation } from '../../core/model';
 
 function seedTwoSources() {
   const appState = createAppState();
@@ -115,7 +115,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
   it('zeigt den Weblink der Referenz und ruft onUrlChange bei Änderung auf', async () => {
     const appState = seedTwoSources();
     const citation = makeCitation('@S1@', {
-      media: [{ file: 'https://example.org/rec/7', title: '' }],
+      media: [makeMediaCitation('https://example.org/rec/7')],
     });
     const onUrlChange = vi.fn();
 

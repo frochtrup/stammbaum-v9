@@ -1,6 +1,6 @@
 // tests/ui/source-badge.test.ts — §N-Badge + QUAY-Beweiskraft-Meter (Spec 21 §7, ADR-v9-118).
 import { describe, expect, it } from 'vitest';
-import { makeCitation, makeSource } from '../../core/model';
+import { makeCitation, makeSource, makeMediaCitation } from '../../core/model';
 import {
   badgeLabel,
   badgeNumber,
@@ -107,7 +107,7 @@ describe('badgeTitle — Tooltip zeigt den Quellentitel, nicht die GEDCOM-ID', (
 describe('badgeLinkHref — ↗-Weblink aus Zitat-Medium bzw. PAGE-als-URL', () => {
   it('nimmt die erste http(s)-Medien-Datei', () => {
     const cit = makeCitation('@S1@', {
-      media: [{ file: 'https://example.org/rec/42', title: '' }],
+      media: [makeMediaCitation('https://example.org/rec/42')],
     });
     expect(badgeLinkHref(cit)).toBe('https://example.org/rec/42');
   });
@@ -125,7 +125,7 @@ describe('badgeLinkHref — ↗-Weblink aus Zitat-Medium bzw. PAGE-als-URL', () 
   it('liefert "" bei nicht-URL-Medien und normalem PAGE-Text', () => {
     const cit = makeCitation('@S1@', {
       page: 'S. 42',
-      media: [{ file: 'scans/kb.jpg', title: 'Scan' }],
+      media: [makeMediaCitation('scans/kb.jpg', { title: 'Scan' })],
     });
     expect(badgeLinkHref(cit)).toBe('');
   });

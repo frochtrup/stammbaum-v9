@@ -113,7 +113,7 @@ function mergeEventSlot(slot: EventSlot, selections: MergeSelections, w: Event, 
     lati: w.lati ?? l.lati,
     long: w.long ?? l.long,
     citations: unionCitations(w.citations, l.citations),
-    media: [...w.media, ...l.media.filter((m) => !w.media.some((x) => x.file === m.file))],
+    media: [...w.media, ...l.media.filter((m) => !w.media.some((x) => x.mediaId === m.mediaId))],
     seen: w.seen || l.seen,
   };
 }
@@ -180,7 +180,7 @@ export function mergePersons(
     winner.extraNames = [...winner.extraNames, ...loser.extraNames];
     winner.aliaNames = [...new Set([...winner.aliaNames, ...loser.aliaNames])];
     winner.nameTrans = [...winner.nameTrans, ...loser.nameTrans];
-    winner.media = [...winner.media, ...loser.media.filter((m) => !winner.media.some((x) => x.file === m.file))];
+    winner.media = [...winner.media, ...loser.media.filter((m) => !winner.media.some((x) => x.mediaId === m.mediaId))];
     winner.noteRefs = [...new Set([...winner.noteRefs, ...loser.noteRefs])];
     winner.exids = [...winner.exids, ...loser.exids];
     winner.tasks = [...winner.tasks, ...loser.tasks];
