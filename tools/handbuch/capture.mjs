@@ -156,6 +156,12 @@ await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contain
 // Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997): „Im Baum
 // anzeigen" setzt den geteilten lensFocus → davon erben gleich Karte-Personen-Modus & Zeitleiste.
 await click('Im Baum anzeigen', { contains: true }); await sleep(1000); await shot('14-sanduhr');
+// Export-Menü (BL-124) am Handy: EIN Einstiegspunkt „↓ Export" öffnet PNG/A1-Poster.
+// EXAKTER Text, nicht contains: bei `contains` gewinnt bei Gleich-Länge der umschließende
+// `.tree-view__export`-<div> (dessen Klick den Button-onclick NICHT auslöst); nur der
+// Exakt-Pfad bevorzugt das interaktive Element (s. click()-Kommentar). Nächster Schritt
+// navigiert ohnehin weg → kein Schließen nötig.
+await click('↓ Export'); await sleep(500); await shot('14d-export');
 await bottomNav('person'); await click('Familien'); await scrollTop(); await shot('06-familienliste');
 await bottomNav('person'); await click('Familien'); await scrollTop(); await click(RICH_SURNAME, { contains: true }); await shot('07-familie-detail');
 await bottomNav('person'); await click('Quellen'); await scrollTop(); await shot('08-quellenliste');
@@ -202,6 +208,13 @@ await click(RICH_PERSON, { contains: true }); await sleep(600); await shot('30-d
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
 await page.keyboard.press('Escape'); await sleep(300);
+
+// Baum-Modi (Desktop, breit): Nachkommen-Baum und Fächer brauchen die Breite (mobil zu
+// eng); die Sanduhr-Ringe zeigt der Handy-Shot 14. lensFocus (@I3@) ist gesetzt.
+await page.evaluate(() => { const b = [...document.querySelectorAll('button,a,[role=button]')].find((x) => /Baum/.test(x.textContent || '')); if (b) b.click(); }); await sleep(1300);
+await click('Nachkommen'); await sleep(1300); await shot('14b-nachkommen');
+await click('Fächer'); await sleep(1300); await shot('14c-faecher');
+await click('Sanduhr'); await sleep(600);
 
 // Zeitleiste im DESKTOP-Layout — Swim-Lanes über die volle Breite (mobil zu schmal). Der
 // Sidebar-Eintrag „Zeitleiste" führt zum Lens; lensFocus (@I3@, verstorben, ereignisreich)

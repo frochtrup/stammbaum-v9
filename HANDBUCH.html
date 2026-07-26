@@ -181,7 +181,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.2 · Stand 2026-07-25</div>
+  <div class="version">Benutzerhandbuch · Version 9.3 · Stand 2026-07-26</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -869,23 +869,81 @@
   (Story folgt). Jede Ansicht merkt sich ihre eigene Auswahl.
 </p>
 
+<h2>Der Baum: drei Ansichten</h2>
+<p>
+  Die Baum-Ansicht kennt drei Darstellungen, umschaltbar über die Leiste
+  <strong>Sanduhr · Nachkommen · Fächer</strong> direkt über dem Diagramm. Die gewählte
+  Ansicht bleibt erhalten, auch wenn Sie zwischendurch zu Karte oder Zeitleiste wechseln.
+  Jedes Diagramm lässt sich per <strong>⤢ Vollbild</strong> auf den ganzen Bildschirm
+  ziehen und passt sich automatisch mittig ein; ein Tippen auf eine Kachel (bzw. ein
+  Fächer-Segment) wechselt den Probanden, die Pfeiltasten ↑ ↓ → navigieren zwischen den
+  Personen.
+</p>
+
 <div class="shot-row">
   <div class="prose">
-    <h2>Der Sanduhr-Baum</h2>
+    <h3>Sanduhr</h3>
     <p>
-      Die Sanduhr zeigt eine Person (den Probanden) in der Mitte, die Vorfahren
-      darüber und die Nachkommen darunter. Die kleinen Ziffern sind die
-      <strong>Kekulé-Nummern</strong> (1 = Proband, 2 = Vater, 3 = Mutter …); der
-      farbige Rand codiert das Geschlecht. Mehrfach-Ehen werden korrekt dargestellt.
-    </p>
-    <p>
-      Über <strong>⤢ Vollbild</strong> nutzen Sie den ganzen Bildschirm; ein Tippen auf
-      eine Kachel wechselt den Probanden.
+      Die Sanduhr zeigt den Probanden in der Mitte, die Vorfahren darüber, seine Kinder und
+      Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
+      (1 = Proband, 2 = Vater, 3 = Mutter …); der farbige Rand codiert das Geschlecht.
+      Mehrfach-Ehen (<strong>⚭N</strong>) und Halbgeschwister (<strong>½</strong>) werden
+      eigens markiert.
     </p>
   </div>
   <figure class="phone">
-    <img src="handbuch-assets/14-sanduhr.png" alt="Sanduhr-Baum mit Vorfahren oben und Nachkommen unten">
-    <figcaption>Der Sanduhr-Baum mit Kekulé-Nummerierung</figcaption>
+    <img src="handbuch-assets/14-sanduhr.png" alt="Sanduhr-Baum mit Vorfahren oben, Kekulé-Nummern und farbigen Vollständigkeits-Ringen">
+    <figcaption>Der Sanduhr-Baum mit Kekulé-Nummerierung und Vollständigkeits-Ringen</figcaption>
+  </figure>
+</div>
+
+<h3>Nachkommen-Baum</h3>
+<p>
+  Der Nachkommen-Baum stellt eine Person an die Spitze und fächert ihre Kinder, Enkel und
+  weitere Generationen (einstellbar 2 bis 7) nach unten auf — mit den Ehepartnern rechts,
+  den Geschwistern links und T-förmigen Verbindungslinien. Das kleine <strong>▼</strong>
+  an einer Kachel zeigt, dass es unterhalb noch weitergeht; ein Tippen darauf rückt diese
+  Person in die Spitze.
+</p>
+<figure class="wide">
+  <img src="handbuch-assets/14b-nachkommen.png" alt="Nachkommen-Baum: der Proband oben, seine Nachfahren generationsweise darunter">
+  <figcaption>Nachkommen-Baum: der Proband oben, seine Nachfahren generationsweise darunter</figcaption>
+</figure>
+
+<h3>Fächer</h3>
+<p>
+  Der Fächer zeigt die Vorfahren als konzentrische Halbkreis-Ringe (3 bis 6 Generationen):
+  der Proband unten in der Mitte, die Vaterseite links, die Mutterseite rechts, jede
+  Generation ein Ring weiter außen. Eine kompakte Übersicht über die gesamte Ahnenschaft
+  auf einen Blick — blau für Männer, rosa für Frauen.
+</p>
+<figure class="wide">
+  <img src="handbuch-assets/14c-faecher.png" alt="Fächer-Diagramm: die Vorfahren als konzentrische Halbkreis-Ringe">
+  <figcaption>Fächer-Diagramm: die Vorfahren als konzentrische Halbkreis-Ringe</figcaption>
+</figure>
+
+<div class="shot-row">
+  <div class="prose">
+    <h3>Vollständigkeits-Ringe</h3>
+    <p>
+      Karten mit fehlenden oder unbelegten Angaben tragen einen farbigen Ring:
+      <strong>goldgelb</strong> für einen Hinweis, <strong>orange</strong> für eine Warnung,
+      <strong>rot</strong> für einen Fehler. Die Stufung stammt aus derselben Prüfung wie das
+      <a href="#k12">Qualitäts-Dashboard</a> (Kapitel 12) — kein zweiter Maßstab. Fahren Sie
+      mit der Maus über eine Karte, nennt ein Hinweisfeld die konkret fehlenden Angaben. So
+      sehen Sie direkt im Baum, wo noch Arbeit wartet.
+    </p>
+    <h3>Als Bild oder Poster exportieren</h3>
+    <p>
+      Über <strong>↓ Export</strong> (rechts in der Umschalt-Leiste) speichern Sie das gerade
+      gezeigte Diagramm als <strong>PNG-Bild</strong> oder als <strong>A1-Poster (SVG)</strong> —
+      Letzteres verlustfrei und in Druckgröße, etwa für die Wand. Der Export enthält alles,
+      was Sie sehen: Namen, Jahre, Geschlechtsfarben und die Vollständigkeits-Ringe.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/14d-export.png" alt="Baum-Ansicht mit geöffnetem Export-Menü: PNG-Bild oder A1-Poster">
+    <figcaption>Das Export-Menü: PNG-Bild oder A1-Poster (SVG)</figcaption>
   </figure>
 </div>
 
@@ -1241,8 +1299,6 @@
   <li><strong>Story / Biografie</strong> — erzählte Lebensgeschichten mit Karte und Download.</li>
   <li><strong>Ausgaben / Druck</strong> — Familienbuch, Ahnenliste, Ortsbuch,
       Hofchronik und weitere Druckvorlagen.</li>
-  <li><strong>Fächer-Diagramm</strong> und <strong>Nachkommen-Baum</strong> — bislang
-      gibt es nur die Sanduhr.</li>
   <li><strong>Beziehungsrechner</strong> — Verwandtschaftsgrad zwischen zwei Personen.</li>
   <li><strong>GOV-Import</strong> für historische Ortszugehörigkeiten (die Felder
       existieren, der importierende Weg fehlt noch).</li>
@@ -1653,7 +1709,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.2 · Stand 2026-07-25<br>
+  Stammbaum · Benutzerhandbuch Version 9.3 · Stand 2026-07-26<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
