@@ -61,7 +61,9 @@ describe('App — Auto-Load der Arbeitskopie beim Start (Spec 14 §3.1)', () => 
     await openFileMenu();
 
     await waitFor(() => {
-      expect(screen.getByText('arbeitskopie.ged')).toBeTruthy();
+      // Dateiname jetzt als Speicher-Ziel „→ arbeitskopie.ged" in SICHERN (ADR-v9-128,
+      // Kritik-Punkt 2) — Sichtbarkeit unverändert, nur Ort/Wortlaut.
+      expect(screen.getByText(/arbeitskopie\.ged/)).toBeTruthy();
     });
   });
 
@@ -88,7 +90,9 @@ describe('App — stilles Auto-Save nach Persistenz-Rundlauf (TST-8, Spec 14 §3
     await openFileMenu();
 
     await waitFor(() => {
-      expect(screen.getByText('arbeitskopie.ged')).toBeTruthy();
+      // Dateiname jetzt als Speicher-Ziel „→ arbeitskopie.ged" in SICHERN (ADR-v9-128,
+      // Kritik-Punkt 2) — Sichtbarkeit unverändert, nur Ort/Wortlaut.
+      expect(screen.getByText(/arbeitskopie\.ged/)).toBeTruthy();
     });
 
     // Kein Edit ausgelöst -> die Arbeitskopie im Store bleibt die ursprünglich geladene

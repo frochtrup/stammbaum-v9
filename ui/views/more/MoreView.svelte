@@ -136,13 +136,13 @@
                Speichern ist und ein Strict-/GED7-/anonymisierter Export die Ausnahme
                (kein eigenes Nav-Ziel, ADR-v9-113). -->
           <details class="more-view__compare">
-            <summary>In anderes Format exportieren</summary>
+            <summary data-variant="secondary">In anderes Format exportieren</summary>
             <ExportView {appState} {fileService} handle={fileHandle} />
           </details>
           <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
                geladenen Bestand. Aufklappbar, weil selten gebraucht. -->
           <details class="more-view__compare">
-            <summary>Mit zweiter Datei vergleichen</summary>
+            <summary data-variant="secondary">Mit zweiter Datei vergleichen</summary>
             <ImportCompareView {appState} {fileService} />
           </details>
         </section>
@@ -241,6 +241,51 @@
     margin: 0;
     color: var(--stb-text-dim);
     font-size: 0.8rem;
+  }
+
+  /* Die aufklappbaren Austausch-Aktionen tragen denselben outline-Sekundär-Stil wie die
+     übrigen Datei-Knöpfe (ADR-v9-128, Kritik-Folge): kein weißer Rohtext mehr. Bleibt ein
+     <summary> (native Disclosure-Tastaturbedienung), nur optisch als Knopf. Eigener Chevron
+     statt des Default-Dreiecks; dreht bei geöffnetem <details>. */
+  .more-view__compare > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    width: fit-content;
+    background: transparent;
+    color: var(--stb-gold);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.5rem 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .more-view__compare > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .more-view__compare > summary::before {
+    content: '▸';
+    font-size: 0.8em;
+    color: var(--stb-text-dim);
+  }
+
+  .more-view__compare[open] > summary::before {
+    content: '▾';
+  }
+
+  .more-view__compare > summary:hover,
+  .more-view__compare > summary:focus-visible {
+    border-color: var(--stb-gold);
+  }
+
+  /* Aufgeklappter Inhalt leicht eingerückt, damit die Zugehörigkeit zum Toggle sichtbar ist. */
+  .more-view__compare[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .more-view__back {

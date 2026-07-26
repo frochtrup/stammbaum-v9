@@ -102,9 +102,6 @@
   >
     {status === 'loading-demo' ? 'Lade …' : 'Demo laden'}
   </button>
-  {#if appState.fileName}
-    <span class="import-bar__filename">{appState.fileName}</span>
-  {/if}
   {#if status === 'error'}
     <span class="import-bar__error" role="alert">Fehler beim Import: {errorMessage}</span>
   {/if}
@@ -114,13 +111,12 @@
 </div>
 
 <style>
+  /* Kein eigener Box-Hintergrund mehr (ADR-v9-128, Kritik-Punkt 3): „Laden" ist eine offene
+     Sektion wie Sichern/Orts-Bestand/Austausch, kein abgesetzter Kasten. */
   .import-bar {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.6rem 1rem;
-    background: var(--stb-surface-2);
-    border-bottom: 1px solid var(--stb-surface-3);
     flex-wrap: wrap;
   }
 
@@ -149,11 +145,6 @@
   .import-bar__button:disabled {
     opacity: 0.6;
     cursor: default;
-  }
-
-  .import-bar__filename {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
   }
 
   .import-bar__error {

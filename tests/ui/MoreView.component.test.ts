@@ -238,4 +238,28 @@ describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung
       expect(screen.getByRole('heading', { name })).toBeTruthy();
     }
   });
+
+  it('AUSTAUSCH-Disclosures tragen denselben Sekundär-Stil (data-variant), kein weißer Rohtext', () => {
+    renderMore(createRoute({ target: 'file' }));
+
+    const exchange = screen.getByRole('group', { name: /Austausch/ });
+    const toggles = exchange.querySelectorAll('summary[data-variant="secondary"]');
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0].textContent).toMatch(/In anderes Format exportieren/);
+    expect(toggles[1].textContent).toMatch(/Mit zweiter Datei vergleichen/);
+    // Sie sind sekundär, ändern die „genau eine Primäraktion"-Invariante also nicht.
+    expect(exchange.querySelector('[data-variant="primary"]')).toBeNull();
+  });
+
+  it('der Dateiname steht als Speicher-Ziel in SICHERN, nicht mehr in LADEN (Kritik-Punkt 2)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    renderMore(createRoute({ target: 'file' }), { appState });
+
+    const sichern = screen.getByRole('group', { name: /^Sichern$/ });
+    expect(within(sichern).getByText(/meine\.ged/)).toBeTruthy();
+
+    const laden = screen.getByRole('group', { name: /^Laden$/ });
+    expect(within(laden).queryByText(/meine\.ged/)).toBeNull();
+  });
 });
