@@ -40,6 +40,18 @@ export { buildLivingSet, anonymizeIndi, anonymizeFam, anonymizeDoc } from './ano
 
 export { modelEquiv, type Diff } from './model-equiv';
 
+export {
+  grampsTypeToTag,
+  tagToGrampsType,
+  confidenceToQuay,
+  quayToConfidence,
+  pediToChildrefRel,
+  childrefRelToPedi,
+  normalizeMedi,
+  type Pedigree,
+} from './enum-maps';
+export { remapIdsForFormat, mappedOr, type IdRemap, type TargetFormat } from './id-remap';
+
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
 export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';

@@ -12,16 +12,14 @@
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
 import { makeCitation } from '../model/factory';
-import type { Citation, Quay } from '../model/types';
+import type { Citation } from '../model/types';
 import type { XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 
-/** GRAMPS-`<confidence>` (0–4) → GEDCOM-QUAY (0–3). 4 (Very High) und 3 (High) → 3. */
-export function confidenceToQuay(text: string): Quay {
-  const n = parseInt(text, 10);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return (n >= 3 ? 3 : n) as Quay;
-}
+// QUAY↔<confidence> lebt seit BL-156 kanonisch in enum-maps.ts (gebündelt); hier importiert
+// (interner Gebrauch) + re-exportiert, damit bestehende Importe unverändert bleiben.
+import { confidenceToQuay } from './enum-maps';
+export { confidenceToQuay };
 
 /**
  * Ein GRAMPS-`<citation>`-Knoten → Modell-`Citation`. `resolveSourceId` übersetzt das
