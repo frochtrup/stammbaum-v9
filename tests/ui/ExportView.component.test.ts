@@ -4,10 +4,13 @@
 // Rohr und die Kern-Serializer laufen echt (analog PlacesFileButtons/SaveButton).
 import { describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+import { join } from 'node:path';
 import ExportView from '../../ui/views/export/ExportView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { FileService } from '../../services/file/file-service';
-import { parseGedcom } from '../../core/interop';
+import { parseGedcom, parseXMLText } from '../../core/interop';
 import { createMockAdapterSet } from '../services/mock-adapters';
 
 // Zwei Personen: eine 1890 geborene (bei Bezugsjahr 1980 lebend, bei 2026 verstorben)
@@ -54,16 +57,19 @@ const anonCheckbox = () => screen.getByLabelText(/anonymisieren/) as HTMLInputEl
 const exportButton = () => screen.getByRole('button', { name: /Exportieren/ });
 
 describe('ExportView — Formatwahl', () => {
-  it('bietet die drei GEDCOM-Formate an', () => {
+  it('bietet alle vier Formate an, GRAMPS eingeschlossen (BL-160, ADR-v9-127 überholt ADR-v9-113 E5)', () => {
     setup();
     const werte = [...formatSelect().options].map((o) => o.value);
-    expect(werte).toEqual(['gedcom-5.5.1', 'gedcom-strict', 'gedcom-7.0']);
+    expect(werte).toEqual(['gedcom-5.5.1', 'gedcom-strict', 'gedcom-7.0', 'gramps']);
   });
 
-  it('bietet GRAMPS NICHT an — auch nicht ausgegraut (BL-139/ADR-v9-113)', () => {
+  it('kennzeichnet GRAMPS bei GEDCOM-geladenem Bestand als Cross-Family-Synthese aus dem Modell', () => {
     setup();
-    const text = formatSelect().textContent ?? '';
-    expect(text.toLowerCase()).not.toContain('gramps');
+    const grampsOption = [...formatSelect().options].find((o) => o.value === 'gramps')!;
+    expect(grampsOption.textContent).toContain('aus dem Modell erzeugt');
+    // Das native Format trägt KEINEN Cross-Hinweis.
+    const nativOption = [...formatSelect().options].find((o) => o.value === 'gedcom-5.5.1')!;
+    expect(nativOption.textContent).not.toContain('aus dem Modell erzeugt');
   });
 
   it('nennt den Zieldateinamen, sobald er vom Original abweicht — vorher nicht', async () => {
@@ -139,6 +145,67 @@ describe('ExportView — Anonymisierung', () => {
     await waitFor(() => expect(download.downloadCalls).toHaveLength(1));
     expect(appState.db.individuals.get('@I1@')!.name).toContain('Max');
     expect(appState.serialize()).toContain('Max /Muster/');
+  });
+});
+
+describe('ExportView — Cross-Family-Export (BL-160, ADR-v9-127)', () => {
+  it('GEDCOM-geladen → GRAMPS-Export: Download erzwungen, .gramps-Suffix, Inhalt re-parst', async () => {
+    const { download } = setup();
+
+    await fireEvent.change(formatSelect(), { target: { value: 'gramps' } });
+    await fireEvent.click(exportButton());
+
+    await waitFor(() => expect(download.downloadCalls).toHaveLength(1));
+    expect(download.downloadCalls[0].filename).toBe('Meine Familie.gramps');
+    expect(download.downloadCalls[0].mimeType).toBe('application/gzip');
+
+    // Wirklich gzip-komprimiert (echter CompressionStream-Codec, kein Mock) — entpacken
+    // und re-parsen belegt, dass der synthetisierte Baum valide ist UND die Personen
+    // erhalten sind (Gate: re-parst, Entitätszahlen stimmen).
+    const gz = download.downloadBytes[0] as Uint8Array;
+    const xml = gunzipSync(Buffer.from(gz)).toString('utf8');
+    const reparsed = parseXMLText(xml);
+    expect(reparsed.db.individuals.size).toBe(2);
+    const namen = [...reparsed.db.individuals.values()].map((p) => `${p.given} ${p.surname}`).sort();
+    expect(namen).toEqual(['Max Muster', 'Urahn Alt']);
+  });
+
+  it('GRAMPS-geladen → GEDCOM-Export: Download erzwungen, .ged-Suffix, Inhalt re-parst', async () => {
+    const grampsXml = readFileSync(join(__dirname, '../fixtures/mini.small.gramps'), 'utf8');
+    const parsed = parseXMLText(grampsXml);
+    const appState = createAppState();
+    appState.loadGrampsDoc(parsed.db, 'Unsere Familie.gramps', parsed.doc);
+    const { adapters, download } = createMockAdapterSet({ fsHandleSupported: false, shareSupported: false });
+    const fileService = new FileService(adapters);
+    render(ExportView, { props: { appState, fileService } });
+
+    await fireEvent.change(formatSelect(), { target: { value: 'gedcom-5.5.1' } });
+    await fireEvent.click(exportButton());
+
+    await waitFor(() => expect(download.downloadCalls).toHaveLength(1));
+    expect(download.downloadCalls[0].filename).toBe('Unsere Familie.ged');
+
+    const text = String(download.downloadBytes[0]);
+    const reparsed = parseGedcom(text);
+    expect(reparsed.db.individuals.size).toBe(parsed.db.individuals.size);
+    expect(reparsed.db.sources.size).toBe(parsed.db.sources.size);
+    expect([...reparsed.db.individuals.values()][0].surname).toBe('Muster');
+  });
+
+  it('bietet GEDCOM bei GRAMPS-geladenem Bestand als Cross-Family-Synthese an (E5 überholt)', () => {
+    const grampsXml = readFileSync(join(__dirname, '../fixtures/mini.small.gramps'), 'utf8');
+    const parsed = parseXMLText(grampsXml);
+    const appState = createAppState();
+    appState.loadGrampsDoc(parsed.db, 'Unsere Familie.gramps', parsed.doc);
+    const { adapters } = createMockAdapterSet();
+    render(ExportView, { props: { appState, fileService: new FileService(adapters) } });
+
+    const werte = [...formatSelect().options].map((o) => o.value);
+    expect(werte).toEqual(['gedcom-5.5.1', 'gedcom-strict', 'gedcom-7.0', 'gramps']);
+    const gedcomOption = [...formatSelect().options].find((o) => o.value === 'gedcom-5.5.1')!;
+    expect(gedcomOption.textContent).toContain('aus dem Modell erzeugt');
+    const grampsOption = [...formatSelect().options].find((o) => o.value === 'gramps')!;
+    expect(grampsOption.textContent).not.toContain('aus dem Modell erzeugt');
   });
 });
 

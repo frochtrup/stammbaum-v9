@@ -7,10 +7,11 @@
   // Belang (INV-UI-2/15). Der Export läuft über dieselbe save-action.ts-Ebene wie Knopf
   // und ⌘S — EIN Speichern-Pfad, nicht drei (ADR-v9-80/-100).
   //
-  // GRAMPS fehlt bewusst und nicht als ausgegrauter Eintrag: die App hält nie ein
-  // grampsDoc, und der Cross-Export aus dem Modell liefert eine Datei ohne Ereignisse,
-  // Orte, Zitate und Daten (gemessen, BL-139). Eine Fläche, die nie klickbar wird, ist
-  // eine Ankündigung, kein Bedienelement.
+  // GRAMPS ist seit BL-160/ADR-v9-127 IMMER dabei, nicht nur bei geladenem `.gramps`
+  // (ADR-v9-113 Befund E5 ist damit überholt): ein GEDCOM-geladenes `db` exportiert GRAMPS
+  // über `exportCrossFamily` als kompletten Vollbaum direkt aus dem Modell (BL-158), nicht
+  // mehr über ein (nicht existentes) Passthrough-Doc. Cross-Family-Exporte sind nie
+  // in-place-fähig (save-action.ts) — Download + neuer Dateiname sind erzwungen.
   //
   // Der Zähler neben der Anonymisierung ist der eigentliche Fund aus BL-138: die Zahl
   // "N von M" hätte die kaputte Klassifikation (2767 statt 689) sofort sichtbar gemacht.
@@ -20,7 +21,7 @@
   import type { FileService } from '../../../services/file';
   import type { AppState } from '../../shell/app-state.svelte';
   import { untrack } from 'svelte';
-  import { baseNameOf, exportGedcom, type UiExportFormat } from '../../shell/save-action';
+  import { baseNameOf, exportGedcom, formatFamily, type UiExportFormat } from '../../shell/save-action';
 
   interface Props {
     appState: AppState;
@@ -33,17 +34,17 @@
   }
   const { appState, fileService, handle, referenceYear }: Props = $props();
 
-  // GRAMPS wird NUR angeboten, wenn ein `.gramps` geladen ist (dann round-trippt der Export
-  // voll — BL-139/140/142/144); aus einem GEDCOM-Ursprung wäre ein GRAMPS-Export hohl
-  // (ADR-v9-113). Umgekehrt bleiben die GEDCOM-Cross-Exporte aus einem GRAMPS-Dokument
-  // erlaubt (GEDCOM ist Master, das Modell ist vollständig).
+  // Alle Formate stehen zur Wahl (BL-160) — ob ein Format den nativen Passthrough-Baum
+  // projiziert oder als Cross-Family-Vollbaum direkt aus dem Modell synthetisiert wird
+  // (`exportCrossFamily`, save-action.ts), entscheidet dieselbe Familien-Regel wie dort
+  // (`formatFamily`) — nicht herausgefiltert, nur mit einem Hinweis versehen.
+  const crossNote = (id: UiExportFormat): string =>
+    formatFamily(id) !== appState.docFormat ? ' — aus dem Modell erzeugt' : '';
   const FORMATE = $derived<ReadonlyArray<{ id: UiExportFormat; label: string }>>([
-    ...(appState.docFormat === 'gramps'
-      ? [{ id: 'gramps' as const, label: 'GRAMPS (nativ, Round-trip)' }]
-      : []),
-    { id: 'gedcom-5.5.1', label: 'GEDCOM 5.5.1 (Standard)' },
-    { id: 'gedcom-strict', label: 'GEDCOM 5.5.1 strict (ohne Hersteller-Tags)' },
-    { id: 'gedcom-7.0', label: 'GEDCOM 7.0' },
+    { id: 'gedcom-5.5.1' as const, label: `GEDCOM 5.5.1${crossNote('gedcom-5.5.1') || ' (Standard)'}` },
+    { id: 'gedcom-strict' as const, label: `GEDCOM 5.5.1 strict (ohne Hersteller-Tags)${crossNote('gedcom-strict')}` },
+    { id: 'gedcom-7.0' as const, label: `GEDCOM 7.0${crossNote('gedcom-7.0')}` },
+    { id: 'gramps' as const, label: `GRAMPS${crossNote('gramps') || ' (nativ, Round-trip)'}` },
   ]);
 
   // Anfangs-Default = natives Format des geladenen Dokuments (nur EINMAL beim Öffnen der
