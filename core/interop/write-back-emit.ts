@@ -67,7 +67,9 @@ function coordValue(n: number, kind: 'LATI' | 'LONG'): string {
  * `extra` (z. B. `_SCBK`, 7.0-`CROP`) verbatim.
  */
 function mediaNode(mc: MediaCitation, media?: Media): GedNode {
-  const isPointer = /^@.+@$/.test(mc.mediaId);
+  // Wire-Form aus der Media-Herkunft (ADR-v9-125): Record → Pointer, Inline → inline.
+  // Fallback (kein Lookup): Xref-Form der mediaId.
+  const isPointer = media ? media.wireOrigin === 'record' : /^@.+@$/.test(mc.mediaId);
   const kids: GedNode[] = [];
   if (mc.title) kids.push(N('TITL', mc.title));
   if (!isPointer) {
@@ -83,6 +85,18 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
   if (mc.primary) kids.push(N('_PRIM', 'Y'));
   for (const e of mc.extra) kids.push(e);
   return N('OBJE', isPointer ? mc.mediaId : '', kids);
+}
+
+/**
+ * Top-Level-Medien-Record `0 @M@ OBJE` (ADR-v9-125) — invers zu `projectMediaRecord`.
+ * FILE(→FORM→MEDI) + globaler TITL. Nur für `wireOrigin==='record'`-Medien.
+ */
+export function emitMediaRecord(m: Media): GedNode {
+  const fileKids: GedNode[] = [];
+  if (m.form) fileKids.push(N('FORM', m.form, m.type ? [N('MEDI', m.type)] : []));
+  const kids: GedNode[] = [N('FILE', m.file, fileKids)];
+  if (m.title) kids.push(N('TITL', m.title));
+  return N('OBJE', '', kids, m.id);
 }
 
 /** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/NOTE/OBJE (parseCitation ist die Umkehr). */

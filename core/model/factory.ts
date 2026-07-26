@@ -167,9 +167,9 @@ export function makeNote(id: NoteId, patch: Partial<Note> = {}): Note {
   return { id, type: 'NOTE', text: '', ...patch };
 }
 
-/** Globales Medium (ADR-v9-124). `id === file` (content-adressiert). */
+/** Top-Level-Medium (ADR-v9-125). `id` content-adressiert (Xref/Pfad/GRAMPS-id). */
 export function makeMedia(id: MediaId, patch: Partial<Media> = {}): Media {
-  return { id, file: id, form: '', type: '', lastChanged: '', ...patch };
+  return { id, file: id, form: '', type: '', title: '', wireOrigin: 'inline', lastChanged: '', ...patch };
 }
 
 /** Referenz-spezifische Medienverknüpfung. */

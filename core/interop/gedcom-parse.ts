@@ -141,20 +141,39 @@ function parseMedia(objeNode: GedNode): MediaCitation {
  * Medientyp = `MEDI` unter `FORM` (Standard; `_TYPE` ist eine v8-interne Größe, kein
  * GEDCOM-Tag). Kontextfrei, damit der isolierte Einzel-Record-Parse unberührt bleibt.
  */
+/**
+ * Projiziert EINE OBJE, die eigene Mediendaten trägt, in ein `Media` (ADR-v9-125) —
+ * Top-Level-Record (`node.xref` gesetzt, `wireOrigin='record'`, globaler TITL) ODER
+ * inline-OBJE mit FILE (`wireOrigin='inline'`). Eine reine Pointer-Referenz
+ * (`n OBJE @M1@`, Wert gesetzt, kein Xref) trägt keine Daten → `null`. Kontextfrei
+ * (Dirty-Check-tauglich), invers zu `emitMediaRecord`/`mediaNode`.
+ */
+export function projectMediaRecord(node: GedNode): Media | null {
+  if (node.tag !== 'OBJE') return null;
+  const fileNode = child(node, 'FILE');
+  const isRecord = !!node.xref;
+  const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
+  if (!id) return null;
+  const formNode = fileNode ? child(fileNode, 'FORM') : null;
+  const form = formNode ? formNode.value : '';
+  const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
+  // Globaler Titel NUR bei Top-Level-Records (TITL unter FILE [7.0] oder unter OBJE [5.5.1]);
+  // bei Inline liegt der Titel referenz-spezifisch auf der MediaCitation.
+  const titleNode = isRecord ? (child(node, 'TITL') ?? (fileNode ? child(fileNode, 'TITL') : null)) : null;
+  return makeMedia(id, {
+    file: fileNode ? fileNode.value : id,
+    form,
+    type,
+    title: titleNode ? collectText(titleNode) : '',
+    wireOrigin: isRecord ? 'record' : 'inline',
+  });
+}
+
 function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
   const out = new Map<MediaId, Media>();
   const visit = (node: GedNode): void => {
-    if (node.tag === 'OBJE') {
-      const fileNode = child(node, 'FILE');
-      // Xref (Record) hat Vorrang; sonst inline via FILE; Pointer (nur value) → kein id.
-      const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
-      if (id && !out.has(id)) {
-        const formNode = fileNode ? child(fileNode, 'FORM') : null;
-        const form = formNode ? formNode.value : '';
-        const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
-        out.set(id, makeMedia(id, { file: fileNode ? fileNode.value : id, form, type }));
-      }
-    }
+    const m = projectMediaRecord(node);
+    if (m && !out.has(m.id)) out.set(m.id, m);
     for (const c of node.children) visit(c);
   };
   for (const rec of roots) visit(rec);

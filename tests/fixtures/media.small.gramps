@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2026-04-11" version="6.0.6"/>
+    <researcher>
+      <resname>Franz Decker</resname>
+    </researcher>
+  </header>
+  <events>
+    <event handle="_e1" change="1" id="E0000">
+      <type>Birth</type>
+      <objref hlink="_o2"/>
+    </event>
+  </events>
+  <people>
+    <person handle="_p1" change="1" id="I0001">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Max</first>
+        <surname>Muster</surname>
+      </name>
+      <eventref hlink="_e1" role="Primary"/>
+      <objref hlink="_o1"/>
+    </person>
+  </people>
+  <sources>
+    <source handle="_s1" change="1" id="S0001">
+      <stitle>Kirchenbuch</stitle>
+      <objref hlink="_o1"/>
+    </source>
+  </sources>
+  <objects>
+    <object handle="_o1" change="1" id="O0000">
+      <file src="fotos/max.jpg" mime="image/jpeg" description="Max Muster Portrait"/>
+    </object>
+    <object handle="_o2" change="1" id="O0001">
+      <file src="scans/taufe.pdf" mime="application/pdf" description="Taufeintrag"/>
+    </object>
+  </objects>
+</database>

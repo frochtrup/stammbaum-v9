@@ -143,6 +143,21 @@ describe('Media Pointer-Form (@M@-Record, 5.5.1 optional / 7.0 Pflicht, ADR-v9-1
     const out2 = serializeAfterWriteBack(parseGedcom(out1));
     expect(out2).toBe(out1);
   });
+
+  it('KERN (ADR-v9-125): globaler Feld-Edit wird AM RECORD erkannt und persistiert', () => {
+    const doc = parseGedcom(MEDIA_PTR);
+    // Änderung an einem GLOBALEN Feld — direkt am Top-Level-Media-Record, nicht am Owner.
+    const m = { ...doc.db.media.get('@M1@')!, title: 'Umbenanntes Foto', type: 'DOCUMENT' };
+    doc.db.media = new Map(doc.db.media).set('@M1@', m);
+
+    const reparsed = parseGedcom(serializeAfterWriteBack(doc));
+    // Persistiert im Record …
+    const rm = reparsed.db.media.get('@M1@')!;
+    expect(rm.title).toBe('Umbenanntes Foto');
+    expect(rm.type).toBe('DOCUMENT');
+    // … die drei Referenzen bleiben unangetastete Zeiger.
+    expect(reparsed.db.individuals.get('@I1@')!.media.every((x) => x.mediaId === '@M1@')).toBe(true);
+  });
 });
 
 describe('Media Persistenz-Rundlauf (TST-8)', () => {

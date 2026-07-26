@@ -46,14 +46,19 @@ export interface EvidenceEval {
  * „Speichern (alle Ref.)" ändert nur hier.
  */
 export interface Media {
-  /** = `file` (content-adressiert). App-intern, wird NIE ins Wire-Format geschrieben. */
+  /** GEDCOM: `@M@`-Xref (Record) bzw. FILE-Pfad (Inline-Altform); GRAMPS: `id` (O0000).
+   *  App-intern, wird NIE ins Wire-Format geschrieben. */
   id: MediaId;
-  /** FILE — relativer Pfad (Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
+  /** FILE / `<file src>` — relativer Pfad (Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
   file: string;
-  /** FORM — Dateiformat (jpg, pdf, …). */
+  /** FORM / `<file mime>` — Dateiformat/MIME. */
   form: string;
-  /** MEDI — Medientyp (Foto/Dokument/…); in den Import-Daten meist leer. */
+  /** MEDI — Medientyp (Standard-Enum unter FORM); GRAMPS/Import oft leer. */
   type: string;
+  /** GLOBALE Beschriftung: GED7-Record-`TITL` / GRAMPS `<file description>`; leer bei 5.5.1-Inline. */
+  title: string;
+  /** Wire-Herkunft — der Writer erhält sie unverändert (LP-1): `record`→Record+Zeiger, `inline`→inline. */
+  wireOrigin: 'record' | 'inline';
   lastChanged: string;
 }
 
@@ -62,9 +67,9 @@ export interface Media {
  * (Spec 10 §4). Gleiche Rollenverteilung wie `Source`/`Citation`.
  */
 export interface MediaCitation {
-  /** FK auf `Media.id` (= der Dateipfad). */
+  /** FK auf `Media.id`. */
   mediaId: MediaId;
-  /** TITL — Beschriftung NUR für diesen Kontext. */
+  /** Per-Ref-OVERRIDE der globalen `Media.title` (leer ⇒ globalen Titel verwenden). */
   title: string;
   /** _DATE — Aufnahmedatum in diesem Kontext. */
   date: string;
