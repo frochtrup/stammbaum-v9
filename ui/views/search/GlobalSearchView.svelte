@@ -2,8 +2,9 @@
   // ui/views/search/GlobalSearchView.svelte — globale Suche als erstklassiges Nav-Ziel
   // (Spec 20 §1.1 [K], Spec 21 §2: "Suche ist erstklassig — das universelle 'finde
   // irgendwas'"). Ein Texteingabefeld + gruppierte Ergebnisse (Personen/Familien/
-  // Quellen/Orte/Höfe, ADR-v9-24). Bewusst KEINE Filterleiste (die bleibt lokale
-  // Tab-Suche, Spec-Auftrag "globale Suche ist bewusst schlank").
+  // Quellen/Orte/Höfe, ADR-v9-24) + leichter Typ-Filter über Segment-Chips (ADR-v9-130,
+  // ersetzt die frühere "bewusst keine Filterleiste"-Haltung): ein Tipp scopt die Treffer
+  // auf einen Entitätstyp, minimale Klicks, kein Öffnen. Kern-Modell bleibt filterlos.
   //
   // Klick auf ein Ergebnis läuft über GENAU den ViewState-Mechanismus (INV-VS) + den
   // nach oben gereichten onNavigate*-Callback (analog `onNavigateToTree` in App.svelte)
@@ -43,6 +44,34 @@
   let query = $state('');
 
   const results = $derived(globalSearch(appState.db, appState.placeContext, query));
+
+  // Typ-Filter der Ergebnisse (ADR-v9-130): Segment-Chips über den Treffern, ein Tipp
+  // scopt auf einen Entitätstyp. Reiner UI-Zustand — das Such-Modell (`globalSearch`)
+  // bleibt unverändert vollständig, damit die Command-Palette (⌘K) denselben Kern ohne
+  // Filter-Semantik weiternutzt. `.stb-segment-row`/`.stb-segment-btn` (INV-UI-4), kein
+  // eigenes Segment-Control.
+  type SearchKind = 'persons' | 'families' | 'sources' | 'places' | 'hofs';
+  let filter = $state<'all' | SearchKind>('all');
+
+  const groupMeta = $derived(
+    [
+      { kind: 'persons', label: 'Personen', count: results.persons.length },
+      { kind: 'families', label: 'Familien', count: results.families.length },
+      { kind: 'sources', label: 'Quellen', count: results.sources.length },
+      { kind: 'places', label: 'Orte', count: results.places.length },
+      { kind: 'hofs', label: 'Höfe', count: results.hofs.length },
+    ] as const,
+  );
+  const nonEmptyGroups = $derived(groupMeta.filter((g) => g.count > 0));
+  // Chips nur, wenn mindestens zwei Typen Treffer haben — bei nur einem Typ ist ein
+  // Filter sinnlos (schlank bleiben, Spec 21 §2).
+  const showFilterChips = $derived(nonEmptyGroups.length > 1);
+  // Fällt auf "Alle" zurück, sobald der gewählte Typ nach einem Query-Wechsel keine
+  // Treffer mehr hat — sonst zeigte die Ansicht "leer", obwohl andere Typen Treffer haben.
+  const activeFilter = $derived(filter !== 'all' && results[filter].length > 0 ? filter : 'all');
+  function showGroup(kind: SearchKind): boolean {
+    return activeFilter === 'all' || activeFilter === kind;
+  }
   // Eigene Mindestlänge-Prüfung (statt "results leer?"), damit "zu kurz" und "kein
   // Treffer" unterschiedliche Hinweise zeigen (Spec-Auftrag: kein Full-Scan-Flackern-
   // Hinweis, wenn die Query schlicht noch zu kurz ist).
@@ -74,8 +103,32 @@
   {:else if !hasResults}
     <p class="global-search__hint">Keine Treffer für „{query}".</p>
   {:else}
+    {#if showFilterChips}
+      <div class="stb-segment-row global-search__filters" aria-label="Ergebnistyp filtern">
+        <button
+          type="button"
+          class="stb-segment-btn"
+          class:stb-segment-btn--active={activeFilter === 'all'}
+          aria-pressed={activeFilter === 'all'}
+          onclick={() => (filter = 'all')}
+        >
+          Alle <span class="global-search__filter-count">{totalResultCount(results)}</span>
+        </button>
+        {#each nonEmptyGroups as g (g.kind)}
+          <button
+            type="button"
+            class="stb-segment-btn"
+            class:stb-segment-btn--active={activeFilter === g.kind}
+            aria-pressed={activeFilter === g.kind}
+            onclick={() => (filter = g.kind)}
+          >
+            {g.label} <span class="global-search__filter-count">{g.count}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div class="global-search__groups">
-      {#if results.persons.length > 0}
+      {#if showGroup('persons') && results.persons.length > 0}
         <section class="global-search__group">
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
@@ -93,7 +146,7 @@
         </section>
       {/if}
 
-      {#if results.families.length > 0}
+      {#if showGroup('families') && results.families.length > 0}
         <section class="global-search__group">
           <h2 class="global-search__group-title">Familien</h2>
           <ul class="global-search__rows">
@@ -111,7 +164,7 @@
         </section>
       {/if}
 
-      {#if results.sources.length > 0}
+      {#if showGroup('sources') && results.sources.length > 0}
         <section class="global-search__group">
           <h2 class="global-search__group-title">Quellen</h2>
           <ul class="global-search__rows">
@@ -127,7 +180,7 @@
         </section>
       {/if}
 
-      {#if results.places.length > 0}
+      {#if showGroup('places') && results.places.length > 0}
         <section class="global-search__group">
           <h2 class="global-search__group-title">Orte</h2>
           <ul class="global-search__rows">
@@ -143,7 +196,7 @@
         </section>
       {/if}
 
-      {#if results.hofs.length > 0}
+      {#if showGroup('hofs') && results.hofs.length > 0}
         <section class="global-search__group">
           <h2 class="global-search__group-title">Höfe</h2>
           <ul class="global-search__rows">
@@ -206,6 +259,17 @@
   .global-search__hint {
     padding: 1.5rem;
     color: var(--stb-text-dim);
+  }
+
+  /* Typ-Filter-Chips (ADR-v9-130) — nutzt die geteilte .stb-segment-row/.stb-segment-btn
+     (INV-UI-4); hier nur der Zähler-Zusatz je Chip. */
+  .global-search__filters {
+    border-bottom: 1px solid var(--stb-surface-2);
+  }
+
+  .global-search__filter-count {
+    font-size: 0.72rem;
+    opacity: 0.75;
   }
 
   .global-search__groups {

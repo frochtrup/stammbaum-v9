@@ -63,9 +63,10 @@ describe('GlobalSearchView — Eingabe, Mindestlänge, gruppierte Ergebnisse', (
     renderView(seedDb());
     await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Ochtrup' } });
 
-    expect(screen.getByText('Quellen')).toBeTruthy();
-    expect(screen.getByText('Orte')).toBeTruthy();
-    expect(screen.getByText('Höfe')).toBeTruthy();
+    // Gruppen-Überschriften gezielt (die Typ-Filter-Chips tragen dieselben Labels, ADR-v9-130).
+    expect(screen.getByRole('heading', { name: 'Quellen' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Orte' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Höfe' })).toBeTruthy();
     expect(screen.getByText('KB Ochtrup')).toBeTruthy();
     // "Ochtrup" trifft sowohl den Ort (primary) als auch den Hof (secondary: Dorf-Titel).
     expect(screen.getAllByText('Ochtrup').length).toBeGreaterThanOrEqual(2);
@@ -87,6 +88,60 @@ describe('GlobalSearchView — Eingabe, Mindestlänge, gruppierte Ergebnisse', (
     await fireEvent.click(screen.getByLabelText('Suche löschen'));
 
     expect(screen.getByText(/Mindestens 2 Zeichen/)).toBeTruthy();
+  });
+});
+
+describe('GlobalSearchView — Typ-Filter-Chips (ADR-v9-130)', () => {
+  it('zeigt Chips (Alle + je Typ mit Zähler), sobald mindestens zwei Typen Treffer haben', async () => {
+    renderView(seedDb());
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Ochtrup' } });
+
+    // "Ochtrup" trifft Quellen, Orte, Höfe → Chips erscheinen.
+    expect(screen.getByRole('button', { name: /Alle 3/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Quellen 1/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Orte 1/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Höfe 1/ })).toBeTruthy();
+  });
+
+  it('KEINE Chips, wenn nur ein Typ Treffer hat (Filter wäre sinnlos)', async () => {
+    renderView(seedDb());
+    // "Meyer" (Quellen-Autor) trifft nur die Quelle.
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Meyer' } });
+
+    expect(screen.getByText('KB Ochtrup')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Alle/ })).toBeNull();
+  });
+
+  it('ein Klick auf einen Typ-Chip scopt die Ergebnisse auf genau diesen Typ', async () => {
+    renderView(seedDb());
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Ochtrup' } });
+
+    // Vorher: alle drei Gruppen-Überschriften sichtbar.
+    expect(screen.getByRole('heading', { name: 'Quellen' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Orte' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Höfe' })).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: /Quellen 1/ }));
+
+    // Nachher: nur noch die Quellen-Gruppe.
+    expect(screen.getByRole('heading', { name: 'Quellen' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Orte' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Höfe' })).toBeNull();
+  });
+
+  it('fällt auf "Alle" zurück, wenn der gewählte Typ nach Query-Wechsel keine Treffer mehr hat', async () => {
+    renderView(seedDb());
+    const input = screen.getByLabelText('Global suchen');
+    await fireEvent.input(input, { target: { value: 'Ochtrup' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Höfe 1/ }));
+    expect(screen.getByRole('heading', { name: 'Höfe' })).toBeTruthy();
+
+    // Neue Query trifft keine Höfe mehr, aber Personen + Familie ("Bauer").
+    await fireEvent.input(input, { target: { value: 'Bauer' } });
+
+    // Kein leerer Zustand: die Personen-Gruppe ist sichtbar (activeFilter fiel auf 'all').
+    expect(screen.getByRole('heading', { name: 'Personen' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Höfe' })).toBeNull();
   });
 });
 

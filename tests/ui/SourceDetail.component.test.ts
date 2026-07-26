@@ -126,6 +126,46 @@ describe('SourceDetail — Anzeige-Härtung (#2, 2026-07-25)', () => {
   });
 });
 
+describe('SourceDetail — Online-Fundort ↗ je Referenz (ADR-v9-86)', () => {
+  it('rendert ein klickbares ↗ mit korrektem href für eine Referenz mit Weblink', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.citations.push(
+      makeCitation('@S1@', { page: '12', quay: 3, deepLinkUrl: 'https://data.matricula-online.eu/de/x/' }),
+    );
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    const link = screen.getByRole('link', { name: /Online-Fundort öffnen/ });
+    expect(link.getAttribute('href')).toBe('https://data.matricula-online.eu/de/x/');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener');
+  });
+
+  it('rendert KEIN ↗ für eine Referenz ohne Weblink', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.citations.push(makeCitation('@S1@', { page: '12', quay: 3 }));
+    db.individuals.set('@I1@', p);
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Online-Fundort öffnen/ })).toBeNull();
+  });
+});
+
 describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', () => {
   it('gruppiert Referenzen nach Kontext-Typ mit "Typ (N)"-Untertitel', () => {
     const appState = createAppState();

@@ -13,6 +13,7 @@
   import QuayMeter from '../../shell/QuayMeter.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
+  import { tooltip } from '../../shell/tooltip';
 
   interface Props {
     appState: AppState;
@@ -69,6 +70,22 @@
     {ref.ownerLabel}
   </button>
   {#if hasPageContent(ref.page)}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
+  {#if ref.url}
+    <!-- Online-Fundort der Referenz (ADR-v9-86): dasselbe klickbare ↗ wie an der
+         Quellen-Pille (SourceBadge, INV-UI-12) — read-only, öffnet in neuem Tab.
+         Editiert wird der Weblink weiterhin im Ereignis-Editor. -->
+    <a
+      class="source-detail__ref-link"
+      href={ref.url}
+      target="_blank"
+      rel="noopener"
+      aria-label={`Online-Fundort öffnen: ${ref.ownerLabel}`}
+      use:tooltip={ref.url}
+      onclick={(e) => e.stopPropagation()}
+    >
+      ↗
+    </a>
+  {/if}
   <span class="source-detail__ref-quay">
     QUAY {ref.quay}
     <QuayMeter quay={ref.quay} />
@@ -244,6 +261,21 @@
   .source-detail__ref-page {
     color: var(--stb-text-dim);
     font-size: 0.85rem;
+  }
+
+  /* Klickbares ↗ zum Online-Fundort (ADR-v9-86) — monochromes Symbol wie an der
+     Quellen-Pille (INV-UI-12), kein Emoji. stopPropagation, damit der Klick nicht
+     zusätzlich den Owner-Navigations-Button auslöst. */
+  .source-detail__ref-link {
+    color: var(--stb-gold-light);
+    text-decoration: none;
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+
+  .source-detail__ref-link:hover,
+  .source-detail__ref-link:focus-visible {
+    color: var(--stb-gold);
   }
 
   /* Neutrale „QUAY N"-Marke + Meter (ADR-v9-118): der Zahlenwert steht hier explizit,
