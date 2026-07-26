@@ -52,6 +52,10 @@ export {
 } from './enum-maps';
 export { remapIdsForFormat, mappedOr, type IdRemap, type TargetFormat } from './id-remap';
 
+// Cross-Family-Vollbaum-Synthese aus dem Modell (ADR-v9-127, BL-157/158).
+export { buildGedcomTreeFromModel } from './build-gedcom-from-model';
+export { buildGrampsTreeFromModel } from './build-gramps-from-model';
+
 export { buildXMLText, parseXMLText, type GrampsParsed } from './gramps';
 export { applyDatabaseToXml } from './gramps-write-back';
 export type { XmlNode, XmlDocument } from './xml-tree';
