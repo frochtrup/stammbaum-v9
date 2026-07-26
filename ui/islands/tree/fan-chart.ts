@@ -7,6 +7,7 @@
 import type { Database, PersonId } from '../../../core/model/types';
 import { computeFanLayout, type FanText } from './fan-layout';
 import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
+import { renderFanSvg } from './diagram-export';
 import type { TreeMountCallbacks, TreeMountOptions, TreeIslandHandle } from './hourglass-tree';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -123,6 +124,11 @@ export function mountFanChart(
     },
     get currentId() {
       return currentId;
+    },
+    getExportSvg() {
+      if (!currentId) return null;
+      const layout = computeFanLayout(db, currentId, { generations });
+      return layout ? renderFanSvg(layout) : null;
     },
   };
 }

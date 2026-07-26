@@ -14,6 +14,7 @@ import type { Database, PersonId } from '../../../core/model/types';
 import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
 import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
 import { appendPersonCard, appendConnector, appendMarriageButton, type CardRing } from './tree-cards';
+import { renderHourglassSvg, type DiagramSvg } from './diagram-export';
 // Geteilter Tooltip (INV-UI-12/ADR-v9-87): hier IMPERATIV aufgerufen (kein Svelte-`use:`),
 // da die Insel framework-frei ist. `tooltip.ts` ist zur Laufzeit reines DOM.
 import { tooltip } from '../../shell/tooltip';
@@ -46,6 +47,9 @@ export interface TreeIslandHandle {
   destroy(): void;
   /** Aktuell zentrierte Person-ID (für Tests/Diagnose). */
   readonly currentId: PersonId | null;
+  /** Eigenständiges Export-SVG des aktuellen Diagramms (BL-124) — aus dem Layout-Modell,
+   *  nicht dem Live-DOM. `null`, wenn nichts zu rendern ist. */
+  getExportSvg(): DiagramSvg | null;
 }
 
 /**
@@ -182,6 +186,11 @@ export function mountHourglassTree(
     },
     get currentId() {
       return currentId;
+    },
+    getExportSvg() {
+      if (!currentId) return null;
+      const layout = computeTreeLayout(db, currentId, { portrait: false, maxAncestorLevels });
+      return layout ? renderHourglassSvg(db, layout, ringByPerson) : null;
     },
   };
 }

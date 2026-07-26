@@ -27,6 +27,9 @@
   import { configFromStored, defaultConfig, type ValidationConfig } from '../../../core/validate/index';
   import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
   import { buildTreeRings } from './tree-ring-model';
+  // Diagramm-Export (BL-124): reiner Renderer + Sink über das vorhandene Export-Rohr.
+  import { finalizeSvg, svgToPngBlob } from '../../islands/tree/diagram-export';
+  import type { FileService } from '../../../services/file';
 
   interface Props {
     appState: AppState;
@@ -34,6 +37,8 @@
     /** Routen-Quelle für den Baum-Modus (Sanduhr/Nachkommen). Optional: Tests, die den
      *  Modus nicht prüfen, mounten ohne — dann bleibt es bei der Sanduhr. */
     route?: Route;
+    /** Export-Rohr (BL-124) — dieselbe Instanz wie SaveButton/ExportView. Optional für Tests. */
+    fileService?: FileService;
     /** Cross-Tab-Navigation zur Familien-Detailseite (⚭-Badge zwischen Proband/Ehepartner). */
     onNavigateToFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation: Klick auf die Zentrum-Karte öffnet die Personen-Detailseite. */
@@ -42,7 +47,7 @@
      *  im geteilten ViewState-Slot `lensFocus` und bleibt beim Wechsel erhalten. */
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, route, onNavigateToFamily, onOpenPersonDetail, onNavigateLens }: Props = $props();
+  const { appState, viewState, route, fileService, onNavigateToFamily, onOpenPersonDetail, onNavigateLens }: Props = $props();
 
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: TreeIslandHandle | null = null;
@@ -126,6 +131,40 @@
     handle?.destroy();
     handle = null;
   });
+
+  // ── Diagramm-Export (BL-124, Spec 21 §6h: EIN Einstiegspunkt, Feinoptionen dahinter) ──
+  let exportMenuOpen = $state(false);
+  let exporting = $state(false);
+
+  function exportFileName(ext: string): string {
+    return `stammbaum-${treeMode}.${ext}`;
+  }
+
+  async function exportPng(): Promise<void> {
+    const d = handle?.getExportSvg();
+    if (!d || !fileService) return;
+    exporting = true;
+    try {
+      const blob = await svgToPngBlob(finalizeSvg(d));
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      await fileService.exportToFile(bytes, exportFileName('png'), 'image/png', { forceDownload: true });
+    } finally {
+      exporting = false;
+      exportMenuOpen = false;
+    }
+  }
+
+  async function exportA1Svg(): Promise<void> {
+    const d = handle?.getExportSvg();
+    if (!d || !fileService) return;
+    exporting = true;
+    try {
+      await fileService.exportToFile(finalizeSvg(d, { a1: true }), exportFileName('svg'), 'image/svg+xml', { forceDownload: true });
+    } finally {
+      exporting = false;
+      exportMenuOpen = false;
+    }
+  }
 </script>
 
 <div class="tree-view">
@@ -140,6 +179,28 @@
       onChange={(id) => route?.setTreeMode(id as TreeModeId)}
       ariaLabel="Baum-Ansicht wählen"
     />
+    {#if fileService}
+      <!-- EIN Einstiegspunkt (INV-UI-11 §6h): das Menü trägt die Feinoptionen (PNG/A1),
+           kein Dauer-Icon pro Format. -->
+      <div class="tree-view__export">
+        <button
+          type="button"
+          class="tree-view__export-btn"
+          aria-haspopup="menu"
+          aria-expanded={exportMenuOpen}
+          disabled={exporting || !focusId}
+          onclick={() => (exportMenuOpen = !exportMenuOpen)}
+        >
+          {exporting ? '…' : '↓ Export'}
+        </button>
+        {#if exportMenuOpen}
+          <div class="tree-view__export-menu" role="menu">
+            <button type="button" role="menuitem" onclick={exportPng}>PNG-Bild</button>
+            <button type="button" role="menuitem" onclick={exportA1Svg}>A1-Poster (SVG)</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
   {#if !focusId}
     <p class="tree-view__empty">Keine Person geladen.</p>
@@ -156,8 +217,62 @@
   }
 
   .tree-view__mode-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--stb-surface-3);
+  }
+
+  .tree-view__mode-row :global(.view-mode-toggle) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tree-view__export {
+    position: relative;
+    flex: none;
+  }
+
+  .tree-view__export-btn {
+    padding: 0.3rem 0.6rem;
+    background: var(--stb-surface-2);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tree-view__export-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .tree-view__export-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 12rem;
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+  .tree-view__export-menu button {
+    padding: 0.55rem 0.75rem;
+    background: none;
+    color: var(--stb-text);
+    border: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .tree-view__export-menu button:hover,
+  .tree-view__export-menu button:focus-visible {
+    background: var(--stb-surface-3);
   }
 
   .tree-view__empty {

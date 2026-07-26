@@ -7,6 +7,7 @@ import type { Database, PersonId } from '../../../core/model/types';
 import { computeDescendantLayout } from './descendant-layout';
 import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
 import { appendPersonCard, appendConnector, appendMarriageButton } from './tree-cards';
+import { renderDescendantSvg } from './diagram-export';
 import { tooltip } from '../../shell/tooltip';
 import type { TreeMountCallbacks, TreeMountOptions, TreeIslandHandle } from './hourglass-tree';
 
@@ -95,6 +96,11 @@ export function mountDescendantTree(
     },
     get currentId() {
       return currentId;
+    },
+    getExportSvg() {
+      if (!currentId) return null;
+      const layout = computeDescendantLayout(db, currentId, { portrait: false, generations });
+      return layout ? renderDescendantSvg(db, layout, ringByPerson) : null;
     },
   };
 }
