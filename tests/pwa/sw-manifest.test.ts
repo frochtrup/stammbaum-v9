@@ -44,6 +44,24 @@ describe('buildPrecacheManifest', () => {
     expect(all.some((u) => u.endsWith('/sw.js'))).toBe(false);
   });
 
+  it('schließt das mit-deployte Benutzerhandbuch (HANDBUCH.html + handbuch-assets/) vom Precache aus', () => {
+    // Online-Hilfedoc: gehört NICHT in den (kritischen) Precache, sonst bumpte jede
+    // `npm run handbuch`-Änderung die App-Cache-Version und zwänge alle Nutzer zum
+    // Voll-Neuladen. Weder critical noch optional.
+    const m = buildPrecacheManifest(
+      [
+        { path: 'index.html', digest: 'a' },
+        { path: 'HANDBUCH.html', digest: 'h1' },
+        { path: 'handbuch-assets/13b-mediengalerie.png', digest: 'h2' },
+      ],
+      '/stammbaum-v9/',
+    );
+    const all = [...m.critical, ...m.optional];
+    expect(all.some((u) => u.includes('HANDBUCH.html'))).toBe(false);
+    expect(all.some((u) => u.includes('handbuch-assets/'))).toBe(false);
+    expect(m.critical).toEqual(['/stammbaum-v9/index.html']);
+  });
+
   it('setzt das Vite-base als absolutes Präfix (GitHub-Pages-Unterpfad)', () => {
     const lokal = buildPrecacheManifest(FILES, '/');
     expect(lokal.critical).toContain('/index.html');

@@ -27,7 +27,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const arg = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
 const URL = arg('--url', 'http://localhost:5173');
-const OUT = arg('--out', '/Users/franzdecker/dev/stammbaum-v9/handbuch-assets');
+const OUT = arg('--out', '/Users/franzdecker/dev/stammbaum-v9/app/public/handbuch-assets');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const WRAPPER = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'orte.json'), 'utf8'));
 

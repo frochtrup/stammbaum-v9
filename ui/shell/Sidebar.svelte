@@ -34,6 +34,11 @@
   // Gruppen-Bottom-Slots benennt, damit Handy und Desktop nicht auseinanderdriften.
   const GROUP_ROLES: readonly NavRole[] = ['entity', 'lens', 'research', 'work'];
   const GROUPS = GROUP_ROLES.map((role) => ({ role, label: NAV_ROLE_LABELS[role] }));
+
+  // Hilfelink auf das mit-deployte Benutzerhandbuch (app/public/HANDBUCH.html → dist,
+  // unter der vite-`base`; nicht im SW-Precache). Fuß der Sidebar, öffnet in neuem Tab —
+  // ein statisches Doc, kein Nav-Ziel; dieselbe URL wie im mobilen Mehr-Hub (MoreView).
+  const handbuchUrl = `${import.meta.env.BASE_URL}HANDBUCH.html`;
 </script>
 
 <nav class="sidebar" aria-label="Hauptnavigation">
@@ -65,6 +70,13 @@
       </ul>
     </div>
   {/each}
+
+  <a class="sidebar__item sidebar__help" href={handbuchUrl} target="_blank" rel="noopener">
+    <span class="sidebar__bar" aria-hidden="true"></span>
+    <span class="sidebar__icon" aria-hidden="true">📖</span>
+    <span class="sidebar__label">Hilfe &amp; Handbuch</span>
+    <span class="sidebar__ext" aria-hidden="true">↗</span>
+  </a>
 </nav>
 
 <style>
@@ -179,5 +191,17 @@
     font-size: 0.6rem;
     font-weight: 700;
     line-height: 1.5;
+  }
+
+  /* Hilfelink am Fuß: teilt die Item-Optik (INV-UI-4), ist aber ein <a> und wird durch
+     margin-top:auto ans untere Ende der Spalte geschoben. */
+  .sidebar__help {
+    margin-top: auto;
+    text-decoration: none;
+  }
+
+  .sidebar__ext {
+    margin-left: auto;
+    color: var(--stb-text-dim);
   }
 </style>

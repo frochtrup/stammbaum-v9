@@ -73,6 +73,11 @@
   // in den privaten Zustand dieses Hubs zu greifen — dort gibt es gar keinen Hub mehr.
   const items = moreHubItems();
 
+  // Hilfelink auf das mit-deployte Benutzerhandbuch (app/public/HANDBUCH.html → dist,
+  // unter der vite-`base` ausgeliefert; NICHT im SW-Precache, s. sw-manifest.ts). Öffnet
+  // in einem neuen Tab — ein statisches Doc, kein Nav-Ziel/keine View.
+  const handbuchUrl = `${import.meta.env.BASE_URL}HANDBUCH.html`;
+
   // Karte/Zeitleiste verlassen den Hub sofort (echter Inhalt, INV-UI-2 — derselbe Pfad
   // wie der Lens-Umschalter); alle übrigen Einträge öffnen eine Sub-Ansicht INNERHALB
   // des Hubs. Beides ist jetzt derselbe Aufruf — den Unterschied macht allein, ob das
@@ -160,6 +165,13 @@
           </button>
         </li>
       {/each}
+      <li>
+        <a class="more-view__item" href={handbuchUrl} target="_blank" rel="noopener">
+          <span class="more-view__icon" aria-hidden="true">📖</span>
+          <span class="more-view__label">Hilfe &amp; Handbuch</span>
+          <span class="more-view__ext" aria-hidden="true">↗</span>
+        </a>
+      </li>
     </ul>
   {/if}
 </div>
@@ -197,6 +209,11 @@
     cursor: pointer;
   }
 
+  /* Der Hilfelink teilt die Zeilen-Optik der Hub-Knöpfe (INV-UI-4), ist aber ein <a>. */
+  a.more-view__item {
+    text-decoration: none;
+  }
+
   .more-view__icon {
     font-size: 1.25rem;
     line-height: 1;
@@ -204,6 +221,11 @@
 
   .more-view__label {
     color: var(--stb-text);
+  }
+
+  .more-view__ext {
+    margin-left: auto;
+    color: var(--stb-text-dim);
   }
 
   .more-view__sub-header {
