@@ -173,6 +173,10 @@
     #to-top .label { display: none; }   /* auf schmalen Geräten nur der Pfeil */
   }
   @media print { #to-top { display: none !important; } }
+  /* Ersetzt zwei vormals inline `style=`-Attribute — app/public/*.html läuft durch den
+     CSP-Scanner (tests/csp/check-csp.mjs), der Inline-Styles verbietet (ADR-v9-137). */
+  .toc-note { margin-top: 1em; }
+  .phone--narrow { width: 340px; }
 </style>
 </head>
 <body>
@@ -220,7 +224,7 @@
     <li><a href="#anhangC">Anhang C: Das GRAMPS-Dateiformat</a></li>
     <li><a href="#anhangD">Anhang D: Technischer Überblick</a></li>
   </ol>
-  <p class="muted" style="margin-top:1em">
+  <p class="muted toc-note">
     Alle Abbildungen in diesem Handbuch stammen aus der laufenden App mit einem
     Beispiel-Stammbaum (rund 2.800 Personen).
   </p>
@@ -383,7 +387,7 @@
       dem letzten Laden.
     </p>
   </div>
-  <figure class="phone" style="width:340px">
+  <figure class="phone phone--narrow">
     <img src="handbuch-assets/32-command-palette.png" alt="Befehlspalette mit Eingabe Karte und Sprungziel">
     <figcaption>Die Befehlspalette (⌘K) springt zu jedem Ziel</figcaption>
   </figure>
