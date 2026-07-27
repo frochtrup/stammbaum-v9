@@ -54,7 +54,15 @@ async function click(text, { contains = false, nth = 0 } = {}) {
   const ok = await page.evaluate((text, contains, nth) => {
     const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const all = [...document.querySelectorAll('button,[role=tab],[role=button],a,summary,label,div,li,span')];
-    const m = all.filter((el) => { const t = norm(el.textContent); return contains ? t.includes(text) : t === text; });
+    // Match auf sichtbaren Text ODER `aria-label`: die Entitäten-Segmentreihe zeigt mobil
+    // Kurzformen (`Pers.`/`Fam.`, ADR-v9-133), trägt aber den vollen Namen als `aria-label`.
+    // So bleibt `click('Familien')` gültig, ohne an die Kurzform gekoppelt zu sein — dieselbe
+    // „stabiler Bezeichner statt sichtbarer Text"-Logik wie `bottomNav`s `data-slot`.
+    const m = all.filter((el) => {
+      const t = norm(el.textContent);
+      const a = norm(el.getAttribute && el.getAttribute('aria-label'));
+      return contains ? (t.includes(text) || (a && a.includes(text))) : (t === text || a === text);
+    });
     // NUR bei EXAKT-Treffern echte Bedien-Elemente bevorzugen: ein umschließender
     // <div>/<span> kann denselben (gleich langen) Text tragen wie der Button, den er
     // umschließt — z. B. `.stb-filterbar` um den einzigen "Filter"-Trigger. `.click()` auf
@@ -170,6 +178,11 @@ await bottomNav('person'); await click('Orte'); await scrollTop(); await shot('1
 await bottomNav('person'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
 await bottomNav('person'); await click('Höfe'); await scrollTop(); await shot('12-hoefeliste');
 await bottomNav('person'); await click('Höfe'); await scrollTop(); await click('Oster 141', { nth: 0 }); await shot('13-hof-detail');
+// Medien-Galerie + Medium-Detail (BL-126). „Medien" ist das 6. Entitäten-Segment; die
+// reiche Beispieldatei trägt ~227 OBJE, die Galerie ist also gefüllt. Fürs Detail die
+// erste Kachel öffnen (alphabetisch nach Titel) — zeigt globale Felder + Referenzliste.
+await bottomNav('person'); await click('Medien'); await scrollTop(); await shot('13b-mediengalerie');
+await page.evaluate(() => { const t = document.querySelector('.media-gallery__tile'); if (t) t.click(); }); await sleep(500); await scrollTop(); await shot('13c-medium-detail');
 
 // Karte (Orte) — auf Deutschland (Marker-Median) zoomen. lensFocus (@I3@, verstorben) wurde
 // bereits oben beim Sanduhr-Schritt gesetzt → der Personen-Modus der Karte erbt ihn.
