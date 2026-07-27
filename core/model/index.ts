@@ -24,6 +24,7 @@ export {
   makeMediaCitation,
 } from './factory';
 export { isEventPresent, isEventEmpty } from './event';
+export { smallestPersonId } from './queries';
 export {
   parseDateValue,
   formatDateValue,

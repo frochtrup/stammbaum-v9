@@ -6,25 +6,31 @@
   // aus dem DOM) → Blob → neuer Tab, in dem der Nutzer über den Browser druckt/als PDF
   // sichert (kein Server, keine externe Bibliothek — Spec 20 §4).
   import type { AppState } from '../../shell/app-state.svelte';
+  import type { ViewState } from '../../shell/view-state.svelte';
   import type { PersonId } from '../../../core/model/types';
   import { REPORTS } from './index';
   import { openReportInNewTab } from './open-report';
+  import { resolveProband } from '../../shell/proband';
   import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
     appState: AppState;
+    /** Für die Proband-Vorbelegung der Bezugsperson (BL-120). Optional, damit bestehende
+     *  Tests ohne ViewState weiterlaufen — ohne ihn bleibt die Bezugsperson zunächst leer. */
+    viewState?: ViewState;
   }
-  const { appState }: Props = $props();
+  const { appState, viewState }: Props = $props();
 
   const hasData = $derived(appState.db.individuals.size > 0);
 
   // Gemeinsame Bezugsperson für die personen-bezogenen Reports (Ahnenliste/Familienbogen/
-  // Nachkommentafel). Vorbelegt mit der ersten Person, damit diese Reports sofort ohne
+  // Nachkommentafel). Vorbelegt mit dem Probanden (effektive Referenzperson, BL-120 —
+  // vorher die erste Person in Einfüge-Reihenfolge), damit diese Reports sofort ohne
   // Zwischenschritt erzeugbar sind; per Picker änderbar.
   let personId = $state<PersonId | null>(null);
   $effect(() => {
     if (!personId && appState.db.individuals.size > 0) {
-      personId = appState.db.individuals.keys().next().value ?? null;
+      personId = viewState ? resolveProband(appState.db, viewState) : (appState.db.individuals.keys().next().value ?? null);
     }
   });
 

@@ -12,6 +12,7 @@
   import { buildRelationshipProof } from '../reports';
   import { openReportInNewTab } from '../reports/open-report';
   import { displayName } from '../../shell/person-display';
+  import { resolveProband } from '../../shell/proband';
   import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
@@ -26,18 +27,12 @@
   let idA = $state<PersonId | null>(null);
   let idB = $state<PersonId | null>(null);
 
-  // Person A startet auf dem Probanden (ADR-v9-135): der zuletzt fokussierten Person
-  // (lensFocus, wie die Baum-Lens), sonst der kleinsten Personen-ID. Nur einmal, solange
-  // A noch leer ist — eine spätere Nutzer-Wahl bleibt unangetastet.
+  // Person A startet auf dem Probanden (BL-120): die effektive Referenzperson der Sitzung
+  // (`resolveProband` — gesetzter Proband, sonst kleinste ID, ADR-v9-135/139). Nur einmal,
+  // solange A noch leer ist — eine spätere Nutzer-Wahl bleibt unangetastet.
   $effect(() => {
-    if (idA) return;
-    const focus = viewState?.getCurrent('lensFocus') ?? null;
-    if (focus && appState.db.individuals.has(focus)) {
-      idA = focus;
-      return;
-    }
-    const ids = [...appState.db.individuals.keys()].sort();
-    if (ids.length) idA = ids[0];
+    if (idA || !viewState) return;
+    idA = resolveProband(appState.db, viewState);
   });
 
   const rel = $derived(idA && idB ? findRelationshipPath(appState.db, idA, idB) : null);

@@ -106,6 +106,17 @@ export interface ViewState {
   setTimelinePersons(ids: readonly string[]): void;
   /** Reaktiv lesen (aus Svelte-Komponenten heraus). */
   getTimelinePersons(): readonly string[];
+  /**
+   * Der **Proband** der Sitzung (BL-120, ADR-v9-135): transienter Session-Zustand — hier
+   * in-memory gehalten, NIE persistiert (weder Datei noch IndexedDB noch Sync). `null` =
+   * nichts explizit gesetzt; die effektive Referenzperson (Default = kleinste ID) berechnet
+   * `resolveProband(db, viewState)` in `ui/shell/proband.ts`. Bewusst ein eigenes Methodenpaar
+   * statt eines `ViewTarget`-Registereintrags: der Proband ist KEIN Navigationsziel (es gibt
+   * keine „Proband"-View), sondern eine sitzungsweite Referenz.
+   */
+  setProband(id: string | null): void;
+  /** Reaktiv lesen — die roh gesetzte Proband-Id (nicht der aufgelöste Default). */
+  getProband(): string | null;
 }
 
 /**
@@ -132,6 +143,7 @@ export function createViewState(): ViewState {
   });
   let mapCoordFocus = $state<MapCoordFocus | null>(null);
   let timelinePersons = $state<readonly string[]>([]);
+  let probandId = $state<string | null>(null);
 
   // Bewusst ein reines Buchführungs-Set, kein Teil des reaktiven Graphen (wird nie in
   // einem $derived/Template gelesen) — SvelteSet wäre hier unnötiger Overhead.
@@ -161,6 +173,12 @@ export function createViewState(): ViewState {
     },
     getTimelinePersons() {
       return timelinePersons;
+    },
+    setProband(id) {
+      probandId = id;
+    },
+    getProband() {
+      return probandId;
     },
   };
 }

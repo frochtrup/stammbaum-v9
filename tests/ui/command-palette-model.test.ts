@@ -87,6 +87,29 @@ describe('buildCommands — zwei Quellen, keine eigene', () => {
   });
 });
 
+describe('buildCommands — „Zum Probanden" (BL-120)', () => {
+  const proband = { id: '@I0@', label: 'Otto Meyer' };
+
+  it('erscheint gar nicht ohne übergebenen Proband (rückwärtskompatibel)', () => {
+    const cmds = buildCommands(dbWith([['Otto', 'Meyer']]), ctx, '');
+    expect(cmds.some((c) => c.kind === 'proband')).toBe(false);
+  });
+
+  it('steht bei leerer Eingabe als erster Befehl der „Gehe zu"-Gruppe', () => {
+    const cmds = buildCommands(dbWith([['Otto', 'Meyer']]), ctx, '', proband);
+    expect(cmds[0]).toMatchObject({ kind: 'proband', id: '@I0@', primary: 'Zum Probanden', secondary: 'Otto Meyer', group: 'Gehe zu' });
+  });
+
+  it('matcht auf „prob" und auf den Proband-Namen', () => {
+    expect(buildCommands(dbWith([['Otto', 'Meyer']]), ctx, 'prob', proband).some((c) => c.kind === 'proband')).toBe(true);
+    expect(buildCommands(dbWith([['Otto', 'Meyer']]), ctx, 'otto', proband).some((c) => c.kind === 'proband')).toBe(true);
+  });
+
+  it('erscheint nicht bei einer nicht passenden Eingabe', () => {
+    expect(buildCommands(dbWith([['Otto', 'Meyer']]), ctx, 'xyz', proband).some((c) => c.kind === 'proband')).toBe(false);
+  });
+});
+
 describe('moveSelection — Tastaturauswahl in der flachen Liste', () => {
   it('geht vorwärts und rückwärts', () => {
     expect(moveSelection(0, 1, 3)).toBe(1);

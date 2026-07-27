@@ -2,6 +2,7 @@
 // genau einmal laufen (Spec 20 §3, „Vernetzung ist eine Graph-Traversierung").
 import type { Database, HofId, PersonId, SourceId } from '../model/types';
 import type { RuleContext, ValidationConfig } from './types';
+import { smallestPersonId } from '../model/queries';
 
 /**
  * Erreichbarkeitsmenge des Kernbaums: BFS vom Probanden über alle Eltern- und
@@ -19,8 +20,8 @@ export function reachableFrom(db: Database, probandId: PersonId | null): {
   const reachable = new Set<PersonId>();
   let rootId = probandId;
   if (!rootId || !db.individuals.has(rootId)) {
-    const ids = [...db.individuals.keys()].sort();
-    rootId = ids.length > 0 ? ids[0] : null;
+    // Dieselbe Proband-Default-Definition wie die UI (`resolveProband`), ADR-v9-135/139.
+    rootId = smallestPersonId(db);
   }
   if (rootId === null) return { rootId: null, reachable };
 

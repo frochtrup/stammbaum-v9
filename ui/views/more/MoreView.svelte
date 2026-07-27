@@ -28,6 +28,7 @@
   // (nicht letzter), weil er für Erstnutzer der Einstieg ist, bevor überhaupt Daten da
   // sind — rendert echte Komponenten (ImportButton/SaveButton), keinen ComingSoonPanel.
   import type { AppState } from '../../shell/app-state.svelte';
+  import type { ViewState } from '../../shell/view-state.svelte';
   import ComingSoonPanel from '../../shell/ComingSoonPanel.svelte';
   import StatisticsView from '../stats/StatisticsView.svelte';
   import ImportButton from '../../shell/ImportButton.svelte';
@@ -60,8 +61,11 @@
     onImported?: (handle: unknown) => void;
     /** Die EINE Routen-Quelle (INV-UI-15) — der Hub hält keinen eigenen Unter-Zustand. */
     route: Route;
+    /** Für die Proband-Vorbelegung der Report-Bezugsperson (BL-120), an ReportsView
+     *  durchgereicht. Optional, damit bestehende Tests unverändert laufen. */
+    viewState?: ViewState;
   }
-  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, route }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, route, viewState }: Props = $props();
 
   // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
   // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
@@ -109,7 +113,7 @@
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'reports'}
-      <ReportsView {appState} />
+      <ReportsView {appState} {viewState} />
     {:else if openEntry.id === 'file'}
       <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen

@@ -16,6 +16,8 @@
   // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
+  import { resolveProband } from '../ui/shell/proband';
+  import { displayName } from '../ui/shell/person-display';
   import { createProjectsState } from '../ui/shell/projects-state.svelte';
   import { IdbProjectsStore } from '../services/research/index';
   import { createAppState } from '../ui/shell/app-state.svelte';
@@ -295,7 +297,29 @@
   /** Ausführen eines Palette-Befehls: Navigationsziel ODER Sprung auf eine Entität.
    *  Die Entitäts-Sprünge nutzen exakt die Funktionen, die auch die Suchfläche
    *  bedienen (openPersonFromSearch & Co.) — kein zweiter Sprung-Pfad. */
+  // „Zum Probanden" (BL-120): auf die Detailseite der effektiven Referenzperson springen
+  // (Session-Proband, sonst kleinste ID — ADR-v9-135/139). Derselbe Sprung-Mechanismus wie
+  // die globale Suche (ViewState-Auswahl + Routen-Ziel setzen).
+  function goToProband() {
+    const pid = resolveProband(appState.db, viewState);
+    if (!pid) return;
+    viewState.setCurrent('person', pid);
+    route.setTarget('person');
+  }
+
+  // Der effektive Proband als Palette-Befehl (id + Anzeigename) — App kennt viewState, die
+  // Palette selbst nicht; sie zeigt nur, was hier aufgelöst wurde.
+  const probandCommand = $derived.by(() => {
+    const pid = resolveProband(appState.db, viewState);
+    const p = pid ? appState.db.individuals.get(pid) : null;
+    return p ? { id: p.id, label: displayName(p) } : null;
+  });
+
   function runCommand(cmd: Command) {
+    if (cmd.kind === 'proband') {
+      goToProband();
+      return;
+    }
     if (isNavCommand(cmd)) {
       route.setTarget(cmd.id);
       return;
@@ -358,6 +382,7 @@
   <CommandPalette
     db={appState.db}
     ctx={appState.placeContext}
+    proband={probandCommand}
     onClose={() => (paletteOpen = false)}
     onRun={runCommand}
   />
@@ -437,6 +462,7 @@
         {placesFileIO}
         {fileHandle}
         {route}
+        {viewState}
         onImported={(handle) => (fileHandle = handle)}
       />
     {/if}

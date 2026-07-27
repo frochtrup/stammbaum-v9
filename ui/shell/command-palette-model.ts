@@ -19,7 +19,7 @@ import type { PlaceContext } from '../../core/places';
 import { NAV_TARGETS, type NavTargetId } from './nav-model';
 import { globalSearch, MIN_QUERY_LENGTH, type SearchResultRow } from '../views/search/global-search-model';
 
-export type CommandKind = 'nav' | 'person' | 'family' | 'source' | 'place' | 'hof';
+export type CommandKind = 'nav' | 'proband' | 'person' | 'family' | 'source' | 'place' | 'hof';
 
 export interface Command {
   kind: CommandKind;
@@ -43,7 +43,7 @@ export interface Command {
  */
 export const MAX_PER_GROUP = 8;
 
-const GROUP_LABEL: Record<Exclude<CommandKind, 'nav'>, string> = {
+const GROUP_LABEL: Record<Exclude<CommandKind, 'nav' | 'proband'>, string> = {
   person: 'Personen',
   family: 'Familien',
   source: 'Quellen',
@@ -51,7 +51,7 @@ const GROUP_LABEL: Record<Exclude<CommandKind, 'nav'>, string> = {
   hof: 'Höfe',
 };
 
-function toCommands(kind: Exclude<CommandKind, 'nav'>, rows: SearchResultRow[]): Command[] {
+function toCommands(kind: Exclude<CommandKind, 'nav' | 'proband'>, rows: SearchResultRow[]): Command[] {
   return rows.slice(0, MAX_PER_GROUP).map((r) => ({
     kind,
     id: r.id,
@@ -70,8 +70,22 @@ function toCommands(kind: Exclude<CommandKind, 'nav'>, rows: SearchResultRow[]):
  * eine leere Fläche mit Cursor. Ungebaute Ziele (`implemented: false`) erscheinen nicht:
  * ein Befehl, der nichts tut, ist schlimmer als ein fehlender.
  */
-export function buildCommands(db: Database, ctx: PlaceContext, query: string): Command[] {
+export function buildCommands(
+  db: Database,
+  ctx: PlaceContext,
+  query: string,
+  /** Effektiver Proband (id + Anzeigename) für den „Zum Probanden"-Befehl (BL-120). Von der
+   *  Schale aufgelöst (App kennt viewState); ohne ihn erscheint der Befehl nicht. */
+  proband?: { id: string; label: string } | null,
+): Command[] {
   const q = query.trim().toLowerCase();
+
+  // „Zum Probanden" steht in der „Gehe zu"-Gruppe ganz vorn — auf leerer Eingabe (⌘K zeigt
+  // sofort die Sprungziele) und bei Tippen von „prob"/dem Proband-Namen.
+  const probandCmd: Command[] =
+    proband && (q === '' || 'zum probanden'.includes(q) || proband.label.toLowerCase().includes(q))
+      ? [{ kind: 'proband' as const, id: proband.id, primary: 'Zum Probanden', secondary: proband.label, group: 'Gehe zu' }]
+      : [];
 
   const nav: Command[] = NAV_TARGETS.filter((t) => t.implemented)
     .filter((t) => q === '' || t.label.toLowerCase().includes(q))
@@ -83,10 +97,11 @@ export function buildCommands(db: Database, ctx: PlaceContext, query: string): C
       group: 'Gehe zu',
     }));
 
-  if (q.length < MIN_QUERY_LENGTH) return nav;
+  if (q.length < MIN_QUERY_LENGTH) return [...probandCmd, ...nav];
 
   const found = globalSearch(db, ctx, query);
   return [
+    ...probandCmd,
     ...nav,
     ...toCommands('person', found.persons),
     ...toCommands('family', found.families),
