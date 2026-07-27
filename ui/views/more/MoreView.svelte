@@ -7,8 +7,8 @@
   // ist echt (Spec 20 §4 "Statistik-Report") — Nutzer-Entscheidung: Statistik ist bewusst
   // KEINE Diagramm-/imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt
   // keinen gemeinsamen Lens-Umschalter und ist ausschließlich über diesen Hub-Eintrag
-  // erreichbar. Story/Ausgaben/Einstellungen bleiben Platzhalter (eigene, spätere
-  // Bauabschnitte).
+  // erreichbar. "Ausgaben" ist seit BL-169 ebenfalls echt (ReportsView, Druck-Reports §4).
+  // Story/Einstellungen bleiben Platzhalter (eigene, spätere Bauabschnitte).
   //
   // "Karte" und "Zeitleiste" haben inzwischen echten Inhalt (Karte: Leaflet+OSM-
   // Primärpfad + SVG-Offline-Fallback, ADR-v9-25; Zeitleiste: Swim-Lane + Dekaden-Modus,
@@ -35,6 +35,7 @@
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
   import ImportCompareView from '../import/ImportCompareView.svelte';
   import ExportView from '../export/ExportView.svelte';
+  import ReportsView from '../reports/ReportsView.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
   import { layout } from '../../shell/layout.svelte';
@@ -107,6 +108,8 @@
     {/if}
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
+    {:else if openEntry.id === 'reports'}
+      <ReportsView {appState} />
     {:else if openEntry.id === 'file'}
       <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen

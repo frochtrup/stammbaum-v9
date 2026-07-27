@@ -155,7 +155,7 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'hypotheses', role: 'research', icon: '💡', label: 'Hypothesen', implemented: true },
   { id: 'search', role: 'work', icon: '🔍', label: 'Suche', implemented: true },
   { id: 'file', role: 'work', icon: '📁', label: 'Datei', implemented: true },
-  { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: false },
+  { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: true },
   { id: 'settings', role: 'work', icon: '⚙', label: 'Einstellungen', implemented: false },
 ];
 

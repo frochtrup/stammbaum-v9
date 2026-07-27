@@ -82,12 +82,14 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     const route = createRoute({ target: 'more' });
     renderMore(route);
 
-    for (const label of ['Story', 'Ausgaben', 'Einstellungen']) {
+    for (const label of ['Story', 'Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
     }
     expect(screen.queryByText(/Statistik \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Karte \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
+    // Ausgaben ist seit BL-169 echt (ReportsView), nicht mehr „(folgt)".
+    expect(screen.queryByText(/Ausgaben \(folgt\)/)).toBeNull();
   });
 
   it('Klick auf "Karte" setzt das Routen-Ziel "map" und öffnet KEINE zweite Karte im Hub', async () => {
@@ -142,6 +144,17 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
 
     expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
     expect(screen.getByText(/Keine Daten geladen/)).toBeTruthy(); // StatisticsView-Empty-State (leere AppState)
+  });
+
+  it('Klick auf "Ausgaben" zeigt die echte ReportsView (kein ComingSoonPanel mehr, BL-169)', async () => {
+    const route = createRoute({ target: 'more' });
+    renderMore(route);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Ausgaben/ }));
+
+    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
+    // ReportsView-Empty-State bei leerer AppState (kein geladener Bestand).
+    expect(screen.getByText(/Ausgaben zu erzeugen/)).toBeTruthy();
   });
 
   it('"Datei"-Sub-Ansicht zeigt KEINE Orte-Buttons, wenn kein placesFileIO übergeben wird (Rückwärtskompatibilität)', async () => {

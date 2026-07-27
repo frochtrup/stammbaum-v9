@@ -305,30 +305,37 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="stb-picker" bind:this={rootEl} onfocusout={onFocusOut} onkeydown={onKeydown}>
-  <input
-    type="text"
-    role="combobox"
-    bind:this={fieldEl}
-    class="stb-picker__field"
-    class:stb-picker__field--has-value={!open && !!selectedLabel}
-    aria-label={label}
-    aria-expanded={open}
-    aria-controls="{listId}"
-    aria-autocomplete="list"
-    aria-activedescendant={open && activeIndex >= 0 ? `${listId}-r${activeIndex}` : undefined}
-    autocomplete="off"
-    value={fieldText}
-    placeholder={fieldPlaceholder}
-    oninput={onInput}
-    onfocus={openList}
-    onclick={openList}
-  />
-  {#if !open && selectedItem && getSubLabel}
-    <!-- Unterzeile der AUSWAHL (Geburtsjahr/-ort & Co.). Nur im Ruhezustand: während des
-         Tippens gehört der Platz der Trefferliste, und die Unterzeile des Treffers steht
-         dort ohnehin an jeder Zeile. -->
-    <span class="stb-picker__field-meta">{getSubLabel(selectedItem)}</span>
-  {/if}
+  <!-- Feld + Auswahl-Unterzeile teilen EINEN Rahmen (`__box`): die getroffene Auswahl liest
+       sich als zusammenhängende Aussage „Name + Kenndaten" innerhalb der Box, nicht als
+       Name-in-Box + darunter loser Zusatztext. Der Rahmen sitzt am Wrapper, das Feld selbst
+       ist randlos/transparent — die Combobox-Mechanik (role/aria/anchoredTo am `fieldEl`)
+       bleibt unverändert. -->
+  <div class="stb-picker__box" class:stb-picker__box--has-value={!open && !!selectedLabel}>
+    <input
+      type="text"
+      role="combobox"
+      bind:this={fieldEl}
+      class="stb-picker__field"
+      class:stb-picker__field--has-value={!open && !!selectedLabel}
+      aria-label={label}
+      aria-expanded={open}
+      aria-controls="{listId}"
+      aria-autocomplete="list"
+      aria-activedescendant={open && activeIndex >= 0 ? `${listId}-r${activeIndex}` : undefined}
+      autocomplete="off"
+      value={fieldText}
+      placeholder={fieldPlaceholder}
+      oninput={onInput}
+      onfocus={openList}
+      onclick={openList}
+    />
+    {#if !open && selectedItem && getSubLabel}
+      <!-- Unterzeile der AUSWAHL (Geburtsjahr/-ort & Co.). Nur im Ruhezustand: während des
+           Tippens gehört der Platz der Trefferliste, und die Unterzeile des Treffers steht
+           dort ohnehin an jeder Zeile. -->
+      <span class="stb-picker__field-meta">{getSubLabel(selectedItem)}</span>
+    {/if}
+  </div>
 
   {#if open}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -413,16 +420,33 @@
     min-width: 200px;
   }
 
-  /* Das Feld IST das Suchfeld (ADR-v9-103) — es übernimmt die Optik der übrigen
-     Formularfelder aus design-system.css, statt wie zuvor als Knopf zu erscheinen. */
+  /* Der Rahmen sitzt am Wrapper (Feld + Auswahl-Unterzeile teilen ihn), Optik wie die
+     übrigen Formularfelder aus design-system.css. */
+  .stb-picker__box {
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+  }
+
+  /* Tastatur-/Maus-Fokus hebt die ganze Box hervor (das randlose Feld trägt keinen eigenen
+     sichtbaren Rahmen mehr). */
+  .stb-picker__box:focus-within {
+    border-color: var(--stb-gold);
+  }
+
+  /* Das Feld IST das Suchfeld (ADR-v9-103) — randlos/transparent innerhalb der Box. */
   .stb-picker__field {
     width: 100%;
-    background: var(--stb-surface-2);
+    background: transparent;
     color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
+    border: none;
     border-radius: var(--stb-radius-control);
     padding: 0.35rem 0.5rem;
     font: inherit;
+  }
+
+  .stb-picker__field:focus {
+    outline: none;
   }
 
   /* Eine getroffene Auswahl liest sich als Aussage, ein leeres Feld als Aufforderung. */
@@ -435,11 +459,12 @@
     font-weight: 400;
   }
 
+  /* Innerhalb DERSELBEN Box direkt unter dem Feld (kein loser Text unter dem Rahmen). */
   .stb-picker__field-meta {
     display: block;
     font-size: 0.75rem;
     color: var(--stb-text-dim);
-    padding: 1px 0.5rem 0;
+    padding: 0 0.5rem 0.3rem;
   }
 
   /* Über dem Folgeinhalt schwebend statt ihn wegzuschieben: das Feld sitzt oft mitten in
