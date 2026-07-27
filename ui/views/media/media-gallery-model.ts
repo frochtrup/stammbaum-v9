@@ -44,6 +44,17 @@ export function displayTitle(m: Media): string {
   return m.title || basename(m.file) || m.id;
 }
 
+/**
+ * Ist die Datei-Referenz direkt im Browser als Bild darstellbar? Nur `data:image/…`-URIs
+ * (self-enthalten, per CSP `img-src … data:` erlaubt, [app/csp-policy.ts]). Ein bloßer
+ * Dateipfad (`foto_1.jpg`) ist es NICHT — die App hat ohne Dateizugriff nicht die Bytes;
+ * solche Medien zeigen den Metadaten-Kachelinhalt statt eines toten `<img>` (ehrlich statt
+ * kaputtes Bildsymbol). Bewusst eng: `blob:`/entfernte Hosts sind hier (noch) nicht dabei.
+ */
+export function isDisplayableImage(file: string): boolean {
+  return /^data:image\//i.test(file.trim());
+}
+
 interface OwnerAcc {
   kinds: Set<MediaOwnerKind>;
   count: number;

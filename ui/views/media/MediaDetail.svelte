@@ -26,6 +26,7 @@
   } from '../../../core/model';
   import type { MediaCitation } from '../../../core/model/types';
   import { buildMediaDetail, type MediaReferenceRow } from './media-detail-model';
+  import { isDisplayableImage } from './media-gallery-model';
 
   interface Props {
     appState: AppState;
@@ -153,6 +154,13 @@
     else if (row.ownerKindForNav === 'family') onNavigateToFamily(row.ownerId);
     else onNavigateToSource(row.ownerId);
   }
+
+  /** Anzeige der „Datei"-Zeile: ein eingebetteter `data:`-URI wäre roh eine tausende
+   *  Zeichen lange Zeichenkette — stattdessen ein knappes „eingebettet (MIME)". */
+  function fileLabel(file: string): string {
+    const m = /^data:([^;,]+)[;,]/i.exec(file.trim());
+    return m ? `eingebettet (${m[1]})` : file || '—';
+  }
 </script>
 
 {#snippet refRow(row: MediaReferenceRow)}
@@ -207,9 +215,14 @@
         </div>
       </div>
     {:else}
+      {#if isDisplayableImage(detail.media.file)}
+        <figure class="media-detail__preview">
+          <img src={detail.media.file} alt={detail.displayTitle} />
+        </figure>
+      {/if}
       <dl class="media-detail__meta">
         <dt>Datei</dt>
-        <dd>{detail.media.file || '—'}</dd>
+        <dd>{fileLabel(detail.media.file)}</dd>
         {#if detail.media.form}<dt>Format</dt><dd>{detail.media.form}</dd>{/if}
         {#if detail.media.type}<dt>Typ</dt><dd>{detail.media.type}</dd>{/if}
       </dl>
@@ -269,6 +282,18 @@
     padding: 0.3rem 0.7rem;
     cursor: pointer;
     font-size: 0.82rem;
+  }
+
+  .media-detail__preview {
+    margin: 0.75rem 0;
+    text-align: center;
+  }
+
+  .media-detail__preview img {
+    max-width: 100%;
+    max-height: 320px;
+    border-radius: var(--stb-radius-control);
+    background: var(--stb-surface-2);
   }
 
   .media-detail__meta {

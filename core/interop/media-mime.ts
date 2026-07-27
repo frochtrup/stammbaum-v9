@@ -9,13 +9,15 @@
 const EXT_TO_MIME: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
   tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp', webp: 'image/webp',
+  svg: 'image/svg+xml',
   pdf: 'application/pdf', txt: 'text/plain', htm: 'text/html', html: 'text/html',
   mp3: 'audio/mpeg', wav: 'audio/x-wav', mp4: 'video/mp4', mov: 'video/quicktime',
 };
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/tiff': 'tif',
-  'image/bmp': 'bmp', 'image/webp': 'webp', 'application/pdf': 'pdf', 'text/plain': 'txt',
+  'image/bmp': 'bmp', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'application/pdf': 'pdf', 'text/plain': 'txt',
   'text/html': 'html', 'audio/mpeg': 'mp3', 'audio/x-wav': 'wav', 'video/mp4': 'mp4',
   'video/quicktime': 'mov',
 };

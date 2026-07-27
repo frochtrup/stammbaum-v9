@@ -17,6 +17,7 @@
     buildOwnerFilterOptions,
     matchesOwnerFilter,
     matchesMediaSearch,
+    isDisplayableImage,
     type MediaOwnerFilter,
     type MediaTileRow,
   } from './media-gallery-model';
@@ -90,6 +91,11 @@
         {#each rows as row (row.id)}
           <li>
             <button type="button" class="media-gallery__tile" onclick={() => selectMedia(row.id)}>
+              {#if isDisplayableImage(row.file)}
+                <span class="media-gallery__thumb">
+                  <img src={row.file} alt="" loading="lazy" />
+                </span>
+              {/if}
               <span class="media-gallery__tile-title">
                 {#if isBroken(row)}<span class="media-gallery__warn" title="Datei-Referenz fehlt">⚠</span>{/if}
                 {row.title}
@@ -174,6 +180,22 @@
   .media-gallery__tile:focus-visible {
     border-color: var(--stb-gold-dim);
     background: var(--stb-surface-3);
+  }
+
+  .media-gallery__thumb {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: calc(var(--stb-radius-control) - 2px);
+    overflow: hidden;
+    background: var(--stb-surface-3);
+  }
+
+  .media-gallery__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .media-gallery__tile-title {
