@@ -299,9 +299,10 @@
         class="stb-segment-btn"
         class:stb-segment-btn--active={segment.id === activeSegment}
         disabled={!segment.implemented}
+        aria-label={segment.label}
         onclick={() => selectSegment(segment)}
       >
-          {segment.label}{segment.implemented ? '' : ' (folgt)'}
+          {segment.shortLabel ?? segment.label}{segment.implemented ? '' : ' (folgt)'}
         </button>
       {/each}
     </div>

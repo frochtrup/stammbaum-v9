@@ -106,6 +106,14 @@ export interface NavTargetDef {
   role: NavRole;
   icon: string;
   label: string;
+  /**
+   * Kurzform NUR für die mobile `EntityTab`-Segmentreihe (ADR-v9-132/BL-126): sechs
+   * Entitäten sprengten bei 375px die eine Zeile um genau 10px (`Personen` 69px +
+   * `Familien` 64px waren die Wortlängen-Ausreißer, am laufenden System gemessen). Nur
+   * hier wird `shortLabel` bevorzugt; die Desktop-Sidebar, der Bottom-Hub und die
+   * Such-Typ-Chips zeigen weiterhin `label` (volle Wörter). Fehlt sie, gilt `label`.
+   */
+  shortLabel?: string;
   implemented: boolean;
 }
 
@@ -125,8 +133,8 @@ export interface NavTargetDef {
  * laut INV-UI-15 die vollständige Beschreibung eines Ziels trägt — nicht die halbe.
  */
 export const NAV_TARGETS: readonly NavTargetDef[] = [
-  { id: 'person', role: 'entity', icon: '👤', label: 'Personen', implemented: true },
-  { id: 'family', role: 'entity', icon: '👪', label: 'Familien', implemented: true },
+  { id: 'person', role: 'entity', icon: '👤', label: 'Personen', shortLabel: 'Pers.', implemented: true },
+  { id: 'family', role: 'entity', icon: '👪', label: 'Familien', shortLabel: 'Fam.', implemented: true },
   { id: 'source', role: 'entity', icon: '📜', label: 'Quellen', implemented: true },
   { id: 'place', role: 'entity', icon: '📍', label: 'Orte', implemented: true },
   { id: 'hof', role: 'entity', icon: '🏠', label: 'Höfe', implemented: true },
