@@ -22,6 +22,14 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.6] — 2026-07-27
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c165823`…HEAD) erzeugt._
+
+- Nur Screenshots neu erzeugt — keine relevanten Code-Änderungen im Fenster.
+
+---
+
 ## [9.5] — 2026-07-27
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`3800372`…HEAD) erzeugt._
