@@ -60,8 +60,11 @@ describe('Ziel-Register — eine Beschreibung je Ziel (INV-UI-15)', () => {
     expect(RESEARCH_TARGETS.map((t) => t.id)).toEqual(['quality', 'tasks', 'log', 'hypotheses']);
   });
 
-  it('führt die fünf Entitäten aus Spec 21 §1 (Archive sind kein eigenes Ziel)', () => {
-    expect(ENTITY_TARGETS.map((t) => t.id)).toEqual(['person', 'family', 'source', 'place', 'hof']);
+  it('führt die sechs Entitäten aus Spec 21 §1 (Archive sind kein eigenes Ziel; Medien seit BL-126)', () => {
+    // `media` ist die 6. Entität (ADR-v9-132): `Media` ist eine Top-Level-Modell-Entität
+    // (db.media, Spec 10 §4), die Galerie ist "analog Quellen" ein eigenes Segment (Spec
+    // 20 §1.4). Archive bleiben KEIN eigenes Ziel (Unteransicht des Quellen-Ziels).
+    expect(ENTITY_TARGETS.map((t) => t.id)).toEqual(['person', 'family', 'source', 'place', 'hof', 'media']);
     expect(NAV_TARGETS.some((t) => (t.id as string) === 'repository')).toBe(false);
   });
 

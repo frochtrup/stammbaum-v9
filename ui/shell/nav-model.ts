@@ -20,8 +20,11 @@
 /** Die vier Rollen aus Spec 21 §1. Bestimmt die Sidebar-Gruppierung (BL-06). */
 export type NavRole = 'entity' | 'lens' | 'work' | 'research';
 
-/** Entitäten (Spec 21 §1): Datenkategorien zum Browsen/Bearbeiten. */
-export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof';
+/** Entitäten (Spec 21 §1): Datenkategorien zum Browsen/Bearbeiten. `media` (BL-126,
+ *  Spec 20 §1.4 [S]) ist ein EIGENES Segment neben Personen/Familien/Quellen/Orte/Höfe
+ *  (Nutzer-Entscheidung) — NICHT Teil des Mehr-Hubs, obwohl die Kachelgalerie eine
+ *  globale, nicht Personen-lokale Arbeitsfläche ist (genau wie Quellen bereits). */
+export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof' | 'media';
 
 /**
  * Die Kontext-Fokus-Lenses, die sich EINEN Bottom-Nav-Slot teilen (Spec 21 §4:
@@ -127,6 +130,9 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'source', role: 'entity', icon: '📜', label: 'Quellen', implemented: true },
   { id: 'place', role: 'entity', icon: '📍', label: 'Orte', implemented: true },
   { id: 'hof', role: 'entity', icon: '🏠', label: 'Höfe', implemented: true },
+  // 📎 ist laut Spec 21 §7 ausschließlich das Medien-/OBJE-Symbol (nie Quellen) — dasselbe
+  // Symbol, das der Präsenz-Badge auf PersonList schon nutzt (ADR-v9-79 Punkt 3).
+  { id: 'media', role: 'entity', icon: '📎', label: 'Medien', implemented: true },
   { id: 'tree', role: 'lens', icon: '⧖', label: 'Baum', implemented: true },
   { id: 'map', role: 'lens', icon: '🗺', label: 'Karte', implemented: true },
   { id: 'timeline', role: 'lens', icon: '⏱', label: 'Zeitleiste', implemented: true },

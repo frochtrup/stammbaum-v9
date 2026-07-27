@@ -56,6 +56,11 @@ export {
   deleteSource,
   saveRepository,
   deleteRepository,
+  saveMedia,
+  deleteMedia,
+  withAddedMediaCitation,
+  withRemovedMediaCitation,
+  withUpdatedMediaCitation,
 } from './commands';
 export {
   deletePersonCascade,

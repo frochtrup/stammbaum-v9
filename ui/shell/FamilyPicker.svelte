@@ -35,6 +35,11 @@
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
     label?: string;
+    /** Mountet die Shell direkt offen (Picker.svelte's `startOpen`, wie PersonPicker) —
+     *  für Aufrufer, die den Picker hinter einem eigenen "+"-Trigger einblenden. */
+    startOpen?: boolean;
+    /** Reicht Picker.svelte's `onClose` durch (Aufrufer blenden den Picker per `{#if}` ein). */
+    onClose?: () => void;
   }
   const {
     appState,
@@ -44,6 +49,8 @@
     noneLabel = '— keine Familie —',
     placeholder = 'Familie wählen…',
     label = 'Familie auswählen',
+    startOpen = false,
+    onClose,
   }: Props = $props();
 
   const items = $derived(Array.from(appState.db.families.values()));
@@ -82,6 +89,8 @@
     {label}
     createLabel="+ Neue Familie anlegen …"
     onCreateRequested={beginCreate}
+    {startOpen}
+    {onClose}
   />
 </div>
 

@@ -57,6 +57,7 @@ export type ViewTarget =
   | 'repository'
   | 'place'
   | 'hof'
+  | 'media'
   | 'search'
   | 'tasks'
   | 'more';
@@ -124,6 +125,7 @@ export function createViewState(): ViewState {
     repository: null,
     place: null,
     hof: null,
+    media: null,
     search: null,
     tasks: null,
     more: null,

@@ -33,6 +33,8 @@
   import HofDetail from './hof/HofDetail.svelte';
   import HofReview from './hof/HofReview.svelte';
   import HofDedupView from './hof/HofDedupView.svelte';
+  import MediaGallery from './media/MediaGallery.svelte';
+  import MediaDetail from './media/MediaDetail.svelte';
 
   interface Props {
     appState: AppState;
@@ -114,6 +116,7 @@
       else viewState.setCurrent('source', null);
     } else if (activeSegment === 'place') viewState.setCurrent('place', null);
     else if (activeSegment === 'hof') viewState.setCurrent('hof', null);
+    else if (activeSegment === 'media') viewState.setCurrent('media', null);
   }
 
   function navigateToPerson(id: string) {
@@ -251,6 +254,7 @@
   const selectedRepositoryId = $derived(viewState.getCurrent('repository'));
   const selectedPlaceId = $derived(viewState.getCurrent('place'));
   const selectedHofId = $derived(viewState.getCurrent('hof'));
+  const selectedMediaId = $derived(viewState.getCurrent('media'));
 
   /** Hat das aktive Segment gerade eine Auswahl? Entscheidet mobil Liste-ODER-Detail
    *  und auf Desktop, ob der Detail-Pane Inhalt oder Leerzustand zeigt. */
@@ -260,6 +264,7 @@
     if (activeSegment === 'source')
       return sourceSubView === 'repositories' ? !!selectedRepositoryId : !!selectedSourceId;
     if (activeSegment === 'place') return !!selectedPlaceId;
+    if (activeSegment === 'media') return !!selectedMediaId;
     return !!selectedHofId;
   });
 
@@ -359,6 +364,8 @@
       <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
     {:else if activeSegment === 'hof'}
       <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
+    {:else if activeSegment === 'media'}
+      <MediaGallery {appState} {viewState} />
     {/if}
   {/snippet}
 
@@ -415,6 +422,15 @@
       />
     {:else if activeSegment === 'hof' && selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
+    {:else if activeSegment === 'media' && selectedMediaId}
+      <MediaDetail
+        {appState}
+        {viewState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+        onNavigateToSource={navigateToSource}
+        onBack={backToList}
+      />
     {:else}
       <!-- Leerzustand des Detail-Panes: existiert nur auf Desktop (mobil rendert bei
            fehlender Auswahl die Liste selbst). Bewusst neutral formuliert statt je

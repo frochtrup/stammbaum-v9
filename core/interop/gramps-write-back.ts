@@ -33,7 +33,7 @@
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
-import type { Citation, Database, Event, Family, Note, Person, Repository, Source } from '../model/types';
+import type { Citation, Database, Event, Family, Media, Note, Person, Repository, Source } from '../model/types';
 import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
@@ -52,6 +52,7 @@ import { buildEnrichContext } from './gramps-enrich';
 import { descriptionIsAddress, projectGrampsEvent, tagToGrampsType } from './gramps-events';
 import { projectBuildingHof, projectPlaceobj } from './gramps-places';
 import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
+import { projectGrampsObject } from './gramps-media';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
 import { parseCoord } from './gedcom-parse';
 
@@ -74,6 +75,8 @@ const DTD_ORDER: Record<string, string[]> = {
     'noteref', 'objref', 'srcattribute', 'sourceref', 'tagref'],
   placeobj: ['ptitle', 'pname', 'code', 'coord', 'placeref', 'location', 'url',
     'noteref', 'objref', 'tagref'],
+  // grampsxml.dtd 1.7.2: object (file, attribute*, noteref*, citationref*, tagref*).
+  object: ['file', 'attribute', 'noteref', 'citationref', 'tagref'],
 };
 
 /** Die vier GRAMPS-Datums-Tags (Choice-Gruppe in event/citation). */
@@ -341,6 +344,11 @@ const familyEventRole = (r: XmlNode): boolean => {
 };
 const eventref = (role: string) => (h: string): XmlNode => knoten('eventref', '', [['hlink', h], ['role', role]]);
 const citationref = (h: string): XmlNode => knoten('citationref', '', [['hlink', h]]);
+const objref = (h: string): XmlNode => knoten('objref', '', [['hlink', h]]);
+
+/** Ziel-Handles der Medien-Refs einer Entität (mediaId → Handle, ADR-v9-125). */
+const mediaHandles = (media: readonly { mediaId: string }[], index: GrampsRefIndex): string[] =>
+  media.map((m) => toHandle(m.mediaId, index));
 
 function personKinder(orig: XmlNode, cur: Person, wb: Wb): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.person, 'gender', cur.sex);
@@ -363,6 +371,9 @@ function personKinder(orig: XmlNode, cur: Person, wb: Wb): XmlNode[] {
   // Add/Remove (BL-144): Eventrefs (Rolle Primary) + direkte Person-Zitate (topLevelCitations).
   children = reconcileRefs(children, DTD_ORDER.person, 'eventref', personEventRole,
     personOwnedEvents(cur).map((e) => evHandle(wb, e)), eventref('Primary'));
+  // Person-Ebene-Medien (BL-126): `<objref>` Add/Remove modellgetrieben (vorher Passthrough).
+  children = reconcileRefs(children, DTD_ORDER.person, 'objref', () => true,
+    mediaHandles(cur.media, wb.index), objref);
   children = reconcileRefs(children, DTD_ORDER.person, 'citationref', () => true,
     cur.topLevelCitations.map((c) => citHandle(wb, c)), citationref);
   return children;
@@ -404,6 +415,9 @@ function sourceKinder(orig: XmlNode, cur: Source, index: GrampsRefIndex): XmlNod
   children = setzeText(children, DTD_ORDER.source, 'sauthor', cur.author);
   children = setzeText(children, DTD_ORDER.source, 'spubinfo', cur.publisher);
   children = setzeText(children, DTD_ORDER.source, 'sabbrev', cur.abbr);
+  // Quellen-Ebene-Medien (BL-126): `<objref>` Add/Remove modellgetrieben (vorher Passthrough).
+  children = reconcileRefs(children, DTD_ORDER.source, 'objref', () => true,
+    mediaHandles(cur.media, index), objref);
   return setzeAttribut(children, DTD_ORDER.source, 'reporef', 'hlink', toHandle(cur.repo ?? '', index));
 }
 
@@ -415,6 +429,38 @@ function repoKinder(orig: XmlNode, cur: Repository): XmlNode[] {
 
 function noteKinder(orig: XmlNode, cur: Note): XmlNode[] {
   return setzeText(orig.children, DTD_ORDER.note, 'text', cur.text);
+}
+
+/**
+ * Setzt ein Attribut am `<file>`-Element: vorhandenes aktualisieren, fehlendes anhängen,
+ * leeres entfernen. Andere Attribute (z. B. `checksum`, das das Modell nicht führt) bleiben
+ * unangetastet an ihrer Stelle (INV-PT).
+ */
+function setzeFileAttr(attrs: [string, string][], name: string, wert: string): [string, string][] {
+  const hat = attrs.some(([k]) => k === name);
+  if (wert === '') return hat ? attrs.filter(([k]) => k !== name) : attrs;
+  if (hat) return attrs.map(([k, v]) => (k === name ? [k, wert] : [k, v]) as [string, string]);
+  return [...attrs, [name, wert]];
+}
+
+/**
+ * Aktualisiert die erkannten Kinder eines geänderten `<object>`-Records (ADR-v9-125): das
+ * `<file>`-Element trägt `src` (file), `mime` (form), `description` (title) als Attribute.
+ * `type`/MEDI hat in GRAMPS kein `<file>`-Pendant und wird daher nicht geschrieben. Andere
+ * Kinder (`<attribute>`/`<noteref>`/`<citationref>`/`<tagref>`) bleiben Passthrough.
+ */
+function objectKinder(orig: XmlNode, cur: Media): XmlNode[] {
+  const idx = orig.children.findIndex((c) => c.tag === 'file');
+  const altFile = idx >= 0 ? orig.children[idx] : knoten('file', '', [['src', cur.file]]);
+  let a = altFile.attrs;
+  a = setzeFileAttr(a, 'src', cur.file);
+  a = setzeFileAttr(a, 'mime', cur.form);
+  a = setzeFileAttr(a, 'description', cur.title);
+  const fileNode = { ...altFile, attrs: a };
+  const children = [...orig.children];
+  if (idx >= 0) children[idx] = fileNode;
+  else children.splice(einfuegePosition(children, DTD_ORDER.object, 'file'), 0, fileNode);
+  return children;
 }
 
 /**
@@ -430,6 +476,9 @@ function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
   children = setzeText(children, DTD_ORDER.event, 'description', eventDescription(cur));
   children = reconcileRefs(children, DTD_ORDER.event, 'citationref', () => true,
     cur.citations.map((c) => citHandle(wb, c)), citationref);
+  // Ereignis-Ebene-Medien (BL-126): `<objref>` Add/Remove modellgetrieben (vorher Passthrough).
+  children = reconcileRefs(children, DTD_ORDER.event, 'objref', () => true,
+    mediaHandles(cur.media, wb.index), objref);
   return children;
 }
 
@@ -438,14 +487,17 @@ function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
  * `<confidence>` (QUAY→confidence) und `<sourceref hlink>`. Die `<confidence>` wird NUR
  * neu geschrieben, wenn der Nutzer die QUAY tatsächlich geändert hat — sonst bleibt der
  * Original-Wert erhalten (D4 ist verlustbehaftet: 4→3; ohne diesen Schutz würde ein reiner
- * Seiten-Edit ein „Very High"(4) still auf 3 herabstufen). Datum/Notizen/`srcattribute`
- * des Zitats bleiben Passthrough (nicht ins Modell projiziert).
+ * Seiten-Edit ein „Very High"(4) still auf 3 herabstufen). Zitat-Ebene-`<objref>` wird seit
+ * BL-126 modellgetrieben abgeglichen (Add/Remove von `Citation.media`); Datum/Notizen/
+ * `srcattribute` des Zitats bleiben Passthrough (nicht ins Modell projiziert).
  */
 function citationKinder(orig: XmlNode, cur: Citation, index: GrampsRefIndex): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.citation, 'page', cur.page);
   const origConf = firstChild(orig, 'confidence')?.text ?? '';
   const conf = confidenceToQuay(origConf) === cur.quay ? origConf : String(cur.quay);
   children = setzeText(children, DTD_ORDER.citation, 'confidence', conf);
+  children = reconcileRefs(children, DTD_ORDER.citation, 'objref', () => true,
+    mediaHandles(cur.media, index), objref);
   return setzeAttribut(children, DTD_ORDER.citation, 'sourceref', 'hlink', toHandle(cur.sourceId, index));
 }
 
@@ -462,14 +514,24 @@ const familyGleich = (a: Family, b: Family): boolean =>
   a.children.length === b.children.length &&
   a.children.every((h, i) => h === b.children[i]);
 
+/** Medien-Ref-Mengen zweier Owner gleich (mediaId-Menge, Reihenfolge egal — Add/Remove). */
+const sameMediaSet = (a: readonly { mediaId: string }[], b: readonly { mediaId: string }[]): boolean =>
+  sameHandleSet(a.map((m) => m.mediaId), b.map((m) => m.mediaId));
+
 const sourceGleich = (a: Source, b: Source): boolean =>
   a.title === b.title && a.author === b.author && a.abbr === b.abbr && a.publisher === b.publisher &&
-  (a.repo ?? '') === (b.repo ?? '');
+  (a.repo ?? '') === (b.repo ?? '') && sameMediaSet(a.media, b.media);
 
 const repoGleich = (a: Repository, b: Repository): boolean =>
   a.name === b.name && a.type === b.type && a.www === b.www;
 
 const noteGleich = (a: Note, b: Note): boolean => a.text === b.text;
+
+// Medien-Record-Gleichheit (ADR-v9-125): nur die in GRAMPS SCHREIBBAREN globalen Felder —
+// file/form/title. `type` (MEDI) hat kein `<file>`-Pendant und zählt daher nicht mit (er
+// round-trippt in GRAMPS ohnehin nicht — projectGrampsObject liefert immer '').
+const mediaGleich = (a: Media, b: Media): boolean =>
+  a.file === b.file && a.form === b.form && a.title === b.title;
 
 // Der `<description>`-Wert eines Events: bei RESI/PROP die Adresse (event.addr), sonst der
 // Freitext-Wert (BL-143). Genau die Umkehrung von `projectGrampsEvent`.
@@ -500,6 +562,7 @@ function personGleichNode(node: XmlNode, cur: Person, wb: Wb): boolean {
   if (!personGleich(projectPerson(node), cur)) return false;
   if (!sameHandleSet(hlinksOf(node.children, 'eventref', personEventRole),
     personOwnedEvents(cur).map((e) => evHandle(wb, e)))) return false;
+  if (!sameHandleSet(hlinksOf(node.children, 'objref'), mediaHandles(cur.media, wb.index))) return false;
   if (!sameHandleSet(hlinksOf(node.children, 'citationref'),
     cur.topLevelCitations.map((c) => citHandle(wb, c)))) return false;
   const name = firstChild(node, 'name');
@@ -515,10 +578,17 @@ function familyGleichNode(node: XmlNode, cur: Family, wb: Wb): boolean {
     cur.citations.map((c) => citHandle(wb, c)));
 }
 
-/** Event unverändert? Felder (BL-142) UND die Zitat-Ref-Menge (BL-144). */
+/** Event unverändert? Felder (BL-142), Zitat-Ref-Menge (BL-144) UND Medien-Ref-Menge (BL-126). */
 function eventUnveraendert(node: XmlNode, cur: Event, resolvePlace: (h: string) => string, wb: Wb): boolean {
   if (!eventGleich(projectGrampsEvent(node, resolvePlace), cur)) return false;
+  if (!sameHandleSet(hlinksOf(node.children, 'objref'), mediaHandles(cur.media, wb.index))) return false;
   return sameHandleSet(hlinksOf(node.children, 'citationref'), cur.citations.map((c) => citHandle(wb, c)));
+}
+
+/** Zitat unverändert? Felder (source/page/quay) UND die Medien-Ref-Menge (`<objref>`, BL-126). */
+function citationUnveraendert(node: XmlNode, cur: Citation, resolveSourceId: (h: string) => string, index: GrampsRefIndex): boolean {
+  if (!citationGleich(projectGrampsCitation(node, resolveSourceId), cur)) return false;
+  return sameHandleSet(hlinksOf(node.children, 'objref'), mediaHandles(cur.media, index));
 }
 
 // ── Synthese neuer Records ──────────────────────────────────────────────────────────────
@@ -983,6 +1053,14 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
     section: 'notes', item: 'note', map: db.notes,
     project: projectNote, gleich: noteGleich, kinder: noteKinder,
   }));
+  // Medien-Records `<object>` (ADR-v9-125, BL-126): globale Felder (file/form/title) round-
+  // trippen modellgetrieben. Unverändert → identischer Knoten (byte-treu); neu angelegtes
+  // Medium → neuer `<object>`; gelöschtes → entfernt. GRAMPS kennt nur die Record-Form
+  // (kein Inline), daher wird jedes model-only-Medium als `<object>` synthetisiert.
+  ersetzt.set('objects', verarbeiteSektion(root, {
+    section: 'objects', item: 'object', map: db.media,
+    project: projectGrampsObject, gleich: mediaGleich, kinder: objectKinder,
+  }));
 
   // GETEILTE Records (Events/Zitate): Feld-Edits an Vorhandenen (BL-142) + Synthese Neuer
   // (BL-144). Die Re-Projektion zum Vergleich braucht dieselben Auflöser wie der Parser.
@@ -996,7 +1074,7 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   }));
   ersetzt.set('citations', verarbeiteGeteilteSektion(root, {
     section: 'citations', item: 'citation', map: buildCitationMap(db),
-    unveraendert: (n, cur) => citationGleich(projectGrampsCitation(n, enrich.resolveSourceId), cur),
+    unveraendert: (n, cur) => citationUnveraendert(n, cur, enrich.resolveSourceId, index),
     kinder: (orig, cur) => citationKinder(orig, cur, index),
     neu: [...wb.citId].map(([cur, id]) => ({ id, cur })),
     synth: (id, cur) => synthCitation(id, cur, wb),

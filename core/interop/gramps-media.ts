@@ -16,6 +16,24 @@ export function grampsMediaRefs(node: XmlNode, handleToId: Map<string, string>):
   });
 }
 
+/**
+ * Ein `<object>`-Knoten → `Media` (id = GRAMPS-id, ersatzweise handle). Globale Felder aus
+ * `<file>`: `src`→file, `mime`→form, `description`→title (global). `type` (MEDI) hat in
+ * GRAMPS kein `<file>`-Pendant → immer ''. Kontextfrei, damit der Write-Back denselben Knoten
+ * mit EXAKT dieser Vorschrift re-projizieren kann („hat sich etwas geändert?", ADR-v9-14/125).
+ */
+export function projectGrampsObject(obj: XmlNode): Media {
+  const id = attr(obj, 'id') || attr(obj, 'handle');
+  const file = firstChild(obj, 'file');
+  return makeMedia(id, {
+    file: file ? attr(file, 'src') : '',
+    form: file ? attr(file, 'mime') : '',
+    title: file ? attr(file, 'description') : '',
+    type: '',
+    wireOrigin: 'record',
+  });
+}
+
 /** `<objects>/<object>` → `db.media`. id = GRAMPS-id; Titel = `<file description>` (global). */
 export function collectGrampsMedia(root: XmlNode): Map<MediaId, Media> {
   const out = new Map<MediaId, Media>();
@@ -24,14 +42,7 @@ export function collectGrampsMedia(root: XmlNode): Map<MediaId, Media> {
   for (const obj of childrenByTag(sec, 'object')) {
     const id = attr(obj, 'id') || attr(obj, 'handle');
     if (!id || out.has(id)) continue;
-    const file = firstChild(obj, 'file');
-    out.set(id, makeMedia(id, {
-      file: file ? attr(file, 'src') : '',
-      form: file ? attr(file, 'mime') : '',
-      title: file ? attr(file, 'description') : '',
-      type: '',
-      wireOrigin: 'record',
-    }));
+    out.set(id, projectGrampsObject(obj));
   }
   return out;
 }
