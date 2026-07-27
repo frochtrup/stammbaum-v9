@@ -28,6 +28,7 @@
   import PlaceDetail from './place/PlaceDetail.svelte';
   import PlaceDedupView from './place/PlaceDedupView.svelte';
   import PersonDedupView from './person/PersonDedupView.svelte';
+  import RelationshipTool from './tools/RelationshipTool.svelte';
   import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
@@ -101,6 +102,7 @@
   // die Route für Unterzustand, der eine AUSWAHL oder einen ANZEIGE-MODUS trägt. Ein
   // On-Demand-Werkzeug, das der Nutzer bewusst öffnet, ist beides nicht.
   let personDedupOpen = $state(false);
+  let relationshipToolOpen = $state(false);
   let hofDedupOpen = $state(false);
 
   function selectSegment(segment: (typeof segments)[number]) {
@@ -248,6 +250,14 @@
     personDedupOpen = false;
   }
 
+  function openRelationshipTool() {
+    relationshipToolOpen = true;
+  }
+
+  function closeRelationshipTool() {
+    relationshipToolOpen = false;
+  }
+
   const selectedPersonId = $derived(viewState.getCurrent('person'));
   const selectedFamilyId = $derived(viewState.getCurrent('family'));
   const selectedSourceId = $derived(viewState.getCurrent('source'));
@@ -272,7 +282,7 @@
    *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
    *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
   const overlayActive = $derived.by(() => {
-    if (activeSegment === 'person') return personDedupOpen && !selectedPersonId;
+    if (activeSegment === 'person') return (personDedupOpen || relationshipToolOpen) && !selectedPersonId;
     if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
     if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
     return false;
@@ -352,7 +362,7 @@
        ohne Gewinn. -->
   {#snippet listPane()}
     {#if activeSegment === 'person'}
-      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} />
+      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} onOpenRelationship={openRelationshipTool} />
     {:else if activeSegment === 'family'}
       <FamilyList {appState} {viewState} onCreate={createFamily} />
     {:else if activeSegment === 'source'}
@@ -445,6 +455,8 @@
          s. `overlayActive` oben. -->
     {#if activeSegment === 'person' && personDedupOpen}
       <PersonDedupView {appState} onClose={closePersonDedup} />
+    {:else if activeSegment === 'person' && relationshipToolOpen}
+      <RelationshipTool {appState} {viewState} onClose={closeRelationshipTool} />
     {:else if activeSegment === 'place' && placeReviewOpen}
       <PlaceReview
         {appState}

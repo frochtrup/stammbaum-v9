@@ -8,8 +8,13 @@ import { buildFamilyGroupSheet } from './family-group-sheet';
 import { buildBibliography } from './bibliography';
 import { buildResearchLogReport } from './research-log-report';
 import { buildDAbovilleReport } from './daboville-report';
+import { buildRelationshipProof } from './relationship-proof';
 
 export { buildAncestorList, buildFamilyGroupSheet, buildBibliography, buildResearchLogReport, buildDAbovilleReport };
+// Report #9 (BL-175) braucht ZWEI Personen und wird deshalb NICHT über den Ein-Personen-
+// Katalog (REPORTS) erzeugt, sondern aus dem Beziehungsrechner-Werkzeug heraus (die einzige
+// Stelle mit beiden Personen zur Hand, INV-UI-2) — hier nur re-exportiert.
+export { buildRelationshipProof };
 
 export interface ReportDef {
   id: string;

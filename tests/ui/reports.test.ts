@@ -12,6 +12,7 @@ import {
   buildBibliography,
   buildResearchLogReport,
   buildDAbovilleReport,
+  buildRelationshipProof,
 } from '../../ui/views/reports/index';
 
 const ON = '27. Juli 2026';
@@ -169,5 +170,25 @@ describe('buildDAbovilleReport (BL-174, Nachkommentafel)', () => {
     expect(html).toContain('Berta Klein');
     expect(html).toContain('Heirat 1878, Detmold');
     expect(html).toContain('1 Kind: Nr. 1.1');
+  });
+});
+
+describe('buildRelationshipProof (BL-175, Verwandtschaftsnachweis)', () => {
+  // makeTree: I1 Otto ist Vater von I5 Carl (F2).
+  const html = buildRelationshipProof(makeTree(), 'I1', 'I5', ON);
+
+  it('rendert Verdikt, gemeinsamen Vorfahren und markierten Pfad', () => {
+    expect(html).toContain('<title>Verwandtschaftsnachweis</title>');
+    expect(html).toContain('Otto Meyer &amp; Carl Meyer'); // & im Untertitel korrekt escaped
+    expect(html).toContain('<div class="rc-verdict">Vater</div>');
+    expect(html).toContain('Gemeinsamer Vorfahre: Otto Meyer');
+    // Der gemeinsame Vorfahre (Otto = I1) trägt die ⬡-Markierung.
+    expect(html).toContain('rc-common-node');
+  });
+
+  it('meldet „Nicht verwandt" ohne gemeinsamen Vorfahren', () => {
+    // I4 Berta Klein ist angeheiratet (kein gemeinsamer Vorfahre mit Otto).
+    const nr = buildRelationshipProof(makeTree(), 'I1', 'I4', ON);
+    expect(nr).toContain('<div class="rc-verdict">Nicht verwandt</div>');
   });
 });
