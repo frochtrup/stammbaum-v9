@@ -7,7 +7,8 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import Picker from '../../shell/Picker.svelte';
-  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
+  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof, resolveCoordFields } from '../../../core/places';
+  import CoordFields from '../../shell/CoordFields.svelte';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
   import type { HofObject } from '../../../core/places/types';
 
@@ -25,8 +26,10 @@
   const detail = $derived(hofId ? buildHofDetail(appState.db, appState.placeContext, hofId) : null);
 
   let editing = $state(false);
-  let formLat = $state<number | null>(null);
-  let formLong = $state<number | null>(null);
+  // Koordinaten als Text (nicht type="number"): ein Feld nimmt ein komplettes eingefügtes
+  // Apple-Maps-Paar auf, das wir zerlegen (Spec 20 §1.7). Zahlen entstehen erst beim Speichern.
+  let formLatText = $state('');
+  let formLongText = $state('');
   let formNote = $state('');
   let formExistsFrom = $state<number | null>(null);
   let formExistsTo = $state<number | null>(null);
@@ -84,8 +87,8 @@
 
   function startEdit() {
     if (!detail) return;
-    formLat = detail.hof.lat;
-    formLong = detail.hof.long;
+    formLatText = detail.hof.lat != null ? String(detail.hof.lat) : '';
+    formLongText = detail.hof.long != null ? String(detail.hof.long) : '';
     formNote = detail.hof.note;
     formExistsFrom = detail.hof.existsFrom;
     formExistsTo = detail.hof.existsTo;
@@ -102,10 +105,11 @@
 
   function saveEdit() {
     if (!detail) return;
+    const { lat, long } = resolveCoordFields(formLatText, formLongText);
     appState.saveHof({
       ...detail.hof,
-      lat: formLat,
-      long: formLong,
+      lat,
+      long,
       note: formNote,
       existsFrom: formExistsFrom,
       existsTo: formExistsTo,
@@ -268,14 +272,7 @@
     {#if editing}
       <section class="hof-detail__section hof-detail__form">
         <h3>Grunddaten</h3>
-        <label>
-          Breitengrad
-          <input type="number" step="any" bind:value={formLat} />
-        </label>
-        <label>
-          Längengrad
-          <input type="number" step="any" bind:value={formLong} />
-        </label>
+        <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
         <label>
           Notiz
           <textarea bind:value={formNote}></textarea>

@@ -16,8 +16,20 @@ import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } fro
 import { findOrCreateHof } from './hof-id';
 import { normPlaceName, extractHofAddr, normHofAddr } from './normalize';
 
-/** Event-Typen, für die ein Hof-Bootstrap überhaupt erlaubt ist (Spec 11 §4.2). */
-export const HOF_EVENT_TYPES = new Set(['RESI', 'PROP', 'CENS', 'OCCU']);
+/**
+ * Event-Typen, für die ein Hof-Bootstrap überhaupt erlaubt ist (Spec 11 §4.2).
+ *
+ * Nur WOHN-/BESITZ-semantische Typen: eine Arbeitsstätte ist in der Regel kein Hof.
+ * `OCCU` band bis 2026-07-28 ebenfalls einen Hof und erzeugte damit Phantom-Höfe aus
+ * Orts-/Stadtangaben von Berufsereignissen (gemessen an Realdaten: „Berkeley/Kalifornien",
+ * „Rothenburg/Oberlausitz", „Linden/Hannover") — bewusst entfernt (ADR-v9-143). CENS
+ * (Volkszählung) erfasst dagegen den Wohnort und bleibt drin.
+ *
+ * Diese Menge ist zugleich die „Wohn-Semantik" für die Geo-Regeln (HOF_NO_COORD/HOF_FAR):
+ * seit der OCCU-Entfernung ist jeder Hof-bindende Typ auch wohn-relevant, deshalb liest
+ * `core/validate/context.ts::hofsWithResidence` direkt DIESE Konstante (eine Quelle).
+ */
+export const HOF_EVENT_TYPES = new Set(['RESI', 'PROP', 'CENS']);
 
 /** Wodurch ein Event aufgelöst wurde — für Konventions-Matrix-Tests (Spec 11 §4.3). */
 export type ResolvePath =

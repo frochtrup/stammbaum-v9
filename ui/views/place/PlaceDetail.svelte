@@ -26,7 +26,8 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { withAddedPname, withRemovedPname, placeDisplayName } from '../../../core/places';
+  import { withAddedPname, withRemovedPname, placeDisplayName, resolveCoordFields } from '../../../core/places';
+  import CoordFields from '../../shell/CoordFields.svelte';
   import {
     buildPlaceDetail,
     buildPlaceContemporaries,
@@ -69,8 +70,10 @@
   /** Zeitinvarianter Listen-Anzeigename (Spec 11 §1, INV-UI-14) — nie Export (LP-1). */
   let formShortName = $state('');
   let formType = $state('');
-  let formLat = $state<number | null>(null);
-  let formLong = $state<number | null>(null);
+  // Koordinaten als Text (nicht type="number"): ein Feld nimmt ein komplettes eingefügtes
+  // Apple-Maps-Paar auf, das wir zerlegen (Spec 20 §1.7). Zahlen entstehen erst beim Speichern.
+  let formLatText = $state('');
+  let formLongText = $state('');
   let formNote = $state('');
   let formExistsFrom = $state<number | null>(null);
   let formExistsTo = $state<number | null>(null);
@@ -149,8 +152,8 @@
     formTitle = detail.place.title;
     formShortName = detail.place.shortName;
     formType = detail.place.type;
-    formLat = detail.place.lat;
-    formLong = detail.place.long;
+    formLatText = detail.place.lat != null ? String(detail.place.lat) : '';
+    formLongText = detail.place.long != null ? String(detail.place.long) : '';
     formNote = detail.place.note;
     formExistsFrom = detail.place.existsFrom;
     formExistsTo = detail.place.existsTo;
@@ -165,13 +168,14 @@
 
   function saveEdit() {
     if (!detail) return;
+    const { lat, long } = resolveCoordFields(formLatText, formLongText);
     appState.savePlace({
       ...detail.place,
       title: formTitle.trim(),
       shortName: formShortName.trim(),
       type: formType.trim(),
-      lat: formLat,
-      long: formLong,
+      lat,
+      long,
       note: formNote,
       existsFrom: formExistsFrom,
       existsTo: formExistsTo,
@@ -338,16 +342,7 @@
           Typ
           <input type="text" bind:value={formType} placeholder="z. B. Village, City, County…" />
         </label>
-        <div class="place-detail__coord-row">
-          <label>
-            Breitengrad
-            <input type="number" step="any" bind:value={formLat} />
-          </label>
-          <label>
-            Längengrad
-            <input type="number" step="any" bind:value={formLong} />
-          </label>
-        </div>
+        <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
         <label>
           Notiz
           <textarea bind:value={formNote}></textarea>
@@ -679,11 +674,6 @@
     color: var(--stb-text-dim);
   }
 
-  .place-detail__coord-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
 
   .place-detail__form {
     background: var(--stb-surface-1);

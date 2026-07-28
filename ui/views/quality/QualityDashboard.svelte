@@ -15,6 +15,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
   import ValidationPanel from '../validation/ValidationPanel.svelte';
+  import GeoFindingsTile from './GeoFindingsTile.svelte';
   import ValConfigSheet from '../validation/ValConfigSheet.svelte';
   import { newTaskId } from '../tasks/tasks-commands';
   import {
@@ -24,6 +25,7 @@
     defaultConfig,
     filterFocus,
     runValidation,
+    countBySeverity,
     withoutAlreadyTasked,
     type Finding,
     type FocusFilter,
@@ -82,8 +84,24 @@
   let focusFilter = $state<FocusFilter>(DEFAULT_FOCUS);
   let valConfig = $state<ValidationConfig>(defaultConfig());
   let showValConfig = $state(false);
-  /** Der vollständige Prüfbericht (§1.11h): `null` = ausgeblendet. */
+  /** Der Prüfbericht (§1.11h): `false` = ausgeblendet. */
   let showReport = $state(false);
+  /**
+   * Umfang des offenen Berichts: `all` = alle Befunde (Knopf „✓ Bericht"), `geo` = nur
+   * Orts-/Hof-Befunde (Öffner ist die „Orte & Höfe"-Kachel). Dieselbe `ValidationPanel`,
+   * nur die übergebene Befundmenge unterscheidet sich (INV-UI-4).
+   */
+  let reportScope = $state<'all' | 'geo'>('all');
+
+  /** Öffnet/schließt den Bericht im gewählten Umfang; erneuter Klick auf denselben Umfang schließt. */
+  function toggleReport(scope: 'all' | 'geo') {
+    if (showReport && reportScope === scope) {
+      showReport = false;
+    } else {
+      showReport = true;
+      reportScope = scope;
+    }
+  }
 
   const valStore = new IdbValConfigStore();
 
@@ -99,6 +117,17 @@
   );
 
   const dashboard = $derived(buildQualityDashboard(appState.db, findings, { scope: scopeSet }));
+
+  // Orts-/Hof-Befunde tragen keine Person und bleiben deshalb aus der personbezogenen
+  // Dashboard-Auswertung heraus (dashboard.ts) — die einzige Fläche, die sie zeigt, ist
+  // der „✓ Bericht". Damit das Dashboard nicht komplett dazu schweigt (Nutzer-Fund
+  // 2026-07-28: „Prüfung wirkt personorientiert, Orts-/Hof-Probleme werden nicht
+  // angezeigt"), zählt diese Kachel sie separat und öffnet den Bericht. Keine zweite
+  // Engine, kein zweites Badge (§3): nur ein Wegweiser auf dieselbe Fläche.
+  const geoFindings = $derived(findings.filter((f) => f.placeId || f.hofId));
+  const geoCounts = $derived(countBySeverity(geoFindings));
+  /** Was der offene Bericht zeigt — je nach Umfang alle oder nur die Geo-Befunde. */
+  const reportFindings = $derived(reportScope === 'geo' ? geoFindings : findings);
   const rows = $derived(filterFocus(dashboard.focus, focusFilter));
   const activeFilterCount = $derived(focusFilter === DEFAULT_FOCUS ? 0 : 1);
 
@@ -176,8 +205,8 @@
     <button
       type="button"
       class="quality__report-btn"
-      aria-pressed={showReport}
-      onclick={() => (showReport = !showReport)}
+      aria-pressed={showReport && reportScope === 'all'}
+      onclick={() => toggleReport('all')}
     >
       ✓ Bericht
     </button>
@@ -204,11 +233,12 @@
     <p class="quality__empty">Keine Personen geladen.</p>
   {:else}
     {#if showReport}
-      <!-- Der vollständige Bericht — die einzige Fläche, die auch Orts-/Hof-Befunde
-           zeigt (das Dashboard unten ist personbezogen). -->
+      <!-- Prüfbericht — Umfang je nach Öffner: „✓ Bericht" zeigt alles, die „Orte &
+           Höfe"-Kachel nur die Geo-Befunde. Dieselbe Komponente, gefilterte Befundmenge. -->
       <ValidationPanel
         {appState}
-        {findings}
+        findings={reportFindings}
+        scopeLabel={reportScope === 'geo' ? 'Orte & Höfe' : null}
         onClose={() => (showReport = false)}
         onOpenConfig={() => (showValConfig = true)}
         {onNavigateToPerson}
@@ -249,6 +279,16 @@
       {dashboard.counts.error} Fehler · {dashboard.counts.warn} Warnungen ·
       {dashboard.counts.info} Hinweise
     </p>
+
+    <!-- Orts-/Hof-Wegweiser: das Dashboard oben ist personbezogen; diese Kachel ist das
+         einzige Dauersignal für Geo-Befunde und öffnet den vollständigen Bericht. -->
+    <GeoFindingsTile
+      error={geoCounts.error}
+      warn={geoCounts.warn}
+      info={geoCounts.info}
+      expanded={showReport && reportScope === 'geo'}
+      onOpen={() => toggleReport('geo')}
+    />
 
     <h3 class="quality__section">Lückenradar</h3>
     <div class="quality__radar">
@@ -439,6 +479,7 @@
     font-size: 0.75rem;
     color: var(--stb-text-dim);
   }
+
 
   .quality__section {
     margin: 1rem 0.75rem 0.4rem;

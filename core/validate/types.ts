@@ -127,9 +127,9 @@ export interface RuleContext {
   /** IDs tatsächlich vorhandener Quellen — Basis für ORPHAN_CITATION. */
   knownSourceIds: ReadonlySet<SourceId>;
   /**
-   * Höfe mit mindestens einem RESI-/PROP-Ereignis. HOF_NO_COORD/HOF_FAR prüfen NUR
-   * diese: ein Hof, der allein aus CENS/OCCU/EDUC stammt, hat keine Wohn-Semantik und
-   * soll keinen Kartenbefund erzeugen (v8-Orakel `buildHofIndex`, ui-views-place.js).
+   * Höfe mit mindestens einem hof-bindenden Ereignis (HOF_EVENT_TYPES = RESI/PROP/CENS).
+   * HOF_NO_COORD/HOF_FAR prüfen NUR diese. OCCU (Arbeitsstätte) bindet keinen Hof mehr
+   * (ADR-v9-143) — damit sind Hof-Bindung und Wohn-Semantik deckungsgleich.
    */
   hofsWithResidence: ReadonlySet<HofId>;
 }

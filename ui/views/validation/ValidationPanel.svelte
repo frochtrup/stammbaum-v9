@@ -26,6 +26,9 @@
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
     onNavigateToHof?: (id: string) => void;
+    /** Optionaler Umfangs-Hinweis in der Kopfzeile (z. B. „Orte & Höfe", wenn der Bericht
+     *  auf eine Teilmenge gefiltert geöffnet wurde). `null` = voller Bericht, kein Label. */
+    scopeLabel?: string | null;
   }
   const {
     appState,
@@ -36,6 +39,7 @@
     onNavigateToFamily,
     onNavigateToPlace,
     onNavigateToHof,
+    scopeLabel = null,
   }: Props = $props();
 
   /**
@@ -70,7 +74,9 @@
 
 <section class="val-panel" aria-label="Prüfbericht">
   <div class="val-panel__head">
-    <span class="val-panel__summary">{summaryText(visible)}</span>
+    <span class="val-panel__summary">
+      {#if scopeLabel}<span class="val-panel__scope">{scopeLabel}:&nbsp;</span>{/if}{summaryText(visible)}
+    </span>
     <span class="val-panel__head-actions">
       <button
         type="button"
@@ -141,6 +147,10 @@
   .val-panel__summary {
     font-size: 0.85rem;
     color: var(--stb-gold-light);
+  }
+
+  .val-panel__scope {
+    font-weight: 600;
   }
 
   .val-panel__head-actions {

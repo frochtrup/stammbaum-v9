@@ -23,9 +23,10 @@ import type { PlaceContext } from './build-plac';
 import { eventPlaceId } from './chokepoints';
 import { chainCompatibleAnyPath } from './place-registry';
 import { normPlaceName, extractHofAddr, slugify } from './normalize';
-
-/** Hof-relevante Event-Typen (Spec 11 §4.2) — hier kann das Leitsegment ein Hof sein. */
-const HOF_TYPES = new Set(['RESI', 'PROP', 'CENS', 'OCCU']);
+// Hof-relevante Event-Typen (Spec 11 §4.2) — die EINE Quelle, kein Duplikat mehr: der
+// Seed-Vorpass und der Resolver dürfen nicht auseinanderdriften (OCCU-Entfernung
+// ADR-v9-143 muss beide zugleich treffen).
+import { HOF_EVENT_TYPES } from './resolve';
 
 /** Getrimmte, nicht-leere Komma-Segmente eines PLAC-Strings. */
 function segments(plac: string): string[] {
@@ -42,7 +43,7 @@ function segments(plac: string): string[] {
  */
 function adminChain(ev: Event, segs: string[]): string[] {
   if (segs.length <= 1) return segs;
-  if (HOF_TYPES.has(ev.type)) {
+  if (HOF_EVENT_TYPES.has(ev.type)) {
     if (ev.addr) {
       const extractNorm = normPlaceName(extractHofAddr(ev.addr));
       // Konvention 2: ADDR-Hof ≠ Leitsegment → Leitsegment ist das Dorf.
