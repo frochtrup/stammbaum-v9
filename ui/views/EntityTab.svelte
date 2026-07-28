@@ -48,6 +48,10 @@
      * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
      */
     onNavigateToTree?: (personId: string) => void;
+    /** "📖 Story" aus PersonDetail/FamilyDetail → Story-Lens (BL-133/186). Durchgereicht;
+     *  der Ziel-Umschalter + Fokus-/Modus-Setzung sitzt in App.svelte, nicht hier. */
+    onOpenStoryForPerson?: (personId: string) => void;
+    onOpenStoryForFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`/`EventLine`)
      *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
      *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
@@ -55,7 +59,15 @@
     /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
     route: Route;
   }
-  const { appState, viewState, route, onNavigateToTree, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    route,
+    onNavigateToTree,
+    onOpenStoryForPerson,
+    onOpenStoryForFamily,
+    onNavigateLens,
+  }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
   // einen Ziel-Registers (nav-model.ts, INV-UI-15). Vorher war sie die zweite von drei
@@ -390,6 +402,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        onOpenStory={onOpenStoryForPerson}
         {onNavigateLens}
         onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
@@ -403,6 +416,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateLens}
+        onOpenStory={onOpenStoryForFamily}
         onBack={backToList}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}

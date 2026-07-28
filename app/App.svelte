@@ -41,6 +41,7 @@
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
+  import StoryLensView from '../ui/views/story/StoryLensView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
@@ -227,9 +228,8 @@
   // Wechsel automatisch erhalten, weil alle Lenses denselben Slot lesen/schreiben.
   function navigateLens(lens: LensId) {
     // Lens-Ids sind seit BL-90 zugleich Ziel-Ids des Registers — die frühere
-    // if/else-Übersetzung entfällt. 'story' ist noch nicht implementiert, der
-    // LensSwitcher verriegelt das bereits (Klick ruft onNavigate gar nicht erst auf).
-    if (lens !== 'story') route.setTarget(lens);
+    // if/else-Übersetzung entfällt. Alle vier Lenses (inkl. Story, BL-133) sind gebaut.
+    route.setTarget(lens);
   }
 
   // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (die Route sitzt in
@@ -245,6 +245,24 @@
   function openTreeFromPersonDetail(personId: string) {
     viewState.setCurrent('lensFocus', personId);
     route.setTarget('tree');
+  }
+
+  // "📖 Story" aus PersonDetail: Personen-Biografie in der Story-Lens (BL-133/186). Setzt
+  // den geteilten Fokus, wählt den Personen-Modus und lässt einen evtl. gesetzten Familien-
+  // Fokus fallen (sonst zeigte ein späterer Familien-Modus die falsche Familie).
+  function openStoryFromPersonDetail(personId: string) {
+    viewState.setCurrent('lensFocus', personId);
+    viewState.setCurrent('storyFamily', null);
+    route.setStoryMode('person');
+    route.setTarget('story');
+  }
+
+  // "📖 Story" aus FamilyDetail: couple-zentrische Familien-Biografie in der Story-Lens
+  // (BL-186). Setzt die explizit gewählte Familie + Familien-Modus.
+  function openStoryFromFamilyDetail(familyId: string) {
+    viewState.setCurrent('storyFamily', familyId);
+    route.setStoryMode('family');
+    route.setTarget('story');
   }
 
   // Klick auf den ⚭-Badge im Baum (zwischen Proband und aktivem Ehepartner) ->
@@ -419,6 +437,8 @@
         {viewState}
         {route}
         onNavigateToTree={openTreeFromPersonDetail}
+        onOpenStoryForPerson={openStoryFromPersonDetail}
+        onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
       />
     {:else if shownTarget === 'tree'}
@@ -435,6 +455,8 @@
       <MapLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
+    {:else if shownTarget === 'story'}
+      <StoryLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}

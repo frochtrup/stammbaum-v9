@@ -238,7 +238,7 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
   });
 
-  it('Klick auf eine NICHT implementierte Lens (Story) ruft onNavigateLens NICHT auf', async () => {
+  it('Klick auf die Story-Lens ruft onNavigateLens("story") auf, lässt den Fokus unangetastet (BL-133)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(dbWithPerson('@I1@'), 'test.ged');
@@ -248,7 +248,8 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     const { getByRole } = render(TreeView, { props: { appState, viewState, onNavigateLens } });
     await fireEvent.click(getByRole('tab', { name: /Story/ }));
 
-    expect(onNavigateLens).not.toHaveBeenCalled();
+    expect(onNavigateLens).toHaveBeenCalledWith('story');
+    // Der Lens-Wechsel verschiebt den geteilten Fokus nicht (er bleibt in ViewState).
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
   });
 

@@ -40,6 +40,9 @@
     onNavigateToHof?: (hofId: string) => void;
     /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
     onNavigateToTree?: (personId: string) => void;
+    /** "📖 Story" — Personen-Biografie in der Story-Lens öffnen (BL-133/186, Spec 20 §1.10).
+     *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
+    onOpenStory?: (personId: string) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
      *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
@@ -58,6 +61,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateToTree,
+    onOpenStory,
     onNavigateLens,
     onBack,
     startInEdit = false,
@@ -350,6 +354,15 @@
             onclick={() => onNavigateToTree(detail.person.id)}
           >
             ⧖ Im Baum anzeigen
+          </button>
+        {/if}
+        {#if onOpenStory}
+          <button
+            type="button"
+            class="person-detail__tree-link"
+            onclick={() => onOpenStory(detail.person.id)}
+          >
+            📖 Story
           </button>
         {/if}
       {/snippet}

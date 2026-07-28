@@ -78,16 +78,18 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     }
   });
 
-  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste NICHT mehr', () => {
+  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste/Story NICHT mehr', () => {
     const route = createRoute({ target: 'more' });
     renderMore(route);
 
-    for (const label of ['Story', 'Einstellungen']) {
+    for (const label of ['Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
     }
     expect(screen.queryByText(/Statistik \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Karte \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
+    // Story ist seit BL-133 echt (StoryLensView), nicht mehr „(folgt)".
+    expect(screen.queryByText(/Story \(folgt\)/)).toBeNull();
     // Ausgaben ist seit BL-169 echt (ReportsView), nicht mehr „(folgt)".
     expect(screen.queryByText(/Ausgaben \(folgt\)/)).toBeNull();
   });

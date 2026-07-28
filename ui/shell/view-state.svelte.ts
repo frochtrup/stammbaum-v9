@@ -51,6 +51,11 @@ export type ViewTarget =
   | 'lensFocus'
   | 'lensPlaceFocus'
   | 'mapPerson'
+  // Explizit gewählte Familie der Story-Lens im Familien-Modus (BL-186). Hält eine
+  // FamilyId; gesetzt vom Familien-Detail-Einstieg (📖), sonst leitet die Lens die
+  // Familie aus der Fokus-Person ab. Der Personen-Picker in der Lens leert ihn wieder,
+  // damit der Familien-Modus der neuen Person folgt (kein verwaister Familien-Fokus).
+  | 'storyFamily'
   | 'person'
   | 'family'
   | 'source'
@@ -130,6 +135,7 @@ export function createViewState(): ViewState {
     lensFocus: null,
     lensPlaceFocus: null,
     mapPerson: null,
+    storyFamily: null,
     person: null,
     family: null,
     source: null,

@@ -142,14 +142,15 @@ describe('bottomNavSlotFor — die drei vormals verstreuten Zuordnungen', () => 
     for (const t of ENTITY_TARGETS) expect(bottomNavSlotFor(t.id)).toBe('person');
   });
 
-  it('Karte und Zeitleiste hängen am Baum-Slot (kein eigener Slot, Spec 21 §2)', () => {
+  it('Karte, Zeitleiste und Story hängen am Baum-Slot (kein eigener Slot, Spec 21 §2)', () => {
     expect(bottomNavSlotFor('map')).toBe('tree');
     expect(bottomNavSlotFor('timeline')).toBe('tree');
+    expect(bottomNavSlotFor('story')).toBe('tree');
     expect(bottomNavSlotFor('tree')).toBe('tree');
   });
 
   it('Hub-Ziele und der Hub selbst hängen am Mehr-Slot', () => {
-    for (const id of ['file', 'stats', 'story', 'reports', 'settings', 'more'] as const) {
+    for (const id of ['file', 'stats', 'reports', 'settings', 'more'] as const) {
       expect(bottomNavSlotFor(id), id).toBe('more');
     }
   });
@@ -238,12 +239,12 @@ describe('Route — Lens-Merker (Baum/Karte/Zeitleiste teilen einen Slot)', () =
     }
   });
 
-  it('isLensTarget deckt genau die drei Umschalter-Lenses ab (nicht stats/story)', () => {
+  it('isLensTarget deckt genau die vier Umschalter-Lenses ab (nicht stats)', () => {
     expect(isLensTarget('tree')).toBe(true);
     expect(isLensTarget('map')).toBe(true);
     expect(isLensTarget('timeline')).toBe(true);
+    expect(isLensTarget('story')).toBe(true);
     expect(isLensTarget('stats')).toBe(false);
-    expect(isLensTarget('story')).toBe(false);
     expect(isLensTarget('person')).toBe(false);
   });
 

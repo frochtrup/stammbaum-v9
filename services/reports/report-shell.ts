@@ -184,7 +184,22 @@ function reportCss(): string {
     .rc-foot { margin-top: 20px; font-size: 0.78rem; color: #8a7050; text-align: center;
                border-top: 1px solid #ddd0b8; padding-top: 8px; }
 
+    /* ── Story (Personen-/Familien-Biografie, BL-190) ─────────────── */
+    .story-photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 16px; }
+    .story-photo { max-height: 180px; max-width: 100%; border: 1px solid #ddd0b8;
+                   border-radius: 4px; object-fit: cover; }
+    .story-map { margin: 6px 0 18px; }
+    .story-map svg { width: 100%; height: auto; }
+    .story-block { margin: 10px 0 6px; }
+    .story-block h3 { font-size: 1rem; font-weight: 700; color: #2a1d08; margin-bottom: 2px; }
+    .report-body .story-para { margin: 8px 0; line-height: 1.55; }
+    .story-children { list-style: none; margin: 4px 0; }
+    .story-children li { padding: 2px 0; font-size: 10pt; }
+    .story-chron { list-style: none; margin: 4px 0; }
+    .story-chron li { padding: 2px 0; font-size: 10pt; }
+
     @media print {
+      .story-map, .story-block { page-break-inside: avoid; }
       /* Seitenzahl unten rechts auf jeder gedruckten Seite (Spec 20 §4 „Seitenzahlen"). */
       @page { size: A4 portrait; margin: 2cm;
               @bottom-right { content: counter(page) " / " counter(pages);

@@ -37,6 +37,9 @@
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
      *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
+    /** "📖 Story" — Familien-Biografie in der Story-Lens öffnen (BL-186, Spec 20 §1.10).
+     *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
+    onOpenStory?: (familyId: string) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
@@ -49,6 +52,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateLens,
+    onOpenStory,
     onBack,
   }: Props = $props();
 
@@ -233,7 +237,19 @@
   {:else if !detail}
     <p class="family-detail__empty">Familie nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <DetailHeader title={detail.label} onBack={onBack ?? (() => {})} compact />
+    <DetailHeader title={detail.label} onBack={onBack ?? (() => {})} compact>
+      {#snippet actions()}
+        {#if onOpenStory}
+          <button
+            type="button"
+            class="family-detail__story-link"
+            onclick={() => onOpenStory(detail.family.id)}
+          >
+            📖 Story
+          </button>
+        {/if}
+      {/snippet}
+    </DetailHeader>
 
     <section class="family-detail__section">
       <h3>Eltern</h3>
@@ -387,6 +403,18 @@
   .family-detail {
     padding: 1rem;
     overflow-y: auto;
+  }
+
+  /* Optik wie PersonDetails „⧖ Im Baum anzeigen"/„📖 Story" (INV-UI-4-Muster). */
+  .family-detail__story-link {
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    color: var(--stb-gold-light);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
   }
 
   .family-detail__empty {

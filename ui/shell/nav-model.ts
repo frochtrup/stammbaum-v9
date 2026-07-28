@@ -28,17 +28,17 @@ export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof' | 
 
 /**
  * Die Kontext-Fokus-Lenses, die sich EINEN Bottom-Nav-Slot teilen (Spec 21 §4:
- * "Baum ▸ Karte ▸ Zeitleiste"). Deckungsgleich mit den implementierten Einträgen des
- * Lens-Umschalters (lens-model.ts) — 'story' fehlt, weil unimplementiert, 'stats' ist
- * laut NAV_TARGETS zwar Rolle 'lens', aber kein Umschalter-Eintrag (globales Dashboard
- * ohne Personenfokus) und hängt am Mehr-Slot.
+ * "Baum ▸ Karte ▸ Zeitleiste ▸ Story"). Deckungsgleich mit den implementierten Einträgen
+ * des Lens-Umschalters (lens-model.ts); 'stats' ist laut NAV_TARGETS zwar Rolle 'lens',
+ * aber kein Umschalter-Eintrag (globales Dashboard ohne Personenfokus) und hängt am
+ * Mehr-Slot.
  *
  * Diese Liste ist der Grund, warum `bottomNavSlotFor` und der Lens-Merker der Route
  * (`route.svelte.ts`) dieselbe Menge meinen können, ohne sie zweimal aufzuzählen.
  */
-export type LensTargetId = 'tree' | 'map' | 'timeline';
+export type LensTargetId = 'tree' | 'map' | 'timeline' | 'story';
 
-export const LENS_SLOT_TARGETS: readonly LensTargetId[] = ['tree', 'map', 'timeline'];
+export const LENS_SLOT_TARGETS: readonly LensTargetId[] = ['tree', 'map', 'timeline', 'story'];
 
 export function isLensTarget(id: RouteTarget): id is LensTargetId {
   return (LENS_SLOT_TARGETS as readonly string[]).includes(id);
@@ -145,7 +145,7 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'map', role: 'lens', icon: '🗺', label: 'Karte', implemented: true },
   { id: 'timeline', role: 'lens', icon: '⏱', label: 'Zeitleiste', implemented: true },
   { id: 'stats', role: 'lens', icon: '📊', label: 'Statistik', implemented: true },
-  { id: 'story', role: 'lens', icon: '📖', label: 'Story', implemented: false },
+  { id: 'story', role: 'lens', icon: '📖', label: 'Story', implemented: true },
   // Dashboard führt die Forschungs-Gruppe an — auf Sidebar (Desktop) UND mobiler
   // Segment-Reihe dieselbe Ordnung (ADR-v9-116). Default-Landung bleibt dennoch „Aufgaben"
   // (route-Default 'tasks'): Reihenfolge ≠ Default, s. ResearchTab/route.

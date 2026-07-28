@@ -33,11 +33,14 @@ describe('LensSwitcher — der eine Lens-Umschalter (INV-UI-3)', () => {
     expect(storyTab.className).not.toContain('lens-switcher__item--active');
   });
 
-  it('markiert nicht implementierte Lenses als "(folgt)" und deaktiviert (disabled)', () => {
+  it('alle vier Lenses sind aktiv — keine trägt "(folgt)" (Story seit BL-133 gebaut)', () => {
     render(LensSwitcher, { props: { active: 'tree', onNavigate: vi.fn() } });
 
-    const storyTab = screen.getByRole('tab', { name: /Story \(folgt\)/ }) as HTMLButtonElement;
-    expect(storyTab.disabled).toBe(true);
+    for (const name of [/Baum/, /Karte/, /Zeitleiste/, /Story/]) {
+      const tab = screen.getByRole('tab', { name }) as HTMLButtonElement;
+      expect(tab.disabled).toBe(false);
+    }
+    expect(screen.queryByText(/\(folgt\)/)).toBeNull();
   });
 
   it('Klick auf eine implementierte Lens ruft onNavigate mit deren id auf', async () => {
@@ -58,13 +61,13 @@ describe('LensSwitcher — der eine Lens-Umschalter (INV-UI-3)', () => {
     expect(onNavigate).toHaveBeenCalledWith('map');
   });
 
-  it('Klick auf eine nicht implementierte Lens ruft onNavigate NICHT auf — kein Crash', async () => {
+  it('Klick auf die Story-Lens ruft onNavigate mit "story" auf (BL-133)', async () => {
     const onNavigate = vi.fn();
     render(LensSwitcher, { props: { active: 'tree', onNavigate } });
 
     await fireEvent.click(screen.getByRole('tab', { name: /Story/ }));
 
-    expect(onNavigate).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith('story');
   });
 
   it('Klick auf die implementierte Zeitleiste-Lens ruft onNavigate auf', async () => {
