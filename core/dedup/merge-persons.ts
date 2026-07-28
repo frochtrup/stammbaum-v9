@@ -220,6 +220,15 @@ export function mergePersons(
       }
     }
 
+    // --- Passthrough-Übernahme (BL-164, ADR-v9-129): der Verlierer-Record trägt evtl.
+    // un-modellierte Zeilen, die nur im Quell-Baum leben. Wir merken uns hier NUR die id
+    // (format-agnostisch); der Write-Back holt den Passthrough und hängt ihn dedupliziert
+    // an den Gewinner. Die EIGENEN mergedRecordIds des Verlierers werden mitgereicht, damit
+    // ungespeicherte Ketten (X→L→W) vollständig zu W fließen. Set: keine doppelten ids.
+    winner.mergedRecordIds = [
+      ...new Set([...(winner.mergedRecordIds ?? []), loserId, ...(loser.mergedRecordIds ?? [])]),
+    ];
+
     // --- Verweise anderer Personen (aliases/associations) ---
     for (const personId of d.personIds()) {
       if (personId === loserId) continue;

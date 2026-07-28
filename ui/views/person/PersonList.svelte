@@ -32,8 +32,11 @@
     /** Öffnet die Duplikat-Erkennung (BL-104). Analog PlaceList/HofList: die Ansicht selbst
      *  gehört EntityTab, hier sitzt nur der Öffner. */
     onOpenDedup?: () => void;
+    /** Öffnet den Beziehungsrechner (BL-134). Gleiches Muster wie onOpenDedup — die Ansicht
+     *  gehört EntityTab, hier sitzt nur der Öffner. */
+    onOpenRelationship?: () => void;
   }
-  const { appState, viewState, onCreate, onOpenDedup }: Props = $props();
+  const { appState, viewState, onCreate, onOpenDedup, onOpenRelationship }: Props = $props();
 
   function createPerson() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -146,7 +149,7 @@
           <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
         </div>
       </FilterBar>
-      {#if onOpenDedup}
+      {#if onOpenDedup || onOpenRelationship}
         <!-- Werkzeuge hinter EINEM Einstiegspunkt (Spec 21 §6h): das Befehlsflächen-Budget
              INV-UI-11 zählt in JEDER Spalte ≤400px, und die Desktop-Listenspalte misst
              352px (BL-96). Die Toolbar trägt bereits Sortierung, „Neue Person", Suche und
@@ -154,7 +157,12 @@
              Disclosure wie bei PlaceList/HofList, kein zweiter Mechanismus (INV-UI-4). -->
         <FilterBar label="Werkzeuge">
           <div class="person-list__tools">
-            <button type="button" class="person-list__tool-btn" onclick={onOpenDedup}>Duplikate suchen</button>
+            {#if onOpenDedup}
+              <button type="button" class="person-list__tool-btn" onclick={onOpenDedup}>Duplikate suchen</button>
+            {/if}
+            {#if onOpenRelationship}
+              <button type="button" class="person-list__tool-btn" onclick={onOpenRelationship}>Verwandtschaft berechnen</button>
+            {/if}
           </div>
         </FilterBar>
       {/if}

@@ -1,7 +1,9 @@
 // core/places/types.ts — Orts-/Hof-Datenmodell (Spec 11 §1).
 // DOM-frei, framework-frei (INV-ARCH-1). Reine Typdefinitionen + zwei kleine
 // Basis-Werttypen; keine Laufzeit-Logik.
-import type { PlaceId, HofId } from '../model/types';
+import type { PlaceId, HofId, NameTranslation } from '../model/types';
+
+export type { NameTranslation };
 
 /** Jahr als Zahl (aus DATE extrahiert) oder null (undatiert / kein Datum). */
 export type Year = number | null;
@@ -53,6 +55,18 @@ export interface PlaceObject {
   shortName: string;
   type: string;
   pnames: DatedName[];
+  /**
+   * Mehrsprachige Namensform (Spec 11 §1, BL-59) — die SPRACHACHSE neben `pnames` (Zeit)
+   * und `shortName` (Anzeige): „wie heißt DERSELBE Ort JETZT in welcher Sprache" (Breslau
+   * `de` / Wrocław `pl`). `NameTranslation {lang, value}` ist derselbe Struct, den Person
+   * für `nameTrans` nutzt (INV-UI-4 auf Datenebene). App-privat wie `shortName`: lebt nur in
+   * `orte.json`, speist NIE den PLAC-Wire (der kommt aus `pnames`/`title` über
+   * `buildFormString`) und ist NIE Identitäts-/Match-Kriterium (§4.2 sieht `title` + `pnames`).
+   * Über den orte.json-Roundtrip erhalten (LP-1). Optional beim Lesen (alte Datei ohne Feld):
+   * jeder Leseweg nutzt `?? []` — kein `PLACES_SCHEMA_VERSION`-Bump (abwärtskompatibel wie
+   * `shortName`, ADR-v9-100/-144).
+   */
+  translations: NameTranslation[];
   enclosedBy: DatedRef[];
   lat: number | null;
   long: number | null;

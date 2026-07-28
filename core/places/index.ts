@@ -40,6 +40,18 @@ export {
 // Chokepoints 1–3 (Spec 11 §5): die einzigen erlaubten Reads.
 export { eventPlaceId, eventHofId, eventCoords, type Coords } from './chokepoints';
 
+// Koordinaten-Eingabe (Spec 20 §1.7): ein Feld, komplettes Apple-Maps-Paar automatisch
+// zerlegt; sonst Einzelwert je Feld (GEDCOM/Dezimal). Reine Parser, v8-Orakel parseCoordInput.
+export { parseCoordPair, parseCoordAxis, resolveCoordFields, type CoordPair } from './coords';
+
+// Nominatim-Geocoding (BL-130): reine Antwort-Auswertung (Netzwerk lebt in services/places).
+export {
+  parseNominatimResults,
+  nominatimSearchUrl,
+  type NominatimResult,
+  type GeocodeHit,
+} from './geocode';
+
 // Deterministische Hof-Identität + Bootstrap-Helfer.
 export {
   makeHofId,
@@ -76,6 +88,8 @@ export {
   deleteHofObject,
   withAddedPname,
   withRemovedPname,
+  withAddedTranslation,
+  withRemovedTranslation,
   withAddedEnclosedBy,
   withRemovedEnclosedBy,
   withAddedHofAddr,

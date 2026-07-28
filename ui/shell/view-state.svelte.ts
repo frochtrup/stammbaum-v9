@@ -51,12 +51,18 @@ export type ViewTarget =
   | 'lensFocus'
   | 'lensPlaceFocus'
   | 'mapPerson'
+  // Explizit gewählte Familie der Story-Lens im Familien-Modus (BL-186). Hält eine
+  // FamilyId; gesetzt vom Familien-Detail-Einstieg (📖), sonst leitet die Lens die
+  // Familie aus der Fokus-Person ab. Der Personen-Picker in der Lens leert ihn wieder,
+  // damit der Familien-Modus der neuen Person folgt (kein verwaister Familien-Fokus).
+  | 'storyFamily'
   | 'person'
   | 'family'
   | 'source'
   | 'repository'
   | 'place'
   | 'hof'
+  | 'media'
   | 'search'
   | 'tasks'
   | 'more';
@@ -105,6 +111,17 @@ export interface ViewState {
   setTimelinePersons(ids: readonly string[]): void;
   /** Reaktiv lesen (aus Svelte-Komponenten heraus). */
   getTimelinePersons(): readonly string[];
+  /**
+   * Der **Proband** der Sitzung (BL-120, ADR-v9-135): transienter Session-Zustand — hier
+   * in-memory gehalten, NIE persistiert (weder Datei noch IndexedDB noch Sync). `null` =
+   * nichts explizit gesetzt; die effektive Referenzperson (Default = kleinste ID) berechnet
+   * `resolveProband(db, viewState)` in `ui/shell/proband.ts`. Bewusst ein eigenes Methodenpaar
+   * statt eines `ViewTarget`-Registereintrags: der Proband ist KEIN Navigationsziel (es gibt
+   * keine „Proband"-View), sondern eine sitzungsweite Referenz.
+   */
+  setProband(id: string | null): void;
+  /** Reaktiv lesen — die roh gesetzte Proband-Id (nicht der aufgelöste Default). */
+  getProband(): string | null;
 }
 
 /**
@@ -118,18 +135,21 @@ export function createViewState(): ViewState {
     lensFocus: null,
     lensPlaceFocus: null,
     mapPerson: null,
+    storyFamily: null,
     person: null,
     family: null,
     source: null,
     repository: null,
     place: null,
     hof: null,
+    media: null,
     search: null,
     tasks: null,
     more: null,
   });
   let mapCoordFocus = $state<MapCoordFocus | null>(null);
   let timelinePersons = $state<readonly string[]>([]);
+  let probandId = $state<string | null>(null);
 
   // Bewusst ein reines Buchführungs-Set, kein Teil des reaktiven Graphen (wird nie in
   // einem $derived/Template gelesen) — SvelteSet wäre hier unnötiger Overhead.
@@ -159,6 +179,12 @@ export function createViewState(): ViewState {
     },
     getTimelinePersons() {
       return timelinePersons;
+    },
+    setProband(id) {
+      probandId = id;
+    },
+    getProband() {
+      return probandId;
     },
   };
 }

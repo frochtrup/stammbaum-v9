@@ -13,6 +13,7 @@
   import QuayMeter from '../../shell/QuayMeter.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
+  import { tooltip } from '../../shell/tooltip';
 
   interface Props {
     appState: AppState;
@@ -69,9 +70,29 @@
     {ref.ownerLabel}
   </button>
   {#if hasPageContent(ref.page)}<span class="source-detail__ref-page">S. {ref.page}</span>{/if}
-  <span class="source-detail__ref-quay">
-    QUAY {ref.quay}
-    <QuayMeter quay={ref.quay} />
+  <!-- QUAY-Marke + optionaler Weblink bilden EINE rechtsbündige Einheit. Führt die Referenz
+       einen Online-Fundort, dockt das ↗ als „links geöffnete" Ergänzungs-Pille direkt an die
+       QUAY-Pille an — dieselbe Optik wie an der Quellen-Pille (SourceBadge, INV-UI-12). -->
+  <span class="source-detail__ref-end" class:source-detail__ref-end--linked={ref.url}>
+    <span class="source-detail__ref-quay">
+      QUAY {ref.quay}
+      <QuayMeter quay={ref.quay} />
+    </span>
+    {#if ref.url}
+      <!-- Read-only, öffnet in neuem Tab (ADR-v9-86); editiert wird der Weblink im
+           Ereignis-Editor. stopPropagation, damit der Klick nicht den Owner-Button auslöst. -->
+      <a
+        class="source-detail__ref-link"
+        href={ref.url}
+        target="_blank"
+        rel="noopener"
+        aria-label={`Online-Fundort öffnen: ${ref.ownerLabel}`}
+        use:tooltip={ref.url}
+        onclick={(e) => e.stopPropagation()}
+      >
+        ↗
+      </a>
+    {/if}
   </span>
 {/snippet}
 
@@ -246,10 +267,51 @@
     font-size: 0.85rem;
   }
 
+  /* Rechtsbündige Einheit aus QUAY-Marke + optionalem Weblink (das frühere `margin-left:auto`
+     der QUAY-Pille lebt jetzt hier, damit die Ergänzungs-Pille bündig mitwandert). */
+  .source-detail__ref-end {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Klickbares ↗ zum Online-Fundort (ADR-v9-86) — monochromes Symbol wie an der
+     Quellen-Pille (INV-UI-12), kein Emoji. stopPropagation, damit der Klick nicht
+     zusätzlich den Owner-Navigations-Button auslöst. */
+  .source-detail__ref-link {
+    display: inline-flex;
+    align-items: center;
+    color: var(--stb-gold-light);
+    text-decoration: none;
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+
+  /* „Links geöffnete" Ergänzungs-Pille am rechten Ende der QUAY-Pille: flache linke Ecken
+     (dockt an), rechts abgerundet; die linke Kante ist die geteilte Naht (QUAY-Pille trägt
+     sie), daher border-left: none. Gleicher Rand, transparente Fläche wie die QUAY-Pille. */
+  .source-detail__ref-end--linked .source-detail__ref-link {
+    font-size: 0.72rem;
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--stb-gold-dim);
+    border-left: none;
+    border-radius: 0 9px 9px 0;
+  }
+
+  .source-detail__ref-link:hover,
+  .source-detail__ref-link:focus-visible {
+    color: var(--stb-gold);
+  }
+
+  .source-detail__ref-end--linked .source-detail__ref-link:hover,
+  .source-detail__ref-end--linked .source-detail__ref-link:focus-visible {
+    border-color: var(--stb-gold);
+    background: var(--stb-surface-2);
+  }
+
   /* Neutrale „QUAY N"-Marke + Meter (ADR-v9-118): der Zahlenwert steht hier explizit,
      die Stufe zusätzlich als Pips — keine QUAY-Farbklasse mehr (kein Alarm-Rot für q0). */
   .source-detail__ref-quay {
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.35em;
@@ -259,5 +321,11 @@
     padding: 0.1em 0.4em;
     border-radius: 9px;
     border: 1px solid var(--stb-gold-dim);
+  }
+
+  /* Mit Weblink gibt die QUAY-Pille rechts ihre Rundung auf, damit die Naht plan verläuft. */
+  .source-detail__ref-end--linked .source-detail__ref-quay {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
   }
 </style>

@@ -46,7 +46,16 @@ const CRITICAL_EXTENSIONS = ['.html', '.js', '.css', '.webmanifest', '.svg'];
  * würde sich beim Update selbst aus dem Cache bedienen und könnte sich damit nie
  * ersetzen. Browser laden `sw.js` ohnehin an jedem Cache vorbei neu.
  */
-const NEVER_PRECACHED = ['sw.js'];
+const NEVER_PRECACHED = ['sw.js', 'HANDBUCH.html'];
+
+/**
+ * Das Benutzerhandbuch (`HANDBUCH.html` + `handbuch-assets/`) wird als Online-Hilfedoc
+ * mit-deployt (app/public → dist), gehört aber NICHT in den Precache: es ist keine
+ * App-kritische Ressource, und — wichtiger — es ändert sich bei jedem `npm run handbuch`.
+ * Läge es im (kritischen) Precache, bumpte jede Doku-Änderung die App-Cache-Version und
+ * zwänge alle Nutzer zum Voll-Neuladen. Der Hilfelink lädt es stattdessen aus dem Netz.
+ */
+const NEVER_PRECACHED_PREFIXES = ['handbuch-assets/'];
 
 function extensionOf(path: string): string {
   const dot = path.lastIndexOf('.');
@@ -83,7 +92,9 @@ export function computeCacheVersion(entries: PrecacheInput[]): string {
  * Scope auflösen müsste und ein Scope-Fehler still zu 404s im Precache führt.
  */
 export function buildPrecacheManifest(files: PrecacheInput[], base: string): PrecacheManifest {
-  const relevant = files.filter((f) => !NEVER_PRECACHED.includes(f.path));
+  const relevant = files.filter(
+    (f) => !NEVER_PRECACHED.includes(f.path) && !NEVER_PRECACHED_PREFIXES.some((p) => f.path.startsWith(p)),
+  );
   const prefix = base.endsWith('/') ? base : `${base}/`;
   const toUrl = (path: string) => `${prefix}${path}`;
 

@@ -83,6 +83,12 @@ export interface Route {
    * halten (Spec 21 §4: „jede Lens behält ihren eigenen Anzeige-Modus").
    */
   readonly treeMode: TreeModeId;
+  /**
+   * Anzeige-Modus der Story-Lens (Person · Familie, BL-186). Siebte Ausprägung desselben
+   * Merkers (analog `treeMode`/`mapMode`/`timelineMode`): überlebt das Wegnavigieren, damit
+   * die Story-Lens ihren zuletzt gewählten Modus behält (Spec 21 §4).
+   */
+  readonly storyMode: StoryModeId;
   /** Ziel setzen; ist es ein Entitäts-/Lens-Ziel, zieht der jeweilige Merker mit. */
   setTarget(target: RouteTarget): void;
   /** Zurück in die Entitäten-Fläche, auf das zuletzt dort offene Segment. */
@@ -97,7 +103,12 @@ export interface Route {
   setTimelineMode(mode: TimelineModeId): void;
   /** Anzeige-Modus der Baum-Lens wechseln (merkt ihn sich für den Rückweg). */
   setTreeMode(mode: TreeModeId): void;
+  /** Anzeige-Modus der Story-Lens wechseln (Person · Familie; merkt ihn sich). */
+  setStoryMode(mode: StoryModeId): void;
 }
+
+/** Anzeige-Modus der Story-Lens (BL-186, Spec 20 §1.10). */
+export type StoryModeId = 'person' | 'family';
 
 export interface RouteOptions {
   /** Startziel (Default 'person' — Spec 21 §2: Personen ist der Einstieg). */
@@ -114,6 +125,8 @@ export interface RouteOptions {
   timelineMode?: TimelineModeId;
   /** Start-Modus der Baum-Lens. */
   treeMode?: TreeModeId;
+  /** Start-Modus der Story-Lens. */
+  storyMode?: StoryModeId;
 }
 
 export function createRoute(options: RouteOptions = {}): Route {
@@ -131,6 +144,7 @@ export function createRoute(options: RouteOptions = {}): Route {
   let mapMode = $state<MapModeId>(options.mapMode ?? 'orte');
   let timelineMode = $state<TimelineModeId>(options.timelineMode ?? 'swim');
   let treeMode = $state<TreeModeId>(options.treeMode ?? 'hourglass');
+  let storyMode = $state<StoryModeId>(options.storyMode ?? 'person');
 
   return {
     get target() {
@@ -153,6 +167,9 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     get treeMode() {
       return treeMode;
+    },
+    get storyMode() {
+      return storyMode;
     },
     setTarget(next) {
       if (isEntityTarget(next)) entityTarget = next;
@@ -177,6 +194,9 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     setTreeMode(next) {
       treeMode = next;
+    },
+    setStoryMode(next) {
+      storyMode = next;
     },
   };
 }

@@ -16,6 +16,8 @@
   // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
+  import { resolveProband } from '../ui/shell/proband';
+  import { displayName } from '../ui/shell/person-display';
   import { createProjectsState } from '../ui/shell/projects-state.svelte';
   import { IdbProjectsStore } from '../services/research/index';
   import { createAppState } from '../ui/shell/app-state.svelte';
@@ -39,6 +41,7 @@
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
+  import StoryLensView from '../ui/views/story/StoryLensView.svelte';
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
@@ -225,9 +228,8 @@
   // Wechsel automatisch erhalten, weil alle Lenses denselben Slot lesen/schreiben.
   function navigateLens(lens: LensId) {
     // Lens-Ids sind seit BL-90 zugleich Ziel-Ids des Registers — die frühere
-    // if/else-Übersetzung entfällt. 'story' ist noch nicht implementiert, der
-    // LensSwitcher verriegelt das bereits (Klick ruft onNavigate gar nicht erst auf).
-    if (lens !== 'story') route.setTarget(lens);
+    // if/else-Übersetzung entfällt. Alle vier Lenses (inkl. Story, BL-133) sind gebaut.
+    route.setTarget(lens);
   }
 
   // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (die Route sitzt in
@@ -243,6 +245,24 @@
   function openTreeFromPersonDetail(personId: string) {
     viewState.setCurrent('lensFocus', personId);
     route.setTarget('tree');
+  }
+
+  // "📖 Story" aus PersonDetail: Personen-Biografie in der Story-Lens (BL-133/186). Setzt
+  // den geteilten Fokus, wählt den Personen-Modus und lässt einen evtl. gesetzten Familien-
+  // Fokus fallen (sonst zeigte ein späterer Familien-Modus die falsche Familie).
+  function openStoryFromPersonDetail(personId: string) {
+    viewState.setCurrent('lensFocus', personId);
+    viewState.setCurrent('storyFamily', null);
+    route.setStoryMode('person');
+    route.setTarget('story');
+  }
+
+  // "📖 Story" aus FamilyDetail: couple-zentrische Familien-Biografie in der Story-Lens
+  // (BL-186). Setzt die explizit gewählte Familie + Familien-Modus.
+  function openStoryFromFamilyDetail(familyId: string) {
+    viewState.setCurrent('storyFamily', familyId);
+    route.setStoryMode('family');
+    route.setTarget('story');
   }
 
   // Klick auf den ⚭-Badge im Baum (zwischen Proband und aktivem Ehepartner) ->
@@ -295,7 +315,29 @@
   /** Ausführen eines Palette-Befehls: Navigationsziel ODER Sprung auf eine Entität.
    *  Die Entitäts-Sprünge nutzen exakt die Funktionen, die auch die Suchfläche
    *  bedienen (openPersonFromSearch & Co.) — kein zweiter Sprung-Pfad. */
+  // „Zum Probanden" (BL-120): auf die Detailseite der effektiven Referenzperson springen
+  // (Session-Proband, sonst kleinste ID — ADR-v9-135/139). Derselbe Sprung-Mechanismus wie
+  // die globale Suche (ViewState-Auswahl + Routen-Ziel setzen).
+  function goToProband() {
+    const pid = resolveProband(appState.db, viewState);
+    if (!pid) return;
+    viewState.setCurrent('person', pid);
+    route.setTarget('person');
+  }
+
+  // Der effektive Proband als Palette-Befehl (id + Anzeigename) — App kennt viewState, die
+  // Palette selbst nicht; sie zeigt nur, was hier aufgelöst wurde.
+  const probandCommand = $derived.by(() => {
+    const pid = resolveProband(appState.db, viewState);
+    const p = pid ? appState.db.individuals.get(pid) : null;
+    return p ? { id: p.id, label: displayName(p) } : null;
+  });
+
   function runCommand(cmd: Command) {
+    if (cmd.kind === 'proband') {
+      goToProband();
+      return;
+    }
     if (isNavCommand(cmd)) {
       route.setTarget(cmd.id);
       return;
@@ -358,6 +400,7 @@
   <CommandPalette
     db={appState.db}
     ctx={appState.placeContext}
+    proband={probandCommand}
     onClose={() => (paletteOpen = false)}
     onRun={runCommand}
   />
@@ -394,6 +437,8 @@
         {viewState}
         {route}
         onNavigateToTree={openTreeFromPersonDetail}
+        onOpenStoryForPerson={openStoryFromPersonDetail}
+        onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
       />
     {:else if shownTarget === 'tree'}
@@ -410,6 +455,8 @@
       <MapLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
+    {:else if shownTarget === 'story'}
+      <StoryLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
@@ -437,6 +484,7 @@
         {placesFileIO}
         {fileHandle}
         {route}
+        {viewState}
         onImported={(handle) => (fileHandle = handle)}
       />
     {/if}

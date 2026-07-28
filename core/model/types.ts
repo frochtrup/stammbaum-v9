@@ -219,6 +219,17 @@ export interface Person {
   exids: ExternalId[];
   createdDate: string;
 
+  /**
+   * Merge-Machinerie (BL-164, ADR-v9-129): ids der Records, die per Dedup in DIESEN
+   * absorbiert wurden. Format-agnostisch (nur ids, keine Rohbäume), runtime-only — wird NIE
+   * serialisiert und NICHT von `modelEquiv`/Dirty-Check verglichen. Der Write-Back holt den
+   * un-modellierten Passthrough dieser (noch im Quell-Baum stehenden) Verlierer-Records und
+   * hängt ihn dedupliziert an den Gewinner-Record (verlustfreier Merge auf Passthrough-Ebene).
+   * Selbstkorrigierend: nach dem ersten Save ist der Verlierer-Record aus `roots` weg → eine
+   * erneute Projektion findet nichts (idempotent); Reload setzt es nie.
+   */
+  mergedRecordIds?: string[];
+
   // Forschung (Spec 12) — Form definiert in core/research/types.ts.
   tasks: ResearchTask[];
   researchLog: LogEntry[];

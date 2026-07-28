@@ -15,6 +15,7 @@ export function place(id: PlaceId, patch: Partial<PlaceObject> = {}): PlaceObjec
     shortName: '',
     type: '',
     pnames: [],
+    translations: [],
     enclosedBy: [],
     lat: null,
     long: null,

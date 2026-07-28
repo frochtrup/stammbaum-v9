@@ -160,6 +160,42 @@ describe('Media Pointer-Form (@M@-Record, 5.5.1 optional / 7.0 Pflicht, ADR-v9-1
   });
 });
 
+describe('Media Zitat-Ebene-OBJE (GEDCOM, BL-126): modellgetrieben, nicht nur Passthrough', () => {
+  it('OBJE unter einem SOUR-Zitat wird in Citation.media projiziert', () => {
+    const { db } = parseGedcom(MEDIA);
+    const cit = db.individuals.get('@I1@')!.topLevelCitations[0];
+    expect(cit.media.map((m) => m.mediaId)).toEqual(['scans/urkunde.pdf']);
+    expect(cit.media[0].title).toBe('Scan Urkunde');
+  });
+
+  it('ein am Zitat hinzugefügtes Medium wird als 2 OBJE geschrieben und round-trippt', () => {
+    const doc = parseGedcom(MEDIA);
+    const p = structuredClone(doc.db.individuals.get('@I1@')!);
+    p.topLevelCitations[0].media.push(makeMediaCitation('fotos/anna.jpg', { title: 'Zweitscan' }));
+    doc.db.individuals = savePerson(doc.db.individuals, p);
+
+    const out1 = serializeAfterWriteBack(doc);
+    const reparsed = parseGedcom(out1);
+    const cit = reparsed.db.individuals.get('@I1@')!.topLevelCitations[0];
+    expect(cit.media.map((m) => m.mediaId).sort()).toEqual(['fotos/anna.jpg', 'scans/urkunde.pdf']);
+    // idempotent ab Edit
+    expect(serializeAfterWriteBack(reparsed)).toBe(out1);
+  });
+
+  it('ein am Zitat entferntes Medium verschwindet aus der Ausgabe', () => {
+    const doc = parseGedcom(MEDIA);
+    const p = structuredClone(doc.db.individuals.get('@I1@')!);
+    p.topLevelCitations[0].media = [];
+    doc.db.individuals = savePerson(doc.db.individuals, p);
+
+    const out = logical(serializeAfterWriteBack(doc));
+    expect(out).not.toContain('3 TITL Scan Urkunde');
+    expect(out).not.toContain('3 FILE scans/urkunde.pdf');
+    // das SOUR-Zitat selbst bleibt (PAGE erhalten)
+    expect(out).toContain('2 PAGE 5');
+  });
+});
+
 describe('Media Persistenz-Rundlauf (TST-8)', () => {
   it('neue MediaCitation an einer Person → speichern → neu laden → noch da', () => {
     const doc = parseGedcom(MEDIA);

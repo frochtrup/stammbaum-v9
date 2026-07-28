@@ -236,6 +236,84 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
   });
 });
 
+describe('PlaceDetail — Übersetzungen (Sprachachse, BL-59)', () => {
+  it('fügt eine Übersetzung hinzu (Sprachkürzel + Name, nur im Bearbeiten-Modus)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Breslau' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.input(screen.getByLabelText('Sprachkürzel'), { target: { value: 'pl' } });
+    await fireEvent.input(screen.getByLabelText('Übersetzter Ortsname'), { target: { value: 'Wrocław' } });
+    await fireEvent.click(screen.getByText('+ Übersetzung'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.translations).toEqual([{ lang: 'pl', value: 'Wrocław' }]);
+  });
+
+  it('entfernt eine bestehende Übersetzung (nur im Bearbeiten-Modus)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Breslau', translations: [{ lang: 'pl', value: 'Wrocław' }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByLabelText('Übersetzung „Wrocław" entfernen'));
+
+    expect(appState.db.placeObjects.get('@P1@')?.translations).toEqual([]);
+  });
+
+  it('zeigt Übersetzungen außerhalb des Bearbeiten-Modus als Pille', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Breslau', translations: [{ lang: 'pl', value: 'Wrocław' }] }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    expect(screen.getByText('Wrocław')).toBeTruthy();
+    expect(screen.queryByLabelText('Übersetzter Ortsname')).toBeNull(); // kein Add-Feld ohne editing
+  });
+});
+
+describe('PlaceDetail — Mini-Karte (BL-09)', () => {
+  it('rendert die Karte-Sektion, wenn der Ort Koordinaten trägt', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.2073, long: 7.1845 }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    expect(screen.getByRole('heading', { name: 'Karte' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Karte: Ochtrup/ })).toBeTruthy();
+  });
+
+  it('rendert KEINE Karte für einen unangereicherten Ort ohne Koordinaten (TST-16)', () => {
+    // Der Regelfall direkt nach Import: Village-Seed ohne eigene Koordinaten — die Mini-Karte
+    // muss dann schweigen (kein leerer Rahmen, kein Absturz), nicht ein naheliegend kuratiertes
+    // Beispiel testen.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' })); // lat/long null
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    expect(screen.queryByRole('heading', { name: 'Karte' })).toBeNull();
+    expect(screen.queryByRole('img', { name: /^Karte:/ })).toBeNull();
+  });
+});
+
 describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege (jetzt im PlaceEnclosureEditModal)', () => {
   it('fügt eine neue enclosedBy-Zugehörigkeit über den generischen Picker im Bearbeiten-Modal hinzu', async () => {
     const appState = createAppState();

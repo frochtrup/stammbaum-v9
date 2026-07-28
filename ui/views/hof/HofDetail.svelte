@@ -6,8 +6,9 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import Picker from '../../shell/Picker.svelte';
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
+  import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
+  import HofEditForm from './HofEditForm.svelte';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
   import type { HofObject } from '../../../core/places/types';
 
@@ -25,74 +26,11 @@
   const detail = $derived(hofId ? buildHofDetail(appState.db, appState.placeContext, hofId) : null);
 
   let editing = $state(false);
-  let formLat = $state<number | null>(null);
-  let formLong = $state<number | null>(null);
-  let formNote = $state('');
-  let formExistsFrom = $state<number | null>(null);
-  let formExistsTo = $state<number | null>(null);
-  let formPredecessor = $state('');
-  let formSuccessor = $state('');
-  let formGovId = $state('');
-  /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext bearbeitet —
-   *  analog PlaceDetail.svelte (kein etabliertes Array-of-string-Editier-Muster im
-   *  Projekt gefunden). */
-  let formGovTypes = $state('');
   let newAddrValue = $state('');
   let newAddrFrom = $state<number | null>(null);
   let newAddrTo = $state<number | null>(null);
 
-  /** Inline-Neuanlage eines Vorgänger-/Nachfolger-Hofes (ADR-v9-42 Punkt 5): Hof-Identität
-   *  braucht Adresse+Dorf-Kontext (findOrCreateHof) — kein blankes Namensfeld wie bei Ort,
-   *  darum ein simples Adress-Textfeld statt eines eigenen HofForm.svelte (analog
-   *  HofReview.svelte "+ Hof anlegen"). Der Dorf-Kontext ist unzweideutig: der neue
-   *  Vorgänger/Nachfolger gehört zwangsläufig zum selben Dorf wie der aktuelle Hof. */
-  let creatingHofFor = $state<'predecessor' | 'successor' | null>(null);
-  let newHofAddr = $state('');
-
-  function beginCreateHof(target: 'predecessor' | 'successor') {
-    creatingHofFor = target;
-    newHofAddr = '';
-  }
-
-  function cancelCreateHof() {
-    creatingHofFor = null;
-    newHofAddr = '';
-  }
-
-  function confirmCreateHof() {
-    if (!detail || !creatingHofFor) return;
-    const addrText = newHofAddr.trim();
-    if (!addrText) return;
-    const result = findOrCreateHof(addrText, detail.hof.villageId, appState.db.hofObjects);
-    if (!result) return;
-    if (result.created) appState.saveHof(result.created);
-    if (creatingHofFor === 'predecessor') formPredecessor = result.hofId;
-    else formSuccessor = result.hofId;
-    creatingHofFor = null;
-    newHofAddr = '';
-  }
-
-  /** Komma-getrennten Freitext in `govTypes: string[] | null` zurückübersetzen — analog
-   *  PlaceDetail.svelte. */
-  function parseGovTypes(text: string): string[] | null {
-    const items = text
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    return items.length > 0 ? items : null;
-  }
-
   function startEdit() {
-    if (!detail) return;
-    formLat = detail.hof.lat;
-    formLong = detail.hof.long;
-    formNote = detail.hof.note;
-    formExistsFrom = detail.hof.existsFrom;
-    formExistsTo = detail.hof.existsTo;
-    formPredecessor = detail.hof.predecessor ?? '';
-    formSuccessor = detail.hof.successor ?? '';
-    formGovId = detail.hof.govId ?? '';
-    formGovTypes = detail.hof.govTypes?.join(', ') ?? '';
     editing = true;
   }
 
@@ -100,21 +38,24 @@
     editing = false;
   }
 
-  function saveEdit() {
-    if (!detail) return;
-    appState.saveHof({
-      ...detail.hof,
-      lat: formLat,
-      long: formLong,
-      note: formNote,
-      existsFrom: formExistsFrom,
-      existsTo: formExistsTo,
-      predecessor: formPredecessor || null,
-      successor: formSuccessor || null,
-      govId: formGovId.trim() || null,
-      govTypes: parseGovTypes(formGovTypes),
-    });
+  /** HofEditForm reicht das fertige HofObject zurück → speichern + Bearbeiten-Modus verlassen. */
+  function handleSaveEdit(updated: HofObject) {
+    appState.saveHof(updated);
     editing = false;
+  }
+
+  /**
+   * Legt für die Vorgänger-/Nachfolger-Picker der Bearbeiten-Form einen neuen Hof an (Callback
+   * von HofEditForm, ADR-v9-42 Punkt 5): Hof-Identität braucht Adresse + Dorf-Kontext
+   * (findOrCreateHof) — der Dorf-Kontext ist der des aktuellen Hofs (Vorgänger/Nachfolger
+   * gehören zwangsläufig zum selben Dorf). Liefert die id zurück; die Form bindet sie ein.
+   */
+  function createHofForForm(addr: string): string | null {
+    if (!detail || !addr) return null;
+    const result = findOrCreateHof(addr, detail.hof.villageId, appState.db.hofObjects);
+    if (!result) return null;
+    if (result.created) appState.saveHof(result.created);
+    return result.hofId;
   }
 
   /**
@@ -182,14 +123,6 @@
   const otherHofs = $derived(
     detail ? Array.from(appState.db.hofObjects.values()).filter((h) => h.id !== detail.hof.id) : [],
   );
-
-  function hofLabel(h: HofObject): string {
-    return h.addrs[0]?.value ?? h.id;
-  }
-
-  function hofMatches(h: HofObject, query: string): boolean {
-    return hofLabel(h).toLowerCase().includes(query.trim().toLowerCase());
-  }
 </script>
 
 {#snippet residentRow(row: HofResidentRow)}
@@ -266,104 +199,14 @@
     </section>
 
     {#if editing}
-      <section class="hof-detail__section hof-detail__form">
-        <h3>Grunddaten</h3>
-        <label>
-          Breitengrad
-          <input type="number" step="any" bind:value={formLat} />
-        </label>
-        <label>
-          Längengrad
-          <input type="number" step="any" bind:value={formLong} />
-        </label>
-        <label>
-          Notiz
-          <textarea bind:value={formNote}></textarea>
-        </label>
-        <label>
-          Existiert von (Jahr)
-          <input type="number" bind:value={formExistsFrom} />
-        </label>
-        <label>
-          Existiert bis (Jahr)
-          <input type="number" bind:value={formExistsTo} />
-        </label>
-        <div class="stb-field">
-          <span class="stb-field__caption">Vorgänger-Hof</span>
-          <!-- "+ neuen Hof anlegen" (ADR-v9-42, ersetzt die ADR-v9-40-Ausnahme): eine
-               einzelne, bewusste Nutzerhandlung im Editier-Modus ist strukturell identisch
-               zu "+ Neue Person/Familie/Quelle/Archiv anlegen" — die Kurations-Sorge
-               (ADR-v9-13/28/29) betrifft nur automatische Massenanlage beim Import. -->
-          {#if creatingHofFor === 'predecessor'}
-            <div class="hof-detail__inline-create">
-              <input
-                type="text"
-                placeholder="Adresse des neuen Hofs…"
-                bind:value={newHofAddr}
-                aria-label="Adresse des neuen Vorgänger-Hofs"
-              />
-              <button type="button" onclick={confirmCreateHof} disabled={!newHofAddr.trim()}>Anlegen</button>
-              <button type="button" onclick={cancelCreateHof}>Abbrechen</button>
-            </div>
-          {:else}
-            <Picker
-              items={otherHofs}
-              getId={(h) => h.id}
-              getLabel={hofLabel}
-              matches={hofMatches}
-              value={formPredecessor || null}
-              onChange={(id) => (formPredecessor = id ?? '')}
-              allowNone={true}
-              noneLabel="(keiner)"
-              label="Vorgänger-Hof"
-              createLabel="+ neuen Hof anlegen …"
-              onCreateRequested={() => beginCreateHof('predecessor')}
-            />
-          {/if}
-        </div>
-        <div class="stb-field">
-          <span class="stb-field__caption">Nachfolger-Hof</span>
-          {#if creatingHofFor === 'successor'}
-            <div class="hof-detail__inline-create">
-              <input
-                type="text"
-                placeholder="Adresse des neuen Hofs…"
-                bind:value={newHofAddr}
-                aria-label="Adresse des neuen Nachfolger-Hofs"
-              />
-              <button type="button" onclick={confirmCreateHof} disabled={!newHofAddr.trim()}>Anlegen</button>
-              <button type="button" onclick={cancelCreateHof}>Abbrechen</button>
-            </div>
-          {:else}
-            <Picker
-              items={otherHofs}
-              getId={(h) => h.id}
-              getLabel={hofLabel}
-              matches={hofMatches}
-              value={formSuccessor || null}
-              onChange={(id) => (formSuccessor = id ?? '')}
-              allowNone={true}
-              noneLabel="(keiner)"
-              label="Nachfolger-Hof"
-              createLabel="+ neuen Hof anlegen …"
-              onCreateRequested={() => beginCreateHof('successor')}
-            />
-          {/if}
-        </div>
-        <label>
-          GOV-ID
-          <input type="text" bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
-        </label>
-        <label>
-          GOV-Typen (kommagetrennt)
-          <input type="text" bind:value={formGovTypes} placeholder="z. B. Hof, Gehöft" />
-        </label>
-        <div class="hof-detail__form-actions">
-          <button type="button" class="hof-detail__save-btn" onclick={saveEdit}>Speichern</button>
-          <button type="button" class="hof-detail__cancel-btn" onclick={cancelEdit}>Abbrechen</button>
-          <button type="button" class="hof-detail__delete-btn" onclick={handleDelete}>Hof löschen</button>
-        </div>
-      </section>
+      <HofEditForm
+        hof={detail.hof}
+        {otherHofs}
+        onSave={handleSaveEdit}
+        onCancel={cancelEdit}
+        onDelete={handleDelete}
+        onCreateHof={createHofForForm}
+      />
     {/if}
 
     {#if detail.predecessorLabel || detail.successorLabel}
@@ -373,6 +216,10 @@
         {#if detail.successorLabel}<p>Nachfolger: {detail.successorLabel}</p>{/if}
       </section>
     {/if}
+
+    <!-- Mini-Karte (BL-09) — Höfe tragen eigene Geodaten (Binnenmigration im Dorf sichtbar,
+         Spec 11 §1); gleicher gemeinsamer Renderer wie im Ort-Steckbrief (INV-UI-4). -->
+    <PlaceMiniMap lat={detail.hof.lat} long={detail.hof.long} label={detail.hof.addrs[0]?.value || detail.hof.id} />
 
     <section class="hof-detail__section">
       <h3>Bewohner &amp; Eigentümer</h3>
@@ -427,71 +274,6 @@
   .hof-detail__muted {
     color: var(--stb-text-dim);
     font-size: 0.85rem;
-  }
-
-  .hof-detail__form {
-    background: var(--stb-surface-1);
-    border-radius: var(--stb-radius-card);
-    padding: 0.8rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .hof-detail__form label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-  }
-
-  .hof-detail__form input,
-  .hof-detail__form textarea {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.5rem;
-    font: inherit;
-  }
-
-  .hof-detail__form-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .hof-detail__save-btn,
-  .hof-detail__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
-
-  .hof-detail__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
-
-  /* Destruktive Aktion — analog PlaceDetail.svelte's .place-detail__delete-btn (INV-UI-4:
-     gleicher Mechanismus, nur andere Klassennamen-Präfix). `margin-left: auto` auf
-     :last-child statt unbedingt auf der Klasse (TST-11). */
-  .hof-detail__delete-btn {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .hof-detail__form-actions > :last-child {
-    margin-left: auto;
   }
 
   .hof-detail__addr-list {
@@ -560,40 +342,6 @@
     border-radius: var(--stb-radius-control);
     padding: 0.3rem 0.7rem;
     cursor: pointer;
-  }
-
-  /* Inline-Neuanlage Vorgänger-/Nachfolger-Hof (ADR-v9-42): gleiche add-row-Optik wie
-     Adressvarianten/Namensvarianten, eigener Klassenname statt weiterer .hof-detail__
-     add-row-Überladung (unterschiedliche Spalten: Adresstext + Anlegen + Abbrechen). */
-  .hof-detail__inline-create {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .hof-detail__inline-create input {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.5rem;
-    flex: 1 1 auto;
-    min-width: 8rem;
-  }
-
-  .hof-detail__inline-create button {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-  }
-
-  .hof-detail__inline-create button:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
   }
 
   .hof-detail__resident-link {

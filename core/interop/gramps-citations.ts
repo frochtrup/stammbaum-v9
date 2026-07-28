@@ -15,6 +15,7 @@ import { makeCitation } from '../model/factory';
 import type { Citation } from '../model/types';
 import type { XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
+import { grampsMediaRefs } from './gramps-media';
 
 // QUAY↔<confidence> lebt seit BL-156 kanonisch in enum-maps.ts (gebündelt); hier importiert
 // (interner Gebrauch) + re-exportiert, damit bestehende Importe unverändert bleiben.
@@ -24,13 +25,21 @@ export { confidenceToQuay };
 /**
  * Ein GRAMPS-`<citation>`-Knoten → Modell-`Citation`. `resolveSourceId` übersetzt das
  * `<sourceref hlink>`-Handle in die Quellen-Modell-`id` (Aufrufer stellt den Handle→id-Index).
+ * `handleToId` (ADR-v9-125, BL-126): löst die Zitat-Ebene-`<objref hlink>` in `Citation.media`
+ * auf — vorher Passthrough-only, damit verloren bei Cross-Family-Emission. Ohne den Index
+ * (Aufrufer ohne Handle→id-Zuordnung) bleiben die Medien-Refs leer.
  */
-export function projectGrampsCitation(citationNode: XmlNode, resolveSourceId: (handle: string) => string): Citation {
+export function projectGrampsCitation(
+  citationNode: XmlNode,
+  resolveSourceId: (handle: string) => string,
+  handleToId?: Map<string, string>,
+): Citation {
   const sourceref = firstChild(citationNode, 'sourceref');
   const sourceId = sourceref ? resolveSourceId(attr(sourceref, 'hlink')) : '';
   return makeCitation(sourceId, {
     page: firstChild(citationNode, 'page')?.text ?? '',
     quay: confidenceToQuay(firstChild(citationNode, 'confidence')?.text ?? ''),
+    media: handleToId ? grampsMediaRefs(citationNode, handleToId) : [],
     // Fidelity-id des geteilten <citation>-Records (C0000, ersatzweise Handle): ordnet das
     // Zitat beim Write-Back über seine stabile id wieder seinem Record zu (BL-142/144,
     // id-basiert wie alle GRAMPS-Refs — BL-136). Dieselbe Quelle round-trippt byte-treu,
@@ -48,11 +57,12 @@ export function collectCitations(
   owner: XmlNode,
   citationOf: (handle: string) => XmlNode | null,
   resolveSourceId: (handle: string) => string,
+  handleToId?: Map<string, string>,
 ): Citation[] {
   const out: Citation[] = [];
   for (const ref of childrenByTag(owner, 'citationref')) {
     const cit = citationOf(attr(ref, 'hlink'));
-    if (cit) out.push(projectGrampsCitation(cit, resolveSourceId));
+    if (cit) out.push(projectGrampsCitation(cit, resolveSourceId, handleToId));
   }
   return out;
 }

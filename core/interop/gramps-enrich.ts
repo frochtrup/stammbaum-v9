@@ -87,7 +87,7 @@ function projectEventRef(ref: XmlNode, ctx: EnrichContext): Event | null {
   const eventNode = ctx.eventOf(attr(ref, 'hlink'));
   if (!eventNode) return null;
   const e = projectGrampsEvent(eventNode, ctx.resolvePlace);
-  e.citations = collectCitations(eventNode, ctx.citationOf, ctx.resolveSourceId);
+  e.citations = collectCitations(eventNode, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
   e.media = grampsMediaRefs(eventNode, ctx.handleToId);
   // BL-143: den Event-Ort NATIV ans placeobj binden (placeId/hofId per handle→id), statt ihn
   // dem String-Resolver zu überlassen. `event.place` behält den ptitle-String (Anzeige).
@@ -116,8 +116,8 @@ function ownedEvents(node: XmlNode, ownerRole: string, ctx: EnrichContext): Even
 /** Füllt Ereignisse (Rolle „Primary") + Namens-/Personen-Zitate in eine projizierte Person. */
 export function enrichPerson(p: Person, node: XmlNode, ctx: EnrichContext): void {
   const nameNode = firstChild(node, 'name');
-  if (nameNode) p.nameCitations = collectCitations(nameNode, ctx.citationOf, ctx.resolveSourceId);
-  p.topLevelCitations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId);
+  if (nameNode) p.nameCitations = collectCitations(nameNode, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
+  p.topLevelCitations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
   p.media = grampsMediaRefs(node, ctx.handleToId);
 
   const dist = distributePersonEvents(ownedEvents(node, 'Primary', ctx));
@@ -130,7 +130,7 @@ export function enrichPerson(p: Person, node: XmlNode, ctx: EnrichContext): void
 
 /** Füllt Ereignisse (Rolle „Family") + Familien-Zitate in eine projizierte Familie. */
 export function enrichFamily(f: Family, node: XmlNode, ctx: EnrichContext): void {
-  f.citations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId);
+  f.citations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
 
   const dist = distributeFamilyEvents(ownedEvents(node, 'Family', ctx));
   f.marriage = dist.marriage;

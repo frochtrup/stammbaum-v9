@@ -81,4 +81,15 @@ describe('INV-VS — eine zentrale ViewState-Instanz', () => {
     expect(vs.getCurrent('lensPlaceFocus')).toBe('P1');
     expect(vs.getCurrent('lensFocus')).toBeNull();
   });
+
+  it('media (BL-126, Medien-Segment) ist ein EIGENER Slot, unabhängig von den übrigen Entitäts-Zielen (kein gemeinsamer currentX-Topf)', () => {
+    const vs = createViewState();
+    expect(vs.getCurrent('media')).toBeNull();
+
+    vs.setCurrent('source', '@S1@');
+    vs.setCurrent('media', 'fotos/anna.jpg');
+
+    expect(vs.getCurrent('media')).toBe('fotos/anna.jpg');
+    expect(vs.getCurrent('source')).toBe('@S1@');
+  });
 });

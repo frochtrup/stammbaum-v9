@@ -25,8 +25,10 @@
 </script>
 
 <!-- Pille + optionaler ↗ bleiben als EINE Umbruch-Einheit zusammen (INV-UI-5), damit der
-     Link nicht von seiner Pille weg umbricht; nach außen wirkt der Wrapper wie ein Flex-Item. -->
-<span class="src-badge-wrap">
+     Link nicht von seiner Pille weg umbricht; nach außen wirkt der Wrapper wie ein Flex-Item.
+     Mit Link (--linked) dockt der ↗ als „links geöffnete" Ergänzungs-Pille direkt an die
+     Hauptpille an — beide lesen als EINE Pille mit zwei Kammern (Name | Weblink). -->
+<span class="src-badge-wrap" class:src-badge-wrap--linked={href}>
   {#if onSelect}
     <button
       type="button"
@@ -63,7 +65,14 @@
     gap: 0.2em;
   }
 
+  /* Mit Weblink dockt die Ergänzungs-Pille bündig an — kein Zwischenraum, geteilte Naht. */
+  .src-badge-wrap--linked {
+    gap: 0;
+  }
+
   .src-badge-link {
+    display: inline-flex;
+    align-items: center;
     font-size: 0.72rem;
     line-height: 1;
     color: var(--stb-gold-light);
@@ -71,9 +80,33 @@
     cursor: pointer;
   }
 
+  /* „Links geöffnete" Ergänzungs-Pille: flache linke Ecken (dockt an die Hauptpille),
+     rechts abgerundet wie die Hauptpille. Gleiche Fläche/Rand; die linke Kante ist die
+     geteilte Naht (Hauptpille trägt sie), daher hier border-left: none. */
+  .src-badge-wrap--linked .src-badge-link {
+    padding: 0.2em 0.4em;
+    border: 1px solid var(--stb-gold-dim);
+    border-left: none;
+    border-radius: 0 9px 9px 0;
+    background: var(--stb-surface-3);
+    font-size: 0.66rem;
+  }
+
+  /* Die Hauptpille gibt rechts ihre Rundung auf, damit die Naht plan verläuft. */
+  .src-badge-wrap--linked > .src-badge {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
   .src-badge-link:hover,
   .src-badge-link:focus-visible {
     color: var(--stb-gold);
+  }
+
+  .src-badge-wrap--linked .src-badge-link:hover,
+  .src-badge-wrap--linked .src-badge-link:focus-visible {
+    background: var(--stb-surface-2);
+    border-color: var(--stb-gold);
   }
 
   /* Präsenz-Kanal: EINE affirmative Farbe (Gold) für „belegt" — nie QUAY-abhängig,

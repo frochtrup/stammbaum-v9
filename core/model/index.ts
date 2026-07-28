@@ -24,6 +24,7 @@ export {
   makeMediaCitation,
 } from './factory';
 export { isEventPresent, isEventEmpty } from './event';
+export { smallestPersonId } from './queries';
 export {
   parseDateValue,
   formatDateValue,
@@ -56,6 +57,11 @@ export {
   deleteSource,
   saveRepository,
   deleteRepository,
+  saveMedia,
+  deleteMedia,
+  withAddedMediaCitation,
+  withRemovedMediaCitation,
+  withUpdatedMediaCitation,
 } from './commands';
 export {
   deletePersonCascade,

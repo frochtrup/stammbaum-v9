@@ -80,7 +80,10 @@ export function swimLane(ev: Pick<TimelinePersonEvent, 'type' | 'gedType' | 'eve
   return 'other';
 }
 
-const EVENT_LABELS: Record<string, string> = {
+// Exportiert: EINE Quelle für die Tag→deutsches-Label-Abbildung (INV-UI-4). Auch der
+// Story-Modus (ui/views/story/story-templates.ts) nutzt sie als Fallback-Label statt einer
+// zweiten Kopie.
+export const EVENT_LABELS: Record<string, string> = {
   RESI: 'Wohnort',
   EMIG: 'Auswanderung',
   IMMI: 'Einwanderung',

@@ -46,7 +46,7 @@ const has = (n) => args.includes(n);
 const FIX = join(__dirname, 'fixtures', 'demo-rich.anon.ged');
 const DEMO = join(REPO, 'app', 'public', 'demo.ged');
 const DEMO_BAK = join(REPO, 'app', 'public', 'demo.ged.handbuch-bak');
-const HTML = join(REPO, 'HANDBUCH.html');
+const HTML = join(REPO, 'app', 'public', 'HANDBUCH.html');
 const CHANGELOG = join(REPO, 'HANDBUCH-CHANGELOG.md');
 const VFILE = join(__dirname, 'handbuch.version.json');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -111,7 +111,7 @@ if (!has('--skip-capture')) {
   // --- 4. Screenshots ---
   log('Screenshots erzeugen …');
   await new Promise((res, rej) => {
-    const p = spawn(process.execPath, [join(__dirname, 'capture.mjs'), '--url', `http://localhost:${PORT}`, '--out', join(REPO, 'handbuch-assets')], { cwd: REPO, stdio: 'inherit' });
+    const p = spawn(process.execPath, [join(__dirname, 'capture.mjs'), '--url', `http://localhost:${PORT}`, '--out', join(REPO, 'app', 'public', 'handbuch-assets')], { cwd: REPO, stdio: 'inherit' });
     p.on('exit', (c) => (c === 0 ? res() : rej(new Error('capture.mjs Exit ' + c))));
   }).catch((e) => die(e.message));
 

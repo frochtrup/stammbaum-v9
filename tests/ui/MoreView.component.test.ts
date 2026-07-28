@@ -14,14 +14,15 @@
 // — dieselbe Instanz, die in der App auch die Bottom-Nav-Markierung speist.
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import type { ComponentProps } from 'svelte';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import MoreView from '../../ui/views/more/MoreView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { makeDatabase } from '../../core/model';
 import { createRoute, type Route } from '../../ui/shell/route.svelte';
 import { createPlacesPersister } from '../../ui/shell/places-persister';
 import { FileService } from '../../services/file/file-service';
 import { PlacesSyncService } from '../../services/places';
-import { createMockAdapterSet } from '../services/mock-adapters';
+import { createMockAdapterSet, createMockPicker } from '../services/mock-adapters';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 import {
@@ -77,16 +78,20 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     }
   });
 
-  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste NICHT mehr', () => {
+  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste/Story NICHT mehr', () => {
     const route = createRoute({ target: 'more' });
     renderMore(route);
 
-    for (const label of ['Story', 'Ausgaben', 'Einstellungen']) {
+    for (const label of ['Einstellungen']) {
       expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
     }
     expect(screen.queryByText(/Statistik \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Karte \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
+    // Story ist seit BL-133 echt (StoryLensView), nicht mehr „(folgt)".
+    expect(screen.queryByText(/Story \(folgt\)/)).toBeNull();
+    // Ausgaben ist seit BL-169 echt (ReportsView), nicht mehr „(folgt)".
+    expect(screen.queryByText(/Ausgaben \(folgt\)/)).toBeNull();
   });
 
   it('Klick auf "Karte" setzt das Routen-Ziel "map" und öffnet KEINE zweite Karte im Hub', async () => {
@@ -143,6 +148,17 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     expect(screen.getByText(/Keine Daten geladen/)).toBeTruthy(); // StatisticsView-Empty-State (leere AppState)
   });
 
+  it('Klick auf "Ausgaben" zeigt die echte ReportsView (kein ComingSoonPanel mehr, BL-169)', async () => {
+    const route = createRoute({ target: 'more' });
+    renderMore(route);
+
+    await fireEvent.click(screen.getByRole('button', { name: /Ausgaben/ }));
+
+    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
+    // ReportsView-Empty-State bei leerer AppState (kein geladener Bestand).
+    expect(screen.getByText(/Ausgaben zu erzeugen/)).toBeTruthy();
+  });
+
   it('"Datei"-Sub-Ansicht zeigt KEINE Orte-Buttons, wenn kein placesFileIO übergeben wird (Rückwärtskompatibilität)', async () => {
     renderMore(createRoute({ target: 'more' }));
 
@@ -186,5 +202,79 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     for (const label of ['Karte', 'Zeitleiste', 'Statistik', 'Story', 'Ausgaben', 'Einstellungen']) {
       expect(screen.getByRole('button', { name: new RegExp(label) })).toBeTruthy();
     }
+  });
+});
+
+describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung (ADR-v9-128)', () => {
+  const mockPlacesFileIO = () => ({
+    placesStore: createMockPlacesStore(null),
+    handleStore: createMockPlacesFileHandleStore(),
+    picker: createMockPicker(null),
+  });
+
+  it('ohne geladene Datei: genau EINE Primäraktion, und das ist „Datei öffnen"', () => {
+    const { container } = renderMore(createRoute({ target: 'file' }));
+
+    const primaries = container.querySelectorAll('[data-variant="primary"]');
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0].textContent).toMatch(/Datei öffnen/);
+    // Kein fileName → kein „Speichern" (SaveButton rendert nur mit geladener Datei).
+    expect(screen.queryByText('Speichern')).toBeNull();
+  });
+
+  it('mit geladener Datei: „Speichern" wird primär, „Datei öffnen" sekundär', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    const { container } = renderMore(createRoute({ target: 'file' }), { appState });
+
+    const primaries = container.querySelectorAll('[data-variant="primary"]');
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0].textContent).toMatch(/Speichern/);
+    expect(screen.getByRole('button', { name: /Datei öffnen/ }).getAttribute('data-variant')).toBe('secondary');
+  });
+
+  it('Orte-Aktionen sind sekundär und stehen in der abgesetzten „Orts-Bestand"-Region', () => {
+    renderMore(createRoute({ target: 'file' }), { placesFileIO: mockPlacesFileIO() });
+
+    const region = screen.getByRole('group', { name: /Orts-Bestand/ });
+    const exp = within(region).getByRole('button', { name: /Orte exportieren/ });
+    expect(exp.getAttribute('data-variant')).toBe('secondary');
+    expect(within(region).getByRole('button', { name: /Orte importieren/ })).toBeTruthy();
+    // Die Orte-Aktionen sind NICHT primär (andere Datei, Nebensache).
+    expect(region.querySelector('[data-variant="primary"]')).toBeNull();
+  });
+
+  it('gruppiert nach Funktion: Überschriften Laden/Sichern/Orts-Bestand/Austausch', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    renderMore(createRoute({ target: 'file' }), { appState, placesFileIO: mockPlacesFileIO() });
+
+    for (const name of [/^Laden$/, /^Sichern$/, /Orts-Bestand/, /^Austausch$/]) {
+      expect(screen.getByRole('heading', { name })).toBeTruthy();
+    }
+  });
+
+  it('AUSTAUSCH-Disclosures tragen denselben Sekundär-Stil (data-variant), kein weißer Rohtext', () => {
+    renderMore(createRoute({ target: 'file' }));
+
+    const exchange = screen.getByRole('group', { name: /Austausch/ });
+    const toggles = exchange.querySelectorAll('summary[data-variant="secondary"]');
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0].textContent).toMatch(/In anderes Format exportieren/);
+    expect(toggles[1].textContent).toMatch(/Mit zweiter Datei vergleichen/);
+    // Sie sind sekundär, ändern die „genau eine Primäraktion"-Invariante also nicht.
+    expect(exchange.querySelector('[data-variant="primary"]')).toBeNull();
+  });
+
+  it('der Dateiname steht als Speicher-Ziel in SICHERN, nicht mehr in LADEN (Kritik-Punkt 2)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'meine.ged');
+    renderMore(createRoute({ target: 'file' }), { appState });
+
+    const sichern = screen.getByRole('group', { name: /^Sichern$/ });
+    expect(within(sichern).getByText(/meine\.ged/)).toBeTruthy();
+
+    const laden = screen.getByRole('group', { name: /^Laden$/ });
+    expect(within(laden).queryByText(/meine\.ged/)).toBeNull();
   });
 });

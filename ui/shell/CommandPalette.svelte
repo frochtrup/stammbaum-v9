@@ -24,15 +24,17 @@
   interface Props {
     db: Database;
     ctx: PlaceContext;
+    /** Effektiver Proband für den „Zum Probanden"-Befehl (BL-120) — von App aufgelöst. */
+    proband?: { id: string; label: string } | null;
     onClose: () => void;
     onRun: (cmd: Command) => void;
   }
-  const { db, ctx, onClose, onRun }: Props = $props();
+  const { db, ctx, proband = null, onClose, onRun }: Props = $props();
 
   let query = $state('');
   let selected = $state(0);
   let input = $state<HTMLInputElement | undefined>();
-  const commands = $derived(buildCommands(db, ctx, query));
+  const commands = $derived(buildCommands(db, ctx, query, proband));
 
   // Die Auswahl darf nicht hinter der Liste zurückbleiben: tippt man weiter, schrumpft
   // die Liste, und ein Index von vorher zeigte sonst ins Leere (oder auf einen ganz

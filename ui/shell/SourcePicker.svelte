@@ -28,6 +28,11 @@
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
     label?: string;
+    /** Mountet die Shell direkt offen (Picker.svelte's `startOpen`, wie PersonPicker) —
+     *  für Aufrufer, die den Picker hinter einem eigenen "+"-Trigger einblenden. */
+    startOpen?: boolean;
+    /** Reicht Picker.svelte's `onClose` durch (Aufrufer blenden den Picker per `{#if}` ein). */
+    onClose?: () => void;
   }
   const {
     appState,
@@ -37,6 +42,8 @@
     noneLabel = '— keine Quelle —',
     placeholder = 'Quelle wählen…',
     label = 'Quelle auswählen',
+    startOpen = false,
+    onClose,
   }: Props = $props();
 
   const items = $derived(Array.from(appState.db.sources.values()));
@@ -96,6 +103,8 @@
       {label}
       createLabel="+ Neue Quelle anlegen …"
       onCreateRequested={beginCreate}
+      {startOpen}
+      {onClose}
     />
   {/if}
 </div>

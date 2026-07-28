@@ -19,9 +19,13 @@
 // erst in den Tests fehl (ADR-v9-92 nahm hier mehr Compiler-Zwang an, als es gibt).
 // Diese Hälfte tragen die Tests, nicht der Typ — deshalb hat jedes Kommando einen.
 import type {
+  Citation,
   Database,
   Family,
   FamilyId,
+  Media,
+  MediaCitation,
+  MediaId,
   Person,
   PersonId,
   Repository,
@@ -206,4 +210,187 @@ export function deleteRepository(
   const out = new Map(repositories);
   out.delete(id);
   return out;
+}
+
+// --- Medien (Spec 10 §4, Spec 20 §1.4 [S] "Medien-Verwaltung", BL-126) ---
+//
+// `Media` ist Top-Level (`db.media`), `MediaCitation` eine referenz-spezifische
+// Verknüpfung an Person/Event/Citation/Source (ADR-v9-124/125). Wie Source/Citation ist
+// die globale Entität ein FLACHES Modell ohne Beziehungsgraph — `saveMedia` ist deshalb
+// exakt das `saveSource`-Muster (reines Whole-Object-Upsert auf der Map).
+//
+// `deleteMedia` ist ANDERS als `deleteSource`/`deletePerson` oben BEWUSST MIT Kaskade
+// (Auftragsvorgabe: "Auflösen aller MediaCitation-Verweise an Ownern — 0 Waisen, analog
+// delete-cascade-Geist", vgl. `deleteSourceCascade` in delete-cascade.ts): eine tote
+// MediaCitation (Verweis auf eine gelöschte Media-id) macht JEDE Referenzzeile sofort
+// sichtbar kaputt (kein Titel/keine Datei mehr auflösbar, `buildMediaDetail`/
+// `buildMediaTiles` können das Ziel nicht mehr finden) — anders als eine tote
+// `citation.sourceId`, die INV-P2 nur als Waisen-BEFUND meldet, ohne dass jede Ansicht
+// sofort einen kaputten Verweis zeigt. Lebt hier statt in delete-cascade.ts, weil dieser
+// Bauabschnitt (BL-126) nur `core/model/commands.ts` anfasst.
+
+/** Kommando: legt ein Medium an oder ersetzt es vollständig (Upsert per id). `Media` ist
+ *  ein flaches Modell ohne Beziehungsgraph (analog Source) — reines Whole-Object-Upsert. */
+export function saveMedia(media: ReadonlyMap<MediaId, Media>, next: Media): Map<MediaId, Media> {
+  const out = new Map(media);
+  out.set(next.id, next);
+  return out;
+}
+
+/** Die Sonder-Ereignisslots von Person bzw. Familie (neben dem freien `events[]`-Array) —
+ *  dieselbe kleine, bewusste Duplikation wie zwischen draft.ts und delete-cascade.ts
+ *  (kein geteiltes Modul dafür, um innerhalb der Datei-Grenze dieses Bauabschnitts zu
+ *  bleiben). */
+const PERSON_EVENT_FIELDS = ['birth', 'chr', 'death', 'buri'] as const;
+const FAMILY_EVENT_FIELDS = ['marriage', 'engagement'] as const;
+
+function hasMediaRef(cits: readonly Pick<MediaCitation, 'mediaId'>[], id: MediaId): boolean {
+  return cits.some((m) => m.mediaId === id);
+}
+
+function stripMediaRefs(cits: readonly MediaCitation[], id: MediaId): MediaCitation[] {
+  return cits.filter((m) => m.mediaId !== id);
+}
+
+function citationTouchesMedia(cits: readonly { media: readonly Pick<MediaCitation, 'mediaId'>[] }[], id: MediaId): boolean {
+  return cits.some((c) => hasMediaRef(c.media, id));
+}
+
+function stripCitationMedia(cits: readonly Citation[], id: MediaId): Citation[] {
+  return cits.map((c) => (hasMediaRef(c.media, id) ? { ...c, media: stripMediaRefs(c.media, id) } : c));
+}
+
+function personTouchesMedia(p: Person, id: MediaId): boolean {
+  return (
+    hasMediaRef(p.media, id) ||
+    PERSON_EVENT_FIELDS.some((f) => hasMediaRef(p[f].media, id) || citationTouchesMedia(p[f].citations, id)) ||
+    p.events.some((e) => hasMediaRef(e.media, id) || citationTouchesMedia(e.citations, id)) ||
+    citationTouchesMedia(p.topLevelCitations, id) ||
+    citationTouchesMedia(p.nameCitations, id) ||
+    p.extraNames.some((n) => citationTouchesMedia(n.citations, id)) ||
+    p.childOf.some((l) => citationTouchesMedia(l.citations, id)) ||
+    p.associations.some((a) => citationTouchesMedia(a.citations, id))
+  );
+}
+
+/** Entfernt JEDEN Verweis auf `id` aus einer bereits aufgetauten, mutierbaren Person —
+ *  Top-Level `.media`, alle Event-Slots (`.media` + verschachtelte Zitate) UND jede
+ *  Zitat-Fundstelle der Person selbst (Name/Kindschaft/Assoziation). Mutiert `p` direkt
+ *  (sicher: `p` ist bereits eine `structuredClone`-Kopie aus `editDatabase`s Draft, exakt
+ *  wie `delete-cascade.ts`s Kommandos ihre `d.person(id)!`-Ergebnisse mutieren). */
+function stripPersonMedia(p: Person, id: MediaId): void {
+  p.media = stripMediaRefs(p.media, id);
+  for (const f of PERSON_EVENT_FIELDS) {
+    p[f] = { ...p[f], media: stripMediaRefs(p[f].media, id), citations: stripCitationMedia(p[f].citations, id) };
+  }
+  p.events = p.events.map((e) =>
+    hasMediaRef(e.media, id) || citationTouchesMedia(e.citations, id)
+      ? { ...e, media: stripMediaRefs(e.media, id), citations: stripCitationMedia(e.citations, id) }
+      : e,
+  );
+  p.topLevelCitations = stripCitationMedia(p.topLevelCitations, id);
+  p.nameCitations = stripCitationMedia(p.nameCitations, id);
+  p.extraNames = p.extraNames.map((n) => ({ ...n, citations: stripCitationMedia(n.citations, id) }));
+  p.childOf = p.childOf.map((l) => ({ ...l, citations: stripCitationMedia(l.citations, id) }));
+  p.associations = p.associations.map((a) => ({ ...a, citations: stripCitationMedia(a.citations, id) }));
+}
+
+function familyTouchesMedia(f: Family, id: MediaId): boolean {
+  return (
+    citationTouchesMedia(f.citations, id) ||
+    FAMILY_EVENT_FIELDS.some((k) => hasMediaRef(f[k].media, id) || citationTouchesMedia(f[k].citations, id)) ||
+    f.events.some((e) => hasMediaRef(e.media, id) || citationTouchesMedia(e.citations, id))
+  );
+}
+
+/** Entfernt JEDEN Verweis auf `id` aus einer bereits aufgetauten, mutierbaren Familie —
+ *  Familie hat KEIN eigenes `.media` (Spec 10 §4: "Familien-Medien hängen an den
+ *  Familien-Ereignissen") — nur Ereignis-Slots + Zitate sind zu bereinigen. */
+function stripFamilyMedia(fam: Family, id: MediaId): void {
+  fam.citations = stripCitationMedia(fam.citations, id);
+  for (const k of FAMILY_EVENT_FIELDS) {
+    fam[k] = {
+      ...fam[k],
+      media: stripMediaRefs(fam[k].media, id),
+      citations: stripCitationMedia(fam[k].citations, id),
+    };
+  }
+  fam.events = fam.events.map((e) =>
+    hasMediaRef(e.media, id) || citationTouchesMedia(e.citations, id)
+      ? { ...e, media: stripMediaRefs(e.media, id), citations: stripCitationMedia(e.citations, id) }
+      : e,
+  );
+}
+
+/**
+ * Kommando: entfernt ein Medium UND löst JEDEN `MediaCitation`-Verweis darauf auf — an
+ * Person (Top-Level/Events/Zitate), Familie (Events/Zitate, kein eigenes `.media`) UND
+ * Source (Top-Level). 0 Waisen danach (s. Modul-Kommentar oben — bewusst MIT Kaskade,
+ * anders als das nackte `deleteSource`). No-Op bei unbekannter id.
+ */
+export function deleteMedia(db: ReadonlyDatabase, id: MediaId): Database {
+  const stripped = editDatabase(db, (d) => {
+    for (const pid of d.personIds()) {
+      // Cast wie `mapAllEvents` in draft.ts — Lese-Zugriff auf den eingefrorenen Stand,
+      // der Draft selbst hält die Readonly-Zusicherung für Schreibzugriffe.
+      const p = d.peekPerson(pid)! as unknown as Person;
+      if (!personTouchesMedia(p, id)) continue;
+      stripPersonMedia(d.person(pid)!, id);
+    }
+    for (const fid of d.familyIds()) {
+      const f = d.peekFamily(fid)! as unknown as Family;
+      if (!familyTouchesMedia(f, id)) continue;
+      stripFamilyMedia(d.family(fid)!, id);
+    }
+    for (const s of (db as unknown as Database).sources.values()) {
+      if (hasMediaRef(s.media, id)) {
+        d.setSource({ ...s, media: stripMediaRefs(s.media, id) });
+      }
+    }
+  });
+
+  const media = new Map(stripped.media);
+  media.delete(id);
+  return { ...stripped, media };
+}
+
+// --- MediaCitation an einem Owner verknüpfen/lösen/editieren (Spec 20 §1.4 [S]
+// "Referenzliste + Verknüpfen") ---
+//
+// Person/Event/Citation/Source teilen dieselbe Form (`{ media: MediaCitation[] }`) — EIN
+// generisches Funktionstrio statt vier eigener, fast identischer Owner-Varianten
+// (INV-UI-4-Geist, analog `withAddedPname`/`withRemovedPname` in core/places/commands.ts).
+// Familie hat kein eigenes `.media` (s. o.) — ihr "Owner" ist eines ihrer Events
+// (die UI-Schale nutzt `family.marriage`), der Aufrufer wendet diese Funktionen darauf an
+// und baut die Familie mit dem aktualisierten Event-Feld neu zusammen (`saveFamily(model)`).
+//
+// Reine Funktionen — der Aufrufer (UI-Modell/Komponente) übernimmt das Ergebnis in ein
+// vollständiges Person-/Family-/Source-Objekt und ruft den passenden Save-Chokepoint
+// (`appState.savePerson`/`saveFamily`/`saveSource`) auf. Keine eigenen Database-weiten
+// Kommandos nötig, weil Person/Source bereits direkt speicherbar sind und Family-Events
+// über `saveFamily(model)` laufen (Spec 02 §3: Kommando-Chokepoint, kein Feld-Setter).
+
+/** Hängt eine neue Medienverknüpfung an (Duplikat-Prüfung obliegt dem Aufrufer, analog
+ *  `withAddedPname`). */
+export function withAddedMediaCitation<T extends { media: MediaCitation[] }>(entity: T, mc: MediaCitation): T {
+  return { ...entity, media: [...entity.media, mc] };
+}
+
+/** Entfernt die Medienverknüpfung zu `mediaId` (No-Op, falls keine vorhanden). */
+export function withRemovedMediaCitation<T extends { media: MediaCitation[] }>(entity: T, mediaId: MediaId): T {
+  return { ...entity, media: stripMediaRefs(entity.media, mediaId) };
+}
+
+/** Bearbeitet die REFERENZ-SPEZIFISCHEN Felder (Titel-Override/Datum/Notiz/Primär-Flag,
+ *  Spec 20 §1.4 [S] "referenz-spezifische Felder") einer bestehenden Medienverknüpfung.
+ *  No-Op, falls `mediaId` an dieser Entität nicht verknüpft ist. */
+export function withUpdatedMediaCitation<T extends { media: MediaCitation[] }>(
+  entity: T,
+  mediaId: MediaId,
+  patch: Partial<Omit<MediaCitation, 'mediaId'>>,
+): T {
+  return {
+    ...entity,
+    media: entity.media.map((m) => (m.mediaId === mediaId ? { ...m, ...patch } : m)),
+  };
 }

@@ -31,7 +31,7 @@ export function gatherTextReview({ since = '', includeAll = false } = {}) {
 
 /** Gibt den Bericht aus und liefert die Anzahl der zu prüfenden Punkte zurück. */
 export function printTextReview({ base, commits }) {
-  const html = readFileSync(join(REPO, 'HANDBUCH.html'), 'utf8').toLowerCase();
+  const html = readFileSync(join(REPO, 'app', 'public', 'HANDBUCH.html'), 'utf8').toLowerCase();
   console.log('──────────────────────────────────────────────────────────');
   console.log(' Handbuch-Textabgleich — brauchen diese Änderungen neuen TEXT?');
   console.log('──────────────────────────────────────────────────────────');

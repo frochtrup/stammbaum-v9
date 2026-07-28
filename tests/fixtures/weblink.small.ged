@@ -1,0 +1,41 @@
+0 HEAD
+1 SOUR Stammbaum
+2 VERS 9
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Heinrich /Ransmann/
+2 GIVN Heinrich
+2 SURN Ransmann
+1 SEX M
+1 BIRT
+2 DATE 19 JUN 1848
+2 PLAC Ochtrup (Westf.)
+2 SOUR @S2@
+3 PAGE "KB012 S_126," https://data.matricula-online.eu/de/deutschland/muenster/ochtrup-st-lambertus/KB012/?pg=126
+3 QUAY 3
+1 OCCU Polier/Maurer
+2 PLAC Ochtrup (Westf.)
+2 SOUR @S2@
+3 PAGE KB012 S_126
+3 OBJE
+4 FILE https://data.matricula-online.eu/de/deutschland/muenster/ochtrup-st-lambertus/KB012/?pg=126
+3 QUAY 2
+2 SOUR @S1@
+3 PAGE S. 209
+3 QUAY 1
+1 DEAT
+2 DATE 6 DEC 1936
+2 PLAC Ochtrup (Westf.)
+2 SOUR @S1@
+0 @S1@ SOUR
+1 ABBR Wegener
+1 TITL Ochtrup - ein Heimatbuch
+1 AUTH Anton Wegener
+1 PUBL Münster, Verlag Regensberg
+0 @S2@ SOUR
+1 ABBR KB Ochtrup, St. Lambertus
+1 TITL Kirchenbuch Ochtrup, St. Lambertus
+0 TRLR

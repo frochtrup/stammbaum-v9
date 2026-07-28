@@ -20,22 +20,25 @@
 /** Die vier Rollen aus Spec 21 §1. Bestimmt die Sidebar-Gruppierung (BL-06). */
 export type NavRole = 'entity' | 'lens' | 'work' | 'research';
 
-/** Entitäten (Spec 21 §1): Datenkategorien zum Browsen/Bearbeiten. */
-export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof';
+/** Entitäten (Spec 21 §1): Datenkategorien zum Browsen/Bearbeiten. `media` (BL-126,
+ *  Spec 20 §1.4 [S]) ist ein EIGENES Segment neben Personen/Familien/Quellen/Orte/Höfe
+ *  (Nutzer-Entscheidung) — NICHT Teil des Mehr-Hubs, obwohl die Kachelgalerie eine
+ *  globale, nicht Personen-lokale Arbeitsfläche ist (genau wie Quellen bereits). */
+export type EntityTargetId = 'person' | 'family' | 'source' | 'place' | 'hof' | 'media';
 
 /**
  * Die Kontext-Fokus-Lenses, die sich EINEN Bottom-Nav-Slot teilen (Spec 21 §4:
- * "Baum ▸ Karte ▸ Zeitleiste"). Deckungsgleich mit den implementierten Einträgen des
- * Lens-Umschalters (lens-model.ts) — 'story' fehlt, weil unimplementiert, 'stats' ist
- * laut NAV_TARGETS zwar Rolle 'lens', aber kein Umschalter-Eintrag (globales Dashboard
- * ohne Personenfokus) und hängt am Mehr-Slot.
+ * "Baum ▸ Karte ▸ Zeitleiste ▸ Story"). Deckungsgleich mit den implementierten Einträgen
+ * des Lens-Umschalters (lens-model.ts); 'stats' ist laut NAV_TARGETS zwar Rolle 'lens',
+ * aber kein Umschalter-Eintrag (globales Dashboard ohne Personenfokus) und hängt am
+ * Mehr-Slot.
  *
  * Diese Liste ist der Grund, warum `bottomNavSlotFor` und der Lens-Merker der Route
  * (`route.svelte.ts`) dieselbe Menge meinen können, ohne sie zweimal aufzuzählen.
  */
-export type LensTargetId = 'tree' | 'map' | 'timeline';
+export type LensTargetId = 'tree' | 'map' | 'timeline' | 'story';
 
-export const LENS_SLOT_TARGETS: readonly LensTargetId[] = ['tree', 'map', 'timeline'];
+export const LENS_SLOT_TARGETS: readonly LensTargetId[] = ['tree', 'map', 'timeline', 'story'];
 
 export function isLensTarget(id: RouteTarget): id is LensTargetId {
   return (LENS_SLOT_TARGETS as readonly string[]).includes(id);
@@ -103,6 +106,14 @@ export interface NavTargetDef {
   role: NavRole;
   icon: string;
   label: string;
+  /**
+   * Kurzform NUR für die mobile `EntityTab`-Segmentreihe (ADR-v9-132/BL-126): sechs
+   * Entitäten sprengten bei 375px die eine Zeile um genau 10px (`Personen` 69px +
+   * `Familien` 64px waren die Wortlängen-Ausreißer, am laufenden System gemessen). Nur
+   * hier wird `shortLabel` bevorzugt; die Desktop-Sidebar, der Bottom-Hub und die
+   * Such-Typ-Chips zeigen weiterhin `label` (volle Wörter). Fehlt sie, gilt `label`.
+   */
+  shortLabel?: string;
   implemented: boolean;
 }
 
@@ -122,16 +133,19 @@ export interface NavTargetDef {
  * laut INV-UI-15 die vollständige Beschreibung eines Ziels trägt — nicht die halbe.
  */
 export const NAV_TARGETS: readonly NavTargetDef[] = [
-  { id: 'person', role: 'entity', icon: '👤', label: 'Personen', implemented: true },
-  { id: 'family', role: 'entity', icon: '👪', label: 'Familien', implemented: true },
+  { id: 'person', role: 'entity', icon: '👤', label: 'Personen', shortLabel: 'Pers.', implemented: true },
+  { id: 'family', role: 'entity', icon: '👪', label: 'Familien', shortLabel: 'Fam.', implemented: true },
   { id: 'source', role: 'entity', icon: '📜', label: 'Quellen', implemented: true },
   { id: 'place', role: 'entity', icon: '📍', label: 'Orte', implemented: true },
   { id: 'hof', role: 'entity', icon: '🏠', label: 'Höfe', implemented: true },
+  // 📎 ist laut Spec 21 §7 ausschließlich das Medien-/OBJE-Symbol (nie Quellen) — dasselbe
+  // Symbol, das der Präsenz-Badge auf PersonList schon nutzt (ADR-v9-79 Punkt 3).
+  { id: 'media', role: 'entity', icon: '📎', label: 'Medien', implemented: true },
   { id: 'tree', role: 'lens', icon: '⧖', label: 'Baum', implemented: true },
   { id: 'map', role: 'lens', icon: '🗺', label: 'Karte', implemented: true },
   { id: 'timeline', role: 'lens', icon: '⏱', label: 'Zeitleiste', implemented: true },
   { id: 'stats', role: 'lens', icon: '📊', label: 'Statistik', implemented: true },
-  { id: 'story', role: 'lens', icon: '📖', label: 'Story', implemented: false },
+  { id: 'story', role: 'lens', icon: '📖', label: 'Story', implemented: true },
   // Dashboard führt die Forschungs-Gruppe an — auf Sidebar (Desktop) UND mobiler
   // Segment-Reihe dieselbe Ordnung (ADR-v9-116). Default-Landung bleibt dennoch „Aufgaben"
   // (route-Default 'tasks'): Reihenfolge ≠ Default, s. ResearchTab/route.
@@ -141,7 +155,7 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'hypotheses', role: 'research', icon: '💡', label: 'Hypothesen', implemented: true },
   { id: 'search', role: 'work', icon: '🔍', label: 'Suche', implemented: true },
   { id: 'file', role: 'work', icon: '📁', label: 'Datei', implemented: true },
-  { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: false },
+  { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: true },
   { id: 'settings', role: 'work', icon: '⚙', label: 'Einstellungen', implemented: false },
 ];
 

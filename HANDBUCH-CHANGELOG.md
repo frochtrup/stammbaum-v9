@@ -22,6 +22,82 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.7] — 2026-07-28
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c5bc025`…HEAD) erzeugt._
+
+- feat(places): BL-09 Mini-Karte (Ort+Hof+Reports) & BL-59 Ortsübersetzungen (`71c9bf3`)
+- feat(places): BL-130 Nominatim-Geocoding (Einzel + Batch) (`5b32f54`)
+- feat(places/geo): Koordinaten-Eingabe, Geo-Sichtbarkeit, hofsWithResidence-Fix, OCCU raus (`c1ef314`)
+- fix(reports): Realdaten-Feinschliff der Buch-Grad-Ausgaben (BL-176/178) (`60c6996`)
+- feat(reports): Buch-Grad-§4-Ausgaben #7/#11/#12/#13 (BL-176…179) (`f4f47a9`)
+- feat(v9): Story-Modus — Personen-/Familien-Biografie (BL-133/183…190) (`f2f1ae2`)
+- feat(v9): Session-Proband + „Zum Probanden"; Default-Person vereinheitlicht (BL-120) (`68a119c`)
+- feat(v9): Beziehungsrechner + Verwandtschaftsnachweis (BL-134/175) (`add406b`)
+- feat(v9): §4-Druck-Reports #1–#4/#6 + Ausgaben-Hub (BL-169…174) (`c425510`)
+
+---
+
+## [9.6] — 2026-07-27
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c165823`…HEAD) erzeugt._
+
+- Nur Screenshots neu erzeugt — keine relevanten Code-Änderungen im Fenster.
+
+---
+
+## [9.5] — 2026-07-27
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`3800372`…HEAD) erzeugt._
+
+- feat(v9): BL-126 — Medien-Verwaltung komplett (UI + GRAMPS/Citation-Write-Back, ADR-v9-132) (`74db7a9`)
+- feat(v9): Quellen-Weblink als angedockte Ergänzungs-Pille (ADR-v9-131) (`a40da31`)
+- feat(v9): Such-Typ-Filter (Chips) + Quellen-Zitat-Weblink in Referenzliste (`b6bf583`)
+- feat(dedup): BL-165 — GRAMPS-Personen-Merge verlustfrei auf Passthrough-Ebene (Phase 2) (`1d82135`)
+- feat(dedup): BL-164 Phase 1 — Personen-Merge verlustfrei auf Passthrough-Ebene (GEDCOM) (`3949271`)
+- feat(ui): Datei-Seite — einheitliche Formensprache (ADR-v9-128, Kritik-Folge) (`7c1d4e2`)
+- fix(ui): Datei-Seiten-ADR auf v9-128 umnummeriert (Doppelnummer 123 aufgelöst) (`45dbafc`)
+- feat(interop): BL-163 — GEDCOM-7.0-Enumeration für den Coverage-Nenner (`2c25070`)
+- feat(ui): BL-160 — Cross-Family-Export in der UI (ADR-v9-127, Epic-Abschluss) (`ffc3fc2`)
+- feat(interop): BL-159 — RT-4 Cross-Family-Gate + modelEquiv-Signatur-Härtung (`44f17c5`)
+- feat(interop): Cross-Family-Vollbaum-Synthese in index.ts verdrahten (BL-157/158) (`0b43820`)
+- feat(interop): BL-158 — Modell→GRAMPS-Vollbaum-Synthese (Cross-Family) (`0c9ca7d`)
+- feat(interop): BL-157 — Modell→GEDCOM-Vollbaum-Synthese (Cross-Family GRAMPS→GEDCOM) (`6803b2e`)
+- feat(interop): BL-156 — ID-Remap + gebündelte Enum/Wert-Normalisierung (ADR-v9-127) (`8f77b0b`)
+- feat(interop): BL-155 — modelEquiv (RT-4-Äquivalenz) + Coverage-Audit (`a51ffe2`)
+- feat(interop): Media.form am Input zu MIME kanonisieren (Narrow-Waist, ADR-v9-126) (`1ebff3f`)
+- feat(core): Media als Top-Level-Entität + GRAMPS-Projektion (ADR-v9-125) (`55b062b`)
+- fix(interop): OBJE-Pointer-Form (@M@-Record) — spec-vollständig (ADR-v9-124) (`6fdb2d7`)
+- feat(core): Media/MediaCitation-Auflösung + Interop-Migration (ADR-v9-124) (`e031906`)
+
+---
+
+## [9.4] — 2026-07-27
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`3800372`…HEAD) erzeugt._
+
+- feat(v9): BL-126 — Medien-Verwaltung komplett (UI + GRAMPS/Citation-Write-Back, ADR-v9-132) (`74db7a9`)
+- feat(v9): Quellen-Weblink als angedockte Ergänzungs-Pille (ADR-v9-131) (`a40da31`)
+- feat(v9): Such-Typ-Filter (Chips) + Quellen-Zitat-Weblink in Referenzliste (`b6bf583`)
+- feat(dedup): BL-165 — GRAMPS-Personen-Merge verlustfrei auf Passthrough-Ebene (Phase 2) (`1d82135`)
+- feat(dedup): BL-164 Phase 1 — Personen-Merge verlustfrei auf Passthrough-Ebene (GEDCOM) (`3949271`)
+- feat(ui): Datei-Seite — einheitliche Formensprache (ADR-v9-128, Kritik-Folge) (`7c1d4e2`)
+- fix(ui): Datei-Seiten-ADR auf v9-128 umnummeriert (Doppelnummer 123 aufgelöst) (`45dbafc`)
+- feat(interop): BL-163 — GEDCOM-7.0-Enumeration für den Coverage-Nenner (`2c25070`)
+- feat(ui): BL-160 — Cross-Family-Export in der UI (ADR-v9-127, Epic-Abschluss) (`ffc3fc2`)
+- feat(interop): BL-159 — RT-4 Cross-Family-Gate + modelEquiv-Signatur-Härtung (`44f17c5`)
+- feat(interop): Cross-Family-Vollbaum-Synthese in index.ts verdrahten (BL-157/158) (`0b43820`)
+- feat(interop): BL-158 — Modell→GRAMPS-Vollbaum-Synthese (Cross-Family) (`0c9ca7d`)
+- feat(interop): BL-157 — Modell→GEDCOM-Vollbaum-Synthese (Cross-Family GRAMPS→GEDCOM) (`6803b2e`)
+- feat(interop): BL-156 — ID-Remap + gebündelte Enum/Wert-Normalisierung (ADR-v9-127) (`8f77b0b`)
+- feat(interop): BL-155 — modelEquiv (RT-4-Äquivalenz) + Coverage-Audit (`a51ffe2`)
+- feat(interop): Media.form am Input zu MIME kanonisieren (Narrow-Waist, ADR-v9-126) (`1ebff3f`)
+- feat(core): Media als Top-Level-Entität + GRAMPS-Projektion (ADR-v9-125) (`55b062b`)
+- fix(interop): OBJE-Pointer-Form (@M@-Record) — spec-vollständig (ADR-v9-124) (`6fdb2d7`)
+- feat(core): Media/MediaCitation-Auflösung + Interop-Migration (ADR-v9-124) (`e031906`)
+
+---
+
 ## [9.3] — 2026-07-26
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`9e80724`…HEAD) erzeugt._

@@ -66,6 +66,34 @@ describe('HofDetail — Steckbrief (read-only Teile)', () => {
   });
 });
 
+describe('HofDetail — Mini-Karte (BL-09)', () => {
+  it('rendert die Karte, wenn der Hof eigene Koordinaten trägt', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.18 }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    expect(screen.getByRole('img', { name: /Karte: Wall 33/ })).toBeTruthy();
+  });
+
+  it('rendert KEINE Karte für einen unangereicherten Hof ohne Koordinaten (TST-16)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] })); // lat/long null
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    expect(screen.queryByRole('img', { name: /^Karte:/ })).toBeNull();
+  });
+});
+
 describe('HofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j, Nachtrag 2026-07-10)', () => {
   it('zeigt Bewohner UND Eigentümer in EINER chronologischen Liste, je Zeile mit Rollen-Label markiert', async () => {
     const appState = createAppState();

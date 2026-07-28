@@ -111,6 +111,25 @@ describe('applyPlaceResolution — sammelt alle Event-Fundstellen', () => {
     expect(db.individuals.get('I1')!.events[0].hofId).not.toBeNull();
   });
 
+  it('OCCU (Arbeitsstätte) bindet KEINEN Hof — Arbeitsstätte ≠ Hof (ADR-v9-143)', () => {
+    // Struktur identisch zum Pfad-C-Test oben, nur OCCU statt RESI. Vor ADR-v9-143 hätte
+    // „Linden, Hannover" an einem Berufs-Ereignis einen Phantom-Hof „Linden" gebootstrappt
+    // (an Realdaten gemessen: Berkeley/Kalifornien, Rothenburg/Oberlausitz). OCCU ist aus
+    // HOF_EVENT_TYPES entfernt → kein Hof, der Ort bleibt dem PLAC-Pfad überlassen.
+    const db = makeDatabase();
+    db.placeObjects.set('P1', place('P1', { title: 'Hannover' }));
+    const p = makePerson('I1', {
+      events: [makeEvent('OCCU', { place: 'Linden, Hannover', value: 'Schlossergeselle' })],
+    });
+    db.individuals.set(p.id, p);
+
+    const result = applyPlaceResolution(db);
+
+    expect(result.hofObjectsGrew).toBe(false);
+    expect(db.hofObjects.size).toBe(0);
+    expect(db.individuals.get('I1')!.events[0].hofId).toBeNull();
+  });
+
   it('ohne Bootstrap bleibt hofObjectsGrew=false und db.hofObjects unverändert in der Größe', () => {
     const db = makeDatabase();
     db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));

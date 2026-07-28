@@ -18,6 +18,7 @@
   import EventLine from '../../shell/EventLine.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { displayName } from '../../shell/person-display';
+  import { resolveProband } from '../../shell/proband';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
   import PersonFamilies from './PersonFamilies.svelte';
@@ -39,6 +40,9 @@
     onNavigateToHof?: (hofId: string) => void;
     /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
     onNavigateToTree?: (personId: string) => void;
+    /** "📖 Story" — Personen-Biografie in der Story-Lens öffnen (BL-133/186, Spec 20 §1.10).
+     *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
+    onOpenStory?: (personId: string) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
      *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
@@ -57,12 +61,17 @@
     onNavigateToPlace,
     onNavigateToHof,
     onNavigateToTree,
+    onOpenStory,
     onNavigateLens,
     onBack,
     startInEdit = false,
   }: Props = $props();
 
   const personId = $derived(viewState.getCurrent('person'));
+
+  // Ist die angezeigte Person die effektive Referenzperson der Sitzung (Session-Proband,
+  // sonst kleinste ID)? Steuert die Proband-Aktion im Kopf (BL-120, ADR-v9-135/139).
+  const isProband = $derived(!!personId && resolveProband(appState.db, viewState) === personId);
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
 
   let editing = $state(untrack(() => startInEdit));
@@ -325,6 +334,19 @@
     <DetailHeader title={displayName(detail.person)} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
         <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        <!-- „Als Proband setzen" (BL-120): setzt die Referenzperson der Sitzung (transient,
+             ADR-v9-135). Ist diese Person es bereits, zeigt der Knopf den Zustand statt
+             einer wirkungslosen Wiederholung. -->
+        <button
+          type="button"
+          class="person-detail__proband-btn"
+          class:person-detail__proband-btn--active={isProband}
+          disabled={isProband}
+          title={isProband
+            ? 'Diese Person ist der Proband dieser Sitzung'
+            : 'Als Proband (Referenzperson der Sitzung) setzen'}
+          onclick={() => viewState.setProband(detail.person.id)}
+        >{isProband ? '★ Proband' : '☆ Als Proband'}</button>
         {#if onNavigateToTree}
           <button
             type="button"
@@ -332,6 +354,15 @@
             onclick={() => onNavigateToTree(detail.person.id)}
           >
             ⧖ Im Baum anzeigen
+          </button>
+        {/if}
+        {#if onOpenStory}
+          <button
+            type="button"
+            class="person-detail__tree-link"
+            onclick={() => onOpenStory(detail.person.id)}
+          >
+            📖 Story
           </button>
         {/if}
       {/snippet}
@@ -430,6 +461,26 @@
     padding: 0.3rem 0.7rem;
     cursor: pointer;
     font-size: 0.82rem;
+  }
+
+  .person-detail__proband-btn {
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    color: var(--stb-gold-light);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* Ist die Person bereits Proband: aktiver Gold-Zustand, nicht klickbar (kein No-op). */
+  .person-detail__proband-btn--active {
+    background: var(--stb-gold);
+    color: var(--stb-bg);
+    border-color: var(--stb-gold);
+    font-weight: 600;
+    cursor: default;
   }
 
   .person-detail__section {

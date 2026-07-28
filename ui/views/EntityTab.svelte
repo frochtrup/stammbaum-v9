@@ -28,11 +28,14 @@
   import PlaceDetail from './place/PlaceDetail.svelte';
   import PlaceDedupView from './place/PlaceDedupView.svelte';
   import PersonDedupView from './person/PersonDedupView.svelte';
+  import RelationshipTool from './tools/RelationshipTool.svelte';
   import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
   import HofReview from './hof/HofReview.svelte';
   import HofDedupView from './hof/HofDedupView.svelte';
+  import MediaGallery from './media/MediaGallery.svelte';
+  import MediaDetail from './media/MediaDetail.svelte';
 
   interface Props {
     appState: AppState;
@@ -45,6 +48,10 @@
      * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
      */
     onNavigateToTree?: (personId: string) => void;
+    /** "📖 Story" aus PersonDetail/FamilyDetail → Story-Lens (BL-133/186). Durchgereicht;
+     *  der Ziel-Umschalter + Fokus-/Modus-Setzung sitzt in App.svelte, nicht hier. */
+    onOpenStoryForPerson?: (personId: string) => void;
+    onOpenStoryForFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`/`EventLine`)
      *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
      *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
@@ -52,7 +59,15 @@
     /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
     route: Route;
   }
-  const { appState, viewState, route, onNavigateToTree, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    route,
+    onNavigateToTree,
+    onOpenStoryForPerson,
+    onOpenStoryForFamily,
+    onNavigateLens,
+  }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
   // einen Ziel-Registers (nav-model.ts, INV-UI-15). Vorher war sie die zweite von drei
@@ -99,6 +114,7 @@
   // die Route für Unterzustand, der eine AUSWAHL oder einen ANZEIGE-MODUS trägt. Ein
   // On-Demand-Werkzeug, das der Nutzer bewusst öffnet, ist beides nicht.
   let personDedupOpen = $state(false);
+  let relationshipToolOpen = $state(false);
   let hofDedupOpen = $state(false);
 
   function selectSegment(segment: (typeof segments)[number]) {
@@ -114,6 +130,7 @@
       else viewState.setCurrent('source', null);
     } else if (activeSegment === 'place') viewState.setCurrent('place', null);
     else if (activeSegment === 'hof') viewState.setCurrent('hof', null);
+    else if (activeSegment === 'media') viewState.setCurrent('media', null);
   }
 
   function navigateToPerson(id: string) {
@@ -245,12 +262,21 @@
     personDedupOpen = false;
   }
 
+  function openRelationshipTool() {
+    relationshipToolOpen = true;
+  }
+
+  function closeRelationshipTool() {
+    relationshipToolOpen = false;
+  }
+
   const selectedPersonId = $derived(viewState.getCurrent('person'));
   const selectedFamilyId = $derived(viewState.getCurrent('family'));
   const selectedSourceId = $derived(viewState.getCurrent('source'));
   const selectedRepositoryId = $derived(viewState.getCurrent('repository'));
   const selectedPlaceId = $derived(viewState.getCurrent('place'));
   const selectedHofId = $derived(viewState.getCurrent('hof'));
+  const selectedMediaId = $derived(viewState.getCurrent('media'));
 
   /** Hat das aktive Segment gerade eine Auswahl? Entscheidet mobil Liste-ODER-Detail
    *  und auf Desktop, ob der Detail-Pane Inhalt oder Leerzustand zeigt. */
@@ -260,6 +286,7 @@
     if (activeSegment === 'source')
       return sourceSubView === 'repositories' ? !!selectedRepositoryId : !!selectedSourceId;
     if (activeSegment === 'place') return !!selectedPlaceId;
+    if (activeSegment === 'media') return !!selectedMediaId;
     return !!selectedHofId;
   });
 
@@ -267,7 +294,7 @@
    *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
    *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
   const overlayActive = $derived.by(() => {
-    if (activeSegment === 'person') return personDedupOpen && !selectedPersonId;
+    if (activeSegment === 'person') return (personDedupOpen || relationshipToolOpen) && !selectedPersonId;
     if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
     if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
     return false;
@@ -294,9 +321,10 @@
         class="stb-segment-btn"
         class:stb-segment-btn--active={segment.id === activeSegment}
         disabled={!segment.implemented}
+        aria-label={segment.label}
         onclick={() => selectSegment(segment)}
       >
-          {segment.label}{segment.implemented ? '' : ' (folgt)'}
+          {segment.shortLabel ?? segment.label}{segment.implemented ? '' : ' (folgt)'}
         </button>
       {/each}
     </div>
@@ -346,7 +374,7 @@
        ohne Gewinn. -->
   {#snippet listPane()}
     {#if activeSegment === 'person'}
-      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} />
+      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} onOpenRelationship={openRelationshipTool} />
     {:else if activeSegment === 'family'}
       <FamilyList {appState} {viewState} onCreate={createFamily} />
     {:else if activeSegment === 'source'}
@@ -359,6 +387,8 @@
       <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
     {:else if activeSegment === 'hof'}
       <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
+    {:else if activeSegment === 'media'}
+      <MediaGallery {appState} {viewState} />
     {/if}
   {/snippet}
 
@@ -372,6 +402,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateToTree}
+        onOpenStory={onOpenStoryForPerson}
         {onNavigateLens}
         onBack={backToList}
         startInEdit={selectedPersonId === createdPersonId}
@@ -385,6 +416,7 @@
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
         {onNavigateLens}
+        onOpenStory={onOpenStoryForFamily}
         onBack={backToList}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
@@ -415,6 +447,15 @@
       />
     {:else if activeSegment === 'hof' && selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
+    {:else if activeSegment === 'media' && selectedMediaId}
+      <MediaDetail
+        {appState}
+        {viewState}
+        onNavigateToPerson={navigateToPerson}
+        onNavigateToFamily={navigateToFamily}
+        onNavigateToSource={navigateToSource}
+        onBack={backToList}
+      />
     {:else}
       <!-- Leerzustand des Detail-Panes: existiert nur auf Desktop (mobil rendert bei
            fehlender Auswahl die Liste selbst). Bewusst neutral formuliert statt je
@@ -428,6 +469,8 @@
          s. `overlayActive` oben. -->
     {#if activeSegment === 'person' && personDedupOpen}
       <PersonDedupView {appState} onClose={closePersonDedup} />
+    {:else if activeSegment === 'person' && relationshipToolOpen}
+      <RelationshipTool {appState} {viewState} onClose={closeRelationshipTool} />
     {:else if activeSegment === 'place' && placeReviewOpen}
       <PlaceReview
         {appState}

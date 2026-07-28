@@ -21,6 +21,7 @@ import {
 import { place, hof } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
+import { ENTITY_TARGETS } from '../../ui/shell/nav-model';
 
 function seedRichDb() {
   const db = makeDatabase();
@@ -293,5 +294,37 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     expect(viewState.getCurrent('person')).toBe('@I3@');
     expect(screen.getByText('Neue Person')).toBeTruthy(); // Editor-Überschrift, nicht die Liste
+  });
+});
+
+describe('Entitäten-Segmente — voller Name als Accessible Name (Handbuch-/Screenreader-Kontrakt)', () => {
+  // Guard für die label-basierte Handbuch-Navigation (tools/handbuch/capture.mjs klickt
+  // Segmente per vollem Namen, z. B. click('Familien')) UND für Screenreader: eine mobile
+  // Kurzform (shortLabel 'Pers.'/'Fam.', ADR-v9-133) darf den vollen Namen als Bedien-/
+  // Vorlese-Namen NICHT verlieren. Bricht, sobald ein Segment nur noch unter seiner
+  // Kurzform auffindbar ist — genau der Fehler, der capture.mjs bei BL-126 zunächst
+  // die Familien-Screenshots verdarb.
+  it('jedes Entitäten-Segment ist über seinen vollen Namen (aria-label) erreichbar', () => {
+    const appState = createAppState();
+    appState.loadDatabase(seedRichDb(), 'test.ged');
+
+    render(EntityTab, { props: { appState, viewState: createViewState(), route: createRoute() } });
+
+    for (const seg of ENTITY_TARGETS) {
+      const tab = screen.getByRole('tab', { name: seg.label });
+      // Sichtbarer Text ist die Kurzform (falls vorhanden) …
+      expect(tab.textContent?.trim()).toBe(seg.shortLabel ?? seg.label);
+      // … der Accessible Name bleibt der volle Name (aria-label).
+      expect(tab.getAttribute('aria-label')).toBe(seg.label);
+    }
+  });
+
+  it('nur Personen/Familien tragen eine Kurzform, und sie ist kürzer als der volle Name', () => {
+    for (const seg of ENTITY_TARGETS) {
+      if (seg.shortLabel) {
+        expect(['person', 'family']).toContain(seg.id);
+        expect(seg.shortLabel.length).toBeLessThan(seg.label.length);
+      }
+    }
   });
 });

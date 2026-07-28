@@ -107,6 +107,10 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
   };
   // Medien-Auflösung (ADR-v9-124) ebenfalls INTERN aus db (kein neuer Parameter, wie ctx).
   const media: MediaLookup = db.media;
+  // Record-Lookup nach xref (BL-164): der Passthrough absorbierter Verlierer-Records wird von
+  // hier geholt, solange sie noch im Eingangs-Baum stehen (vor dem ersten Save).
+  const recById = new Map<string, GedNode>();
+  for (const r of roots) if (r.xref) recById.set(r.xref, r);
   // Welche IDs sind bereits im Baum vertreten? (für Neu-Erkennung)
   const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>(), OBJE: new Set<string>() };
   let trlrIndex = -1;
@@ -118,7 +122,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, ctx, media));
+        out.push(personNode(rec, cur, ctx, media, recById));
         break;
       }
       case 'FAM': {
@@ -186,10 +190,18 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
 // ── Pro-Entität: unverändert? → Original-Knoten. Sonst feldweise aktualisieren. ─────────
 
-function personNode(orig: GedNode, cur: Person, ctx: PlaceContext, media: MediaLookup): GedNode {
+function personNode(
+  orig: GedNode,
+  cur: Person,
+  ctx: PlaceContext,
+  media: MediaLookup,
+  recById: Map<string, GedNode>,
+): GedNode {
+  const carried = collectMergedPassthrough(cur.mergedRecordIds, recById, RECOGNIZED_PERSON);
   const projected = parsePersonPublic(orig);
-  if (personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx, media));
+  // Bei absorbiertem Passthrough NICHT kurzschließen — der Verlierer-Passthrough muss ran.
+  if (carried.length === 0 && personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx, media), carried);
 }
 function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext, media: MediaLookup): GedNode {
   const projected = parseFamilyPublic(orig);
@@ -225,6 +237,7 @@ function mergeRecord<T>(
   cur: T,
   recognized: Set<string>,
   emit: (m: T) => GedNode,
+  carried: GedNode[] = [], // absorbierter Verlierer-Passthrough (BL-164), dedupliziert angehängt
 ): GedNode {
   const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
   const recognizedChildren = fresh.children; // alle erkannten Feldgruppen, kanonische Reihenfolge
@@ -243,7 +256,29 @@ function mergeRecord<T>(
     }
   }
   if (!inserted) children.push(...recognizedChildren); // Record hatte nur Passthrough-Kinder
+  // Verlierer-Passthrough hinten anhängen (INV-PT), byte-strukturell dedupliziert — kumulativ
+  // gegen den WACHSENDEN Kinder-Satz, damit auch zwei gleiche Verlierer-Zeilen zu einer werden.
+  for (const c of carried) {
+    if (!children.some((x) => nodeEqual(x, c))) children.push(c);
+  }
   return { level: orig.level, xref: orig.xref, tag: orig.tag, value: orig.value, children };
+}
+
+/** Sammelt den un-modellierten Passthrough der (per Dedup) absorbierten Verlierer-Records —
+ *  aus dem Eingangs-Baum (`recById`), solange sie dort noch stehen (BL-164, ADR-v9-129). */
+function collectMergedPassthrough(
+  ids: string[] | undefined,
+  recById: Map<string, GedNode>,
+  recognized: Set<string>,
+): GedNode[] {
+  if (!ids || ids.length === 0) return [];
+  const out: GedNode[] = [];
+  for (const id of ids) {
+    const rec = recById.get(id);
+    if (!rec) continue; // schon materialisiert / nicht mehr im Baum → No-Op
+    for (const c of rec.children) if (!recognized.has(c.tag)) out.push(c);
+  }
+  return out;
 }
 
 // ── Struktur-Vergleich: „hat sich das erkannte Modell-Feld geändert?" ──────────────────

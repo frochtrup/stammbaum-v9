@@ -18,6 +18,8 @@ import type {
   RepoId,
   Source,
   Repository,
+  Media,
+  MediaId,
 } from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
 import {
@@ -30,6 +32,8 @@ import {
   deleteSourceCascade as deleteSourceCmd,
   saveRepository as saveRepositoryCmd,
   deleteRepositoryCascade as deleteRepositoryCmd,
+  saveMedia as saveMediaCmd,
+  deleteMedia as deleteMediaCmd,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -220,6 +224,20 @@ export interface AppState {
    * repo-Verweis jeder darauf zeigenden Quelle wird gelöst.
    */
   deleteRepository(id: RepoId): void;
+  /**
+   * Kommando: Upsert eines Mediums (`saveMedia(model)`-Muster, Spec 20 §1.4 [S]/Spec 10
+   * §4). Media ist ein FLACHES Modell ohne Beziehungs-Graph — reines Whole-Object-Upsert,
+   * analog saveSource. Deckt sowohl die globale Bearbeitung ("Speichern (alle Ref.)",
+   * Medium-Detail ②) als auch die Neuanlage ab (📷-Kamera-Schnellzugriff, Ereignis-Editor).
+   */
+  saveMedia(model: Media): void;
+  /**
+   * Kommando: entfernt ein Medium referenz-auflösend (`deleteMedia`, BEWUSST MIT Kaskade,
+   * anders als `deleteSource` — s. core/model/commands.ts-Kopf) — jede `MediaCitation`,
+   * die auf dieses Medium zeigt, wird an jeder Träger-Stelle entfernt (Person/Familie/
+   * Quelle, inkl. verschachtelter Event-/Zitat-Ebenen).
+   */
+  deleteMedia(id: MediaId): void;
   /**
    * Kommando: Dubletten-Merge — führt EINEN ODER MEHRERE `mergedIds` in `survivorId`
    * zusammen (Spec 20 §1.7 [K] paarweiser Merge; §9.2 Massen-Dedup, ADR-v9-45). Gibt
@@ -725,6 +743,14 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // Referenz-auflösend: löst den repo-Verweis jeder darauf zeigenden Quelle
       // (deleteRepositoryCascade) → vollständiges neues Database.
       commit(deleteRepositoryCmd(db, id), { workingCopy: true });
+    },
+    saveMedia(model) {
+      commit({ ...db, media: saveMediaCmd(db.media, model) }, { workingCopy: true });
+    },
+    deleteMedia(id) {
+      // Referenz-auflösend (BEWUSST MIT Kaskade, s. core/model/commands.ts) → vollständiges
+      // neues Database (Person-/Familien-/Quellen-Referenzen UND db.media selbst).
+      commit(deleteMediaCmd(db, id), { workingCopy: true });
     },
     linkEventToPlace(event, placeId) {
       const ctx = placeContext;

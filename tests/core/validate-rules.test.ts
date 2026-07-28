@@ -455,6 +455,23 @@ describe('Geo (Orte/Höfe)', () => {
     expect(findings.map((f) => f.hofId)).toEqual(['@H1@']);
   });
 
+  it('HOF_NO_COORD erkennt den Hof über den eventHofId-Chokepoint (ev.hofId ungesetzt)', () => {
+    // Realfall (Nutzer-Fund 2026-07-28): ev.hofId ist laufzeit-only und nach Reload/Import
+    // oft null — der Hof wird erst per findByAddr aufgelöst. hofsWithResidence MUSS über den
+    // eventHofId-Chokepoint lesen (§11), sonst bleibt der koordinatenlose Hof stumm. Das
+    // hofId-vorsetzende Nachbar-Testchen oben maskierte die Lücke.
+    const bewohnt = personWith('@I1@');
+    bewohnt.events = [makeEvent('RESI', { addr: 'Hauptstr. 1', placeId: '@P1@', seen: true })];
+    const db = dbWith([bewohnt], [], {
+      placeObjects: new Map([['@P1@', place('@P1@')]]),
+      hofObjects: new Map([
+        ['@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Hauptstr. 1', from: null, to: null }] })],
+      ]),
+    });
+    const findings = runValidation(db, only('HOF_NO_COORD'));
+    expect(findings.map((f) => f.hofId)).toEqual(['@H1@']);
+  });
+
   it('HOF_FAR misst die Distanz zum umschließenden Ort', () => {
     const bewohnt = personWith('@I1@');
     bewohnt.events = [makeEvent('RESI', { hofId: '@H1@', seen: true })];

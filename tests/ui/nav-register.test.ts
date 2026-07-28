@@ -60,8 +60,11 @@ describe('Ziel-Register — eine Beschreibung je Ziel (INV-UI-15)', () => {
     expect(RESEARCH_TARGETS.map((t) => t.id)).toEqual(['quality', 'tasks', 'log', 'hypotheses']);
   });
 
-  it('führt die fünf Entitäten aus Spec 21 §1 (Archive sind kein eigenes Ziel)', () => {
-    expect(ENTITY_TARGETS.map((t) => t.id)).toEqual(['person', 'family', 'source', 'place', 'hof']);
+  it('führt die sechs Entitäten aus Spec 21 §1 (Archive sind kein eigenes Ziel; Medien seit BL-126)', () => {
+    // `media` ist die 6. Entität (ADR-v9-132): `Media` ist eine Top-Level-Modell-Entität
+    // (db.media, Spec 10 §4), die Galerie ist "analog Quellen" ein eigenes Segment (Spec
+    // 20 §1.4). Archive bleiben KEIN eigenes Ziel (Unteransicht des Quellen-Ziels).
+    expect(ENTITY_TARGETS.map((t) => t.id)).toEqual(['person', 'family', 'source', 'place', 'hof', 'media']);
     expect(NAV_TARGETS.some((t) => (t.id as string) === 'repository')).toBe(false);
   });
 
@@ -139,14 +142,15 @@ describe('bottomNavSlotFor — die drei vormals verstreuten Zuordnungen', () => 
     for (const t of ENTITY_TARGETS) expect(bottomNavSlotFor(t.id)).toBe('person');
   });
 
-  it('Karte und Zeitleiste hängen am Baum-Slot (kein eigener Slot, Spec 21 §2)', () => {
+  it('Karte, Zeitleiste und Story hängen am Baum-Slot (kein eigener Slot, Spec 21 §2)', () => {
     expect(bottomNavSlotFor('map')).toBe('tree');
     expect(bottomNavSlotFor('timeline')).toBe('tree');
+    expect(bottomNavSlotFor('story')).toBe('tree');
     expect(bottomNavSlotFor('tree')).toBe('tree');
   });
 
   it('Hub-Ziele und der Hub selbst hängen am Mehr-Slot', () => {
-    for (const id of ['file', 'stats', 'story', 'reports', 'settings', 'more'] as const) {
+    for (const id of ['file', 'stats', 'reports', 'settings', 'more'] as const) {
       expect(bottomNavSlotFor(id), id).toBe('more');
     }
   });
@@ -235,12 +239,12 @@ describe('Route — Lens-Merker (Baum/Karte/Zeitleiste teilen einen Slot)', () =
     }
   });
 
-  it('isLensTarget deckt genau die drei Umschalter-Lenses ab (nicht stats/story)', () => {
+  it('isLensTarget deckt genau die vier Umschalter-Lenses ab (nicht stats)', () => {
     expect(isLensTarget('tree')).toBe(true);
     expect(isLensTarget('map')).toBe(true);
     expect(isLensTarget('timeline')).toBe(true);
+    expect(isLensTarget('story')).toBe(true);
     expect(isLensTarget('stats')).toBe(false);
-    expect(isLensTarget('story')).toBe(false);
     expect(isLensTarget('person')).toBe(false);
   });
 

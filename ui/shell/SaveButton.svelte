@@ -36,11 +36,16 @@
 
 {#if appState.fileName}
   <div class="save-bar">
-    <button type="button" class="save-bar__button" onclick={handleClick} disabled={status === 'saving'}>
+    <button type="button" class="save-bar__button" data-variant="primary" onclick={handleClick} disabled={status === 'saving'}>
       {status === 'saving' ? 'Speichere …' : 'Speichern'}
     </button>
     {#if notice}
       <span class="save-bar__notice" role="status">{notice}</span>
+    {:else}
+      <!-- Speicher-Ziel sichtbar machen (ADR-v9-128, Kritik-Punkt 2): „Speichern → Datei",
+           damit klar ist, wohin geschrieben wird. Nach dem Speichern ersetzt die Meldung
+           die Zielangabe. -->
+      <span class="save-bar__target">→ {appState.fileName}</span>
     {/if}
   </div>
 {/if}
@@ -71,5 +76,10 @@
     color: var(--stb-text-dim);
     font-size: 0.85rem;
     font-style: italic;
+  }
+
+  .save-bar__target {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 </style>

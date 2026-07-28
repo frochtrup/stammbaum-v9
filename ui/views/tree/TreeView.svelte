@@ -16,6 +16,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { Route } from '../../shell/route.svelte';
+  import { resolveProband } from '../../shell/proband';
   import type { Database, PersonId } from '../../../core/model/types';
   import type { TreeModeId } from '../../shell/nav-model';
   import LensViewHeader from '../../shell/LensViewHeader.svelte';
@@ -54,7 +55,9 @@
   let mounted: { mode: TreeModeId; db: Database } | null = null;
 
   const treeMode = $derived<TreeModeId>(route?.treeMode ?? 'hourglass');
-  const focusId = $derived(viewState.getCurrent('lensFocus') ?? firstAvailablePersonId());
+  // Der Baum zentriert auf den geteilten Lens-Fokus; ohne einen fällt er auf den Probanden
+  // (effektive Referenzperson, BL-120 — vorher `keys().next()`/Einfüge-Reihenfolge).
+  const focusId = $derived(viewState.getCurrent('lensFocus') ?? resolveProband(appState.db, viewState));
 
   // ── Vollständigkeits-Ring (BL-121, Spec 21 §8) ──
   // Regel-Konfiguration wie im Dashboard nachladen (dieselbe Quelle → gleiche Ringe/Ampel).
@@ -81,10 +84,6 @@
     { id: 'fan', label: 'Fächer' },
   ];
 
-  function firstAvailablePersonId(): string | null {
-    const first = appState.db.individuals.keys().next();
-    return first.done ? null : first.value;
-  }
 
   function recenter(id: string): void {
     viewState.setCurrent('lensFocus', id);

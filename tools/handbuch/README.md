@@ -83,7 +83,16 @@ Fixture verifizieren (reichste Person mit vielen Ereignissen für die Detail-Scr
 - Läuft **lokal** (System-Chrome, Dev-Server) — nicht in CI.
 
 ## Lessons Learnt (Screenshot-Pipeline)
-Erfahrungen, die `capture.mjs` immer wieder brechen können — beim nächsten Fehlerbild zuerst hier:
+**Vor JEDEM Editieren von `capture.mjs` diese Liste lesen — nicht erst beim Fehlerbild.**
+Am 2026-07-29 kosteten drei neue Screenshots vier volle Capture-Läufe, obwohl die Punkte 4
+und 6 unten die zwei Hauptursachen wörtlich beschrieben — sie waren dokumentiert, aber
+ungelesen. Ein neuer Capture-Schritt startet NICHT im Leerzustand: Segment, Auswahl und
+Scroll-Container tragen den Zustand der vorigen Schritte. **Iterations-Disziplin:** einen neuen
+Schritt gegen die laufende App gedanklich durchspielen (welches Segment/welche Auswahl ist
+offen?), NICHT blind schreiben und per Screenshot debuggen. Zum Nachbessern EINES Screenshots
+den Dev-Server EINMAL starten und `node capture.mjs --only <name>` laufen (Flag unten) — NICHT
+`npm run handbuch` (das rendert alle ~35 Shots neu UND bumpt Version/Changelog, die man dann
+zurückdrehen muss).
 
 1. **`capture.mjs` teilt das IndexedDB-Schema der App.** Der Seed öffnet die DB mit fester
    Version + Store-Liste; diese MÜSSEN mit `services/idb-schema.ts` (`DB_VERSION`, `STORE_*`)
@@ -96,15 +105,30 @@ Erfahrungen, die `capture.mjs` immer wieder brechen können — beim nächsten F
    Element mit passendem Text".** Ein neuer, gleichnamiger Schalter kann die Navigation
    kapern. Konkret: der Protokoll-Umschalter „Personen/Timeline" fing `bottomNav('Personen')`
    ab → `bottomNav` trifft jetzt nur `nav.bottom-nav .bottom-nav__item`.
-4. **Segment-/Tab-Zustand bleibt erhalten.** Zurück auf einen Entitäts-Tab landet auf dem
-   ZULETZT genutzten Segment (nicht „Personen"). Ziel eindeutig ansteuern (Segment explizit
-   klicken oder über Detail → „Im Baum anzeigen").
+4. **Segment-/Tab-Zustand bleibt erhalten.** `bottomNav('person')` öffnet nur die DATEN-Gruppe
+   und zeigt das ZULETZT genutzte Segment (nach 13c z. B. Medien), NICHT die Personen-LISTE.
+   Für die Personenliste: `bottomNav('person')` → `click('Personen')` (Segment explizit) →
+   und, falls noch ein Steckbrief offen ist, `.detail-header__back` klicken. (Erlebt
+   2026-07-29: der Beziehungsrechner-Shot landete zweimal auf dem Medien-Segment.)
 5. **`lensFocus` ist geteilt.** Einmal gesetzt (Person-Detail → „Im Baum anzeigen"), erben
    Sanduhr, Karte-Personen-Modus UND Zeitleiste dieselbe Person — praktisch, um überall den
    verstorbenen Probanden zu zeigen. Aber: die Zeitleiste belegt sich daraus schon selbst;
    ein zusätzliches „Person hinzufügen" ergibt einen zweiten (gleichnamigen) Chip.
 6. **Anonymisierung erzeugt Namensgleichheit.** Pseudonyme sind deterministisch je Name —
-   mehrere reale Personen können denselben Namen tragen. „Ersten Treffer zum Nachnamen
-   nehmen" ist mehrdeutig; über die volle Identität / einen stabilen Anker gehen.
-7. **Manche Ansichten brauchen Breite.** Die Zeitleiste (Swim-Lanes) wird im **Desktop**-
+   mehrere reale Personen können denselben Namen tragen. Ein Picker-Suchbegriff muss im
+   Bestand EINDEUTIG sein, nicht nur die Zielperson „geben". „Ersten Treffer nehmen" ist
+   mehrdeutig; nach vollem „Vorname Nachname" suchen UND die Option per `textContent.includes`
+   auf denselben Begriff wählen. (Erlebt 2026-07-29: „Styna" traf als Zweitname Dutzende;
+   „Styna Hörstmann" ist eindeutig — vorher `grep '1 NAME .*Styna' fixture.ged` zählen.)
+7. **Lange Ansichten scrollen einen INNEREN Container, nicht `window`.** Bei Story/Detail
+   bewirkt `window.scrollTo(...)` nichts. `element.scrollIntoView({block:'start'})` auf das
+   Zielelement (findet den richtigen Scroll-Vorfahren selbst), danach ggf. am gefundenen
+   Container (`scrollHeight > clientHeight`) feinjustieren. Und: die USP der Story ist der
+   ERZÄHLTE Text — ein Hero-Shot nur mit Karte/Diagramm zeigt keinen einzigen Satz; bewusst so
+   framen, dass Prosa sichtbar ist (`.story-lens-view__section-title` anscrollen).
+8. **`--only <a,b>`-Flag zum Nachbessern.** Regeneriert nur passende Screenshots (Teilstring
+   auf den Shot-Namen); die Navigation läuft weiter komplett durch (Zustandsabhängigkeit),
+   aber die übrigen 30+ PNGs bleiben unangetastet — sonst dirtyt jeder Debug-Lauf alle Dateien
+   (Shots rendern nicht-deterministisch). Beispiel: `node capture.mjs --only 28-beziehung`.
+9. **Manche Ansichten brauchen Breite.** Die Zeitleiste (Swim-Lanes) wird im **Desktop**-
    Viewport aufgenommen, nicht mobil (dort zu schmal) — als `figure.wide` im Handbuch.

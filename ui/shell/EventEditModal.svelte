@@ -35,8 +35,8 @@
   // die eigenen Aktionsknöpfe. Nur das Panel bleibt lokal (Breite/Polsterung je Fall).
   import { untrack } from 'svelte';
   import type { AppState } from './app-state.svelte';
-  import type { Event, Quay } from '../../core/model/types';
-  import { makeCitation } from '../../core/model/factory';
+  import type { Event, Quay, MediaCitation } from '../../core/model/types';
+  import { makeCitation, makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { setCitationQuay, setCitationUrl } from '../../core/model/citation';
   import { HOF_EVENT_TYPES } from '../../core/places';
   import SourceCitationRow from './SourceCitationRow.svelte';
@@ -133,9 +133,33 @@
     editable.citations = editable.citations.map((c, i) => (i === index ? setCitationUrl(c, url) : c));
   }
 
+  // 📷-Kamera-Schnellzugriff (Spec 20 §1.4 [S]): das gewählte/aufgenommene Foto wird SOFORT
+  // mit DIESEM Ereignis verknüpft. `capture="environment"` öffnet mobil direkt die Kamera,
+  // fällt am Desktop auf einen Dateiwähler zurück — offlinefähig, kein Netz nötig. Der
+  // Dateiname ist die Media-Identität (Media.file, Spec 10 §4/14 §7). Das Media-Record wird
+  // sofort angelegt (appState.saveMedia); die Verknüpfung sammelt sich in `pendingMedia` und
+  // wird beim Speichern des Ereignisses an event.media angehängt (fromEditable trägt media
+  // nicht, daher hier explizit).
+  let pendingMedia = $state<MediaCitation[]>([]);
+
+  function onCameraFiles(input: HTMLInputElement) {
+    const files = input.files;
+    if (!files) return;
+    for (const f of Array.from(files)) {
+      const id = f.name;
+      appState.saveMedia(makeMedia(id, { file: id, form: f.type, title: '' }));
+      if (!pendingMedia.some((m) => m.mediaId === id) && !event.media.some((m) => m.mediaId === id)) {
+        pendingMedia = [...pendingMedia, makeMediaCitation(id)];
+      }
+    }
+    input.value = '';
+  }
+
+  const attachedCount = $derived(event.media.length + pendingMedia.length);
+
   function save() {
     const updated = fromEditable(event, editable);
-    onSave(updated, deathCause.trim());
+    onSave({ ...updated, media: [...event.media, ...pendingMedia] }, deathCause.trim());
   }
 
   function onBackdropKeydown(e: KeyboardEvent) {
@@ -318,6 +342,24 @@
       {/each}
     </div>
 
+    <div class="event-edit-modal__media">
+      <label class="event-edit-modal__camera-btn">
+        📷 Foto aufnehmen/anhängen
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          class="event-edit-modal__file-input"
+          aria-label="Foto aufnehmen oder Datei anhängen"
+          onchange={(e) => onCameraFiles(e.currentTarget)}
+        />
+      </label>
+      {#if attachedCount > 0}
+        <span class="event-edit-modal__media-count">{attachedCount} Medium{attachedCount === 1 ? '' : 'en'} verknüpft</span>
+      {/if}
+    </div>
+
     <div class="event-edit-modal__actions">
       <button type="button" class="event-edit-modal__save-btn" onclick={save}>Speichern</button>
       <button type="button" class="event-edit-modal__cancel-btn" onclick={onClose}>Abbrechen</button>
@@ -438,6 +480,40 @@
   .event-edit-modal__add-citation-btn:disabled {
     cursor: not-allowed;
     opacity: 0.55;
+  }
+
+  .event-edit-modal__media {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.9rem;
+  }
+
+  .event-edit-modal__camera-btn {
+    display: inline-flex;
+    align-items: center;
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+
+  .event-edit-modal__file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .event-edit-modal__media-count {
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
   }
 
   .event-edit-modal__actions {

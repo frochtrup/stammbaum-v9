@@ -13,6 +13,7 @@ import { displayName } from '../../shell/person-display';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 import { collectCitationRefs } from './citation-refs';
 import { familyLabelFor } from './family-label';
+import { badgeLinkHref } from '../../shell/source-badge';
 
 export interface SourceReferenceRow {
   /** Stabiler Rendering-Key (Svelte `{#each}`), da mehrere Referenzen sonst identische
@@ -24,6 +25,10 @@ export interface SourceReferenceRow {
   context: string;
   page: string;
   quay: 0 | 1 | 2 | 3;
+  /** Online-Fundort der Referenz (ADR-v9-86): abgeleitet über DIESELBE `badgeLinkHref`-
+   *  Quelle wie die Quellen-Pille (INV-UI-4) — deepLinkUrl/OBJE-FILE bzw. PAGE-als-URL,
+   *  leer wenn kein Weblink. Trägt das klickbare `↗` in der Referenzzeile. */
+  url: string;
 }
 
 export interface SourceDetailModel {
@@ -74,6 +79,7 @@ export function buildSourceDetail(db: Database, sourceId: string): SourceDetailM
       context: ref.context,
       page: ref.citation.page,
       quay: ref.citation.quay,
+      url: badgeLinkHref(ref.citation),
     }));
 
   const referencesByType = groupByKey(references, (r) => r.context);

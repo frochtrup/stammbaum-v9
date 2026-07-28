@@ -72,6 +72,10 @@ export function projectPlaceobj(node: XmlNode, resolveRefId: (h: string) => stri
     shortName: '', // App-privat, nicht aus GRAMPS (ADR-v9-90).
     type: attr(node, 'type'),
     pnames: childrenByTag(node, 'pname').map(projectPname),
+    // App-privat, nicht aus GRAMPS (BL-59, analog shortName) — die GRAMPS-`<pname lang>`
+    // bleibt Passthrough am Knoten; die Sprachachse wird in der App kuratiert, nicht aus
+    // dem Wire geraten (sonst Roundtrip-/Semantik-Drift).
+    translations: [],
     enclosedBy,
     lat,
     long,

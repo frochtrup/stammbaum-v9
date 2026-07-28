@@ -20,6 +20,7 @@
     knownPlaceTypes,
     type PlaceFilters,
   } from './place-list-model';
+  import { batchGeocodePlaces, browserGeocodeDeps } from '../../../services/places';
 
   interface Props {
     appState: AppState;
@@ -41,6 +42,43 @@
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
   let groupMode = $state(false);
   let section = $state<'referenced' | 'unreferenced'>('referenced');
+  /** Batch-Geocoding-Fortschritt (BL-130): `null` = nicht gelaufen. */
+  let batch = $state<{ running: boolean; done: number; total: number; ok: number } | null>(null);
+
+  /**
+   * Geocodiert alle referenzierten Orte OHNE Koordinaten via Nominatim (ratenlimitiert,
+   * ~1,1 s je Ort). Übernimmt fill-if-empty (vorhandene Kuration bleibt), zeigt Fortschritt.
+   * Opt-in — nur auf Klick; kann bei vielen Orten Minuten dauern.
+   */
+  async function geocodeAllMissing() {
+    const targets = sections.referenced
+      .filter((r) => !r.hasCoords)
+      .map((r) => appState.db.placeObjects.get(r.id))
+      .filter((p): p is NonNullable<typeof p> => !!p);
+    if (targets.length === 0) {
+      batch = { running: false, done: 0, total: 0, ok: 0 };
+      return;
+    }
+    batch = { running: true, done: 0, total: targets.length, ok: 0 };
+    const hits = await batchGeocodePlaces(
+      targets.map((p) => p.title),
+      browserGeocodeDeps(),
+      (p) => (batch = { running: true, done: p.done, total: p.total, ok: batch?.ok ?? 0 }),
+    );
+    let ok = 0;
+    for (const p of targets) {
+      const hit = hits.get(p.title);
+      if (!hit) continue;
+      appState.savePlace({
+        ...p,
+        lat: p.lat ?? hit.lat,
+        long: p.long ?? hit.long,
+        type: !p.type || p.type === 'Unknown' ? hit.type : p.type,
+      });
+      ok++;
+    }
+    batch = { running: false, done: targets.length, total: targets.length, ok };
+  }
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultPlaceFilters()));
   const events = $derived(collectAllEvents(appState.db));
@@ -113,6 +151,21 @@
             {/if}
             {#if onOpenDedup}
               <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+            {/if}
+            <button
+              type="button"
+              class="place-list__dedup-btn"
+              onclick={geocodeAllMissing}
+              disabled={batch?.running}
+            >
+              📍 Alle ohne Koordinaten geocodieren
+            </button>
+            {#if batch}
+              <span class="place-list__geocode-status">
+                {#if batch.running}Geocodiere… {batch.done}/{batch.total}
+                {:else if batch.total === 0}Alle referenzierten Orte haben bereits Koordinaten.
+                {:else}✓ {batch.ok} von {batch.total} geocodiert.{/if}
+              </span>
             {/if}
           </div>
         </FilterBar>
@@ -224,6 +277,11 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .place-list__geocode-status {
+    font-size: 0.8rem;
+    color: var(--stb-text-dim);
   }
 
   .place-list__toggle {

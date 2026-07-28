@@ -7,8 +7,10 @@
   // Merge erscheint der Titel/die Varianten des zusammengeführten Orts hier als neue
   // Pille (Verlustfreiheit sichtbar). Merge selbst läuft NUR über den Kern-Chokepoint
   // `appState.mergePlace(survivorId, mergedId)` (Spec 02 §3) — keine Merge-Logik hier.
-  // SVG-Namens-Zeitstrahl + Mini-Karte sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative
-  // Inseln — anderer Bauabschnitt).
+  // Die Mini-Karte (BL-09) ist als `PlaceMiniMap` eingebettet (gemeinsamer SVG-Renderer,
+  // INV-UI-4); Übersetzungen (BL-59, `translations`) sitzen in der Namens-Varianten-Sektion
+  // (Sprachachse neben der pnames-Zeitachse). Der SVG-Namens-Zeitstrahl bleibt AUSSER SCOPE
+  // (Spec 20 §1.9/§1.10, imperative Insel — anderer Bauabschnitt).
   //
   // Verwaltungsgeschichte (Bau-Auftrag "Orts-Detailansicht"): die LESE-Ansicht zeigt hier
   // NUR `detail.hierarchyTimeline` (volle Kette je Schlüsseljahr, `place-detail-model.ts`,
@@ -19,24 +21,21 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import Picker from '../../shell/Picker.svelte';
+  import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
-  import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
-  import FilterBar from '../../shell/FilterBar.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { withAddedPname, withRemovedPname, placeDisplayName } from '../../../core/places';
+  import { withAddedPname, withRemovedPname, withAddedTranslation, withRemovedTranslation } from '../../../core/places';
+  import PlaceEditForm from './PlaceEditForm.svelte';
+  import PlaceMiniMap from './PlaceMiniMap.svelte';
   import {
     buildPlaceDetail,
-    buildPlaceContemporaries,
-    groupContemporaries,
     type ChainSegment,
     type PlaceEventRow,
-    type ContemporaryGroupMode,
-    type PlaceContemporaryRow,
   } from './place-detail-model';
   import PlaceEnclosureEditModal from './PlaceEnclosureEditModal.svelte';
+  import PlaceContemporaries from './PlaceContemporaries.svelte';
 
   interface Props {
     appState: AppState;
@@ -63,62 +62,16 @@
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
+  /** Sprachachse (BL-59) — `?? []` toleriert aus feldloser orte.json geladene Orte. */
+  const translations = $derived(detail ? (detail.place.translations ?? []) : []);
 
   let editing = $state(false);
-  let formTitle = $state('');
-  /** Zeitinvarianter Listen-Anzeigename (Spec 11 §1, INV-UI-14) — nie Export (LP-1). */
-  let formShortName = $state('');
-  let formType = $state('');
-  let formLat = $state<number | null>(null);
-  let formLong = $state<number | null>(null);
-  let formNote = $state('');
-  let formExistsFrom = $state<number | null>(null);
-  let formExistsTo = $state<number | null>(null);
-  let formGovId = $state('');
-  /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext (kein
-   *  etabliertes Array-of-string-Editier-Muster im Projekt, s. PlaceForm.svelte). */
-  let formGovTypes = $state('');
   let newPnameValue = $state('');
   let newPnameFrom = $state<number | null>(null);
   let newPnameTo = $state<number | null>(null);
-  let mergeTargetId = $state('');
-  let mergeError = $state('');
-
-  /** Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5) — On-Demand-Werkzeug analog
-   *  Beziehungsrechner ("kein Dauer-Element"): berechnet UND rendert erst, wenn die
-   *  Sektion geöffnet wird (Knotenpunkt-Orte skalieren auf hunderte/tausende Treffer). */
-  let contemporariesOpen = $state(false);
-  let contemporaryMode = $state<ContemporaryGroupMode>('decade');
-  const CONTEMPORARY_MODES = [
-    { id: 'decade', label: 'Nach Jahrzehnt' },
-    { id: 'hof', label: 'Nach Hof' },
-    { id: 'chrono', label: 'Chronologisch' },
-  ];
-
-  /** Zeitgenossen-Filter über EREIGNISJAHRE (Nutzer-Entscheidung 2026-07-16, NICHT über
-   *  geschätzte Lebensspannen — kein Lebensspannen-Schätzer im Kern). Per Default AUS. */
-  let contemporaryFilterEnabled = $state(false);
-  let contemporaryRefYear = $state<number | null>(null);
-  let contemporaryWindow = $state(25);
-
-  function toggleContemporaries() {
-    contemporariesOpen = !contemporariesOpen;
-  }
-
-  const contemporaryFilter = $derived(
-    contemporaryFilterEnabled && contemporaryRefYear != null
-      ? { refYear: contemporaryRefYear, window: contemporaryWindow }
-      : null,
-  );
-  // Bewusst NICHT Teil von `detail` (buildPlaceDetail) — läuft nur, solange die Sektion
-  // tatsächlich geöffnet ist (ADR-v9-78 Punkt 5).
-  const contemporaryRows = $derived(
-    contemporariesOpen && placeId
-      ? buildPlaceContemporaries(appState.db, appState.placeContext, placeId, contemporaryFilter)
-      : [],
-  );
-  const contemporaryGroups = $derived(groupContemporaries(contemporaryRows, contemporaryMode));
-  const contemporaryActiveFilterCount = $derived(contemporaryFilterEnabled ? 1 : 0);
+  /** Sprachachse (BL-59): neue Übersetzung (Sprachkürzel + Zielsprachen-Name). */
+  let newTransLang = $state('');
+  let newTransValue = $state('');
 
   /** Steuert PlaceEnclosureEditModal.svelte (Bau-Auftrag "Orts-Detailansicht": die
    *  direkte enclosedBy-Zuordnung ist "Mittel zum Zweck" und wandert ins Modal, weg von
@@ -134,50 +87,9 @@
     enclosureModalOpen = false;
   }
 
-  /** Komma-getrennten Freitext in `govTypes: string[] | null` zurückübersetzen — leere
-   *  Liste wird `null` (Tristate-Default, analog anderen "leer = nicht erfasst"-Feldern). */
-  function parseGovTypes(text: string): string[] | null {
-    const items = text
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    return items.length > 0 ? items : null;
-  }
-
-  function startEdit() {
-    if (!detail) return;
-    formTitle = detail.place.title;
-    formShortName = detail.place.shortName;
-    formType = detail.place.type;
-    formLat = detail.place.lat;
-    formLong = detail.place.long;
-    formNote = detail.place.note;
-    formExistsFrom = detail.place.existsFrom;
-    formExistsTo = detail.place.existsTo;
-    formGovId = detail.place.govId ?? '';
-    formGovTypes = detail.place.govTypes?.join(', ') ?? '';
-    editing = true;
-  }
-
-  function cancelEdit() {
-    editing = false;
-  }
-
-  function saveEdit() {
-    if (!detail) return;
-    appState.savePlace({
-      ...detail.place,
-      title: formTitle.trim(),
-      shortName: formShortName.trim(),
-      type: formType.trim(),
-      lat: formLat,
-      long: formLong,
-      note: formNote,
-      existsFrom: formExistsFrom,
-      existsTo: formExistsTo,
-      govId: formGovId.trim() || null,
-      govTypes: parseGovTypes(formGovTypes),
-    });
+  /** Speichert das von PlaceEditForm gebaute PlaceObject und verlässt den Bearbeiten-Modus. */
+  function handleSaveEdit(updated: PlaceObject) {
+    appState.savePlace(updated);
     editing = false;
   }
 
@@ -193,6 +105,19 @@
   function removePname(index: number) {
     if (!detail) return;
     appState.savePlace(withRemovedPname(detail.place, index));
+  }
+
+  /** Übersetzung anhängen (Sprachachse, BL-59) — gleicher Sofort-Speichern-Pfad wie addPname. */
+  function addTranslation() {
+    if (!detail || !newTransValue.trim()) return;
+    appState.savePlace(withAddedTranslation(detail.place, newTransLang, newTransValue));
+    newTransLang = '';
+    newTransValue = '';
+  }
+
+  function removeTranslation(index: number) {
+    if (!detail) return;
+    appState.savePlace(withRemovedTranslation(detail.place, index));
   }
 
   function linkUnlinked(eventKey: string) {
@@ -213,36 +138,6 @@
     viewState.setCurrent('place', id);
   }
 
-  const otherPlaces = $derived(
-    detail ? Array.from(appState.db.placeObjects.values()).filter((p) => p.id !== detail.place.id) : [],
-  );
-
-  function placeLabel(p: PlaceObject): string {
-    return placeDisplayName(p);
-  }
-
-  function placeMatches(p: PlaceObject, query: string): boolean {
-    return placeLabel(p).toLowerCase().includes(query.trim().toLowerCase());
-  }
-
-  /**
-   * Dubletten-Merge (Spec 20 §1.7 [K] "Dubletten-Merge, verlustfrei"): der aktuell
-   * gezeigte Ort (die Dublette) wird IN den gewählten Ziel-Ort (Überlebenden) gefaltet.
-   * `appState.mergePlace` ist der EINE Chokepoint (INV-ARCH-1) — keine Merge-Logik hier.
-   * Ziel darf nicht der aktuelle Ort sein (Selbst-Merge ausgeschlossen); danach Navigation
-   * zum Überlebenden, der jetzt Titel + pnames der Dublette als Varianten hält.
-   */
-  function mergeIntoTarget() {
-    if (!detail || !placeId) return;
-    if (!mergeTargetId || mergeTargetId === placeId) {
-      mergeError = 'Bitte einen anderen Ziel-Ort wählen.';
-      return;
-    }
-    appState.mergePlace(mergeTargetId, placeId);
-    viewState.setCurrent('place', mergeTargetId);
-    mergeTargetId = '';
-    mergeError = '';
-  }
 
   /**
    * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()` (kein etabliertes
@@ -278,27 +173,6 @@
      goToPlace, außer dem Segment, das auf DIESEN Ort selbst zeigt (kein Selbst-Link) —
      das ist bei der "Aktuell:"-Kette das erste Segment, bei den Zeitleisten-Zeilen kommt
      die eigene Id gar nicht vor (bereits serverseitig .slice(1)). -->
-{#snippet contemporaryRow(row: PlaceContemporaryRow)}
-  <button type="button" class="place-detail__owner-link" onclick={() => onNavigateToPerson?.(row.personId)}>
-    {row.personName}
-  </button>
-  {#if row.year != null}<span class="place-detail__muted">{row.year}</span>{/if}
-  <span class="place-detail__muted">{row.label}</span>
-  <!-- Hof-Angabe als `.stb-pill`, NICHT `.stb-role-label` (Befund eigene Verifikation
-       2026-07-16): `.stb-role-label` ist der Stil für ROLLEN ("EHEMANN", "BEWOHNER",
-       Spec 21 §10j) und erzwingt `text-transform: uppercase` — ein Hof-Name ist aber ein
-       Eigenname/eine Adresse, keine Rollen-Kategorie ("Gronauer Str. 30 (Oster 84)" wurde
-       zu "GRONAUER STR. 30 (OSTER 84)" entstellt, ausgerechnet die Hof-Identität,
-       ADR-v9-81). `.stb-pill` ist die spec-eigene Klasse für "Zusatzfakt zur Zeile, nur
-       bei Zutreffen sichtbar" (ADR-v9-79 Punkt 3) — genau die Polarität hier: die
-       Mehrheit der Zeilen ("direkt am Ort") trägt keinen Hof.
-       Im Hof-MODUS entfällt sie ganz: dort trägt der Gruppen-Header den Hof-Namen
-       bereits, jede Zeile würde ihn nur wiederholen (Spec 21 §10h, hier auf Gruppen-
-       statt Seitenebene — Befund am 375px-Screenshot: 8 identische Pillen unter EINEM
-       gleichlautenden Header, die zusätzlich den Zeilenumbruch verursachten). -->
-  {#if row.hofLabel && contemporaryMode !== 'hof'}<span class="stb-pill">{row.hofLabel}</span>{/if}
-{/snippet}
-
 {#snippet chainRow(chain: ChainSegment[], truncated: boolean)}
   {#each chain as seg, i (seg.id)}
     {#if i > 0}<span class="place-detail__chain-sep"> › </span>{/if}
@@ -321,59 +195,18 @@
       {#snippet actions()}
         {#if detail.place.type}<span class="place-detail__type-badge">{detail.place.type}</span>{/if}
         {#if !editing}
-          <button type="button" class="place-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+          <button type="button" class="place-detail__edit-btn" onclick={() => (editing = true)}>✎ Bearbeiten</button>
         {/if}
       {/snippet}
     </DetailHeader>
 
     {#if editing}
-      <section class="place-detail__section place-detail__form">
-        <h3>Grunddaten</h3>
-        <label>
-          Name
-          <input type="text" bind:value={formTitle} />
-        </label>
-        <label>Anzeigename (Listen) <input type="text" bind:value={formShortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
-        <label>
-          Typ
-          <input type="text" bind:value={formType} placeholder="z. B. Village, City, County…" />
-        </label>
-        <div class="place-detail__coord-row">
-          <label>
-            Breitengrad
-            <input type="number" step="any" bind:value={formLat} />
-          </label>
-          <label>
-            Längengrad
-            <input type="number" step="any" bind:value={formLong} />
-          </label>
-        </div>
-        <label>
-          Notiz
-          <textarea bind:value={formNote}></textarea>
-        </label>
-        <label>
-          Existiert von (Jahr)
-          <input type="number" bind:value={formExistsFrom} />
-        </label>
-        <label>
-          Existiert bis (Jahr)
-          <input type="number" bind:value={formExistsTo} />
-        </label>
-        <label>
-          GOV-ID
-          <input type="text" bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
-        </label>
-        <label>
-          GOV-Typen (kommagetrennt)
-          <input type="text" bind:value={formGovTypes} placeholder="z. B. Stadt, Kreis" />
-        </label>
-        <div class="place-detail__form-actions">
-          <button type="button" class="place-detail__save-btn" onclick={saveEdit}>Speichern</button>
-          <button type="button" class="place-detail__cancel-btn" onclick={cancelEdit}>Abbrechen</button>
-          <button type="button" class="place-detail__delete-btn" onclick={handleDelete}>Ort löschen</button>
-        </div>
-      </section>
+      <PlaceEditForm
+        place={detail.place}
+        onSave={handleSaveEdit}
+        onCancel={() => (editing = false)}
+        onDelete={handleDelete}
+      />
     {/if}
 
     <section class="place-detail__section">
@@ -413,7 +246,7 @@
       <PlaceEnclosureEditModal {appState} {placeId} onClose={closeEnclosureModal} />
     {/if}
 
-    {#if detail.variants.length > 0 || editing}
+    {#if detail.variants.length > 0 || translations.length > 0 || editing}
       <section class="place-detail__section">
         <h3>Namens-Varianten</h3>
         {#if detail.variants.length > 0}
@@ -436,52 +269,40 @@
             <button type="button" onclick={addPname}>+ Hinzufügen</button>
           </div>
         {/if}
-      </section>
-    {/if}
 
-    {#if editing}
-      <!-- Dubletten-Merge bewusst ebenfalls hinter den Bearbeiten-Modus gestellt (ADR-v9-30
-           Punkt 5: "kein Add/Remove-Control … darf außerhalb des Bearbeitungs-Modus sichtbar
-           sein" — Merge ist im selben visuellen Add-Row-Stil gebaut und destruktiv/mutierend
-           wie pnames/enclosedBy, auch wenn der Spec-Wortlaut nur diese beiden explizit nennt.
-           Konsistente, sicherere Default-Interpretation statt eines dritten Sonderfalls. -->
-      <section class="place-detail__section">
-        <h3>Dubletten-Merge</h3>
-        <p class="place-detail__muted">
-          Diesen Ort verlustfrei in einen anderen Ort zusammenführen — Titel und Namensvarianten
-          von „{detail.place.title || detail.place.id}" erscheinen danach als Herkunfts-Pillen
-          beim Ziel-Ort.
-        </p>
-        {#if otherPlaces.length === 0}
-          <p class="place-detail__muted">Kein weiterer Ort vorhanden, um damit zusammenzuführen.</p>
-        {:else}
-          <div class="place-detail__add-row">
-            <!-- Kein "+ neu anlegen"-Slot — bewusst die EINZIGE verbleibende Ausnahme
-                 (ADR-v9-42, semantisch statt kategorisch: ein frisch angelegter leerer
-                 Ort als Merge-Ziel ist bedeutungslos, man führt nichts in gerade erst
-                 Erzeugtes zusammen). Andere Orts-/Hof-Picker (enclosedBy im
-                 PlaceEnclosureEditModal, event.place/addr, HofDetail Vorgänger/Nachfolger)
-                 haben die Anlage-Option inzwischen alle. -->
-            <Picker
-              items={otherPlaces}
-              getId={(p) => p.id}
-              getLabel={placeLabel}
-              getSubLabel={(p) => p.id}
-              matches={placeMatches}
-              value={mergeTargetId || null}
-              onChange={(id) => (mergeTargetId = id ?? '')}
-              label="Ziel-Ort für Merge"
-              placeholder="Ziel-Ort wählen…"
-            />
-            <button type="button" class="place-detail__merge-btn" onclick={mergeIntoTarget} disabled={!mergeTargetId}>
-              In Ziel-Ort zusammenführen
-            </button>
-          </div>
-          {#if mergeError}
-            <p class="place-detail__error">{mergeError}</p>
+        <!-- Übersetzungen (Sprachachse, BL-59) — dieselbe Pill-/Add-Zeilen-Optik wie pnames
+             (INV-UI-4), nur der Feld-Schnitt (Sprachkürzel + Text statt Zeitraum + Text)
+             unterscheidet sich. Gleiches Bearbeitungs-Modus-Gating (kein Add/Remove außerhalb
+             `editing`, ADR-v9-30) — kein zweiter Editier-Zustand, keine zweite Sektion. -->
+        {#if translations.length > 0 || editing}
+          <p class="place-detail__hint">Übersetzungen (Sprachen):</p>
+          {#if translations.length > 0}
+            <div class="stb-pill-row" aria-label="Übersetzungen">
+              {#each translations as t, i (i)}
+                <span class="stb-pill">
+                  <span class="place-detail__trans-lang">{t.lang}</span> {t.value}
+                  {#if editing}
+                    <button type="button" class="stb-pill__remove" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
+                  {/if}
+                </span>
+              {/each}
+            </div>
+          {/if}
+          {#if editing}
+            <div class="place-detail__add-row">
+              <input type="text" class="place-detail__trans-lang-input" placeholder="Sprache (z. B. pl)" bind:value={newTransLang} aria-label="Sprachkürzel" />
+              <input type="text" placeholder="Name in dieser Sprache…" bind:value={newTransValue} aria-label="Übersetzter Ortsname" />
+              <button type="button" onclick={addTranslation}>+ Übersetzung</button>
+            </div>
           {/if}
         {/if}
       </section>
+    {/if}
+
+    <PlaceMiniMap lat={detail.place.lat} long={detail.place.long} label={detail.place.title || detail.place.id} />
+
+    {#if editing && placeId}
+      <PlaceMergeSection {appState} {viewState} place={detail.place} {placeId} />
     {/if}
 
     {#if detail.unlinkedEvents.length > 0}
@@ -517,77 +338,7 @@
       {/if}
     </section>
 
-    <section class="place-detail__section">
-      <h3>Ortszeitgenossen</h3>
-      <button
-        type="button"
-        class="place-detail__enclosure-edit-btn"
-        aria-expanded={contemporariesOpen}
-        onclick={toggleContemporaries}
-      >
-        {contemporariesOpen ? 'Ortszeitgenossen ausblenden' : 'Ortszeitgenossen anzeigen'}
-      </button>
-      {#if contemporariesOpen}
-        <p class="place-detail__muted">
-          Personen mit einem Ereignis an diesem Ort oder einem seiner Höfe — chronologisch,
-          nach Bedarf gruppiert/gefiltert.
-        </p>
-        <div class="place-detail__contemporaries-toolbar">
-          <ViewModeToggle
-            modes={CONTEMPORARY_MODES}
-            value={contemporaryMode}
-            onChange={(id) => (contemporaryMode = id as ContemporaryGroupMode)}
-            ariaLabel="Gruppierung wählen"
-          />
-          <FilterBar activeCount={contemporaryActiveFilterCount}>
-            <div class="place-detail__contemporaries-filter">
-              <label class="place-detail__checkbox">
-                <input type="checkbox" bind:checked={contemporaryFilterEnabled} />
-                Zeitgenossen-Filter aktivieren
-              </label>
-              <label>
-                Referenzjahr
-                <input
-                  type="number"
-                  bind:value={contemporaryRefYear}
-                  disabled={!contemporaryFilterEnabled}
-                  aria-label="Referenzjahr"
-                />
-              </label>
-              <label>
-                Fenster (± Jahre)
-                <input
-                  type="number"
-                  bind:value={contemporaryWindow}
-                  disabled={!contemporaryFilterEnabled}
-                  aria-label="Fensterbreite in Jahren"
-                />
-              </label>
-              <p class="place-detail__hint">
-                Zeigt, wer in diesem Zeitfenster nachweislich am Ort dokumentiert ist — nicht,
-                wer vermutlich damals gelebt hat (kein Lebensspannen-Schätzer).
-              </p>
-            </div>
-          </FilterBar>
-        </div>
-        {#if contemporaryRows.length === 0}
-          <p class="place-detail__muted">
-            {contemporaryFilterEnabled && contemporaryRefYear != null
-              ? 'Keine Personen im gewählten Zeitfenster.'
-              : 'Keine Personen mit Ereignis an diesem Ort oder seinen Höfen erfasst.'}
-          </p>
-        {:else}
-          <!-- resetKey umfasst Ort UND Gruppierungsmodus: ein Moduswechsel darf den
-               Einklapp-/Paginierungs-Zustand der vorherigen Gruppierung nicht mitschleppen
-               (derselbe Integrationsfehler wie beim Kettenglied-Klick, ADR-v9-78 Punkt 6). -->
-          <EventsByType
-            groups={contemporaryGroups}
-            row={contemporaryRow}
-            resetKey={`${placeId}::${contemporaryMode}`}
-          />
-        {/if}
-      {/if}
-    </section>
+    <PlaceContemporaries {appState} {placeId} {onNavigateToPerson} />
 
     {#if detail.citations.length > 0}
       <section class="place-detail__section">
@@ -679,47 +430,7 @@
     color: var(--stb-text-dim);
   }
 
-  .place-detail__coord-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
 
-  .place-detail__form {
-    background: var(--stb-surface-1);
-    border-radius: var(--stb-radius-card);
-    padding: 0.8rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .place-detail__form label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-  }
-
-  .place-detail__form input,
-  .place-detail__form textarea {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.5rem;
-    font: inherit;
-  }
-
-  .place-detail__form-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .place-detail__save-btn,
-  .place-detail__cancel-btn,
   .place-detail__link-btn {
     background: var(--stb-gold);
     color: var(--stb-bg);
@@ -728,29 +439,6 @@
     padding: 0.35rem 0.8rem;
     cursor: pointer;
     font-weight: 600;
-  }
-
-  .place-detail__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
-
-  /* Destruktive Aktion — eigener Akzent statt dem regulären Gold-Save-Stil (kein
-     etabliertes Delete-Button-Muster im Projekt, `--stb-danger` ist bereits im
-     Design-System als Fehler-/Warn-Akzent definiert, s. .place-detail__error).
-     `margin-left: auto` auf :last-child statt unbedingt auf der Klasse (TST-11 —
-     nur sicher, wenn das Element garantiert das letzte in der flex-wrap-Zeile ist). */
-  .place-detail__delete-btn {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
-
-  .place-detail__form-actions > :last-child {
-    margin-left: auto;
   }
 
   .place-detail__unlinked ul {
@@ -837,6 +525,22 @@
     padding: 0.3rem 0.5rem;
   }
 
+  /* Sprachkürzel-Eingabe (BL-59) schmal — nur wenige Zeichen (ISO-639, z. B. „pl"). */
+  .place-detail__add-row input.place-detail__trans-lang-input {
+    max-width: 8rem;
+  }
+
+  /* Sprachkürzel-Badge vor dem übersetzten Namen in der Pille (BL-59). */
+  .place-detail__trans-lang {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--stb-bg);
+    background: var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.05em 0.35em;
+    margin-right: 0.15em;
+  }
+
   .place-detail__add-row button {
     background: var(--stb-surface-3);
     color: var(--stb-text);
@@ -851,11 +555,6 @@
     opacity: 0.55;
   }
 
-  .place-detail__error {
-    color: var(--stb-danger);
-    font-size: 0.82rem;
-    margin-top: 0.3rem;
-  }
 
   .place-detail__unlinked-owner {
     font-weight: 600;
@@ -871,49 +570,4 @@
     text-decoration: underline;
   }
 
-  /* Ortszeitgenossen (ADR-v9-78 Punkt 5): Gruppierungs-Umschalter + Filter-Trigger in
-     einer Toolbar-Zeile, gleiche Reihen-Struktur wie PlaceList.svelte's Filter-Zeile
-     (INV-UI-4, kein neues Layout-Muster). */
-  .place-detail__contemporaries-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6rem;
-    margin: 0.6rem 0;
-  }
-
-  .place-detail__contemporaries-filter {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: flex-end;
-  }
-
-  .place-detail__contemporaries-filter label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.78rem;
-    color: var(--stb-text-dim);
-  }
-
-  .place-detail__contemporaries-filter input[type='number'] {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.5rem;
-    width: 6rem;
-  }
-
-  .place-detail__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
-
-  .place-detail__contemporaries-filter .place-detail__hint {
-    flex-basis: 100%;
-    margin: 0.2rem 0 0;
-  }
 </style>
