@@ -135,14 +135,6 @@ function addPerson(map: Map<string, PersonRow>, pid: string, year: string): void
  * `generatedOn` injiziert (TST-3) → deterministisch goldfile-testbar.
  */
 export function buildFarmChronicle(db: Database, ctx: PlaceContext, generatedOn: string): string {
-  if (!db.hofObjects.size) {
-    return renderReport({
-      title: 'Hofchronik',
-      meta: `erstellt am ${generatedOn}`,
-      body: '<p class="report-empty">Keine Höfe erfasst.</p>',
-    });
-  }
-
   // Personen den Höfen zuordnen (einmaliger Scan aller RESI/PROP-Ereignisse, Chokepoint).
   const peopleByHof = new Map<HofId, HofPeople>();
   const peopleFor = (hofId: HofId): HofPeople => {
@@ -163,9 +155,27 @@ export function buildFarmChronicle(db: Database, ctx: PlaceContext, generatedOn:
     }
   }
 
-  // Höfe nach Dorf gruppieren.
-  const byVillage = new Map<string, { label: string; hofIds: HofId[] }>();
+  // Nur Höfe MIT verknüpften Personen chronikwürdig (Orakel `buildHofIndex`: der Index wird
+  // AUS den Ereignissen gebaut, kennt also nur bewohnte/besessene Höfe). Die vielen
+  // kuratierten, aber unreferenzierten `hofObjects` (Orte-Tab „Ohne Bezug") erzeugen sonst
+  // reihenweise „Keine Personen verknüpft"-Karten — Rauschen statt Chronik.
+  const chronicled: HofId[] = [];
   for (const hof of db.hofObjects.values()) {
+    const hp = peopleByHof.get(hof.id);
+    if (hp && (hp.owners.size || hp.residents.size)) chronicled.push(hof.id);
+  }
+  if (!chronicled.length) {
+    return renderReport({
+      title: 'Hofchronik',
+      meta: `erstellt am ${generatedOn}`,
+      body: '<p class="report-empty">Keine Höfe mit verknüpften Personen erfasst.</p>',
+    });
+  }
+
+  // Chronikwürdige Höfe nach Dorf gruppieren.
+  const byVillage = new Map<string, { label: string; hofIds: HofId[] }>();
+  for (const hofId of chronicled) {
+    const hof = db.hofObjects.get(hofId)!;
     const label = placeDisplayName(ctx.places.byId(hof.villageId)) || 'Ohne Ortsangabe';
     const key = hof.villageId || 'ohne';
     let g = byVillage.get(key);
@@ -227,7 +237,7 @@ export function buildFarmChronicle(db: Database, ctx: PlaceContext, generatedOn:
 
   return renderReport({
     title: 'Hofchronik',
-    meta: `${villages.length} Ort${villages.length === 1 ? '' : 'e'} · ${db.hofObjects.size} ${db.hofObjects.size === 1 ? 'Hof' : 'Höfe'} · erstellt am ${generatedOn}`,
+    meta: `${villages.length} Ort${villages.length === 1 ? '' : 'e'} · ${chronicled.length} ${chronicled.length === 1 ? 'Hof' : 'Höfe'} · erstellt am ${generatedOn}`,
     body: `<nav class="book-toc"><h2>Orte</h2><ul class="hc-toc">${toc}</ul></nav>\n${body}`,
   });
 }

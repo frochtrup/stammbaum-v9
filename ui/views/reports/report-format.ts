@@ -28,11 +28,22 @@ export function lifeYears(p: Person): string {
   return `(${b ? '*' + b : ''}${b && d ? ' ' : ''}${d ? '†' + d : ''})`;
 }
 
-/** Kompakte Ereigniszeile „Datum, Ort" (Orakel `_poEvLine`). Nutzt den rohen `ev.place`
- *  (die originale GEDCOM-Angabe) — ein Druck-Report ist eine getreue Wiedergabe der Daten. */
+/**
+ * Ortsangabe für den Druck: die originale GEDCOM-`PLAC`, aber ohne LEERE Hierarchie-Ebenen
+ * (GEDCOM schreibt „Ochtrup,,,," mit festen, oft unbefüllten Komma-Stufen — die Leer-Stufen
+ * sind Format-Rauschen, keine Daten). Befüllte Kette bleibt erhalten („Ochtrup, Kreis
+ * Steinfurt"), die getreue Wiedergabe geht nicht verloren. '' → ''. Reine Funktion.
+ */
+export function cleanPlace(place: string | null | undefined): string {
+  if (!place) return '';
+  return place.split(',').map((s) => s.trim()).filter(Boolean).join(', ');
+}
+
+/** Kompakte Ereigniszeile „Datum, Ort" (Orakel `_poEvLine`). Nutzt den `ev.place`
+ *  (originale GEDCOM-Angabe, leere Komma-Stufen entfernt, `cleanPlace`). */
 export function eventLine(ev: Event | null | undefined): string {
   if (!ev) return '';
-  return [formatDateForDisplay(ev.date), (ev.place ?? '').trim()].filter(Boolean).join(', ');
+  return [formatDateForDisplay(ev.date), cleanPlace(ev.place)].filter(Boolean).join(', ');
 }
 
 /** Jahr als 4-stellige Zeichenkette oder '' (Sortier-/Kurzanzeige). */

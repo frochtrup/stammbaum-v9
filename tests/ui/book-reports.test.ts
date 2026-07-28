@@ -105,6 +105,16 @@ describe('buildFamilyBook (BL-176, Familienbuch #7)', () => {
   it('ist deterministisch bei gleichem Eingabe-Datum', () => {
     expect(buildFamilyBook(makeTree(), 'I5', ON)).toBe(html);
   });
+
+  it('säubert leere PLAC-Komma-Stufen und unterdrückt den GEDCOM-Y-Marker', () => {
+    const db = makeTree();
+    db.individuals.get('I5')!.birth = makeEvent('BIRT', { date: '1880', place: 'Ochtrup, , , ,' });
+    db.individuals.get('I5')!.death = makeEvent('DEAT', { value: 'Y' }); // „fand statt, keine Details"
+    const h = buildFamilyBook(db, 'I5', ON);
+    expect(h).toContain('1880, Ochtrup');
+    expect(h).not.toContain('Ochtrup, , , ,');
+    expect(h).not.toContain('<th>Tod</th><td>Y</td>'); // kein „Tod: Y"-Rauschen
+  });
 });
 
 describe('buildLocalFamilyBook (BL-177, Ortssippenbuch #11)', () => {
@@ -139,6 +149,9 @@ describe('buildFarmChronicle (BL-178, Hofchronik #12)', () => {
     db.individuals.get('I2')!.events = [makeEvent('RESI', { date: '1885', hofId: 'H1' })];
     db.hofObjects.set('H1', hof('H1', { villageId: 'P1', addrs: [{ value: 'Hauptstraße 1', from: null, to: null }], note: 'Alter Meierhof' }));
     db.hofObjects.set('H2', hof('H2', { villageId: 'P1', addrs: [{ value: 'Nebenweg 2', from: null, to: null }] }));
+    // H3 ist kuratiert, aber von keinem Ereignis referenziert (Orte-Tab „Ohne Bezug") —
+    // darf NICHT als leere „Keine Personen verknüpft"-Karte erscheinen.
+    db.hofObjects.set('H3', hof('H3', { villageId: 'P1', addrs: [{ value: 'Leerhof 9', from: null, to: null }] }));
     return db;
   }
   const db = withHofs();
@@ -146,7 +159,6 @@ describe('buildFarmChronicle (BL-178, Hofchronik #12)', () => {
 
   it('gliedert Ort › Hof › Eigentümer/Bewohner', () => {
     expect(html).toContain('<title>Hofchronik</title>');
-    expect(html).toContain('2 Höfe');
     expect(html).toContain('<h2>Detmold</h2>');
     expect(html).toContain('Hauptstraße 1');
     expect(html).toContain('Eigentümer');
@@ -155,13 +167,19 @@ describe('buildFarmChronicle (BL-178, Hofchronik #12)', () => {
     expect(html).toContain('Alter Meierhof');
   });
 
+  it('chronisiert nur Höfe mit verknüpften Personen (H3 „ohne Bezug" fällt weg)', () => {
+    expect(html).toContain('2 Höfe'); // H1 + H2, nicht H3
+    expect(html).not.toContain('Leerhof 9');
+    expect(html).not.toContain('Keine Personen verknüpft');
+  });
+
   it('zeigt den Zuzug (Wegzug-Zeile) von der vorigen Station', () => {
     expect(html).toContain('zugezogen von Nebenweg 2 (Detmold) (1870)');
   });
 
   it('meldet leeren Hof-Bestand ohne Absturz', () => {
     const noHofs = addPlaces(makeTree());
-    expect(buildFarmChronicle(noHofs, ctxForDb(noHofs), ON)).toContain('Keine Höfe erfasst');
+    expect(buildFarmChronicle(noHofs, ctxForDb(noHofs), ON)).toContain('Keine Höfe mit verknüpften Personen');
   });
 });
 

@@ -14,13 +14,16 @@ import { computeKekuleNumbers, getParentIds, getSpouseFamilies } from '../../isl
 import { collectStoryMedia } from '../story/story-model';
 import { eventTypeLabel } from '../../shell/event-labels';
 import { renderReport, esc } from '../../../services/reports';
-import { personName, lifeYears, yearOf } from './report-format';
+import { personName, lifeYears, yearOf, cleanPlace } from './report-format';
 
 const MARR = '⚭';
 
-/** Faktenwert einer Zeile „Wert, Adresse, Datum, Ort" (Orakel `_eventsTableHtml`). */
+/** Faktenwert einer Zeile „Wert, Adresse, Datum, Ort" (Orakel `_eventsTableHtml`). `value`
+ *  === 'Y' ist der GEDCOM-Marker „Ereignis fand statt, keine Details" (`1 DEAT Y`) — kein
+ *  Anzeigewert, wird unterdrückt. Ort ohne leere Komma-Stufen (`cleanPlace`). */
 function factValue(ev: Event): string {
-  return [ev.value, ev.addr, formatDateForDisplay(ev.date), (ev.place ?? '').trim()]
+  const val = ev.value === 'Y' ? '' : ev.value;
+  return [val, ev.addr, formatDateForDisplay(ev.date), cleanPlace(ev.place)]
     .filter(Boolean)
     .join(', ');
 }
