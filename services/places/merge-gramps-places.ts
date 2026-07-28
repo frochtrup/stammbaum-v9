@@ -9,9 +9,11 @@
 //     gebootete Höfe (deren Adresse im Event-`<description>` lebt, nicht als placeobj) und
 //     per Hand angelegte Orte. Sie werden übernommen — die spätere `applyPlaceResolution`
 //     findet gebootete Höfe idempotent wieder, kein Duplikat.
-//   - der app-private `shortName` (Anzeige-Kuration, ADR-v9-90, erreicht den Export NIE):
-//     wird aus dem persistierten Eintrag auf den nativen übernommen, sonst ginge er bei
-//     jedem Reload verloren.
+//   - der app-private `shortName` (Anzeige-Kuration, ADR-v9-90, erreicht den Export NIE)
+//     und die app-privaten `translations` (Sprachachse, BL-59, ebenfalls nie im Wire):
+//     werden aus dem persistierten Eintrag auf den nativen übernommen, sonst gingen sie bei
+//     jedem Reload verloren (der native GRAMPS-Ort trägt sie nicht — projectPlaceobj setzt
+//     `translations: []`, GRAMPS-`<pname lang>` bleibt Passthrough).
 // Für alles Übrige (Typ, Koordinaten, pnames, enclosedBy, Hof-Adressen) gewinnt der native
 // Datei-Stand — er ist frisch aus der Datei geparst und damit aktuell.
 //
@@ -31,8 +33,19 @@ export function mergeGrampsPlaces(native: GrampsPlaceState, persisted: GrampsPla
     const cur = placeObjects.get(id);
     if (!cur) {
       placeObjects.set(id, po); // datei-fremd → übernehmen
-    } else if (po.shortName && !cur.shortName) {
-      placeObjects.set(id, { ...cur, shortName: po.shortName }); // app-privaten Namen retten
+      continue;
+    }
+    // App-private Kuration (shortName/translations) vom persistierten auf den nativen retten —
+    // der native Datei-Stand kennt sie nicht (nie im Wire). Nur füllen, wenn nativ leer.
+    const rescueShort = po.shortName && !cur.shortName;
+    const persistedTr = po.translations ?? [];
+    const rescueTr = persistedTr.length > 0 && (cur.translations ?? []).length === 0;
+    if (rescueShort || rescueTr) {
+      placeObjects.set(id, {
+        ...cur,
+        shortName: rescueShort ? po.shortName : cur.shortName,
+        translations: rescueTr ? persistedTr : (cur.translations ?? []),
+      });
     }
   }
   const hofObjects = new Map<HofId, HofObject>(native.hofObjects);

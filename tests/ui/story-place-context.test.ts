@@ -9,7 +9,7 @@ import { buildPlaceContextSentence } from '../../ui/views/story/place-context';
 
 function po(id: string, over: Partial<PlaceObject>): PlaceObject {
   return {
-    id, title: '', shortName: '', type: '', pnames: [], enclosedBy: [],
+    id, title: '', shortName: '', type: '', pnames: [], translations: [], enclosedBy: [],
     lat: null, long: null, note: '', existsFrom: null, existsTo: null,
     govId: null, govTypes: null, ...over,
   };

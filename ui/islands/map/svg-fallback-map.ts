@@ -12,8 +12,10 @@ import type { PlacePoint, MigrationLine, BiographyPoint } from './map-model';
 import { findFocusPoint } from './map-model';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const VIEW_W = 1000;
-const VIEW_H = 520;
+/** viewBox der Fallback-Weltkarte, exportiert für den gemeinsamen Mini-Karten-Renderer
+ *  (BL-09, `mini-map.ts`) — EINE Quelle für Projektion + Weltumriss (INV-UI-4). */
+export const VIEW_W = 1000;
+export const VIEW_H = 520;
 /** Zoom-Faktor der Fokus-Zentrierung im Fallback (ADR-v9-78 Punkt 4) — angewandt als
  * Gruppen-Transform auf den Inhalt (Kontinente+Marker), NICHT auf den Ozean-
  * Hintergrund, der immer den ganzen viewBox füllt (s. render() unten). */
@@ -24,7 +26,7 @@ const FOCUS_SCALE = 3;
  * Küstenlinien, keine amtliche Genauigkeit — reicht als visuelle Orientierung für
  * den Offline-Fall). Bewusst kompakt gehalten statt eines echten GeoJSON-Datensatzes.
  */
-const CONTINENT_OUTLINES: [number, number][][] = [
+export const CONTINENT_OUTLINES: [number, number][][] = [
   // Europa (sehr grob)
   [
     [71, 25], [70, 28], [65, 40], [60, 30], [55, 38], [45, 36], [40, 20],
@@ -59,8 +61,9 @@ const CONTINENT_OUTLINES: [number, number][][] = [
   ],
 ];
 
-/** Äquidistante Plattkarte-Projektion (lat/long -> Pixel), kein Mercator-Verzerrungsaufwand nötig. */
-function project(lat: number, long: number): { x: number; y: number } {
+/** Äquidistante Plattkarte-Projektion (lat/long -> Pixel), kein Mercator-Verzerrungsaufwand nötig.
+ *  Exportiert für den gemeinsamen Mini-Karten-Renderer (BL-09) — dieselbe Projektion in beiden. */
+export function project(lat: number, long: number): { x: number; y: number } {
   const x = ((long + 180) / 360) * VIEW_W;
   const y = ((90 - lat) / 180) * VIEW_H;
   return { x, y };

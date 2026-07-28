@@ -22,7 +22,7 @@ function childLink(familyId: string): ChildLink {
 
 function po(id: string, over: Partial<PlaceObject>): PlaceObject {
   return {
-    id, title: '', shortName: '', type: '', pnames: [], enclosedBy: [],
+    id, title: '', shortName: '', type: '', pnames: [], translations: [], enclosedBy: [],
     lat: null, long: null, note: '', existsFrom: null, existsTo: null,
     govId: null, govTypes: null, ...over,
   };
@@ -74,6 +74,8 @@ function addPlaces(db: Database): Database {
   db.placeObjects.set('P1', po('P1', {
     title: 'Detmold', type: 'Village',
     pnames: [{ value: 'Theotmalli', from: 1000, to: 1500 }],
+    translations: [{ lang: 'la', value: 'Theotmalli castrum' }], // Sprachachse (BL-59)
+    lat: 51.938, long: 8.878, // eigene Koordinaten → Mini-Karte (BL-09)
     enclosedBy: [{ placeId: 'P2', from: null, to: null }],
   }));
   db.placeObjects.set('P2', po('P2', { title: 'Kreis Lippe', type: 'County' }));
@@ -147,7 +149,7 @@ describe('buildFarmChronicle (BL-178, Hofchronik #12)', () => {
     ];
     // Hans: Bewohner Hauptstraße 1.
     db.individuals.get('I2')!.events = [makeEvent('RESI', { date: '1885', hofId: 'H1' })];
-    db.hofObjects.set('H1', hof('H1', { villageId: 'P1', addrs: [{ value: 'Hauptstraße 1', from: null, to: null }], note: 'Alter Meierhof' }));
+    db.hofObjects.set('H1', hof('H1', { villageId: 'P1', addrs: [{ value: 'Hauptstraße 1', from: null, to: null }], note: 'Alter Meierhof', lat: 51.94, long: 8.88 }));
     db.hofObjects.set('H2', hof('H2', { villageId: 'P1', addrs: [{ value: 'Nebenweg 2', from: null, to: null }] }));
     // H3 ist kuratiert, aber von keinem Ereignis referenziert (Orte-Tab „Ohne Bezug") —
     // darf NICHT als leere „Keine Personen verknüpft"-Karte erscheinen.
@@ -177,6 +179,11 @@ describe('buildFarmChronicle (BL-178, Hofchronik #12)', () => {
     expect(html).toContain('zugezogen von Nebenweg 2 (Detmold) (1870)');
   });
 
+  it('bettet eine Mini-Karte für Höfe mit Koordinaten ein (BL-09)', () => {
+    expect(html).toContain('rep-mini-map');
+    expect(html).toContain('51.940° N, 8.880° O'); // Koordinaten-Readout der Hof-Mini-Karte
+  });
+
   it('meldet leeren Hof-Bestand ohne Absturz', () => {
     const noHofs = addPlaces(makeTree());
     expect(buildFarmChronicle(noHofs, ctxForDb(noHofs), ON)).toContain('Keine Höfe mit verknüpften Personen');
@@ -200,6 +207,17 @@ describe('buildPlaceGazetteer (BL-179, Ortsbuch #13)', () => {
   it('zählt Personen und Ereignisse je Ort', () => {
     // An P1: Otto Geburt (1850), Hans Geburt (1820), Heirat F2 zählt Otto UND Berta (1878).
     expect(html).toContain('3 Personen · 4 Ereignisse');
+  });
+
+  it('zeigt Übersetzungen (Sprachachse, BL-59)', () => {
+    expect(html).toContain('Übersetzungen');
+    expect(html).toContain('Theotmalli castrum');
+    expect(html).toContain('ob-trans-lang'); // Sprachkürzel-Präfix-Chip
+  });
+
+  it('bettet eine Mini-Karte ein, wenn der Ort Koordinaten trägt (BL-09)', () => {
+    expect(html).toContain('rep-mini-map');
+    expect(html).toContain('51.938° N, 8.878° O'); // Koordinaten-Readout der Mini-Karte
   });
 
   it('rendert die leere Ortsmenge ohne Absturz', () => {

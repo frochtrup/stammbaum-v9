@@ -55,6 +55,7 @@
       shortName: '',
       type: type.trim(),
       pnames: [],
+      translations: [], // Sprachachse (BL-59) — bei Neuanlage leer, Kuration im Steckbrief.
       enclosedBy: [],
       lat: null,
       long: null,

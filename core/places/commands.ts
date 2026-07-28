@@ -6,7 +6,7 @@
 // über ein AppState-Kommando auf, das die Reaktivität auslöst (Svelte-Reassign obliegt
 // der Schale, s. ui/shell/app-state.svelte.ts).
 import type { Event, PlaceId, HofId } from '../model/types';
-import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress } from './types';
+import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation } from './types';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from './build-plac';
 import { normPlaceName, normHofAddr } from './normalize';
 
@@ -50,6 +50,25 @@ export function withAddedPname(pl: PlaceObject, value: string, from: number | nu
 /** Entfernt eine pnames-Variante am angegebenen Index. */
 export function withRemovedPname(pl: PlaceObject, index: number): PlaceObject {
   return { ...pl, pnames: pl.pnames.filter((_, i) => i !== index) };
+}
+
+/**
+ * Hängt eine Übersetzung (Sprachachse `translations`, BL-59) an ein PlaceObject an — z. B.
+ * `{ lang: 'pl', value: 'Wrocław' }`. Reine Kopie (Aufrufer speichert über
+ * savePlaceObject()). Leerer Wert wird ignoriert; das Sprachkürzel wird getrimmt/klein
+ * geschrieben (ISO-639-Konvention, tolerant). Das Feld ist app-privat und speist NIE den
+ * PLAC-Wire (analog `shortName`/`withAddedPname` ohne Dedup — Nutzer-Intent bleibt).
+ * `pl.translations ?? []` toleriert alte, aus einer feldlosen orte.json geladene Orte.
+ */
+export function withAddedTranslation(pl: PlaceObject, lang: string, value: string): PlaceObject {
+  if (!value.trim()) return pl;
+  const entry: NameTranslation = { lang: lang.trim().toLowerCase(), value: value.trim() };
+  return { ...pl, translations: [...(pl.translations ?? []), entry] };
+}
+
+/** Entfernt eine Übersetzung am angegebenen Index (Sprachachse `translations`, BL-59). */
+export function withRemovedTranslation(pl: PlaceObject, index: number): PlaceObject {
+  return { ...pl, translations: (pl.translations ?? []).filter((_, i) => i !== index) };
 }
 
 /** Hängt eine enclosedBy-Zugehörigkeit (Verwaltungs-Zeitachse) an ein PlaceObject an. */
@@ -305,6 +324,18 @@ function mergePlaceObjectPair(
   // Match-Kriterium und höbe genau die Trennung auf, für die das Feld existiert
   // (ADR-v9-90/-100, Spec 11 §1).
   if (!survivor.shortName && merged.shortName) survivor.shortName = merged.shortName;
+  // translations (Sprachachse, BL-59) verlustfrei vereinigen — dedupliziert über lang|value,
+  // NICHT in pnames gefaltet (Übersetzungen sind keine Identitätsnamen; s. shortName-Grund
+  // oben). App-privat, unsichtbar im Export; der Union erhält beide Seiten (LP-1).
+  const trOf = (p: PlaceObject): NameTranslation[] => p.translations ?? [];
+  const trKey = (t: NameTranslation): string => `${t.lang.toLowerCase()}|${normPlaceName(t.value)}`;
+  survivor.translations = trOf(survivor);
+  const trSeen = new Set(survivor.translations.map(trKey));
+  for (const t of trOf(merged)) {
+    if (trSeen.has(trKey(t))) continue;
+    trSeen.add(trKey(t));
+    survivor.translations.push({ ...t });
+  }
   if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
   if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
 

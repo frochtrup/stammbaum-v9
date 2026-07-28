@@ -7,8 +7,10 @@
   // Merge erscheint der Titel/die Varianten des zusammengeführten Orts hier als neue
   // Pille (Verlustfreiheit sichtbar). Merge selbst läuft NUR über den Kern-Chokepoint
   // `appState.mergePlace(survivorId, mergedId)` (Spec 02 §3) — keine Merge-Logik hier.
-  // SVG-Namens-Zeitstrahl + Mini-Karte sind AUSSER SCOPE (Spec 20 §1.9/§1.10, imperative
-  // Inseln — anderer Bauabschnitt).
+  // Die Mini-Karte (BL-09) ist als `PlaceMiniMap` eingebettet (gemeinsamer SVG-Renderer,
+  // INV-UI-4); Übersetzungen (BL-59, `translations`) sitzen in der Namens-Varianten-Sektion
+  // (Sprachachse neben der pnames-Zeitachse). Der SVG-Namens-Zeitstrahl bleibt AUSSER SCOPE
+  // (Spec 20 §1.9/§1.10, imperative Insel — anderer Bauabschnitt).
   //
   // Verwaltungsgeschichte (Bau-Auftrag "Orts-Detailansicht"): die LESE-Ansicht zeigt hier
   // NUR `detail.hierarchyTimeline` (volle Kette je Schlüsseljahr, `place-detail-model.ts`,
@@ -24,8 +26,9 @@
   import EventsByType from '../../shell/EventsByType.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { withAddedPname, withRemovedPname } from '../../../core/places';
+  import { withAddedPname, withRemovedPname, withAddedTranslation, withRemovedTranslation } from '../../../core/places';
   import PlaceEditForm from './PlaceEditForm.svelte';
+  import PlaceMiniMap from './PlaceMiniMap.svelte';
   import {
     buildPlaceDetail,
     type ChainSegment,
@@ -59,11 +62,16 @@
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
+  /** Sprachachse (BL-59) — `?? []` toleriert aus feldloser orte.json geladene Orte. */
+  const translations = $derived(detail ? (detail.place.translations ?? []) : []);
 
   let editing = $state(false);
   let newPnameValue = $state('');
   let newPnameFrom = $state<number | null>(null);
   let newPnameTo = $state<number | null>(null);
+  /** Sprachachse (BL-59): neue Übersetzung (Sprachkürzel + Zielsprachen-Name). */
+  let newTransLang = $state('');
+  let newTransValue = $state('');
 
   /** Steuert PlaceEnclosureEditModal.svelte (Bau-Auftrag "Orts-Detailansicht": die
    *  direkte enclosedBy-Zuordnung ist "Mittel zum Zweck" und wandert ins Modal, weg von
@@ -97,6 +105,19 @@
   function removePname(index: number) {
     if (!detail) return;
     appState.savePlace(withRemovedPname(detail.place, index));
+  }
+
+  /** Übersetzung anhängen (Sprachachse, BL-59) — gleicher Sofort-Speichern-Pfad wie addPname. */
+  function addTranslation() {
+    if (!detail || !newTransValue.trim()) return;
+    appState.savePlace(withAddedTranslation(detail.place, newTransLang, newTransValue));
+    newTransLang = '';
+    newTransValue = '';
+  }
+
+  function removeTranslation(index: number) {
+    if (!detail) return;
+    appState.savePlace(withRemovedTranslation(detail.place, index));
   }
 
   function linkUnlinked(eventKey: string) {
@@ -225,7 +246,7 @@
       <PlaceEnclosureEditModal {appState} {placeId} onClose={closeEnclosureModal} />
     {/if}
 
-    {#if detail.variants.length > 0 || editing}
+    {#if detail.variants.length > 0 || translations.length > 0 || editing}
       <section class="place-detail__section">
         <h3>Namens-Varianten</h3>
         {#if detail.variants.length > 0}
@@ -248,8 +269,37 @@
             <button type="button" onclick={addPname}>+ Hinzufügen</button>
           </div>
         {/if}
+
+        <!-- Übersetzungen (Sprachachse, BL-59) — dieselbe Pill-/Add-Zeilen-Optik wie pnames
+             (INV-UI-4), nur der Feld-Schnitt (Sprachkürzel + Text statt Zeitraum + Text)
+             unterscheidet sich. Gleiches Bearbeitungs-Modus-Gating (kein Add/Remove außerhalb
+             `editing`, ADR-v9-30) — kein zweiter Editier-Zustand, keine zweite Sektion. -->
+        {#if translations.length > 0 || editing}
+          <p class="place-detail__hint">Übersetzungen (Sprachen):</p>
+          {#if translations.length > 0}
+            <div class="stb-pill-row" aria-label="Übersetzungen">
+              {#each translations as t, i (i)}
+                <span class="stb-pill">
+                  <span class="place-detail__trans-lang">{t.lang}</span> {t.value}
+                  {#if editing}
+                    <button type="button" class="stb-pill__remove" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
+                  {/if}
+                </span>
+              {/each}
+            </div>
+          {/if}
+          {#if editing}
+            <div class="place-detail__add-row">
+              <input type="text" class="place-detail__trans-lang-input" placeholder="Sprache (z. B. pl)" bind:value={newTransLang} aria-label="Sprachkürzel" />
+              <input type="text" placeholder="Name in dieser Sprache…" bind:value={newTransValue} aria-label="Übersetzter Ortsname" />
+              <button type="button" onclick={addTranslation}>+ Übersetzung</button>
+            </div>
+          {/if}
+        {/if}
       </section>
     {/if}
+
+    <PlaceMiniMap lat={detail.place.lat} long={detail.place.long} label={detail.place.title || detail.place.id} />
 
     {#if editing && placeId}
       <PlaceMergeSection {appState} {viewState} place={detail.place} {placeId} />
@@ -473,6 +523,22 @@
     border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.3rem 0.5rem;
+  }
+
+  /* Sprachkürzel-Eingabe (BL-59) schmal — nur wenige Zeichen (ISO-639, z. B. „pl"). */
+  .place-detail__add-row input.place-detail__trans-lang-input {
+    max-width: 8rem;
+  }
+
+  /* Sprachkürzel-Badge vor dem übersetzten Namen in der Pille (BL-59). */
+  .place-detail__trans-lang {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: var(--stb-bg);
+    background: var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.05em 0.35em;
+    margin-right: 0.15em;
   }
 
   .place-detail__add-row button {

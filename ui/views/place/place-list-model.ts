@@ -92,8 +92,15 @@ export function matchesSearch(pl: PlaceObject, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   // shortName ergänzt den Heuhaufen (was sichtbar ist, muss auffindbar sein, ADR-v9-100) —
-  // title/pnames bleiben weiterhin durchsuchbar, shortName ersetzt sie nicht.
-  const haystack = [pl.title, pl.shortName, ...pl.pnames.map((p) => p.value)].join(' ').toLowerCase();
+  // title/pnames bleiben weiterhin durchsuchbar, shortName ersetzt sie nicht. translations
+  // (Sprachachse, BL-59) ebenso: „Wrocław" muss den Ort „Breslau" finden. `?? []` toleriert
+  // aus einer feldlosen orte.json geladene Orte.
+  const haystack = [
+    pl.title,
+    pl.shortName,
+    ...pl.pnames.map((p) => p.value),
+    ...(pl.translations ?? []).map((t) => t.value),
+  ].join(' ').toLowerCase();
   return haystack.includes(q);
 }
 

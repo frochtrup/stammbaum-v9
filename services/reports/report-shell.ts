@@ -291,6 +291,14 @@ function reportCss(): string {
     .ob-surns { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; }
     .ob-surn-chip { background: #f5eedf; border: 1px solid #ddd0b8; border-radius: 10px; padding: 1px 9px; font-size: 0.8rem; }
     .ob-surn-chip em { font-style: normal; color: #8a7050; margin-left: 3px; }
+    /* Übersetzungen (Sprachachse, BL-59) — Chips wie ob-surns, mit Sprachkürzel-Präfix. */
+    .ob-trans-lang { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+                     color: #6a4a20; background: #ece0c4; border-radius: 6px; padding: 0 5px; margin-right: 4px; }
+    /* Mini-Karte in den Berichten (BL-09) — self-contained inline-SVG, schmal gerahmt.
+       Gemeinsam für Ortsbuch (#13) und Hofchronik (#12). */
+    .rep-mini-map { max-width: 300px; margin: 6px 0; border: 1px solid #ddd0b8; border-radius: 8px;
+                    overflow: hidden; line-height: 0; page-break-inside: avoid; }
+    .rep-mini-map svg { display: block; width: 100%; height: auto; }
 
     @media print {
       .story-map, .story-block { page-break-inside: avoid; }

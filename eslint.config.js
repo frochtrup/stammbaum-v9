@@ -21,19 +21,16 @@ import svelte from 'eslint-plugin-svelte';
 // der 600er-Schwelle ausnehmen — also genau den Schutz abschalten, den er vorgibt zu
 // dokumentieren.
 const SVELTE_ALTFAELLE = {
-  // PlaceDetail.svelte: war 921, bei den Geo-/Koordinaten-Änderungen (BL-130/191, ADR-v9-143)
-  // inhaltlich angefasst und dabei zerlegt — Ortszeitgenossen → PlaceContemporaries.svelte,
-  // Grunddaten-Form → PlaceEditForm.svelte, Dubletten-Merge → PlaceMergeSection.svelte;
-  // jetzt ~507 Zeilen, Altfall abbezahlt/entfallen (läuft gegen die reguläre 600er-Schwelle).
-  // TasksView.svelte (war 676) ist raus: bei BL-04 inhaltlich angefasst und dabei
-  // zerlegt — das Aufgaben-Formular wurde nach TaskForm.svelte extrahiert, die Datei
-  // liegt jetzt bei 598 Zeilen und läuft gegen die reguläre 600er-Schwelle.
-  'ui/views/hof/HofDetail.svelte': 641
-  // PersonDetail.svelte: war 632, bei BL-61 die Familien-Liste nach PersonFamilies.svelte
-  // und die Beweisführung nach ProofSummaryNote.svelte extrahiert — jetzt ~514 Zeilen,
-  // Altfall abbezahlt/entfallen (läuft gegen die reguläre 600er-Schwelle).
-  // HypothesesView.svelte: war 608, bei BL-56/BL-58 das Formular nach HypothesisForm.svelte
-  // extrahiert (wie TaskForm/LogForm) — jetzt ~300 Zeilen, Altfall abbezahlt/entfallen.
+  // Alle fünf ursprünglichen Altfälle sind abbezahlt/entfallen — die Liste ist LEER, jede
+  // .svelte-Datei läuft jetzt gegen die reguläre 600er-Schwelle. Historie (der Fortschritts-
+  // anzeiger, s. o.):
+  // - PlaceDetail.svelte (war 921): bei BL-130/191 zerlegt (PlaceContemporaries/PlaceEditForm/
+  //   PlaceMergeSection) → ~507.
+  // - TasksView.svelte (war 676): bei BL-04 Aufgaben-Formular → TaskForm.svelte, ~598.
+  // - HofDetail.svelte (war 641): bei BL-09 (Mini-Karte) inhaltlich angefasst und die
+  //   Grunddaten-Form → HofEditForm.svelte extrahiert (wie PlaceDetail→PlaceEditForm) → 389.
+  // - PersonDetail.svelte (war 632): bei BL-61 → PersonFamilies/ProofSummaryNote, ~514.
+  // - HypothesesView.svelte (war 608): bei BL-56/58 → HypothesisForm.svelte, ~300.
 };
 
 const MAX_LINES_SVELTE = 600;

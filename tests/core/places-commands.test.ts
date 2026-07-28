@@ -9,6 +9,8 @@ import {
   deleteHofObject,
   withAddedPname,
   withRemovedPname,
+  withAddedTranslation,
+  withRemovedTranslation,
   withAddedEnclosedBy,
   withRemovedEnclosedBy,
   withAddedHofAddr,
@@ -78,6 +80,44 @@ describe('withAddedPname/withRemovedPname — pnames-Zeitachse (Formular-Pfad)',
     });
     const next = withRemovedPname(pl, 0);
     expect(next.pnames).toEqual([{ value: 'B', from: null, to: null }]);
+  });
+});
+
+describe('withAddedTranslation/withRemovedTranslation — Sprachachse (BL-59)', () => {
+  it('hängt eine Übersetzung an, ohne das Original zu mutieren', () => {
+    const pl = place('@P1@', { title: 'Breslau' });
+    const next = withAddedTranslation(pl, 'pl', 'Wrocław');
+    expect(next.translations).toEqual([{ lang: 'pl', value: 'Wrocław' }]);
+    expect(pl.translations).toEqual([]); // Original unangetastet
+  });
+
+  it('trimmt/kleinet das Sprachkürzel und trimmt den Wert', () => {
+    const next = withAddedTranslation(place('@P1@'), '  PL ', '  Wrocław  ');
+    expect(next.translations).toEqual([{ lang: 'pl', value: 'Wrocław' }]);
+  });
+
+  it('ignoriert leere Werte (kein leerer translations-Eintrag)', () => {
+    const pl = place('@P1@');
+    const next = withAddedTranslation(pl, 'pl', '   ');
+    expect(next).toBe(pl);
+  });
+
+  it('toleriert ein aus feldloser orte.json geladenes PlaceObject (translations undefined)', () => {
+    // Backwards-Compat: alte Datei ohne das Feld → `?? []` statt Absturz (kein Schema-Bump).
+    const legacy = { ...place('@P1@'), translations: undefined } as unknown as Parameters<typeof withAddedTranslation>[0];
+    const next = withAddedTranslation(legacy, 'fr', 'Strasbourg');
+    expect(next.translations).toEqual([{ lang: 'fr', value: 'Strasbourg' }]);
+  });
+
+  it('entfernt eine Übersetzung am Index', () => {
+    const pl = place('@P1@', {
+      translations: [
+        { lang: 'pl', value: 'Wrocław' },
+        { lang: 'cs', value: 'Vratislav' },
+      ],
+    });
+    const next = withRemovedTranslation(pl, 0);
+    expect(next.translations).toEqual([{ lang: 'cs', value: 'Vratislav' }]);
   });
 });
 
@@ -321,6 +361,25 @@ describe('mergePlaceObjects — Dubletten-Merge (verlustfrei, Spec 20 §1.7 [K])
     expect(a.long).toBe(7.2);
     expect(a.note).toBe('Quelle X');
     expect(a.type).toBe('Town');
+  });
+
+  it('vereinigt translations (Sprachachse) verlustfrei, dedupliziert über lang|value', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Breslau', translations: [{ lang: 'pl', value: 'Wrocław' }] }),
+      place('@B@', {
+        title: 'Breslau',
+        translations: [
+          { lang: 'pl', value: 'wrocław' }, // Norm-Duplikat (nur Groß/klein) → nicht doppeln
+          { lang: 'cs', value: 'Vratislav' }, // neu → übernehmen
+        ],
+      }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    const a = places.get('@A@')!;
+    expect(a.translations).toEqual([
+      { lang: 'pl', value: 'Wrocław' },
+      { lang: 'cs', value: 'Vratislav' },
+    ]);
   });
 
   it('No-Op bei gleicher ID oder fehlendem Ort', () => {

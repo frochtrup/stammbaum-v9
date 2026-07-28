@@ -82,6 +82,7 @@ function makeSeededPlace(id: PlaceId, title: string, parentId: PlaceId | null): 
     shortName: '', // Anzeige-Kuration folgt nachgelagert; leer ⇒ `title` (ADR-v9-90).
     type: '', // unbekannt — Kuration (Typ, Koordinaten, GOV) folgt nachgelagert (Spec 11 §2).
     pnames: [],
+    translations: [], // Sprachachse (BL-59) — app-privat, Kuration folgt nachgelagert.
     enclosedBy: parentId ? [{ placeId: parentId, from: null, to: null }] : [],
     lat: null,
     long: null,

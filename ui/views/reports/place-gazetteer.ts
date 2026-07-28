@@ -10,6 +10,7 @@ import type { PlaceContext } from '../../../core/places';
 import { eventPlaceId, eventYear, placeDisplayName, slugify } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { renderReport, esc } from '../../../services/reports';
+import { renderMiniMapSvg } from '../../islands/map/mini-map';
 import { personName } from './report-format';
 
 /** GEDCOM/GRAMPS-Ortstyp → deutsches Substantiv (Orakel `TYPE_LBL`). */
@@ -111,8 +112,7 @@ function sectionHtml(
   const chain = ctx.places.enclosureChainAsOf(placeId, null).slice(1);
   const hier = chain.length ? `<div class="ob-hier">${esc(chain.join(' › '))}</div>` : '';
 
-  // Historische / datierte Namensvarianten (pnames = zeitliche Achse; DatedName trägt
-  // keine Sprache — Übersetzungen wären `translations`, BL-59, noch nicht gebaut).
+  // Historische / datierte Namensvarianten (pnames = ZEITachse; DatedName trägt keine Sprache).
   const dated = po.pnames.filter((pn) => pn.from != null || pn.to != null);
   let namesHtml = '';
   if (dated.length) {
@@ -125,6 +125,20 @@ function sectionHtml(
       .join('');
     namesHtml = `<div class="ob-sub">Historische Namen</div><table class="ob-table"><tr><th>Zeitraum</th><th>Name</th></tr>${trs}</table>`;
   }
+
+  // Übersetzungen (SPRACHachse `translations`, BL-59) — mehrsprachige Namensformen (Breslau
+  // `de` / Wrocław `pl`). `?? []` toleriert aus feldloser orte.json geladene Orte.
+  const trans = po.translations ?? [];
+  const transHtml = trans.length
+    ? `<div class="ob-sub">Übersetzungen</div><div class="ob-surns">${trans
+        .map((t) => `<span class="ob-surn-chip"><span class="ob-trans-lang">${esc(t.lang)}</span>${esc(t.value)}</span>`)
+        .join('')}</div>`
+    : '';
+
+  // Mini-Karte (BL-09) — self-contained inline-SVG, nur wenn der Ort eigene Koordinaten trägt.
+  const mapHtml = po.lat != null && po.long != null
+    ? `<div class="rep-mini-map">${renderMiniMapSvg({ lat: po.lat, long: po.long, label })}</div>`
+    : '';
 
   // Häufigste Familiennamen (distinkte Personen an diesem Ort).
   const surnCount = new Map<string, number>();
@@ -173,6 +187,6 @@ function sectionHtml(
   return `<section class="ob-place" id="ob-${slugify(label)}">
   <h2>${esc(label)}</h2>
   <div class="ob-meta">${typeLbl ? `<span class="ob-badge">${esc(typeLbl)}</span>` : ''}${po.govId ? ` <span class="ob-badge">GOV: ${esc(po.govId)}</span>` : ''} <span class="ob-badge ob-badge--cnt">${persons} Personen · ${events.length} Ereignisse</span></div>
-  ${hier}${namesHtml}${surnHtml}${evHtml}
+  ${hier}${mapHtml}${namesHtml}${transHtml}${surnHtml}${evHtml}
 </section>`;
 }

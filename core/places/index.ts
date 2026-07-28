@@ -88,6 +88,8 @@ export {
   deleteHofObject,
   withAddedPname,
   withRemovedPname,
+  withAddedTranslation,
+  withRemovedTranslation,
   withAddedEnclosedBy,
   withRemovedEnclosedBy,
   withAddedHofAddr,
