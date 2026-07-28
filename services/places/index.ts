@@ -26,3 +26,14 @@ export { createPlacesFileIO } from './create-places-file-io';
 export type { PlacesFileIO } from './create-places-file-io';
 export { parsePlacesFileWrapper, serializePlacesFileWrapper } from './places-file-wrapper';
 export { exportPlacesFile } from './export-places-file';
+
+// Nominatim-Geocoding (BL-130, Spec 20 §1.7) — Plattform-`fetch` hinter mockbarem Adapter.
+export {
+  geocodePlace,
+  batchGeocodePlaces,
+  browserGeocodeDeps,
+  NOMINATIM_BASE,
+  NOMINATIM_RATE_MS,
+  type GeocodeDeps,
+  type BatchProgress,
+} from './geocode-service';

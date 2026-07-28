@@ -27,7 +27,9 @@
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import { withAddedPname, withRemovedPname, placeDisplayName, resolveCoordFields } from '../../../core/places';
+  import type { GeocodeHit } from '../../../core/places';
   import CoordFields from '../../shell/CoordFields.svelte';
+  import GeocodeButton from '../../shell/GeocodeButton.svelte';
   import {
     buildPlaceDetail,
     buildPlaceContemporaries,
@@ -164,6 +166,13 @@
 
   function cancelEdit() {
     editing = false;
+  }
+
+  /** Nominatim-Treffer ins Formular; Typ nur, wenn leer/Unknown (Kuration bleibt, wie Batch/v8). */
+  function applyGeocodeHit(hit: GeocodeHit) {
+    formLatText = String(hit.lat);
+    formLongText = String(hit.long);
+    if ((!formType.trim() || formType === 'Unknown') && hit.type !== 'Unknown') formType = hit.type;
   }
 
   function saveEdit() {
@@ -343,6 +352,7 @@
           <input type="text" bind:value={formType} placeholder="z. B. Village, City, County…" />
         </label>
         <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
+        <GeocodeButton name={formTitle.trim() || detail.place.title} onResult={applyGeocodeHit} />
         <label>
           Notiz
           <textarea bind:value={formNote}></textarea>
