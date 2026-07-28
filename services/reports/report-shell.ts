@@ -198,6 +198,100 @@ function reportCss(): string {
     .story-chron { list-style: none; margin: 4px 0; }
     .story-chron li { padding: 2px 0; font-size: 10pt; }
 
+    /* ── Familienbuch (#7, BL-176) ────────────────────────────── */
+    .book-cover { text-align: center; margin: 0 0 22px; }
+    .book-cover-photo { max-height: 260px; max-width: 100%; border: 1px solid #ddd0b8;
+                        border-radius: 6px; object-fit: cover; margin-bottom: 12px; }
+    .book-toc { margin: 4px 0 26px; page-break-after: always; }
+    .book-toc h2 { margin-bottom: 6px; }
+    .book-toc ul { list-style: none; columns: 2; column-gap: 22px; font-size: 0.9rem; }
+    .book-toc li { padding: 2px 0; break-inside: avoid; }
+    .book-toc a { color: #5a3e0e; text-decoration: none; }
+    .book-toc-num { display: inline-block; min-width: 2.2em; color: #8a6420; font-weight: 700; }
+    .person-section { margin: 0 0 20px; padding-bottom: 12px;
+                      border-bottom: 1px solid #eee4cf; page-break-inside: avoid; }
+    .person-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+    .kekule-badge { flex: 0 0 auto; min-width: 26px; height: 26px; padding: 0 6px;
+                    background: #5a3e0e; color: #f5eedf; border-radius: 13px;
+                    font-size: 0.82rem; font-weight: 700; line-height: 26px; text-align: center; }
+    .person-photo { flex: 0 0 auto; width: 72px; height: 72px; object-fit: cover;
+                    border: 1px solid #ddd0b8; border-radius: 4px; }
+    .person-title h2 { border: 0; margin: 0; padding: 0; font-size: 1.15rem; color: #2a1d08; }
+    .person-lifespan { color: #6a4a20; font-size: 0.9rem; }
+    table.facts-table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 4px 0 8px; }
+    table.facts-table th { text-align: left; width: 130px; vertical-align: top;
+                           font-weight: 700; color: #6a4a20; padding: 2px 8px 2px 0; white-space: nowrap; }
+    table.facts-table td { padding: 2px 0; vertical-align: top; }
+    .ev-note { color: #5a4326; font-style: italic; }
+    .family-block { font-size: 10pt; margin: 3px 0; }
+    .fam-label { display: inline-block; min-width: 54px; font-weight: 700; color: #6a4a20; }
+    .fam-meta { color: #6a4a20; font-size: 0.9rem; }
+    .book-children { margin: 1px 0 0 54px; font-size: 0.9rem; color: #3a2810; }
+    .person-note { font-size: 0.9rem; color: #3a2810; white-space: pre-wrap; margin: 6px 0;
+                   padding: 5px 10px; border-left: 3px solid #c0a878; background: #fdf8ef; }
+    .person-sources { margin-top: 6px; font-size: 0.78rem; color: #8a7050; }
+    .person-sources .src-label { font-weight: 700; color: #6a4a20; }
+    .book-glossary { margin-top: 20px; page-break-before: always; }
+    .book-glossary dl { display: grid; grid-template-columns: 90px 1fr; gap: 3px 10px; font-size: 0.9rem; margin-top: 6px; }
+    .book-glossary dt { font-weight: 700; color: #6a4a20; }
+    .book-glossary dd { margin: 0; }
+    .name-index { columns: 3; column-gap: 20px; font-size: 0.85rem; margin-top: 6px; }
+    .name-index a { display: block; padding: 1px 0; color: #5a3e0e; text-decoration: none; break-inside: avoid; }
+
+    /* ── Ortssippenbuch (#11, BL-177) ─────────────────────────── */
+    ul.osb-toc { list-style: none; columns: 2; column-gap: 20px; font-size: 0.9rem; margin: 4px 0 22px; }
+    ul.osb-toc li { padding: 2px 0; break-inside: avoid; }
+    ul.osb-toc a { color: #5a3e0e; text-decoration: none; }
+    ul.osb-toc em { color: #8a6420; font-style: normal; font-size: 0.82rem; }
+    .osb-place { margin-bottom: 18px; page-break-inside: avoid; }
+    .osb-cnt { font-size: 0.78rem; font-weight: 400; color: #8a7050; }
+    .osb-fam { font-size: 10pt; line-height: 1.5; margin: 6px 0; padding-left: 10px; border-left: 2px solid #e8dfc8; }
+
+    /* ── Hofchronik (#12, BL-178) ─────────────────────────────── */
+    ul.hc-toc { list-style: none; columns: 2; column-gap: 20px; font-size: 0.9rem; margin: 4px 0 22px; }
+    ul.hc-toc li { padding: 2px 0; break-inside: avoid; }
+    ul.hc-toc a { color: #5a3e0e; text-decoration: none; }
+    ul.hc-toc em { color: #8a6420; font-style: normal; font-size: 0.82rem; }
+    .hc-place { margin-bottom: 20px; }
+    .hc-hof { margin: 0 0 14px; padding: 10px 14px; border: 1px solid #e0d4b8;
+              border-radius: 5px; background: #fdfaf3; page-break-inside: avoid; }
+    .hc-hof h3 { font-size: 1.05rem; color: #6a4a20; margin-bottom: 1px; }
+    .hc-hof-sub { font-size: 0.85rem; color: #8a7050; margin-bottom: 4px; }
+    .hc-hof-geo { font-size: 0.8rem; color: #7a6248; margin-bottom: 4px; }
+    .hc-hof-note { font-size: 0.88rem; color: #3a2810; white-space: pre-wrap;
+                   border-left: 3px solid #c0a878; padding: 4px 8px; margin: 4px 0 8px; background: #fff; }
+    .hc-sub { font-size: 0.78rem; font-weight: 700; color: #5a3e0e; text-transform: uppercase;
+              letter-spacing: 0.04em; margin: 10px 0 4px; border-bottom: 1px solid #e8dfc8; padding-bottom: 2px; }
+    .hc-person { margin: 5px 0 8px; padding-left: 6px; }
+    .hc-pname { font-size: 10pt; }
+    .hc-role { display: inline-block; font-size: 0.7rem; font-weight: 700; color: #7a5010;
+               background: #f0e6cf; border-radius: 3px; padding: 0 5px; vertical-align: 1px; margin-right: 4px; }
+    .hc-yrs { color: #6a4a20; font-size: 0.9rem; }
+    .hc-fam { font-size: 0.9rem; color: #3a2810; margin: 1px 0 0 16px; }
+    .hc-move { font-size: 0.85rem; color: #7a5a28; margin: 1px 0 0 16px; font-style: italic; }
+    .hc-empty { font-size: 0.85rem; color: #aaa; font-style: italic; }
+
+    /* ── Ortsbuch (#13, BL-179) ───────────────────────────────── */
+    ul.ob-toc { list-style: none; columns: 3; column-gap: 20px; font-size: 0.82rem; margin: 4px 0 22px; }
+    ul.ob-toc li { padding: 2px 0; break-inside: avoid; }
+    ul.ob-toc a { color: #5a3e0e; text-decoration: none; }
+    ul.ob-toc em { color: #8a6420; font-style: normal; font-size: 0.75rem; }
+    .ob-place { border-top: 1px solid #ddd0b8; padding: 16px 0 4px; page-break-inside: avoid; }
+    .ob-meta { margin: 2px 0 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .ob-badge { background: #f5eedf; border: 1px solid #ddd0b8; border-radius: 10px;
+                padding: 1px 8px; font-size: 0.75rem; color: #5a4a3a; }
+    .ob-badge--cnt { background: #faf4e8; border-color: #e0c8a0; color: #6a4a20; }
+    .ob-hier { font-size: 0.85rem; color: #5a4a3a; margin: 4px 0; }
+    .ob-sub { font-size: 0.78rem; font-weight: 700; color: #8a7050; text-transform: uppercase;
+              letter-spacing: 0.04em; margin: 12px 0 4px; }
+    table.ob-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 4px 0; }
+    table.ob-table th { text-align: left; padding: 3px 8px; background: #f5eedf; color: #6a4a20;
+                        font-weight: 700; border: 1px solid #ddd0b8; }
+    table.ob-table td { padding: 3px 8px; border: 1px solid #e8dfc8; vertical-align: top; }
+    .ob-surns { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; }
+    .ob-surn-chip { background: #f5eedf; border: 1px solid #ddd0b8; border-radius: 10px; padding: 1px 9px; font-size: 0.8rem; }
+    .ob-surn-chip em { font-style: normal; color: #8a7050; margin-left: 3px; }
+
     @media print {
       .story-map, .story-block { page-break-inside: avoid; }
       /* Seitenzahl unten rechts auf jeder gedruckten Seite (Spec 20 §4 „Seitenzahlen"). */

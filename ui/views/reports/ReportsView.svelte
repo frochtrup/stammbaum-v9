@@ -47,7 +47,7 @@
     let html: string;
     try {
       const on = new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
-      html = def.build(appState.db, on, personId);
+      html = def.build(appState.db, appState.placeContext, on, personId);
     } catch (err) {
       error = `${def.label}: ${err instanceof Error ? err.message : String(err)}`;
       return;
@@ -62,7 +62,7 @@
   {:else}
     <section class="reports__person" role="group" aria-labelledby="reports-person-label">
       <h3 id="reports-person-label" class="stb-role-label">Bezugsperson</h3>
-      <p class="reports__hint">Für Ahnenliste, Familienbogen und Nachkommentafel.</p>
+      <p class="reports__hint">Für Ahnenliste, Familienbogen, Nachkommentafel und Familienbuch.</p>
       <PersonPicker
         {appState}
         value={personId}
