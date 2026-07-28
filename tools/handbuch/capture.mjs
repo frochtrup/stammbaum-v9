@@ -28,6 +28,12 @@ const args = process.argv.slice(2);
 const arg = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
 const URL = arg('--url', 'http://localhost:5173');
 const OUT = arg('--out', '/Users/franzdecker/dev/stammbaum-v9/app/public/handbuch-assets');
+// --only <a,b,…>: nur passende Screenshots SCHREIBEN (Teilstring-Match auf den Shot-Namen).
+// Die Navigation läuft trotzdem vollständig durch (die Screens hängen sequenziell voneinander
+// ab) — aber die übrigen, bereits korrekten PNGs bleiben unangetastet. Debug-Läufe für EINEN
+// neuen Screenshot verschmutzen so nicht die 30+ anderen (Screenshots rendern nicht-
+// deterministisch → sonst „M" in git für jede Datei ohne inhaltliche Änderung).
+const ONLY = arg('--only', '').split(',').map((s) => s.trim()).filter(Boolean);
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const WRAPPER = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'orte.json'), 'utf8'));
 
@@ -98,13 +104,32 @@ async function bottomNav(slot) {
   if (!ok) console.log('  ! bottomNav-Slot nicht gefunden:', slot);
   await sleep(650);
 }
-async function shot(name) { await sleep(650); await page.screenshot({ path: `${OUT}/${name}.png` }); console.log('  ✓', name); }
+async function shot(name) {
+  if (ONLY.length && !ONLY.some((o) => name.includes(o))) { console.log('  · übersprungen (--only):', name); return; }
+  await sleep(650); await page.screenshot({ path: `${OUT}/${name}.png` }); console.log('  ✓', name);
+}
 async function scrollTop() { await page.evaluate(() => window.scrollTo(0, 0)); await sleep(200); }
 async function fill(ph, val) { const ok = await page.evaluate((ph) => { const i = [...document.querySelectorAll('input,textarea')].find((x) => x.placeholder === ph && x.offsetParent); if (i) { i.focus(); return true; } return false; }, ph); if (ok) await page.keyboard.type(val, { delay: 8 }); await sleep(200); return ok; }
 async function pickTarget(term) {
   await page.evaluate(() => { const c = [...document.querySelectorAll('input[role=combobox]')].find((x) => /Person/.test(x.placeholder || '') && x.offsetParent); if (c) c.focus(); });
   await page.keyboard.type(term, { delay: 20 }); await sleep(800);
   await page.evaluate(() => { const o = [...document.querySelectorAll('[role=option]')].find((x) => !/Neue Person/.test(x.textContent)); if (o) o.click(); });
+  await sleep(350);
+}
+// Wie pickTarget, aber trifft GENAU das Picker-Feld, dessen Placeholder `phFrag` enthält —
+// nötig, wo zwei Personen-Picker nebeneinander stehen (Beziehungsrechner: „Person A"/„Person B").
+// Wählt bewusst die Option, die den Suchbegriff ENTHÄLT (nicht blind die erste) — sonst
+// träfe die alphabetisch erste Person, falls das Tippen die Liste nicht gefiltert hat.
+async function pickInField(phFrag, term) {
+  const box = await page.evaluate((frag) => {
+    const c = [...document.querySelectorAll('input[role=combobox]')].find((x) => (x.placeholder || '').includes(frag) && x.offsetParent);
+    if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  }, phFrag);
+  if (!box) { console.log('  ! Picker-Feld nicht gefunden:', phFrag); return; }
+  await page.mouse.click(box.x, box.y); await sleep(300);       // echter Klick öffnet die Liste zuverlässiger als focus()
+  await page.keyboard.type(term, { delay: 30 }); await sleep(800);
+  const ok = await page.evaluate((t) => { const o = [...document.querySelectorAll('[role=option]')].find((x) => x.textContent.includes(t) && !/Neue Person|anlegen/.test(x.textContent)); if (o) { o.click(); return true; } return false; }, term);
+  if (!ok) console.log('  ! Option nicht gefunden:', term);
   await sleep(350);
 }
 async function save() { await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Speichern' && x.offsetParent); if (b) b.click(); }); await sleep(550); }
@@ -161,6 +186,10 @@ await page.evaluate(() => { const b = document.querySelector('.person-dedup__sca
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
 await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
+// Kaspar als Session-Proband setzen (BL-120): die effektive Referenzperson der Sitzung.
+// Davon erben gleich Beziehungsrechner (Person A), Ausgaben-Bezugsperson und Story-Modus
+// ihre Vorbelegung — der Screenshot des „★ Proband"-Zustands liegt im Steckbrief-Kopf.
+await click('☆ Als Proband'); await sleep(400);
 // Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997): „Im Baum
 // anzeigen" setzt den geteilten lensFocus → davon erben gleich Karte-Personen-Modus & Zeitleiste.
 await click('Im Baum anzeigen', { contains: true }); await sleep(1000); await shot('14-sanduhr');
@@ -213,6 +242,25 @@ await bottomNav('more'); await click('Datei'); await shot('24-datei');
 await bottomNav('more'); await click('Datei'); await click('In anderes Format exportieren', { contains: true }); await shot('25-export');
 await bottomNav('more'); await shot('26-mehr');
 
+// Ausgaben-Hub (BL-169…179): der Druck-Report-Katalog. Bezugsperson ist mit dem oben
+// gesetzten Proband (Kaspar) vorbelegt → die personen-bezogenen Reports sind sofort erzeugbar.
+await bottomNav('more'); await click('Ausgaben'); await sleep(500); await scrollTop(); await shot('27-ausgaben');
+
+// Beziehungsrechner (BL-134/175): Personen-Segment → Werkzeuge → „Verwandtschaft berechnen".
+// Person A ist der Proband (Kaspar), Person B = seine Schwester „Styna Hörstmann" (@I9@,
+// im Bestand eindeutig — „Styna" allein ist bei vielen ein Zweitname) → „Geschwister",
+// gemeinsamer Vorfahre + Pfad. „🖨 Verwandtschaftsnachweis drucken" erzeugt Report #9.
+// bottomNav('person') öffnet nur die DATEN-Gruppe und zeigt das ZULETZT aktive Segment
+// (hier: Medien, von 13c) — deshalb explizit auf das Personen-Segment schalten.
+await bottomNav('person'); await click('Personen'); await scrollTop();
+// Kaspar-Steckbrief wurde oben geöffnet → das Personen-Segment zeigt noch das Detail.
+// „← Zur Liste" schließen, damit die Werkzeuge-Disclosure der LISTE erscheint.
+await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(450);
+await scrollTop(); await click('Werkzeuge'); await click('Verwandtschaft berechnen'); await sleep(600);
+await pickInField('Person B', 'Styna Hörstmann'); await sleep(400);
+await scrollTop(); await shot('28-beziehung');
+await page.evaluate(() => { const b = document.querySelector('.rel-tool__close-btn'); if (b) b.click(); }); await sleep(400);
+
 // ---- DESKTOP ----
 console.log('Screenshots (Desktop) …');
 await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 }); await sleep(600);
@@ -236,6 +284,27 @@ await click('Sanduhr'); await sleep(600);
 await click('Zeitleiste'); await sleep(800);
 await page.setViewport({ width: 1280, height: 640, deviceScaleFactor: 2 }); await sleep(900);
 await shot('17-zeitleiste');
+
+// Story-Lens (BL-133/183…190): erzählte Biografie der Fokus-Person (lensFocus = @I3@,
+// verstorben, ereignisreich). Der Lens-Umschalter „📖 Story" steht in der Kopfzeile der
+// Zeitleiste; Person-/Familien-Modus über den Umschalter darunter. Volle Höhe, damit
+// Einleitungstext + Lebensweg-Karte + Inline-Diagramm sichtbar sind.
+await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 2 }); await sleep(600);
+await click('Story'); await sleep(1600);
+// Die USP der Story ist der ERZÄHLTE Text — nicht nur Karte/Diagramm. Deshalb so scrollen,
+// dass unter dem Diagramm-Ende die erste Biografie-Sektion (Überschrift + Prosa) sichtbar wird.
+// Die Story scrollt einen INNEREN Container (nicht window) → scrollIntoView auf die erste
+// Biografie-Überschrift; danach im selben Container ~240px zurück, damit das Diagramm-Ende
+// oben noch anschneidet (Karte/Diagramm UND erzählter Text in einem Bild).
+await page.evaluate(() => {
+  const h = document.querySelector('.story-lens-view__section-title');
+  if (!h) return;
+  h.scrollIntoView({ block: 'start' });
+  let el = h.parentElement;
+  while (el && el.scrollHeight <= el.clientHeight) el = el.parentElement;
+  if (el) el.scrollTop = Math.max(0, el.scrollTop - 240);
+}); await sleep(600);
+await shot('29-story');
 
 await browser.close();
 console.log('fertig — Screenshots in', OUT);

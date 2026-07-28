@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.6 · Stand 2026-07-27</div>
+  <div class="version">Benutzerhandbuch · Version 9.7 · Stand 2026-07-28</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -209,6 +209,8 @@
     <li><a href="#k9">Medien</a></li>
     <li><a href="#k10">Diagramme: Baum, Karte, Zeitleiste</a></li>
     <li><a href="#k11">Statistik</a></li>
+    <li><a href="#kStory">Story: Erzählte Biografien</a></li>
+    <li><a href="#kReports">Ausgaben: Druckfertige Reports</a></li>
     <li><a href="#k12">Forschung: Aufgaben, Protokoll, Hypothesen</a></li>
     <li><a href="#k13">Qualität und Datenprüfung</a></li>
     <li><a href="#k14">Suchen und Finden</a></li>
@@ -247,15 +249,26 @@
       Internet. Eine Anzeige in der Schale signalisiert, wenn Sie offline sind.</li>
   <li><strong>Standardformate.</strong> Sie öffnet <strong>GEDCOM 5.5.1</strong> und
       <strong>GRAMPS</strong>-Dateien und schreibt sie wieder — ohne Ihre Daten zu
-      verstümmeln (siehe <a href="#k16">Kapitel 16</a>).</li>
+      verstümmeln (siehe <a href="#k16">Kapitel 18</a>).</li>
   <li><strong>Sechs Kern-Datenarten:</strong> Personen, Familien, Quellen, Orte, Höfe und
       Medien — dazu Diagramme, Statistik und ein Forschungs-Arbeitsbereich.</li>
+  <li><strong>Erzählte Biografien.</strong> Die <a href="#kStory">Story-Ansicht</a> macht
+      aus nüchternen Daten eine lesbare Lebensgeschichte — mit Karte, Diagramm und Fotos,
+      als Dokument herunterladbar.</li>
+  <li><strong>Druckfertige Ausgaben.</strong> Vom Familienbuch über Ahnenliste und
+      Ortssippenbuch bis zur Hofchronik — <a href="#kReports">buchreife Dokumente</a>
+      direkt aus Ihren Daten, ganz ohne fremde Software.</li>
+  <li><strong>Historische Ortstiefe.</strong> Orte tragen ihre
+      <a href="#k7">Verwaltungszugehörigkeit Epoche für Epoche</a> — eine Zeitachse, die
+      keine GEDCOM-Datei speichern kann.</li>
+  <li><strong>Forschen mit Beleg.</strong> Aufgaben, Protokoll, Hypothesen und ein
+      Qualitäts-Dashboard führen von der offenen Frage zur belegten Aussage.</li>
 </ul>
 
 <div class="info">
   Dieses Handbuch beschreibt nur Funktionen, die tatsächlich gebaut und in der App
   erreichbar sind. Geplante, aber noch nicht fertige Bereiche sind in
-  <a href="#k17">Kapitel 17</a> gesammelt und in der App mit „(folgt)" gekennzeichnet.
+  <a href="#k17">Kapitel 19</a> gesammelt und in der App mit „(folgt)" gekennzeichnet.
 </div>
 
 <h2>Was Sie zum Loslegen brauchen</h2>
@@ -350,8 +363,9 @@
       sind das die Segmente <em>Personen · Familien · Quellen · Orte · Höfe</em>.
     </p>
     <p>
-      Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik, das
-      Datei-Menü — und (noch in Arbeit) Story, Ausgaben und Einstellungen.
+      Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik,
+      <a href="#kStory">Story</a>, <a href="#kReports">Ausgaben</a> und das Datei-Menü;
+      nur die Einstellungen sind noch in Arbeit.
     </p>
   </div>
 </div>
@@ -487,6 +501,20 @@
   müssen.
 </p>
 
+<h2 id="proband">Der Proband — die Referenzperson der Sitzung</h2>
+<p>
+  Viele Ansichten drehen sich um <em>eine</em> Person: der <a href="#k10">Baum</a> stellt
+  sie in die Mitte, die <a href="#kStory">Story</a> erzählt ihr Leben, die
+  <a href="#kReports">Ausgaben</a> nehmen sie als Bezugsperson. Diese Person heißt
+  <strong>Proband</strong>. Im Kopf jeder Personen-Detailansicht setzen Sie sie mit
+  <strong>☆ Als Proband</strong>; der Knopf zeigt danach <strong>★ Proband</strong>.
+</p>
+<p>
+  Der Proband gilt für die ganze Sitzung und wird nicht in die Datei geschrieben. Solange
+  Sie keinen gesetzt haben, wählt die App sinnvoll vor — so ist überall dieselbe Person
+  gemeint, ohne dass Sie sie in jeder Ansicht neu suchen müssen.
+</p>
+
 <div class="workflow">
   <h3>So legen Sie eine Person an</h3>
   <ol class="steps">
@@ -549,6 +577,31 @@
     <img src="handbuch-assets/05-duplikate.png" alt="Duplikat-Liste mit Kandidatenpaaren, Ähnlichkeits-Score und Gründen">
     <figcaption>Die Duplikat-Liste: Kandidatenpaare mit Score und Begründung</figcaption>
   </figure>
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/28-beziehung.png" alt="Beziehungsrechner mit zwei gewählten Personen, gemeinsamem Vorfahren und Pfad">
+    <figcaption>Beziehungsrechner: gemeinsamer Vorfahre und Verwandtschaftsgrad</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Verwandtschaft berechnen</h2>
+    <p>
+      Das zweite Werkzeug der Personenliste beantwortet eine Frage, die von Hand mühsam
+      ist: <strong>Wie sind zwei Menschen verwandt?</strong> Über
+      <strong>Werkzeuge → Verwandtschaft berechnen</strong> wählen Sie
+      <strong>Person A</strong> und <strong>Person B</strong> (A ist mit dem
+      <a href="#proband">Proband</a> vorbelegt). Die App sucht den
+      <strong>gemeinsamen Vorfahren</strong>, benennt den Grad („Geschwister",
+      „Cousin/Cousine 2. Grades" …) und zeigt den kürzesten Pfad Person für Person — mit
+      dem gemeinsamen Vorfahren als markiertem Knoten.
+    </p>
+    <p>
+      <strong>🖨 Verwandtschaftsnachweis drucken</strong> erzeugt daraus ein druckfertiges
+      Dokument — dieselbe Ausgabe-Mechanik wie die <a href="#kReports">Reports</a>, nur
+      hier zur Hand, wo beide Personen schon gewählt sind.
+    </p>
+  </div>
 </div>
 
 <div class="info">
@@ -725,7 +778,7 @@
       Namen, datierte Zugehörigkeiten) kann GEDCOM gar nicht abbilden. Beim Export
       wird sie auf den im Ereignisjahr gültigen Ortstext <em>zusammengefaltet</em> —
       die volle Historie bleibt in <code>orte.json</code>, Ihre Datei bleibt
-      standardkonform und verliert nichts (siehe <a href="#k16">Kapitel 16</a>).</li>
+      standardkonform und verliert nichts (siehe <a href="#k16">Kapitel 18</a>).</li>
   <li><strong>Ein Spiegel im Gerät.</strong> Damit die Karte sofort funktioniert, hält
       die App eine Kopie von <code>orte.json</code> im Browser-Speicher. Import und
       Export gehen über <strong>Datei → Orte importieren / Orte exportieren</strong>.</li>
@@ -785,7 +838,10 @@
       <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
           heirateten, starben — mit Quellen-Badges.</li>
       <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
-      <li>Ein Namens-Zeitstrahl hält historische Schreibvarianten fest.</li>
+      <li>Ein Namens-Zeitstrahl hält historische Schreibvarianten fest — dazu
+          <strong>Übersetzungen</strong> in andere Sprachen (siehe unten).</li>
+      <li>Eine kleine <strong>Kartenvorschau</strong> zeigt die Lage, sobald Koordinaten
+          hinterlegt sind.</li>
     </ul>
     <p>
       Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar. „Ort löschen" setzt
@@ -799,6 +855,38 @@
       Epoche für Epoche</figcaption>
   </figure>
 </div>
+
+<h2>Koordinaten, Kartenvorschau und Geocoding</h2>
+<p>
+  <strong>Koordinaten</strong> sind die Grundlage jeder Karten-Darstellung. Liegen sie
+  vor, zeigt der Steckbrief eine statische <strong>Kartenvorschau</strong> der Lage — sie
+  kommt ohne Kartendienst aus und funktioniert damit auch offline; die volle interaktive
+  <a href="#k10">Karte</a> erreichen Sie über den Pfeil ↗ in einer Ereigniszeile.
+</p>
+<p>
+  Koordinaten tragen Sie beim <strong>✎ Bearbeiten</strong> von Hand ein — oder Sie lassen
+  sie bestimmen: <strong>📍 Via Nominatim geocodieren</strong> schlägt anhand des
+  Ortsnamens Koordinaten (und, wenn noch keiner gesetzt ist, den Ortstyp) vor. Für den
+  ganzen Bestand auf einmal gibt es in der Ortsliste unter <strong>Werkzeuge</strong> die
+  Aktion <strong>„📍 Alle ohne Koordinaten geocodieren"</strong> — ein ratenbegrenzter
+  Stapellauf mit Fortschrittsanzeige.
+</p>
+<div class="info">
+  Geocoding nutzt den offenen Dienst <strong>Nominatim/OpenStreetMap</strong> und ist
+  damit eine der wenigen Funktionen, die das Internet brauchen — ohne Netz arbeitet die
+  App unverändert weiter, nur dieser Abruf entfällt. Ihre Kuration bleibt geschützt: ein
+  Vorschlag überschreibt nie einen bereits gepflegten Ortstyp.
+</div>
+
+<h2>Ortsnamen in anderen Sprachen</h2>
+<p>
+  Neben den historischen <em>Schreibvarianten</em> (dieselbe Sprache, andere Schreibung)
+  hält ein Ort seine <strong>Übersetzungen</strong> fest: derselbe Ort in einer anderen
+  Sprache, jeweils mit vorangestelltem Sprachkürzel — etwa der lateinische Name in einem
+  Kirchenbuch oder der polnische Name eines ostdeutschen Dorfes. So bleibt für
+  ausgewanderte Linien und mehrsprachige Regionen nachvollziehbar, unter welchem Namen ein
+  Ort in welcher Quelle erscheint.
+</p>
 
 <h2>Verknüpfen, prüfen, zusammenführen</h2>
 <ul>
@@ -860,6 +948,9 @@
           — auf allen referenzierenden Ereigniszeilen.</li>
       <li><strong>Hof-Review</strong> und <strong>Massen-Zusammenführung</strong>
           bereinigen den Bestand analog zu den Orten.</li>
+      <li>Wie der Ort trägt auch der Hof <strong>Koordinaten</strong> und eine
+          <strong>Kartenvorschau</strong> im Detail — ein Hof kann so präziser verortet
+          sein als sein Dorf (etwa ein einzelnes Gehöft).</li>
       <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
     </ul>
   </div>
@@ -935,7 +1026,7 @@
   Cloud-Foto-Ordner und lädt nichts hoch — die Medien liegen wie die Stammbaum-Datei
   selbst in Ihrem gewohnten Ordner. Und beim Speichern werden die Medien-Einträge
   <strong>verlustfrei</strong> in GEDCOM bzw. GRAMPS zurückgeschrieben (siehe
-  <a href="#k16">Kapitel 16</a>) — auch Felder, die die App gar nicht anzeigt, bleiben
+  <a href="#k16">Kapitel 18</a>) — auch Felder, die die App gar nicht anzeigt, bleiben
   unangetastet.
 </div>
 
@@ -956,8 +1047,10 @@
 
 <p class="lead">
   Der Bereich <strong>Ansichten</strong> ist der Umschalter für die grafischen
-  Darstellungen: <strong>Baum</strong>, <strong>Karte</strong> und <strong>Zeitleiste</strong>
-  (Story folgt). Jede Ansicht merkt sich ihre eigene Auswahl.
+  Darstellungen: <strong>Baum</strong>, <strong>Karte</strong> und
+  <strong>Zeitleiste</strong>. Derselbe Umschalter führt auch zur
+  <a href="#k11">Statistik</a> und zur <a href="#kStory">Story</a>. Jede Ansicht merkt
+  sich ihre eigene Auswahl.
 </p>
 
 <h2>Der Baum: drei Ansichten</h2>
@@ -1020,7 +1113,7 @@
       Karten mit fehlenden oder unbelegten Angaben tragen einen farbigen Ring:
       <strong>goldgelb</strong> für einen Hinweis, <strong>orange</strong> für eine Warnung,
       <strong>rot</strong> für einen Fehler. Die Stufung stammt aus derselben Prüfung wie das
-      <a href="#k13">Qualitäts-Dashboard</a> (Kapitel 13) — kein zweiter Maßstab. Fahren Sie
+      <a href="#k13">Qualitäts-Dashboard</a> (Kapitel 15) — kein zweiter Maßstab. Fahren Sie
       mit der Maus über eine Karte, nennt ein Hinweisfeld die konkret fehlenden Angaben. So
       sehen Sie direkt im Baum, wo noch Arbeit wartet.
     </p>
@@ -1114,18 +1207,132 @@
       <li><strong>Lebensspannen</strong> — Durchschnitt, Median, Minimum, Maximum.</li>
     </ul>
     <p>
-      Derselbe Rechenkern liegt der Live-Ansicht und (künftig) dem gedruckten Report
-      zugrunde; er rechnet über die aufgelösten Orte, nicht über rohe Textfelder.
+      Die Statistik rechnet über die <a href="#k7">aufgelösten Orte</a>, nicht über rohe
+      Textfelder — historische Schreibvarianten desselben Ortes zählen als einer. Ordnen
+      Sie Ihre Orte also zuerst, dann stimmen auch die Zahlen.
     </p>
   </div>
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k12">12. Forschung: Aufgaben, Protokoll, Hypothesen</h1>
+<h1 class="chapter" id="kStory">12. Story: Erzählte Biografien</h1>
+
+<p class="lead">
+  Die <strong>Story-Ansicht</strong> verwandelt die nüchternen Daten einer Person in eine
+  zusammenhängende <strong>Lebensgeschichte</strong> — in ganzen deutschen Sätzen, mit
+  Lebensweg-Karte, kompaktem Stammbaum-Ausschnitt und eingebetteten Fotos. Kein
+  Rohdaten-Auszug, sondern ein lesbarer Text, den auch Verwandte ohne
+  Genealogie-Vorwissen verstehen. Story ist eine der <em>Ansichten</em> und steht im
+  Umschalter neben <strong>Baum · Karte · Zeitleiste · Statistik</strong>.
+</p>
+
+<figure class="wide">
+  <img src="handbuch-assets/29-story.png" alt="Story-Ansicht: erzählte Biografie mit Einleitung, Lebensweg-Karte und Stammbaum-Ausschnitt">
+  <figcaption>Die Story-Ansicht: eine erzählte Biografie mit Karte und Diagramm</figcaption>
+</figure>
+
+<h2>Zwei Modi: Person und Familie</h2>
+<p>
+  Ein Umschalter oben wählt das Subjekt der Erzählung:
+</p>
+<ul>
+  <li><strong>Person</strong> — die Biografie eines Menschen: Herkunft und frühe Jahre,
+      der Lebenslauf mit Beruf und Wohnorten, die eigenen Ehen und Kinder, schließlich Tod
+      und Begräbnis.</li>
+  <li><strong>Familie</strong> — eine paarzentrische Erzählung: die Heirat, beide
+      Elternhäuser, die gemeinsamen Kinder und die Familienchronik.</li>
+</ul>
+<p>
+  Wessen Geschichte erzählt wird, folgt dem <a href="#proband">Proband</a> bzw. der
+  geteilten Auswahl der Ansichten — über <strong>⊕ Person wählen</strong> ändern Sie sie
+  jederzeit. Aus dem Personen- oder Familien-Detail führt das Symbol <strong>📖</strong>
+  direkt in die passende Story.
+</p>
+
+<h2>Mehr als Fließtext</h2>
+<ul>
+  <li><strong>Erzählung aus der Datenlage.</strong> Gleichartige Ereignisse werden zu
+      einem Fluss-Satz zusammengefasst (mehrere Berufe, mehrere Wohnorte), Anreden und
+      Formen sind geschlechtsgerecht.</li>
+  <li><strong>Zeit- und Ortskontext.</strong> Die Lebensspanne wird gegen historische
+      Epochen des deutschsprachigen Raums gelegt; zu Geburt, Taufe, Tod und Begräbnis
+      treten kurze Ortssätze mit der Zugehörigkeit zum jeweiligen Ereignisjahr.</li>
+  <li><strong>Lebensweg-Karte.</strong> Die Stationen als Linie — live interaktiv, im
+      Download als eingebettetes Bild und damit offlinetauglich, ganz ohne
+      Kartendienst.</li>
+  <li><strong>Inline-Diagramm.</strong> Ein kompakter Stammbaum-Ausschnitt; ein Klick auf
+      eine Karte rückt diese Person in den Mittelpunkt der Erzählung.</li>
+  <li><strong>Fotos eingebettet</strong> aus den <a href="#k9">Medien</a>.</li>
+</ul>
+
+<div class="tip">
+  <strong>↓ Download</strong> erzeugt die ganze Story als eine einzelne, in sich
+  geschlossene HTML-Datei — Karte und Fotos inklusive, ohne Server und ohne externe
+  Ressource. In einem neuen Tab geöffnet, drucken oder sichern Sie sie über den Browser
+  als PDF. So wird aus einem Datensatz ein weitergebbares Lebensbild.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="kReports">13. Ausgaben: Druckfertige Reports</h1>
+
+<p class="lead">
+  Unter <strong>Mehr → Ausgaben</strong> erzeugt Stammbaum eine Reihe
+  <strong>druckfertiger Dokumente</strong> aus Ihren Daten — von der Ahnenliste bis zum
+  buchreifen Familienbuch. Jedes entsteht als eigenständige HTML-Seite in einem neuen Tab;
+  drucken oder als PDF sichern übernimmt der Browser. <strong>Kein Server, keine externe
+  Bibliothek</strong> — und weil jeder Report <em>aus dem Datenmodell gerechnet</em> wird
+  und nicht aus dem Bildschirminhalt, ist er unabhängig davon, was gerade angezeigt wird.
+</p>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/27-ausgaben.png" alt="Ausgaben-Hub mit Bezugsperson-Auswahl und der Liste der Druck-Reports">
+    <figcaption>Der Ausgaben-Hub: Bezugsperson wählen, Report erzeugen</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      Personenbezogene Reports (Ahnenliste, Familienbogen, Nachkommentafel, Familienbuch)
+      brauchen eine <strong>Bezugsperson</strong>. Sie ist mit dem
+      <a href="#proband">Proband</a> vorbelegt und über den Personen-Picker änderbar; die
+      übrigen werten den ganzen Bestand aus.
+    </p>
+  </div>
+</div>
+
+<h2>Die verfügbaren Ausgaben</h2>
+<ul>
+  <li><strong>Ahnenliste</strong> — die Vorfahren des Probanden als Kekulé-Tabelle.</li>
+  <li><strong>Familienbogen</strong> — ein Druckblatt zu einer Person: Eltern,
+      Geschwister, Ehen, Kinder und Quellen.</li>
+  <li><strong>Nachkommentafel</strong> — die Nachfahren in d’Aboville-Nummerierung.</li>
+  <li><strong>Familienbuch</strong> — die buchreife Ausgabe mit Coverfoto,
+      Inhaltsverzeichnis, Ahnen-Sektionen, Glossar und Namenindex.</li>
+  <li><strong>Quellenverzeichnis</strong> — eine Bibliographie mit Belegzählung je Quelle;
+      unbenutzte Quellen sind eigens markiert.</li>
+  <li><strong>Forschungsprotokoll</strong> — die gedruckte Fassung Ihrer
+      <a href="#k12">Protokoll</a>-Einträge, personen- und familienweise gruppiert.</li>
+  <li><strong>Ortssippenbuch</strong> — Familien nach Ort gruppiert, je Familie ein
+      erzählender Kurztext.</li>
+  <li><strong>Hofchronik</strong> — Ort › <a href="#k8">Hof</a> › Eigentümer und Bewohner
+      mit Zu- und Wegzug.</li>
+  <li><strong>Ortsbuch</strong> — ein ortssortiertes Nachschlagewerk: Namensvarianten,
+      Verwaltungszugehörigkeit und alle dort verzeichneten Ereignisse samt Personen.</li>
+</ul>
+
+<div class="info">
+  Zwei weitere Ausgaben entstehen dort, wo sie hingehören: der
+  <strong>Verwandtschaftsnachweis</strong> im <a href="#k4">Beziehungsrechner</a> (er hat
+  beide Personen zur Hand) und das <strong>A1-Poster</strong> des Baums über
+  <a href="#k10">↓ Export</a>. Und auch die <a href="#kStory">Story</a> lässt sich als
+  fertiges Dokument herunterladen.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k12">14. Forschung: Aufgaben, Protokoll, Hypothesen</h1>
 
 <p class="lead">
   Die <strong>Forschung</strong> ist Ihr Arbeitsplatz für die laufende Recherche und
-  besteht aus vier Bereichen: <strong>Dashboard</strong> (Kapitel 13),
+  besteht aus vier Bereichen: <strong>Dashboard</strong> (Kapitel 15),
   <strong>Aufgaben</strong>, <strong>Protokoll</strong> und <strong>Hypothesen</strong>.
   Jeder Eintrag hängt an einer Person oder Familie.
 </p>
@@ -1228,7 +1435,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k13">13. Qualität und Datenprüfung</h1>
+<h1 class="chapter" id="k13">15. Qualität und Datenprüfung</h1>
 
 <div class="shot-row">
   <div class="prose">
@@ -1283,7 +1490,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k14">14. Suchen und Finden</h1>
+<h1 class="chapter" id="k14">16. Suchen und Finden</h1>
 
 <div class="shot-row">
   <div class="prose">
@@ -1304,7 +1511,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k15">15. Speichern und Sichern</h1>
+<h1 class="chapter" id="k15">17. Speichern und Sichern</h1>
 
 <h2>Zwei Wege zu speichern</h2>
 <p>
@@ -1335,7 +1542,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k16">16. Datenformate und Import/Export</h1>
+<h1 class="chapter" id="k16">18. Datenformate und Import/Export</h1>
 
 <h2>Welche Formate?</h2>
 <ul>
@@ -1379,7 +1586,7 @@
 </p>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k17">17. Was noch folgt</h1>
+<h1 class="chapter" id="k17">19. Was noch folgt</h1>
 
 <p class="lead">
   Ehrlichkeitshalber: Die folgenden Bereiche sind geplant und in der App teils schon
@@ -1387,10 +1594,6 @@
   aufgeführt, damit Sie wissen, was heute fehlt.
 </p>
 <ul>
-  <li><strong>Story / Biografie</strong> — erzählte Lebensgeschichten mit Karte und Download.</li>
-  <li><strong>Ausgaben / Druck</strong> — Familienbuch, Ahnenliste, Ortsbuch,
-      Hofchronik und weitere Druckvorlagen.</li>
-  <li><strong>Beziehungsrechner</strong> — Verwandtschaftsgrad zwischen zwei Personen.</li>
   <li><strong>GOV-Import</strong> für historische Ortszugehörigkeiten (die Felder
       existieren, der importierende Weg fehlt noch).</li>
   <li><strong>Assoziationen</strong> (Zeugen, Paten, Informanten) in der Oberfläche —
@@ -1399,7 +1602,7 @@
 </ul>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k18">18. Gute Praxis auf einen Blick</h1>
+<h1 class="chapter" id="k18">20. Gute Praxis auf einen Blick</h1>
 
 <ul>
   <li><strong>Belegen vor Behaupten.</strong> Jede Tatsache verdient eine Quelle. Eine
@@ -1419,7 +1622,7 @@
 </ul>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k19">19. Häufige Fragen</h1>
+<h1 class="chapter" id="k19">21. Häufige Fragen</h1>
 
 <dl class="faq">
   <dt>Wo sind meine Daten gespeichert? Sind sie sicher?</dt>
@@ -1429,7 +1632,7 @@
   <dt>Muss ich speichern?</dt>
   <dd>Ihr Zwischenstand bleibt automatisch als Arbeitskopie erhalten und wird beim
       Neustart geladen. In <em>Ihre</em> Datei schreiben Sie aber bewusst über das
-      Datei-Menü zurück (siehe <a href="#k15">Kapitel 15</a>).</dd>
+      Datei-Menü zurück (siehe <a href="#k15">Kapitel 17</a>).</dd>
 
   <dt>Ich habe aus Versehen etwas geändert — was nun?</dt>
   <dd>Nutzen Sie <strong>↶ Rückgängig</strong> oder verwerfen Sie alle Änderungen seit
@@ -1449,15 +1652,15 @@
 
   <dt>Gehen beim Öffnen und Speichern Daten verloren?</dt>
   <dd>Nein. Felder, die die App nicht selbst bearbeitet, werden unverändert
-      durchgereicht (siehe <a href="#k16">Kapitel 16</a>).</dd>
+      durchgereicht (siehe <a href="#k16">Kapitel 18</a>).</dd>
 
   <dt>Wie gebe ich einen Auszug weiter, ohne Lebende preiszugeben?</dt>
   <dd>Beim Export die <strong>Anonymisierung</strong> aktivieren
-      (<a href="#k16">Kapitel 16</a>).</dd>
+      (<a href="#k16">Kapitel 18</a>).</dd>
 </dl>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k20">20. Umstieg von anderen Programmen</h1>
+<h1 class="chapter" id="k20">22. Umstieg von anderen Programmen</h1>
 
 <p>
   Stammbaum liest die verbreiteten Austauschformate. Der beste Weg aus einem anderen
@@ -1477,7 +1680,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k21">21. Checkliste für einen guten Start</h1>
+<h1 class="chapter" id="k21">23. Checkliste für einen guten Start</h1>
 
 <ol class="steps">
   <li>Datei geladen und einmal probehalber zurückgeschrieben (der Speicherweg
@@ -1576,7 +1779,7 @@
 </p>
 <table class="ref">
   <tr><th>Tag</th><th>Inhalt</th></tr>
-  <tr><td>_TASK</td><td>Forschungsaufgabe (<a href="#k12">Kapitel 12</a>)</td></tr>
+  <tr><td>_TASK</td><td>Forschungsaufgabe (<a href="#k12">Kapitel 14</a>)</td></tr>
   <tr><td>_RLOG</td><td>Forschungsprotokoll-Eintrag</td></tr>
   <tr><td>_HYPO</td><td>Hypothese samt Konfidenz und Belegen</td></tr>
   <tr><td>_EVAL</td><td>Evidenzbewertung eines Quellenbezugs</td></tr>
@@ -1618,7 +1821,7 @@
   Für die tägliche Arbeit und Sicherung: <strong>volles GEDCOM 5.5.1</strong> (verlustfrei).
   Für die Weitergabe an ein Programm, das die Zusatz-Tags nicht kennt:
   <strong>„Strict"</strong>. Ein Auszug ohne lebende Personen: zusätzlich die
-  <strong>Anonymisierung</strong> (siehe <a href="#k16">Kapitel 16</a>).
+  <strong>Anonymisierung</strong> (siehe <a href="#k16">Kapitel 18</a>).
 </div>
 
 <div class="info">
@@ -1800,7 +2003,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.6 · Stand 2026-07-27<br>
+  Stammbaum · Benutzerhandbuch Version 9.7 · Stand 2026-07-28<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 

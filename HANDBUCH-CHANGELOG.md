@@ -22,6 +22,22 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.7] — 2026-07-28
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c5bc025`…HEAD) erzeugt._
+
+- feat(places): BL-09 Mini-Karte (Ort+Hof+Reports) & BL-59 Ortsübersetzungen (`71c9bf3`)
+- feat(places): BL-130 Nominatim-Geocoding (Einzel + Batch) (`5b32f54`)
+- feat(places/geo): Koordinaten-Eingabe, Geo-Sichtbarkeit, hofsWithResidence-Fix, OCCU raus (`c1ef314`)
+- fix(reports): Realdaten-Feinschliff der Buch-Grad-Ausgaben (BL-176/178) (`60c6996`)
+- feat(reports): Buch-Grad-§4-Ausgaben #7/#11/#12/#13 (BL-176…179) (`f4f47a9`)
+- feat(v9): Story-Modus — Personen-/Familien-Biografie (BL-133/183…190) (`f2f1ae2`)
+- feat(v9): Session-Proband + „Zum Probanden"; Default-Person vereinheitlicht (BL-120) (`68a119c`)
+- feat(v9): Beziehungsrechner + Verwandtschaftsnachweis (BL-134/175) (`add406b`)
+- feat(v9): §4-Druck-Reports #1–#4/#6 + Ausgaben-Hub (BL-169…174) (`c425510`)
+
+---
+
 ## [9.6] — 2026-07-27
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c165823`…HEAD) erzeugt._

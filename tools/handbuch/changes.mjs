@@ -21,7 +21,7 @@ export function git(repo, cmd) {
  * Mit `sinceArg` (aus `--since <ref>`) übersteuerbar.
  */
 export function resolveBase(repo, sinceArg = '') {
-  return sinceArg || git(repo, 'log -1 --format=%H -- HANDBUCH.html');
+  return sinceArg || git(repo, 'log -1 --format=%H -- app/public/HANDBUCH.html');
 }
 
 const TYPE = /^(feat|fix|perf)(\(|:|!)/i;
