@@ -21,7 +21,10 @@ import svelte from 'eslint-plugin-svelte';
 // der 600er-Schwelle ausnehmen — also genau den Schutz abschalten, den er vorgibt zu
 // dokumentieren.
 const SVELTE_ALTFAELLE = {
-  'ui/views/place/PlaceDetail.svelte': 921,
+  // PlaceDetail.svelte: war 921, bei den Geo-/Koordinaten-Änderungen (BL-130/191, ADR-v9-143)
+  // inhaltlich angefasst und dabei zerlegt — Ortszeitgenossen → PlaceContemporaries.svelte,
+  // Grunddaten-Form → PlaceEditForm.svelte, Dubletten-Merge → PlaceMergeSection.svelte;
+  // jetzt ~507 Zeilen, Altfall abbezahlt/entfallen (läuft gegen die reguläre 600er-Schwelle).
   // TasksView.svelte (war 676) ist raus: bei BL-04 inhaltlich angefasst und dabei
   // zerlegt — das Aufgaben-Formular wurde nach TaskForm.svelte extrahiert, die Datei
   // liegt jetzt bei 598 Zeilen und läuft gegen die reguläre 600er-Schwelle.
