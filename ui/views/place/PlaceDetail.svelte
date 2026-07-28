@@ -22,8 +22,6 @@
   import Picker from '../../shell/Picker.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
-  import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
-  import FilterBar from '../../shell/FilterBar.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import { withAddedPname, withRemovedPname, placeDisplayName, resolveCoordFields } from '../../../core/places';
@@ -32,14 +30,11 @@
   import GeocodeButton from '../../shell/GeocodeButton.svelte';
   import {
     buildPlaceDetail,
-    buildPlaceContemporaries,
-    groupContemporaries,
     type ChainSegment,
     type PlaceEventRow,
-    type ContemporaryGroupMode,
-    type PlaceContemporaryRow,
   } from './place-detail-model';
   import PlaceEnclosureEditModal from './PlaceEnclosureEditModal.svelte';
+  import PlaceContemporaries from './PlaceContemporaries.svelte';
 
   interface Props {
     appState: AppState;
@@ -88,42 +83,6 @@
   let newPnameTo = $state<number | null>(null);
   let mergeTargetId = $state('');
   let mergeError = $state('');
-
-  /** Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5) — On-Demand-Werkzeug analog
-   *  Beziehungsrechner ("kein Dauer-Element"): berechnet UND rendert erst, wenn die
-   *  Sektion geöffnet wird (Knotenpunkt-Orte skalieren auf hunderte/tausende Treffer). */
-  let contemporariesOpen = $state(false);
-  let contemporaryMode = $state<ContemporaryGroupMode>('decade');
-  const CONTEMPORARY_MODES = [
-    { id: 'decade', label: 'Nach Jahrzehnt' },
-    { id: 'hof', label: 'Nach Hof' },
-    { id: 'chrono', label: 'Chronologisch' },
-  ];
-
-  /** Zeitgenossen-Filter über EREIGNISJAHRE (Nutzer-Entscheidung 2026-07-16, NICHT über
-   *  geschätzte Lebensspannen — kein Lebensspannen-Schätzer im Kern). Per Default AUS. */
-  let contemporaryFilterEnabled = $state(false);
-  let contemporaryRefYear = $state<number | null>(null);
-  let contemporaryWindow = $state(25);
-
-  function toggleContemporaries() {
-    contemporariesOpen = !contemporariesOpen;
-  }
-
-  const contemporaryFilter = $derived(
-    contemporaryFilterEnabled && contemporaryRefYear != null
-      ? { refYear: contemporaryRefYear, window: contemporaryWindow }
-      : null,
-  );
-  // Bewusst NICHT Teil von `detail` (buildPlaceDetail) — läuft nur, solange die Sektion
-  // tatsächlich geöffnet ist (ADR-v9-78 Punkt 5).
-  const contemporaryRows = $derived(
-    contemporariesOpen && placeId
-      ? buildPlaceContemporaries(appState.db, appState.placeContext, placeId, contemporaryFilter)
-      : [],
-  );
-  const contemporaryGroups = $derived(groupContemporaries(contemporaryRows, contemporaryMode));
-  const contemporaryActiveFilterCount = $derived(contemporaryFilterEnabled ? 1 : 0);
 
   /** Steuert PlaceEnclosureEditModal.svelte (Bau-Auftrag "Orts-Detailansicht": die
    *  direkte enclosedBy-Zuordnung ist "Mittel zum Zweck" und wandert ins Modal, weg von
@@ -291,27 +250,6 @@
      goToPlace, außer dem Segment, das auf DIESEN Ort selbst zeigt (kein Selbst-Link) —
      das ist bei der "Aktuell:"-Kette das erste Segment, bei den Zeitleisten-Zeilen kommt
      die eigene Id gar nicht vor (bereits serverseitig .slice(1)). -->
-{#snippet contemporaryRow(row: PlaceContemporaryRow)}
-  <button type="button" class="place-detail__owner-link" onclick={() => onNavigateToPerson?.(row.personId)}>
-    {row.personName}
-  </button>
-  {#if row.year != null}<span class="place-detail__muted">{row.year}</span>{/if}
-  <span class="place-detail__muted">{row.label}</span>
-  <!-- Hof-Angabe als `.stb-pill`, NICHT `.stb-role-label` (Befund eigene Verifikation
-       2026-07-16): `.stb-role-label` ist der Stil für ROLLEN ("EHEMANN", "BEWOHNER",
-       Spec 21 §10j) und erzwingt `text-transform: uppercase` — ein Hof-Name ist aber ein
-       Eigenname/eine Adresse, keine Rollen-Kategorie ("Gronauer Str. 30 (Oster 84)" wurde
-       zu "GRONAUER STR. 30 (OSTER 84)" entstellt, ausgerechnet die Hof-Identität,
-       ADR-v9-81). `.stb-pill` ist die spec-eigene Klasse für "Zusatzfakt zur Zeile, nur
-       bei Zutreffen sichtbar" (ADR-v9-79 Punkt 3) — genau die Polarität hier: die
-       Mehrheit der Zeilen ("direkt am Ort") trägt keinen Hof.
-       Im Hof-MODUS entfällt sie ganz: dort trägt der Gruppen-Header den Hof-Namen
-       bereits, jede Zeile würde ihn nur wiederholen (Spec 21 §10h, hier auf Gruppen-
-       statt Seitenebene — Befund am 375px-Screenshot: 8 identische Pillen unter EINEM
-       gleichlautenden Header, die zusätzlich den Zeilenumbruch verursachten). -->
-  {#if row.hofLabel && contemporaryMode !== 'hof'}<span class="stb-pill">{row.hofLabel}</span>{/if}
-{/snippet}
-
 {#snippet chainRow(chain: ChainSegment[], truncated: boolean)}
   {#each chain as seg, i (seg.id)}
     {#if i > 0}<span class="place-detail__chain-sep"> › </span>{/if}
@@ -522,77 +460,7 @@
       {/if}
     </section>
 
-    <section class="place-detail__section">
-      <h3>Ortszeitgenossen</h3>
-      <button
-        type="button"
-        class="place-detail__enclosure-edit-btn"
-        aria-expanded={contemporariesOpen}
-        onclick={toggleContemporaries}
-      >
-        {contemporariesOpen ? 'Ortszeitgenossen ausblenden' : 'Ortszeitgenossen anzeigen'}
-      </button>
-      {#if contemporariesOpen}
-        <p class="place-detail__muted">
-          Personen mit einem Ereignis an diesem Ort oder einem seiner Höfe — chronologisch,
-          nach Bedarf gruppiert/gefiltert.
-        </p>
-        <div class="place-detail__contemporaries-toolbar">
-          <ViewModeToggle
-            modes={CONTEMPORARY_MODES}
-            value={contemporaryMode}
-            onChange={(id) => (contemporaryMode = id as ContemporaryGroupMode)}
-            ariaLabel="Gruppierung wählen"
-          />
-          <FilterBar activeCount={contemporaryActiveFilterCount}>
-            <div class="place-detail__contemporaries-filter">
-              <label class="place-detail__checkbox">
-                <input type="checkbox" bind:checked={contemporaryFilterEnabled} />
-                Zeitgenossen-Filter aktivieren
-              </label>
-              <label>
-                Referenzjahr
-                <input
-                  type="number"
-                  bind:value={contemporaryRefYear}
-                  disabled={!contemporaryFilterEnabled}
-                  aria-label="Referenzjahr"
-                />
-              </label>
-              <label>
-                Fenster (± Jahre)
-                <input
-                  type="number"
-                  bind:value={contemporaryWindow}
-                  disabled={!contemporaryFilterEnabled}
-                  aria-label="Fensterbreite in Jahren"
-                />
-              </label>
-              <p class="place-detail__hint">
-                Zeigt, wer in diesem Zeitfenster nachweislich am Ort dokumentiert ist — nicht,
-                wer vermutlich damals gelebt hat (kein Lebensspannen-Schätzer).
-              </p>
-            </div>
-          </FilterBar>
-        </div>
-        {#if contemporaryRows.length === 0}
-          <p class="place-detail__muted">
-            {contemporaryFilterEnabled && contemporaryRefYear != null
-              ? 'Keine Personen im gewählten Zeitfenster.'
-              : 'Keine Personen mit Ereignis an diesem Ort oder seinen Höfen erfasst.'}
-          </p>
-        {:else}
-          <!-- resetKey umfasst Ort UND Gruppierungsmodus: ein Moduswechsel darf den
-               Einklapp-/Paginierungs-Zustand der vorherigen Gruppierung nicht mitschleppen
-               (derselbe Integrationsfehler wie beim Kettenglied-Klick, ADR-v9-78 Punkt 6). -->
-          <EventsByType
-            groups={contemporaryGroups}
-            row={contemporaryRow}
-            resetKey={`${placeId}::${contemporaryMode}`}
-          />
-        {/if}
-      {/if}
-    </section>
+    <PlaceContemporaries {appState} {placeId} {onNavigateToPerson} />
 
     {#if detail.citations.length > 0}
       <section class="place-detail__section">
@@ -871,49 +739,4 @@
     text-decoration: underline;
   }
 
-  /* Ortszeitgenossen (ADR-v9-78 Punkt 5): Gruppierungs-Umschalter + Filter-Trigger in
-     einer Toolbar-Zeile, gleiche Reihen-Struktur wie PlaceList.svelte's Filter-Zeile
-     (INV-UI-4, kein neues Layout-Muster). */
-  .place-detail__contemporaries-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6rem;
-    margin: 0.6rem 0;
-  }
-
-  .place-detail__contemporaries-filter {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: flex-end;
-  }
-
-  .place-detail__contemporaries-filter label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.78rem;
-    color: var(--stb-text-dim);
-  }
-
-  .place-detail__contemporaries-filter input[type='number'] {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.5rem;
-    width: 6rem;
-  }
-
-  .place-detail__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
-
-  .place-detail__contemporaries-filter .place-detail__hint {
-    flex-basis: 100%;
-    margin: 0.2rem 0 0;
-  }
 </style>
