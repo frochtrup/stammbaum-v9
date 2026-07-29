@@ -7,6 +7,8 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Repository } from '../../../core/model/types';
+  import TypeSelect from '../../shell/TypeSelect.svelte';
+  import { REPO_TYPE_OPTIONS } from '../../shell/repo-labels';
 
   interface Props {
     appState: AppState;
@@ -57,10 +59,13 @@
       Name
       <input type="text" bind:value={name} />
     </label>
-    <label>
-      Typ
-      <input type="text" bind:value={type} />
-    </label>
+    <!-- BL-203: kuratiertes Vokabular statt Freitext. Die `stb-field`-Hülle statt eines
+         <label>-Wrappers ist das etablierte Muster für zusammengesetzte Felder (TST-18) —
+         die Beschriftung trägt die Caption, das Feld seinen `label`-Prop. -->
+    <div class="stb-field">
+      <span class="stb-field__caption">Typ</span>
+      <TypeSelect value={type} options={REPO_TYPE_OPTIONS} onChange={(v) => (type = v)} label="Typ" />
+    </div>
     <label>
       Adresse
       <input type="text" bind:value={address} />

@@ -51,7 +51,7 @@
           <button type="button" class="repository-list__row" onclick={() => selectRepository(row.id)}>
             <span class="repository-list__name">{row.name}</span>
             <span class="repository-list__meta">
-              {#if row.type}<span>{row.type}</span>{/if}
+              {#if row.typeLabel}<span>{row.typeLabel}</span>{/if}
               <span class="repository-list__count">{row.sourceCount} Quelle{row.sourceCount === 1 ? '' : 'n'}</span>
             </span>
           </button>

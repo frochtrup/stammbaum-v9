@@ -46,3 +46,63 @@ describe('RepositoryForm — Speichern/Vorbefüllung', () => {
     expect(appState.db.repositories.has('@R1@')).toBe(false);
   });
 });
+
+// BL-203: der Archivtyp war ein englisches Freitextfeld — getippt „Library", angezeigt
+// „Library". Jetzt kuratiertes Vokabular mit deutschen Labels über EINE Quelle
+// (`REPO_TYPE_OPTIONS`), gespeichert bleibt der GRAMPS-Wert.
+describe('RepositoryForm — Archivtyp als kuratiertes Dropdown (BL-203)', () => {
+  it('speichert den GRAMPS-Wert, nicht das deutsche Label', async () => {
+    const appState = createAppState();
+    const repository = makeRepository('@R1@', { name: 'Stadtbücherei' });
+
+    render(RepositoryForm, { props: { appState, repository } });
+
+    const select = screen.getByLabelText('Typ') as HTMLSelectElement;
+    // Das Vokabular ist deutsch sichtbar …
+    expect(Array.from(select.options).map((o) => o.textContent)).toContain('Bibliothek');
+    // … der Optionswert bleibt der englische GRAMPS-Enum-Wert.
+    await fireEvent.change(select, { target: { value: 'Library' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.repositories.get('@R1@')?.type).toBe('Library');
+  });
+
+  it('kein Option-Text ist ein roher englischer GRAMPS-Wert', () => {
+    const appState = createAppState();
+    render(RepositoryForm, { props: { appState, repository: makeRepository('@R1@') } });
+
+    const texts = Array.from((screen.getByLabelText('Typ') as HTMLSelectElement).options).map(
+      (o) => o.textContent,
+    );
+    for (const raw of ['Library', 'Cemetery', 'Church', 'Archive', 'Web site', 'Bookstore', 'Safe']) {
+      expect(texts).not.toContain(raw);
+    }
+  });
+
+  it('ein Bestandswert außerhalb des Vokabulars überlebt Öffnen + Speichern (LP-1)', async () => {
+    // Ein GRAMPS-Custom-Typ darf nicht dadurch verschwinden, dass jemand den Editor
+    // öffnet und speichert — er wird als zusätzliche, ausgewählte Option angehängt.
+    const appState = createAppState();
+    const repository = makeRepository('@R1@', { name: 'Sonderfall', type: 'Sondersammlung Bistum' });
+
+    render(RepositoryForm, { props: { appState, repository } });
+
+    const select = screen.getByLabelText('Typ') as HTMLSelectElement;
+    expect(select.value).toBe('Sondersammlung Bistum');
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.repositories.get('@R1@')?.type).toBe('Sondersammlung Bistum');
+  });
+
+  it('unterscheidet „kein Typ" von ausdrücklich „Unbekannt" (kein stiller Wertverlust)', async () => {
+    const appState = createAppState();
+    const repository = makeRepository('@R1@', { name: 'Archiv X', type: 'Unknown' });
+
+    render(RepositoryForm, { props: { appState, repository } });
+
+    const select = screen.getByLabelText('Typ') as HTMLSelectElement;
+    expect(select.value).toBe('Unknown');
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(appState.db.repositories.get('@R1@')?.type).toBe('Unknown');
+  });
+});

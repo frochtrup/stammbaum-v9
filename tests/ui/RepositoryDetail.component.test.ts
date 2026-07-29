@@ -37,3 +37,33 @@ describe('RepositoryDetail — verlinkte Quellen inkl. Signatur (Component)', ()
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
   });
 });
+
+describe('RepositoryDetail — Archivtyp deutsch (BL-203)', () => {
+  it('zeigt das deutsche Label statt des rohen GRAMPS-Werts', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Stadtbücherei', type: 'Library' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('repository', '@R1@');
+
+    render(RepositoryDetail, { props: { appState, viewState, onNavigateToSource: vi.fn() } });
+
+    expect(screen.getByText('Bibliothek')).toBeTruthy();
+    expect(screen.queryByText('Library')).toBeNull();
+  });
+
+  it('`Unknown` zeigt gar keine Typ-Zeile (Polarität aus ADR-v9-149)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Archiv X', type: 'Unknown' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('repository', '@R1@');
+
+    render(RepositoryDetail, { props: { appState, viewState, onNavigateToSource: vi.fn() } });
+
+    expect(screen.queryByText('Typ')).toBeNull();
+    expect(screen.queryByText('Unknown')).toBeNull();
+  });
+});

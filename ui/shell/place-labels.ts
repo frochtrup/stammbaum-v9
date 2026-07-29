@@ -49,3 +49,22 @@ export const PLACE_TYPE_UNKNOWN = 'Unbekannt';
 export function placeTypeCategory(type: string | null | undefined): string {
   return placeTypeLabel(type) || PLACE_TYPE_UNKNOWN;
 }
+
+/**
+ * Die kuratierte Auswahl für den Ort-Editor (BL-203-Geschwister, `TypeSelect.svelte`).
+ *
+ * ADR-v9-149 hat die ANZEIGE des Ortstyps auf Deutsch umgestellt, die BEARBEITUNG aber
+ * als englisches Freitextfeld stehen lassen (`z. B. Village, City, County…`) — der Nutzer
+ * tippte englisch, die Liste zeigte deutsch. Dieselbe Lücke, die BL-203 für den Archivtyp
+ * beschreibt; hier mit demselben Mechanismus geschlossen.
+ *
+ * `Unknown` ist WÄHLBAR („Unbekannt"), obwohl `placeTypeLabel` dafür '' liefert — die
+ * Trennung „anzeigen nein, auswählen ja" (analog `placeTypeCategory`). Bewusst NICHT in
+ * `PLACE_TYPE_DE` aufgenommen: dort gilt der Vertrag „Schlüssel → sein Anzeige-Label",
+ * den `Unknown` gerade nicht erfüllt.
+ */
+export const PLACE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '— kein Typ —' },
+  ...Object.entries(PLACE_TYPE_DE).map(([value, label]) => ({ value, label })),
+  { value: 'Unknown', label: PLACE_TYPE_UNKNOWN },
+];

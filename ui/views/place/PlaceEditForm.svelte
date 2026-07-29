@@ -12,6 +12,8 @@
   import { resolveCoordFields, type GeocodeHit } from '../../../core/places';
   import CoordFields from '../../shell/CoordFields.svelte';
   import GeocodeButton from '../../shell/GeocodeButton.svelte';
+  import TypeSelect from '../../shell/TypeSelect.svelte';
+  import { PLACE_TYPE_OPTIONS } from '../../shell/place-labels';
 
   interface Props {
     place: PlaceObject;
@@ -91,10 +93,14 @@
     <input type="text" bind:value={title} />
   </label>
   <label>Anzeigename (Listen) <input type="text" bind:value={shortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
-  <label>
-    Typ
-    <input type="text" bind:value={type} placeholder="z. B. Village, City, County…" />
-  </label>
+  <!-- Geschwister-Stelle zu BL-203: ADR-v9-149 hat die ANZEIGE des Ortstyps auf Deutsch
+       umgestellt, das Eingabefeld blieb englischer Freitext („z. B. Village, City…") —
+       getippt englisch, angezeigt deutsch. Gleicher Mechanismus wie der Archivtyp
+       (`TypeSelect`, INV-UI-4); ein vorhandener Custom-/Geocoder-Wert bleibt erhalten. -->
+  <div class="stb-field">
+    <span class="stb-field__caption">Typ</span>
+    <TypeSelect value={type} options={PLACE_TYPE_OPTIONS} onChange={(v) => (type = v)} label="Typ" />
+  </div>
   <CoordFields bind:latText bind:longText />
   <GeocodeButton name={title.trim() || place.title} onResult={applyGeocodeHit} />
   <label>
