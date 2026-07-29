@@ -37,6 +37,7 @@
     type PlaceEventRow,
   } from './place-detail-model';
   import PlaceEnclosureEditModal from './PlaceEnclosureEditModal.svelte';
+  import GovImportSection from './GovImportSection.svelte';
   import PlaceContemporaries from './PlaceContemporaries.svelte';
 
   interface Props {
@@ -318,6 +319,9 @@
     />
 
     {#if editing && placeId}
+      <!-- GOV-Import (BL-131): wie die Merge-Sektion ein Kurations-Werkzeug im
+           Bearbeiten-Modus, kein Dauer-Inhalt der Lesefläche (ADR-v9-30). -->
+      <GovImportSection {appState} {placeId} />
       <PlaceMergeSection {appState} {viewState} place={detail.place} {placeId} />
     {/if}
 

@@ -45,8 +45,11 @@ import {
   withUpdatedHofAddr,
   linkEventToPlace as linkEventToPlaceCmd,
   linkEventToHof as linkEventToHofCmd,
+  applyGovEntry,
+  parseGovText,
   type PlaceContext,
   type MergeResult,
+  type GovApplyResult,
 } from '../../core/places';
 import { editDatabase, mapAllEvents } from '../../core/model/draft';
 import {
@@ -153,6 +156,15 @@ export interface AppState {
   buildCrossFamilyDoc(targetFamily: DocFormat): { gedcomDoc?: ParsedGedcom; grampsDoc?: XmlDocument };
   /** Kommando: Upsert eines PlaceObject (`savePlaceObject(model)`-Muster, Spec 20 §1.7 [K]). */
   savePlace(model: PlaceObject): void;
+  /**
+   * Kommando: GOV-Textzusammenfassung (gov.genealogy.net) auf ein PlaceObject anwenden
+   * (BL-131, Spec 20 §1.7). Ergänzt Namen/Übersetzungen/Typ-Historie/Verwaltungs-
+   * Zugehörigkeit fill-if-empty und legt für unbekannte Eltern GOV-Platzhalter an.
+   *
+   * `null` = der Text war unbrauchbar oder die Id existiert nicht — die UI meldet das,
+   * ohne dass etwas committet wurde (kein stiller Abbruch, Spec 21 §5).
+   */
+  importGovEntry(placeId: PlaceId, rawText: string): GovApplyResult | null;
   /** Kommando: entfernt ein PlaceObject. */
   deletePlace(id: PlaceId): void;
   /**
@@ -610,6 +622,33 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       const nextPlaces = new Map(db.placeObjects);
       savePlaceObject(nextPlaces, model);
       commit({ ...db, placeObjects: nextPlaces }, { places: true });
+    },
+    importGovEntry(placeId, rawText): GovApplyResult | null {
+      const entry = parseGovText(rawText);
+      if (!entry || !entry.govId) return null;
+      // Kopie ziehen, anwenden, EINMAL committen — dieselbe Copy-on-Write-Form wie
+      // savePlace/mergePlace. `applyGovEntry` mutiert die übergebene Map (und die darin
+      // liegenden Objekte), deshalb müssen auch die berührten Objekte geklont werden:
+      // sonst schriebe es in den alten Undo-Zustand hinein.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextPlaces = new Map(db.placeObjects);
+      const target = nextPlaces.get(placeId);
+      if (!target) return null;
+      // `?? []` ist hier PFLICHT, nicht Vorsicht: `translations` ist ein nachträglich
+      // hinzugekommenes, abwärtskompatibles orte.json-Feld (ADR-v9-144) — an einem aus
+      // einer älteren Datei geladenen PlaceObject fehlt es. Ein nacktes `[...undefined]`
+      // wirft; am echten Bestand genau so passiert (der Testbestand hatte das Feld immer).
+      nextPlaces.set(placeId, {
+        ...target,
+        pnames: [...(target.pnames ?? [])],
+        translations: [...(target.translations ?? [])],
+        enclosedBy: [...(target.enclosedBy ?? [])],
+        govTypes: target.govTypes ? [...target.govTypes] : null,
+      });
+      const result = applyGovEntry(nextPlaces, placeId, entry);
+      if (!result || result.changes === 0) return result;
+      commit({ ...db, placeObjects: nextPlaces }, { places: true });
+      return result;
     },
     deletePlace(id) {
       // deletePlaceCascade (ADR-v9-78 Punkt 1) räumt jede hängende event.placeId-Referenz

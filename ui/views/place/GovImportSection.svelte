@@ -1,0 +1,132 @@
+<script lang="ts">
+  // ui/views/place/GovImportSection.svelte — GOV-Import im Ort-Bearbeiten-Modus
+  // (BL-131, Spec 20 §1.7 [S]; v8-Orakel `applyGovText`, ui-views-place.js:434).
+  //
+  // Nur im Bearbeiten-Modus sichtbar — wie `PlaceMergeSection` daneben: ein
+  // Kurations-Werkzeug, kein Dauer-Inhalt der Lesefläche (ADR-v9-30, „kein ungegatetes
+  // Mutations-Control").
+  //
+  // Committet SOFORT (nicht über den „Speichern"-Knopf der Grunddaten): der Import
+  // berührt mehr als das bearbeitete Objekt — er legt für unbekannte Elternorte
+  // Platzhalter-PlaceObjects an. Dasselbe Timing wie Add/Remove bei Adressvarianten
+  // (ADR-v9-81) und wie `PlaceMergeSection`. Rückgängig über den regulären Undo-Stack.
+  import type { AppState } from '../../shell/app-state.svelte';
+
+  interface Props {
+    appState: AppState;
+    placeId: string;
+  }
+  const { appState, placeId }: Props = $props();
+
+  let open = $state(false);
+  let text = $state('');
+  let notice = $state('');
+
+  /** Beispiel-Zusammenfassung als Platzhalter — als Konstante, weil ein mehrzeiliges
+   *  String-Literal direkt im Attribut die `no-useless-mustaches`-Lint-Regel auslöst. */
+  const PLACEHOLDER = [
+    'object_162795',
+    'heißt (auf deu) Ochtrup',
+    'ist ab 1969-07-01 (auf deu) Stadt',
+    'gehört ab 1969-07-01 zu object_190334',
+  ].join('\n');
+
+  function apply(): void {
+    const result = appState.importGovEntry(placeId, text);
+    if (!result) {
+      notice = 'Keine GOV-Kennung erkannt — bitte die vollständige Textzusammenfassung einfügen (erste Zeile = Kennung).';
+      return;
+    }
+    if (result.changes === 0) {
+      notice = 'Nichts zu ergänzen — dieser Ort trägt die Angaben bereits.';
+      return;
+    }
+    notice = `Übernommen: ${result.notes.join(' · ')}.`;
+    text = '';
+  }
+</script>
+
+<section class="gov-import">
+  <h3>GOV-Eintrag übernehmen</h3>
+  <button type="button" class="gov-import__toggle" aria-expanded={open} onclick={() => (open = !open)}>
+    {open ? 'GOV-Import schließen' : 'GOV-Import öffnen'}
+  </button>
+
+  {#if open}
+    <p class="gov-import__hint">
+      Auf <span class="gov-import__code">gov.genealogy.net</span> den Ort aufrufen, die Textzusammenfassung
+      kopieren und hier einfügen. Übernommen werden Kennung, Namen (deutsche als Namensvariante,
+      fremdsprachige als Übersetzung), Typ-Historie und die datierte Verwaltungszugehörigkeit.
+      Bereits gepflegte Angaben bleiben unverändert.
+    </p>
+    <textarea
+      class="gov-import__text"
+      rows="6"
+      bind:value={text}
+      aria-label="GOV-Textzusammenfassung einfügen"
+      placeholder={PLACEHOLDER}
+    ></textarea>
+    <button type="button" class="gov-import__apply" disabled={!text.trim()} onclick={apply}>Übernehmen</button>
+    {#if notice}
+      <p class="gov-import__notice" role="status">{notice}</p>
+    {/if}
+  {/if}
+</section>
+
+<style>
+  .gov-import {
+    margin: 1rem 0;
+  }
+
+  .gov-import h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    color: var(--stb-gold-light);
+  }
+
+  .gov-import__toggle,
+  .gov-import__apply {
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    color: var(--stb-gold-light);
+    border-radius: var(--stb-radius-control);
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .gov-import__apply:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .gov-import__hint {
+    margin: 0.5rem 0;
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
+  }
+
+  .gov-import__code {
+    font-family: ui-monospace, monospace;
+    color: var(--stb-text);
+  }
+
+  .gov-import__text {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.4rem;
+    background: var(--stb-surface-1);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    color: var(--stb-text);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.4rem;
+  }
+
+  .gov-import__notice {
+    margin: 0.4rem 0 0;
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
+  }
+</style>

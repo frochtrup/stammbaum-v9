@@ -110,7 +110,7 @@ zurückdrehen muss).
    Für die Personenliste: `bottomNav('person')` → `click('Personen')` (Segment explizit) →
    und, falls noch ein Steckbrief offen ist, `.detail-header__back` klicken. (Erlebt
    2026-07-29: der Beziehungsrechner-Shot landete zweimal auf dem Medien-Segment.)
-5. **`lensFocus` ist geteilt.** Einmal gesetzt (Person-Detail → „Im Baum anzeigen"), erben
+5. **`lensFocus` ist geteilt.** Einmal gesetzt (Person-Detail → Lens-Absprung „⧖ Baum", BL-60), erben
    Sanduhr, Karte-Personen-Modus UND Zeitleiste dieselbe Person — praktisch, um überall den
    verstorbenen Probanden zu zeigen. Aber: die Zeitleiste belegt sich daraus schon selbst;
    ein zusätzliches „Person hinzufügen" ergibt einen zweiten (gleichnamigen) Chip.

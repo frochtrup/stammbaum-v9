@@ -4,7 +4,7 @@
 // Geo-Links). Deckt tatsächliches DOM-Rendering ab (Klassen/Titel/Links), das
 // person-detail-model.test.ts (reine Projektion) nicht prüft.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -95,7 +95,10 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
   });
 
-  it('zeigt "Im Baum anzeigen" nur, wenn onNavigateToTree übergeben wurde, und ruft es mit der Person-ID auf', async () => {
+  // BL-60/ADR-v9-153: die vormaligen Einzelknöpfe „⧖ Im Baum anzeigen"/„📖 Story" sind
+  // durch DEN EINEN Lens-Umschalter im Absprung-Modus ersetzt (INV-UI-3) — damit sind
+  // Karte und Zeitleiste als Ziel überhaupt erst erreichbar.
+  it('zeigt den Lens-Absprung nur, wenn onOpenLens übergeben wurde, und ruft ihn mit Person-ID + Lens auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -104,13 +107,32 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     viewState.setCurrent('person', '@I1@');
 
     const { unmount } = render(PersonDetail, { props: { appState, viewState } });
-    expect(screen.queryByText(/Im Baum anzeigen/)).toBeNull();
+    expect(screen.queryByRole('group', { name: /andere[nr]? Ansicht/i })).toBeNull();
     unmount();
 
-    const onNavigateToTree = vi.fn();
-    render(PersonDetail, { props: { appState, viewState, onNavigateToTree } });
-    await fireEvent.click(screen.getByText(/Im Baum anzeigen/));
-    expect(onNavigateToTree).toHaveBeenCalledWith('@I1@');
+    const onOpenLens = vi.fn();
+    render(PersonDetail, { props: { appState, viewState, onOpenLens } });
+    const row = screen.getByRole('group', { name: /andere[nr]? Ansicht/i });
+    await fireEvent.click(within(row).getByText('Karte'));
+    expect(onOpenLens).toHaveBeenCalledWith('@I1@', 'map');
+  });
+
+  it('bietet ALLE vier Lenses als Absprung an (Baum · Karte · Zeitleiste · Story) — die vormaligen zwei Knöpfe deckten nur zwei davon ab', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState, onOpenLens: vi.fn() } });
+    const row = screen.getByRole('group', { name: /andere[nr]? Ansicht/i });
+    for (const label of ['Baum', 'Karte', 'Zeitleiste', 'Story']) {
+      expect(within(row).getByText(label)).toBeTruthy();
+    }
+    // Kein zweiter, handgebauter Sprung-Knopf daneben (INV-UI-3) — genau das war der
+    // Grund, warum die Aktions-Reihe bei 375px auf 3 Zeilen/5 Elemente lief (INV-UI-11).
+    expect(screen.queryByText(/Im Baum anzeigen/)).toBeNull();
   });
 });
 

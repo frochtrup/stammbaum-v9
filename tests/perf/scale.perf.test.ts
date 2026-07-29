@@ -22,10 +22,24 @@ import { parseGedcom } from '../../core/interop';
 import { applyPlaceResolution } from '../../services/places';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
 import { buildPersonGroups } from '../../ui/views/person/person-list-model';
+import { buildPlaceReview } from '../../ui/views/place/place-review-model';
 import { makeScaleGedcom } from './make-scale-gedcom';
 
 /** Zielgröße aus Spec 30 §1 ("v8 verifiziert bis 20.000 Personen"). */
 const PERSONEN = 20_000;
+
+/**
+ * Untergrenze der ORTS-KANDIDATENBREITE (BL-89). Kein Performance-Budget, sondern eine
+ * Aussage darüber, WORAN gemessen wird: die teuren Auflösungspfade (Konsistenz-Guard 3c,
+ * Eltern-Disambiguierung 3c′, Spec 11 §4.2) arbeiten über Kandidatenmengen — bei zu
+ * wenigen Orten laufen sie leer und das Gate deckt einen Pfad, den es nie betritt.
+ *
+ * Der Wert orientiert sich am GEMESSENEN Realbestand (416 PlaceObjects) und liegt knapp
+ * darunter, damit eine harmlose Generator-Änderung ihn nicht sofort reißt. Der Generator
+ * liefert derzeit 520 (gemessen) — Reserve ist Absicht, eine Punktlandung wäre nur ein
+ * gepinnter Ist-Wert. Bis BL-89 waren es **23**.
+ */
+const MIN_DISTINCT_PLACES = 400;
 
 /** Budgets in ms — RUNNER-TOLERANZEN, KEINE ZIELWERTE (BL-48, ADR-v9-91 + Nachtrag).
  *  Die verbindlichen Zusicherungen stehen in [30 §1] (ADR-v9-89) und sind hiervon
@@ -54,7 +68,16 @@ const PERSONEN = 20_000;
  *  Jede Rückkehr zu superlinearem Wachstum schlägt weit darunter an. NICHT gefangen wird
  *  eine 2×-Verlangsamung; die ließe sich von Runner-Varianz ohnehin nicht trennen. */
 const BUDGET_PARSE_MS = 1_500; // CI-Ist 452 ms → 3,3× Reserve
-const BUDGET_RESOLVE_MS = 18_000; // CI-Ist 5.854 ms → 3,1× Reserve
+// GESCHÄTZT, NOCH NICHT AUF DEM RUNNER GEMESSEN (BL-89, 2026-07-30) — bis zur ersten
+// CI-Messung ausdrücklich eine Projektion, kein kalibrierter Wert (dieselbe Kennzeichnung,
+// die ADR-v9-91 nachträglich erzwungen hat). Grund der Anhebung: die Fixture wurde für
+// BL-89 auf realistische Orts-Kandidatenbreite gebracht (23 → 520 PlaceObjects, 2.196 →
+// 17.958 Höfe); die Referenz-Messung stieg dadurch von 1.914 auf 3.039 ms. Mit dem
+// gemessenen Runner-Faktor 3,1 projiziert das auf ~9.400 ms CI-Ist — 18.000 ließen davon
+// nur 1,9× Reserve, zu wenig für die Schwankung geteilter Runner (genau der Fehler, den
+// dieselbe Datei schon zweimal korrigieren musste). 30.000 hält die dokumentierte ~3×-Regel
+// auf den PROJIZIERTEN Wert. Beim ersten grünen CI-Lauf gegen den echten Ist-Wert nachziehen.
+const BUDGET_RESOLVE_MS = 30_000;
 const BUDGET_SORT_MS = 1_200; // CI-Ist 281 ms → 4,3× Reserve (unverändert, schon passend)
 
 function ms(fn: () => void): number {
@@ -95,13 +118,17 @@ describe(`Skalen-Gate: ${PERSONEN} Personen (Spec 30 §1)`, () => {
       groups = buildPersonGroups(parsed.db, ctx, 'name');
     });
 
+    // Review-Klasse P (Spec 11 §6) VOR der Ausgabe berechnen — die Zahl gehört ins Log,
+    // nicht nur in eine Zusicherung (BL-47/48-Lehre: "die Zahl ist der eigentliche Nutzen").
+    const review = buildPlaceReview(parsed.db, ctx);
     const mib = (text.length / 1024 / 1024).toFixed(1);
     console.log(
       `\n  Skalen-Messung (${PERSONEN} Personen / ${familyCount} Familien / ${mib} MiB GEDCOM):\n` +
         `    parse            ${tParse.toFixed(0).padStart(6)} ms  (Budget ${BUDGET_PARSE_MS})\n` +
         `    Orts-Auflösung   ${tResolve.toFixed(0).padStart(6)} ms  (Budget ${BUDGET_RESOLVE_MS})\n` +
         `    erster Sort      ${tSort.toFixed(0).padStart(6)} ms  (Budget ${BUDGET_SORT_MS})\n` +
-        `    PlaceObjects: ${parsed.db.placeObjects.size} · HofObjects: ${parsed.db.hofObjects.size}\n`,
+        `    PlaceObjects: ${parsed.db.placeObjects.size} (Untergrenze ${MIN_DISTINCT_PLACES}) · HofObjects: ${parsed.db.hofObjects.size}\n` +
+        `    mehrdeutige Leitnamen: ${new Set([...parsed.db.placeObjects.values()].map((p) => p.title).filter((t, i, a) => t && a.indexOf(t) !== i)).size} · Review-Klasse P: ${review.rows.length}\n`,
     );
 
     // Plausibilität VOR den Budgets prüfen: ein Pfad, der nichts tut, ist trivial
@@ -109,7 +136,17 @@ describe(`Skalen-Gate: ${PERSONEN} Personen (Spec 30 §1)`, () => {
     // die Verarbeitung überspringt statt sie zu verlangsamen.
     expect(parsed.db.individuals.size).toBe(PERSONEN);
     expect(parsed.db.families.size).toBe(familyCount);
-    expect(parsed.db.placeObjects.size).toBeGreaterThan(0);
+    // BREITE statt bloßer Existenz (BL-89): "> 0" war erfüllt, als es 23 Orte waren.
+    expect(parsed.db.placeObjects.size).toBeGreaterThanOrEqual(MIN_DISTINCT_PLACES);
+    // Und die Breite muss die richtige SORTE Schwere haben: gleichnamige Kandidaten unter
+    // verschiedenen Ketten sind die Voraussetzung dafür, dass 3c′ überhaupt entscheidet.
+    const titles = [...parsed.db.placeObjects.values()].map((p) => p.title);
+    const homonymTitles = titles.filter((t, i) => t && titles.indexOf(t) !== i);
+    expect(homonymTitles.length).toBeGreaterThan(0);
+    // Review-Klasse P (Spec 11 §6): ein atomarer PLAC auf einem mehrdeutigen Leitnamen darf
+    // NICHT still geraten werden. Vor BL-89 kam dieser Fall in der Fixture gar nicht vor —
+    // der Messlauf ging also nie durch den Zweig, der die Kandidatenliste aufbaut.
+    expect(review.rows.length).toBeGreaterThan(0);
     // Höfe MÜSSEN entstehen: ohne sie liefe der Hof-Bootstrap (Spec 11 §4.2 A/A'/C/B')
     // im Messlauf gar nicht mit und das Budget würde einen ungetesteten Pfad decken.
     expect(parsed.db.hofObjects.size).toBeGreaterThan(0);

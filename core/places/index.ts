@@ -113,3 +113,19 @@ export {
   type DedupKind,
   type DuplicateGroup,
 } from './curation';
+
+// GOV-Import (BL-131, Spec 20 §1.7): Textzusammenfassung von gov.genealogy.net → Namen/
+// Übersetzungen/Typ-Historie/Verwaltungs-Zugehörigkeit. Reine Funktionen, kein Netzwerk.
+export {
+  parseGovText,
+  applyGovEntry,
+  isUnresolvedGovPlaceholder,
+  countUnresolvedGovPlaceholders,
+  govPlaceholderId,
+  GOV_TYPE_TO_PLACE_TYPE,
+  type GovEntry,
+  type GovTypeEntry,
+  type GovNameEntry,
+  type GovParentEntry,
+  type GovApplyResult,
+} from './gov';

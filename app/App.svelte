@@ -47,6 +47,7 @@
   import MoreView from '../ui/views/more/MoreView.svelte';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
+  import { focusPersonInLens } from '../ui/shell/lens-jump';
   import UndoControls from '../ui/shell/UndoControls.svelte';
   import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
@@ -240,21 +241,14 @@
     route.setTarget('person');
   }
 
-  // Umgekehrte Richtung: "Im Baum anzeigen" aus PersonDetail heraus (durchgereicht
-  // via EntityTab.onNavigateToTree -> PersonDetail.onNavigateToTree).
-  function openTreeFromPersonDetail(personId: string) {
-    viewState.setCurrent('lensFocus', personId);
-    route.setTarget('tree');
-  }
-
-  // "📖 Story" aus PersonDetail: Personen-Biografie in der Story-Lens (BL-133/186). Setzt
-  // den geteilten Fokus, wählt den Personen-Modus und lässt einen evtl. gesetzten Familien-
-  // Fokus fallen (sonst zeigte ein späterer Familien-Modus die falsche Familie).
-  function openStoryFromPersonDetail(personId: string) {
-    viewState.setCurrent('lensFocus', personId);
-    viewState.setCurrent('storyFamily', null);
-    route.setStoryMode('person');
-    route.setTarget('story');
+  // Umgekehrte Richtung: Personen-Kontext-Sprung aus PersonDetail in eine Lens
+  // (BL-60/ADR-v9-153; durchgereicht via EntityTab.onOpenLensForPerson ->
+  // PersonDetail.onOpenLens -> PersonDetailHeader/LensSwitcher). Ersetzt die vormals
+  // zwei handgeschriebenen Sprünge `openTreeFromPersonDetail`/`openStoryFromPersonDetail`
+  // — Karte und Zeitleiste fehlten dort schlicht. Die Slot-Reihenfolge lebt EINMAL in
+  // `ui/shell/lens-jump.ts` (INV-UI-4), nicht hier je Ziel nachgebaut.
+  function openLensForPerson(personId: string, lens: LensId) {
+    focusPersonInLens(viewState, route, personId, lens);
   }
 
   // "📖 Story" aus FamilyDetail: couple-zentrische Familien-Biografie in der Story-Lens
@@ -436,8 +430,7 @@
         {appState}
         {viewState}
         {route}
-        onNavigateToTree={openTreeFromPersonDetail}
-        onOpenStoryForPerson={openStoryFromPersonDetail}
+        onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
       />
@@ -452,7 +445,17 @@
         onNavigateLens={navigateLens}
       />
     {:else if shownTarget === 'map'}
-      <MapLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
+      <!-- Marker-Klick → Explorationspanel → Sprung (BL-210). Nutzt exakt die
+           Sprung-Funktionen der Suchfläche (kein zweiter Sprung-Pfad, s. o.). -->
+      <MapLensView
+        {appState}
+        {viewState}
+        {route}
+        onNavigateLens={navigateLens}
+        onNavigateToPerson={openPersonFromSearch}
+        onNavigateToPlace={openPlaceFromSearch}
+        onNavigateToHof={openHofFromSearch}
+      />
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'story'}

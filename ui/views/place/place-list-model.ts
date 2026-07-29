@@ -6,7 +6,14 @@
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName, eventPlaceId } from '../../../core/places';
+import {
+  placeTypeRank,
+  isEnrichedPlace,
+  isUnresolvedGovPlaceholder,
+  hasReference,
+  placeDisplayName,
+  eventPlaceId,
+} from '../../../core/places';
 import { placeTypeCategory } from '../../shell/place-labels';
 
 export interface PlaceRow {
@@ -59,10 +66,22 @@ export interface PlaceFilters {
    * Pille selbst zu. Als Filter wirkt dieselbe Information gezielt statt als Dauer-Rauschen.
    */
   onlyIncomplete: boolean;
+  /**
+   * Nur unaufgelöste GOV-Platzhalter zeigen (BL-131, v8-Orakel `_placeGovFilter`) — Orte,
+   * die der GOV-Import als Elternteil anlegen MUSSTE, deren eigene Zusammenfassung aber
+   * noch fehlt (`isUnresolvedGovPlaceholder`, core/places/gov.ts).
+   *
+   * Bewusst ein eigener Filter neben `onlyIncomplete`, obwohl ein Platzhalter immer auch
+   * unvollständig ist: „unvollständig" ist der Regelfall nach jedem Import (hunderte
+   * Zeilen), ein GOV-Platzhalter dagegen eine konkrete, abschließbare Aufgabe mit einem
+   * bekannten nächsten Schritt (seine GOV-Zusammenfassung einfügen). Der Zähler am
+   * Werkzeuge-Trigger (ADR-v9-148) zeigt genau diese Menge.
+   */
+  onlyGovPlaceholders: boolean;
 }
 
 export function defaultPlaceFilters(): PlaceFilters {
-  return { type: '', hideAdmin: false, onlyIncomplete: false };
+  return { type: '', hideAdmin: false, onlyIncomplete: false, onlyGovPlaceholders: false };
 }
 
 // Verwaltungs-Schwelle: Rang ab "District"/"County" (7) aufwärts gilt als reine
@@ -132,6 +151,7 @@ function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
   // statt als Zeilen-Label (ADR-v9-149). EINE Anreicherungs-Definition, kein zweites
   // Kriterium neben dem Kern (INV-UI-4).
   if (filters.onlyIncomplete && isEnrichedPlace(pl)) return false;
+  if (filters.onlyGovPlaceholders && !isUnresolvedGovPlaceholder(pl)) return false;
   return true;
 }
 

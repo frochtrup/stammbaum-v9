@@ -379,3 +379,45 @@ describe('PlaceList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, A
     expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
   });
 });
+
+describe('PlaceList — GOV-Platzhalter als Kurations-Signal + Filter (BL-131)', () => {
+  function dbWithPlaceholder() {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    // Ein GOV-Import-Rest: Elternort, den nur seine Kennung benennt.
+    db.placeObjects.set('_gov_object_9', place('_gov_object_9', { title: 'object_9', govId: 'object_9' }));
+    return db;
+  }
+
+  it('ein unaufgelöster Platzhalter setzt den Achtungs-Punkt — der dritte in ADR-v9-148 vorgesehene Fall', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlaceholder(), 'test.ged');
+
+    const { container } = render(PlaceList, {
+      props: { appState, viewState: createViewState(), onOpenDedup: () => {} },
+    });
+
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+  });
+
+  it('der Filter „nur GOV-Platzhalter" zeigt genau diese Orte und trägt ihre Zahl', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlaceholder(), 'test.ged');
+
+    render(PlaceList, { props: { appState, viewState: createViewState() } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    const box = screen.getByLabelText(/nur GOV-Platzhalter/) as HTMLInputElement;
+    expect(box.parentElement!.textContent).toMatch(/\(1\)/);
+
+    await fireEvent.click(box);
+    // Ein GOV-Platzhalter ist immer ein VERWALTUNGS-Elternteil: kein Ereignis zeigt auf
+    // ihn, er lebt also in „Ohne Bezug" — wie jeder Kreis/jedes Land. Die Segment-Zähler
+    // machen das sichtbar (Orte (0) · Ohne Bezug (1)), der Filter wirkt auf beide.
+    expect(screen.getByRole('tab', { name: 'Orte (0)' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('tab', { name: 'Ohne Bezug (1)' }));
+    expect(screen.getByText('object_9')).toBeTruthy();
+    expect(screen.queryByText('Ochtrup')).toBeNull();
+  });
+});

@@ -38,11 +38,10 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
-    /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
-    onNavigateToTree?: (personId: string) => void;
-    /** "📖 Story" — Personen-Biografie in der Story-Lens öffnen (BL-133/186, Spec 20 §1.10).
-     *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
-    onOpenStory?: (personId: string) => void;
+    /** „Diese Person in Ansicht X" — Baum/Karte/Zeitleiste/Story über DEN EINEN
+     *  Lens-Umschalter (BL-60, ADR-v9-153; ersetzt die vormaligen Einzel-Callbacks
+     *  `onNavigateToTree`/`onOpenStory`). Optional — Tests/Kontexte ohne Lens-Fläche. */
+    onOpenLens?: (personId: string, lens: LensId) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
      *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
@@ -60,8 +59,7 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
-    onNavigateToTree,
-    onOpenStory,
+    onOpenLens,
     onNavigateLens,
     onBack,
     startInEdit = false,
@@ -337,8 +335,7 @@
       onBack={onBack ?? (() => {})}
       onEdit={startEdit}
       onSetProband={() => viewState.setProband(detail.person.id)}
-      {onNavigateToTree}
-      {onOpenStory}
+      {onOpenLens}
     />
 
     <section class="person-detail__section">

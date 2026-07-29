@@ -14,6 +14,7 @@
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { placeTypeLabel } from '../../shell/place-labels';
+  import { countUnresolvedGovPlaceholders } from '../../../core/places';
   import {
     buildPlaceListSections,
     defaultPlaceFilters,
@@ -92,12 +93,13 @@
   // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): der immer sichtbare „Werkzeuge"-
   // Trigger trägt einen Achtungs-Punkt, sobald ein Werkzeug offene Fälle hat. Nur von
   // appState.db abhängig (nicht von query/filters) — rechnet daher bei Datenänderung, nicht
-  // pro Tastendruck. GOV-Platzhalter fehlen bewusst: GOV-Import ist [S] (Spec 20 §1.7), noch
-  // kein gebautes Werkzeug — fällt in den Dot, sobald es existiert. Beschriftete Einzelzähler
-  // erscheinen nur aufgeklappt (keine Glyphen, kein Badge auf verborgenem Button).
+  // pro Tastendruck. Beschriftete Einzelzähler erscheinen nur aufgeklappt (keine Glyphen,
+  // kein Badge auf verborgenem Button). Seit BL-131 zählt der dritte in ADR-v9-148
+  // vorgesehene Fall mit: unaufgelöste GOV-Platzhalter.
   const placeDedupCount = $derived(buildPlaceDedupGroups(appState.db, appState.placeContext, events).length);
   const placeReviewCount = $derived(buildPlaceReview(appState.db, appState.placeContext).rows.length);
-  const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0);
+  const govPlaceholderCount = $derived(countUnresolvedGovPlaceholders(appState.db.placeObjects));
+  const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0 || govPlaceholderCount > 0);
   const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const types = $derived(knownPlaceTypes(appState.db));
@@ -161,6 +163,13 @@
           <label class="place-list__checkbox">
             <input type="checkbox" bind:checked={filters.onlyIncomplete} />
             nur unvollständige
+          </label>
+          <!-- GOV-Platzhalter (BL-131): die Elternorte, die der GOV-Import anlegen musste
+               und die noch keinen Namen haben — eine abschließbare Arbeitsliste, anders
+               als „nur unvollständige" (dem Regelfall nach jedem Import). -->
+          <label class="place-list__checkbox">
+            <input type="checkbox" bind:checked={filters.onlyGovPlaceholders} />
+            nur GOV-Platzhalter{govPlaceholderCount > 0 ? ` (${govPlaceholderCount})` : ''}
           </label>
           <!-- Anzeige-Option, bewusst NICHT in `PlaceFilters` (ADR-v9-149): sie filtert
                nichts, sie blendet die pnames-Varianten unter dem Titel ein. Läge sie in

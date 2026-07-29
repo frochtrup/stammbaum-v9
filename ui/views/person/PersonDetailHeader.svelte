@@ -6,6 +6,8 @@
   // reine Präsentations-/Aktions-Weiterleitung, kein eigener Zustand.
   import type { Person } from '../../../core/model/types';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import LensSwitcher from '../../shell/LensSwitcher.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import { displayName, sexSymbol } from '../../shell/person-display';
   import { formatDateForDisplay } from '../../../core/model/gedcom-date';
   import { tooltip } from '../../shell/tooltip';
@@ -16,10 +18,11 @@
     onBack: () => void;
     onEdit: () => void;
     onSetProband: () => void;
-    onNavigateToTree?: (personId: string) => void;
-    onOpenStory?: (personId: string) => void;
+    /** „Diese Person in Ansicht X" — DER EINE Lens-Umschalter (BL-60, ADR-v9-153),
+     *  optional, damit isolierte Tests/Kontexte ohne Lens-Fläche weiterlaufen. */
+    onOpenLens?: (personId: string, lens: LensId) => void;
   }
-  const { person, isProband, onBack, onEdit, onSetProband, onNavigateToTree, onOpenStory }: Props = $props();
+  const { person, isProband, onBack, onEdit, onSetProband, onOpenLens }: Props = $props();
 </script>
 
 <DetailHeader title={displayName(person)} {onBack}>
@@ -44,16 +47,6 @@
         : 'Als Proband (Referenzperson der Sitzung) setzen'}
       onclick={onSetProband}
     >{isProband ? '★ Proband' : '☆ Als Proband'}</button>
-    {#if onNavigateToTree}
-      <button type="button" class="person-detail-header__tree-link" onclick={() => onNavigateToTree(person.id)}>
-        ⧖ Im Baum anzeigen
-      </button>
-    {/if}
-    {#if onOpenStory}
-      <button type="button" class="person-detail-header__tree-link" onclick={() => onOpenStory(person.id)}>
-        📖 Story
-      </button>
-    {/if}
   {/snippet}
 </DetailHeader>
 
@@ -70,16 +63,32 @@
   </p>
 {/if}
 
+<!-- Lens-Absprung (BL-60, ADR-v9-153): DER EINE Umschalter (`LensSwitcher`, INV-UI-3/4)
+     im Absprung-Modus (`active={null}`), statt der vormaligen zwei handgebauten Knöpfe
+     „⧖ Im Baum anzeigen" + „📖 Story" in der Aktions-Reihe. Drei Gründe in einem Zug:
+     (a) Karte und Zeitleiste fehlten als Ziel überhaupt (BL-60); (b) zwei eigene
+     Sprung-Knöpfe neben dem kanonischen Umschalter sind genau das, was INV-UI-3
+     ausschließt; (c) die Aktions-Reihe sprengte bei 375px das Befehlsflächen-Budget
+     (INV-UI-11) — GEMESSEN, nicht geschätzt: 3 Zeilen / 5 dauerhaft sichtbare
+     Bedienelemente (← Zur Liste · Bearbeiten · Als Proband · Im Baum anzeigen · Story).
+     Segment-/Tab-Reihen zählen laut §6h NICHT ins Budget (sie sind Navigation, kein
+     Befehl), die Aktions-Reihe steht damit wieder bei drei Elementen. -->
+{#if onOpenLens}
+  <div class="person-detail-header__lens-row">
+    <LensSwitcher
+      active={null}
+      ariaLabel="Diese Person in einer anderen Ansicht öffnen"
+      onNavigate={(lens) => onOpenLens(person.id, lens)}
+    />
+  </div>
+{/if}
+
 <style>
-  .person-detail-header__tree-link {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
+  /* Die Reihe selbst bringt kein Padding mit — `.stb-segment-row` (design-system.css)
+     trägt seines, sonst läge die Einrückung doppelt (dieselbe Lehre wie in
+     LensViewHeader.svelte). Nur der Abstand nach unten ist hier zu setzen. */
+  .person-detail-header__lens-row {
+    margin: 0 -0.15rem 0.4rem;
   }
 
   .person-detail-header__edit-btn {
