@@ -124,6 +124,10 @@
             >{ev.placeLabel}</span>{:else}<span class="event-line__place-text">{ev.placeLabel}</span>{/if}{/if}
       </span>
     {/if}
+    <!-- Datums-Freitext (BL-197, GEDCOM PHRASE) — kursiv; steht auch ohne formatiertes Datum. -->
+    {#if ev.datePhrase}<span class="event-line__date-phrase">{ev.datePhrase}</span>{/if}
+    <!-- Alter bei diesem Ereignis (BL-196) — nur im Personen-Kontext gesetzt. -->
+    {#if ev.age}<span class="event-line__age" use:tooltip={'Alter bei diesem Ereignis'}>{ev.age}</span>{/if}
     {#if showCoordIndicator}
       <CoordIndicator coords={ev.coords} {focusId} {viewState} {onNavigateLens} />
     {/if}
@@ -182,6 +186,20 @@
   .event-line__date {
     color: var(--stb-text-dim);
     font-size: 0.85rem;
+  }
+
+  /* Datums-Freitext (BL-197) — kursiv, dezent. */
+  .event-line__date-phrase {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  /* Alter bei Ereignis (BL-196) — dezenter Zusatz, tabellarische Ziffern. */
+  .event-line__age {
+    color: var(--stb-text-dim);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
 
   /* BEWUSST ein `role="button"`-Span, KEIN <button>: ein Button ist ein atomarer

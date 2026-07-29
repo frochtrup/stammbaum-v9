@@ -10,6 +10,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeSource, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildSourceRows } from './source-list-model';
+  import { tooltip } from '../../shell/tooltip';
   import { noDataHint } from '../../shell/nav-model';
   import { layout } from '../../shell/layout.svelte';
 
@@ -59,10 +60,12 @@
           <button type="button" class="source-list__row" onclick={() => selectSource(row.id)}>
             <span class="source-list__label">{row.label}</span>
             <span class="source-list__meta">
+              {#if row.repoName}<span class="stb-pill" use:tooltip={`Archiv: ${row.repoName}`}>🏛 {row.repoName}</span>{/if}
               {#if row.author}<span>{row.author}</span>{/if}
               {#if row.date}<span>{row.date}</span>{/if}
               <span class="stb-list-stat">{row.refCount}× zitiert</span>
               {#if row.hasNotes}<span class="stb-pill">Notizen</span>{/if}
+              {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
             </span>
           </button>
         </li>

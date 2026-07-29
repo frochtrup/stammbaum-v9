@@ -48,11 +48,20 @@
   <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
     <span class="hof-list__title-line">
       <span class="hof-list__addr">{row.addr || row.id}</span>
+      {#if row.hasNote}<span class="hof-list__note-marker" use:tooltip={'Notiz erfasst'} aria-hidden="true">📝</span>{/if}
       <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
       {#if !row.enriched}
         <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
       {/if}
     </span>
+    <!-- Belegungs-Kennzahlen (BL-205): Bewohner/Eigentümer-Zähler + Jahres-Spanne. -->
+    {#if row.residents > 0 || row.owners > 0 || row.yearSpan}
+      <span class="hof-list__meta">
+        {#if row.residents > 0}<span>{row.residents} {row.residents === 1 ? 'Bewohner' : 'Bewohner'}</span>{/if}
+        {#if row.owners > 0}<span>{row.owners} {row.owners === 1 ? 'Eigentümer' : 'Eigentümer'}</span>{/if}
+        {#if row.yearSpan}<span>{row.yearSpan}</span>{/if}
+      </span>
+    {/if}
   </button>
 {/snippet}
 
@@ -243,12 +252,28 @@
   .hof-list__row {
     width: 100%;
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     background: transparent;
     border: none;
-    padding: 0 1rem;
+    padding: 0.3rem 1rem;
     text-align: left;
     cursor: pointer;
     color: var(--stb-text);
+  }
+
+  /* Belegungs-Kennzahlen (BL-205) — dezente Meta-Zeile unter der Adresse. */
+  .hof-list__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+  }
+
+  .hof-list__note-marker {
+    font-size: 0.8rem;
   }
 
   .hof-list__row:hover,

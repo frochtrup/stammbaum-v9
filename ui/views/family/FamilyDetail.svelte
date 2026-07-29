@@ -326,6 +326,7 @@
               >
                 {child.name}
                 {#if child.summary}<span class="family-detail__child-summary">({child.summary})</span>{/if}
+                {#if child.pedigree}<span class="family-detail__child-pedigree">· {child.pedigree}</span>{/if}
               </button>
               <button
                 type="button"
@@ -510,6 +511,13 @@
   .family-detail__child-summary {
     color: var(--stb-text-dim);
     font-size: 0.82rem;
+    text-decoration: none;
+  }
+
+  /* Kind-Verhältnis (BL-199) — nur bei abweichendem PEDI, dezent gold hervorgehoben. */
+  .family-detail__child-pedigree {
+    color: var(--stb-gold-light);
+    font-size: 0.78rem;
     text-decoration: none;
   }
 

@@ -4,10 +4,11 @@
 // Name/Titel/Ereignisse/Notizen/Religion", "erweiterte Filter: Geschlecht, Geburtsjahr-
 // Bereich, Geburtsort, fehlende Felder"). Reine Funktionen (db → Zeilen/Gruppen), damit
 // sie ohne DOM unit-testbar sind (Testpyramide, TST-5) — die Svelte-Komponente rendert nur.
-import type { Database, Person, Sex } from '../../../core/model/types';
+import type { Database, Person, PersonId, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { eventYear, buildListPlaceName } from '../../../core/places';
 import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel, NAMELESS_LETTER } from '../../shell/person-display';
+import { computeKekuleNumbers } from '../../islands/tree/tree-model';
 
 export type PersonSortMode = 'name' | 'birthDate';
 
@@ -51,6 +52,12 @@ export interface PersonRow {
    *  mind. einen Eintrag hat. Wiederverwendetes 📎-Symbol (Spec 21 §7: "ausschließlich
    *  Medien/OBJE, nie Quellen"). */
   hasMedia: boolean;
+  /** Geschlecht für das Zeilen-Icon (BL-195, ♂/♀/◇ via `sexSymbol`). */
+  sex: Sex;
+  /** Kekulé-/Ahnenziffer relativ zum Proband (BL-195, v8-Orakel `p-kekule`) — `null`, wenn
+   *  die Person kein Vorfahr des Probanden ist oder kein Proband bestimmbar war. Aus dem
+   *  geteilten `computeKekuleNumbers` (kein zweiter Rechenweg, INV-UI-4). */
+  kekule: number | null;
 }
 
 export interface PersonGroup {
@@ -175,10 +182,15 @@ export function filterAndSortPersons(
  * Buchstaben-Trenner nur im Name-Modus (Spec 20 §1.4: "ersetzt die Buchstaben-Trenner-
  * Gruppierung im Datum-Modus durch schlichte chronologische Reihenfolge").
  */
-export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: PersonSortMode): PersonGroup[] {
+export function groupPersonRows(
+  persons: Person[],
+  ctx: PlaceContext,
+  sortMode: PersonSortMode,
+  kekule?: Map<PersonId, number> | null,
+): PersonGroup[] {
   if (sortMode === 'birthDate') {
     if (persons.length === 0) return [];
-    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx)), nameless: false }];
+    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false }];
   }
 
   const groups: PersonGroup[] = [];
@@ -190,7 +202,7 @@ export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: 
       current = { letter, rows: [], nameless: letter === NAMELESS_LETTER };
       groups.push(current);
     }
-    current.rows.push(toRow(p, ctx));
+    current.rows.push(toRow(p, ctx, kekule));
   }
   return groups;
 }
@@ -202,12 +214,19 @@ export function buildPersonGroups(
   sortMode: PersonSortMode = 'name',
   query = '',
   filters: PersonFilters = defaultPersonFilters(),
+  /** Effektiver Proband (BL-195/BL-120) — bestimmt die Kekulé-Ziffern der Zeilen. `null`
+   *  (Default) = keine Ahnenziffern. Von der View über `resolveProband` gereicht, damit
+   *  das Modell rein/DOM-frei bleibt. */
+  probandId: PersonId | null = null,
 ): PersonGroup[] {
   const persons = filterAndSortPersons(db, ctx, sortMode, query, filters);
-  return groupPersonRows(persons, ctx, sortMode);
+  // Kekulé EINMAL für den ganzen Bestand berechnen (kein zweiter Rechenweg, INV-UI-4),
+  // nicht je Zeile — computeKekuleNumbers traversiert den Ahnenbaum des Probanden.
+  const kekule = probandId ? computeKekuleNumbers(db, probandId) : null;
+  return groupPersonRows(persons, ctx, sortMode, kekule);
 }
 
-function toRow(p: Person, ctx: PlaceContext): PersonRow {
+function toRow(p: Person, ctx: PlaceContext, kekule?: Map<PersonId, number> | null): PersonRow {
   return {
     id: p.id,
     name: displayName(p),
@@ -216,5 +235,7 @@ function toRow(p: Person, ctx: PlaceContext): PersonRow {
     birthPlaceFull: eventPlaceLabel(p.birth, ctx),
     deathPlaceFull: eventPlaceLabel(p.death, ctx),
     hasMedia: p.media.length > 0,
+    sex: p.sex,
+    kekule: kekule?.get(p.id) ?? null,
   };
 }

@@ -6,7 +6,7 @@
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName } from '../../../core/places';
+import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName, eventPlaceId } from '../../../core/places';
 
 export interface PlaceRow {
   id: PlaceId;
@@ -23,6 +23,10 @@ export interface PlaceRow {
    *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `enriched` (ein Ort kann
    *  eine Kette haben, ohne sonst angereichert zu sein, oder umgekehrt). */
   hasHierarchy: boolean;
+  /** Zahl der DISTINKTEN Personen mit mind. einem Ereignis an diesem Ort (BL-204,
+   *  v8-Orakel „N Personen"), über den `eventPlaceId`-Chokepoint aufgelöst. `0`, wenn
+   *  keine Zählung übergeben wurde (z. B. globale Suche). */
+  personCount: number;
 }
 
 /** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.7 [K] Referenz-Filter, ADR-v9-46). */
@@ -52,7 +56,7 @@ export function isAdminType(type: string | null | undefined): boolean {
   return placeTypeRank(type) >= ADMIN_RANK_THRESHOLD;
 }
 
-function toRow(pl: PlaceObject): PlaceRow {
+function toRow(pl: PlaceObject, personCounts?: Map<PlaceId, number>): PlaceRow {
   const hasCoords = pl.lat != null && pl.long != null;
   return {
     id: pl.id,
@@ -65,7 +69,27 @@ function toRow(pl: PlaceObject): PlaceRow {
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
     enriched: isEnrichedPlace(pl),
     hasHierarchy: pl.enclosedBy.length > 0,
+    personCount: personCounts?.get(pl.id) ?? 0,
   };
+}
+
+/**
+ * Zahl der DISTINKTEN Personen je Ort (BL-204) — für jede Person einmal die Menge der
+ * berührten `placeId`s über den `eventPlaceId`-Chokepoint (Spec 11 §5) bilden, dann je
+ * Ort zählen. `Set` je Person verhindert Doppelzählung, wenn mehrere Ereignisse derselben
+ * Person an denselben Ort fallen. EINMAL für den ganzen Bestand berechnen, nicht je Zeile.
+ */
+export function countPersonsPerPlace(db: Database, ctx: PlaceContext): Map<PlaceId, number> {
+  const counts = new Map<PlaceId, number>();
+  for (const p of db.individuals.values()) {
+    const seen = new Set<PlaceId>();
+    for (const ev of [p.birth, p.chr, p.death, p.buri, ...p.events]) {
+      const id = eventPlaceId(ev, ctx);
+      if (id != null) seen.add(id);
+    }
+    for (const id of seen) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** Alle bekannten Typen (für den Typ-Filter-Dropdown), alphabetisch, ohne Duplikate. */
@@ -109,10 +133,11 @@ export function buildPlaceRows(
   db: Database,
   query = '',
   filters: PlaceFilters = defaultPlaceFilters(),
+  personCounts?: Map<PlaceId, number>,
 ): PlaceRow[] {
   return Array.from(db.placeObjects.values())
     .filter((pl) => matchesSearch(pl, query) && matchesFilters(pl, filters))
-    .map(toRow)
+    .map((pl) => toRow(pl, personCounts))
     .sort((a, b) => a.title.localeCompare(b.title, 'de'));
 }
 
@@ -130,7 +155,7 @@ export function buildPlaceListSections(
   query = '',
   filters: PlaceFilters = defaultPlaceFilters(),
 ): PlaceListSections {
-  const rows = buildPlaceRows(db, query, filters);
+  const rows = buildPlaceRows(db, query, filters, countPersonsPerPlace(db, ctx));
   const referenced: PlaceRow[] = [];
   const unreferenced: PlaceRow[] = [];
   for (const row of rows) {

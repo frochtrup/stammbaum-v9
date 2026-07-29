@@ -151,3 +151,14 @@ describe('globalSearch — Gruppierung', () => {
     expect(result).toEqual({ persons: [], families: [], sources: [], places: [], hofs: [] });
   });
 });
+
+describe('BL-211 — Geschlecht in Personen-Treffern (Icon-Quelle)', () => {
+  it('Personen-Ergebniszeile trägt sex; Nicht-Personen nicht', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer', sex: 'F' }));
+    db.sources.set('@S1@', makeSource('@S1@', { title: 'Bauer-Chronik' }));
+    const res = globalSearch(db, ctxFor(db), 'Bauer');
+    expect(res.persons[0].sex).toBe('F');
+    expect(res.sources[0].sex).toBeUndefined();
+  });
+});

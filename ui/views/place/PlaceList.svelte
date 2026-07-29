@@ -85,6 +85,12 @@
   const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const types = $derived(knownPlaceTypes(appState.db));
+
+  // Alphabet-Trenner (BL-204): erster Buchstabe des Titels, Nicht-Buchstaben → „#".
+  function placeInitial(title: string): string {
+    const ch = title.trim().charAt(0).toUpperCase();
+    return /[A-ZÄÖÜ0-9]/.test(ch) ? ch : '#';
+  }
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
 
   function selectPlace(id: string) {
@@ -201,7 +207,11 @@
       </p>
     {:else}
       <ul class="place-list__rows">
-        {#each rows as row (row.id)}
+        {#each rows as row, i (row.id)}
+          <!-- Alphabetischer Trenner (BL-204): beim ersten Buchstabenwechsel des Titels. -->
+          {#if i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)}
+            <li class="place-list__letter" role="separator">{placeInitial(row.title)}</li>
+          {/if}
           <li>
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
@@ -215,6 +225,9 @@
                   <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
                 </span>
               </span>
+              {#if row.personCount > 0}
+                <span class="place-list__meta">{row.personCount} {row.personCount === 1 ? 'Person' : 'Personen'}</span>
+              {/if}
               {#if groupMode && row.variants.length > 0}
                 <span class="place-list__variants">{row.variants.join(' · ')}</span>
               {/if}
@@ -351,6 +364,21 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  /* Alphabetischer Trenner (BL-204) — dieselbe Optik wie die Personenliste-Trenner. */
+  .place-list__letter {
+    padding: 0.3rem 1rem 0.1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--stb-gold-light);
+    text-transform: uppercase;
+  }
+
+  /* Personen-Zähler je Ort (BL-204). */
+  .place-list__meta {
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
   }
 
   .place-list__row {

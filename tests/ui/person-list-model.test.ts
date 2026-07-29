@@ -4,7 +4,8 @@
 // selbst ist aber reine Funktion, deshalb hier statt als Component-Test, s. TST-5
 // Testpyramide).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeCitation, makeMediaCitation } from '../../core/model';
+import type { ChildLink } from '../../core/model/types';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import {
   buildPersonGroups,
@@ -315,5 +316,41 @@ describe('filterAndSortPersons — erweiterte Filter (jede Dimension einzeln + k
     const filters: PersonFilters = { ...defaultPersonFilters(), sex: 'M' };
     const rows = filterAndSortPersons(seeded(), emptyContext(), 'name', 'anna', filters);
     expect(rows).toEqual([]);
+  });
+});
+
+describe('BL-195 — Geschlecht + Kekulé-Ziffer je Zeile', () => {
+  function childLink(familyId: string): ChildLink {
+    return { familyId, pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] };
+  }
+
+  function dbWithChildAndFather() {
+    const db = makeDatabase();
+    const father = makePerson('@I2@', { given: 'Otto', surname: 'Bauer', sex: 'M' });
+    const child = makePerson('@I1@', { given: 'Anna', surname: 'Bauer', sex: 'F', childOf: [childLink('@F1@')] });
+    db.individuals.set('@I2@', father);
+    db.individuals.set('@I1@', child);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I2@', children: ['@I1@'] }));
+    return db;
+  }
+
+  it('sex-Feld wird je Zeile durchgereicht', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext()).flatMap((g) => g.rows);
+    expect(rows.find((r) => r.id === '@I1@')?.sex).toBe('F');
+    expect(rows.find((r) => r.id === '@I2@')?.sex).toBe('M');
+  });
+
+  it('mit Proband → Kekulé: Proband=1, Vater=2 (geteiltes computeKekuleNumbers)', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext(), 'name', '', defaultPersonFilters(), '@I1@').flatMap((g) => g.rows);
+    expect(rows.find((r) => r.id === '@I1@')?.kekule).toBe(1);
+    expect(rows.find((r) => r.id === '@I2@')?.kekule).toBe(2);
+  });
+
+  it('ohne Proband → keine Ahnenziffern (null)', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext()).flatMap((g) => g.rows);
+    expect(rows.every((r) => r.kekule === null)).toBe(true);
   });
 });

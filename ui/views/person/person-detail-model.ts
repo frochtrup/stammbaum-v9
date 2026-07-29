@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent, isEventEmpty } from '../../../core/model';
-import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
@@ -28,6 +28,12 @@ export interface EventRow {
    *  s. FamilyNavRow.children unten). Getrennt von `placeLabel` (ADR-v9-80 Punkt 1,
    *  `EventLine.svelte`: "Datum, [Ort-Link]" statt eines vorverknüpften Strings). */
   dateLabel: string;
+  /** GEDCOM-`PHRASE` (`Event.datePhrase`) — Datums-Freitext, kursiv neben dem Datum
+   *  (BL-197). Leer = nichts anzeigen. */
+  datePhrase: string;
+  /** Alter der Person bei diesem Ereignis (BL-196, `ageAtEvent`) — leer beim Geburts-
+   *  ereignis selbst (triviales „0 J.") und wenn nicht berechenbar. */
+  age: string;
   /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
    *  Text in `EventLine.svelte`, klickbar wenn `placeId`/`hofId` gesetzt ist, sonst
    *  unverlinkter Text. */
@@ -69,6 +75,10 @@ export interface FamilyNavRow {
    *  Nachtrag 2026-07-06 [20 §1.5]) zur eindeutigen Identifikation bei Namensgleichheit —
    *  fehlte hier bisher, obwohl FamilyDetail dieselben Kinder bereits so anzeigt. */
   children: { personId: string; name: string; summary: string }[];
+  /** Nur bei role==='childOf': das Kind-Verhältnis DIESER Person zu diesen Eltern (BL-199,
+   *  PEDI) — leer bei leiblich/leer und bei role==='parentIn'. Spiegelbild zur
+   *  Kind-Zeile in `family-detail-model.ts` (INV-UI-4, dieselbe `pedigreeLabel`). */
+  pedigree: string;
 }
 
 export interface PersonDetailModel {
@@ -113,6 +123,7 @@ function toEventRow(
   ev: Event,
   ctx: PlaceContext,
   alwaysShow = false,
+  birth?: Event,
 ): EventRow | null {
   if (!alwaysShow && !isEventPresent(ev)) return null;
   return {
@@ -122,6 +133,9 @@ function toEventRow(
     category: eventCategory(tag, ev.eventType),
     year: eventYear(ev),
     dateLabel: fullDateLabel(ev),
+    datePhrase: ev.datePhrase,
+    // Alter nur für Nicht-Geburts-Ereignisse (beim Geburtsereignis wäre es trivial 0).
+    age: birth && key !== 'BIRT' ? ageAtEvent(birth, ev) : '',
     placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -184,11 +198,11 @@ export function buildPersonDetail(
     ['BURI', person.buri],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, tag, ev, ctx);
+    const row = toEventRow(tag, tag, ev, ctx, false, person.birth);
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true, person.birth);
     if (row) events.push(row);
   });
 
@@ -209,7 +223,7 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
       })
       .filter((c) => c.name);
-    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children });
+    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children, pedigree: '' });
   }
   for (const link of person.childOf) {
     const f = db.families.get(link.familyId);
@@ -221,7 +235,14 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(m), summary: yearPlaceSummary(m.birth, ctx) };
       })
       .filter((m) => m.name);
-    families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
+    families.push({
+      familyId: link.familyId,
+      role: 'childOf',
+      label: familyLabel(f, db),
+      members,
+      children: [],
+      pedigree: pedigreeLabel(link.pedigree),
+    });
   }
 
   const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER).map((group) => ({

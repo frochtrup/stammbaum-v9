@@ -17,7 +17,8 @@
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
   import { tooltip } from '../../shell/tooltip';
-  import { displayName } from '../../shell/person-display';
+  import { displayName, sexSymbol } from '../../shell/person-display';
+  import { formatDateForDisplay } from '../../../core/model/gedcom-date';
   import { resolveProband } from '../../shell/proband';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -368,6 +369,18 @@
       {/snippet}
     </DetailHeader>
 
+    <!-- Kopf-Untertitel (BL-198): Geschlechts-Icon, Rufname (nick), Änderungsdatum (CHAN).
+         Alle drei nur, wenn vorhanden — kein Leerzustands-Rauschen (§10f). -->
+    <p class="person-detail__subtitle">
+      <span class="person-detail__sex person-detail__sex--{detail.person.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(detail.person.sex)}</span>
+      {#if detail.person.nick}
+        <span class="person-detail__nick" use:tooltip={'Rufname'}>«{detail.person.nick}»</span>
+      {/if}
+      {#if detail.person.lastChanged}
+        <span class="person-detail__changed">Geändert {formatDateForDisplay(detail.person.lastChanged) || detail.person.lastChanged}</span>
+      {/if}
+    </p>
+
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
 
@@ -481,6 +494,27 @@
     border-color: var(--stb-gold);
     font-weight: 600;
     cursor: default;
+  }
+
+  /* Kopf-Untertitel (BL-198): dezent unter dem Titel. */
+  .person-detail__subtitle {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: -0.2rem 0 1rem;
+    font-size: 0.82rem;
+    color: var(--stb-text-dim);
+  }
+  .person-detail__sex--m {
+    color: var(--stb-sex-m);
+  }
+  .person-detail__sex--f {
+    color: var(--stb-sex-f);
+  }
+  .person-detail__nick {
+    font-style: italic;
+    color: var(--stb-text);
   }
 
   .person-detail__section {

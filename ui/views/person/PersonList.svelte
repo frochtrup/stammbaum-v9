@@ -11,6 +11,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
+  import { resolveProband } from '../../shell/proband';
+  import { sexSymbol } from '../../shell/person-display';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
@@ -50,7 +52,12 @@
   let filters = $state<PersonFilters>(defaultPersonFilters());
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultPersonFilters()));
-  const groups = $derived(buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters));
+  // Effektiver Proband (BL-120) bestimmt die Kekulé-Ziffern der Zeilen (BL-195). Das Modell
+  // bleibt DOM-frei; die Auflösung passiert hier in der Schale.
+  const probandId = $derived(resolveProband(appState.db, viewState));
+  const groups = $derived(
+    buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters, probandId),
+  );
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
 
@@ -174,7 +181,9 @@
           <li>
             <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
               <span class="person-list__name-line">
+                <span class="person-list__sex person-list__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>
                 <span class="person-list__name">{row.name}</span>
+                {#if row.kekule != null}<span class="person-list__kekule" use:tooltip={'Ahnenziffer (Kekulé) zum Probanden'}>#{row.kekule}</span>{/if}
                 {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
               </span>
               <span class="person-list__meta">
@@ -439,6 +448,31 @@
 
   .person-list__name {
     font-weight: 600;
+  }
+
+  /* Geschlechts-Icon (BL-195) — dieselben Farben wie Sanduhr/Statistik (--stb-sex-*). */
+  .person-list__sex {
+    flex: none;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--stb-text-dim);
+  }
+  .person-list__sex--m {
+    color: var(--stb-sex-m);
+  }
+  .person-list__sex--f {
+    color: var(--stb-sex-f);
+  }
+
+  /* Kekulé-/Ahnenziffer relativ zum Probanden (BL-195, v8-Orakel `p-kekule`). */
+  .person-list__kekule {
+    flex: none;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--stb-gold-light);
+    background: var(--stb-gold-dim);
+    border-radius: 0.6rem;
+    padding: 0.05rem 0.4rem;
   }
 
   .person-list__meta {

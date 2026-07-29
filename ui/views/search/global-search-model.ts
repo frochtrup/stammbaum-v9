@@ -12,7 +12,7 @@
 // Höfe (ADR-v9-24): Spec 20 §1.1 wurde korrigiert, Höfe gehören seither explizit in
 // die globale Suche dazu — hier über dieselbe `matchesSearch`+`toRow`-Aufbereitung
 // wie die Höfe-Liste (hof-list-model.ts), keine Parallel-Formatierung.
-import type { Database } from '../../../core/model/types';
+import type { Database, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { matchesSearch as matchesPersonSearch } from '../person/person-list-model';
 import { matchesSearch as matchesFamilySearch } from '../family/family-list-model';
@@ -39,6 +39,8 @@ export interface SearchResultRow {
    *  Quellen/Orten/Höfen bedeutet `secondary` etwas anderes (Autor/Typ/Dorf), kein
    *  Orts-Tooltip nötig. */
   secondaryFull?: string;
+  /** Geschlecht für das Ergebnis-Icon (BL-211, ♂/♀/◇) — nur bei Personen gesetzt. */
+  sex?: Sex;
 }
 
 export interface GroupedSearchResults {
@@ -81,6 +83,7 @@ export function globalSearch(db: Database, ctx: PlaceContext, query: string): Gr
       primary: displayName(p),
       secondary: yearPlaceSummary(p.birth, ctx),
       secondaryFull: eventPlaceLabel(p.birth, ctx),
+      sex: p.sex,
     });
   }
   persons.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));

@@ -2,13 +2,14 @@
 // Sammlung aus placeObjects (id-basiert), Typ-Badge, Koordinaten-Indikator, Typ-Filter,
 // Gruppen-Modus (pnames-Varianten), Admin-Filter. Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase } from '../../core/model';
+import { makeDatabase, makePerson } from '../../core/model';
 import { place, ev } from '../core/places-fixtures';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
 import type { PlaceContext } from '../../core/places';
 import {
   buildPlaceRows,
   buildPlaceListSections,
+  countPersonsPerPlace,
   defaultPlaceFilters,
   isAdminType,
   knownPlaceTypes,
@@ -238,5 +239,32 @@ describe('buildPlaceListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => 
 
     expect(sections.referenced.map((r) => r.id)).toEqual(['@P1@']);
     expect(sections.unreferenced).toEqual([]);
+  });
+});
+
+describe('BL-204 — Personen-Zähler je Ort (countPersonsPerPlace)', () => {
+  it('zählt distinkte Personen; Mehrfach-Ereignisse derselben Person nur einmal', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));
+    const a = makePerson('@I1@', { given: 'A' });
+    a.birth = ev('BIRT', { placeId: 'P1' });
+    a.death = ev('DEAT', { placeId: 'P1' }); // dieselbe Person, zweites Ereignis → nicht doppelt
+    const b = makePerson('@I2@', { given: 'B' });
+    b.birth = ev('BIRT', { placeId: 'P1' });
+    db.individuals.set('@I1@', a);
+    db.individuals.set('@I2@', b);
+    const counts = countPersonsPerPlace(db, ctxOf(db));
+    expect(counts.get('P1')).toBe(2);
+  });
+
+  it('setzt personCount + alphabetische Trenner-Grundlage in die Listenzeile', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('P1', place('P1', { title: 'Ochtrup' }));
+    const a = makePerson('@I1@', { given: 'A' });
+    a.birth = ev('BIRT', { placeId: 'P1' });
+    db.individuals.set('@I1@', a);
+    const sections = buildPlaceListSections(db, ctxOf(db), [a.birth], '', defaultPlaceFilters());
+    const row = [...sections.referenced, ...sections.unreferenced].find((r) => r.id === 'P1')!;
+    expect(row.personCount).toBe(1);
   });
 });

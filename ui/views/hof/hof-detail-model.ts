@@ -30,7 +30,7 @@ export interface HofResidentRow {
  *  das `role`-Feld je Zeile (Format, nicht Gruppierung). NIMMT den REALEN Tag (nicht
  *  die übersetzte Anzeige) — die Rollen-Klassifikation darf sich nicht durch die
  *  Übersetzung ändern. */
-function hofRole(tag: string): HofResidentRole {
+export function hofRole(tag: string): HofResidentRole {
   return tag === 'PROP' ? 'Eigentümer' : 'Bewohner';
 }
 

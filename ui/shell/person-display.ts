@@ -1,10 +1,10 @@
 // ui/shell/person-display.ts — reine Darstellungs-Helfer für Personen (Präsentation,
 // keine Domänenlogik — deshalb bewusst in ui/, nicht core/model). Liest AUSSCHLIESSLICH
 // über core-Chokepoints/-Felder, schreibt nie zurück (reine Query-Funktionen, Spec 02 §3).
-import type { Person, Event } from '../../core/model/types';
+import type { Person, Event, Sex, ChildLink } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
 import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
-import { formatDateForDisplay } from '../../core/model/gedcom-date';
+import { formatDateForDisplay, parseDateValue } from '../../core/model/gedcom-date';
 import { surnameOf } from '../../core/model/name-parts';
 
 /**
@@ -32,6 +32,34 @@ export function displayNameOr(p: Person, fallback: string): string {
 /** Rohe GEDCOM-NAME-Form ("Otto /Meyer/") in Anzeigeform ("Otto Meyer"). */
 export function displayName(p: Person): string {
   return displayNameOr(p, '(ohne Namen)');
+}
+
+/**
+ * Geschlechts-Symbol für Listen-/Kopf-Zeilen (Spec 20 §1.4, v8-Orakel `p-sex`-Klasse).
+ * EINE Quelle für ♂/♀/◇ (INV-UI-4) — dieselben Symbole wie die Statistik-Legende
+ * (`StatisticsView`). Wiederverwendet in Personenliste (BL-195), Suche (BL-211) und
+ * Personen-Detailkopf (BL-198).
+ */
+export function sexSymbol(sex: Sex): string {
+  return sex === 'M' ? '♂' : sex === 'F' ? '♀' : '◇';
+}
+
+/**
+ * Kind-Verhältnis-Label (PEDI) für Kind-/Eltern-Zeilen (BL-199, v8-Orakel `_pediLabel`).
+ * Leer beim Regelfall (leiblich/leer) — nur ein ABWEICHENDES Verhältnis trägt einen
+ * sichtbaren Marker, damit die Zeile nicht mit „leiblich" verrauscht.
+ */
+export function pedigreeLabel(pedigree: ChildLink['pedigree']): string {
+  switch (pedigree) {
+    case 'adopted':
+      return 'adoptiert';
+    case 'foster':
+      return 'Pflegekind';
+    case 'sealing':
+      return 'gesiegelt';
+    default:
+      return '';
+  }
 }
 
 /**
@@ -104,6 +132,23 @@ export function yearPlaceSummary(ev: Event, ctx: PlaceContext): string {
   const place = buildListPlaceName(ev, ctx);
   if (year && place) return `${year}, ${place}`;
   return year || place;
+}
+
+/**
+ * Alter der Person bei einem Ereignis (BL-196, v8-Orakel `_ageAt`) — Ereignisjahr minus
+ * Geburtsjahr, als „42 J." bzw. „~42 J." wenn eines der beiden Daten unscharf ist
+ * (Qualifier ≠ EXACT: ca./vor/nach/zwischen). Leer, wenn ein Jahr fehlt oder das Alter
+ * unplausibel ist (< 0 oder > 130 — dann ist der Bezug vermutlich falsch, kein Rauschen).
+ */
+export function ageAtEvent(birth: Event, ev: Event): string {
+  const b = eventYear(birth);
+  const e = eventYear(ev);
+  if (b == null || e == null) return '';
+  const age = e - b;
+  if (age < 0 || age > 130) return '';
+  const approx =
+    parseDateValue(birth.date ?? '').qualifier !== 'EXACT' || parseDateValue(ev.date ?? '').qualifier !== 'EXACT';
+  return `${approx ? '~' : ''}${age} J.`;
 }
 
 /** Volles, lokalisiertes Datum eines Events (Tag+Monat wo vorhanden, deutscher

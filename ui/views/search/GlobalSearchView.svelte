@@ -13,6 +13,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
+  import { sexSymbol } from '../../shell/person-display';
 
   interface Props {
     appState: AppState;
@@ -135,7 +136,10 @@
             {#each results.persons as row (row.id)}
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
-                  <span class="global-search__primary">{row.primary}</span>
+                  <span class="global-search__primary">
+                    {#if row.sex}<span class="global-search__sex global-search__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>{/if}
+                    {row.primary}
+                  </span>
                   {#if row.secondary}
                     <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
                   {/if}
@@ -317,6 +321,18 @@
 
   .global-search__primary {
     font-weight: 600;
+  }
+
+  /* Geschlechts-Icon in Personen-Treffern (BL-211, geteilt mit PersonList — INV-UI-4). */
+  .global-search__sex {
+    font-weight: 400;
+    color: var(--stb-text-dim);
+  }
+  .global-search__sex--m {
+    color: var(--stb-sex-m);
+  }
+  .global-search__sex--f {
+    color: var(--stb-sex-f);
   }
 
   .global-search__secondary {

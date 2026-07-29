@@ -160,3 +160,21 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
     expect(detail.events[0].citations[0].page).toBe('12');
   });
 });
+
+describe('BL-199 — Kind-Verhältnis (PEDI) an der Kind-Zeile', () => {
+  function ctx(): PlaceContext {
+    return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+  }
+  it('adoptiertes Kind → Label "adoptiert"; leibliches → leer', () => {
+    const db = makeDatabase();
+    const adopt = makePerson('@I1@', { given: 'Kind', surname: 'A', childOf: [{ familyId: '@F1@', pedigree: 'adopted', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] }] });
+    const bio = makePerson('@I2@', { given: 'Kind', surname: 'B', childOf: [{ familyId: '@F1@', pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] }] });
+    db.individuals.set('@I1@', adopt);
+    db.individuals.set('@I2@', bio);
+    db.families.set('@F1@', makeFamily('@F1@', { children: ['@I1@', '@I2@'] }));
+    const model = buildFamilyDetail(db, ctx(), '@F1@')!;
+    const kids = model.members.filter((m) => m.role === 'child');
+    expect(kids.find((k) => k.personId === '@I1@')?.pedigree).toBe('adoptiert');
+    expect(kids.find((k) => k.personId === '@I2@')?.pedigree).toBe('');
+  });
+})
