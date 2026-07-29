@@ -8,12 +8,12 @@
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { placeTypeLabel } from '../../shell/place-labels';
   import {
     buildPlaceListSections,
     defaultPlaceFilters,
@@ -42,6 +42,10 @@
 
   let query = $state('');
   let filters = $state<PlaceFilters>(defaultPlaceFilters());
+  /** Blendet die pnames-Varianten unter dem Titel ein (Anzeige, kein Filter — s. Markup).
+   *  Der v8-Name „Gruppen-Modus" trug noch die string-basierte Liste im Rücken; in v9 ist
+   *  die Liste ID-basiert, die Gruppierung also strukturell schon passiert — sichtbar
+   *  gemacht werden nur noch die Varianten selbst (ADR-v9-149). */
   let groupMode = $state(false);
   let section = $state<'referenced' | 'unreferenced'>('referenced');
   /** Batch-Geocoding-Fortschritt (BL-130): `null` = nicht gelaufen. */
@@ -132,16 +136,15 @@
           <button type="button" class="place-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
-      <label class="place-list__toggle">
-        <input type="checkbox" bind:checked={groupMode} />
-        Varianten gruppiert
-      </label>
       <FilterBar activeCount={activeFilterCount}>
         <div class="place-list__filters">
           <label>
             Typ
             <select value={filters.type} onchange={(e) => (filters.type = e.currentTarget.value)}>
               <option value="">alle</option>
+              <!-- `knownPlaceTypes` liefert bereits deutsche, auf dem Label deduplizierte
+                   Kategorien (ADR-v9-149) — „Stadt" steht EINMAL und fängt `Town` wie
+                   `City`. Gefiltert wird auf derselben Kategorie, die hier sichtbar ist. -->
               {#each types as t (t)}
                 <option value={t}>{t}</option>
               {/each}
@@ -150,6 +153,24 @@
           <label class="place-list__checkbox">
             <input type="checkbox" bind:checked={filters.hideAdmin} />
             Verwaltungseinheiten ausblenden
+          </label>
+          <!-- Kurations-Arbeitsliste statt Zeilen-Pille (ADR-v9-149). Liegt hier in der
+               FilterBar-Disclosure, nicht als Dauer-Element — dieselbe Zuordnungsregel wie
+               INV-UI-11 („Filter → immer hinter FilterBar") und dieselbe Richtung wie
+               ADR-v9-148 (Kurations-Handlungsbedarf aggregiert, nicht je Zeile verstreut). -->
+          <label class="place-list__checkbox">
+            <input type="checkbox" bind:checked={filters.onlyIncomplete} />
+            nur unvollständige
+          </label>
+          <!-- Anzeige-Option, bewusst NICHT in `PlaceFilters` (ADR-v9-149): sie filtert
+               nichts, sie blendet die pnames-Varianten unter dem Titel ein. Läge sie in
+               `filters`, zählte `countActiveFilters` sie mit und der Trigger meldete
+               „Filter · 1", obwohl die Liste vollständig ist — ein unehrliches Signal.
+               Sie sitzt trotzdem hier, weil sie als Dauer-Element im Kopf eine dritte
+               Toolbar-Zeile erzwang (bei 375px gemessen: 81px/3 Zeilen → INV-UI-11-Bruch). -->
+          <label class="place-list__checkbox">
+            <input type="checkbox" bind:checked={groupMode} />
+            Namensvarianten anzeigen
           </label>
           <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
         </div>
@@ -228,11 +249,16 @@
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
-                {#if row.type}<span class="stb-pill">{row.type}</span>{/if}
+                <!-- Deutsches Label über DIE EINE Quelle (ADR-v9-149); `Unknown`/leer
+                     liefert '' → kein Chip, statt „Unbekannt" auf der Mehrheit der Zeilen. -->
+                {#if placeTypeLabel(row.type)}<span class="stb-pill">{placeTypeLabel(row.type)}</span>{/if}
                 {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
-                {#if !row.enriched}
-                  <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
-                {/if}
+                <!-- Die frühere „ohne Zusatzangaben"-Pille ist entfallen (ADR-v9-149):
+                     `enriched === false` ist nach dem Import der Regelfall, die Pille stand
+                     also auf der Mehrheit der Zeilen und trug die höchste Wortlast für den
+                     informationsärmsten Zustand. Dieselbe Information liegt jetzt im Filter
+                     „nur unvollständige" (Kurations-Abfrage statt Zeilen-Label) —
+                     Zeilen tragen nur noch POSITIVE Fakten. -->
                 <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
               </span>
               {#if row.personCount > 0}
@@ -303,14 +329,6 @@
   }
 
   .place-list__geocode-status {
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-  }
-
-  .place-list__toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
     font-size: 0.8rem;
     color: var(--stb-text-dim);
   }

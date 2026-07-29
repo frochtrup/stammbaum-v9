@@ -97,6 +97,22 @@ export interface HofListSections {
 }
 
 /**
+ * Filter der Höfe-Liste (ADR-v9-149). Bewusst schmal — die Höfe-Liste hatte bislang gar
+ * keine Filter, nur Suche; hinzu kommt genau das Kriterium, das vorher als „ohne
+ * Zusatzangaben"-Pille auf jeder Zeile stand. Eigener Typ statt Wiederverwendung von
+ * `PlaceFilters`: Höfe kennen weder Typ noch Verwaltungsrang, ein geteilter Typ mit zwei
+ * für Höfe sinnlosen Feldern wäre die schlechtere Kopplung.
+ */
+export interface HofFilters {
+  /** Nur unvollständige (nicht angereicherte) Höfe zeigen — s. `PlaceFilters.onlyIncomplete`. */
+  onlyIncomplete: boolean;
+}
+
+export function defaultHofFilters(): HofFilters {
+  return { onlyIncomplete: false };
+}
+
+/**
  * Numerischer Sortier-Schlüssel: die erste Zahl (Hausnummer) einer Adresse, sonst
  * +Infinity (Adressen ohne Zahl sortieren ans Ende).
  */
@@ -155,10 +171,18 @@ export function matchesSearch(row: HofRow, query: string): boolean {
  *  Hausnummer (Nutzer-Vorgabe 2026-07-10 — vorher umgekehrt: numerisch zuerst, was
  *  gleiche Hausnummern verschiedener Straßen nebeneinander stellte, statt Straßen
  *  zusammenzuhalten). Voller Adress-String bleibt als letzter Tie-Breaker. */
-export function buildHofRows(db: Database, query = '', occupancy?: Map<HofId, HofOccupancy>): HofRow[] {
+export function buildHofRows(
+  db: Database,
+  query = '',
+  occupancy?: Map<HofId, HofOccupancy>,
+  filters: HofFilters = defaultHofFilters(),
+): HofRow[] {
   return Array.from(db.hofObjects.values())
     .map((h) => toRow(h, db, occupancy))
     .filter((row) => matchesSearch(row, query))
+    // `enriched` stammt aus `isEnrichedHof` (Kern) — dasselbe Prädikat wie die frühere
+    // Pille, jetzt als Abfrage (ADR-v9-149).
+    .filter((row) => !filters.onlyIncomplete || !row.enriched)
     .sort((a, b) => {
       const streetCmp = streetNameOf(a.addr).localeCompare(streetNameOf(b.addr), 'de');
       if (streetCmp !== 0) return streetCmp;
@@ -189,8 +213,9 @@ export function buildHofListSections(
   ctx: PlaceContext,
   events: readonly Event[],
   query = '',
+  filters: HofFilters = defaultHofFilters(),
 ): HofListSections {
-  const rows = buildHofRows(db, query, countHofOccupancy(db, ctx));
+  const rows = buildHofRows(db, query, countHofOccupancy(db, ctx), filters);
   const referenced: HofRow[] = [];
   const unreferenced: HofRow[] = [];
   for (const row of rows) {

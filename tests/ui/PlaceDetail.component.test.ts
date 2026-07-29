@@ -67,6 +67,42 @@ describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
   });
 });
 
+describe('PlaceDetail — Typ-Badge im Kopfbereich (B7-Regression, ADR-v9-149)', () => {
+  it('zeigt den Ortstyp deutsch statt als rohen GRAMPS-Wert', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Bayern', type: 'State' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Bundesland')).toBeTruthy();
+    expect(screen.queryByText('State')).toBeNull();
+  });
+
+  it('zeigt bei type="Unknown" KEIN Badge — der gemeldete Fund (Burgsteinfurt)', () => {
+    // Nutzer-Fund 2026-07-29 (Design-Kritik): der Steckbrief-Kopf trug einen prominenten
+    // „Unknown"-Chip. Doppelt falsch — englisch in deutscher UI (Altlast B7, bereits
+    // einmal gefixt) UND ein Dauer-Signal auf einem Zustand, den ADR-v9-77 ausdrücklich
+    // als „normalen, unauffälligen Fall" führt.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Burgsteinfurt', type: 'Unknown' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Burgsteinfurt')).toBeTruthy();
+    expect(screen.queryByText('Unknown')).toBeNull();
+    expect(screen.queryByText('Unbekannt')).toBeNull();
+    expect(container.querySelector('.place-detail__type-badge')).toBeNull();
+  });
+});
+
 describe('PlaceDetail — Bearbeitung (Name, Koordinaten, Typ)', () => {
   it('speichert Grunddaten über appState.savePlace', async () => {
     const appState = createAppState();

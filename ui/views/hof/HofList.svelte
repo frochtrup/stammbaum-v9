@@ -7,7 +7,14 @@
   import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
-  import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
+  import {
+    buildHofListSections,
+    groupHofRowsByVillage,
+    defaultHofFilters,
+    type HofRow,
+    type HofFilters,
+  } from './hof-list-model';
+  import { countActiveFilters } from '../../shell/count-active-filters';
   import { buildHofDedupGroups } from './hof-dedup-model';
   import { buildHofReview } from './hof-review-model';
   import EventsByType from '../../shell/EventsByType.svelte';
@@ -30,9 +37,12 @@
 
   let query = $state('');
   let section = $state<'referenced' | 'unreferenced'>('referenced');
+  /** ADR-v9-149 — ersetzt die frühere „ohne Zusatzangaben"-Zeilenpille. */
+  let filters = $state<HofFilters>(defaultHofFilters());
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultHofFilters()));
   const events = $derived(collectAllEvents(appState.db));
-  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query));
+  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query, filters));
 
   // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): analog PlaceList — der immer sichtbare
   // „Werkzeuge"-Trigger trägt einen Achtungs-Punkt bei offenen Hof-Dedup-Gruppen oder
@@ -60,9 +70,10 @@
       <span class="hof-list__addr">{row.addr || row.id}</span>
       {#if row.hasNote}<span class="stb-pill" use:tooltip={'Notiz erfasst'}>📝</span>{/if}
       <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
-      {#if !row.enriched}
-        <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
-      {/if}
+      <!-- „ohne Zusatzangaben"-Pille entfallen (ADR-v9-149) — identische Begründung wie in
+           PlaceList: Regelfall-Zustand, höchste Wortlast, jetzt Filter statt Zeilen-Label.
+           Beide Geschwister-Listen ziehen mit (die Regel gilt nicht nur dort, wo sie
+           aufgefallen ist). -->
     </span>
     <!-- Belegungs-Kennzahlen (BL-205): Bewohner/Eigentümer-Zähler + Jahres-Spanne. -->
     {#if row.residents > 0 || row.owners > 0 || row.yearSpan}
@@ -98,6 +109,22 @@
           <button type="button" class="hof-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
+      <!-- Erste Filter dieser Liste überhaupt (ADR-v9-149): die Höfe-Liste hatte bislang
+           nur eine Suche, die Anreicherungs-Information stand als Pille auf jeder Zeile.
+           Sie zieht jetzt denselben `FilterBar`-Mechanismus wie PlaceList (INV-UI-4) —
+           kein listen-eigener Steuerungstyp, und das Kopf-Budget (INV-UI-11) bleibt bei
+           EINER Toolbar-Zeile, weil der Filter hinter der Disclosure liegt. -->
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="hof-list__filters">
+          <label class="hof-list__checkbox">
+            <input type="checkbox" bind:checked={filters.onlyIncomplete} />
+            nur unvollständige
+          </label>
+          <button type="button" class="hof-list__review-btn" onclick={() => (filters = defaultHofFilters())}>
+            Filter zurücksetzen
+          </button>
+        </div>
+      </FilterBar>
       {#if onOpenReview || onOpenDedup}
         <!-- Wie in PlaceList: Kuratierungs-Werkzeuge hinter EINEN Einstiegspunkt
              (Spec 21 §6h, BL-96). Dieselbe Rolle, derselbe Mechanismus — nicht je Liste
@@ -199,6 +226,22 @@
     flex: 1 1 160px;
     display: flex;
     align-items: center;
+  }
+
+  /* Filter-Inhalt der Disclosure (ADR-v9-149) — analog .place-list__filters. */
+  .hof-list__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .hof-list__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
   }
 
   /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in

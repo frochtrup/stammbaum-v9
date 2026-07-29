@@ -7,6 +7,7 @@
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
 import { placeTypeRank, isEnrichedPlace, hasReference, placeDisplayName, eventPlaceId } from '../../../core/places';
+import { placeTypeCategory } from '../../shell/place-labels';
 
 export interface PlaceRow {
   id: PlaceId;
@@ -38,14 +39,30 @@ export interface PlaceListSections {
 }
 
 export interface PlaceFilters {
-  /** Leerer String = kein Typ-Filter. */
+  /**
+   * Leerer String = kein Typ-Filter. Enthält das DEUTSCHE Label (`placeTypeLabel`), nicht
+   * den rohen GRAMPS-Wert (ADR-v9-149): `Town` und `City` heißen beide „Stadt" — zwei
+   * gleichnamige Dropdown-Einträge, die unterschiedlich filtern, wären für den Nutzer nicht
+   * unterscheidbar. Gefiltert wird deshalb auf der Kategorie, die er sieht; „Stadt" fängt
+   * beide Rohwerte.
+   */
   type: string;
   /** Reine Verwaltungseinheiten (Rang ≥ Schwelle, s. ADMIN_RANK_THRESHOLD) ausblenden. */
   hideAdmin: boolean;
+  /**
+   * Nur unvollständige (nicht angereicherte) Orte zeigen — die Kurations-Arbeitsliste
+   * (ADR-v9-149). Ersetzt die frühere „ohne Zusatzangaben"-Pille je Zeile: Abwesenheit von
+   * Daten ist eine ABFRAGE, kein Zeilen-Label. Grund: `enriched === false` ist direkt nach
+   * dem Import der REGELFALL (ADR-v9-44 — plain POs bleiben dauerhaft erhalten), und die
+   * Polaritäts-Begründung aus ADR-v9-79 („kein Gegenstück ‚ohne Medien'/‚ohne Notizen',
+   * das wäre der Regelfall auf den meisten Zeilen, keine Info wert") trifft damit auf die
+   * Pille selbst zu. Als Filter wirkt dieselbe Information gezielt statt als Dauer-Rauschen.
+   */
+  onlyIncomplete: boolean;
 }
 
 export function defaultPlaceFilters(): PlaceFilters {
-  return { type: '', hideAdmin: false };
+  return { type: '', hideAdmin: false, onlyIncomplete: false };
 }
 
 // Verwaltungs-Schwelle: Rang ab "District"/"County" (7) aufwärts gilt als reine
@@ -92,18 +109,29 @@ export function countPersonsPerPlace(db: Database, ctx: PlaceContext): Map<Place
   return counts;
 }
 
-/** Alle bekannten Typen (für den Typ-Filter-Dropdown), alphabetisch, ohne Duplikate. */
+/**
+ * Alle im Bestand vorkommenden Typ-KATEGORIEN als deutsche Labels (für den Filter-Dropdown),
+ * alphabetisch, ohne Duplikate (ADR-v9-149). Dedupliziert wird auf der Kategorie, nicht auf
+ * dem Rohwert — `Town` und `City` ergeben EINEN Eintrag „Stadt". Nicht kategorisierte Orte
+ * (`Unknown`/leer) erscheinen als „Unbekannt": als Zeilen-Chip wäre das Rauschen, als
+ * Abfrage ist es die Kurationsfrage „was muss ich noch kategorisieren?"
+ * (`placeTypeCategory`).
+ */
 export function knownPlaceTypes(db: Database): string[] {
   const types = new Set<string>();
   for (const pl of db.placeObjects.values()) {
-    if (pl.type) types.add(pl.type);
+    types.add(placeTypeCategory(pl.type));
   }
   return Array.from(types).sort((a, b) => a.localeCompare(b, 'de'));
 }
 
 function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
-  if (filters.type && pl.type !== filters.type) return false;
+  if (filters.type && placeTypeCategory(pl.type) !== filters.type) return false;
   if (filters.hideAdmin && isAdminType(pl.type)) return false;
+  // Dasselbe Prädikat wie die frühere Pille (`isEnrichedPlace`, §9.1) — nur als Abfrage
+  // statt als Zeilen-Label (ADR-v9-149). EINE Anreicherungs-Definition, kein zweites
+  // Kriterium neben dem Kern (INV-UI-4).
+  if (filters.onlyIncomplete && isEnrichedPlace(pl)) return false;
   return true;
 }
 

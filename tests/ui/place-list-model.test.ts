@@ -105,25 +105,55 @@ describe('buildPlaceRows — Sammlung aus placeObjects, Typ-Badge, Koordinaten-I
   });
 });
 
-describe('Typ-Filter', () => {
-  it('filtert nach exaktem Typ', () => {
+describe('Typ-Filter — auf der deutschen Kategorie, nicht dem Rohwert (ADR-v9-149)', () => {
+  it('filtert nach exakter Kategorie', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Dorf', type: 'Village' }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Stadt', type: 'City' }));
 
-    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'City' };
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'Stadt' };
     const rows = buildPlaceRows(db, '', filters);
 
     expect(rows.map((r) => r.id)).toEqual(['@P2@']);
   });
 
-  it('knownPlaceTypes liefert alle vorkommenden Typen, dedupliziert + sortiert', () => {
+  it('„Stadt" fängt BEIDE Rohwerte (Town + City) — die Kategorie, die der Nutzer sieht', () => {
+    // Ohne diese Zusammenführung stünden zwei gleichnamige „Stadt"-Einträge im Dropdown,
+    // die unterschiedlich filtern — für den Nutzer nicht unterscheidbar.
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ahaus', type: 'Town' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Münster', type: 'City' }));
+    db.placeObjects.set('@P3@', place('@P3@', { title: 'Ochtrup', type: 'Village' }));
+
+    const rows = buildPlaceRows(db, '', { ...defaultPlaceFilters(), type: 'Stadt' });
+
+    expect(rows.map((r) => r.id)).toEqual(['@P1@', '@P2@']);
+  });
+
+  it('knownPlaceTypes liefert deutsche Kategorien, auf dem Label dedupliziert + sortiert', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { type: 'Village' }));
     db.placeObjects.set('@P2@', place('@P2@', { type: 'City' }));
     db.placeObjects.set('@P3@', place('@P3@', { type: 'Village' }));
+    // Town + City fallen auf EIN „Stadt" zusammen.
+    db.placeObjects.set('@P4@', place('@P4@', { type: 'Town' }));
 
-    expect(knownPlaceTypes(db)).toEqual(['City', 'Village']);
+    expect(knownPlaceTypes(db)).toEqual(['Dorf', 'Stadt']);
+  });
+
+  it('nicht kategorisierte Orte sind als „Unbekannt" FILTERBAR (nur kein Zeilen-Chip)', () => {
+    // Die Trennung, die ADR-v9-149 durchzieht: anzeigen nein, abfragen ja. `Unknown` und
+    // ein leerer Typ fallen dabei in dieselbe Kategorie — für den Nutzer ist beides
+    // „noch nicht kategorisiert".
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Albersloh', type: 'Unknown' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrup', type: 'Village' }));
+    db.placeObjects.set('@P3@', place('@P3@', { title: 'Am Don', type: '' }));
+
+    expect(knownPlaceTypes(db)).toEqual(['Dorf', 'Unbekannt']);
+
+    const rows = buildPlaceRows(db, '', { ...defaultPlaceFilters(), type: 'Unbekannt' });
+    expect(rows.map((r) => r.id)).toEqual(['@P1@', '@P3@']);
   });
 });
 
@@ -154,10 +184,54 @@ describe('Admin-Filter — reine Verwaltungseinheiten ausblendbar', () => {
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrup', type: 'Village' }));
     db.placeObjects.set('@P3@', place('@P3@', { title: 'Münster', type: 'City' }));
 
-    const filters: PlaceFilters = { type: 'City', hideAdmin: true };
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'Stadt', hideAdmin: true };
     const rows = buildPlaceRows(db, '', filters);
 
     expect(rows.map((r) => r.id)).toEqual(['@P3@']);
+  });
+});
+
+describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben"-Pille', () => {
+  // Die Abwesenheit von Daten ist eine ABFRAGE, kein Zeilen-Label: `enriched === false` ist
+  // direkt nach dem Import der Regelfall (ADR-v9-44), eine Pille darauf stand damit auf der
+  // Mehrheit der Zeilen. Als Filter wirkt dieselbe Information gezielt.
+  it('onlyIncomplete=true zeigt NUR nicht angereicherte Orte', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
+
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), onlyIncomplete: true };
+
+    expect(buildPlaceRows(db, '', filters).map((r) => r.id)).toEqual(['@P1@']);
+  });
+
+  it('Default (onlyIncomplete=false) zeigt beide — der Filter ist opt-in', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
+
+    expect(buildPlaceRows(db, '', defaultPlaceFilters()).map((r) => r.id)).toEqual(['@P2@', '@P1@']);
+  });
+
+  it('nutzt DASSELBE Prädikat wie das enriched-Feld der Zeile (keine zweite Definition)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
+
+    const filtered = buildPlaceRows(db, '', { ...defaultPlaceFilters(), onlyIncomplete: true });
+    const allUnenriched = buildPlaceRows(db).filter((r) => !r.enriched);
+
+    expect(filtered.map((r) => r.id)).toEqual(allUnenriched.map((r) => r.id));
+  });
+
+  it('kombiniert mit der Suche', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ahaus' }));
+
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), onlyIncomplete: true };
+
+    expect(buildPlaceRows(db, 'Ahaus', filters).map((r) => r.id)).toEqual(['@P2@']);
   });
 });
 
@@ -234,7 +308,7 @@ describe('buildPlaceListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => 
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Münster', type: 'City' }));
     const events = [ev('BIRT', { placeId: '@P1@' }), ev('BIRT', { placeId: '@P2@' })];
 
-    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'Village' };
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), type: 'Dorf' };
     const sections = buildPlaceListSections(db, ctxOf(db), events, '', filters);
 
     expect(sections.referenced.map((r) => r.id)).toEqual(['@P1@']);

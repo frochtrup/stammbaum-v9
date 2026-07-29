@@ -9,6 +9,7 @@ import {
   buildHofRows,
   buildHofListSections,
   countHofOccupancy,
+  defaultHofFilters,
   groupHofRowsByVillage,
   houseNumberOf,
   streetNameOf,
@@ -141,6 +142,48 @@ describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile'
     );
 
     expect(buildHofRows(db)[0].enriched).toBe(true);
+  });
+});
+
+describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben"-Pille', () => {
+  /** Ein plainer und ein kuratierter Hof im selben Dorf. */
+  function twoHofs() {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Am Bach 1', from: null, to: null }] }));
+    db.hofObjects.set(
+      '@H2@',
+      hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'Hof am Bach' }),
+    );
+    return db;
+  }
+
+  it('onlyIncomplete=true zeigt NUR nicht angereicherte Höfe', () => {
+    const rows = buildHofRows(twoHofs(), '', undefined, { onlyIncomplete: true });
+
+    expect(rows.map((r) => r.id)).toEqual(['@H1@']);
+  });
+
+  it('Default zeigt beide — der Filter ist opt-in', () => {
+    expect(buildHofRows(twoHofs(), '', undefined, defaultHofFilters()).map((r) => r.id)).toEqual([
+      '@H1@',
+      '@H2@',
+    ]);
+  });
+
+  it('nutzt DASSELBE Prädikat wie das enriched-Feld der Zeile (keine zweite Definition)', () => {
+    const db = twoHofs();
+    const filtered = buildHofRows(db, '', undefined, { onlyIncomplete: true });
+    const allUnenriched = buildHofRows(db).filter((r) => !r.enriched);
+
+    expect(filtered.map((r) => r.id)).toEqual(allUnenriched.map((r) => r.id));
+  });
+
+  it('greift auch über buildHofListSections (beide Abschnitte)', () => {
+    const db = twoHofs();
+    const sections = buildHofListSections(db, ctxOf(db), [], '', { onlyIncomplete: true });
+
+    expect([...sections.referenced, ...sections.unreferenced].map((r) => r.id)).toEqual(['@H1@']);
   });
 });
 

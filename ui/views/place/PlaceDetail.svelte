@@ -21,6 +21,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import { placeTypeLabel } from '../../shell/place-labels';
   import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
@@ -193,7 +194,11 @@
   {:else}
     <DetailHeader title={detail.place.title || detail.place.id} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
-        {#if detail.place.type}<span class="place-detail__type-badge">{detail.place.type}</span>{/if}
+        <!-- Deutsches Label über DIE EINE Quelle (ADR-v9-149). `Unknown`/leer liefert ''
+             → gar kein Badge: ein nicht kategorisierter Ort ist der Regelfall direkt nach
+             dem Import (ADR-v9-77 „der normale, unauffällige Fall"), kein Handlungssignal
+             im Steckbrief-Kopf. -->
+        {#if placeTypeLabel(detail.place.type)}<span class="place-detail__type-badge">{placeTypeLabel(detail.place.type)}</span>{/if}
         {#if !editing}
           <button type="button" class="place-detail__edit-btn" onclick={() => (editing = true)}>✎ Bearbeiten</button>
         {/if}

@@ -16,6 +16,7 @@
   import { placeDisplayName } from '../../../core/places';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
+  import { placeTypeLabel } from '../../shell/place-labels';
   import { buildPlaceDedupGroups } from './place-dedup-model';
 
   interface Props {
@@ -118,8 +119,11 @@
                   {#if m.id === group.suggestedWinnerId}
                     <span class="place-dedup__suggested">(Vorschlag)</span>
                   {/if}
-                  {#if m.type}
-                    <span class="stb-pill">{m.type}</span>
+                  {#if placeTypeLabel(m.type)}
+                    <!-- Deutsch über DIE EINE Quelle (ADR-v9-149). Die Typ-Pille bleibt
+                         hier bei JEDEM Mitglied sichtbar (ADR-v9-77: Kategorisierung auch
+                         ohne ausgelöstes `typeMismatch` prüfbar) — nur eben übersetzt. -->
+                    <span class="stb-pill">{placeTypeLabel(m.type)}</span>
                   {/if}
                   {#if !m.enriched}
                     <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>

@@ -8,8 +8,15 @@
 import type { PlaceContext } from '../../../core/places';
 import type { PlaceId } from '../../../core/model/types';
 
-/** GEDCOM/GRAMPS-Ortstyp → deutsche Nominalphrase (Orakel `TYPE_DE`, 1:1). */
-const TYPE_DE: Record<string, string> = {
+/**
+ * GEDCOM/GRAMPS-Ortstyp → deutsche Nominalphrase MIT unbestimmtem Artikel (Orakel
+ * `TYPE_DE`, 1:1) — die Erzählform („… war 1830 eine Stadt in …"), bewusst getrennt von
+ * der artikellosen Chip-/Report-Form (`ui/shell/place-labels.ts::placeTypeLabel`).
+ * Zwei Formen derselben Fachbegriffe, nicht zwei Übersetzungen: ein Drift-Guard-Test
+ * (`tests/ui/place-labels.test.ts`, ADR-v9-149) hält die Schlüsselmengen deckungsgleich,
+ * damit ein hier ergänzter Typ nicht als roher englischer Wert in der Liste auftaucht.
+ */
+export const PLACE_TYPE_DE_ARTICLE: Record<string, string> = {
   Country: 'ein Land', State: 'ein Bundesland', Region: 'eine Region', Province: 'eine Provinz',
   County: 'ein Kreis', District: 'ein Bezirk', Municipality: 'eine Gemeinde', City: 'eine Stadt',
   Town: 'eine Stadt', Village: 'ein Dorf', Hamlet: 'ein Weiler', Parish: 'eine Pfarrei',
@@ -33,7 +40,7 @@ export function buildPlaceContextSentence(
   const po = reg.byId(placeId);
   if (!po) return '';
 
-  const typePart = TYPE_DE[po.type] ? ` ${TYPE_DE[po.type]}` : '';
+  const typePart = PLACE_TYPE_DE_ARTICLE[po.type] ? ` ${PLACE_TYPE_DE_ARTICLE[po.type]}` : '';
 
   const rawName = (typeof year === 'number' ? reg.resolveAsOf(placeId, year) : null) || po.title || '';
   const name = rawName.split(',')[0].trim();

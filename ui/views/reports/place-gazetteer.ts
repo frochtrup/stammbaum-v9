@@ -13,15 +13,7 @@ import { renderReport, esc } from '../../../services/reports';
 import { renderMiniMapSvg } from '../../islands/map/mini-map';
 import { fitMiniMapBounds } from '../../islands/map/mini-map-bounds';
 import { personName } from './report-format';
-
-/** GEDCOM/GRAMPS-Ortstyp → deutsches Substantiv (Orakel `TYPE_LBL`). */
-const TYPE_DE: Record<string, string> = {
-  Country: 'Land', State: 'Bundesland', Region: 'Region', Province: 'Provinz',
-  County: 'Kreis', District: 'Bezirk', Municipality: 'Gemeinde', City: 'Stadt',
-  Town: 'Stadt', Village: 'Dorf', Hamlet: 'Weiler', Parish: 'Pfarrei',
-  Borough: 'Stadtteil', Locality: 'Ortslage', Neighborhood: 'Nachbarschaft',
-  Building: 'Gebäude', Farm: 'Hof', Cemetery: 'Friedhof', Church: 'Kirche',
-};
+import { placeTypeLabel } from '../../shell/place-labels';
 
 interface PlaceEvent {
   typeLabel: string;
@@ -107,7 +99,7 @@ function sectionHtml(
   persons: number,
 ): string {
   const po = ctx.places.byId(placeId)!;
-  const typeLbl = TYPE_DE[po.type] ?? po.type;
+  const typeLbl = placeTypeLabel(po.type);
 
   // Verwaltungszugehörigkeit (Kette ohne den Ort selbst).
   const chain = ctx.places.enclosureChainAsOf(placeId, null).slice(1);

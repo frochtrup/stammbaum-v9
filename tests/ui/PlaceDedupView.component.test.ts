@@ -46,8 +46,13 @@ describe('PlaceDedupView — Gruppen-Vorschlag + Zusammenführen', () => {
     render(PlaceDedupView, { props: { appState } });
 
     expect(screen.getByText(/unterschiedliche Orts-Typen/)).toBeTruthy();
-    expect(screen.getByText('Town')).toBeTruthy();
-    expect(screen.getByText('District')).toBeTruthy();
+    // Die Pillen bleiben pro Mitglied sichtbar (ADR-v9-77), zeigen aber Deutsch statt der
+    // rohen GRAMPS-Werte (ADR-v9-149) — „Stadt" vs. „Bezirk" ist der Mismatch, den der
+    // Nutzer beim Zusammenführen abwägen soll.
+    expect(screen.getByText('Stadt')).toBeTruthy();
+    expect(screen.getByText('Bezirk')).toBeTruthy();
+    expect(screen.queryByText('Town')).toBeNull();
+    expect(screen.queryByText('District')).toBeNull();
   });
 
   it('zeigt eine Gruppe mit Gewinner-Vorschlag markiert', () => {
