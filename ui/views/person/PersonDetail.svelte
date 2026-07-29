@@ -11,14 +11,13 @@
   import type { LensId } from '../../shell/lens-model';
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
-  import DetailHeader from '../../shell/DetailHeader.svelte';
+  import PersonDetailHeader from './PersonDetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
   import { tooltip } from '../../shell/tooltip';
-  import { displayName, sexSymbol } from '../../shell/person-display';
-  import { formatDateForDisplay } from '../../../core/model/gedcom-date';
+  import { displayName } from '../../shell/person-display';
   import { resolveProband } from '../../shell/proband';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
@@ -332,54 +331,15 @@
   {:else if editing}
     <PersonForm {appState} person={detail.person} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <DetailHeader title={displayName(detail.person)} onBack={onBack ?? (() => {})}>
-      {#snippet actions()}
-        <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-        <!-- „Als Proband setzen" (BL-120): setzt die Referenzperson der Sitzung (transient,
-             ADR-v9-135). Ist diese Person es bereits, zeigt der Knopf den Zustand statt
-             einer wirkungslosen Wiederholung. -->
-        <button
-          type="button"
-          class="person-detail__proband-btn"
-          class:person-detail__proband-btn--active={isProband}
-          disabled={isProband}
-          title={isProband
-            ? 'Diese Person ist der Proband dieser Sitzung'
-            : 'Als Proband (Referenzperson der Sitzung) setzen'}
-          onclick={() => viewState.setProband(detail.person.id)}
-        >{isProband ? '★ Proband' : '☆ Als Proband'}</button>
-        {#if onNavigateToTree}
-          <button
-            type="button"
-            class="person-detail__tree-link"
-            onclick={() => onNavigateToTree(detail.person.id)}
-          >
-            ⧖ Im Baum anzeigen
-          </button>
-        {/if}
-        {#if onOpenStory}
-          <button
-            type="button"
-            class="person-detail__tree-link"
-            onclick={() => onOpenStory(detail.person.id)}
-          >
-            📖 Story
-          </button>
-        {/if}
-      {/snippet}
-    </DetailHeader>
-
-    <!-- Kopf-Untertitel (BL-198): Geschlechts-Icon, Rufname (nick), Änderungsdatum (CHAN).
-         Alle drei nur, wenn vorhanden — kein Leerzustands-Rauschen (§10f). -->
-    <p class="person-detail__subtitle">
-      <span class="person-detail__sex person-detail__sex--{detail.person.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(detail.person.sex)}</span>
-      {#if detail.person.nick}
-        <span class="person-detail__nick" use:tooltip={'Rufname'}>«{detail.person.nick}»</span>
-      {/if}
-      {#if detail.person.lastChanged}
-        <span class="person-detail__changed">Geändert {formatDateForDisplay(detail.person.lastChanged) || detail.person.lastChanged}</span>
-      {/if}
-    </p>
+    <PersonDetailHeader
+      person={detail.person}
+      {isProband}
+      onBack={onBack ?? (() => {})}
+      onEdit={startEdit}
+      onSetProband={() => viewState.setProband(detail.person.id)}
+      {onNavigateToTree}
+      {onOpenStory}
+    />
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
@@ -453,68 +413,6 @@
 
   .person-detail__empty {
     color: var(--stb-text-dim);
-  }
-
-  .person-detail__tree-link {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .person-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
-
-  .person-detail__proband-btn {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  /* Ist die Person bereits Proband: aktiver Gold-Zustand, nicht klickbar (kein No-op). */
-  .person-detail__proband-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border-color: var(--stb-gold);
-    font-weight: 600;
-    cursor: default;
-  }
-
-  /* Kopf-Untertitel (BL-198): dezent unter dem Titel. */
-  .person-detail__subtitle {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    margin: -0.2rem 0 1rem;
-    font-size: 0.82rem;
-    color: var(--stb-text-dim);
-  }
-  .person-detail__sex--m {
-    color: var(--stb-sex-m);
-  }
-  .person-detail__sex--f {
-    color: var(--stb-sex-f);
-  }
-  .person-detail__nick {
-    font-style: italic;
-    color: var(--stb-text);
   }
 
   .person-detail__section {

@@ -464,13 +464,17 @@
     color: var(--stb-sex-f);
   }
 
-  /* Kekulé-/Ahnenziffer relativ zum Probanden (BL-195, v8-Orakel `p-kekule`). */
+  /* Kekulé-/Ahnenziffer relativ zum Probanden (BL-195, v8-Orakel `p-kekule`).
+     Sekundär-Datum → bewusst entdramatisiert (Design-Kritik 2026-07-29): Outline statt
+     gefülltem Gold, damit der Name primär bleibt und die Ziffer nicht mit Aktions-Pills
+     konkurriert. Löst zugleich das Gold-auf-Gold-Kontrastrisiko. */
   .person-list__kekule {
     flex: none;
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     color: var(--stb-gold-light);
-    background: var(--stb-gold-dim);
+    background: transparent;
+    border: 1px solid var(--stb-gold-dim);
     border-radius: 0.6rem;
     padding: 0.05rem 0.4rem;
   }

@@ -48,7 +48,7 @@
   <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
     <span class="hof-list__title-line">
       <span class="hof-list__addr">{row.addr || row.id}</span>
-      {#if row.hasNote}<span class="hof-list__note-marker" use:tooltip={'Notiz erfasst'} aria-hidden="true">📝</span>{/if}
+      {#if row.hasNote}<span class="stb-pill" use:tooltip={'Notiz erfasst'}>📝</span>{/if}
       <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
       {#if !row.enriched}
         <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
@@ -272,9 +272,6 @@
     color: var(--stb-text-dim);
   }
 
-  .hof-list__note-marker {
-    font-size: 0.8rem;
-  }
 
   .hof-list__row:hover,
   .hof-list__row:focus-visible {

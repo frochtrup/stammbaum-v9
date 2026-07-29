@@ -60,7 +60,7 @@
           <button type="button" class="source-list__row" onclick={() => selectSource(row.id)}>
             <span class="source-list__label">{row.label}</span>
             <span class="source-list__meta">
-              {#if row.repoName}<span class="stb-pill" use:tooltip={`Archiv: ${row.repoName}`}>🏛 {row.repoName}</span>{/if}
+              {#if row.repoName}<span class="stb-pill source-list__repo-badge" use:tooltip={`Archiv: ${row.repoName}`}>🏛 {row.repoName}</span>{/if}
               {#if row.author}<span>{row.author}</span>{/if}
               {#if row.date}<span>{row.date}</span>{/if}
               <span class="stb-list-stat">{row.refCount}× zitiert</span>
@@ -154,5 +154,16 @@
     gap: 0.75rem;
     font-size: 0.78rem;
     color: var(--stb-text-dim);
+  }
+
+  /* Archiv-Badge: langer Archivname darf die Zeile nicht sprengen (Design-Kritik
+     2026-07-29) — auf max. Breite kappen, voller Name bleibt im Tooltip. */
+  .source-list__repo-badge {
+    display: inline-block;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
   }
 </style>
