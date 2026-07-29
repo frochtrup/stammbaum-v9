@@ -8,6 +8,8 @@
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
+  import { buildHofDedupGroups } from './hof-dedup-model';
+  import { buildHofReview } from './hof-review-model';
   import EventsByType from '../../shell/EventsByType.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -31,6 +33,14 @@
 
   const events = $derived(collectAllEvents(appState.db));
   const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query));
+
+  // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): analog PlaceList — der immer sichtbare
+  // „Werkzeuge"-Trigger trägt einen Achtungs-Punkt bei offenen Hof-Dedup-Gruppen oder
+  // Hof-Review-Fällen. Nur von appState.db abhängig (nicht von query), rechnet bei
+  // Datenänderung, nicht pro Tastendruck.
+  const hofDedupCount = $derived(buildHofDedupGroups(appState.db, appState.placeContext, events).length);
+  const hofReviewCount = $derived(buildHofReview(appState.db).rows.length);
+  const toolsAttention = $derived(hofDedupCount > 0 || hofReviewCount > 0);
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const groups = $derived(groupHofRowsByVillage(rows));
   const isEmpty = $derived(appState.db.hofObjects.size === 0);
@@ -95,13 +105,13 @@
              Der LEERZUSTAND oben behält die Knöpfe bewusst offen: dort sind sie das
              Einzige auf der Fläche, und eine Disclosure über einer leeren Liste würde
              das einzige Angebot verstecken statt Platz zu sparen. -->
-        <FilterBar label="Werkzeuge">
+        <FilterBar label="Werkzeuge" attention={toolsAttention}>
           <div class="hof-list__tools">
             {#if onOpenReview}
-              <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
+              <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen{hofReviewCount > 0 ? ` · ${hofReviewCount}` : ''}</button>
             {/if}
             {#if onOpenDedup}
-              <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+              <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup{hofDedupCount > 0 ? ` · ${hofDedupCount} ${hofDedupCount === 1 ? 'Gruppe' : 'Gruppen'}` : ''}</button>
             {/if}
           </div>
         </FilterBar>

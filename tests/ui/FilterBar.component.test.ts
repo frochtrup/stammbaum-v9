@@ -51,3 +51,24 @@ describe('FilterBar — Container-Mechanik (Spec 21 §10a)', () => {
     expect(screen.queryByRole('dialog', { name: 'Filter' })).toBeNull();
   });
 });
+
+describe('FilterBar — Achtungs-Punkt (BL-206, ADR-v9-148)', () => {
+  it('ohne attention trägt der Trigger keinen Punkt und keinen Handlungsbedarf-Text', () => {
+    const { container } = render(FilterBarHarness, { props: { label: 'Werkzeuge' } });
+
+    // Der Trigger heißt schlicht "Werkzeuge" (kein Zusatz im zugänglichen Namen).
+    expect(screen.getByRole('button', { name: 'Werkzeuge' })).toBeTruthy();
+    expect(container.querySelector('.stb-filterbar__dot')).toBeNull();
+  });
+
+  it('mit attention rendert einen reinen Achtungs-Punkt (Dot, KEINE Zahl außen) + Screenreader-Text', () => {
+    const { container } = render(FilterBarHarness, { props: { label: 'Werkzeuge', attention: true } });
+
+    // Reiner Dot, keine sichtbare Zahl am Trigger — der zugängliche Name trägt den
+    // Handlungsbedarf, damit der Punkt nicht nur visuell existiert (LP-8/§6i).
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Werkzeuge.*Handlungsbedarf/ })).toBeTruthy();
+    // Kein "· N" am Trigger (das wäre die verworfene summierte-Zahl-Variante).
+    expect(screen.queryByRole('button', { name: /·/ })).toBeNull();
+  });
+});

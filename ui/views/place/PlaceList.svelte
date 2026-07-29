@@ -20,6 +20,8 @@
     knownPlaceTypes,
     type PlaceFilters,
   } from './place-list-model';
+  import { buildPlaceDedupGroups } from './place-dedup-model';
+  import { buildPlaceReview } from './place-review-model';
   import { batchGeocodePlaces, browserGeocodeDeps } from '../../../services/places';
 
   interface Props {
@@ -82,6 +84,16 @@
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultPlaceFilters()));
   const events = $derived(collectAllEvents(appState.db));
+
+  // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): der immer sichtbare „Werkzeuge"-
+  // Trigger trägt einen Achtungs-Punkt, sobald ein Werkzeug offene Fälle hat. Nur von
+  // appState.db abhängig (nicht von query/filters) — rechnet daher bei Datenänderung, nicht
+  // pro Tastendruck. GOV-Platzhalter fehlen bewusst: GOV-Import ist [S] (Spec 20 §1.7), noch
+  // kein gebautes Werkzeug — fällt in den Dot, sobald es existiert. Beschriftete Einzelzähler
+  // erscheinen nur aufgeklappt (keine Glyphen, kein Badge auf verborgenem Button).
+  const placeDedupCount = $derived(buildPlaceDedupGroups(appState.db, appState.placeContext, events).length);
+  const placeReviewCount = $derived(buildPlaceReview(appState.db, appState.placeContext).rows.length);
+  const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0);
   const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
   const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
   const types = $derived(knownPlaceTypes(appState.db));
@@ -150,13 +162,13 @@
              das drei Umbruchzeilen und 161px Kopfbereich, gemessen (BL-96).
              Dieselbe Disclosure-Mechanik wie die Filter, nur mit anderer Beschriftung —
              kein zweiter Mechanismus (INV-UI-4). -->
-        <FilterBar label="Werkzeuge">
+        <FilterBar label="Werkzeuge" attention={toolsAttention}>
           <div class="place-list__tools">
             {#if onOpenReview}
-              <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen</button>
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenReview}>Orts-Zuweisungen prüfen{placeReviewCount > 0 ? ` · ${placeReviewCount}` : ''}</button>
             {/if}
             {#if onOpenDedup}
-              <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+              <button type="button" class="place-list__dedup-btn" onclick={onOpenDedup}>Massen-Dedup{placeDedupCount > 0 ? ` · ${placeDedupCount} ${placeDedupCount === 1 ? 'Gruppe' : 'Gruppen'}` : ''}</button>
             {/if}
             <button
               type="button"

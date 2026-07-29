@@ -204,3 +204,41 @@ describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup"
     expect(onOpenDedup).toHaveBeenCalledOnce();
   });
 });
+
+describe('HofList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR-v9-148)', () => {
+  it('ohne offene Fälle trägt der Trigger keinen Punkt (Name bleibt schlicht "Werkzeuge")', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(HofList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(screen.getByRole('button', { name: 'Werkzeuge' })).toBeTruthy();
+    expect(container.querySelector('.stb-filterbar__dot')).toBeNull();
+  });
+
+  it('Dedup-Gruppe > 0 setzt den Achtungs-Punkt; aufgeklappt steht der beschriftete Zähler', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // Zwei gleichadressige Höfe im selben Dorf → EINE Dedup-Gruppe (findHofDuplicates).
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    withReferencingPerson(db, '@I2@', '@H2@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(HofList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+    const trigger = screen.getByRole('button', { name: /Werkzeuge.*Handlungsbedarf/ });
+
+    await fireEvent.click(trigger);
+    expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
+  });
+});

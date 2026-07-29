@@ -244,8 +244,11 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     // (Spec 21 §6h) — die Toolbar-Ownership aus §10c bleibt unberührt, die Liste besitzt
     // den Einstieg weiterhin selbst. Nur ein Klick mehr, und die Panel-Inhalte liegen
     // portaliert am <body> (deshalb `screen`, nicht `container`).
-    await fireEvent.click(screen.getByRole('button', { name: 'Werkzeuge' }));
-    await fireEvent.click(screen.getByText('Massen-Dedup'));
+    // Diese Fixture hat zwei gleichnamige "Ochtrup" → EINE Dedup-Gruppe: der Trigger trägt
+    // den Achtungs-Punkt (Name "Werkzeuge — Handlungsbedarf"), der Button den beschrifteten
+    // Zähler ("Massen-Dedup · 1 Gruppe") — beides BL-206/ADR-v9-148, daher Regex statt exakt.
+    await fireEvent.click(screen.getByRole('button', { name: /Werkzeuge/ }));
+    await fireEvent.click(screen.getByText(/Massen-Dedup/));
 
     expect(screen.getByText('Orte — Massen-Dedup')).toBeTruthy();
 

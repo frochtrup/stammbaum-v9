@@ -287,3 +287,41 @@ describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () =>
     expect(onOpenDedup).toHaveBeenCalledOnce();
   });
 });
+
+describe('PlaceList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR-v9-148)', () => {
+  it('ohne offene Fälle trägt der Trigger keinen Punkt (Name bleibt schlicht "Werkzeuge")', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(PlaceList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(screen.getByRole('button', { name: 'Werkzeuge' })).toBeTruthy();
+    expect(container.querySelector('.stb-filterbar__dot')).toBeNull();
+  });
+
+  it('Dedup-Gruppe > 0 setzt den Achtungs-Punkt; aufgeklappt steht der beschriftete Zähler', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // Zwei gleichnamige Orte → EINE Dedup-Gruppe (findPlaceDuplicates, Spec 11 §9.2).
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    withReferencingPerson(db, '@I2@', '@P2@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(PlaceList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    // Dot am immer sichtbaren Trigger — proaktiv, ohne die Disclosure zu öffnen.
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+    const trigger = screen.getByRole('button', { name: /Werkzeuge.*Handlungsbedarf/ });
+
+    // Beschrifteter Einzelzähler erst aufgeklappt (echte Wörter, keine Glyphen).
+    await fireEvent.click(trigger);
+    expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
+  });
+});

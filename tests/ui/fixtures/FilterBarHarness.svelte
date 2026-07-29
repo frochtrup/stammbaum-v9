@@ -6,11 +6,13 @@
 
   interface Props {
     activeCount?: number;
+    label?: string;
+    attention?: boolean;
   }
-  const { activeCount = 0 }: Props = $props();
+  const { activeCount = 0, label = 'Filter', attention = false }: Props = $props();
 </script>
 
-<FilterBar {activeCount}>
+<FilterBar {activeCount} {label} {attention}>
   <label>
     Geburtsjahr von
     <input type="number" aria-label="Geburtsjahr von" />
