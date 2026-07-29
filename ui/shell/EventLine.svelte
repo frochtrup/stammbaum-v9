@@ -115,7 +115,10 @@
     {#if ev.addr}<span class="event-line__value">{ev.addr}</span>{/if}
     {#if ev.dateLabel || ev.placeLabel}
       <span class="event-line__date">
-        {#if ev.dateLabel}{ev.dateLabel}{/if}{dateSep}{#if ev.placeLabel}{#if placeClickable}<span
+        <!-- Alter (BL-196) sitzt DIREKT hinter dem Datum, vor der Ortskette (Design-Kritik):
+             es bezieht sich aufs Datum, nicht auf den Ort — "1948 · 73 J., Ort" liest als
+             Einheit. Nur im Personen-Kontext gesetzt. -->
+        {#if ev.dateLabel}{ev.dateLabel}{/if}{#if ev.age}<span class="event-line__age" use:tooltip={'Alter bei diesem Ereignis'}>· {ev.age}</span>{/if}{dateSep}{#if ev.placeLabel}{#if placeClickable}<span
               class="event-line__place-link"
               role="button"
               tabindex="0"
@@ -126,8 +129,6 @@
     {/if}
     <!-- Datums-Freitext (BL-197, GEDCOM PHRASE) — kursiv; steht auch ohne formatiertes Datum. -->
     {#if ev.datePhrase}<span class="event-line__date-phrase">{ev.datePhrase}</span>{/if}
-    <!-- Alter bei diesem Ereignis (BL-196) — nur im Personen-Kontext gesetzt. -->
-    {#if ev.age}<span class="event-line__age" use:tooltip={'Alter bei diesem Ereignis'}>{ev.age}</span>{/if}
     {#if showCoordIndicator}
       <CoordIndicator coords={ev.coords} {focusId} {viewState} {onNavigateLens} />
     {/if}
@@ -195,10 +196,10 @@
     font-style: italic;
   }
 
-  /* Alter bei Ereignis (BL-196) — dezenter Zusatz, tabellarische Ziffern. */
+  /* Alter bei Ereignis (BL-196) — dezenter Zusatz direkt hinter dem Datum, tabellarische
+     Ziffern; margin-left trennt den ·-Punkt vom Datumstext. */
   .event-line__age {
-    color: var(--stb-text-dim);
-    font-size: 0.8rem;
+    margin-left: 0.3rem;
     font-variant-numeric: tabular-nums;
   }
 
