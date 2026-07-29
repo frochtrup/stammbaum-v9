@@ -13,3 +13,6 @@ tests/fixtures/*.ged
 tests/fixtures/*.gramps
 !tests/fixtures/*.small.ged
 !tests/fixtures/*.small.gramps
+
+# Natural-Earth-Quelldateien (40 MB) — nur das generierte region-geo.ts wird eingecheckt
+tools/regiongeo/.cache/

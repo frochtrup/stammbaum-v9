@@ -11,6 +11,7 @@ import { eventPlaceId, eventYear, placeDisplayName, slugify } from '../../../cor
 import { isEventPresent } from '../../../core/model';
 import { renderReport, esc } from '../../../services/reports';
 import { renderMiniMapSvg } from '../../islands/map/mini-map';
+import { fitMiniMapBounds } from '../../islands/map/mini-map-bounds';
 import { personName } from './report-format';
 
 /** GEDCOM/GRAMPS-Ortstyp → deutsches Substantiv (Orakel `TYPE_LBL`). */
@@ -135,9 +136,15 @@ function sectionHtml(
         .join('')}</div>`
     : '';
 
-  // Mini-Karte (BL-09) — self-contained inline-SVG, nur wenn der Ort eigene Koordinaten trägt.
+  // Mini-Karte (BL-09/BL-214) — self-contained Vektor-SVG im Regional-Ausschnitt
+  // (ADR-v9-147), nur wenn der Ort eigene Koordinaten trägt.
   const mapHtml = po.lat != null && po.long != null
-    ? `<div class="rep-mini-map">${renderMiniMapSvg({ lat: po.lat, long: po.long, label })}</div>`
+    ? `<div class="rep-mini-map">${renderMiniMapSvg({
+        lat: po.lat,
+        long: po.long,
+        bounds: fitMiniMapBounds({ kind: 'ort', lat: po.lat, long: po.long }),
+        label,
+      })}</div>`
     : '';
 
   // Häufigste Familiennamen (distinkte Personen an diesem Ort).

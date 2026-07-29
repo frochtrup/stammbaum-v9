@@ -20,6 +20,13 @@ import { prefersReducedMotion } from '../shared/reduced-motion';
 
 export type MapMode = 'orte' | 'person' | 'migr';
 
+/** OpenStreetMap-Kachelquelle + Attribution (ADR-v9-25) — EINE Quelle, damit die
+ *  Karte-Lens und die Kachel-Mini-Karte (`mini-leaflet.ts`, BL-214) dieselbe
+ *  Konfiguration nutzen (INV-UI-4). CSP-Allowlist: `img-src …*.tile.openstreetmap.org`. */
+export const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+export const OSM_ATTRIBUTION = '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>';
+export const OSM_MAX_ZOOM = 19;
+
 export interface LeafletMountCallbacks {
   /** Klick auf einen Orts-/Hof-Marker im Orte-Modus. */
   onSelectPlace?: (placeId: string) => void;
@@ -96,9 +103,9 @@ export function mountLeafletMap(
     attributionControl: true,
   });
 
-  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
+  const tileLayer = L.tileLayer(OSM_TILE_URL, {
+    attribution: OSM_ATTRIBUTION,
+    maxZoom: OSM_MAX_ZOOM,
   });
   tileLayer.on('tileerror', () => callbacks.onTileError?.());
   tileLayer.addTo(map);

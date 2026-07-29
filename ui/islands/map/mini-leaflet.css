@@ -1,0 +1,21 @@
+/* ui/islands/map/mini-leaflet.css — Größe der Kachel-Mini-Karte (BL-214). Leaflet
+   misst die Container-Maße beim Init, daher braucht der Host feste Ausmaße. Das
+   Seitenverhältnis entspricht dem viewBox der Vektor-Mini-Karte (1000×520), damit
+   online/offline gleich hoch sind. */
+.mini-leaflet {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1000 / 520;
+}
+
+.mini-leaflet__map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Attribution dezent halten (kleine Karte). */
+.mini-leaflet .leaflet-control-attribution {
+  font-size: 9px;
+}

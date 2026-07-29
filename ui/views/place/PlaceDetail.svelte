@@ -299,7 +299,7 @@
       </section>
     {/if}
 
-    <PlaceMiniMap lat={detail.place.lat} long={detail.place.long} label={detail.place.title || detail.place.id} />
+    <PlaceMiniMap lat={detail.place.lat} long={detail.place.long} label={detail.place.title || detail.place.id} context={{ kind: 'ort' }} />
 
     {#if editing && placeId}
       <PlaceMergeSection {appState} {viewState} place={detail.place} {placeId} />

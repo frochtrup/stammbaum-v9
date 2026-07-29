@@ -18,7 +18,8 @@
     "check:csp": "node tests/csp/check-csp.mjs",
     "handbuch": "node tools/handbuch/build-handbook.mjs",
     "handbuch:text-review": "node tools/handbuch/text-review.mjs",
-    "handbuch:anon": "node tools/handbuch/anonymize-ged.mjs"
+    "handbuch:anon": "node tools/handbuch/anonymize-ged.mjs",
+    "geo:build": "node --max-old-space-size=2048 tools/regiongeo/build-region-geo.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -217,9 +217,15 @@
       </section>
     {/if}
 
-    <!-- Mini-Karte (BL-09) — Höfe tragen eigene Geodaten (Binnenmigration im Dorf sichtbar,
-         Spec 11 §1); gleicher gemeinsamer Renderer wie im Ort-Steckbrief (INV-UI-4). -->
-    <PlaceMiniMap lat={detail.hof.lat} long={detail.hof.long} label={detail.hof.addrs[0]?.value || detail.hof.id} />
+    <!-- Mini-Karte (BL-09/BL-214) — Höfe tragen eigene Geodaten (Binnenmigration im Dorf
+         sichtbar, Spec 11 §1). Hof-Kontext: Ausschnitt über Dorf + Geschwisterhöfe
+         (ADR-v9-147 Punkt 1), gleicher gemeinsamer Renderer wie im Ort-Steckbrief (INV-UI-4). -->
+    <PlaceMiniMap
+      lat={detail.hof.lat}
+      long={detail.hof.long}
+      label={detail.hof.addrs[0]?.value || detail.hof.id}
+      context={{ kind: 'hof', villageCoords: detail.villageCoords, siblingCoords: detail.siblingCoords }}
+    />
 
     <section class="hof-detail__section">
       <h3>Bewohner &amp; Eigentümer</h3>

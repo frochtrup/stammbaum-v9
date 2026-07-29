@@ -8,6 +8,7 @@ import { tick } from 'svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { onlineStatus, type OnlineStatusEnv } from '../../ui/shell/online-status.svelte';
 import { makeDatabase, makePerson, makeCitation, makeSource } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
@@ -283,7 +284,19 @@ describe('PlaceDetail — Übersetzungen (Sprachachse, BL-59)', () => {
   });
 });
 
-describe('PlaceDetail — Mini-Karte (BL-09)', () => {
+describe('PlaceDetail — Mini-Karte (BL-09/BL-214)', () => {
+  // Offline-Pfad erzwingen: dann rendert der deterministische Vektor-SVG-Renderer
+  // (App-online würde Leaflet-Kacheln mounten, in happy-dom nicht sinnvoll prüfbar).
+  // Die online/offline-Umschaltung selbst ist Unit-getestet (mini-map/mini-map-bounds).
+  const offlineEnv: OnlineStatusEnv = {
+    isOnline: () => false,
+    addListener: () => {},
+    removeListener: () => {},
+    hasAppCache: async () => true,
+  };
+  beforeEach(() => onlineStatus.start(offlineEnv));
+  afterEach(() => onlineStatus.reset());
+
   it('rendert die Karte-Sektion, wenn der Ort Koordinaten trägt', () => {
     const appState = createAppState();
     const db = makeDatabase();

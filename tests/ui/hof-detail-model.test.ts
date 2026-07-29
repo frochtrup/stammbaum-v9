@@ -74,6 +74,31 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
   });
 });
 
+describe('buildHofDetail — Mini-Karten-Kontext (BL-214, ADR-v9-147)', () => {
+  it('liefert Dorf- + Geschwisterhof-Koordinaten für den Ausschnitt (nur die mit Koordinaten)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.21, long: 7.17 }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.19 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 48', from: null, to: null }], lat: 52.19, long: 7.22 }));
+    db.hofObjects.set('@H3@', hof('@H3@', '@P1@', { addrs: [{ value: 'Ohne Koord', from: null, to: null }] })); // lat/long null
+
+    const detail = buildHofDetail(db, ctxFor(db), '@H1@');
+    expect(detail!.villageCoords).toEqual({ lat: 52.21, long: 7.17 });
+    // Nur der Geschwisterhof MIT Koordinaten (H2), nicht H3 (ohne) und nicht H1 (selbst).
+    expect(detail!.siblingCoords).toEqual([{ lat: 52.19, long: 7.22 }]);
+  });
+
+  it('villageCoords ist null, wenn das Dorf keine Koordinaten trägt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' })); // ohne Koordinaten
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.19 }));
+
+    const detail = buildHofDetail(db, ctxFor(db), '@H1@');
+    expect(detail!.villageCoords).toBeNull();
+    expect(detail!.siblingCoords).toEqual([]);
+  });
+});
+
 describe('buildHofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j, Nachtrag 2026-07-10)', () => {
   it('markiert RESI/CENS als "Bewohner" und PROP als "Eigentümer", in EINER chronologischen Liste', () => {
     const db = makeDatabase();
