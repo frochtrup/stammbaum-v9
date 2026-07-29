@@ -53,7 +53,7 @@
   }
 </script>
 
-<span class="stb-coord-indicator">
+<span class="stb-coord-indicator" class:stb-coord-indicator--chip={!!coords}>
   {#if coords}
     <button
       type="button"

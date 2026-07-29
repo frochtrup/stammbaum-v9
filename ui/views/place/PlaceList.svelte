@@ -221,9 +221,7 @@
                 {#if !row.enriched}
                   <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
                 {/if}
-                <span class="place-list__coord-wrap">
-                  <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
-                </span>
+                <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
               </span>
               {#if row.personCount > 0}
                 <span class="place-list__meta">{row.personCount} {row.personCount === 1 ? 'Person' : 'Personen'}</span>
@@ -413,12 +411,6 @@
 
   .place-list__title {
     font-weight: 600;
-  }
-
-  /* CoordIndicator ist IMMER das letzte Kind dieser Zeile (unconditionally gerendert,
-     kein Geschwister danach) — margin-left:auto ist hier sicher (TST-11). */
-  .place-list__coord-wrap {
-    margin-left: auto;
   }
 
   .place-list__variants {

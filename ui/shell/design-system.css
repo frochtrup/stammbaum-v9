@@ -380,13 +380,26 @@ textarea::placeholder {
 .stb-coord-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.15rem;
+  line-height: 1;
+}
+
+/* Vorhanden-Zustand als pill-förmiger Outline-Chip (Design-Kritik 2026-07-29, ADR-v9-146):
+   visuell konsistent mit der Badge-Familie, aber transparent statt gefüllt — bleibt als
+   interaktiver Paar-Zustand von reinen Präsenz-Pills unterscheidbar (Spec 21 §10l). Das
+   Padding vergrößert zugleich das (vorher ~16px kleine) Touch-Target von ◎/↗. Der
+   Fehlend-Zustand (◌, nicht interaktiv) bekommt BEWUSST keinen Chip: ein Rahmen suggerierte
+   Klickbarkeit, die dort nicht existiert. */
+.stb-coord-indicator--chip {
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: 999px;
+  padding: 0.05em 0.3em;
 }
 
 .stb-coord-indicator__glyph {
   background: transparent;
   border: none;
-  padding: 0;
+  padding: 0.15em 0.2em;
   font: inherit;
   color: var(--stb-quay-3);
   cursor: default;
@@ -411,6 +424,7 @@ button.stb-coord-indicator__glyph:focus-visible {
 .stb-coord-indicator__osm {
   font-size: 0.9rem;
   line-height: 1;
+  padding: 0.15em 0.2em;
   color: var(--stb-gold-light);
   text-decoration: none;
 }
