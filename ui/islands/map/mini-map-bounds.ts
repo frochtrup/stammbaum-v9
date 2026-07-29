@@ -51,8 +51,18 @@ export const MINI_MAP_W = 1000;
 export const MINI_MAP_H = 520;
 const TARGET_ASPECT = MINI_MAP_W / MINI_MAP_H;
 
-/** Regional-Zoom (Ort): ~2° Breite ≈ 220 km hoch — die Region um den Ort. */
-const ORT_LAT_SPAN = 2.0;
+/**
+ * Regional-Zoom (Ort): 0.8° ≈ 89 km hoch (× ~171 km breit bei 52° N).
+ *
+ * Vormals 2.0° (222 × 427 km) — ein Ausschnitt von Den Haag bis Kassel für EINEN Ort,
+ * der laut Design-Kritik (2026-07-29) nicht mehr verortet, sondern nur noch „irgendwo bei
+ * Münster" sagt. Der engere Wert ist GEMESSEN, nicht geschätzt (ADR-v9-150): entscheidend
+ * war, ab wann die gebündelte Vektor-Grundkarte leerläuft (die Ehrlichkeits-Grenze aus
+ * ADR-v9-147 Punkt 3). An sechs echten Orten quer durch den Bestand — inklusive der
+ * dünnsten Fälle Alkmaar (NL, keine Flusslinien) und Augsburg — trägt der Ausschnitt bei
+ * 0.8° überall noch mindestens ein Polygon + drei Linien; erst darunter wird es dünn.
+ */
+const ORT_LAT_SPAN = 0.8;
 /** Dorf-Zoom (Hof-Fallback / Mindestgröße): ~0.09° ≈ 10 km hoch. */
 const HOF_VILLAGE_LAT_SPAN = 0.09;
 /** Rand um den Hof-Cluster (Anteil der Cluster-Spanne). */

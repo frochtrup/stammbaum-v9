@@ -21,13 +21,25 @@ function contains(b: MiniMapBounds, lat: number, long: number): boolean {
 }
 
 describe('fitMiniMapBounds — Ort (fester Regional-Zoom)', () => {
-  it('zentriert den Ort und liefert einen regionalen (großen) Ausschnitt', () => {
+  it('zentriert den Ort und liefert einen regionalen Ausschnitt, der noch verortet', () => {
     const b = fitMiniMapBounds({ kind: 'ort', lat: 52.2, long: 7.19 });
     expect((b.minLat + b.maxLat) / 2).toBeCloseTo(52.2, 6);
     expect((b.minLong + b.maxLong) / 2).toBeCloseTo(7.19, 6);
-    // Regional: mehrere zehn Kilometer, deutlich mehr als der Dorf-Zoom.
-    expect(b.maxLat - b.minLat).toBeGreaterThan(1.0);
-    expect(b.maxLat - b.minLat).toBeLessThan(4.0);
+    // Band statt Fixwert — die Zahl darf sich bewegen, die ABSICHT nicht: groß genug für
+    // regionalen Kontext (Kreis + Nachbarorte), klein genug, um den Ort noch zu verorten.
+    // Vormals 2.0° (222×427 km) — laut Design-Kritik 2026-07-29 „irgendwo bei Münster"
+    // statt einer Verortung; jetzt 0.8° (89×171 km), gemessen an der Stelle, ab der die
+    // Vektor-Grundkarte leerläuft (ADR-v9-150).
+    expect(b.maxLat - b.minLat).toBeGreaterThan(0.4);
+    expect(b.maxLat - b.minLat).toBeLessThan(1.2);
+  });
+
+  it('bleibt deutlich weiter als der Hof-/Dorf-Zoom (die Staffelung ist der eigentliche Punkt)', () => {
+    // Diese Beziehung überlebt jede künftige Feinjustierung beider Konstanten — anders als
+    // zwei unabhängig gepinnte Zahlen.
+    const ort = fitMiniMapBounds({ kind: 'ort', lat: 52.2, long: 7.19 });
+    const hof = fitMiniMapBounds({ kind: 'hof', lat: 52.2, long: 7.19 });
+    expect(ort.maxLat - ort.minLat).toBeGreaterThan((hof.maxLat - hof.minLat) * 3);
   });
 
   it('ist aspektkorrekt (projizierte Breite/Höhe = viewBox-Aspekt)', () => {

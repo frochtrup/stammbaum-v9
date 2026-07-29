@@ -5,6 +5,7 @@
   // (Cross-Tab-Navigation, ADR-v9-17-Muster).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
@@ -19,8 +20,10 @@
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Sprung zur Karte-Lens über die Mini-Karte (ADR-v9-150, INV-UI-3). */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateToPerson, onBack }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onBack, onNavigateLens }: Props = $props();
 
   const hofId = $derived(viewState.getCurrent('hof'));
   const detail = $derived(hofId ? buildHofDetail(appState.db, appState.placeContext, hofId) : null);
@@ -225,6 +228,9 @@
       long={detail.hof.long}
       label={detail.hof.addrs[0]?.value || detail.hof.id}
       context={{ kind: 'hof', villageCoords: detail.villageCoords, siblingCoords: detail.siblingCoords }}
+      {viewState}
+      focusId={hofId}
+      {onNavigateLens}
     />
 
     <section class="hof-detail__section">

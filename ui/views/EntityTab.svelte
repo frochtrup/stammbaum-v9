@@ -444,9 +444,10 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onBack={backToList}
+        {onNavigateLens}
       />
     {:else if activeSegment === 'hof' && selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} {onNavigateLens} />
     {:else if activeSegment === 'media' && selectedMediaId}
       <MediaDetail
         {appState}

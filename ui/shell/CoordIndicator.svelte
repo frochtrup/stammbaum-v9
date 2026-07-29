@@ -31,6 +31,7 @@
   import type { LensId } from './lens-model';
   import { geoHref } from './geo-link';
   import { tooltip } from './tooltip';
+  import { focusOnMap } from './map-focus';
 
   interface Props {
     coords: { lat: number; long: number } | null;
@@ -45,11 +46,11 @@
   }
   const { coords, focusId, viewState, onNavigateLens }: Props = $props();
 
+  // Der Sprung selbst lebt in `map-focus.ts` (INV-UI-4) — die Mini-Karte im Steckbrief
+  // löst denselben aus (ADR-v9-150), und zwei Kopien derselben Slot-Reihenfolge sind
+  // genau die Drift, die dieses Projekt schon zweimal bezahlt hat.
   function handleClick() {
-    if (!coords) return;
-    viewState.setMapCoordFocus(coords);
-    if (focusId) viewState.setCurrent('lensPlaceFocus', focusId);
-    onNavigateLens?.('map');
+    focusOnMap(viewState, coords, focusId, onNavigateLens);
   }
 </script>
 

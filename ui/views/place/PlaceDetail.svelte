@@ -19,6 +19,7 @@
   // INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import type { LensId } from '../../shell/lens-model';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import { placeTypeLabel } from '../../shell/place-labels';
@@ -50,8 +51,10 @@
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Sprung zur Karte-Lens über die Mini-Karte (ADR-v9-150, INV-UI-3). */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack, onNavigateLens }: Props = $props();
 
   /** Info-Tooltip-Text für die Verwaltungszugehörigkeit (Spec 21 §10g): ersetzt einen
    *  permanenten Fließtext-Satz durch ein ⓘ neben der Überschrift statt ihn stets
@@ -304,7 +307,15 @@
       </section>
     {/if}
 
-    <PlaceMiniMap lat={detail.place.lat} long={detail.place.long} label={detail.place.title || detail.place.id} context={{ kind: 'ort' }} />
+    <PlaceMiniMap
+      lat={detail.place.lat}
+      long={detail.place.long}
+      label={detail.place.title || detail.place.id}
+      context={{ kind: 'ort' }}
+      {viewState}
+      focusId={placeId}
+      {onNavigateLens}
+    />
 
     {#if editing && placeId}
       <PlaceMergeSection {appState} {viewState} place={detail.place} {placeId} />
