@@ -98,6 +98,13 @@ export default tseslint.config(
         Event: 'readonly',
         FocusEvent: 'readonly',
         Node: 'readonly',
+        // Standalone-Orte-Editor (Spec 22): `confirm` ist im Projekt das etablierte
+        // Bestaetigungs-Muster (Loeschen von Ort/Hof), `localStorage` traegt die
+        // Geraetekennung der gespeicherten Datei, `BeforeUnloadEvent` die Warnung vor
+        // ungespeicherter Arbeit (INV-ORTE-3).
+        confirm: 'readonly',
+        localStorage: 'readonly',
+        BeforeUnloadEvent: 'readonly',
         crypto: 'readonly',
         fetch: 'readonly'
       }

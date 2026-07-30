@@ -232,6 +232,16 @@
       {onNavigateLens}
     />
 
+    <!-- TST-14 — Geschwister-Stelle zum Ort-Steckbrief: die Hof-Notiz war ebenfalls nur
+         eingebbar. Die Hof-LISTE signalisiert sie sogar mit einer 📝-Pille, ohne dass der
+         Inhalt je zu sehen war. -->
+    {#if !editing && detail.hof.note}
+      <section class="hof-detail__section">
+        <h3>Notiz</h3>
+        <p class="hof-detail__note">{detail.hof.note}</p>
+      </section>
+    {/if}
+
     <!-- D3 (Spec 22 §3.1) — Geschwister-Stelle zu PlaceContemporaries: ohne
          Ereignis-Kontext gibt es keine Bewohner-Auskunft, also auch keinen Abschnitt. -->
     {#if appState.caps.hasEventContext}
@@ -252,6 +262,14 @@
 </div>
 
 <style>
+  .hof-detail__note {
+    margin: 0;
+    white-space: pre-wrap;
+    color: var(--stb-text);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
   .hof-detail {
     padding: 1rem;
     overflow-y: auto;

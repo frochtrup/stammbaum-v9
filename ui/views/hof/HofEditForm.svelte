@@ -35,7 +35,10 @@
   const init = untrack(() => ({
     latText: hof.lat != null ? String(hof.lat) : '',
     longText: hof.long != null ? String(hof.long) : '',
-    note: hof.note,
+    // Geschwister-Stelle zu PlaceEditForm: dieselbe Absicherung gegen Objekte aus älteren
+    // orte.json-Fassungen, auch wo heute noch kein Feld fehlt — die Regel gilt nicht nur
+    // dort, wo sie aufgefallen ist.
+    note: hof.note ?? '',
     existsFrom: hof.existsFrom,
     existsTo: hof.existsTo,
     predecessor: hof.predecessor ?? '',

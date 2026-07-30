@@ -27,8 +27,8 @@
   import EventsByType from '../../shell/EventsByType.svelte';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
-  import { withAddedPname, withRemovedPname, withAddedTranslation, withRemovedTranslation } from '../../../core/places';
   import PlaceEditForm from './PlaceEditForm.svelte';
+  import PlaceNamesSection from './PlaceNamesSection.svelte';
   import PlaceMiniMap from './PlaceMiniMap.svelte';
   import {
     buildPlaceDetail,
@@ -66,16 +66,8 @@
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
-  /** Sprachachse (BL-59) — `?? []` toleriert aus feldloser orte.json geladene Orte. */
-  const translations = $derived(detail ? (detail.place.translations ?? []) : []);
 
   let editing = $state(false);
-  let newPnameValue = $state('');
-  let newPnameFrom = $state<number | null>(null);
-  let newPnameTo = $state<number | null>(null);
-  /** Sprachachse (BL-59): neue Übersetzung (Sprachkürzel + Zielsprachen-Name). */
-  let newTransLang = $state('');
-  let newTransValue = $state('');
 
   /** Steuert PlaceEnclosureEditModal.svelte (Bau-Auftrag "Orts-Detailansicht": die
    *  direkte enclosedBy-Zuordnung ist "Mittel zum Zweck" und wandert ins Modal, weg von
@@ -95,33 +87,6 @@
   function handleSaveEdit(updated: PlaceObject) {
     appState.savePlace(updated);
     editing = false;
-  }
-
-  function addPname() {
-    if (!detail || !newPnameValue.trim()) return;
-    const next = withAddedPname(detail.place, newPnameValue, newPnameFrom, newPnameTo);
-    appState.savePlace(next);
-    newPnameValue = '';
-    newPnameFrom = null;
-    newPnameTo = null;
-  }
-
-  function removePname(index: number) {
-    if (!detail) return;
-    appState.savePlace(withRemovedPname(detail.place, index));
-  }
-
-  /** Übersetzung anhängen (Sprachachse, BL-59) — gleicher Sofort-Speichern-Pfad wie addPname. */
-  function addTranslation() {
-    if (!detail || !newTransValue.trim()) return;
-    appState.savePlace(withAddedTranslation(detail.place, newTransLang, newTransValue));
-    newTransLang = '';
-    newTransValue = '';
-  }
-
-  function removeTranslation(index: number) {
-    if (!detail) return;
-    appState.savePlace(withRemovedTranslation(detail.place, index));
   }
 
   function linkUnlinked(eventKey: string) {
@@ -254,58 +219,18 @@
       <PlaceEnclosureEditModal {appState} {placeId} onClose={closeEnclosureModal} />
     {/if}
 
-    {#if detail.variants.length > 0 || translations.length > 0 || editing}
+    <!-- TST-14 (Spec 32 §1): Die Notiz war eingebbar, aber in KEINER Leseansicht sichtbar —
+         Editor-Vollständigkeit und Anzeige-Vollständigkeit sind zwei unabhängige Kontrakte,
+         und der erste allein macht ein Feld nicht nutzbar. Im Bearbeiten-Modus entfällt der
+         Abschnitt: dort steht das Feld selbst (keine doppelte Fundstelle). -->
+    {#if !editing && detail.place.note}
       <section class="place-detail__section">
-        <h3>Namens-Varianten</h3>
-        {#if detail.variants.length > 0}
-          <div class="stb-pill-row" aria-label="Namensvarianten">
-            {#each detail.variants as v, i (i)}
-              <span class="stb-pill" use:tooltip={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
-                {v.value}
-                {#if editing}
-                  <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
-                {/if}
-              </span>
-            {/each}
-          </div>
-        {/if}
-        {#if editing}
-          <div class="place-detail__add-row">
-            <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
-            <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
-            <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
-            <button type="button" onclick={addPname}>+ Hinzufügen</button>
-          </div>
-        {/if}
-
-        <!-- Übersetzungen (Sprachachse, BL-59) — dieselbe Pill-/Add-Zeilen-Optik wie pnames
-             (INV-UI-4), nur der Feld-Schnitt (Sprachkürzel + Text statt Zeitraum + Text)
-             unterscheidet sich. Gleiches Bearbeitungs-Modus-Gating (kein Add/Remove außerhalb
-             `editing`, ADR-v9-30) — kein zweiter Editier-Zustand, keine zweite Sektion. -->
-        {#if translations.length > 0 || editing}
-          <p class="place-detail__hint">Übersetzungen (Sprachen):</p>
-          {#if translations.length > 0}
-            <div class="stb-pill-row" aria-label="Übersetzungen">
-              {#each translations as t, i (i)}
-                <span class="stb-pill">
-                  <span class="place-detail__trans-lang">{t.lang}</span> {t.value}
-                  {#if editing}
-                    <button type="button" class="stb-pill__remove" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
-                  {/if}
-                </span>
-              {/each}
-            </div>
-          {/if}
-          {#if editing}
-            <div class="place-detail__add-row">
-              <input type="text" class="place-detail__trans-lang-input" placeholder="Sprache (z. B. pl)" bind:value={newTransLang} aria-label="Sprachkürzel" />
-              <input type="text" placeholder="Name in dieser Sprache…" bind:value={newTransValue} aria-label="Übersetzter Ortsname" />
-              <button type="button" onclick={addTranslation}>+ Übersetzung</button>
-            </div>
-          {/if}
-        {/if}
+        <h3>Notiz</h3>
+        <p class="place-detail__note">{detail.place.note}</p>
       </section>
     {/if}
+
+    <PlaceNamesSection place={detail.place} variants={detail.variants} {editing} onSave={(next) => appState.savePlace(next)} />
 
     <PlaceMiniMap
       lat={detail.place.lat}
@@ -344,6 +269,10 @@
       </section>
     {/if}
 
+    <!-- D3 (Spec 22 §3.1) — auch dieser Abschnitt ist eine reine Ereignis-Auskunft. Ohne
+         Kontext behauptete seine leere Fassung „keine Ereignisse an diesem Ort erfasst",
+         also eine Aussage über die Daten, wo in Wahrheit die Grundlage fehlt. -->
+    {#if appState.caps.hasEventContext}
     <section class="place-detail__section">
       <h3>Ereignisse nach Typ</h3>
       {#if detail.eventsByType.length === 0}
@@ -356,6 +285,7 @@
         <EventsByType groups={detail.eventsByType} row={placeEventRow} resetKey={placeId} />
       {/if}
     </section>
+    {/if}
 
     <!-- D3 (Spec 22 §3.1): Zeitgenossen sind eine reine Ereignis-Auskunft. Ohne Kontext
          ausgeblendet statt leer — eine leere Fläche behauptet, es gäbe niemanden. -->
@@ -377,6 +307,14 @@
 </div>
 
 <style>
+  .place-detail__note {
+    margin: 0;
+    white-space: pre-wrap;
+    color: var(--stb-text);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
   .place-detail {
     padding: 1rem;
     overflow-y: auto;
@@ -533,50 +471,13 @@
     cursor: help;
   }
 
-  .place-detail__add-row {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    margin-top: 0.5rem;
-  }
 
-  .place-detail__add-row input {
-    background: var(--stb-surface-2);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.5rem;
-  }
 
   /* Sprachkürzel-Eingabe (BL-59) schmal — nur wenige Zeichen (ISO-639, z. B. „pl"). */
-  .place-detail__add-row input.place-detail__trans-lang-input {
-    max-width: 8rem;
-  }
 
   /* Sprachkürzel-Badge vor dem übersetzten Namen in der Pille (BL-59). */
-  .place-detail__trans-lang {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    color: var(--stb-bg);
-    background: var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.05em 0.35em;
-    margin-right: 0.15em;
-  }
 
-  .place-detail__add-row button {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-  }
 
-  .place-detail__add-row button:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
 
 
   .place-detail__unlinked-owner {

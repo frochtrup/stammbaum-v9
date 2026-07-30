@@ -88,6 +88,22 @@ export interface ApplyResolutionOptions {
    * `parseGedcom()` und tragen noch keine `placeId`, dieser Schritt ist dort ein No-op).
    */
   resetUncuratedLinks?: boolean;
+  /**
+   * `false` überspringt den Village-Seed-Vorpass (Spec 11 §4.2 Schritt 0). Default `true`
+   * — der reguläre Import lebt davon, dass fehlende Orte automatisch entstehen (ADR-v9-28).
+   *
+   * Gebraucht vom Standalone-Orte-Editor (Spec 22 §5, ADR-v9-163): dort ist eine
+   * Genealogie-Datei nur KONTEXT, und `orte.json` ist das Dokument des Nutzers. Ein Seed
+   * wäre dort ein stiller Schreibvorgang auf genau dieses Dokument — INV-ORTE-2 verbietet
+   * ihn. Die Unterscheidung ist damit auch für das Hauptprogramm ausgesprochen:
+   * „Ereignisse auflösen" und „fehlende Orte anlegen" sind zwei Schritte, die getrennt
+   * bestellbar sein müssen.
+   *
+   * Der Hof-Bootstrap (Pfade C/B′) bleibt davon unberührt — er steckt in `resolveEvents`
+   * selbst. Wer auch ihn ausschließen muss, lässt die Auflösung auf KOPIEN der Mengen
+   * laufen und übernimmt nur die Verknüpfungen (so macht es der Editor).
+   */
+  seed?: boolean;
 }
 
 /**
@@ -230,7 +246,7 @@ export function applyPlaceResolution(db: Database, opts: ApplyResolutionOptions 
   // Schritt 0 (Spec 11 §4.2, ADR-v9-28/-29): Village-Seed VOR der Auflösung — erzeugt die
   // fehlenden PlaceObjects, damit der (unveränderte) Verwaltungs-Match sie danach vorfindet.
   const seedCtx = { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
-  const seeded = seedPlacesFromEvents(events, seedCtx);
+  const seeded = opts.seed === false ? [] : seedPlacesFromEvents(events, seedCtx);
   const placeObjectsGrew = seeded.length > 0;
   if (placeObjectsGrew) {
     const nextPlaces = new Map(db.placeObjects);

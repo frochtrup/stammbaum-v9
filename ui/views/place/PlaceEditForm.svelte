@@ -27,13 +27,20 @@
   // je Bearbeiten-Sitzung — sie soll bewusst NICHT auf spätere `place`-Änderungen reagieren).
   // Aus einer plain-Const initialisieren, nicht direkt aus dem Prop (svelte-check
   // `state_referenced_locally`).
+  // `?? ''` ist hier PFLICHT, nicht Vorsicht: `shortName` (ADR-v9-90) ist ein NACHTRÄGLICH
+  // ergänztes, abwärtskompatibles orte.json-Feld — an einem Ort aus einer älteren Datei
+  // fehlt es schlicht, und `undefined.trim()` in `save()` wirft. Am echten Bestand gemessen:
+  // ALLE 128 Orte von `tools/handbuch/fixtures/orte.json` haben weder `shortName` noch
+  // `translations`. Aufgefallen erst bei der Browser-Verifikation des Orte-Editors, weil
+  // dessen Dateien beliebigen Alters sind; im Hauptprogramm setzen die Fixtures das Feld
+  // immer. Dieselbe Klasse wie das `?? []` in `app-state.svelte.ts::importGovEntry`.
   const init = untrack(() => ({
-    title: place.title,
-    shortName: place.shortName,
-    type: place.type,
+    title: place.title ?? '',
+    shortName: place.shortName ?? '',
+    type: place.type ?? '',
     latText: place.lat != null ? String(place.lat) : '',
     longText: place.long != null ? String(place.long) : '',
-    note: place.note,
+    note: place.note ?? '',
     existsFrom: place.existsFrom,
     existsTo: place.existsTo,
     govId: place.govId ?? '',

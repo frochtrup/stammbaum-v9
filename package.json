@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --config app-orte/vite.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:core": "vitest run tests/core",
@@ -19,7 +19,9 @@
     "handbuch": "node tools/handbuch/build-handbook.mjs",
     "handbuch:text-review": "node tools/handbuch/text-review.mjs",
     "handbuch:anon": "node tools/handbuch/anonymize-ged.mjs",
-    "geo:build": "node --max-old-space-size=2048 tools/regiongeo/build-region-geo.mjs"
+    "geo:build": "node --max-old-space-size=2048 tools/regiongeo/build-region-geo.mjs",
+    "dev:orte": "vite --config app-orte/vite.config.ts",
+    "preview:orte": "vite preview --config app-orte/vite.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
