@@ -81,6 +81,34 @@ export interface FamilyNavRow {
   pedigree: string;
 }
 
+/** Eine eigene Assoziation der Person (ASSO/RELA, [10 §2]) — Zeuge/Pate/Informant ohne
+ *  Familienbindung. Die Zeile bleibt AUCH dann bestehen, wenn `personRef` nicht auflösbar
+ *  ist (gelöschte Person, GRAMPS-Handle ohne id-Abbildung): `index` adressiert den Eintrag
+ *  im ursprünglichen `associations[]`, und ein Filtern würde diese Adressierung verschieben. */
+export interface AssociationRow {
+  /** Position in `person.associations` — Adresse fürs Bearbeiten/Entfernen. */
+  index: number;
+  /** null = nicht auflösbar → Name ist ein Platzhalter, keine Navigation. */
+  personId: string | null;
+  name: string;
+  /** Disambiguierendes Sekundärmerkmal (INV-UI-6, [21 §6c]) — leer, wenn unauflösbar. */
+  summary: string;
+  role: string;
+  note: string;
+}
+
+/** Berechnete Rückverknüpfung „Patenkinder" — reine Projektion, KEIN neues Feld: die
+ *  Wahrheit ist und bleibt der Eintrag bei der anderen Person ([20 §1.4], dasselbe Muster
+ *  wie die Beweisführungsnotiz). Deshalb hier ohne `index`: von dieser Seite aus gibt es
+ *  nichts zu löschen. */
+export interface GodchildRow {
+  personId: string;
+  name: string;
+  summary: string;
+  /** Die Rolle, wie sie beim Patenkind steht („Taufpate", „godmother", …). */
+  role: string;
+}
+
 export interface PersonDetailModel {
   person: Person;
   events: EventRow[];
@@ -92,6 +120,24 @@ export interface PersonDetailModel {
    *  danach chronologisch (`sortWithinCategory`, Nutzer-Vorgabe 2026-07-10). */
   eventGroups: EventGroup<EventRow>[];
   families: FamilyNavRow[];
+  /** Eigene Assoziationen dieser Person (sie ist die Bezugsperson). */
+  associations: AssociationRow[];
+  /** Personen, die DIESE Person als Paten führen — Gegenrichtung, berechnet. */
+  godchildren: GodchildRow[];
+}
+
+/**
+ * Paten-Muster für die Rückverknüpfung. Bewusst breit: die Rolle ist laut [12]/[10]
+ * Freitext, und dieselbe Beziehung steht im Bestand deutsch („Taufpate", „Patin") wie
+ * englisch (GEDCOM-`RELA`-Konvention „godfather"/„godmother"/„godparent"). Ein
+ * geschlossenes Enum würde importierte Werte still nicht mehr erkennen.
+ * `Trauzeuge` fällt bewusst NICHT darunter — nur Patenschaft, nicht jede Zeugenrolle.
+ */
+const GODPARENT_ROLE = /pat(e|in)\b|patin|godfather|godmother|godparent/i;
+
+/** Ist `role` eine Patenrolle? Exportiert, damit die Regel EINE Fundstelle hat. */
+export function isGodparentRole(role: string): boolean {
+  return GODPARENT_ROLE.test(role.trim());
 }
 
 /**
@@ -245,10 +291,39 @@ export function buildPersonDetail(
     });
   }
 
+  // Eigene Assoziationen: 1:1 auf die Einträge, NICHT gefiltert (s. AssociationRow.index).
+  const associations: AssociationRow[] = person.associations.map((a, index) => {
+    const target = a.personRef ? db.individuals.get(a.personRef) : undefined;
+    return {
+      index,
+      personId: target ? a.personRef : null,
+      name: target ? displayName(target) || a.personRef! : '(unbekannte Person)',
+      summary: target ? yearPlaceSummary(target.birth, ctx) : '',
+      role: a.role,
+      note: a.note,
+    };
+  });
+
+  // Rückverknüpfung: ein Durchlauf über den Bestand — dieselbe Kostenordnung wie die
+  // übrigen Chokepoint-Scans der Detailansicht, und der Bestand ist bereits im Speicher.
+  const godchildren: GodchildRow[] = [];
+  for (const [id, other] of db.individuals) {
+    if (id === personId) continue;
+    for (const a of other.associations) {
+      if (a.personRef !== personId || !isGodparentRole(a.role)) continue;
+      godchildren.push({
+        personId: id,
+        name: displayName(other) || id,
+        summary: yearPlaceSummary(other.birth, ctx),
+        role: a.role,
+      });
+    }
+  }
+
   const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER).map((group) => ({
     ...group,
     rows: sortWithinCategory(group.type, group.rows),
   }));
 
-  return { person, events, eventGroups, families };
+  return { person, events, eventGroups, families, associations, godchildren };
 }

@@ -8,7 +8,7 @@ import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, isEventPresent } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, makeAssociation, isEventPresent } from '../../core/model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
@@ -953,5 +953,85 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     expect(saved.events.filter((e) => e.type === 'CENS').map((e) => e.value)).toEqual([
       'Zählung 1', 'Zählung 3', 'Zählung 5', 'Zählung 7', 'Zählung 9',
     ]);
+  });
+});
+
+describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
+  function seedAssoc() {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const kind = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    const pate = makePerson('@I2@', { given: 'Josef', surname: 'Meyer' });
+    kind.associations.push(makeAssociation('@I2@', { role: 'Taufpate', note: 'aus dem Kirchenbuch' }));
+    db.individuals.set('@I1@', kind);
+    db.individuals.set('@I2@', pate);
+    appState.loadDatabase(db, 'test.ged');
+    return { appState, viewState };
+  }
+
+  it('zeigt Rolle, klickbaren Namen und Notiz in EINER Zeile (INV-UI-5)', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I1@');
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByRole('heading', { name: 'Assoziationen' })).toBeTruthy();
+    expect(screen.getByText('Taufpate')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Josef Meyer/ })).toBeTruthy();
+    expect(screen.getByText('aus dem Kirchenbuch')).toBeTruthy();
+  });
+
+  it('die Sektion bleibt bei leerer Liste sichtbar — sonst wäre die erste Assoziation nicht anlegbar', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I2@'); // der Pate hat selbst keine Assoziationen
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByRole('heading', { name: 'Assoziationen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Assoziation' })).toBeTruthy();
+    // Keine redundante „Keine X erfasst"-Zeile (Spec 21 §10f).
+    expect(screen.queryByText(/Keine Assoziationen/i)).toBeNull();
+  });
+
+  it('beim Paten erscheint das Patenkind als berechneter Chip — ohne Entfernen-Knopf', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I2@');
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Patenkinder')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Anna Bauer/ })).toBeTruthy();
+    // Die Gegenrichtung ist eine Projektion: hier gibt es nichts zu löschen.
+    expect(screen.queryByRole('button', { name: 'Assoziation entfernen' })).toBeNull();
+  });
+
+  it('Entfernen schreibt über den Kommando-Chokepoint und lässt andere Felder unberührt', async () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I1@');
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Assoziation entfernen' }));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.associations).toEqual([]);
+    expect(saved.given).toBe('Anna');
+    expect(confirmSpy).toHaveBeenCalledOnce();
+  });
+
+  it('eine unauflösbare Referenz wird als Platzhalter gezeigt, nicht verschluckt', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.associations.push(makeAssociation(null, { grampsHandle: '_abc', role: 'Zeuge' }));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('(unbekannte Person)')).toBeTruthy();
+    // Kein Navigations-Knopf für etwas, wohin man nicht navigieren kann.
+    expect(screen.queryByRole('button', { name: /unbekannte Person/ })).toBeNull();
   });
 });

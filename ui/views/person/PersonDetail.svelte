@@ -22,8 +22,9 @@
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
   import PersonFamilies from './PersonFamilies.svelte';
+  import PersonAssociations from './PersonAssociations.svelte';
   import ProofSummaryNote from './ProofSummaryNote.svelte';
-  import { makeEvent } from '../../../core/model/factory';
+  import { makeEvent, makeAssociation } from '../../../core/model/factory';
   import { isEventPresent, isEventEmpty } from '../../../core/model';
   import { eventTypeLabel } from '../../shell/event-labels';
 
@@ -231,6 +232,22 @@
     modal = null;
   }
 
+  /** Assoziationen (BL-127) — dasselbe Kommando-Chokepoint-Muster wie `saveModal`:
+   *  vollständige Person an `savePerson`, kein Feld-Setter. Bestehende Einträge werden
+   *  unverändert durchgereicht, damit `grampsHandle` und Zitate erhalten bleiben (die
+   *  Zeilen-Projektion trägt sie nicht — sie zu „ersetzen" hieße, sie zu verlieren). */
+  function addAssociation(personId: string, role: string, note: string) {
+    if (!detail) return;
+    const p = detail.person;
+    appState.savePerson({ ...p, associations: [...p.associations, makeAssociation(personId, { role, note })] });
+  }
+
+  function removeAssociation(index: number) {
+    if (!detail) return;
+    const p = detail.person;
+    appState.savePerson({ ...p, associations: p.associations.filter((_, i) => i !== index) });
+  }
+
   const modalEvent = $derived.by<Event | null>(() => {
     if (!detail || !modal) return null;
     if (modal.kind === 'edit') return eventForKey(detail.person, modal.key);
@@ -386,6 +403,16 @@
         <PersonFamilies families={detail.families} onGoToPerson={goToPerson} {onNavigateToFamily} />
       </section>
     {/if}
+
+    <PersonAssociations
+      {appState}
+      rows={detail.associations}
+      godchildren={detail.godchildren}
+      selfId={detail.person.id}
+      onGoToPerson={goToPerson}
+      onAdd={addAssociation}
+      onRemove={removeAssociation}
+    />
 
     {#if detail.person.hypotheses.length > 0}
       <ProofSummaryNote person={detail.person} />

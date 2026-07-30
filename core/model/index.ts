@@ -20,6 +20,7 @@ export {
   makeRepository,
   makeNote,
   makeCitation,
+  makeAssociation,
   makeMedia,
   makeMediaCitation,
 } from './factory';
