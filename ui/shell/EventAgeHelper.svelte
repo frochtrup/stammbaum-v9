@@ -43,7 +43,8 @@
 </script>
 
 <div class="age-helper">
-  <span class="age-helper__caption">Alter bei Tod (für die Geburtsdatums-Berechnung)</span>
+  <span class="age-helper__caption">Rechenhilfe — wird nicht gespeichert</span>
+  <span class="age-helper__hint">Alter bei Tod, wie es die Quelle nennt</span>
   <div class="age-helper__row">
     <input type="number" min="0" placeholder="Jahre" aria-label="Alter: Jahre" value={years ?? ''} onchange={(e) => (years = num(e))} />
     <input type="number" min="0" placeholder="Monate" aria-label="Alter: Monate" value={months ?? ''} onchange={(e) => (months = num(e))} />
@@ -66,15 +67,29 @@
 </div>
 
 <style>
+  /* Abgesetzter Block: die drei Zahlenfelder standen unmittelbar unter der Datumszeile und
+     sahen aus wie deren Fortsetzung — sie suggerierten gespeicherte Daten, obwohl das Alter
+     rein transient ist (Design-Kritik 2026-07-31). */
   .age-helper {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
+    border: 1px dashed var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    padding: 0.5rem;
+    background: var(--stb-surface-2);
+  }
+
+  .age-helper__hint {
+    font-size: 0.72rem;
+    color: var(--stb-text-muted);
   }
 
   .age-helper__caption {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     color: var(--stb-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
   .age-helper__row {

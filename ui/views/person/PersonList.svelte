@@ -255,10 +255,16 @@
             {/if}
           </div>
         {:else}
+          {#if group.restStart}
+            <!-- Ohne diese Zeile stünde die Restmenge kommentarlos da (ADR-v9-169). -->
+            <div class="person-list__letter person-list__letter--phonetic" role="separator" aria-label="Weitere Treffer">
+              Weitere Treffer <span class="person-list__section-count">{group.sectionCount}</span>
+            </div>
+          {/if}
           <div class="person-list__group">
             {#if group.phonetic}
               <div class="person-list__letter person-list__letter--phonetic" role="separator" aria-label="Ähnlich klingender Nachname">
-                Ähnlicher Nachname
+                Ähnlicher Nachname <span class="person-list__section-count">{group.sectionCount}</span>
               </div>
             {:else if group.letter !== null}
               <div class="person-list__letter" role="separator" aria-label="Buchstabe {group.letter}">
@@ -425,6 +431,12 @@
   .person-list__letter--phonetic {
     font-size: 0.85rem;
     letter-spacing: 0.02em;
+  }
+
+  .person-list__section-count {
+    color: var(--stb-text-dim);
+    font-family: var(--stb-font-body);
+    font-weight: 400;
   }
 
   /* Sammelzeile der Namenlosen — sieht aus wie ein Buchstaben-Trenner, ist aber ein

@@ -241,8 +241,15 @@
   /** Zwischenablage (BL-212): kopieren aus dem Editor, einfügen über das „+ Ereignis"-
    *  Menü. Das eingefügte Ereignis wird direkt angehängt — es ist bereits vollständig,
    *  ein leerer Editor-Zwischenschritt wäre nur ein Klick mehr. */
+  /** Beschriftung der Ablage: Typ + der Wert, der das Ereignis unterscheidbar macht,
+   *  + Herkunftsperson (Design-Kritik 2026-07-31 — „⧉ Übernehmen: Beruf" verriet weder,
+   *  WELCHER Beruf noch VON WEM; nach ein paar Minuten ist das nicht mehr erratbar). */
   function copyEvent(ev: Event) {
-    clipboard?.copy(ev, eventTypeLabel(ev.type));
+    if (!detail) return;
+    const typ = eventTypeLabel(ev.type);
+    const wert = ev.value || ev.addr || ev.place || '';
+    const wer = displayName(detail.person) || detail.person.id;
+    clipboard?.copy(ev, wert ? `${typ} (${wert}) von ${wer}` : `${typ} von ${wer}`);
   }
 
   /** Kopieren gibt es NUR für generische `events[]`-Einträge, nicht für die vier
@@ -414,6 +421,7 @@
           otherItems={menuOther}
           onSelect={startCreate}
           pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: pasteEvent } : undefined}
+          clearItem={clipboard?.event ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
         />
       </div>
 

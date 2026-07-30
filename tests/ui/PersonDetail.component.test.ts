@@ -976,7 +976,9 @@ describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
     viewState.setCurrent('person', '@I1@');
     render(PersonDetail, { props: { appState, viewState } });
 
-    expect(screen.getByRole('heading', { name: 'Assoziationen' })).toBeTruthy();
+    // Überschrift trägt jetzt das Spec-eigene Wort statt der Latinisierung (Design-Kritik
+    // 2026-07-31) — der Code-Name `associations` bleibt (GEDCOM-Begriff).
+    expect(screen.getByRole('heading', { name: /Personenbezüge/ })).toBeTruthy();
     expect(screen.getByText('Taufpate')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Josef Meyer/ })).toBeTruthy();
     expect(screen.getByText('aus dem Kirchenbuch')).toBeTruthy();
@@ -987,7 +989,7 @@ describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
     viewState.setCurrent('person', '@I2@'); // der Pate hat selbst keine Assoziationen
     render(PersonDetail, { props: { appState, viewState } });
 
-    expect(screen.getByRole('heading', { name: 'Assoziationen' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Personenbezüge/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: '+ Assoziation' })).toBeTruthy();
     // Keine redundante „Keine X erfasst"-Zeile (Spec 21 §10f).
     expect(screen.queryByText(/Keine Assoziationen/i)).toBeNull();

@@ -81,6 +81,14 @@ export interface PersonGroup {
    *  Gruppierung mit allen übrigen Treffern. `letter` ist dabei null (kein Buchstaben-
    *  Trenner); die View beschriftet die Gruppe eigens. Außerhalb des Soundex-Modus nie true. */
   phonetic: boolean;
+  /** Erste Gruppe NACH der Vorrang-Gruppe (ADR-v9-169) — die View setzt davor eine
+   *  Zwischenüberschrift „Weitere Treffer (N)". Ohne sie stünde die Restmenge kommentarlos
+   *  da: bei „Meier" sind das überwiegend Vornamens-Zufallstreffer („Maria" teilt den Code),
+   *  und niemand erriete, warum sie in der Liste stehen. */
+  restStart: boolean;
+  /** Anzahl der Zeilen ab dieser Gruppe bis zum Ende — nur auf `phonetic`/`restStart`
+   *  gesetzt, damit die View „(N)" beschriften kann, ohne selbst zu zählen. */
+  sectionCount: number;
 }
 
 /** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]). */
@@ -246,7 +254,7 @@ export function groupPersonRows(
 ): PersonGroup[] {
   if (sortMode === 'birthDate') {
     if (persons.length === 0) return [];
-    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false, phonetic: false }];
+    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false, phonetic: false, restStart: false, sectionCount: 0 }];
   }
 
   const groups: PersonGroup[] = [];
@@ -255,7 +263,7 @@ export function groupPersonRows(
   for (const p of persons) {
     const letter = sortLetter(p);
     if (!current || current.letter !== letter) {
-      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER, phonetic: false };
+      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER, phonetic: false, restStart: false, sectionCount: 0 };
       groups.push(current);
     }
     current.rows.push(toRow(p, ctx, kekule));
@@ -293,8 +301,14 @@ export function buildPersonGroups(
         rows: leading.map((p) => toRow(p, ctx, kekule)),
         nameless: false,
         phonetic: true,
+        restStart: false,
+        sectionCount: leading.length,
       };
-      return [head, ...groupPersonRows(rest, ctx, sortMode, kekule)];
+      const restGroups = groupPersonRows(rest, ctx, sortMode, kekule);
+      if (restGroups.length > 0) {
+        restGroups[0] = { ...restGroups[0], restStart: true, sectionCount: rest.length };
+      }
+      return [head, ...restGroups];
     }
   }
 

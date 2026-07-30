@@ -58,8 +58,12 @@
   }
 </script>
 
-<section class="person-detail__section person-assoc">
-  <h3>Assoziationen</h3>
+<!-- „Personenbezüge" statt „Assoziationen": das Wort steht so in [20 §1.4] („sonstige
+     Personenbezüge ohne Familienbindung") und benennt die Sache, statt sie zu latinisieren
+     (Design-Kritik 2026-07-31). Der Code-Name bleibt `associations` — das ist der
+     GEDCOM-Begriff. -->
+<section class="person-detail__section person-assoc" class:person-assoc--empty={rows.length === 0 && godchildren.length === 0}>
+  <h3>Personenbezüge <span class="person-assoc__subtitle">Paten · Zeugen · Informanten</span></h3>
 
   {#if rows.length > 0}
     <ul class="person-assoc__list">
@@ -151,6 +155,25 @@
 </section>
 
 <style>
+  /* Im Leerzustand zurückgenommen: die Sektion steht auf JEDER Person (der Bestand führt
+     keine ASSO-Einträge), und eine Überschrift in „Familien"-Stärke für null Inhalt zog
+     mehr Aufmerksamkeit als sie verdient (Design-Kritik 2026-07-31). Sie bleibt sichtbar —
+     sie trägt die einzige Anlege-Affordanz —, aber leiser. */
+  .person-assoc--empty :global(h3) {
+    font-size: 0.95rem;
+    color: var(--stb-text-dim);
+  }
+
+  .person-assoc__subtitle {
+    font-family: var(--stb-font-body);
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--stb-text-muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 0.4rem;
+  }
+
   .person-assoc__list {
     list-style: none;
     margin: 0;

@@ -87,6 +87,11 @@
   // Hinweis, wenn die Query schlicht noch zu kurz ist).
   const queryTooShort = $derived(query.trim().length < MIN_QUERY_LENGTH);
   const hasResults = $derived(totalResultCount(results) > 0);
+  /** Anzahl der phonetischen Nachnamen-Treffer und ob eine Aufteilung überhaupt etwas
+   *  erklärt (ADR-v9-169): trifft alles oder nichts über den Nachnamen, wären zwei
+   *  Zwischenüberschriften nur Lärm. */
+  const phonCount = $derived(results.persons.filter((r) => r.phonetic).length);
+  const phonSplit = $derived(phonCount > 0 && phonCount < results.persons.length);
 
   function clearSearch() {
     query = '';
@@ -152,7 +157,19 @@
         <section class="global-search__group">
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
-            {#each results.persons as row (row.id)}
+            {#each results.persons as row, i (row.id)}
+              <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
+                   stünde die Soundex-Reihenfolge kommentarlos da. Nur im Soundex-Modus,
+                   und nur wenn beide Mengen nicht leer sind. -->
+              {#if phonSplit && i === 0}
+                <li class="global-search__subhead" role="separator" aria-label="Ähnlich klingender Nachname">
+                  Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+                </li>
+              {:else if phonSplit && i === phonCount}
+                <li class="global-search__subhead" role="separator" aria-label="Weitere Treffer">
+                  Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
+                </li>
+              {/if}
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
                   <span class="global-search__primary">
@@ -265,8 +282,13 @@
   /* Zweites von fünf zulässigen Dauer-Elementen in dieser Toolbar (ADR-v9-159,
      gemessen bei 375px) — schrumpft nie (TST-11: das Suchfeld gibt nach, nicht der
      Schalter). */
+  /* Trefferflächen-Kontrakt (Spec 21 §6i) + sichtbare Kontur: der Umschalter maß 73×26px
+     und sah im Aus-Zustand nicht bedienbar aus (Design-Kritik 2026-07-31). Der
+     Aktiv-Zustand kommt weiterhin aus `.stb-segment-btn--active`. */
   .global-search__soundex-toggle {
     flex-shrink: 0;
+    min-height: var(--stb-touch-target);
+    border: 1px solid var(--stb-gold-dim);
   }
 
   .global-search__field input[type='search'] {
@@ -307,6 +329,22 @@
   .global-search__groups {
     display: flex;
     flex-direction: column;
+  }
+
+  /* Zwischenüberschrift innerhalb der Personen-Gruppe (ADR-v9-169) — leiser als der
+     Gruppentitel, damit die Hierarchie „Gruppe > Abschnitt" lesbar bleibt. */
+  .global-search__subhead {
+    font-size: 0.75rem;
+    color: var(--stb-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.35rem 1rem 0.15rem;
+    list-style: none;
+  }
+
+  .global-search__subcount {
+    text-transform: none;
+    letter-spacing: 0;
   }
 
   .global-search__group-title {

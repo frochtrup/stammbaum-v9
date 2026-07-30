@@ -43,6 +43,10 @@
      *  eines Typs an, sondern fügt ein vollständiges kopiertes ein. Weglassen = kein
      *  Eintrag (FamilyDetail und Tests bleiben unverändert). */
     pasteItem?: { label: string; onSelect: () => void };
+    /** „Ablage leeren" (Design-Kritik 2026-07-31): ohne diesen Weg blieb ein einmal
+     *  kopiertes Ereignis die ganze Sitzung als Eintrag stehen. Nur zusammen mit
+     *  `pasteItem` sinnvoll. */
+    clearItem?: { label: string; onSelect: () => void };
   }
   const {
     triggerLabel = '+ Ereignis',
@@ -51,6 +55,7 @@
     otherLabel = 'Anderer Ereignistyp',
     onSelect,
     pasteItem,
+    clearItem,
   }: Props = $props();
 
   let open = $state(false);
@@ -99,6 +104,16 @@
         >
           {pasteItem.label}
         </button>
+        {#if clearItem}
+          <button
+            type="button"
+            class="stb-event-menu__item stb-event-menu__item--clear"
+            role="menuitem"
+            onclick={() => { close(); clearItem.onSelect(); }}
+          >
+            {clearItem.label}
+          </button>
+        {/if}
         <div class="stb-event-menu__divider"></div>
       {/if}
       {#each groups as group, gi (gi)}
@@ -168,7 +183,12 @@
   }
 
   .stb-event-menu__item {
-    display: block;
+    /* Trefferflächen-Kontrakt (Spec 21 §6i, ADR-v9-155): die Einträge maßen 31px —
+       der Wächter fängt nur ZU KLEINE explizite Werte, nicht fehlende (Design-Kritik
+       2026-07-31). `display: flex` statt `block`, damit die Beschriftung mittig sitzt. */
+    min-height: var(--stb-touch-target);
+    align-items: center;
+    display: flex;
     width: 100%;
     text-align: left;
     background: transparent;
@@ -185,6 +205,11 @@
      wirkungslos, die Hervorhebung existierte nur im Quelltext (Design-Kritik 2026-07-31). */
   .stb-event-menu__item--paste {
     color: var(--stb-gold-light);
+  }
+
+  .stb-event-menu__item--clear {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .stb-event-menu__item:hover,

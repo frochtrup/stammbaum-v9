@@ -41,6 +41,10 @@ export interface SearchResultRow {
   secondaryFull?: string;
   /** Geschlecht für das Ergebnis-Icon (BL-211, ♂/♀/◇) — nur bei Personen gesetzt. */
   sex?: Sex;
+  /** Phonetischer NACHNAMEN-Treffer (ADR-v9-160/169) — nur im Soundex-Modus gesetzt. Die
+   *  View setzt daraus dieselben zwei Zwischenüberschriften wie die Personenliste; ohne
+   *  sie stünde die Reihenfolge unerklärt da (Design-Kritik 2026-07-31). */
+  phonetic?: boolean;
 }
 
 export interface GroupedSearchResults {
@@ -104,6 +108,7 @@ export function globalSearch(
     const isLead = new Map<string, boolean>();
     for (const p of db.individuals.values()) isLead.set(p.id, matchesSurnameSoundex(p, q));
     persons.sort((a, b) => Number(isLead.get(b.id) ?? false) - Number(isLead.get(a.id) ?? false));
+    for (const row of persons) row.phonetic = isLead.get(row.id) ?? false;
   }
 
   const families: SearchResultRow[] = [];

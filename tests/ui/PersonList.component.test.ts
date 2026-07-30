@@ -233,7 +233,11 @@ describe('PersonList — Soundex-Filteroption (BL-10, ADR-v9-159)', () => {
     await fireEvent.click(screen.getByLabelText(/Soundex/));
 
     const trenner = screen.getByRole('separator', { name: 'Ähnlich klingender Nachname' });
-    expect(trenner.textContent?.trim()).toBe('Ähnlicher Nachname');
+    // Mit Zähler (ADR-v9-169) — „wie viele davon sind die gesuchten?"
+    expect(trenner.textContent?.replace(/\s+/g, ' ').trim()).toBe('Ähnlicher Nachname 1');
+    // Und die Restmenge ist beschriftet, statt kommentarlos dazustehen.
+    const rest = screen.getByRole('separator', { name: 'Weitere Treffer' });
+    expect(rest.textContent?.replace(/\s+/g, ' ').trim()).toBe('Weitere Treffer 1');
     // Reihenfolge im DOM: Vorrang-Trenner → Hans Meyer → Buchstaben-Trenner → Maria Albers.
     const positionen = [trenner, screen.getByText('Hans Meyer'), screen.getByText('Maria Albers')];
     for (let i = 1; i < positionen.length; i++) {

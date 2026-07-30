@@ -202,10 +202,13 @@ textarea::placeholder {
    Bewusst NICHT die `QuayMeter`-Pip-Form (gefüllte Kreise 0–3): INV-H1 trennt
    Forscher-Konfidenz ausdrücklich von Quellen-Beweiskraft — eine identische Optik
    ließe genau die zwei Konzepte verschmelzen, die das Modell auseinanderhält. */
+/* Getöntes Stufen-Label (Konfidenz u. Ä.). BEWUSST leiser als ein Status-Pill: eine
+   Selbsteinschätzung des Forschers darf nicht lauter sprechen als der harte Status einer
+   Hypothese (Design-Kritik 2026-07-31 — „HOCH" in Versalien/fett überstrahlte „Offen").
+   Die Farbe trägt die Stufe, Gewicht und Versalien tun es nicht mehr. */
 .stb-tone-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
   font-weight: 600;
 }
 

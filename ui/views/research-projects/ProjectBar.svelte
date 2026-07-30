@@ -151,17 +151,6 @@
       <div class="project-bar__field">
         <span id="project-bar-color-label">Farbe</span>
         <div class="project-bar__swatches" role="group" aria-labelledby="project-bar-color-label">
-          <button
-            type="button"
-            class="project-bar__swatch project-bar__swatch--none"
-            class:project-bar__swatch--active={fColor === ''}
-            aria-pressed={fColor === ''}
-            aria-label="Keine Farbe"
-            title="Keine Farbe"
-            onclick={() => (fColor = '')}
-          >
-            {#if fColor === ''}<span class="project-bar__swatch-check" aria-hidden="true">✓</span>{/if}
-          </button>
           {#each PROJECT_COLORS as c (c.key)}
             <button
               type="button"
@@ -176,6 +165,24 @@
               {#if fColor === c.key}<span class="project-bar__swatch-check" aria-hidden="true">✓</span>{/if}
             </button>
           {/each}
+          <!-- „Keine Farbe" steht am ENDE und trägt ∅ statt eines Häkchens auf dunklem
+               Grund: als erster Kreis in der Reihe las es sich wie die Farbe Schwarz
+               (Design-Kritik 2026-07-31). -->
+          <button
+            type="button"
+            class="project-bar__swatch project-bar__swatch--none"
+            class:project-bar__swatch--active={fColor === ''}
+            aria-pressed={fColor === ''}
+            aria-label="Keine Farbe"
+            title="Keine Farbe"
+            onclick={() => (fColor = '')}
+          >
+            {#if fColor === ''}
+              <span class="project-bar__swatch-check" aria-hidden="true">✓</span>
+            {:else}
+              <span class="project-bar__swatch-none-mark" aria-hidden="true">∅</span>
+            {/if}
+          </button>
         </div>
       </div>
       <div class="project-bar__row">
@@ -257,9 +264,15 @@
 
   /* Swatch-Auswahl (BL-209, ADR-v9-158): Aktiv-Zustand über ✓-Glyph + aria-pressed,
      NICHT nur über eine farbige Umrandung — auch ohne Farbwahrnehmung bedienbar. */
+  /* Festes 4er-Raster statt freiem Umbruch: sieben 44px-Kreise brauchen mindestens 308px
+     plus Lücken, das Panel misst bei 375px Gerätebreite aber nur ~309px — der siebte fiel
+     als Waisenkind in eine eigene Zeile (Design-Kritik 2026-07-31). Die Trefferfläche wird
+     dafür NICHT verkleinert (ADR-v9-155); stattdessen brechen die sieben planbar in 4 + 3.
+     `justify-items: start` hält die Kreise an ihrer Spalte, statt sie zu dehnen. */
   .project-bar__swatches {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, var(--stb-touch-target));
+    justify-items: start;
     gap: 0.4rem;
     margin-top: 0.2rem;
   }
@@ -279,7 +292,14 @@
   }
 
   .project-bar__swatch--none {
-    background: var(--stb-surface-2);
+    background: transparent;
+    border-style: dashed;
+  }
+
+  .project-bar__swatch-none-mark {
+    color: var(--stb-text-dim);
+    font-size: 1.1rem;
+    line-height: 1;
   }
 
   .project-bar__swatch--active {
@@ -293,10 +313,6 @@
     text-shadow: 0 0 2px var(--stb-text);
   }
 
-  .project-bar__swatch--none .project-bar__swatch-check {
-    color: var(--stb-text);
-    text-shadow: none;
-  }
 
   .project-bar__form {
     display: flex;
