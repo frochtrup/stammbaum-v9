@@ -5,7 +5,11 @@
 // EIN Verhalten — und damit die klassische Drift-Gefahr (belegt: `.person-detail__geo-link`
 // /`.family-detail__geo-link` mussten für dieselbe Regel zweimal getrennt gefixt werden).
 // Deshalb hier EINMAL, nicht je Komponente nachgebaut.
-import type { ViewState } from './view-state.svelte';
+// Der Parameter ist `PlacesNav`, nicht `ViewState`: die Orts-/Hof-Views werden von zwei
+// Programmen gezeigt (Spec 22), und der Sprung ist eine Fähigkeit des Wirts (D6). Fehlt
+// `setMapCoordFocus`, passiert nichts — genau wie ohne Koordinaten. `ViewState` erfüllt
+// `PlacesNav`, für das Hauptprogramm ändert sich damit nichts.
+import type { PlacesNav } from './places-host';
 import type { LensId } from './lens-model';
 
 /**
@@ -19,12 +23,12 @@ import type { LensId } from './lens-model';
  * Ohne `coords` passiert nichts (kein Ziel → kein Sprung).
  */
 export function focusOnMap(
-  viewState: ViewState,
+  viewState: PlacesNav,
   coords: { lat: number; long: number } | null | undefined,
   focusId: string | null | undefined,
   onNavigateLens?: (lens: LensId) => void,
 ): void {
-  if (!coords) return;
+  if (!coords || !viewState.setMapCoordFocus) return;
   viewState.setMapCoordFocus(coords);
   if (focusId) viewState.setCurrent('lensPlaceFocus', focusId);
   onNavigateLens?.('map');

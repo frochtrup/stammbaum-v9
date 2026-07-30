@@ -13,12 +13,12 @@
   // Kollisions-Suffix `_2`/`_3`/…), aber unabhängig implementiert. `slugify` selbst wird
   // wiederverwendet (core/places/normalize.ts, allgemeines String-Utility — kein
   // Duplikat der mintId-Algorithmik).
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import type { PlaceObject } from '../../../core/places/types';
   import { slugify } from '../../../core/places';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     /** Nach erfolgreichem Anlegen — liefert die neu vergebene PlaceId. */
     onSaved?: (placeId: string) => void;
     /** Abbrechen ohne Anlegen. */

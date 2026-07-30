@@ -2,8 +2,7 @@
   // ui/views/hof/HofList.svelte — Höfe-Tab-Liste (Spec 20 §1.8 [K]: "Hof-Liste
   // (aus Events aufgelöst, numerisch sortiert), Zugehöriges Dorf anzeigen"). Anreicherungs-
   // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
@@ -22,8 +21,8 @@
   import FilterBar from '../../shell/FilterBar.svelte';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     /** "Hof-Zuweisungen prüfen"/"Massen-Dedup" (Spec 20 §1.8 [K], Spec 21 §10c): beide
      *  Buttons leben in der eigenen Toolbar dieser Liste (Toolbar-Ownership) — die
      *  Ansichts-Umschaltung (welches Overlay rendert) bleibt bei EntityTab. */
@@ -51,7 +50,17 @@
   const hofDedupCount = $derived(buildHofDedupGroups(appState.db, appState.placeContext, events).length);
   const hofReviewCount = $derived(buildHofReview(appState.db).rows.length);
   const toolsAttention = $derived(hofDedupCount > 0 || hofReviewCount > 0);
-  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
+  // D1 (Spec 22 §3.1) — Geschwister-Stelle zu PlaceList, identische Regel: ohne
+  // Ereignis-Kontext trifft `hasReference` nie zu, die Hauptliste stünde leer da. Dann
+  // zeigt die Liste alle Höfe; `referenced` ist in diesem Fall leer, die Verkettung
+  // erhält also die Sortierung.
+  const rows = $derived(
+    !appState.caps.hasEventContext
+      ? [...sections.referenced, ...sections.unreferenced]
+      : section === 'referenced'
+        ? sections.referenced
+        : sections.unreferenced,
+  );
   const groups = $derived(groupHofRowsByVillage(rows));
   const isEmpty = $derived(appState.db.hofObjects.size === 0);
 
@@ -145,6 +154,7 @@
       {/if}
     </div>
 
+    {#if appState.caps.hasEventContext}
     <div class="stb-segment-row hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
       <button
         type="button"
@@ -167,10 +177,11 @@
         Ohne Bezug ({sections.unreferenced.length})
       </button>
     </div>
+    {/if}
 
     {#if rows.length === 0}
       <p class="hof-list__empty">
-        {section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
+        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
       </p>
     {:else}
       <!-- Gruppiert nach Dorf (Nutzer-Vorgabe 2026-07-10) — DIE EINE Gruppen+Header-

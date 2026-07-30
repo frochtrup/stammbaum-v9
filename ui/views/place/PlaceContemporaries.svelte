@@ -6,7 +6,7 @@
   //
   // On-Demand (ADR-v9-78 Punkt 5): die Berechnung läuft NUR, solange die Sektion offen ist —
   // sie skaliert an Knotenpunkt-Orten auf hunderte Treffer, deshalb kein Dauer-Inhalt.
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import EventsByType from '../../shell/EventsByType.svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -18,7 +18,7 @@
   } from './place-detail-model';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     placeId: string | null;
     onNavigateToPerson?: (personId: string) => void;
   }

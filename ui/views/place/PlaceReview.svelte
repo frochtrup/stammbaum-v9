@@ -12,12 +12,12 @@
   // den PLAC schreiben) — "Ort wählen" erledigt die Reprojektion allerdings bereits mit
   // (linkEventToPlace, ADR-v9-19/-42), sodass der geschärfte PLAC beim nächsten Load
   // ohnehin deterministisch bindet.
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import { buildPlaceReview, type PlaceReviewRow } from './place-review-model';
   import { applyPlaceChoice } from './place-review-actions';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     onNavigateToPerson?: (personId: string) => void;
     onNavigateToFamily?: (familyId: string) => void;
     onClose?: () => void;

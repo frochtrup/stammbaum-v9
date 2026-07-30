@@ -27,7 +27,7 @@
   //
   // Ohne Koordinaten ist der Glyph reiner, nicht-interaktiver Text (kein Link ohne
   // Ziel) — einziger verbleibender nicht-interaktiver Fall.
-  import type { ViewState } from './view-state.svelte';
+  import type { PlacesNav } from './places-host';
   import type { LensId } from './lens-model';
   import { geoHref } from './geo-link';
   import { tooltip } from './tooltip';
@@ -39,7 +39,7 @@
      *  `null`, wenn kein aufgelöstes Orts-/Hof-Objekt existiert (der Koordinaten-
      *  Sprung selbst funktioniert trotzdem, s. o.). */
     focusId: string | null;
-    viewState: ViewState;
+    viewState: PlacesNav;
     /** Cross-Tab-Navigation zur Karte-Lens (App.svelte's `navigateLens`, INV-UI-3) —
      *  optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;

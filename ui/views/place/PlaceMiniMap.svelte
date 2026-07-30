@@ -21,7 +21,7 @@
   import { mountMiniLeaflet, type MiniLeafletHandle } from '../../islands/map/mini-leaflet';
   import { focusOnMap } from '../../shell/map-focus';
   import { tooltip } from '../../shell/tooltip';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesNav } from '../../shell/places-host';
   import type { LensId } from '../../shell/lens-model';
   import '../../islands/map/mini-leaflet.css';
 
@@ -40,7 +40,7 @@
     /** Sprung zur Karte-Lens (ADR-v9-150). NUR wenn `viewState` UND `onNavigateLens`
      *  gesetzt sind, wird die Karte klickbar — sonst bleibt sie reine Anzeige (Report-
      *  Kontext, isolierte Tests). */
-    viewState?: ViewState;
+    viewState?: PlacesNav;
     /** Optionale Marker-Hervorhebung am Ziel (Place-/Hof-Id) — s. `focusOnMap`. */
     focusId?: string | null;
     onNavigateLens?: (lens: LensId) => void;

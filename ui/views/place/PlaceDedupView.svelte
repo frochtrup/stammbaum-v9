@@ -12,7 +12,7 @@
   // Nachlauf nach Dorf-Merge, ADR-v9-45 Nachtrag 2026-07-10) als lokale Status-Meldung
   // (Transparenz, LP-6) — kein app-weites Toast-System vorhanden, ein lokaler Hinweis an
   // der Merge-Stelle selbst reicht für diesen Zweck (Vereinfachen vor Erfinden).
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import { placeDisplayName } from '../../../core/places';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
@@ -20,7 +20,7 @@
   import { buildPlaceDedupGroups } from './place-dedup-model';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     onClose?: () => void;
   }
   const { appState, onClose }: Props = $props();

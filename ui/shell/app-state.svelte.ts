@@ -22,6 +22,7 @@ import type {
   MediaId,
 } from '../../core/model/types';
 import type { PlaceObject, HofObject } from '../../core/places';
+import { FULL_PLACES_CAPS, type PlacesHost, type PlacesHostCaps } from './places-host';
 import {
   makeDatabase,
   savePerson as savePersonCmd,
@@ -94,11 +95,22 @@ import {
   deleteHypothesis as deleteHypothesisCmd,
 } from '../views/hypotheses/hypothesis-commands';
 
-export interface AppState {
+// `extends PlacesHost` ist der Zwang, nicht die Dokumentation: ändert jemand hier eine der
+// zwölf geteilten Signaturen, bricht die Deklaration selbst — nicht erst der Orte-Editor
+// (Spec 22 §3). Die Member sind unten trotzdem einzeln aufgeführt, weil ihre Kommentare
+// das Hauptprogramm-Verhalten beschreiben; TypeScript prüft sie gegen den Vertrag.
+export interface AppState extends PlacesHost {
   /** Aktuell geladene Datenbank (leer, bis eine Datei importiert wurde). */
   readonly db: Database;
   /** Abgeleiteter Orts-/Hof-Chokepoint-Kontext, immer zur aktuellen db passend. */
   readonly placeContext: PlaceContext;
+  /**
+   * Fähigkeiten für die geteilten Orts-/Hof-Views (Spec 22 §3, ADR-v9-161). Im
+   * Hauptprogramm konstant `FULL_PLACES_CAPS` — es hat Ereignisse, einen Ereignis-Editor
+   * und Linsen. Der Standalone-Orte-Editor setzt hier ab, ohne dass eine Komponente
+   * doppelt existieren muss (INV-ORTE-1).
+   */
+  readonly caps: PlacesHostCaps;
   /** Dateiname der zuletzt importierten Datei (leer = noch nichts geladen). */
   readonly fileName: string;
   /**
@@ -567,6 +579,9 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
   return {
     get db() {
       return db;
+    },
+    get caps() {
+      return FULL_PLACES_CAPS;
     },
     get placeContext() {
       return placeContext;

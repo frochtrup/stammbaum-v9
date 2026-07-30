@@ -17,8 +17,7 @@
   // s. ADR-v9-75). Die BEARBEITUNG der direkten `enclosedBy`-Zuordnung (Picker + Von/Bis-
   // Jahr) lebt in `PlaceEnclosureEditModal.svelte` (eigenes Overlay, analog EventEditModal,
   // INV-UI-4).
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import type { LensId } from '../../shell/lens-model';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
@@ -41,8 +40,8 @@
   import PlaceContemporaries from './PlaceContemporaries.svelte';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     /** Cross-Tab-Navigation zu einer Person (analog Familie/Quelle, ADR-v9-17-Muster). */
     onNavigateToPerson?: (personId: string) => void;
     /** Cross-Tab-Navigation zu einer Familie. */
@@ -358,7 +357,11 @@
       {/if}
     </section>
 
-    <PlaceContemporaries {appState} {placeId} {onNavigateToPerson} />
+    <!-- D3 (Spec 22 §3.1): Zeitgenossen sind eine reine Ereignis-Auskunft. Ohne Kontext
+         ausgeblendet statt leer — eine leere Fläche behauptet, es gäbe niemanden. -->
+    {#if appState.caps.hasEventContext}
+      <PlaceContemporaries {appState} {placeId} {onNavigateToPerson} />
+    {/if}
 
     {#if detail.citations.length > 0}
       <section class="place-detail__section">

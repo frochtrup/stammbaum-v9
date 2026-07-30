@@ -10,10 +10,10 @@
   // berührt mehr als das bearbeitete Objekt — er legt für unbekannte Elternorte
   // Platzhalter-PlaceObjects an. Dasselbe Timing wie Add/Remove bei Adressvarianten
   // (ADR-v9-81) und wie `PlaceMergeSection`. Rückgängig über den regulären Undo-Stack.
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     placeId: string;
   }
   const { appState, placeId }: Props = $props();

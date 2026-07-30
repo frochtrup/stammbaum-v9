@@ -17,7 +17,7 @@
 // Guard-Veto-Unterfall (der richtige Ort fehlt ganz, resolve.ts) bleibt damit vorerst über
 // "Quelle schärfen" + Neuanlage im Orte-Tab lösbar.
 import type { Event, PlaceId } from '../../../core/model/types';
-import type { AppState } from '../../shell/app-state.svelte';
+import type { PlacesHost } from '../../shell/places-host';
 
 /**
  * "Ort wählen" (Klasse P): verknüpft das Event mit dem gewählten der mehrdeutigen
@@ -26,7 +26,7 @@ import type { AppState } from '../../shell/app-state.svelte';
  * — resolveEvents arbeitet auf Kopien.
  */
 export function applyPlaceChoice(
-  appState: AppState,
+  appState: PlacesHost,
   event: Event,
   chosenPlaceId: PlaceId,
 ): { ok: true } | { ok: false; reason: string } {

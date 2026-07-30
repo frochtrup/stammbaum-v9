@@ -22,7 +22,7 @@
   // (core/places) — kein zweiter Speicher-Mechanismus. Liest das PlaceObject reaktiv
   // über `placeId` (nicht als statisches Objekt-Prop), damit aufeinanderfolgende
   // Hinzufügen/Entfernen-Aktionen im selben Modal-Aufenthalt sofort sichtbar werden.
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import Picker from '../../shell/Picker.svelte';
@@ -30,7 +30,7 @@
   import PlaceForm from './PlaceForm.svelte';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     placeId: PlaceId;
     onClose: () => void;
   }

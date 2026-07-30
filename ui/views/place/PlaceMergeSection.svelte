@@ -9,15 +9,14 @@
   //
   // Der Aufrufer rendert diese Sektion nur im Bearbeiten-Modus (`{#if editing}`, ADR-v9-30:
   // kein mutierendes Control außerhalb des Bearbeiten-Modus).
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import type { PlaceObject } from '../../../core/places/types';
   import { placeDisplayName } from '../../../core/places';
   import Picker from '../../shell/Picker.svelte';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     place: PlaceObject;
     placeId: string;
   }

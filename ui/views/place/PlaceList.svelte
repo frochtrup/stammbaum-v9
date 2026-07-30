@@ -6,8 +6,7 @@
   // Orte, ein Segment-Umschalter (`.stb-segment-row`, INV-UI-4) wechselt zum separaten
   // "Ohne Bezug"-Abschnitt — dort bleiben Orte voll editierbar/löschbar (Klick navigiert
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -26,8 +25,8 @@
   import { batchGeocodePlaces, browserGeocodeDeps } from '../../../services/places';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     /** "Massen-Dedup" (Spec 20 §1.7 [K], Spec 21 §10c): der Button lebt in der eigenen
      *  Toolbar dieser Liste (Toolbar-Ownership), die eigentliche Ansichts-Umschaltung
      *  bleibt bei EntityTab (das entscheidet, ob PlaceList oder PlaceDedupView rendert). */
@@ -101,7 +100,18 @@
   const govPlaceholderCount = $derived(countUnresolvedGovPlaceholders(appState.db.placeObjects));
   const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0 || govPlaceholderCount > 0);
   const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
-  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
+  // D1 (Spec 22 §3.1): ohne Ereignis-Kontext ist „referenzlos" für JEDES Objekt wahr —
+  // die Aufteilung wäre nicht falsch, sondern bedeutungslos, und die Hauptliste stünde
+  // leer da. Dann zeigt die Liste alle Orte. Die Verkettung erhält die Sortierung, weil
+  // `referenced` in diesem Fall konstruktionsbedingt leer ist (`hasReference` kann ohne
+  // Ereignisse nie zutreffen) — es wird nichts zusammengemischt.
+  const rows = $derived(
+    !appState.caps.hasEventContext
+      ? [...sections.referenced, ...sections.unreferenced]
+      : section === 'referenced'
+        ? sections.referenced
+        : sections.unreferenced,
+  );
   const types = $derived(knownPlaceTypes(appState.db));
 
   // Alphabet-Trenner (BL-204): erster Buchstabe des Titels, Nicht-Buchstaben → „#".
@@ -220,6 +230,7 @@
       {/if}
     </div>
 
+    {#if appState.caps.hasEventContext}
     <div class="stb-segment-row place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
       <button
         type="button"
@@ -242,10 +253,11 @@
         Ohne Bezug ({sections.unreferenced.length})
       </button>
     </div>
+    {/if}
 
     {#if rows.length === 0}
       <p class="place-list__empty">
-        {section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
+        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
       </p>
     {:else}
       <ul class="place-list__rows">
@@ -270,7 +282,9 @@
                      Zeilen tragen nur noch POSITIVE Fakten. -->
                 <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
               </span>
-              {#if row.personCount > 0}
+              <!-- D4: die Personenzahl ist eine Ereignis-Auskunft — ohne Kontext wäre sie
+                   überall 0 und damit reines Rauschen. -->
+              {#if appState.caps.hasEventContext && row.personCount > 0}
                 <span class="place-list__meta">{row.personCount} {row.personCount === 1 ? 'Person' : 'Personen'}</span>
               {/if}
               {#if groupMode && row.variants.length > 0}
