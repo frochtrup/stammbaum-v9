@@ -28,6 +28,7 @@
   import { makeEvent, makeAssociation } from '../../../core/model/factory';
   import { isEventPresent, isEventEmpty } from '../../../core/model';
   import { eventTypeLabel } from '../../shell/event-labels';
+  import { formatDateForDisplay } from '../../../core/model/gedcom-date';
 
   interface Props {
     appState: AppState;
@@ -258,16 +259,6 @@
     appState.savePerson({ ...detail.person, events: [...detail.person.events, ev] });
   }
 
-  /** Aus Sterbedatum + Alter errechnetes Geburtsdatum übernehmen (BL-212, ADR-v9-156).
-   *  Ein VORHANDENES Datum wird nie still überschrieben — nur mit Rückfrage. */
-  function applyDerivedBirth(birthDate: string) {
-    if (!detail) return;
-    const p = detail.person;
-    const vorhanden = p.birth.date;
-    if (vorhanden && !window.confirm(`Geburtsdatum ist bereits „${vorhanden}". Durch „${birthDate}" ersetzen?`)) return;
-    appState.savePerson({ ...p, birth: { ...p.birth, date: birthDate } });
-  }
-
   /** Assoziationen (BL-127) — dasselbe Kommando-Chokepoint-Muster wie `saveModal`:
    *  vollständige Person an `savePerson`, kein Feld-Setter. Bestehende Einträge werden
    *  unverändert durchgereicht, damit `grampsHandle` und Zitate erhalten bleiben (die
@@ -312,7 +303,7 @@
    *  appState.savePerson(model) mit dem VOLLSTÄNDIGEN Objekt auf (Spec 02 §3 Kommando-
    *  Chokepoint, kein Feld-Setter-Pattern). `cause` (Todesursache) wird nur bei
    *  key==='DEAT' übernommen (lebt auf Person.cause, nicht am Event). */
-  function saveModal(updated: Event, cause: string) {
+  function saveModal(updated: Event, cause: string, derivedBirth: string | null = null) {
     if (!detail || !modal) return;
     const p = detail.person;
     const next: Person = { ...p };
@@ -333,6 +324,16 @@
       if (tag === 'CHR') next.chr = updated;
       else if (tag === 'BURI') next.buri = updated;
       else next.events = [...p.events, updated];
+    }
+    // Im Dialog vorgemerktes Geburtsdatum (BL-212/ADR-v9-168) im SELBEN Kommando
+    // schreiben — ein Speichern, ein Undo-Schritt. Ein vorhandenes Datum wird nie still
+    // überschrieben; sagt der Nutzer hier Nein, bleibt der Rest der Änderung trotzdem.
+    if (derivedBirth) {
+      const vorhanden = next.birth.date;
+      const label = formatDateForDisplay(derivedBirth);
+      if (!vorhanden || window.confirm(`Geburtsdatum ist bereits „${formatDateForDisplay(vorhanden)}". Durch „${label}" ersetzen?`)) {
+        next.birth = { ...next.birth, date: derivedBirth };
+      }
     }
     appState.savePerson(next);
     modal = null;
@@ -436,7 +437,7 @@
         onSave={saveModal}
         onClose={closeModal}
         onCopy={clipboard && copyable ? copyEvent : undefined}
-        onDeriveBirth={applyDerivedBirth}
+        allowDeriveBirth={true}
       />
     {/if}
 

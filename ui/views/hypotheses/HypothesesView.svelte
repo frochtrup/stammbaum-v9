@@ -264,6 +264,9 @@
   .hyp-view__row-weight {
     font-size: 0.72rem;
     color: var(--stb-text-dim);
+    /* Abstand zum folgenden ✎ — ohne ihn stießen „HOCH" und das Icon zusammen
+       („Konfidenz: HOCH✎", Design-Kritik 2026-07-31). */
+    margin-right: 0.35rem;
   }
 
   .hyp-view__row-text {

@@ -11,20 +11,30 @@
   // Die Rechnung selbst liegt im Kern (`birthDateFromDeathAge`), inkl. der `CAL`-Kodierung
   // aus dem v8-Orakel — hier steht nur die Eingabe.
   import { birthDateFromDeathAge } from '../../core/model';
+  import { formatDateForDisplay } from '../../core/model/gedcom-date';
 
   interface Props {
     /** AKTUELLES Sterbedatum aus dem Formular (nicht das gespeicherte) — sonst ergäbe ein
      *  eben erst eingetragenes Datum noch nichts. */
     deathDate: string | null;
-    onApply: (birthDate: string) => void;
+    /** Merkt das errechnete Datum VOR — geschrieben wird es erst beim Speichern des
+     *  Ereignisses (ADR-v9-168). `null` nimmt die Vormerkung zurück. */
+    onStage: (birthDate: string | null) => void;
+    /** Aktuell vorgemerkter Wert (kommt vom Modal zurück), damit die Hilfe den Zustand
+     *  anzeigt statt ihn selbst zu halten — eine Wahrheit, nicht zwei. */
+    staged: string | null;
   }
-  const { deathDate, onApply }: Props = $props();
+  const { deathDate, onStage, staged }: Props = $props();
 
   let years = $state<number | null>(null);
   let months = $state<number | null>(null);
   let days = $state<number | null>(null);
 
-  const derived = $derived(birthDateFromDeathAge(deathDate, years, months, days));
+  const berechnet = $derived(birthDateFromDeathAge(deathDate, years, months, days));
+  /** Lokalisierte Anzeige — der rohe GEDCOM-String (`CAL 7 DEC 1889`) ist Wire-Format und
+   *  gehört nicht in die Oberfläche (INV-UI-9, dieselbe Quelle wie jede Ereigniszeile). */
+  const berechnetLabel = $derived(berechnet ? formatDateForDisplay(berechnet) : '');
+  const stagedLabel = $derived(staged ? formatDateForDisplay(staged) : '');
 
   function num(e: Event): number | null {
     const v = (e.currentTarget as HTMLInputElement).value;
@@ -42,11 +52,17 @@
   <button
     type="button"
     class="age-helper__btn"
-    disabled={!derived}
-    onclick={() => derived && onApply(derived)}
+    disabled={!berechnet}
+    onclick={() => berechnet && onStage(berechnet)}
   >
-    {derived ? `Geburtsdatum übernehmen: ${derived}` : 'Geburtsdatum berechnen'}
+    {berechnet ? `Geburtsdatum vormerken: ${berechnetLabel}` : 'Geburtsdatum berechnen'}
   </button>
+  {#if staged}
+    <p class="age-helper__staged">
+      Geburtsdatum wird beim Speichern auf <strong>{stagedLabel}</strong> gesetzt.
+      <button type="button" class="age-helper__undo" onclick={() => onStage(null)}>Vormerkung verwerfen</button>
+    </p>
+  {/if}
 </div>
 
 <style>
@@ -91,5 +107,25 @@
   .age-helper__btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .age-helper__staged {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--stb-text);
+  }
+
+  .age-helper__staged strong {
+    color: var(--stb-gold-light);
+  }
+
+  .age-helper__undo {
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.2rem 0;
   }
 </style>

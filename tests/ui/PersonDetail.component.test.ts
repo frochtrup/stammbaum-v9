@@ -1051,18 +1051,60 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     return { appState, viewState };
   }
 
-  it('das Sterbealter errechnet ein Geburtsdatum und schreibt es in ein LEERES Feld', async () => {
+  it('das Sterbealter merkt ein Geburtsdatum VOR und schreibt es erst beim Speichern (ADR-v9-168)', async () => {
     const { appState, viewState } = seedMitTod();
     render(PersonDetail, { props: { appState, viewState } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
     await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
-    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum übernehmen/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
 
+    // Vorgemerkt, aber NOCH NICHT geschrieben — ein Dialog, ein Commit-Punkt.
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+    expect(screen.getByText(/wird beim Speichern auf/)).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
     expect(appState.db.individuals.get('@I1@')!.birth.date).toBe('CAL 3 MAR 1807');
   });
 
-  it('ein VORHANDENES Geburtsdatum wird nur nach Rückfrage ersetzt', async () => {
+  it('„Abbrechen" verwirft die Vormerkung mit — nicht nur die Ereignisfelder', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+  });
+
+  it('die Vormerkung lässt sich im Dialog wieder verwerfen', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Vormerkung verwerfen' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+  });
+
+  it('das Datum erscheint lokalisiert, nicht als roher GEDCOM-String (INV-UI-9)', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+
+    const btn = screen.getByRole('button', { name: /Geburtsdatum vormerken/ });
+    expect(btn.textContent).toContain('3. März 1807');
+    expect(btn.textContent).not.toContain('CAL');
+  });
+
+  it('ein VORHANDENES Geburtsdatum wird nur nach Rückfrage ersetzt — der Rest wird trotzdem gespeichert', async () => {
     const { appState, viewState } = seedMitTod();
     appState.savePerson({ ...appState.db.individuals.get('@I1@')!, birth: { ...appState.db.individuals.get('@I1@')!.birth, date: '1 JAN 1806' } });
     const confirmSpy = vi.fn(() => false);
@@ -1071,10 +1113,16 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
     await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
-    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum übernehmen/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    // `bind:value` reagiert auf `input`, nicht auf `change` (happy-dom-Falle, TST-12-Nachbarschaft).
+    await fireEvent.input(screen.getByLabelText('Todesursache'), { target: { value: 'Altersschwäche' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
 
     expect(confirmSpy).toHaveBeenCalledOnce();
-    expect(appState.db.individuals.get('@I1@')!.birth.date).toBe('1 JAN 1806');
+    const p = appState.db.individuals.get('@I1@')!;
+    expect(p.birth.date).toBe('1 JAN 1806');
+    // Die Ablehnung betrifft NUR das Geburtsdatum, nicht die übrige Bearbeitung.
+    expect(p.cause).toBe('Altersschwäche');
   });
 
   it('Sonder-Ereignisse (Tod/Taufe) sind NICHT kopierbar — sonst entstünde eine zweite DEAT-Zeile', async () => {

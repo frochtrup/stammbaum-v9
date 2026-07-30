@@ -183,6 +183,22 @@ describe('LogView — Ergebnis-Ampel deckt alle vier Zustände (BL-208, ADR-v9-1
     expect(rowFor('q-notfound').textContent).toContain('Nichts gefunden');
     expect(rowFor('q-pending').textContent).toContain('Ausstehend');
   });
+
+  it('das Ergebnis-Pill trägt die Farbe SELBST — nicht nur der Randstreifen (Design-Kritik 2026-07-31)', () => {
+    const db = makeDatabase();
+    const p1 = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-01', query: 'q-found', result: 'found' }));
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-02', query: 'q-notfound', result: 'notfound' }));
+    db.individuals.set('@I1@', p1);
+
+    const { container } = renderView(db);
+    const pills = [...container.querySelectorAll('.log-view__row-result')];
+    // Der Blick geht auf das Pill, nicht auf die 3px-Kante am Kartenrand: beide tragen
+    // jetzt dasselbe Signal, das Pill zusätzlich den Text.
+    expect(pills.some((e) => e.classList.contains('log-view__row-result--found'))).toBe(true);
+    expect(pills.some((e) => e.classList.contains('log-view__row-result--notfound'))).toBe(true);
+    expect(pills.every((e) => e.textContent!.trim().length > 0)).toBe(true);
+  });
 });
 
 describe('LogView — MD-Export-Button vorhanden', () => {

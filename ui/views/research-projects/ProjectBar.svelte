@@ -239,6 +239,12 @@
 
   /* Chip-Farbpunkt (BL-209): nur gerendert, wenn das Projekt eine Farbe trägt — ein
      Projekt ohne gesetzte Farbe bleibt gültig und zeigt schlicht keinen Punkt. */
+  /* Der Punkt steht auf ZWEI verschiedenen Untergründen: dunkler Chip (inaktiv) und
+     goldener Chip (aktiv). Die Palette ist gegen die dunklen Flächen kalibriert — auf Gold
+     kam der rote Punkt nur auf 2,22:1 und lag damit unter der 3:1-Schwelle für nicht-
+     textliche Bedienelemente (WCAG 1.4.11, gemessen 2026-07-31). Statt die sechs Farben
+     neu zu suchen, trennt ein dunkler Ring den Punkt von JEDEM Untergrund — er wirkt auf
+     Gold als Kontur und geht auf der dunklen Fläche im Hintergrund auf. */
   .project-bar__dot {
     display: inline-block;
     width: 0.55rem;
@@ -246,6 +252,7 @@
     border-radius: 50%;
     margin-right: 0.3rem;
     flex: none;
+    box-shadow: 0 0 0 1.5px var(--stb-bg);
   }
 
   /* Swatch-Auswahl (BL-209, ADR-v9-158): Aktiv-Zustand über ✓-Glyph + aria-pressed,

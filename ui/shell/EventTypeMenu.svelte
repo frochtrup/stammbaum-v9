@@ -167,11 +167,6 @@
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
   }
 
-  /* Sonder-Eintrag „⧉ Übernehmen" (BL-212) — hebt sich als Nicht-Typ-Aktion leicht ab. */
-  .stb-event-menu__item--paste {
-    color: var(--stb-gold-light);
-  }
-
   .stb-event-menu__item {
     display: block;
     width: 100%;
@@ -183,6 +178,13 @@
     font: inherit;
     padding: 0.35rem 0.5rem;
     border-radius: var(--stb-radius-control);
+  }
+
+  /* Sonder-Eintrag „⧉ Übernehmen" (BL-212) — MUSS nach `.stb-event-menu__item` stehen:
+     gleiche Spezifität, es gewinnt die spätere Regel. Vorher stand sie davor und war
+     wirkungslos, die Hervorhebung existierte nur im Quelltext (Design-Kritik 2026-07-31). */
+  .stb-event-menu__item--paste {
+    color: var(--stb-gold-light);
   }
 
   .stb-event-menu__item:hover,
