@@ -152,7 +152,7 @@
               {/each}
             </select>
           </label>
-          <label class="place-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.hideAdmin} />
             Verwaltungseinheiten ausblenden
           </label>
@@ -160,14 +160,14 @@
                FilterBar-Disclosure, nicht als Dauer-Element — dieselbe Zuordnungsregel wie
                INV-UI-11 („Filter → immer hinter FilterBar") und dieselbe Richtung wie
                ADR-v9-148 (Kurations-Handlungsbedarf aggregiert, nicht je Zeile verstreut). -->
-          <label class="place-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.onlyIncomplete} />
             nur unvollständige
           </label>
           <!-- GOV-Platzhalter (BL-131): die Elternorte, die der GOV-Import anlegen musste
                und die noch keinen Namen haben — eine abschließbare Arbeitsliste, anders
                als „nur unvollständige" (dem Regelfall nach jedem Import). -->
-          <label class="place-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.onlyGovPlaceholders} />
             nur GOV-Platzhalter{govPlaceholderCount > 0 ? ` (${govPlaceholderCount})` : ''}
           </label>
@@ -177,7 +177,7 @@
                „Filter · 1", obwohl die Liste vollständig ist — ein unehrliches Signal.
                Sie sitzt trotzdem hier, weil sie als Dauer-Element im Kopf eine dritte
                Toolbar-Zeile erzwang (bei 375px gemessen: 81px/3 Zeilen → INV-UI-11-Bruch). -->
-          <label class="place-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={groupMode} />
             Namensvarianten anzeigen
           </label>
@@ -375,7 +375,10 @@
     align-items: flex-end;
   }
 
-  .place-list__filters label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .place-list__filters label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -391,11 +394,6 @@
     padding: 0.3rem 0.5rem;
   }
 
-  .place-list__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .place-list__rows {
     list-style: none;

@@ -137,19 +137,19 @@
         <div class="person-list__filters">
           <fieldset class="person-list__sex-filter">
             <legend>Geschlecht</legend>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="" />
               Alle
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="M" />
               Männlich
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="F" />
               Weiblich
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="U" />
               Unbekannt
             </label>
@@ -166,19 +166,19 @@
             Geburtsort
             <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noDeathDate} />
             kein Sterbedatum
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noSources} />
             keine Quellen
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noParents} />
             keine Eltern
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.soundex} />
             Ähnlich klingende Namen (Soundex)
           </label>
@@ -372,7 +372,10 @@
     align-items: flex-end;
   }
 
-  .person-list__filters label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .person-list__filters label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -389,11 +392,6 @@
     padding: 0.3rem 0.5rem;
   }
 
-  .person-list__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .person-list__sex-filter {
     display: flex;

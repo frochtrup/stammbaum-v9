@@ -116,7 +116,7 @@
            EINER Toolbar-Zeile, weil der Filter hinter der Disclosure liegt. -->
       <FilterBar activeCount={activeFilterCount}>
         <div class="hof-list__filters">
-          <label class="hof-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.onlyIncomplete} />
             nur unvollständige
           </label>
@@ -236,13 +236,6 @@
     align-items: center;
   }
 
-  .hof-list__checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.78rem;
-    color: var(--stb-text-dim);
-  }
 
   /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in
      der Zeile ist. margin-left:auto ist hier sicher (TST-11), weil dieser Block IMMER

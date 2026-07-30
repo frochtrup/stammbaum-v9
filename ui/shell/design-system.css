@@ -557,11 +557,25 @@ button.stb-coord-indicator__glyph:focus-visible {
   padding: 0;
 }
 
+/* EINE Filteroption (Checkbox/Radio + Beschriftung in einer Zeile) — Layout-Mechanismus
+   für JEDES Filterpanel (INV-UI-4). Vorher hatten fünf Listen-Views (`PersonList`,
+   `FamilyList`, `PlaceList`, `HofList`, `PlaceContemporaries`) je eine eigene
+   `…__checkbox`-Kopie davon, vier davon mit `!important`-Gegenregeln gegen die eigene,
+   zu breit gefasste `…__filters label { flex-direction: column }`-Regel. */
 .stb-filter-opt {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
+}
+
+/* Dichtere Variante für Panels, die NEBEN den Optionen auch Feldbeschriftungen über
+   Eingabefeldern tragen (die Entitäts-Listen). Dort sind Beschriftung und Option
+   typografisch eine Familie — 0.85rem/volle Farbe würde die Optionen aus dem Panel
+   herausstechen lassen. Kein zweiter Mechanismus, nur eine Dichte-Variante. */
+.stb-filter-opt--compact {
+  font-size: 0.78rem;
+  color: var(--stb-text-dim);
 }
 
 .stb-filter-export {

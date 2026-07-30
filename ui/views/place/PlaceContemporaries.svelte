@@ -84,7 +84,7 @@
       />
       <FilterBar activeCount={activeFilterCount}>
         <div class="contemporaries__filter">
-          <label class="contemporaries__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filterEnabled} />
             Zeitgenossen-Filter aktivieren
           </label>
@@ -175,7 +175,10 @@
     align-items: flex-end;
   }
 
-  .contemporaries__filter label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .contemporaries__filter label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -192,11 +195,6 @@
     width: 6rem;
   }
 
-  .contemporaries__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .contemporaries__filter .contemporaries__hint {
     flex-basis: 100%;

@@ -128,15 +128,15 @@
             Heiratsort
             <input type="text" bind:value={filters.marriagePlace} placeholder="Ort…" />
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noMarriageDate} />
             kein Heiratsdatum
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noSources} />
             keine Quellen
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noChildren} />
             keine Kinder
           </label>
@@ -254,7 +254,10 @@
     align-items: flex-end;
   }
 
-  .family-list__filters label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .family-list__filters label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -270,11 +273,6 @@
     padding: 0.3rem 0.5rem;
   }
 
-  .family-list__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .family-list__rows {
     list-style: none;
