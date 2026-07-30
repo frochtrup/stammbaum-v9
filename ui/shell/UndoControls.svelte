@@ -38,64 +38,88 @@
 </script>
 
 <div class="undo-controls">
-  <!-- BESCHRIFTET, nicht nur Glyph (ADR-v9-155). `↶`/`↷` sind nicht selbsterklärend, und
-       ihre einzige Erklärung hing am `use:tooltip` — der auf Touch nicht existiert
-       (`.stb-tooltip` ist ohne Hover unsichtbar), während iPhone/iPad die Primärplattform
-       ist. Dieselbe Lehre wie ADR-v9-150 Punkt (c) an der Mini-Karte, hier auf die
-       Geschwister-Stelle gezogen. §6j(b) erlaubt icon-only ausdrücklich nur für SEKUNDÄRE
-       Aktionen; Rückgängig ist eine Kernaktion (Spec 20 §1.2). Der Tooltip erklärt jetzt
-       nur noch das Tastenkürzel — Zusatz, nicht Träger der Bedeutung.
-       ERSCHEINEN NUR, WENN SIE ETWAS KÖNNEN: ein dauerhaft ausgegrauter Knopf war der
-       blasse Zustand aus der Design-Kritik, und die Beschriftung passt nur deshalb ins
-       Breitenbudget — „Zum geladenen Stand" unten erscheint komplementär bei `!canUndo`,
-       die beiden konkurrieren also nie um dieselbe Zeile (gemessen 375px: beschriftet
-       118px gegen 230px Budget; mit dauerhaften Knöpfen wären es 230px am Anschlag
-       gewesen, was „Zum geladenen Stand" von 138 auf 106px gestaucht hätte). -->
-  {#if appState.canUndo}
-    <button
-      type="button"
-      class="undo-controls__btn"
-      onclick={onUndo}
-      use:tooltip={'Tastenkürzel: ⌘Z'}
-    >
-      <span aria-hidden="true">↶</span> Zurück
-    </button>
-  {/if}
-  {#if appState.canRedo}
-    <button
-      type="button"
-      class="undo-controls__btn"
-      onclick={onRedo}
-      use:tooltip={'Tastenkürzel: ⇧⌘Z'}
-    >
-      <span aria-hidden="true">↷</span> Vor
-    </button>
-  {/if}
+  <div class="undo-controls__row">
+    <!-- BESCHRIFTET, nicht nur Glyph (ADR-v9-155). `↶`/`↷` sind nicht selbsterklärend, und
+         ihre einzige Erklärung hing am `use:tooltip` — der auf Touch nicht existiert
+         (`.stb-tooltip` ist ohne Hover unsichtbar), während iPhone/iPad die Primärplattform
+         ist. Dieselbe Lehre wie ADR-v9-150 Punkt (c) an der Mini-Karte, hier auf die
+         Geschwister-Stelle gezogen. §6j(b) erlaubt icon-only ausdrücklich nur für SEKUNDÄRE
+         Aktionen; Rückgängig ist eine Kernaktion (Spec 20 §1.2). Der Tooltip erklärt jetzt
+         nur noch das Tastenkürzel — Zusatz, nicht Träger der Bedeutung.
+         ERSCHEINEN NUR, WENN SIE ETWAS KÖNNEN: ein dauerhaft ausgegrauter Knopf war der
+         blasse Zustand aus der Design-Kritik, und die Beschriftung passt nur deshalb ins
+         Breitenbudget — „Zum geladenen Stand" unten erscheint komplementär bei `!canUndo`,
+         die beiden konkurrieren also nie um dieselbe Zeile (gemessen 375px: beschriftet
+         118px gegen 230px Budget; mit dauerhaften Knöpfen wären es 230px am Anschlag
+         gewesen, was „Zum geladenen Stand" von 138 auf 106px gestaucht hätte). -->
+    {#if appState.canUndo}
+      <button
+        type="button"
+        class="undo-controls__btn"
+        onclick={onUndo}
+        use:tooltip={'Tastenkürzel: ⌘Z'}
+      >
+        <span aria-hidden="true">↶</span> Zurück
+      </button>
+    {/if}
+    {#if appState.canRedo}
+      <button
+        type="button"
+        class="undo-controls__btn"
+        onclick={onRedo}
+        use:tooltip={'Tastenkürzel: ⇧⌘Z'}
+      >
+        <span aria-hidden="true">↷</span> Vor
+      </button>
+    {/if}
 
-  {#if !appState.canUndo && appState.fileName}
-    <button
-      type="button"
-      class="undo-controls__revert"
-      onclick={onRevert}
-      use:tooltip={'Verwirft alle Änderungen seit dem Laden'}
-    >
-      Zum geladenen Stand
-    </button>
-  {/if}
+    {#if !appState.canUndo && appState.fileName}
+      <button
+        type="button"
+        class="undo-controls__revert"
+        onclick={onRevert}
+        use:tooltip={'Verwirft alle Änderungen seit dem Laden'}
+      >
+        Zum geladenen Stand
+      </button>
+    {/if}
+  </div>
 
+  <!-- Die Meldung steht UNTER der Knopfzeile, nicht daneben (Nutzer-Entscheidung
+       2026-07-30, ADR-v9-155 Nachtrag). Daneben musste sie sich den Platz mit den
+       Bedienelementen teilen und wurde nach der Trefferflächen-Regel („eine
+       Trefferfläche gibt nie nach") auf 18px zusammengeschoben — also unsichtbar,
+       obwohl sie eine Rückmeldung ist. Unter der Zeile bekommt sie die volle Breite
+       (gemessen: 118px Textbreite gegen 206–230px Leistenbreite, passt in jedem
+       Zustand ungekürzt).
+       DER PLATZ ENTSTEHT NUR, SOLANGE SIE DA IST: die Zeile wird gar nicht erst
+       gerendert, wenn `notice` leer ist — kein reservierter Leerraum, der die Topbar
+       dauerhaft höher machte. Nach den 2,5s fällt der Kopf exakt in den vorherigen
+       Zustand zurück. -->
   {#if notice}
     <span class="undo-controls__notice" role="status">{notice}</span>
   {/if}
 </div>
 
 <style>
+  /* Zwei Zeilen: Bedienelemente oben, Meldung darunter. `flex-end` hält beide rechts
+     bündig — der Kopf ist `space-between`, die Leiste sitzt an der rechten Kante. */
   .undo-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+    /* Ein Flex-Item schrumpft ohne `min-width: 0` nicht unter seine min-content-Breite —
+       ohne das wurde der Rest zu horizontalem Überlauf im Kopf (gemessen 375px:
+       scrollWidth 380 > 375). Bleibt als Sicherheitsnetz, auch wenn die Meldung jetzt
+       eine eigene Zeile hat. */
+    min-width: 0;
+  }
+
+  .undo-controls__row {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    /* Damit die Notice wirklich bis zur Ellipse nachgeben kann: ein Flex-Item schrumpft
-       ohne `min-width: 0` nicht unter seine min-content-Breite — der Rest landete sonst
-       als horizontaler Überlauf im Header (gemessen 375px: scrollWidth 380 > 375). */
     min-width: 0;
   }
 
@@ -139,8 +163,10 @@
     color: var(--stb-text-dim);
     font-size: 0.85rem;
     font-style: italic;
-    /* Gibt als einziges Element nach, wenn die Zeile eng wird (s. `flex-shrink: 0` oben). */
-    min-width: 0;
+    /* Eigene Zeile: die volle Leistenbreite steht zur Verfügung. Ellipse bleibt als
+       Sicherheitsnetz für eine künftig längere Meldung — sie soll die Leiste nicht
+       verbreitern und damit den Titel verdrängen, aber im Normalfall greift sie nicht. */
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

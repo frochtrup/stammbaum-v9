@@ -107,6 +107,31 @@ describe('UndoControls', () => {
     expect(screen.queryByText('Zum geladenen Stand')).toBeNull();
   });
 
+  // Nutzer-Entscheidung 2026-07-30 (ADR-v9-155 Nachtrag): die Meldung steht UNTER der
+  // Knopfzeile, damit sie nicht mehr mit den Bedienelementen um Breite konkurriert — und
+  // ihr Platz entsteht NUR, solange sie da ist (kein reservierter Leerraum, der die
+  // Topbar dauerhaft höher machte).
+  it('die Meldung steht unter der Knopfzeile, nicht in ihr', async () => {
+    const appState = seeded();
+    const { container } = render(UndoControls, { props: { appState } });
+    appState.savePerson({ ...appState.db.individuals.get('@I1@')!, given: 'Geändert' });
+    await Promise.resolve();
+    await fireEvent.click(undoBtn()!);
+
+    const notice = container.querySelector('.undo-controls__notice');
+    expect(notice).not.toBeNull();
+    // Entscheidend: NICHT im selben Container wie die Knöpfe.
+    expect(notice!.closest('.undo-controls__row')).toBeNull();
+    expect(notice!.parentElement!.classList.contains('undo-controls')).toBe(true);
+  });
+
+  it('ohne Meldung entsteht kein Platz — die Zeile wird gar nicht erst gerendert', () => {
+    const { container } = render(UndoControls, { props: { appState: seeded() } });
+    expect(container.querySelector('.undo-controls__notice')).toBeNull();
+    // Nur die Knopfzeile, kein leeres Platzhalter-Element daneben.
+    expect(container.querySelectorAll('.undo-controls > *')).toHaveLength(1);
+  });
+
   it('blendet den Fallback aus, solange keine Datei geladen ist', () => {
     render(UndoControls, { props: { appState: createAppState() } });
     expect(screen.queryByText('Zum geladenen Stand')).toBeNull();
