@@ -38,28 +38,39 @@
 </script>
 
 <div class="undo-controls">
-  <!-- Die Aktion sitzt am bedeutungstragenden Element selbst, der Tooltip erklärt nur das
-       Kürzel (INV-UI-12: kein „Tu X →"-Text). -->
-  <button
-    type="button"
-    class="undo-controls__btn"
-    onclick={onUndo}
-    disabled={!appState.canUndo}
-    aria-label="Rückgängig"
-    use:tooltip={'Rückgängig (⌘Z)'}
-  >
-    ↶
-  </button>
-  <button
-    type="button"
-    class="undo-controls__btn"
-    onclick={onRedo}
-    disabled={!appState.canRedo}
-    aria-label="Wiederherstellen"
-    use:tooltip={'Wiederherstellen (⇧⌘Z)'}
-  >
-    ↷
-  </button>
+  <!-- BESCHRIFTET, nicht nur Glyph (ADR-v9-155). `↶`/`↷` sind nicht selbsterklärend, und
+       ihre einzige Erklärung hing am `use:tooltip` — der auf Touch nicht existiert
+       (`.stb-tooltip` ist ohne Hover unsichtbar), während iPhone/iPad die Primärplattform
+       ist. Dieselbe Lehre wie ADR-v9-150 Punkt (c) an der Mini-Karte, hier auf die
+       Geschwister-Stelle gezogen. §6j(b) erlaubt icon-only ausdrücklich nur für SEKUNDÄRE
+       Aktionen; Rückgängig ist eine Kernaktion (Spec 20 §1.2). Der Tooltip erklärt jetzt
+       nur noch das Tastenkürzel — Zusatz, nicht Träger der Bedeutung.
+       ERSCHEINEN NUR, WENN SIE ETWAS KÖNNEN: ein dauerhaft ausgegrauter Knopf war der
+       blasse Zustand aus der Design-Kritik, und die Beschriftung passt nur deshalb ins
+       Breitenbudget — „Zum geladenen Stand" unten erscheint komplementär bei `!canUndo`,
+       die beiden konkurrieren also nie um dieselbe Zeile (gemessen 375px: beschriftet
+       118px gegen 230px Budget; mit dauerhaften Knöpfen wären es 230px am Anschlag
+       gewesen, was „Zum geladenen Stand" von 138 auf 106px gestaucht hätte). -->
+  {#if appState.canUndo}
+    <button
+      type="button"
+      class="undo-controls__btn"
+      onclick={onUndo}
+      use:tooltip={'Tastenkürzel: ⌘Z'}
+    >
+      <span aria-hidden="true">↶</span> Zurück
+    </button>
+  {/if}
+  {#if appState.canRedo}
+    <button
+      type="button"
+      class="undo-controls__btn"
+      onclick={onRedo}
+      use:tooltip={'Tastenkürzel: ⇧⌘Z'}
+    >
+      <span aria-hidden="true">↷</span> Vor
+    </button>
+  {/if}
 
   {#if !appState.canUndo && appState.fileName}
     <button
@@ -82,30 +93,42 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    /* Damit die Notice wirklich bis zur Ellipse nachgeben kann: ein Flex-Item schrumpft
+       ohne `min-width: 0` nicht unter seine min-content-Breite — der Rest landete sonst
+       als horizontaler Überlauf im Header (gemessen 375px: scrollWidth 380 > 375). */
+    min-width: 0;
   }
 
   .undo-controls__btn {
     background: transparent;
     color: var(--stb-gold);
-    border: 1px solid var(--stb-border);
+    /* `--stb-gold-dim`, NICHT `--stb-border`: den Token gab es nie (nirgends definiert,
+       nur hier benutzt) — der Rahmen fiel still auf `currentColor` zurück und war
+       deshalb goldfarben statt Rahmenfarbe. ADR-v9-155. */
+    border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
-    /* Feste Breite: sonst springt die Leiste, sobald sich der Zustand ändert. */
-    min-width: 2.2rem;
-    padding: 0.35rem 0.5rem;
-    font-size: 1rem;
+    /* Trefferfläche: §6i verlangt 44×44 CSS-px für Touch-Ziele. Vorher 2.2rem/35×27px —
+       die kleinsten interaktiven Flächen der App. `min-height` gehört dazu: die Breite
+       allein trägt die Beschriftung ohnehin, die HÖHE war der eigentliche Verstoß. */
+    min-width: var(--stb-touch-target);
+    min-height: var(--stb-touch-target);
+    /* Eine Trefferfläche wird NIE von einem Statustext weggedrückt (§6i): ohne dies
+       staucht die 2,5-s-Notice die Knöpfe unter das Maß, das eine Zeile darüber gerade
+       erst gesetzt wurde. Gemessen 375px: mit Notice lief die Leiste auf 230px Anschlag,
+       ohne auf 206px. Gekürzt wird der Text, nicht der Knopf. */
+    flex-shrink: 0;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.9rem;
     line-height: 1;
     cursor: pointer;
-  }
-
-  .undo-controls__btn:disabled {
-    opacity: 0.35;
-    cursor: default;
   }
 
   .undo-controls__revert {
     background: transparent;
     color: var(--stb-text-dim);
-    border: 1px solid var(--stb-border);
+    min-height: var(--stb-touch-target);
+    flex-shrink: 0;
+    border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.35rem 0.6rem;
     font-size: 0.85rem;
@@ -116,5 +139,10 @@
     color: var(--stb-text-dim);
     font-size: 0.85rem;
     font-style: italic;
+    /* Gibt als einziges Element nach, wenn die Zeile eng wird (s. `flex-shrink: 0` oben). */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>
