@@ -30,6 +30,11 @@
   import { createFileService } from '../services/file/create-file-service';
   import { IdbPlacesFileHandleStore } from '../services/places';
   import { loadContextDocument } from './orte-context';
+  // Update-Hinweis statt stillem Bruch (Spec 30 NFR-2) — dieselbe Komponente wie im
+  // Hauptprogramm, kein zweiter Mechanismus (INV-UI-4).
+  import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
+  import { swUpdate } from '../ui/shell/sw-update.svelte';
+  import { applyUpdate } from '../app/sw-register';
 
   type Tab = 'places' | 'hofs';
   type Tool = null | 'dedup';
@@ -189,6 +194,8 @@
 </script>
 
 <div class="orte-app">
+  <UpdateBanner visible={swUpdate.ready} onApply={applyUpdate} />
+
   <header class="orte-app__bar">
     <h1 class="orte-app__title" title={doc.open ? doc.fileName : ''}>{title}</h1>
     <div class="orte-app__commands">
@@ -197,6 +204,7 @@
       <button type="button" onclick={save} disabled={busy || !doc.open || doc.readOnly}>Speichern</button>
       <button type="button" onclick={() => host.undo()} disabled={!host.canUndo} aria-label="Rückgängig">↶</button>
       <button type="button" onclick={() => host.redo()} disabled={!host.canRedo} aria-label="Wiederholen">↷</button>
+      <a class="orte-app__help" href="./HANDBUCH-ORTE.html" target="_blank" rel="noopener">Handbuch</a>
       {#if contextName}
         <button type="button" onclick={dropContext} title={contextName}>Kontext lösen</button>
       {:else}
@@ -301,6 +309,14 @@
     padding: 0.25rem 0.55rem;
     font-size: 0.8rem;
     cursor: pointer;
+  }
+
+  .orte-app__help {
+    align-self: center;
+    color: var(--stb-gold-light);
+    font-size: 0.8rem;
+    text-decoration: none;
+    border-bottom: 1px solid var(--stb-gold-dim);
   }
 
   .orte-app__commands button:disabled {

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { injectCspMeta } from '../app/csp-plugin';
+import { serviceWorkerPlugin } from '../app/sw-plugin';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -33,7 +34,12 @@ function cspPlugin(): Plugin {
 export default defineConfig(({ command, isPreview }) => ({
   base: command === 'build' || isPreview ? '/stammbaum-v9/orte/' : '/',
   root: here,
-  plugins: [svelte({ configFile: fileURLToPath(new URL('../svelte.config.js', import.meta.url)) }), cspPlugin()],
+  plugins: [
+    svelte({ configFile: fileURLToPath(new URL('../svelte.config.js', import.meta.url)) }),
+    cspPlugin(),
+    // Precache-Manifest in dist/orte/sw.js injizieren — dasselbe Plugin, eigener outDir.
+    serviceWorkerPlugin()
+  ],
   server: {
     // Eigener Default-Port: Haupt- und Editor-Dev-Server sollen nebeneinander laufen
     // können, ohne dass einer den anderen verdrängt.

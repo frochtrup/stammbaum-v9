@@ -1,0 +1,33 @@
+{
+  "_kommentar": [
+    "Manifest des Editor-Handbuchs (BL-224, Spec 22 §8, ADR-v9-164).",
+    "Das Handbuch des Orte-Editors wird ZUSAMMENGESTELLT, nicht zweitgeschrieben: Quelle",
+    "bleibt app/public/HANDBUCH.html. Kapitel 7 und 8 behalten ihren Rang im Hauptbuch und",
+    "sind zugleich der fachliche Hauptteil hier — deshalb wird nichts verschoben, sondern",
+    "ausgewaehlt und umsortiert.",
+    "Die Reihenfolge ist der Punkt: Anhang E steht im Hauptbuch hinten (dort richtig),",
+    "sein Einstiegsteil im Extrakt aber vorn. Deshalb ist er in zwei Abschnitte geteilt.",
+    "'titel' benennt das Kapitel im Extrakt neu — aus '7. Orte' wird '2. Orte'. Das ist der",
+    "Unterschied zwischen einem Anhang und einem eigenen Handbuch."
+  ],
+  "titel": "Orte-Editor — Handbuch",
+  "untertitel": "Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg",
+  "abschnitte": [
+    {
+      "id": "anhangE-einstieg",
+      "titel": "1. Der Orte-Editor"
+    },
+    {
+      "id": "k7",
+      "titel": "2. Orte"
+    },
+    {
+      "id": "k8",
+      "titel": "3. Höfe"
+    },
+    {
+      "id": "anhangE-grenzen",
+      "titel": "4. Grenzen und Zusammenspiel"
+    }
+  ]
+}

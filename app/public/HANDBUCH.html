@@ -225,6 +225,7 @@
     <li><a href="#anhangB">Anhang B: Das GEDCOM-Dateiformat</a></li>
     <li><a href="#anhangC">Anhang C: Das GRAMPS-Dateiformat</a></li>
     <li><a href="#anhangD">Anhang D: Technischer Überblick</a></li>
+<li><a href="#anhangE">Anhang E: Der Orte-Editor</a></li>
   </ol>
   <p class="muted toc-note">
     Alle Abbildungen in diesem Handbuch stammen aus der laufenden App mit einem
@@ -778,10 +779,14 @@
       Namen, datierte Zugehörigkeiten) kann GEDCOM gar nicht abbilden. Beim Export
       wird sie auf den im Ereignisjahr gültigen Ortstext <em>zusammengefaltet</em> —
       die volle Historie bleibt in <code>orte.json</code>, Ihre Datei bleibt
-      standardkonform und verliert nichts (siehe <a href="#k16">Kapitel 18</a>).</li>
-  <li><strong>Ein Spiegel im Gerät.</strong> Damit die Karte sofort funktioniert, hält
+      standardkonform und verliert nichts<span data-doc="app"> (siehe <a href="#k16">Kapitel 18</a>)</span>.</li>
+  <li data-doc="app"><strong>Ein Spiegel im Gerät.</strong> Damit die Karte sofort funktioniert, hält
       die App eine Kopie von <code>orte.json</code> im Browser-Speicher. Import und
       Export gehen über <strong>Datei → Orte importieren / Orte exportieren</strong>.</li>
+  <li data-doc="orte"><strong>Die Datei ist die Wahrheit.</strong> Der Orte-Editor hält keine
+      Kopie im Gerät: Sie öffnen eine Datei, bearbeiten sie und speichern sie zurück — wie
+      in einem Textprogramm. Nur gegen einen Absturz merkt er sich einen Entwurf, der beim
+      Speichern verfällt.</li>
   <li><strong>Geräteübergreifend zusammengeführt.</strong> Pflegen Sie Orte auf
       mehreren Geräten, führt die App die Bestände beim Abgleich verlustfrei zusammen
       (Vereinigung, kein Überschreiben).</li>
@@ -860,8 +865,8 @@
 <p>
   <strong>Koordinaten</strong> sind die Grundlage jeder Karten-Darstellung. Liegen sie
   vor, zeigt der Steckbrief eine statische <strong>Kartenvorschau</strong> der Lage — sie
-  kommt ohne Kartendienst aus und funktioniert damit auch offline; die volle interaktive
-  <a href="#k10">Karte</a> erreichen Sie über den Pfeil ↗ in einer Ereigniszeile.
+  kommt ohne Kartendienst aus und funktioniert damit auch offline<span data-doc="app">; die volle interaktive
+  <a href="#k10">Karte</a> erreichen Sie über den Pfeil ↗ in einer Ereigniszeile</span>.
 </p>
 <p>
   Koordinaten tragen Sie beim <strong>✎ Bearbeiten</strong> von Hand ein — oder Sie lassen
@@ -897,8 +902,8 @@
       Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
 </ul>
 
-<h2>Orts-Datei importieren und exportieren</h2>
-<p>
+<h2 data-doc="app">Orts-Datei importieren und exportieren</h2>
+<p data-doc="app">
   Über <strong>Datei → Orte importieren / Orte exportieren</strong> pflegen Sie einen
   wiederverwendbaren Orts-Bestand (Koordinaten, Hierarchien, Namensvarianten) als
   JSON-Datei. Beim Import werden vorhandene Orte angereichert und die Ereignisse neu
@@ -2008,6 +2013,120 @@
 </footer>
 
 </div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhangE">Anhang E: Der Orte-Editor</h1>
+
+<section id="anhangE-einstieg">
+<p>
+  Der <strong>Orte-Editor</strong> ist ein zweites, eigenständig aufrufbares Programm. Er
+  bearbeitet genau eine Sache: die Datei <code>orte.json</code> — das Ortsverzeichnis, das
+  über die einzelne Genealogie-Datei hinaus gilt (siehe <a href="#k7">Kapitel 7</a>).
+  Sie erreichen ihn unter der Adresse des Hauptprogramms mit dem Zusatz
+  <code>/orte/</code>.
+</p>
+
+<p>
+  Warum getrennt? Orte zu pflegen ist eine eigene Tätigkeit mit eigenem Rhythmus. Sie
+  brauchen dafür weder einen geöffneten Stammbaum noch die übrige Programmoberfläche —
+  und der Ortsbestand gilt ohnehin für alle Ihre Dateien.
+</p>
+
+<figure class="phone">
+  <img src="handbuch-assets/e1-start.png" alt="Startbildschirm des Orte-Editors ohne geöffnete Datei">
+  <figcaption>Ohne Datei: öffnen oder neu anlegen</figcaption>
+</figure>
+
+<h2>Datei öffnen, bearbeiten, speichern</h2>
+<p>
+  Der Editor arbeitet <strong>dateizentriert</strong>, wie ein Textprogramm: Sie öffnen
+  eine <code>orte.json</code>, ändern etwas, und speichern zurück. Es gibt keinen
+  Hintergrundspeicher, aus dem später etwas anderes auftaucht als das, was in der Datei
+  steht.
+</p>
+<ul>
+  <li><strong>Öffnen</strong> wählt eine vorhandene Datei. <strong>Neu</strong> legt ein
+      leeres Verzeichnis an — Sie können also auch bei Null anfangen.</li>
+  <li><strong>Speichern</strong> schreibt zurück. Am Rechner mit Chrome oder Edge landet
+      die Datei direkt wieder an ihrem Platz; auf iPhone, iPad und in anderen Browsern
+      bekommen Sie sie über das Teilen- bzw. Download-Blatt.</li>
+  <li>Ein Punkt neben dem Dateinamen zeigt <strong>ungespeicherte Änderungen</strong>.
+      Beim Schließen des Fensters warnt der Browser.</li>
+  <li><strong>Rückgängig</strong> und <strong>Wiederholen</strong> arbeiten wie im
+      Hauptprogramm.</li>
+</ul>
+
+<div class="note">
+  <strong>Absturz-Sicherung.</strong> Zwischen zwei Speichervorgängen merkt sich der Editor
+  einen Entwurf. Stürzt der Browser ab oder schließen Sie das Fenster versehentlich, bietet
+  er beim nächsten Start an, ihn wiederherzustellen. Sobald Sie speichern, verfällt er —
+  er ist eine Rettungsleine, keine zweite Fassung Ihrer Daten.
+</div>
+
+<div class="note">
+  <strong>Stammt die Datei aus einer neueren Programmfassung</strong>, öffnet der Editor sie
+  nur zum Lesen. So kann eine ältere Fassung keine Angaben verwerfen, die sie nicht kennt.
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/e2-liste.png" alt="Ortsliste im Editor mit Dateinamen, Segmenten Orte und Höfe">
+    <figcaption>Geöffnete Datei: alle Orte, Suche, Filter, Werkzeuge</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/e3-steckbrief.png" alt="Ort-Steckbrief im Editor mit Verwaltungszugehörigkeit">
+    <figcaption>Der Steckbrief ist derselbe wie im Hauptprogramm</figcaption>
+  </figure>
+</div>
+
+<h2>Kontextdatei: mit Stammbaum arbeiten, ohne ihn zu ändern</h2>
+<p>
+  Manche Fragen lassen sich nur mit Ereignissen beantworten: <em>Welche Orte braucht
+  eigentlich niemand mehr? Welche Dublette schadet wirklich? Wer lebte hier?</em> Dafür
+  können Sie zusätzlich eine Genealogie-Datei laden — <strong>nur lesend</strong>.
+</p>
+<p>
+  Der Editor schreibt diese Datei nie und verändert dabei auch Ihr Ortsverzeichnis nicht:
+  Er legt aus unbekannten Ortsangaben keine neuen Orte an. Mit geladener Kontextdatei
+  erscheinen die Abschnitte „Ohne Bezug", die Zuordnungs-Prüfung, die Ortszeitgenossen und
+  die Bewohner eines Hofs — genau die Flächen, die ohne Ereignisse nichts aussagen könnten.
+</p>
+</section>
+
+<section id="anhangE-grenzen">
+<h2>Was der Editor nicht kann — und warum</h2>
+<p>
+  Die Orts- und Hof-Oberfläche ist in beiden Programmen dieselbe. Was fehlt, fehlt nicht aus
+  Sparsamkeit, sondern weil die Grundlage dafür im Editor nicht existiert:
+</p>
+<ul>
+  <li><strong>Ohne Kontextdatei</strong> entfallen „Ohne Bezug", die Zuordnungs-Prüfung,
+      Ortszeitgenossen und Hof-Bewohner. Eine leere Liste würde behaupten, es gäbe nichts —
+      tatsächlich fehlt die Quelle der Auskunft.</li>
+  <li><strong>„Quelle schärfen"</strong> gibt es nicht: Dieser Schritt ändert ein Ereignis
+      in der Genealogie-Datei, und die schreibt der Editor nicht.</li>
+  <li><strong>Karte und Zeitleiste</strong> fehlen als eigene Ansichten. Die Kartenvorschau
+      im Steckbrief bleibt.</li>
+</ul>
+<p>
+  Alles Übrige ist vollständig da: Liste, Steckbrief, Bearbeiten, Namensvarianten,
+  Übersetzungen, Verwaltungszugehörigkeit, GOV-Übernahme, Koordinaten und Geocoding,
+  Dubletten-Suche und Zusammenführen — bei Orten wie bei Höfen.
+</p>
+
+<h2>Zusammenspiel mit dem Hauptprogramm</h2>
+<p>
+  Beide Programme sprechen dieselbe Datei. Speichert der Editor, zählt er die Revision hoch
+  und trägt seine eigene Gerätekennung ein — das Hauptprogramm erkennt die Datei beim
+  Import deshalb als Stand eines anderen Geräts und führt sie verlustfrei mit seinem
+  Bestand zusammen, genau wie bei zwei Geräten.
+</p>
+<p>
+  Ein üblicher Ablauf: im Editor in Ruhe aufräumen und speichern, danach im Hauptprogramm
+  über <strong>Datei → Orte importieren</strong> übernehmen.
+</p>
+</section>
+
 
 <a id="to-top" href="#toc" aria-label="Zurück zum Inhaltsverzeichnis">
   <span class="arrow" aria-hidden="true">↑</span><span class="label">Inhalt</span>

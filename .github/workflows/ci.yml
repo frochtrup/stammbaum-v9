@@ -20,6 +20,9 @@ jobs:
       - run: npm ci
       - run: npm run check:arch
       - run: npm run check:csp
+      # Das Editor-Handbuch ist ein Extrakt (Spec 22 §8) — ein veralteter Extrakt faellt
+      # sonst niemandem auf, weil ihn niemand liest, bevor er ausgeliefert ist.
+      - run: npm run check:handbuch-orte
       - run: npm run lint
       - run: npm test
       # Eigener Schritt, eigene Vitest-Config: die Haupt-Config schließt tests/perf/ aus

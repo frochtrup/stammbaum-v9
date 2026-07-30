@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orte-Editor — Handbuch</title>
+<style>
+  :root {
+    --gold: #b8962e;
+    --gold-light: #d4a843;
+    --app-bg: #f8f6f2;
+    --app-card: #ffffff;
+    --app-border: #ddd8cc;
+    --text-main: #2a2218;
+    --text-dim: #7a6a48;
+    --pink: #c26080;
+    --blue: #5080c2;
+    --green: #4a8a4a;
+    --page-bg: #f8f5f0;
+    --page-text: #2a2218;
+    --accent: #6b4c1e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--page-bg);
+    color: var(--page-text);
+    font-size: 16px;
+    line-height: 1.7;
+    margin: 0;
+  }
+
+  /* Deckblatt */
+  .cover {
+    background: var(--app-bg);
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 60px 40px;
+    page-break-after: always;
+  }
+  .cover .tree-icon { font-size: 4em; margin-bottom: 0.3em; }
+  .cover h1 { font-size: 2.8em; color: var(--gold); margin: 0 0 0.2em; letter-spacing: 2px; }
+  .cover .subtitle { font-size: 1.35em; color: var(--text-dim); margin-bottom: 1.6em; }
+  .cover .version {
+    font-size: 1em; color: var(--accent);
+    border: 1px solid var(--gold); padding: 6px 20px;
+    border-radius: 20px; margin-bottom: 2.4em;
+  }
+  .cover .tagline {
+    font-size: 1.05em; color: var(--text-main); max-width: 520px;
+    line-height: 1.8; border-top: 1px solid var(--app-border); padding-top: 1.6em;
+  }
+
+  .content { max-width: 860px; margin: 0 auto; padding: 40px 30px 80px; }
+
+  /* Inhaltsverzeichnis */
+  .toc {
+    background: white; border: 1px solid #ddd; border-left: 4px solid var(--gold);
+    padding: 26px 34px; margin: 30px 0 10px; border-radius: 4px;
+  }
+  .toc h2 { color: var(--accent); font-size: 1.3em; margin: 0 0 0.8em; padding-bottom: 0.4em; border-bottom: 1px solid #eee; border-left: none; padding-left: 0; }
+  .toc ol { padding-left: 1.4em; margin: 0; }
+  .toc li { margin: 0.35em 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  h1.chapter {
+    font-size: 1.9em; color: var(--accent);
+    border-bottom: 3px solid var(--gold); padding-bottom: 0.35em;
+    margin: 2.2em 0 0.9em; scroll-margin-top: 12px;
+  }
+  h2 { font-size: 1.35em; color: var(--accent); margin: 1.8em 0 0.6em; padding-left: 10px; border-left: 3px solid var(--gold); }
+  h3 { font-size: 1.12em; color: #4a3010; margin: 1.4em 0 0.4em; font-style: italic; }
+  p { margin: 0.7em 0; }
+  ul, ol { margin: 0.6em 0; }
+  li { margin: 0.3em 0; }
+  code { background: #efeae0; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+
+  /* Hinweisboxen */
+  .tip, .info, .warning, .important {
+    padding: 13px 18px; border-radius: 6px; margin: 1.2em 0; font-size: 0.95em;
+  }
+  .tip { background: #f0f8f0; border-left: 4px solid var(--green); }
+  .info { background: #f0f4ff; border-left: 4px solid var(--blue); }
+  .warning { background: #fff8f0; border-left: 4px solid #c26020; }
+  .important { background: #fff0f5; border-left: 4px solid var(--pink); }
+  .tip::before { content: "Tipp: "; font-weight: bold; color: var(--green); }
+  .info::before { content: "Hinweis: "; font-weight: bold; color: var(--blue); }
+  .warning::before { content: "Achtung: "; font-weight: bold; color: #c26020; }
+  .important::before { content: "Wichtig: "; font-weight: bold; color: var(--pink); }
+
+  /* Screenshots */
+  .shot-row { display: flex; gap: 30px; align-items: flex-start; margin: 1.4em 0 1.8em; flex-wrap: wrap; }
+  .shot-row .prose { flex: 1; min-width: 240px; }
+  /* Zwei-Phone-Reihen: die Prosa (mit ihrer erklärenden Überschrift) zuerst über
+     voller Breite, die beiden Screenshots darunter nebeneinander — sonst rutscht die
+     Überschrift unter die Bilder, die sie eigentlich einführt. */
+  .shot-row.pair .prose { flex-basis: 100%; order: -1; }
+  figure.phone {
+    width: 260px; flex-shrink: 0; margin: 0;
+    background: #d9d4c8; border: 5px solid #bfb8a6; border-radius: 26px;
+    padding: 8px; box-shadow: 0 10px 34px rgba(0,0,0,0.28);
+  }
+  figure.phone img { width: 100%; display: block; border-radius: 18px; }
+  figure.phone figcaption, figure.wide figcaption {
+    font-size: 0.82em; color: var(--text-dim); text-align: center;
+    margin-top: 8px; font-style: italic; line-height: 1.4;
+  }
+  figure.wide { margin: 1.6em auto; max-width: 760px; }
+  figure.wide img {
+    width: 100%; display: block; border-radius: 8px;
+    border: 1px solid var(--app-border); box-shadow: 0 8px 26px rgba(0,0,0,0.2);
+  }
+  .center { text-align: center; }
+
+  /* Legende/Symboltabelle */
+  table.ref { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.92em; }
+  table.ref th, table.ref td { border: 1px solid var(--app-border); padding: 7px 11px; text-align: left; vertical-align: top; }
+  table.ref th { background: #efe9dd; color: var(--accent); }
+  table.ref td:first-child { white-space: nowrap; font-weight: bold; }
+
+  .badge { display: inline-block; border-radius: 10px; padding: 0 7px; font-size: 0.82em; border: 1px solid; }
+  .badge.q { color: var(--pink); border-color: var(--pink); }
+  .badge.g { color: var(--green); border-color: var(--green); }
+
+  /* Schrittanleitungen */
+  ol.steps { counter-reset: step; padding: 0; list-style: none; margin: 1em 0; }
+  ol.steps li { counter-increment: step; display: flex; gap: 14px; margin: 0.7em 0; align-items: flex-start; }
+  ol.steps li::before {
+    content: counter(step); background: var(--accent); color: white;
+    min-width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82em; font-weight: bold; flex-shrink: 0; margin-top: 3px;
+    font-family: -apple-system, sans-serif;
+  }
+  /* Workflow-/Praxis-Kasten */
+  .workflow {
+    background: #fbf7ee; border: 1px solid #e6dcc4; border-left: 4px solid var(--gold);
+    border-radius: 6px; padding: 16px 20px; margin: 1.4em 0;
+  }
+  .workflow h3 { margin-top: 0; color: var(--accent); font-style: normal; }
+  .practice { background: #f0f8f0; border-left: 4px solid var(--green); padding: 13px 18px; border-radius: 6px; margin: 1.2em 0; font-size: 0.95em; }
+  .practice::before { content: "Gute Praxis: "; font-weight: bold; color: var(--green); }
+  dl.faq dt { font-weight: bold; color: var(--accent); margin-top: 1.1em; }
+  dl.faq dd { margin: 0.3em 0 0 0; }
+
+  .lead { font-size: 1.08em; color: #43331c; }
+  hr { border: none; border-top: 1px solid var(--app-border); margin: 2.4em 0; }
+  .muted { color: var(--text-dim); font-size: 0.9em; }
+  footer { text-align: center; color: var(--text-dim); font-size: 0.85em; margin-top: 3em; padding-top: 1.4em; border-top: 1px solid var(--app-border); }
+
+  /* „Nach oben"-Navigation: eine schwebende Schaltfläche zurück zum Inhaltsverzeichnis.
+     Bewusst INHALTSUNABHÄNGIG — ein einziges festes Element, kein Marker je Kapitel;
+     damit bleibt sie bei neuen Kapiteln automatisch wirksam (kein Nachpflegen). */
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  #toc { scroll-margin-top: 16px; }
+  #to-top {
+    position: fixed; right: 22px; bottom: 22px; z-index: 50;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px 9px 13px; border-radius: 22px;
+    background: var(--accent); color: #fff; text-decoration: none;
+    font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 0.9em; font-weight: bold;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  #to-top:hover { background: #543c17; }
+  #to-top .arrow { font-size: 1.1em; line-height: 1; }
+  @media (max-width: 520px) {
+    #to-top { right: 14px; bottom: 14px; padding: 10px 13px; }
+    #to-top .label { display: none; }   /* auf schmalen Geräten nur der Pfeil */
+  }
+  @media print { #to-top { display: none !important; } }
+  /* Ersetzt zwei vormals inline `style=`-Attribute — app/public/*.html läuft durch den
+     CSP-Scanner (tests/csp/check-csp.mjs), der Inline-Styles verbietet (ADR-v9-137). */
+  .toc-note { margin-top: 1em; }
+  .phone--narrow { width: 340px; }
+</style>
+</head>
+<body>
+<!-- ERZEUGT — nicht von Hand bearbeiten.
+     Quelle: app/public/HANDBUCH.html + tools/handbuch/orte-handbuch.manifest.json
+     Neu erzeugen: node tools/handbuch/build-orte-handbook.mjs -->
+<header class="cover">
+  <h1>Orte-Editor — Handbuch</h1>
+  <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
+  <p class="stamp">Version 9.7 · Stand 2026-07-28</p>
+</header>
+
+<nav id="toc">
+  <h2>Inhalt</h2>
+  <ul>
+    <li><a href="#anhangE-einstieg">1. Der Orte-Editor</a></li>
+    <li><a href="#k7">2. Orte</a></li>
+    <li><a href="#k8">3. Höfe</a></li>
+    <li><a href="#anhangE-grenzen">4. Grenzen und Zusammenspiel</a></li>
+  </ul>
+</nav>
+
+<h1 class="chapter" id="anhangE-einstieg">1. Der Orte-Editor</h1>
+<section id="anhangE-einstieg">
+<p>
+  Der <strong>Orte-Editor</strong> ist ein zweites, eigenständig aufrufbares Programm. Er
+  bearbeitet genau eine Sache: die Datei <code>orte.json</code> — das Ortsverzeichnis, das
+  über die einzelne Genealogie-Datei hinaus gilt (siehe <a href="#k7">Kapitel 7</a>).
+  Sie erreichen ihn unter der Adresse des Hauptprogramms mit dem Zusatz
+  <code>/orte/</code>.
+</p>
+
+<p>
+  Warum getrennt? Orte zu pflegen ist eine eigene Tätigkeit mit eigenem Rhythmus. Sie
+  brauchen dafür weder einen geöffneten Stammbaum noch die übrige Programmoberfläche —
+  und der Ortsbestand gilt ohnehin für alle Ihre Dateien.
+</p>
+
+<figure class="phone">
+  <img src="handbuch-assets/e1-start.orte.png" alt="Startbildschirm des Orte-Editors ohne geöffnete Datei">
+  <figcaption>Ohne Datei: öffnen oder neu anlegen</figcaption>
+</figure>
+
+<h2>Datei öffnen, bearbeiten, speichern</h2>
+<p>
+  Der Editor arbeitet <strong>dateizentriert</strong>, wie ein Textprogramm: Sie öffnen
+  eine <code>orte.json</code>, ändern etwas, und speichern zurück. Es gibt keinen
+  Hintergrundspeicher, aus dem später etwas anderes auftaucht als das, was in der Datei
+  steht.
+</p>
+<ul>
+  <li><strong>Öffnen</strong> wählt eine vorhandene Datei. <strong>Neu</strong> legt ein
+      leeres Verzeichnis an — Sie können also auch bei Null anfangen.</li>
+  <li><strong>Speichern</strong> schreibt zurück. Am Rechner mit Chrome oder Edge landet
+      die Datei direkt wieder an ihrem Platz; auf iPhone, iPad und in anderen Browsern
+      bekommen Sie sie über das Teilen- bzw. Download-Blatt.</li>
+  <li>Ein Punkt neben dem Dateinamen zeigt <strong>ungespeicherte Änderungen</strong>.
+      Beim Schließen des Fensters warnt der Browser.</li>
+  <li><strong>Rückgängig</strong> und <strong>Wiederholen</strong> arbeiten wie im
+      Hauptprogramm.</li>
+</ul>
+
+<div class="note">
+  <strong>Absturz-Sicherung.</strong> Zwischen zwei Speichervorgängen merkt sich der Editor
+  einen Entwurf. Stürzt der Browser ab oder schließen Sie das Fenster versehentlich, bietet
+  er beim nächsten Start an, ihn wiederherzustellen. Sobald Sie speichern, verfällt er —
+  er ist eine Rettungsleine, keine zweite Fassung Ihrer Daten.
+</div>
+
+<div class="note">
+  <strong>Stammt die Datei aus einer neueren Programmfassung</strong>, öffnet der Editor sie
+  nur zum Lesen. So kann eine ältere Fassung keine Angaben verwerfen, die sie nicht kennt.
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/e2-liste.orte.png" alt="Ortsliste im Editor mit Dateinamen, Segmenten Orte und Höfe">
+    <figcaption>Geöffnete Datei: alle Orte, Suche, Filter, Werkzeuge</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/e3-steckbrief.orte.png" alt="Ort-Steckbrief im Editor mit Verwaltungszugehörigkeit">
+    <figcaption>Der Steckbrief ist derselbe wie im Hauptprogramm</figcaption>
+  </figure>
+</div>
+
+<h2>Kontextdatei: mit Stammbaum arbeiten, ohne ihn zu ändern</h2>
+<p>
+  Manche Fragen lassen sich nur mit Ereignissen beantworten: <em>Welche Orte braucht
+  eigentlich niemand mehr? Welche Dublette schadet wirklich? Wer lebte hier?</em> Dafür
+  können Sie zusätzlich eine Genealogie-Datei laden — <strong>nur lesend</strong>.
+</p>
+<p>
+  Der Editor schreibt diese Datei nie und verändert dabei auch Ihr Ortsverzeichnis nicht:
+  Er legt aus unbekannten Ortsangaben keine neuen Orte an. Mit geladener Kontextdatei
+  erscheinen die Abschnitte „Ohne Bezug", die Zuordnungs-Prüfung, die Ortszeitgenossen und
+  die Bewohner eines Hofs — genau die Flächen, die ohne Ereignisse nichts aussagen könnten.
+</p>
+</section>
+<h1 class="chapter" id="k7">2. Orte</h1>
+
+<p class="lead">
+  Orte sind in Stammbaum eigene Objekte — nicht nur Text in einem Ereignis. Das
+  erlaubt Verwaltungshierarchien, Namensvarianten über die Zeit, Koordinaten und
+  saubere Zusammenführung von Schreibvarianten. Das Orts- und Hofkonzept ist eines
+  der <strong>Herzstücke</strong> der App — es lohnt sich, es einmal zu verstehen.
+</p>
+
+<div class="info">
+  Dieses Kapitel erklärt zuerst das <em>Konzept</em> (warum Orte und Höfe eigene
+  Objekte sind und was die Datei <code>orte.json</code> dabei leistet) und dann die
+  <em>Bedienung</em> (Liste, Steckbrief, Verknüpfen, Zusammenführen, Import/Export).
+</div>
+
+<h2>Das Konzept: zwei Objektarten, eine Wahrheit</h2>
+<p>
+  In einer GEDCOM-Datei steht bei jedem Ereignis nur ein <em>Ortstext</em> wie
+  „Ochtrup, Kreis Steinfurt, Nordrhein-Westfalen, Deutschland". Für die reine Ablage
+  genügt das — aber Text kann nicht auf einer Karte liegen, weiß nichts von seiner
+  eigenen Geschichte und lässt sich nicht zuverlässig mit einer anderen Schreibweise
+  desselben Ortes zusammenführen. Stammbaum löst diesen Text deshalb gegen
+  <strong>zwei eigenständige Objektarten</strong> auf:
+</p>
+<ul>
+  <li><strong>Der Ort (PlaceObject)</strong> — eine <em>Verwaltungseinheit</em>: ein
+      Dorf, eine Stadt, ein Kirchspiel, ein Kreis, ein Land. Er trägt datierte
+      Namensvarianten (<em>Ochtdorp → Ochtrop → Ochtrup</em>), eine datierte
+      Zugehörigkeitskette (welchem Amt, Kreis, Staat er <em>wann</em> unterstand),
+      Koordinaten, eine Notiz und eine Existenzspanne.</li>
+  <li><strong>Der Hof (HofObject)</strong> — eine <em>Adresse innerhalb</em> eines
+      Dorfes (Straße, Hausnummer, Hofname). Ein Hof hängt immer an genau einem Dorf,
+      hat eigene Adressvarianten (Umbenennung, Hausnummernreform), eigene Koordinaten
+      (damit Binnenwanderung im Dorf sichtbar wird) und einen eigenen Lebenszyklus.</li>
+</ul>
+<p>
+  Beide sind bewusst <strong>getrennt</strong>: Ein Hof ist keine Verwaltungsebene,
+  und ein Land ist keine Adresse. Diese Trennung ist der Kern des ganzen Systems — sie
+  erlaubt es, dieselbe reale Identität über Jahrhunderte, Schreibweisen und
+  Grenzverschiebungen hinweg als <em>ein</em> Objekt zu führen.
+</p>
+
+<div class="important">
+  <strong>Der Ortstext im Ereignis ist eine Projektion, kein Original.</strong> Sobald
+  ein Ereignis mit einem Ortsobjekt verknüpft ist, wird sein angezeigter und
+  exportierter Ortstext <em>live aus dem Objekt berechnet</em> — periodengerecht für das
+  Ereignisjahr. Ändern Sie am Ort etwas (einen historischen Namen, eine
+  Zugehörigkeit, die Koordinaten), wirkt das sofort auf <em>jedes</em> Ereignis, das
+  auf diesen Ort zeigt. Sie pflegen die Information an <em>einer</em> Stelle, nicht an
+  hunderten Ereigniszeilen.
+</div>
+
+<h2>Die Rolle der <code>orte.json</code></h2>
+<p>
+  Hier liegt der entscheidende Unterschied zu anderen Programmen. Ihr Wissen über Orte
+  und Höfe — Koordinaten, historische Namen, Verwaltungshierarchien — gehört nicht zu
+  <em>einem</em> Stammbaum, sondern zu der <em>Landschaft</em>, in der Ihre Familien
+  gelebt haben. Dass Ochtrup bei 52,20° N / 7,19° O liegt, 1803 vom Fürstbistum
+  Münster an Salm-Horstmar fiel und heute im Kreis Steinfurt liegt, ist in
+  <em>jeder</em> Ihrer Dateien dasselbe.
+</p>
+<p>
+  Deshalb bewahrt Stammbaum diesen Bestand in einer <strong>eigenen Datei
+  <code>orte.json</code></strong> auf — getrennt von der Genealogie-Datei:
+</p>
+<ul>
+  <li><strong>Stammbaum-übergreifend.</strong> Ein einmal gepflegter Ort steht
+      allen Ihren Dateien zur Verfügung. Sie recherchieren Ochtrups Geschichte
+      <em>einmal</em>, nicht in jeder Datei neu.</li>
+  <li><strong>Nicht in der GEDCOM-/GRAMPS-Datei.</strong> Die Zeitachse (historische
+      Namen, datierte Zugehörigkeiten) kann GEDCOM gar nicht abbilden. Beim Export
+      wird sie auf den im Ereignisjahr gültigen Ortstext <em>zusammengefaltet</em> —
+      die volle Historie bleibt in <code>orte.json</code>, Ihre Datei bleibt
+      standardkonform und verliert nichts.</li>
+  
+  <li><strong>Die Datei ist die Wahrheit.</strong> Der Orte-Editor hält keine
+      Kopie im Gerät: Sie öffnen eine Datei, bearbeiten sie und speichern sie zurück — wie
+      in einem Textprogramm. Nur gegen einen Absturz merkt er sich einen Entwurf, der beim
+      Speichern verfällt.</li>
+  <li><strong>Geräteübergreifend zusammengeführt.</strong> Pflegen Sie Orte auf
+      mehreren Geräten, führt die App die Bestände beim Abgleich verlustfrei zusammen
+      (Vereinigung, kein Überschreiben).</li>
+</ul>
+<p>
+  Was in die Genealogie-Datei gehört (die belegte Tatsache: „geboren in Ochtrup") und
+  was in den Ortsbestand gehört (das Weltwissen: „Ochtrup liegt hier und hieß früher
+  so"), ist damit sauber getrennt — und beides an seinem richtigen Platz.
+</p>
+
+<h2>Automatisch angelegt, von Hand veredelt</h2>
+<p>
+  Sie müssen nicht bei null anfangen: Beim Öffnen einer Datei legt Stammbaum aus den
+  vorhandenen Ortstexten <strong>automatisch</strong> Ortsobjekte an (ein Dorf je
+  distinkter Schreibhierarchie) und löst die Ereignisse dagegen auf — das Orte-Register
+  ist also nie leer. Diese Erst-Anlage ist bewusst grob: Schreibvarianten desselben
+  Ortes ergeben zunächst getrennte Einträge. Das Veredeln — Dubletten zusammenführen,
+  Koordinaten und Historie ergänzen — geschieht danach mit den Kurationswerkzeugen
+  (siehe unten). Höfe entstehen dagegen nicht automatisch bei jedem Ereignis, sondern
+  nur dort, wo eine echte Adresse vorliegt.
+</p>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/10-ortsliste.png" alt="Ortsliste mit Anreicherungs-Badges und Filter Ohne Bezug">
+    <figcaption>Ortsliste mit Anreicherungs-Status und Referenz-Filter</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Die Ortsliste</h2>
+    <ul>
+      <li><strong>Varianten gruppiert</strong> fasst gleichnamige Schreibweisen zusammen.</li>
+      <li>Die Umschalter <strong>Orte (N)</strong> / <strong>Ohne Bezug (N)</strong>
+          trennen genutzte von nicht referenzierten Orten.</li>
+      <li>Badges wie <em>Hierarchie</em> und <em>ohne Zusatzangaben</em> sowie ein
+          kleiner Ring zeigen den <strong>Anreicherungsgrad</strong> an.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="shot-row">
+  <div class="prose">
+    <h2>Der Ort-Steckbrief</h2>
+    <p>
+      Die Abbildung zeigt den angereicherten Ort <strong>Ochtrup&nbsp;(Westf.)</strong> —
+      ein gutes Beispiel dafür, was ein Ortsobjekt alles trägt:
+    </p>
+    <ul>
+      <li><strong>Verwaltungszugehörigkeit — aktuell</strong> als anklickbare Kette
+          (Ochtrup › Kreis Steinfurt › Nordrhein-Westfalen › Deutschland).</li>
+      <li><strong>Zugehörigkeit nach Jahr</strong> — die <em>volle Kette je Epoche</em>:
+          1269 Amt Horstmar, 1803 Grafschaft Salm-Horstmar, 1811 französisches
+          Kaiserreich, 1815 Königreich Preußen … Genau diese Zeitachse kann eine
+          GEDCOM-Datei nicht speichern; sie lebt in <code>orte.json</code>.</li>
+      <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
+          heirateten, starben — mit Quellen-Badges.</li>
+      <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
+      <li>Ein Namens-Zeitstrahl hält historische Schreibvarianten fest — dazu
+          <strong>Übersetzungen</strong> in andere Sprachen (siehe unten).</li>
+      <li>Eine kleine <strong>Kartenvorschau</strong> zeigt die Lage, sobald Koordinaten
+          hinterlegt sind.</li>
+    </ul>
+    <p>
+      Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar. „Ort löschen" setzt
+      die betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die
+      Ereignisse selbst gehen nie verloren.
+    </p>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/11-ort-steckbrief.png" alt="Ort-Steckbrief von Ochtrup mit voller, datierter Verwaltungskette seit 1269">
+    <figcaption>Ort-Steckbrief „Ochtrup": die volle Verwaltungszugehörigkeit,
+      Epoche für Epoche</figcaption>
+  </figure>
+</div>
+
+<h2>Koordinaten, Kartenvorschau und Geocoding</h2>
+<p>
+  <strong>Koordinaten</strong> sind die Grundlage jeder Karten-Darstellung. Liegen sie
+  vor, zeigt der Steckbrief eine statische <strong>Kartenvorschau</strong> der Lage — sie
+  kommt ohne Kartendienst aus und funktioniert damit auch offline.
+</p>
+<p>
+  Koordinaten tragen Sie beim <strong>✎ Bearbeiten</strong> von Hand ein — oder Sie lassen
+  sie bestimmen: <strong>📍 Via Nominatim geocodieren</strong> schlägt anhand des
+  Ortsnamens Koordinaten (und, wenn noch keiner gesetzt ist, den Ortstyp) vor. Für den
+  ganzen Bestand auf einmal gibt es in der Ortsliste unter <strong>Werkzeuge</strong> die
+  Aktion <strong>„📍 Alle ohne Koordinaten geocodieren"</strong> — ein ratenbegrenzter
+  Stapellauf mit Fortschrittsanzeige.
+</p>
+<div class="info">
+  Geocoding nutzt den offenen Dienst <strong>Nominatim/OpenStreetMap</strong> und ist
+  damit eine der wenigen Funktionen, die das Internet brauchen — ohne Netz arbeitet die
+  App unverändert weiter, nur dieser Abruf entfällt. Ihre Kuration bleibt geschützt: ein
+  Vorschlag überschreibt nie einen bereits gepflegten Ortstyp.
+</div>
+
+<h2>Ortsnamen in anderen Sprachen</h2>
+<p>
+  Neben den historischen <em>Schreibvarianten</em> (dieselbe Sprache, andere Schreibung)
+  hält ein Ort seine <strong>Übersetzungen</strong> fest: derselbe Ort in einer anderen
+  Sprache, jeweils mit vorangestelltem Sprachkürzel — etwa der lateinische Name in einem
+  Kirchenbuch oder der polnische Name eines ostdeutschen Dorfes. So bleibt für
+  ausgewanderte Linien und mehrsprachige Regionen nachvollziehbar, unter welchem Namen ein
+  Ort in welcher Quelle erscheint.
+</p>
+
+<h2>Verknüpfen, prüfen, zusammenführen</h2>
+<ul>
+  <li><strong>Text → Ort verknüpfen:</strong> Ein reiner Orts-String im Ereignis wird
+      einem Ortsobjekt zugeordnet — die Anzeige aktualisiert sich sofort.</li>
+  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab.</li>
+  <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
+      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
+</ul>
+
+
+
+
+<div class="workflow">
+  <h3>So halten Sie Ihre Orte sauber</h3>
+  <ol class="steps">
+    <li><strong>Anreichern:</strong> einen vorhandenen <a href="#k7">Orts-Bestand</a>
+        (Koordinaten, Hierarchien) importieren.</li>
+    <li><strong>Zusammenführen:</strong> im Werkzeuge-Bereich die Massen-Dedup laufen
+        lassen und Schreibvarianten desselben Ortes bündeln.</li>
+    <li><strong>Verknüpfen:</strong> übrige Text-Orte einem Ortsobjekt zuordnen — die
+        Anzeige aktualisiert sich sofort.</li>
+    <li><strong>Prüfen:</strong> die Orts-Review-Liste abarbeiten und den Filter
+        <em>„Ohne Bezug"</em> nutzen, um verwaiste Orte aufzuräumen.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Ordnen Sie die Orte früh — am besten direkt nach dem Import. Viele spätere Funktionen
+  (Karte, Statistik, Ortszeitgenossen, Migrationswege) hängen daran, dass Ereignisse an
+  echten Ortsobjekten hängen und nicht an losem Text.
+</div>
+
+<!-- ============================================================= -->
+
+<h1 class="chapter" id="k8">3. Höfe</h1>
+
+<div class="shot-row pair">
+  <figure class="phone">
+    <img src="handbuch-assets/12-hoefeliste.png" alt="Höfe-Liste gruppiert nach Dorf mit Straße und Hausnummer">
+    <figcaption>Höfe nach Dorf, Straße und Hausnummer</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/13-hof-detail.png" alt="Hof-Detail mit Adressvarianten und Bewohnern">
+    <figcaption>Hof-Detail: Adressvarianten und Bewohner</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      Ein <strong>Hof</strong> ist eine feinere Ortsebene — eine Adresse innerhalb
+      eines Dorfes. Die Höfe-Liste gruppiert nach Dorf und zeigt darunter Straße und
+      Hausnummer.
+    </p>
+    <ul>
+      <li>Alle Hof-Felder sind editierbar; eine <strong>Umbenennung wirkt durchgängig</strong>
+          — auf allen referenzierenden Ereigniszeilen.</li>
+      <li><strong>Hof-Review</strong> und <strong>Massen-Zusammenführung</strong>
+          bereinigen den Bestand analog zu den Orten.</li>
+      <li>Wie der Ort trägt auch der Hof <strong>Koordinaten</strong> und eine
+          <strong>Kartenvorschau</strong> im Detail — ein Hof kann so präziser verortet
+          sein als sein Dorf (etwa ein einzelnes Gehöft).</li>
+      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================= -->
+
+<h1 class="chapter" id="anhangE-grenzen">4. Grenzen und Zusammenspiel</h1>
+<section id="anhangE-grenzen">
+<h2>Was der Editor nicht kann — und warum</h2>
+<p>
+  Die Orts- und Hof-Oberfläche ist in beiden Programmen dieselbe. Was fehlt, fehlt nicht aus
+  Sparsamkeit, sondern weil die Grundlage dafür im Editor nicht existiert:
+</p>
+<ul>
+  <li><strong>Ohne Kontextdatei</strong> entfallen „Ohne Bezug", die Zuordnungs-Prüfung,
+      Ortszeitgenossen und Hof-Bewohner. Eine leere Liste würde behaupten, es gäbe nichts —
+      tatsächlich fehlt die Quelle der Auskunft.</li>
+  <li><strong>„Quelle schärfen"</strong> gibt es nicht: Dieser Schritt ändert ein Ereignis
+      in der Genealogie-Datei, und die schreibt der Editor nicht.</li>
+  <li><strong>Karte und Zeitleiste</strong> fehlen als eigene Ansichten. Die Kartenvorschau
+      im Steckbrief bleibt.</li>
+</ul>
+<p>
+  Alles Übrige ist vollständig da: Liste, Steckbrief, Bearbeiten, Namensvarianten,
+  Übersetzungen, Verwaltungszugehörigkeit, GOV-Übernahme, Koordinaten und Geocoding,
+  Dubletten-Suche und Zusammenführen — bei Orten wie bei Höfen.
+</p>
+
+<h2>Zusammenspiel mit dem Hauptprogramm</h2>
+<p>
+  Beide Programme sprechen dieselbe Datei. Speichert der Editor, zählt er die Revision hoch
+  und trägt seine eigene Gerätekennung ein — das Hauptprogramm erkennt die Datei beim
+  Import deshalb als Stand eines anderen Geräts und führt sie verlustfrei mit seinem
+  Bestand zusammen, genau wie bei zwei Geräten.
+</p>
+<p>
+  Ein üblicher Ablauf: im Editor in Ruhe aufräumen und speichern, danach im Hauptprogramm
+  über <strong>Datei → Orte importieren</strong> übernehmen.
+</p>
+</section>
+
+<a id="to-top" href="#toc" aria-label="Zurück zum Inhaltsverzeichnis">
+  <span class="arrow" aria-hidden="true">↑</span><span class="label">Inhalt</span>
+</a>
+</body>
+</html>

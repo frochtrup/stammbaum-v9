@@ -206,7 +206,7 @@ export default tseslint.config(
     // in app/public/ und wird verbatim ausgeliefert, ist also klassisches Skript
     // (kein Modul, keine Imports) — deshalb ein eigener Block statt der Browser-
     // Globals oben.
-    files: ['app/public/sw.js'],
+    files: ['app/public/sw.js', 'app-orte/public/sw.js'],
     languageOptions: {
       globals: {
         self: 'readonly',
