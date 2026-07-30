@@ -370,6 +370,75 @@ describe('BL-10/ADR-v9-159 — Soundex-Modus der Personensuche', () => {
   });
 });
 
+describe('ADR-v9-160 — Soundex-Vorrang: Nachnamen-Treffer stehen oben', () => {
+  /** Der gemessene Realfall: "Meier" und der VORNAME "Maria" teilen den Code M600, die
+   *  Vornamens-Treffer erdrücken die gesuchten Nachnamen-Varianten (85 von 90 an echten
+   *  Daten). Geprüft wird die Reihenfolge — die Menge bleibt ausdrücklich unverändert. */
+  function seededNoise() {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Maria', surname: 'Albers' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Maria', surname: 'Zwiebel' }));
+    db.individuals.set('@I4@', makePerson('@I4@', { given: 'Otto', surname: 'Schulz' }));
+    return db;
+  }
+  const soundexOn: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+
+  it('die Nachnamen-Treffer bilden die erste Gruppe, die Vornamens-Treffer folgen darunter', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[0].letter).toBeNull();
+    expect(groups[0].rows.map((r) => r.id)).toEqual(['@I2@']);
+    // Darunter unverändert die Buchstaben-Gruppierung der übrigen Treffer.
+    expect(groups.slice(1).every((g) => g.phonetic === false)).toBe(true);
+    expect(groups.slice(1).flatMap((g) => g.rows.map((r) => r.id))).toEqual(['@I1@', '@I3@']);
+  });
+
+  it('die Treffermenge ist identisch mit und ohne Vorrang-Gruppierung (Reihenfolge, kein Filter)', () => {
+    const flat = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meier', soundexOn)
+      .flatMap((g) => g.rows.map((r) => r.id))
+      .sort();
+    const gefiltert = filterAndSortPersons(seededNoise(), emptyContext(), 'name', 'meier', soundexOn)
+      .map((p) => p.id)
+      .sort();
+    expect(flat).toEqual(gefiltert);
+    expect(flat).toEqual(['@I1@', '@I2@', '@I3@']);
+  });
+
+  it('ohne Soundex-Modus entsteht KEINE Vorrang-Gruppe', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meyer', defaultPersonFilters());
+    expect(groups.some((g) => g.phonetic)).toBe(false);
+  });
+
+  it('treffen ALLE Ergebnisse über den Nachnamen, bleibt es bei der gewohnten Gruppierung', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Karl', surname: 'Maier' }));
+    const groups = buildPersonGroups(db, emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups.some((g) => g.phonetic)).toBe(false);
+    expect(groups.map((g) => g.letter)).toEqual(['M']);
+  });
+
+  it('Datum-Modus: Vorrang-Gruppe oben, Restgruppe darunter — beide Schlüssel unterscheidbar', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'birthDate', 'meier', soundexOn);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[1].phonetic).toBe(false);
+    expect(groups[1].letter).toBeNull();
+  });
+
+  it('ein phonetisch passender Nachname einer NAMENSVARIANTE zählt ebenfalls für den Vorrang', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Maria', surname: 'Albers' });
+    p.extraNames.push({ nameRaw: 'Anna /Meyer/', given: 'Anna', surname: 'Meyer', type: 'married', prefix: '', suffix: '', citations: [] });
+    db.individuals.set('@I1@', p);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Maria', surname: 'Zwiebel' }));
+    const groups = buildPersonGroups(db, emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[0].rows.map((r) => r.id)).toEqual(['@I1@']);
+  });
+});
+
 describe('BL-195 — Geschlecht + Kekulé-Ziffer je Zeile', () => {
   function childLink(familyId: string): ChildLink {
     return { familyId, pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] };

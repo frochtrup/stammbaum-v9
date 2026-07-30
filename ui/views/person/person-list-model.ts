@@ -76,6 +76,11 @@ export interface PersonGroup {
    *  sie als kollabierbare „N ohne Namen"-Zeile statt einzeln (ADR-v9-121). Im Datum-Modus
    *  stets false (keine Buchstaben-Gruppierung). */
   nameless: boolean;
+  /** Die Vorrang-Gruppe des Soundex-Modus (ADR-v9-160): Treffer, deren NACHNAME phonetisch
+   *  zur Anfrage passt, stehen als EINE Gruppe ganz oben — darunter folgt die gewohnte
+   *  Gruppierung mit allen übrigen Treffern. `letter` ist dabei null (kein Buchstaben-
+   *  Trenner); die View beschriftet die Gruppe eigens. Außerhalb des Soundex-Modus nie true. */
+  phonetic: boolean;
 }
 
 /** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]). */
@@ -133,6 +138,25 @@ export function matchesSearch(p: Person, query: string, soundex = false): boolea
     if (qSdx && nameFieldsFor(p).some((name) => germanSoundex(name) === qSdx)) return true;
   }
   return false;
+}
+
+/**
+ * Trifft die Anfrage phonetisch den NACHNAMEN (inkl. der Nachnamen von Namensvarianten)?
+ *
+ * Warum eigens neben `matchesSearch` (BL-10-Nachtrag, ADR-v9-160): der Soundex-Modus trifft
+ * bewusst Vor- UND Nachnamen (v8-Verhalten) — an echten Daten gemessen sind das für eine
+ * Nachnamen-Anfrage aber überwiegend Vornamens-Zufallstreffer ("Meier" und "Maria" haben
+ * beide den Code M600: 85 der 90 Treffer waren Vornamen). Die TrefferMENGE bleibt deshalb
+ * unverändert — nur die REIHENFOLGE nutzt dieses Prädikat, damit die gesuchten Namensvarianten
+ * oben stehen. Kein Filter: wer nach einem Vornamen sucht, verliert nichts.
+ */
+export function matchesSurnameSoundex(p: Person, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q || !isPureLetterQuery(q)) return false;
+  const qSdx = germanSoundex(q);
+  if (!qSdx) return false;
+  const surnames = [p.surname, ...p.extraNames.map((en) => en.surname)].filter((s): s is string => Boolean(s));
+  return surnames.some((s) => germanSoundex(s) === qSdx);
 }
 
 function hasAnyCitations(p: Person): boolean {
@@ -222,7 +246,7 @@ export function groupPersonRows(
 ): PersonGroup[] {
   if (sortMode === 'birthDate') {
     if (persons.length === 0) return [];
-    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false }];
+    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false, phonetic: false }];
   }
 
   const groups: PersonGroup[] = [];
@@ -231,7 +255,7 @@ export function groupPersonRows(
   for (const p of persons) {
     const letter = sortLetter(p);
     if (!current || current.letter !== letter) {
-      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER };
+      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER, phonetic: false };
       groups.push(current);
     }
     current.rows.push(toRow(p, ctx, kekule));
@@ -255,6 +279,25 @@ export function buildPersonGroups(
   // Kekulé EINMAL für den ganzen Bestand berechnen (kein zweiter Rechenweg, INV-UI-4),
   // nicht je Zeile — computeKekuleNumbers traversiert den Ahnenbaum des Probanden.
   const kekule = probandId ? computeKekuleNumbers(db, probandId) : null;
+
+  // Soundex-Vorrang (ADR-v9-160): Nachnamen-Treffer als EINE Gruppe nach oben. Die Menge
+  // bleibt unverändert — die übrigen (meist Vornamens-)Treffer folgen darunter in der
+  // gewohnten Gruppierung. Ohne Soundex-Modus fällt der ganze Zweig weg.
+  if (filters.soundex) {
+    const leading = persons.filter((p) => matchesSurnameSoundex(p, query));
+    if (leading.length > 0 && leading.length < persons.length) {
+      const inLead = new Set(leading);
+      const rest = persons.filter((p) => !inLead.has(p));
+      const head: PersonGroup = {
+        letter: null,
+        rows: leading.map((p) => toRow(p, ctx, kekule)),
+        nameless: false,
+        phonetic: true,
+      };
+      return [head, ...groupPersonRows(rest, ctx, sortMode, kekule)];
+    }
+  }
+
   return groupPersonRows(persons, ctx, sortMode, kekule);
 }
 

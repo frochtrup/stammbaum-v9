@@ -171,6 +171,19 @@ describe('BL-10/ADR-v9-159 — Soundex-Umschalter der globalen Suche (eigener, g
     expect(result.persons.map((r) => r.id)).toEqual(['@I3@']);
   });
 
+  it('ADR-v9-160: phonetische NACHNAMEN-Treffer stehen vor den Vornamens-Zufallstreffern', () => {
+    const db = makeDatabase();
+    // "Meier"/"Maria" teilen den Code M600 — ohne Vorrang stünde "Maria Albers"
+    // alphabetisch vor "Hans Meyer" und der gesuchte Nachname ginge unter.
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Maria', surname: 'Albers' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Maria', surname: 'Zwiebel' }));
+    const result = globalSearch(db, ctxFor(db), 'meier', true);
+    expect(result.persons.map((r) => r.id)).toEqual(['@I2@', '@I1@', '@I3@']);
+    // Innerhalb der Nachzügler bleibt die alphabetische Ordnung erhalten (stabile Sortierung).
+    expect(result.persons.slice(1).map((r) => r.primary)).toEqual(['Maria Albers', 'Maria Zwiebel']);
+  });
+
   it('wirkt NICHT auf Familien/Quellen/Orte/Höfe (nur die Personen-Teilsuche)', () => {
     const db = seedDb();
     // "Baur" ist phonetisch nah an "Bauer" (Ehemann), soll aber keinen Quellen-/Orts-/

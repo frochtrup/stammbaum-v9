@@ -14,7 +14,7 @@
 // wie die Höfe-Liste (hof-list-model.ts), keine Parallel-Formatierung.
 import type { Database, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { matchesSearch as matchesPersonSearch } from '../person/person-list-model';
+import { matchesSearch as matchesPersonSearch, matchesSurnameSoundex } from '../person/person-list-model';
 import { matchesSearch as matchesFamilySearch } from '../family/family-list-model';
 import { matchesSearch as matchesSourceSearch } from '../source/source-list-model';
 import { matchesSearch as matchesPlaceSearch } from '../place/place-list-model';
@@ -97,6 +97,14 @@ export function globalSearch(
     });
   }
   persons.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));
+  // Soundex-Vorrang (ADR-v9-160, dieselbe Regel wie in der Personenliste): phonetische
+  // NACHNAMEN-Treffer zuerst, alles andere behält seine alphabetische Reihenfolge (stabile
+  // Sortierung). Kein Filter — die Treffermenge ist identisch, nur die Reihenfolge ändert sich.
+  if (soundex) {
+    const isLead = new Map<string, boolean>();
+    for (const p of db.individuals.values()) isLead.set(p.id, matchesSurnameSoundex(p, q));
+    persons.sort((a, b) => Number(isLead.get(b.id) ?? false) - Number(isLead.get(a.id) ?? false));
+  }
 
   const families: SearchResultRow[] = [];
   for (const f of db.families.values()) {

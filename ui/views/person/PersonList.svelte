@@ -235,7 +235,10 @@
     {#if !hasResults}
       <p class="person-list__empty">Keine Personen gefunden.</p>
     {:else}
-      {#each groups as group (group.letter ?? '·')}
+      <!-- Schlüssel muss die Vorrang-Gruppe unterscheiden (ADR-v9-160): im Datum-Modus
+           trägt AUCH die Restgruppe `letter === null` — ohne das eigene Präfix kollidierten
+           beide Schlüssel. -->
+      {#each groups as group (group.phonetic ? 'phon' : (group.letter ?? '·'))}
         {#if group.nameless}
           <div class="person-list__group person-list__group--nameless">
             <button
@@ -253,7 +256,11 @@
           </div>
         {:else}
           <div class="person-list__group">
-            {#if group.letter !== null}
+            {#if group.phonetic}
+              <div class="person-list__letter person-list__letter--phonetic" role="separator" aria-label="Ähnlich klingender Nachname">
+                Ähnlicher Nachname
+              </div>
+            {:else if group.letter !== null}
               <div class="person-list__letter" role="separator" aria-label="Buchstabe {group.letter}">
                 {group.letter}
               </div>
@@ -413,6 +420,13 @@
     font-weight: 700;
     padding: 0.2rem 1rem;
     font-family: var(--stb-font-title);
+  }
+
+  /* Vorrang-Gruppe des Soundex-Modus (ADR-v9-160) — gleicher Trenner-Stil wie die
+     Buchstaben, nur mit Wort statt Einzelbuchstabe: kein zweiter Trennertyp. */
+  .person-list__letter--phonetic {
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
   }
 
   /* Sammelzeile der Namenlosen — sieht aus wie ein Buchstaben-Trenner, ist aber ein

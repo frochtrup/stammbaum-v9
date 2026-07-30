@@ -216,6 +216,31 @@ describe('PersonList — Soundex-Filteroption (BL-10, ADR-v9-159)', () => {
     expect(screen.getByText('Hans Meyer')).toBeTruthy();
     expect(screen.getByText('Karl Maier')).toBeTruthy();
   });
+
+  it('ADR-v9-160: der Vorrang-Trenner "Ähnlicher Nachname" ist SICHTBAR und steht vor den übrigen Treffern', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // "Maria" teilt den Soundex-Code mit "Meier" — der Vornamens-Treffer stünde
+    // alphabetisch vorn und würde die gesuchte Namensvariante verdecken.
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Maria', surname: 'Albers' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Hans', surname: 'Meyer' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PersonList, { props: { appState, viewState } });
+    await fireEvent.input(screen.getByLabelText('Personen durchsuchen'), { target: { value: 'meier' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    await fireEvent.click(screen.getByLabelText(/Soundex/));
+
+    const trenner = screen.getByRole('separator', { name: 'Ähnlich klingender Nachname' });
+    expect(trenner.textContent?.trim()).toBe('Ähnlicher Nachname');
+    // Reihenfolge im DOM: Vorrang-Trenner → Hans Meyer → Buchstaben-Trenner → Maria Albers.
+    const positionen = [trenner, screen.getByText('Hans Meyer'), screen.getByText('Maria Albers')];
+    for (let i = 1; i < positionen.length; i++) {
+      const davor = positionen[i - 1].compareDocumentPosition(positionen[i]);
+      expect(davor & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
 });
 
 describe('PersonList — CSV-Export der gefilterten Liste (BL-125, ADR-v9-159)', () => {
