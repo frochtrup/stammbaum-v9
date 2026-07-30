@@ -15,6 +15,7 @@
   import type { LensId } from '../shell/lens-model';
   import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
   import type { Route } from '../shell/route.svelte';
+  import type { EventClipboard } from '../shell/event-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
@@ -40,6 +41,8 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Ereignis-Zwischenablage der Sitzung (BL-212) — nur durchgereicht, s. PersonDetail. */
+    clipboard?: EventClipboard;
     /**
      * Personen-Kontext-Sprung in eine Lens (PersonDetail -> Baum/Karte/Zeitleiste/Story,
      * BL-60/ADR-v9-153 — ersetzt die vormaligen Einzel-Callbacks `onNavigateToTree`/
@@ -68,6 +71,7 @@
     onOpenLensForPerson,
     onOpenStoryForFamily,
     onNavigateLens,
+    clipboard,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -405,6 +409,7 @@
         onOpenLens={onOpenLensForPerson}
         {onNavigateLens}
         onBack={backToList}
+        {clipboard}
         startInEdit={selectedPersonId === createdPersonId}
       />
     {:else if activeSegment === 'family' && selectedFamilyId}

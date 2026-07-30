@@ -33,6 +33,7 @@ export {
   type DateParts,
   type DateQualifier,
 } from './gedcom-date';
+export { birthDateFromDeathAge } from './birth-from-age';
 export { savePerson, deletePerson } from './commands';
 export {
   dedupeCitations,

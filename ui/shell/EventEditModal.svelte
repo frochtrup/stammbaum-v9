@@ -42,6 +42,7 @@
   import SourceCitationRow from './SourceCitationRow.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
+  import EventAgeHelper from './EventAgeHelper.svelte';
   import {
     toEditable,
     markDateDirty,
@@ -49,6 +50,8 @@
     pickPlaceFor as sharedPickPlaceFor,
     pickHofFor as sharedPickHofFor,
     onMonthBlur,
+    computeDate,
+    liveEventFrom,
     QUALIFIER_OPTIONS,
     type EditableEvent,
   } from './event-edit';
@@ -76,8 +79,15 @@
      *  appState.savePerson/saveFamily(model) auf (kein Speichern hier im Modal). */
     onSave: (updatedEvent: Event, cause: string) => void;
     onClose: () => void;
+    /** „⧉ Kopieren" — legt dieses Ereignis in die Sitzungs-Zwischenablage (BL-212).
+     *  Weglassen blendet den Knopf aus (Kontexte ohne Zwischenablage, z. B. FamilyDetail). */
+    onCopy?: (ev: Event) => void;
+    /** Nur sinnvoll am Sterbe-Ereignis (BL-212): übernimmt ein aus Sterbedatum + Alter
+     *  errechnetes Geburtsdatum. Der Aufrufer besitzt die Person und entscheidet, ob er
+     *  ein vorhandenes Geburtsdatum überschreibt — dieses Modal kennt nur EIN Ereignis. */
+    onDeriveBirth?: (birthDate: string) => void;
   }
-  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose }: Props = $props();
+  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, onDeriveBirth }: Props = $props();
   const headingVerb = $derived(mode === 'create' ? 'anlegen' : 'bearbeiten');
 
   // Formular-Zustand wird NUR beim Mount aus dem übergebenen Event initialisiert (analog
@@ -101,6 +111,11 @@
   function pickHofFor(hofId: string): void {
     sharedPickHofFor(appState, editable, hofId);
   }
+
+  /** Die Alters-Eingabehilfe (BL-212) lebt in EventAgeHelper.svelte — hier nur die Frage,
+   *  OB sie gezeigt wird: nur am Sterbe-Ereignis und nur, wenn der Aufrufer ein
+   *  Geburtsdatum entgegennehmen kann. */
+  const showAgeHelper = $derived(!!onDeriveBirth && editable.type === 'DEAT');
 
   const sources = $derived(Array.from(appState.db.sources.values()));
 
@@ -267,6 +282,10 @@
       {/if}
     </div>
 
+    {#if showAgeHelper && onDeriveBirth}
+      <EventAgeHelper deathDate={computeDate(editable)} onApply={onDeriveBirth} />
+    {/if}
+
     {#if showTypeText}
       <label>
         Typ-Freitext (TYPE)
@@ -361,6 +380,13 @@
     </div>
 
     <div class="event-edit-modal__actions">
+      {#if onCopy}
+        <button
+          type="button"
+          class="event-edit-modal__copy-btn"
+          onclick={() => onCopy(liveEventFrom(editable))}
+        >⧉ Kopieren</button>
+      {/if}
       <button type="button" class="event-edit-modal__save-btn" onclick={save}>Speichern</button>
       <button type="button" class="event-edit-modal__cancel-btn" onclick={onClose}>Abbrechen</button>
     </div>
@@ -514,6 +540,23 @@
   .event-edit-modal__media-count {
     font-size: 0.78rem;
     color: var(--stb-text-dim);
+  }
+
+
+
+
+
+
+
+  .event-edit-modal__copy-btn {
+    margin-right: auto;
+    background: transparent;
+    color: var(--stb-text-dim);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    min-height: var(--stb-touch-target);
   }
 
   .event-edit-modal__actions {

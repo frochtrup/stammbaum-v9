@@ -9,6 +9,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { LensId } from '../../shell/lens-model';
+  import type { EventClipboard } from '../../shell/event-clipboard.svelte';
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
   import PersonDetailHeader from './PersonDetailHeader.svelte';
@@ -49,6 +50,9 @@
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Ereignis-Zwischenablage der Sitzung (BL-212) — optional: ohne sie entfallen
+     *  „⧉ Kopieren" und „⧉ Übernehmen" ersatzlos (Tests/Kontexte ohne Schale). */
+    clipboard?: EventClipboard;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -63,6 +67,7 @@
     onOpenLens,
     onNavigateLens,
     onBack,
+    clipboard,
     startInEdit = false,
   }: Props = $props();
 
@@ -232,6 +237,37 @@
     modal = null;
   }
 
+  /** Zwischenablage (BL-212): kopieren aus dem Editor, einfügen über das „+ Ereignis"-
+   *  Menü. Das eingefügte Ereignis wird direkt angehängt — es ist bereits vollständig,
+   *  ein leerer Editor-Zwischenschritt wäre nur ein Klick mehr. */
+  function copyEvent(ev: Event) {
+    clipboard?.copy(ev, eventTypeLabel(ev.type));
+  }
+
+  /** Kopieren gibt es NUR für generische `events[]`-Einträge, nicht für die vier
+   *  Sonder-Felder (BIRT/CHR/DEAT/BURI): eingefügt landet ein Ereignis immer in `events[]`,
+   *  ein dort abgelegtes DEAT erzeugte also eine ZWEITE `1 DEAT`-Zeile im Export neben
+   *  `person.death` — beim nächsten Laden gewönne eine davon still (dieselbe Falle wie
+   *  RELI, ADR-v9-156). */
+  const copyable = $derived(modal?.kind === 'edit' && modal.key.startsWith('ev-'));
+
+  function pasteEvent() {
+    if (!detail || !clipboard) return;
+    const ev = clipboard.take();
+    if (!ev) return;
+    appState.savePerson({ ...detail.person, events: [...detail.person.events, ev] });
+  }
+
+  /** Aus Sterbedatum + Alter errechnetes Geburtsdatum übernehmen (BL-212, ADR-v9-156).
+   *  Ein VORHANDENES Datum wird nie still überschrieben — nur mit Rückfrage. */
+  function applyDerivedBirth(birthDate: string) {
+    if (!detail) return;
+    const p = detail.person;
+    const vorhanden = p.birth.date;
+    if (vorhanden && !window.confirm(`Geburtsdatum ist bereits „${vorhanden}". Durch „${birthDate}" ersetzen?`)) return;
+    appState.savePerson({ ...p, birth: { ...p.birth, date: birthDate } });
+  }
+
   /** Assoziationen (BL-127) — dasselbe Kommando-Chokepoint-Muster wie `saveModal`:
    *  vollständige Person an `savePerson`, kein Feld-Setter. Bestehende Einträge werden
    *  unverändert durchgereicht, damit `grampsHandle` und Zitate erhalten bleiben (die
@@ -372,7 +408,12 @@
           <button type="button" class="stb-activation-pill" onclick={markDeceased}>☠ Verstorben markieren</button>
         {/if}
         <button type="button" class="stb-activation-pill" onclick={() => startCreate('RESI')}>+ Wohnort</button>
-        <EventTypeMenu groups={[menuPrimary, menuSecondary]} otherItems={menuOther} onSelect={startCreate} />
+        <EventTypeMenu
+          groups={[menuPrimary, menuSecondary]}
+          otherItems={menuOther}
+          onSelect={startCreate}
+          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: pasteEvent } : undefined}
+        />
       </div>
 
       {#each remainingGroups as group (group.type)}
@@ -394,6 +435,8 @@
         mode={modal.kind}
         onSave={saveModal}
         onClose={closeModal}
+        onCopy={clipboard && copyable ? copyEvent : undefined}
+        onDeriveBirth={applyDerivedBirth}
       />
     {/if}
 

@@ -11,6 +11,7 @@ import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, makeAssociation, isEventPresent } from '../../core/model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
+import { createEventClipboard } from '../../ui/shell/event-clipboard.svelte';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
@@ -1033,5 +1034,92 @@ describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
     expect(screen.getByText('(unbekannte Person)')).toBeTruthy();
     // Kein Navigations-Knopf für etwas, wohin man nicht navigieren kann.
     expect(screen.queryByRole('button', { name: /unbekannte Person/ })).toBeNull();
+  });
+});
+
+describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
+  function seedMitTod() {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.date = '3 MAR 1832';
+    p.death.seen = true;
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    return { appState, viewState };
+  }
+
+  it('das Sterbealter errechnet ein Geburtsdatum und schreibt es in ein LEERES Feld', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum übernehmen/ }));
+
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBe('CAL 3 MAR 1807');
+  });
+
+  it('ein VORHANDENES Geburtsdatum wird nur nach Rückfrage ersetzt', async () => {
+    const { appState, viewState } = seedMitTod();
+    appState.savePerson({ ...appState.db.individuals.get('@I1@')!, birth: { ...appState.db.individuals.get('@I1@')!.birth, date: '1 JAN 1806' } });
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmSpy);
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum übernehmen/ }));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBe('1 JAN 1806');
+  });
+
+  it('Sonder-Ereignisse (Tod/Taufe) sind NICHT kopierbar — sonst entstünde eine zweite DEAT-Zeile', async () => {
+    const { appState, viewState } = seedMitTod();
+    const clipboard = createEventClipboard();
+    render(PersonDetail, { props: { appState, viewState, clipboard } });
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    expect(screen.queryByRole('button', { name: /Kopieren/ })).toBeNull();
+  });
+
+  it('ohne Zwischenablage-Prop gibt es weder „Kopieren" noch „Übernehmen"', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    expect(screen.queryByRole('button', { name: /Kopieren/ })).toBeNull();
+  });
+
+  it('Kopieren legt ab, Übernehmen hängt das Ereignis bei der nächsten Person an', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const a = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    a.events.push(makeEvent('RESI', { place: 'Ochtrup', seen: true }));
+    db.individuals.set('@I1@', a);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Berta', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    const clipboard = createEventClipboard();
+
+    const view = render(PersonDetail, { props: { appState, viewState, clipboard } });
+    await fireEvent.click(screen.getByRole('button', { name: /Wohnort bearbeiten/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Kopieren/ }));
+    expect(clipboard.event?.place).toBe('Ochtrup');
+
+    // Zur zweiten Person wechseln — die Ablage überlebt den Wechsel (sie lebt oberhalb).
+    viewState.setCurrent('person', '@I2@');
+    await view.rerender({ appState, viewState, clipboard });
+    await fireEvent.click(screen.getByRole('button', { name: '+ Ereignis' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: /Übernehmen/ }));
+
+    const berta = appState.db.individuals.get('@I2@')!;
+    expect(berta.events).toHaveLength(1);
+    expect(berta.events[0].place).toBe('Ochtrup');
+    // Das Original bleibt unangetastet, und beide teilen kein Objekt.
+    expect(appState.db.individuals.get('@I1@')!.events[0].place).toBe('Ochtrup');
+    expect(berta.events[0]).not.toBe(appState.db.individuals.get('@I1@')!.events[0]);
   });
 });

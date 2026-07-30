@@ -38,6 +38,7 @@
   import { createRoute } from '../ui/shell/route.svelte';
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
+  import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -92,6 +93,10 @@
   // Forschungsprojekte (BL-58): app-privat, geräteweit in IndexedDB. Hier EINMAL erzeugt,
   // damit die aktive Projekt-Auswahl das Wegnavigieren aus der Forschungsfläche überlebt.
   const projectsState = createProjectsState(new IdbProjectsStore());
+  // Ereignis-Zwischenablage (BL-212): EINMAL hier erzeugt, damit sie den Wechsel zwischen
+  // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
+  // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
+  const clipboard = createEventClipboard();
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -427,6 +432,7 @@
   <main class="app-shell__main">
     {#if isEntityTarget(shownTarget)}
       <EntityTab
+        {clipboard}
         {appState}
         {viewState}
         {route}

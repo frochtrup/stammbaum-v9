@@ -38,6 +38,11 @@
     otherItems?: EventMenuItem[];
     otherLabel?: string;
     onSelect: (tag: string) => void;
+    /** Sonder-Eintrag ganz oben (BL-212: „⧉ Übernehmen") — KEIN Ereignistyp, deshalb ein
+     *  eigener Callback statt eines Pseudo-Tags in `groups`: er legt kein leeres Ereignis
+     *  eines Typs an, sondern fügt ein vollständiges kopiertes ein. Weglassen = kein
+     *  Eintrag (FamilyDetail und Tests bleiben unverändert). */
+    pasteItem?: { label: string; onSelect: () => void };
   }
   const {
     triggerLabel = '+ Ereignis',
@@ -45,6 +50,7 @@
     otherItems = [],
     otherLabel = 'Anderer Ereignistyp',
     onSelect,
+    pasteItem,
   }: Props = $props();
 
   let open = $state(false);
@@ -84,6 +90,17 @@
   {#if open}
     <button type="button" class="stb-event-menu__backdrop" aria-label="Menü schließen" onclick={close} use:portal></button>
     <div class="stb-event-menu__panel" role="menu" aria-label={triggerLabel} use:anchoredTo={triggerEl}>
+      {#if pasteItem}
+        <button
+          type="button"
+          class="stb-event-menu__item stb-event-menu__item--paste"
+          role="menuitem"
+          onclick={() => { close(); pasteItem.onSelect(); }}
+        >
+          {pasteItem.label}
+        </button>
+        <div class="stb-event-menu__divider"></div>
+      {/if}
       {#each groups as group, gi (gi)}
         {#if gi > 0 && group.length > 0}<div class="stb-event-menu__divider"></div>{/if}
         {#each group as item (item.tag)}
@@ -148,6 +165,11 @@
     border-radius: var(--stb-radius-card);
     padding: 0.35rem;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Sonder-Eintrag „⧉ Übernehmen" (BL-212) — hebt sich als Nicht-Typ-Aktion leicht ab. */
+  .stb-event-menu__item--paste {
+    color: var(--stb-gold-light);
   }
 
   .stb-event-menu__item {

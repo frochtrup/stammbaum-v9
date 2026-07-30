@@ -43,6 +43,16 @@
   let sex = $state(untrack(() => person.sex));
   let title = $state(untrack(() => person.title));
   let religion = $state(untrack(() => person.religion));
+
+  // Häufige Konfessionswerte als `<datalist>`-Vorschläge (BL-212, ADR-v9-156) — dieselbe
+  // Preset+Freitext-Mechanik wie die Aufgaben-Kategorien (INV-UI-4), KEIN geschlossenes
+  // Enum: Bestandswerte bleiben unverändert erhalten (LP-1).
+  //
+  // Warum überhaupt: `RELI` ist in v9 ein Skalarfeld (kein Ereignis, deshalb auch kein
+  // Quick-Add-Chip wie in v8 — ADR-v9-156). Am Realbestand gemessen stehen dort DREI
+  // Schreibweisen derselben Konfession nebeneinander („röm.-kath." 16×, „röm. kath." 11×,
+  // „röm.-kath" 1×) — genau die Streuung, die Vorschläge eindämmen.
+  const RELIGION_PRESETS = ['röm.-kath.', 'evang.', 'katholisch'];
   let noteText = $state(untrack(() => person.noteText));
   let restriction = $state(untrack(() => person.restriction));
   let email = $state(untrack(() => person.email));
@@ -180,7 +190,12 @@
       {#if showReligion}
         <label>
           Religion
-          <input type="text" bind:value={religion} />
+          <input type="text" bind:value={religion} list="person-religion-presets" />
+          <datalist id="person-religion-presets">
+            {#each RELIGION_PRESETS as preset (preset)}
+              <option value={preset}></option>
+            {/each}
+          </datalist>
         </label>
       {/if}
       {#if showRestriction}
