@@ -152,6 +152,38 @@ describe('globalSearch — Gruppierung', () => {
   });
 });
 
+describe('BL-10/ADR-v9-159 — Soundex-Umschalter der globalen Suche (eigener, getrennter Zustand)', () => {
+  function seededVariant() {
+    const db = makeDatabase();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Maier' }));
+    return db;
+  }
+
+  it('Soundex aus (Default): "meyer" findet NICHT die phonetische Variante "Maier"', () => {
+    const db = seededVariant();
+    const result = globalSearch(db, ctxFor(db), 'meyer');
+    expect(result.persons).toEqual([]);
+  });
+
+  it('Soundex an: "meyer" findet zusätzlich die phonetisch gleiche Schreibweise "Maier"', () => {
+    const db = seededVariant();
+    const result = globalSearch(db, ctxFor(db), 'meyer', true);
+    expect(result.persons.map((r) => r.id)).toEqual(['@I3@']);
+  });
+
+  it('wirkt NICHT auf Familien/Quellen/Orte/Höfe (nur die Personen-Teilsuche)', () => {
+    const db = seedDb();
+    // "Baur" ist phonetisch nah an "Bauer" (Ehemann), soll aber keinen Quellen-/Orts-/
+    // Hof-Treffer erzeugen — der Soundex-Schalter der globalen Suche berührt nur
+    // matchesPersonSearch, s. Aufgabe 2 des Bauauftrags.
+    const result = globalSearch(db, ctxFor(db), 'baur', true);
+    expect(result.persons.map((r) => r.id)).toEqual(['@I1@']);
+    expect(result.sources).toEqual([]);
+    expect(result.places).toEqual([]);
+    expect(result.hofs).toEqual([]);
+  });
+});
+
 describe('BL-211 — Geschlecht in Personen-Treffern (Icon-Quelle)', () => {
   it('Personen-Ergebniszeile trägt sex; Nicht-Personen nicht', () => {
     const db = makeDatabase();

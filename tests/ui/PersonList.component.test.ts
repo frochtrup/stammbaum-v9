@@ -5,12 +5,13 @@
 // Gruppierungs-/Filterlogik (person-list-model.test.ts) nicht zeigt: Buchstaben-Trenner
 // erscheinen tatsächlich im DOM, Sortier-Umschalter/Suche/Filter-Panel reagieren auf
 // Nutzer-Interaktion, Klick ruft den EINEN ViewState-Weg auf.
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeMediaCitation } from '../../core/model';
+import { AnchorDownloadAdapter } from '../../services/file/download-adapter';
 
 function seedAppState() {
   const appState = createAppState();
@@ -174,6 +175,87 @@ describe('PersonList — Filter-Panel (Component)', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
 
     expect(screen.getByText('Otto Meyer')).toBeTruthy();
+  });
+});
+
+describe('PersonList — Soundex-Filteroption (BL-10, ADR-v9-159)', () => {
+  it('Soundex-Checkbox liegt hinter der FilterBar und zählt in "Filter · N" mit', async () => {
+    const appState = seedAppState(); // Anna Bauer, Otto Meyer
+    const viewState = createViewState();
+
+    render(PersonList, { props: { appState, viewState } });
+
+    expect(screen.queryByLabelText(/Soundex/)).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    const soundexBox = screen.getByLabelText(/Soundex/) as HTMLInputElement;
+    expect(soundexBox.checked).toBe(false);
+
+    await fireEvent.click(soundexBox);
+
+    expect(screen.getByRole('button', { name: 'Filter · 1' })).toBeTruthy();
+  });
+
+  it('Soundex an: findet eine phonetisch gleiche, aber anders geschriebene Person', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Karl', surname: 'Maier' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PersonList, { props: { appState, viewState } });
+
+    const search = screen.getByLabelText('Personen durchsuchen');
+    await fireEvent.input(search, { target: { value: 'meyer' } });
+    expect(screen.getByText('Hans Meyer')).toBeTruthy();
+    expect(screen.queryByText('Karl Maier')).toBeNull();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    await fireEvent.click(screen.getByLabelText(/Soundex/));
+
+    expect(screen.getByText('Hans Meyer')).toBeTruthy();
+    expect(screen.getByText('Karl Maier')).toBeTruthy();
+  });
+});
+
+describe('PersonList — CSV-Export der gefilterten Liste (BL-125, ADR-v9-159)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('Export-Button liegt hinter der FilterBar (kein Dauer-Icon in der Kopfzeile)', async () => {
+    const appState = seedAppState();
+    const viewState = createViewState();
+
+    render(PersonList, { props: { appState, viewState } });
+
+    expect(screen.queryByRole('button', { name: /Als CSV exportieren/ })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(screen.getByRole('button', { name: /Als CSV exportieren/ })).toBeTruthy();
+  });
+
+  it('exportiert NUR die gefilterte Zeilenmenge, inkl. Entitäts-ID, nicht die ganze Datenbank', async () => {
+    const appState = seedAppState(); // Anna Bauer (@I1@, *1950), Otto Meyer (@I2@, *1900)
+    const viewState = createViewState();
+    const downloadSpy = vi.spyOn(AnchorDownloadAdapter.prototype, 'download').mockImplementation(() => {});
+
+    render(PersonList, { props: { appState, viewState } });
+
+    // Auf "Anna Bauer" filtern -> Otto Meyer darf NICHT im Export landen.
+    await fireEvent.input(screen.getByLabelText('Personen durchsuchen'), { target: { value: 'bauer' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    await fireEvent.click(screen.getByRole('button', { name: /Als CSV exportieren/ }));
+
+    expect(downloadSpy).toHaveBeenCalledTimes(1);
+    const [csv, filename, mimeType] = downloadSpy.mock.calls[0]!;
+    expect(filename).toMatch(/^personen_\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(mimeType).toBe('text/csv;charset=utf-8');
+    expect(String(csv)).toContain('@I1@');
+    expect(String(csv)).toContain('Anna Bauer');
+    expect(String(csv)).not.toContain('@I2@');
+    expect(String(csv)).not.toContain('Otto Meyer');
+    // UTF-8-BOM vorangestellt (ADR-v9-159 Punkt 5).
+    expect(String(csv).charCodeAt(0)).toBe(0xfeff);
   });
 });
 

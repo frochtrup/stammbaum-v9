@@ -18,6 +18,8 @@
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
   import { layout } from '../../shell/layout.svelte';
+  import { toCsv, type CsvColumn } from '../../shell/csv';
+  import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -25,6 +27,17 @@
     type PersonSortMode,
     type PersonRow,
   } from './person-list-model';
+
+  /** CSV-Export der gefilterten/sortierten Liste (BL-125, ADR-v9-159) — Spalten =
+   *  sichtbare Listenspalten + Entitäts-ID (Wiederauffindbarkeit). */
+  const SEX_LABEL: Record<PersonRow['sex'], string> = { M: 'Männlich', F: 'Weiblich', U: 'Unbekannt' };
+  const csvColumns: CsvColumn<PersonRow>[] = [
+    { header: 'ID', value: (r) => r.id },
+    { header: 'Name', value: (r) => r.name },
+    { header: 'Geschlecht', value: (r) => SEX_LABEL[r.sex] },
+    { header: 'Geburt', value: (r) => r.birthSummary },
+    { header: 'Tod', value: (r) => r.deathSummary },
+  ];
 
   interface Props {
     appState: AppState;
@@ -60,6 +73,18 @@
   );
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
+  // Die exportierte Zeilenmenge ist die gefilterte/sortierte Datengrundlage der Liste,
+  // NICHT der aktuelle Auf-/Zuklapp-Zustand der Namenlosen-Gruppe (BL-125: „gefilterte
+  // und sortierte Zeilenmenge, wie sie die Liste gerade zeigt" meint die Filterung, nicht
+  // die View-lokale Kollaps-Anzeige).
+  const flatRows = $derived(groups.flatMap((g) => g.rows));
+
+  function exportCsv() {
+    const csv = toCsv(flatRows, csvColumns);
+    const adapter = new AnchorDownloadAdapter();
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    adapter.download(csv, `personen_${dateSlug}.csv`, 'text/csv;charset=utf-8');
+  }
 
   // Namenlose (die "#"-Gruppe) werden als EINE kollabierbare Zeile gezeigt statt einzeln
   // gelistet (ADR-v9-121) — sonst öffnet die Liste mit einem Stapel „(ohne Namen)"/„?".
@@ -153,7 +178,14 @@
             <input type="checkbox" bind:checked={filters.noParents} />
             keine Eltern
           </label>
+          <label class="person-list__checkbox">
+            <input type="checkbox" bind:checked={filters.soundex} />
+            Ähnlich klingende Namen (Soundex)
+          </label>
           <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+          <button type="button" class="stb-filter-export" onclick={exportCsv}>
+            ↓ Als CSV exportieren
+          </button>
         </div>
       </FilterBar>
       {#if onOpenDedup || onOpenRelationship}

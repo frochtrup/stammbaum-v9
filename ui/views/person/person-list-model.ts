@@ -9,6 +9,7 @@ import type { PlaceContext } from '../../../core/places';
 import { eventYear, buildListPlaceName } from '../../../core/places';
 import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel, NAMELESS_LETTER } from '../../shell/person-display';
 import { computeKekuleNumbers } from '../../islands/tree/tree-model';
+import { germanSoundex, isPureLetterQuery } from '../../shell/soundex';
 
 export type PersonSortMode = 'name' | 'birthDate';
 
@@ -24,6 +25,12 @@ export interface PersonFilters {
   noDeathDate: boolean;
   noSources: boolean;
   noParents: boolean;
+  /**
+   * Soundex-Modus (BL-10, ADR-v9-159): Filteroption hinter der `FilterBar`, zählt in
+   * `countActiveFilters` mit — kein eigener Dauer-Toggle in der Kopfzeile (INV-UI-11).
+   * Getrennter Zustand von der globalen Suche (kein gemeinsamer Topf, INV-VS).
+   */
+  soundex: boolean;
 }
 
 export function defaultPersonFilters(): PersonFilters {
@@ -35,6 +42,7 @@ export function defaultPersonFilters(): PersonFilters {
     noDeathDate: false,
     noSources: false,
     noParents: false,
+    soundex: false,
   };
 }
 
@@ -91,16 +99,40 @@ function personSearchText(p: Person): string {
     .toLowerCase();
 }
 
+/** Namensfelder für den Soundex-Vergleich — dieselben Namensträger, die bereits in
+ *  `personSearchText` einfließen (inkl. Namensvarianten `extraNames`), nicht mehr. */
+function nameFieldsFor(p: Person): string[] {
+  return [
+    p.name,
+    p.given,
+    p.surname,
+    p.nick,
+    ...p.extraNames.flatMap((en) => [en.nameRaw, en.given, en.surname]),
+  ].filter((s): s is string => Boolean(s));
+}
+
 /**
  * Textmatch über Name/Titel/Ereignisse/Notizen/Religion (Spec 20 §1.4 [K]).
  * EXPORTIERT, damit die globale Suche (ui/views/search/global-search-model.ts,
  * Spec 20 §1.1 [K]) denselben Baustein nutzt statt einer zweiten, abweichenden
  * Personen-Matchlogik (ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift).
+ *
+ * `soundex` (BL-10, ADR-v9-159, Default `false` — bestehende Aufrufer bleiben
+ * unverändert): ergänzt den Substring-Treffer um einen phonetischen Treffer auf den
+ * Namensfeldern (inkl. Namensvarianten), wenn die Anfrage rein aus Buchstaben besteht
+ * ("greift wie in v8 nur bei reinen Buchstaben-Anfragen") — der bestehende Substring-
+ * Treffer über ALLE Felder (Ereignisse/Notizen/Religion/…) bleibt zusätzlich erhalten,
+ * eine Vollzeichenkette wird durch den Soundex-Modus also nie unauffindbar.
  */
-export function matchesSearch(p: Person, query: string): boolean {
+export function matchesSearch(p: Person, query: string, soundex = false): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return personSearchText(p).includes(q);
+  if (personSearchText(p).includes(q)) return true;
+  if (soundex && isPureLetterQuery(q)) {
+    const qSdx = germanSoundex(q);
+    if (qSdx && nameFieldsFor(p).some((name) => germanSoundex(name) === qSdx)) return true;
+  }
+  return false;
 }
 
 function hasAnyCitations(p: Person): boolean {
@@ -157,7 +189,7 @@ export function filterAndSortPersons(
   filters: PersonFilters,
 ): Person[] {
   const all = Array.from(db.individuals.values());
-  const filtered = all.filter((p) => matchesSearch(p, query) && matchesFilters(p, filters, ctx));
+  const filtered = all.filter((p) => matchesSearch(p, query, filters.soundex) && matchesFilters(p, filters, ctx));
 
   if (sortMode === 'birthDate') {
     return filtered.slice().sort((a, b) => {

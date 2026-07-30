@@ -151,6 +151,40 @@ describe('LogView — Klick-Navigation zur Trägerentität', () => {
   });
 });
 
+describe('LogView — Ergebnis-Ampel deckt alle vier Zustände (BL-208, ADR-v9-157)', () => {
+  it('färbt found/partial/notfound/pending je mit einem eigenen Linksbalken', () => {
+    const db = makeDatabase();
+    const p1 = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-01', query: 'q-found', result: 'found' }));
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-02', query: 'q-partial', result: 'partial' }));
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-03', query: 'q-notfound', result: 'notfound' }));
+    p1.researchLog.push(makeLogEntry({ date: '2026-01-04', query: 'q-pending', result: 'pending' }));
+    db.individuals.set('@I1@', p1);
+
+    const { container } = renderView(db);
+    const rows = [...container.querySelectorAll('.log-view__row')];
+    const rowFor = (text: string) => rows.find((r) => r.textContent?.includes(text))!;
+
+    expect(rowFor('q-found').classList.contains('log-view__row--found')).toBe(true);
+    expect(rowFor('q-partial').classList.contains('log-view__row--partial')).toBe(true);
+    expect(rowFor('q-notfound').classList.contains('log-view__row--notfound')).toBe(true);
+    expect(rowFor('q-pending').classList.contains('log-view__row--pending')).toBe(true);
+
+    // Vier unterschiedliche Klassen -> vier unterschiedliche Signale, keine Kollision.
+    const classes = new Set(
+      ['found', 'partial', 'notfound', 'pending'].map(
+        (r) => [...rowFor(`q-${r}`).classList].find((c) => c.startsWith('log-view__row--'))!,
+      ),
+    );
+    expect(classes.size).toBe(4);
+
+    // Die Farbe bleibt redundant zum Text-Label (Spec 21 §6i) — Bedeutung hängt nie
+    // allein an der Farbe.
+    expect(rowFor('q-notfound').textContent).toContain('Nichts gefunden');
+    expect(rowFor('q-pending').textContent).toContain('Ausstehend');
+  });
+});
+
 describe('LogView — MD-Export-Button vorhanden', () => {
   it('rendert den Export-Button im FilterBar-Panel (Spec 21 §6h: Export gehört zum Filter-Kontext)', async () => {
     renderView(seedDb());

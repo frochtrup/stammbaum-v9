@@ -15,6 +15,14 @@
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
   import { sexSymbol } from '../../shell/person-display';
 
+  /**
+   * Soundex-Umschalter der globalen Suche (BL-10, ADR-v9-159): sichtbares Bedienelement
+   * neben dem Suchfeld — anders als in der Personenliste (Filteroption hinter
+   * `FilterBar`), weil diese Fläche keine `FilterBar` hat und heute erst EIN dauerhaftes
+   * Bedienelement trägt (gemessen bei 375px, [21 §6h]). EIGENER Zustand, kein gemeinsamer
+   * Topf mit `PersonFilters.soundex` (INV-VS).
+   */
+
   interface Props {
     appState: AppState;
     /**
@@ -43,8 +51,9 @@
   }: Props = $props();
 
   let query = $state('');
+  let soundexEnabled = $state(false);
 
-  const results = $derived(globalSearch(appState.db, appState.placeContext, query));
+  const results = $derived(globalSearch(appState.db, appState.placeContext, query, soundexEnabled));
 
   // Typ-Filter der Ergebnisse (ADR-v9-130): Segment-Chips über den Treffern, ein Tipp
   // scopt auf einen Entitätstyp. Reiner UI-Zustand — das Such-Modell (`globalSearch`)
@@ -97,6 +106,16 @@
         <button type="button" class="global-search__clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
       {/if}
     </div>
+    <button
+      type="button"
+      class="stb-segment-btn global-search__soundex-toggle"
+      class:stb-segment-btn--active={soundexEnabled}
+      aria-pressed={soundexEnabled}
+      use:tooltip={'Auch ähnlich klingende Namen finden (Soundex)'}
+      onclick={() => (soundexEnabled = !soundexEnabled)}
+    >
+      ≈ Soundex
+    </button>
   </div>
 
   {#if queryTooShort}
@@ -227,6 +246,8 @@
 
   .global-search__toolbar {
     display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: var(--stb-surface-2);
     position: sticky;
@@ -239,6 +260,13 @@
     flex: 1;
     display: flex;
     align-items: center;
+  }
+
+  /* Zweites von fünf zulässigen Dauer-Elementen in dieser Toolbar (ADR-v9-159,
+     gemessen bei 375px) — schrumpft nie (TST-11: das Suchfeld gibt nach, nicht der
+     Schalter). */
+  .global-search__soundex-toggle {
+    flex-shrink: 0;
   }
 
   .global-search__field input[type='search'] {

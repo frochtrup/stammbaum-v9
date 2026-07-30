@@ -91,6 +91,37 @@ describe('GlobalSearchView — Eingabe, Mindestlänge, gruppierte Ergebnisse', (
   });
 });
 
+describe('GlobalSearchView — Soundex-Umschalter (BL-10, ADR-v9-159)', () => {
+  it('rendert einen sichtbaren, per aria-pressed umschaltbaren Soundex-Schalter', () => {
+    renderView(seedDb());
+    const toggle = screen.getByRole('button', { name: /Soundex/ });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('Soundex aus (Default): "meyer" findet NICHT den phonetisch ähnlichen "Otto Bauer"', async () => {
+    // Regression-Fixture: eine weitere Person mit phonetisch ähnlichem Nachnamen zur
+    // vorhandenen Seed-Datenbank hinzufügen, ohne die anderen Tests zu berühren.
+    const db = seedDb();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Maier' }));
+    renderView(db);
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'meyer' } });
+    expect(screen.queryByText('Karl Maier')).toBeNull();
+  });
+
+  it('Soundex an: "meyer" findet zusätzlich "Karl Maier" (phonetisch gleich), Schalter zeigt aria-pressed=true', async () => {
+    const db = seedDb();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Maier' }));
+    renderView(db);
+    const toggle = screen.getByRole('button', { name: /Soundex/ });
+
+    await fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'meyer' } });
+    expect(screen.getByText('Karl Maier')).toBeTruthy();
+  });
+});
+
 describe('GlobalSearchView — Typ-Filter-Chips (ADR-v9-130)', () => {
   it('zeigt Chips (Alle + je Typ mit Zähler), sobald mindestens zwei Typen Treffer haben', async () => {
     renderView(seedDb());

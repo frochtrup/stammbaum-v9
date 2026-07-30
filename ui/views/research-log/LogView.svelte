@@ -179,6 +179,8 @@
       class="log-view__row"
       class:log-view__row--found={row.entry.result === 'found'}
       class:log-view__row--partial={row.entry.result === 'partial'}
+      class:log-view__row--notfound={row.entry.result === 'notfound'}
+      class:log-view__row--pending={row.entry.result === 'pending'}
     >
       <div class="log-view__row-head">
         {#if logMode === 'timeline'}
@@ -286,6 +288,19 @@
   /* „Teilweise": Fund, aber unvollständig — amber, zwischen Fund (grün) und nichts. */
   .log-view__row--partial {
     border-left: 3px solid var(--stb-quay-1);
+  }
+
+  /* „Nichts gefunden" — negativ (BL-208, ADR-v9-157): vervollständigt dieselbe
+     Linksbalken-Kodierung auf alle vier LogResult-Zustände, statt nur found/partial zu
+     signalisieren. Redundant zum Text-Label (resultLabel), kein zusätzliches Badge. */
+  .log-view__row--notfound {
+    border-left: 3px solid var(--stb-danger);
+  }
+
+  /* „Ausstehend" — neutral/gedämpft, klar unterscheidbar von "nichts gefunden" (Rot):
+     kein Ergebnis liegt vor, kein Befund. */
+  .log-view__row--pending {
+    border-left: 3px solid var(--stb-text-dim);
   }
 
   .log-view__row-head {

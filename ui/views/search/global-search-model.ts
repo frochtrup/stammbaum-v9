@@ -70,14 +70,24 @@ export function totalResultCount(results: GroupedSearchResults): number {
  * Durchsucht Personen/Familien/Quellen/Orte/Höfe der übergebenen Datenbank und liefert
  * gruppierte Ergebnisse (Spec 20 §1.1 [K], ADR-v9-24). Reine Funktion (db/ctx/query ->
  * Ergebnis), kein eigener Zustand — Command-Palette-tauglich (Spec 21 §3).
+ *
+ * `soundex` (BL-10, ADR-v9-159, Default `false` — bestehende Aufrufer unverändert):
+ * eigener Schalterzustand der globalen Suche (kein gemeinsamer Topf mit dem Soundex-
+ * Filter der Personenliste, INV-VS), wirkt hier NUR auf die Personen-Teilsuche — dieselbe
+ * `matchesSearch`-Funktion aus person-list-model.ts (INV-UI-4, EIN Rechenkern).
  */
-export function globalSearch(db: Database, ctx: PlaceContext, query: string): GroupedSearchResults {
+export function globalSearch(
+  db: Database,
+  ctx: PlaceContext,
+  query: string,
+  soundex = false,
+): GroupedSearchResults {
   const q = query.trim();
   if (q.length < MIN_QUERY_LENGTH) return emptyResults();
 
   const persons: SearchResultRow[] = [];
   for (const p of db.individuals.values()) {
-    if (!matchesPersonSearch(p, q)) continue;
+    if (!matchesPersonSearch(p, q, soundex)) continue;
     persons.push({
       id: p.id,
       primary: displayName(p),

@@ -11,6 +11,7 @@ import {
   buildPersonGroups,
   filterAndSortPersons,
   defaultPersonFilters,
+  matchesSearch,
   type PersonFilters,
 } from '../../ui/views/person/person-list-model';
 
@@ -316,6 +317,56 @@ describe('filterAndSortPersons — erweiterte Filter (jede Dimension einzeln + k
     const filters: PersonFilters = { ...defaultPersonFilters(), sex: 'M' };
     const rows = filterAndSortPersons(seeded(), emptyContext(), 'name', 'anna', filters);
     expect(rows).toEqual([]);
+  });
+});
+
+describe('BL-10/ADR-v9-159 — Soundex-Modus der Personensuche', () => {
+  function seededVariants() {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Karl', surname: 'Maier' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Otto', surname: 'Schulz' }));
+    return db;
+  }
+
+  it('Soundex aus (Default): findet NUR die exakte Schreibweise, nicht die phonetische Variante', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: false };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', 'maier', filters);
+    expect(rows.map((p) => p.id)).toEqual(['@I2@']);
+  });
+
+  it('Soundex an: "maier" findet zusätzlich die phonetisch gleiche Schreibweise "Meyer"', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', 'maier', filters);
+    expect(rows.map((p) => p.id).sort()).toEqual(['@I1@', '@I2@']);
+  });
+
+  it('Soundex an: eine Anfrage mit Ziffern bleibt reiner Substring-Match (kein Soundex-Guard-Bruch)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Meyer', noteText: 'Reg.-Nr. 1900' });
+    db.individuals.set('@I1@', p);
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    // "1900" ist keine reine Buchstaben-Anfrage -> kein Soundex, aber der bestehende
+    // Substring-Treffer über die Notiz bleibt erhalten (Verhalten bei gemischten
+    // Anfragen unverändert, der Soundex-Guard verschluckt keinen bestehenden Treffer).
+    const rows = filterAndSortPersons(db, emptyContext(), 'name', '1900', filters);
+    expect(rows.map((p) => p.id)).toEqual(['@I1@']);
+  });
+
+  it('Soundex bleibt ohne dritten Parameter deaktiviert (bestehende Aufrufer unverändert, z. B. PersonPicker/Picker)', () => {
+    const db = seededVariants();
+    // Direkter matchesSearch-Aufruf ohne dritten Parameter — wie PersonPicker.svelte/
+    // Picker.svelte ihn nutzen: soundex defaultet auf false.
+    const matchedIds = Array.from(db.individuals.values())
+      .filter((p) => matchesSearch(p, 'maier'))
+      .map((p) => p.id);
+    expect(matchedIds).toEqual(['@I2@']);
+  });
+
+  it('leere/nur-Leerzeichen-Anfrage bleibt bei Soundex an unverändert "alle Treffer"', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', '   ', filters);
+    expect(rows).toHaveLength(3);
   });
 });
 

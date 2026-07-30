@@ -149,7 +149,12 @@
             </button>
             {#if entry.entitySummary}<span class="stb-entity-summary">{entry.entitySummary}</span>{/if}
             <span class="hyp-view__row-status">{statusLabel(entry.hypothesis.status)}</span>
-            <span class="hyp-view__row-weight">Konfidenz: {weightLabel(entry.hypothesis.weight)}</span>
+            <span class="hyp-view__row-weight"
+              >Konfidenz: <span
+                class="stb-tone-label stb-tone-label--{entry.hypothesis.weight}"
+                >{weightLabel(entry.hypothesis.weight)}</span
+              ></span
+            >
           </div>
           <p class="hyp-view__row-text">{entry.hypothesis.text}</p>
           {#if entry.hypothesis.evidence.length > 0}
