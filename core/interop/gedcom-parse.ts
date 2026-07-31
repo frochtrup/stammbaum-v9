@@ -329,6 +329,13 @@ function parseHypothesis(node: GedNode): Hypothesis {
   });
 }
 
+/** GED7-`ROLE`: die `PHRASE` (Wortlaut) schlägt den Enum-Wert; sonst der Enum-Wert selbst. */
+function roleFromGed7(asso: GedNode): string {
+  const role = child(asso, 'ROLE');
+  if (!role) return '';
+  return childValue(role, 'PHRASE') || role.value;
+}
+
 function parsePerson(rec: GedNode): Person {
   const id = rec.xref ?? '';
   const p = makePerson(id);
@@ -416,7 +423,11 @@ function parsePerson(rec: GedNode): Person {
         p.associations.push({
           personRef: c.value.startsWith('@') ? unescapeAt(c.value) : null,
           grampsHandle: null,
-          role: childValue(c, 'RELA') || childValue(c, 'ROLE'),
+          // GED7 trägt die Rolle als Enum in `ROLE`, den Wortlaut in dessen `PHRASE`
+          // (BL-241). Der Wortlaut gewinnt: „Taufpate" ist die Aussage, `GODP` ihre
+          // Kodierung — läse man das Enum, ginge beim Rückschreiben nach 5.5.1 die
+          // Formulierung des Bearbeiters verloren.
+          role: childValue(c, 'RELA') || roleFromGed7(c),
           note: childValue(c, 'NOTE'),
           citations: children(c, 'SOUR').map(parseCitation),
         });
