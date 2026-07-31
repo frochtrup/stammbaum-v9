@@ -22,6 +22,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { untrack } from 'svelte';
   import { baseNameOf, exportGedcom, formatFamily, type UiExportFormat } from '../../shell/save-action';
+  import type { AppDataIO } from '../../../services/app-data';
 
   interface Props {
     appState: AppState;
@@ -31,8 +32,11 @@
     handle?: unknown;
     /** Bezugsjahr der Lebend-Klassifikation; injizierbar für Tests (TST-3). */
     referenceYear?: number;
+    /** B1-Bündel (BL-180): merkt Format + Schwärzung geräteübergreifend. Fehlt es
+     *  (Tests, eingebettete Nutzung), verhält sich die Fläche wie bisher sitzungslokal. */
+    appDataIO?: AppDataIO;
   }
-  const { appState, fileService, handle, referenceYear }: Props = $props();
+  const { appState, fileService, handle, referenceYear, appDataIO }: Props = $props();
 
   // Alle Formate stehen zur Wahl (BL-160) — ob ein Format den nativen Passthrough-Baum
   // projiziert oder als Cross-Family-Vollbaum direkt aus dem Modell synthetisiert wird
@@ -51,6 +55,44 @@
   // Fläche gelesen — `untrack`, die Fläche wird pro Navigation frisch erzeugt).
   let format = $state<UiExportFormat>(untrack(() => (appState.docFormat === 'gramps' ? 'gramps' : 'gedcom-5.5.1')));
   let anonymize = $state(false);
+
+  // Vorwahl aus dem B1-Bündel nachladen (BL-180). Bewusst NACH der Anfangs-Vorgabe:
+  // liegt nichts gespeichert vor, bleibt das native Format des geladenen Dokuments
+  // stehen — eine leere Vorwahl darf die sinnvolle Vorgabe nicht überschreiben.
+  $effect(() => {
+    if (!appDataIO) return;
+    let abgebrochen = false;
+    void appDataIO.sync
+      .load()
+      .then((state) => {
+        const prefs = state.sections.exportPrefs;
+        if (abgebrochen || !prefs) return;
+        if (FORMATE.some((f) => f.id === prefs.format)) format = prefs.format as UiExportFormat;
+        anonymize = prefs.anonymize;
+      })
+      .catch(() => {
+        /* ohne gemerkte Vorwahl arbeitet die Fläche wie zuvor */
+      });
+    return () => {
+      abgebrochen = true;
+    };
+  });
+
+  /** Vorwahl merken — fire-and-forget wie die Projekt-Persistenz (ADR-v9-117). */
+  function merkeVorwahl() {
+    if (!appDataIO) return;
+    void appDataIO.sync
+      .load()
+      .then((state) =>
+        appDataIO.sync.reconcileAndSave(
+          { ...state.sections, exportPrefs: { format, anonymize } },
+          { rev: state.rev, sections: state.sections }
+        )
+      )
+      .catch(() => {
+        /* eine nicht gemerkte Vorwahl ist ärgerlich, kein Fehler */
+      });
+  }
   // Die Schwärzung arbeitet auf GEDCOM-Records (Spec 13 §7) — für den GRAMPS-Export nicht
   // umgesetzt; dann wird sie ignoriert (Checkbox deaktiviert, kein stiller Un-Anon-Export).
   const anonAktiv = $derived(anonymize && format !== 'gramps');
@@ -87,7 +129,10 @@
       <!-- value={} + onchange statt bind:value (TST-12, happy-dom-Falle) -->
       <select
         value={format}
-        onchange={(e) => (format = e.currentTarget.value as UiExportFormat)}
+        onchange={(e) => {
+          format = e.currentTarget.value as UiExportFormat;
+          merkeVorwahl();
+        }}
         aria-label="Export-Format"
       >
         {#each FORMATE as f (f.id)}
@@ -101,7 +146,10 @@
         type="checkbox"
         checked={anonymize}
         disabled={format === 'gramps'}
-        onchange={(e) => (anonymize = e.currentTarget.checked)}
+        onchange={(e) => {
+          anonymize = e.currentTarget.checked;
+          merkeVorwahl();
+        }}
       />
       <span>Lebende Personen anonymisieren (DSGVO){format === 'gramps' ? ' — nur für GEDCOM' : ''}</span>
     </label>

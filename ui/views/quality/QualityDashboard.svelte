@@ -32,7 +32,8 @@
     type Severity,
     type ValidationConfig,
   } from '../../../core/validate/index';
-  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import { loadValConfig } from '../../../services/validate/index';
+  import { createValConfigStore } from '../../../services/app-data';
   import { matchesScope } from '../../../core/research/index';
   import type { ProjectScope } from '../../../core/research/types';
   import { SEVERITY_ICON } from '../validation/validation-model';
@@ -103,7 +104,9 @@
     }
   }
 
-  const valStore = new IdbValConfigStore();
+  // Die Regel-Konfiguration wohnt im B1-Bündel (app-data.json, BL-180) und reist
+  // damit zwischen Geräten; der Vertrag bleibt derselbe (ValConfigStore).
+  const valStore = createValConfigStore();
 
   /**
    * Befunde der aktuellen Konfiguration. `$derived` statt eines Knopfdrucks: das

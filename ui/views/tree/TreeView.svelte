@@ -26,7 +26,8 @@
   // Vollständigkeits-Ring (BL-121): dieselbe Befundschwere wie das Qualitäts-Dashboard
   // (computePersonSeverity, INV-UI-4) — die Insel bekommt sie vorberechnet, wertet nichts aus.
   import { configFromStored, defaultConfig, type ValidationConfig } from '../../../core/validate/index';
-  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import { loadValConfig } from '../../../services/validate/index';
+  import { createValConfigStore } from '../../../services/app-data';
   import { buildTreeRings } from './tree-ring-model';
   // Diagramm-Export (BL-124): reiner Renderer + Sink über das vorhandene Export-Rohr.
   import { finalizeSvg, svgToPngBlob } from '../../islands/tree/diagram-export';
@@ -62,7 +63,9 @@
   // ── Vollständigkeits-Ring (BL-121, Spec 21 §8) ──
   // Regel-Konfiguration wie im Dashboard nachladen (dieselbe Quelle → gleiche Ringe/Ampel).
   let valConfig = $state<ValidationConfig>(defaultConfig());
-  const valStore = new IdbValConfigStore();
+  // Die Regel-Konfiguration wohnt im B1-Bündel (app-data.json, BL-180) und reist
+  // damit zwischen Geräten; der Vertrag bleibt derselbe (ValConfigStore).
+  const valStore = createValConfigStore();
   $effect(() => {
     let cancelled = false;
     loadValConfig(valStore)

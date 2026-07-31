@@ -46,6 +46,7 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
+  import { createAppDataIO, type AppDataIO } from '../services/app-data';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import { focusPersonInLens } from '../ui/shell/lens-jump';
@@ -74,6 +75,9 @@
     /** Injizierbar für Tests (analog fileService/persister) — eigener orte.json-Datei-IO
      * (eigenes FS-Handle, eigener Picker, ADR-v9-70). Default ist die echte Instanz. */
     placesFileIO?: PlacesFileIO;
+    /** Injizierbar für Tests (analog placesFileIO) — B1-Bündel `app-data.json` (BL-180):
+     * dateiübergreifender app-privater Zustand, eigener Picker, eigener IDB-Spiegel. */
+    appDataIO?: AppDataIO;
     /** Injizierbar für Tests — Formfaktor-Quelle (BL-91). Default ist window.matchMedia.
      *
      * Nötig, weil `layout` ein Modul-Singleton ist und `start()` hier im onMount läuft:
@@ -86,6 +90,7 @@
     fileService = createFileService(),
     persister = createPlacesPersister(createPlacesSyncService()),
     placesFileIO = createPlacesFileIO(),
+    appDataIO = createAppDataIO(),
     layoutEnv,
   }: Props = $props();
 
@@ -491,6 +496,7 @@
         {fileService}
         {persister}
         {placesFileIO}
+        {appDataIO}
         {fileHandle}
         {route}
         {viewState}

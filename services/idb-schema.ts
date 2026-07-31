@@ -18,7 +18,7 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -40,6 +40,12 @@ export const STORE_PROJECTS = 'research-projects';
  * zur Wiederherstellung angeboten und beim erfolgreichen Speichern verworfen wird. Er
  * traegt bewusst KEINE Revision — waere er eine, wuerde er am Sync teilnehmen. */
 export const STORE_ORTE_DRAFT = 'orte-editor-draft';
+/** B1-Bündel: dateiübergreifender app-privater Zustand (Spec 30 §2.2/§2.3, ADR-v9-173,
+ * BL-180) — Regel-Konfiguration, Export-Vorwahl, später Templates/Kartenebene. Trägt den
+ * `_rev`/`_device`/`_ts`-Wrapper wie orte.json und ist damit der EINZIGE app-private
+ * Zustand mit geräteübergreifendem Mitnahme-Weg. Baumgebundenes gehört ausdrücklich
+ * NICHT hierher (Projekte, Ausschluss-Paare). */
+export const STORE_APP_DATA = 'app-data';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -70,6 +76,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_ORTE_DRAFT)) {
           db.createObjectStore(STORE_ORTE_DRAFT);
+        }
+        if (!db.objectStoreNames.contains(STORE_APP_DATA)) {
+          db.createObjectStore(STORE_APP_DATA);
         }
       };
       req.onsuccess = () => resolve(req.result);

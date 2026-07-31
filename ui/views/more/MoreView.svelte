@@ -34,6 +34,8 @@
   import ImportButton from '../../shell/ImportButton.svelte';
   import SaveButton from '../../shell/SaveButton.svelte';
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
+  import AppDataFileButtons from '../../shell/AppDataFileButtons.svelte';
+  import type { AppDataIO } from '../../../services/app-data';
   import ImportCompareView from '../import/ImportCompareView.svelte';
   import ExportView from '../export/ExportView.svelte';
   import ReportsView from '../reports/ReportsView.svelte';
@@ -55,6 +57,8 @@
      * bestehende Tests (die diesen Prop nicht kennen) unverändert weiterlaufen; ohne ihn
      * bleiben die "Orte exportieren/importieren"-Buttons unsichtbar. */
     placesFileIO?: PlacesFileIO;
+    /** B1-Bündel (app-data.json, BL-180) — dateiübergreifender app-privater Zustand. */
+    appDataIO?: AppDataIO;
     /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
     fileHandle?: unknown;
     /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
@@ -65,7 +69,7 @@
      *  durchgereicht. Optional, damit bestehende Tests unverändert laufen. */
     viewState?: ViewState;
   }
-  const { appState, fileService, persister, placesFileIO, fileHandle, onImported, route, viewState }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, appDataIO, fileHandle, onImported, route, viewState }: Props = $props();
 
   // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
   // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
@@ -142,6 +146,19 @@
           </section>
         {/if}
 
+        {#if appDataIO}
+          <!-- Dritte Datei, dritte Gruppe: das B1-Bündel trägt dateiübergreifende
+               Einstellungen (Regel-Konfiguration, Export-Vorwahl) und ist damit weder
+               Stammbaum noch Orts-Bestand (Spec 30 §2.2/§2.3, ADR-v9-173). -->
+          <section class="more-view__group more-view__group--aside" role="group" aria-labelledby="filegrp-appdata">
+            <h3 id="filegrp-appdata" class="stb-role-label more-view__group-label">App-Daten (app-data.json)</h3>
+            <p class="more-view__group-hint">
+              Ihre Einstellungen (Prüfregeln, Export-Vorwahl) — gilt für alle Stammbäume, enthält keine Personendaten.
+            </p>
+            <AppDataFileButtons {fileService} {appDataIO} />
+          </section>
+        {/if}
+
         <section class="more-view__group" role="group" aria-labelledby="filegrp-exchange">
           <h3 id="filegrp-exchange" class="stb-role-label more-view__group-label">Austausch</h3>
           <!-- Export in ein anderes Format (BL-119): aufklappbar, weil der Normalfall
@@ -149,7 +166,7 @@
                (kein eigenes Nav-Ziel, ADR-v9-113). -->
           <details class="more-view__compare">
             <summary data-variant="secondary">In anderes Format exportieren</summary>
-            <ExportView {appState} {fileService} handle={fileHandle} />
+            <ExportView {appState} {fileService} handle={fileHandle} {appDataIO} />
           </details>
           <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
                geladenen Bestand. Aufklappbar, weil selten gebraucht. -->
