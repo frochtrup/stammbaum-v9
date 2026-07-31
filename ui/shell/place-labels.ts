@@ -68,3 +68,32 @@ export const PLACE_TYPE_OPTIONS: { value: string; label: string }[] = [
   ...Object.entries(PLACE_TYPE_DE).map(([value, label]) => ({ value, label })),
   { value: 'Unknown', label: PLACE_TYPE_UNKNOWN },
 ];
+
+/**
+ * Überschrift eines Orts bzw. Hofs, wenn er (noch) keinen Namen trägt (BL-237).
+ *
+ * WARUM NICHT DIE ID: `placeDisplayName` endet als letzten Rückfall bei `po.id`, und die
+ * Hof-Ansichten taten dasselbe inline mit `addrs[0]?.value || hof.id`. Eine Id wie
+ * `_hof_bauernschaft_rummler_nr_16_ep_3fff290c` beantwortet die Frage „welcher Hof ist
+ * das?" nicht — sie ist ein Schlüssel und trägt nach einem Dorfwechsel (ADR-v9-172) sogar
+ * den Slug des ALTEN Dorfes, ist also nicht nur unlesbar, sondern irreführend.
+ *
+ * Der Rückfall greift nur, wenn ein Objekt tatsächlich keinen Namen hat — bei Orten nie
+ * direkt nach dem Import (der Seed setzt den Titel), bei Höfen nie nach dem Bootstrap (der
+ * setzt `addrs[0]`). Er entsteht erst, wenn jemand alle Namen entfernt.
+ *
+ * In Klammern gesetzt: das ist eine Aussage ÜBER den Eintrag, kein Name.
+ */
+export const OHNE_NAMEN = '(ohne Namen)';
+export const OHNE_ADRESSE = '(ohne Adresse)';
+
+/** Überschrift eines Orts — `placeDisplayName` (INV-UI-14) mit lesbarem Rückfall. */
+export function placeHeading(po: { shortName?: string; title?: string } | null | undefined): string {
+  if (!po) return OHNE_NAMEN;
+  return po.shortName || po.title || OHNE_NAMEN;
+}
+
+/** Überschrift eines Hofs — sein „Name" IST `addrs[0].value` (Spec 11 §1). */
+export function hofHeading(hof: { addrs?: readonly { value: string }[] } | null | undefined): string {
+  return hof?.addrs?.[0]?.value || OHNE_ADRESSE;
+}

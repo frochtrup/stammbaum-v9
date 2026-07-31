@@ -21,7 +21,7 @@
   import type { LensId } from '../../shell/lens-model';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { placeTypeLabel } from '../../shell/place-labels';
+  import { placeTypeLabel, placeHeading } from '../../shell/place-labels';
   import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
@@ -117,7 +117,7 @@
    */
   function handleDelete() {
     if (!detail) return;
-    const label = detail.place.title || detail.place.id;
+    const label = placeHeading(detail.place);
     if (!window.confirm(`Ort „${label}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Ort werden dabei entfernt (nicht die Ereignisse selbst).`)) {
       return;
     }
@@ -160,7 +160,7 @@
   {:else if !detail}
     <p class="place-detail__empty">Ort nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <DetailHeader title={detail.place.title || detail.place.id} onBack={onBack ?? (() => {})}>
+    <DetailHeader title={placeHeading(detail.place)} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
         <!-- Deutsches Label über DIE EINE Quelle (ADR-v9-149). `Unknown`/leer liefert ''
              → gar kein Badge: ein nicht kategorisierter Ort ist der Regelfall direkt nach
@@ -235,7 +235,7 @@
     <PlaceMiniMap
       lat={detail.place.lat}
       long={detail.place.long}
-      label={detail.place.title || detail.place.id}
+      label={placeHeading(detail.place)}
       context={{ kind: 'ort' }}
       {viewState}
       focusId={placeId}

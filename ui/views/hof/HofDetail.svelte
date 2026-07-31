@@ -11,6 +11,7 @@
   import HofEditForm from './HofEditForm.svelte';
   import Picker from '../../shell/Picker.svelte';
   import { placeDisplayName, normPlaceName } from '../../../core/places';
+  import { hofHeading } from '../../shell/place-labels';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
   import type { HofObject, PlaceObject } from '../../../core/places/types';
 
@@ -68,7 +69,7 @@
    */
   function handleDelete() {
     if (!detail) return;
-    const label = detail.hof.addrs[0]?.value || detail.hof.id;
+    const label = hofHeading(detail.hof);
     if (!window.confirm(`Hof „${label}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Hof werden dabei entfernt (nicht die Ereignisse selbst).`)) {
       return;
     }
@@ -169,7 +170,7 @@
   {:else if !detail}
     <p class="hof-detail__empty">Hof nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <DetailHeader title={detail.hof.addrs[0]?.value || detail.hof.id} onBack={onBack ?? (() => {})}>
+    <DetailHeader title={hofHeading(detail.hof)} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
         <span class="hof-detail__village">{detail.villageTitle}</span>
         {#if !editing}
@@ -275,7 +276,7 @@
     <PlaceMiniMap
       lat={detail.hof.lat}
       long={detail.hof.long}
-      label={detail.hof.addrs[0]?.value || detail.hof.id}
+      label={hofHeading(detail.hof)}
       context={{ kind: 'hof', villageCoords: detail.villageCoords, siblingCoords: detail.siblingCoords }}
       {viewState}
       focusId={hofId}
