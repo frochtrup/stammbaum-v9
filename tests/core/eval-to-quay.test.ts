@@ -3,7 +3,7 @@
 //   original+primary → 3,  negative → 0,  authored|undetermined|indirect → 1,  sonst 2.
 // Unabhängig von einem editierten QUAY (INV-C2, Spec 10 §5.3).
 import { describe, it, expect } from 'vitest';
-import { evalToQuay, makeEvidenceEval } from '../../core/research/index';
+import { evalToQuay, isEvidenceEvalEmpty, makeEvidenceEval } from '../../core/research/index';
 
 describe('Spec 12 §3: evalToQuay-Mapping', () => {
   it('original + primary → 3 (stärkstes Profil)', () => {
@@ -38,5 +38,24 @@ describe('Spec 12 §3: evalToQuay-Mapping', () => {
   it('gibt einen gültigen QUAY (0..3) zurück', () => {
     const q = evalToQuay(makeEvidenceEval({ source: 'original', information: 'secondary', evidence: 'direct' }));
     expect([0, 1, 2, 3]).toContain(q);
+  });
+});
+
+// Geteilte Primitive für Writer (BL-83) UND Zitat-Zeile (BL-57): eine leere Bewertung
+// darf keinen `_EVAL`-Subtree erzeugen und trägt in der UI kein Signal.
+describe('Spec 12 §3: isEvidenceEvalEmpty', () => {
+  it('null/undefined und das leere Gerüst gelten als leer', () => {
+    expect(isEvidenceEvalEmpty(null)).toBe(true);
+    expect(isEvidenceEvalEmpty(undefined)).toBe(true);
+    expect(isEvidenceEvalEmpty(makeEvidenceEval())).toBe(true);
+    expect(isEvidenceEvalEmpty(makeEvidenceEval({ informant: '' }))).toBe(true);
+  });
+
+  it('jede einzeln gesetzte Achse macht die Bewertung nicht-leer', () => {
+    expect(isEvidenceEvalEmpty(makeEvidenceEval({ source: 'original' }))).toBe(false);
+    expect(isEvidenceEvalEmpty(makeEvidenceEval({ information: 'primary' }))).toBe(false);
+    expect(isEvidenceEvalEmpty(makeEvidenceEval({ evidence: 'direct' }))).toBe(false);
+    // auch der Informant allein — er reist mit und darf nicht verloren gehen
+    expect(isEvidenceEvalEmpty(makeEvidenceEval({ informant: 'Pfarrer Schmidt' }))).toBe(false);
   });
 });

@@ -20,6 +20,8 @@ import {
 import { makeTask } from '../research/task';
 import { makeLogEntry } from '../research/log';
 import { makeHypothesis } from '../research/hypothesis';
+import { makeEvidenceEval } from '../research/eval';
+import { applyEvalAxis, isEvalTag } from './enum-maps';
 import type {
   ResearchTask,
   TaskStatus,
@@ -41,6 +43,7 @@ import type {
   Note,
   Event,
   Citation,
+  EvidenceEval,
   Media,
   MediaCitation,
   MediaId,
@@ -86,6 +89,29 @@ function findMap(node: GedNode): GedNode | null {
   return null;
 }
 
+/**
+ * Parst einen `3 _EVAL`-Subtree unter einem Zitat in eine EvidenceEval (Spec 12 §3,
+ * Wire-Format 13 §2.3). Struktur (v8-Oracle, `gedcom-writer.js` `_writeSourCits` +
+ * `gedcom-parser.js` `_parseSourCitSub`):
+ *   3 _EVAL                    (Zeile OHNE Wert)
+ *   4 _STYP original|derivative|authored
+ *   4 _INFO primary|secondary|undetermined
+ *   4 _EVID direct|indirect|negative
+ *   4 _INFM <Freitext oder @I…@>
+ * Die vier Achsen werden MODELLIERT herausgelöst (Spec 13 §2.3, `_REPO_MODELLED`-Lehre) —
+ * sonst schriebe der Writer sie neben den vom Baum getragenen Original-Subtree.
+ * Ein UNBEKANNTES `_EVAL`-Kind (`4 _FOO …`) bleibt hier unangetastet und überlebt über den
+ * Passthrough-Backbone (INV-PT) — wie jedes andere nicht modellierte Zitat-Kind auch.
+ * Ein leeres `3 _EVAL` ergibt das leere Gerüst; der Writer schreibt daraus NICHTS
+ * (isEvidenceEvalEmpty — v8-Gate `!evalIsEmpty(c.eval)`), die Zeile fällt also erst dann
+ * weg, wenn der Record ohnehin aus dem Modell neu erzeugt wird.
+ */
+function parseEvidenceEval(node: GedNode): EvidenceEval {
+  const ev = makeEvidenceEval();
+  for (const c of node.children) if (isEvalTag(c.tag)) applyEvalAxis(ev, c.tag, c.value);
+  return ev;
+}
+
 function parseCitation(sourNode: GedNode): Citation {
   const sid = unescapeAt(sourNode.value);
   const cit = makeCitation(sid);
@@ -95,6 +121,8 @@ function parseCitation(sourNode: GedNode): Citation {
     const q = parseInt(quayRaw, 10);
     if (q >= 0 && q <= 3) cit.quay = q as Quay;
   }
+  const evalNode = child(sourNode, '_EVAL');
+  if (evalNode) cit.eval = parseEvidenceEval(evalNode);
   const noteNode = child(sourNode, 'NOTE');
   if (noteNode) cit.note = collectText(noteNode);
   for (const obje of children(sourNode, 'OBJE')) {

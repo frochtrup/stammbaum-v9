@@ -15,6 +15,7 @@
 import type {
   Citation,
   Event,
+  EvidenceEval,
   Family,
   Media,
   MediaCitation,
@@ -24,8 +25,10 @@ import type {
   Source,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
+import { isEvidenceEvalEmpty } from '../research/eval';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { EVAL_TAGS, evalAxisValue } from './enum-maps';
 import { mimeToGedForm } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
@@ -102,11 +105,35 @@ export function emitMediaRecord(m: Media): GedNode {
   return N('OBJE', '', kids, m.id);
 }
 
-/** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/NOTE/OBJE (parseCitation ist die Umkehr). */
+/**
+ * Evidenz-Bewertung → `_EVAL`-Subtree (Spec 12 §3, Wire-Format 13 §2.3); `parseEvidenceEval`
+ * ist die Umkehr. Struktur/Reihenfolge nach v8-Oracle (`gedcom-writer.js` `_writeSourCits`):
+ * die `_EVAL`-Zeile trägt KEINEN Wert, darunter `_STYP`,`_INFO`,`_EVID`,`_INFM` — jede Achse
+ * nur, wenn gesetzt.
+ *
+ * `null` liefert eine LEERE Bewertung zurück: ohne dieses Gate (v8: `!evalIsEmpty(c.eval)`)
+ * erzeugte jedes `eval`-Objekt ohne Inhalt bei jedem Speichern eine nackte `_EVAL`-Zeile und
+ * bräche `out1===out2`. `isEvidenceEvalEmpty` ist die EINE Fundstelle dieser Frage
+ * (core/research/eval.ts) — dieselbe, die die Zitat-Zeile für ihr Bewertungs-Signal nutzt.
+ */
+function evidenceEvalNode(ev: EvidenceEval | null): GedNode | null {
+  if (isEvidenceEvalEmpty(ev)) return null;
+  const kids: GedNode[] = [];
+  for (const tag of EVAL_TAGS) {
+    const v = evalAxisValue(ev!, tag);
+    if (v) kids.push(N(tag, v));
+  }
+  return N('_EVAL', '', kids);
+}
+
+/** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/_EVAL/NOTE/OBJE (parseCitation ist die Umkehr). */
 function citationNode(c: Citation, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (c.page) kids.push(N('PAGE', c.page));
   if (c.quay !== 0) kids.push(N('QUAY', String(c.quay)));
+  // v8-Orakel-Position: direkt nach QUAY, vor NOTE (`_writeSourCits`).
+  const evalKid = evidenceEvalNode(c.eval);
+  if (evalKid) kids.push(evalKid);
   if (c.note) kids.push(textNode('NOTE', c.note));
   for (const m of c.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N('SOUR', c.sourceId, kids);

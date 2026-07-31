@@ -48,7 +48,8 @@ import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { remapIdsForFormat, type IdRemap } from './id-remap';
-import { quayToConfidence, tagToGrampsType } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, quayToConfidence, tagToGrampsType } from './enum-maps';
+import { isEvidenceEvalEmpty } from '../research/eval';
 import { descriptionIsAddress } from './gramps-events';
 import { gedcomToGramps } from './gramps-date';
 
@@ -277,6 +278,13 @@ function citationRecord(id: string, c: Citation, refs: Refs): XmlNode {
   for (const m of c.media) {
     const h = refs.mediaHandle(m.mediaId);
     if (h) children.push(el('objref', [['hlink', h]]));
+  }
+  // Evidenz-Bewertung (BL-83) als `<srcattribute>` — DTD-Position: nach objref, vor sourceref.
+  if (!isEvidenceEvalEmpty(c.eval)) {
+    for (const tag of EVAL_TAGS) {
+      const v = evalAxisValue(c.eval!, tag);
+      if (v) children.push(el('srcattribute', [['type', tag], ['value', v]]));
+    }
   }
   const src = refs.sourceHandle(c.sourceId);
   if (src) children.push(el('sourceref', [['hlink', src]]));

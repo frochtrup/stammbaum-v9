@@ -17,6 +17,18 @@ export function makeEvidenceEval(patch: Partial<EvidenceEval> = {}): EvidenceEva
 }
 
 /**
+ * Trägt diese Bewertung keine einzige gesetzte Achse? Die EINE Fundstelle dieser Frage
+ * (INV-UI-4 auf Kern-Ebene): der Writer darf einen leeren `_EVAL`-Subtree nicht schreiben
+ * (er entstünde sonst bei jedem Roundtrip aus einem `eval`-Objekt ohne Inhalt und bräche
+ * `out1===out2`), und die UI zeigt an der Zitat-Zeile nur dann ein Bewertungs-Signal.
+ * v8-Vorbild: `evalIsEmpty` in `gedcom-writer.js`.
+ */
+export function isEvidenceEvalEmpty(ev: EvidenceEval | null | undefined): boolean {
+  if (!ev) return true;
+  return !ev.source && !ev.information && !ev.evidence && !ev.informant;
+}
+
+/**
  * Spec 12 §3 — geordnete Regel (erste Übereinstimmung gewinnt):
  *   1. evidence === 'negative'               → 0
  *   2. source === 'original' && info==='primary' → 3

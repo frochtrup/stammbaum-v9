@@ -50,6 +50,7 @@ import {
   type PlaceContext,
 } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { evidenceEvalEqual } from './enum-maps';
 import {
   parsePersonPublic,
   parseFamilyPublic,
@@ -327,7 +328,11 @@ function citationsEqual(a: Citation[], b: Citation[]): boolean {
     const x = a[i], y = b[i];
     if (
       x.sourceId !== y.sourceId || x.page !== y.page || x.quay !== y.quay ||
-      x.note !== y.note || !mediaEqual(x.media, y.media)
+      x.note !== y.note || !mediaEqual(x.media, y.media) ||
+      // Die Evidenz-Bewertung (BL-83) gehört in DENSELBEN Vergleich: ohne sie gälte ein
+      // Record, an dem NUR die Bewertung geändert wurde, als „unverändert" — der Writer
+      // gäbe den Original-Knoten zurück und der Edit verschwände still.
+      !evidenceEvalEqual(x.eval, y.eval)
     ) return false;
   }
   return true;

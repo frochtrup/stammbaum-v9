@@ -33,7 +33,8 @@
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
-import type { Citation, Database, Event, Family, Media, Note, Person, Repository, Source } from '../model/types';
+import type { Citation, Database, Event, EvidenceEval, Family, Media, Note, Person, Repository, Source } from '../model/types';
+import { isEvidenceEvalEmpty } from '../research/eval';
 import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
@@ -52,6 +53,7 @@ import { buildEnrichContext } from './gramps-enrich';
 import { descriptionIsAddress, projectGrampsEvent, tagToGrampsType } from './gramps-events';
 import { projectBuildingHof, projectPlaceobj } from './gramps-places';
 import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
+import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag } from './enum-maps';
 import { projectGrampsObject } from './gramps-media';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
 import { parseCoord } from './gedcom-parse';
@@ -488,7 +490,8 @@ function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
  * neu geschrieben, wenn der Nutzer die QUAY tatsächlich geändert hat — sonst bleibt der
  * Original-Wert erhalten (D4 ist verlustbehaftet: 4→3; ohne diesen Schutz würde ein reiner
  * Seiten-Edit ein „Very High"(4) still auf 3 herabstufen). Zitat-Ebene-`<objref>` wird seit
- * BL-126 modellgetrieben abgeglichen (Add/Remove von `Citation.media`); Datum/Notizen/
+ * BL-126 modellgetrieben abgeglichen (Add/Remove von `Citation.media`), die vier Evidenz-
+ * `<srcattribute>` seit BL-83 (s. `setzeEvidenzAchsen`); Datum/Notizen und alle ÜBRIGEN
  * `srcattribute` des Zitats bleiben Passthrough (nicht ins Modell projiziert).
  */
 function citationKinder(orig: XmlNode, cur: Citation, index: GrampsRefIndex): XmlNode[] {
@@ -496,9 +499,60 @@ function citationKinder(orig: XmlNode, cur: Citation, index: GrampsRefIndex): Xm
   const origConf = firstChild(orig, 'confidence')?.text ?? '';
   const conf = confidenceToQuay(origConf) === cur.quay ? origConf : String(cur.quay);
   children = setzeText(children, DTD_ORDER.citation, 'confidence', conf);
+  children = setzeEvidenzAchsen(children, cur.eval);
   children = reconcileRefs(children, DTD_ORDER.citation, 'objref', () => true,
     mediaHandles(cur.media, index), objref);
   return setzeAttribut(children, DTD_ORDER.citation, 'sourceref', 'hlink', toHandle(cur.sourceId, index));
+}
+
+/**
+ * Position für ein NEUES `<srcattribute>`: hinter dem letzten vorhandenen (damit die vier
+ * Achsen ihre Reihenfolge `_STYP,_INFO,_EVID,_INFM` behalten und hinter fremden Attributen
+ * wie `type="EVEN"` stehen), sonst an der DTD-Stelle. `einfuegePosition` allein setzte jedes
+ * weitere VOR das bereits vorhandene und drehte die Reihenfolge um.
+ */
+function srcAttributPosition(children: XmlNode[]): number {
+  let letzte = -1;
+  for (let i = 0; i < children.length; i++) if (children[i].tag === 'srcattribute') letzte = i;
+  return letzte >= 0 ? letzte + 1 : einfuegePosition(children, DTD_ORDER.citation, 'srcattribute');
+}
+
+/** Ein `<srcattribute type=… value=…/>` setzen/aktualisieren/entfernen (Schlüssel = `type`). */
+function setzeSrcAttribut(children: XmlNode[], typ: string, wert: string): XmlNode[] {
+  const idx = children.findIndex((c) => c.tag === 'srcattribute' && attr(c, 'type') === typ);
+  if (idx >= 0) {
+    if (wert === '') return children.filter((_, i) => i !== idx);
+    const alt = children[idx];
+    if (attr(alt, 'value') === wert) return children;
+    const attrs = alt.attrs.some(([k]) => k === 'value')
+      ? alt.attrs.map(([k, v]) => (k === 'value' ? [k, wert] : [k, v]) as [string, string])
+      : [...alt.attrs, ['value', wert] as [string, string]];
+    const neu = [...children];
+    neu[idx] = { ...alt, attrs };
+    return neu;
+  }
+  if (wert === '') return children;
+  const neu = [...children];
+  neu.splice(srcAttributPosition(children), 0, knoten('srcattribute', '', [['type', typ], ['value', wert]]));
+  return neu;
+}
+
+/**
+ * Schreibt die Evidenz-Bewertung (BL-83) als vier `<srcattribute>` an DTD-korrekter Stelle
+ * (vor `<sourceref>`) — vorhandene aktualisieren, nicht gesetzte Achsen entfernen.
+ *
+ * Räumt zusätzlich die v8-Altform `<attribute type="_STYP" …>` weg: sie ist im `<citation>`
+ * DTD-widrig (grampsxml.dtd 1.7.2) und stünde sonst NEBEN der neu geschriebenen Zeile —
+ * genau die Doppelschreibung, die Spec 13 §2.3 (`_REPO_MODELLED`) verbietet. FREMDE
+ * `<attribute>`/`<srcattribute>` (z. B. `type="EVEN"`) bleiben unberührt (INV-PT).
+ */
+function setzeEvidenzAchsen(children: XmlNode[], ev: EvidenceEval | null): XmlNode[] {
+  let out = children.filter((c) => !(c.tag === 'attribute' && isEvalTag(attr(c, 'type'))));
+  const leer = isEvidenceEvalEmpty(ev);
+  for (const tag of EVAL_TAGS) {
+    out = setzeSrcAttribut(out, tag, leer ? '' : evalAxisValue(ev!, tag));
+  }
+  return out;
 }
 
 // ── Gleichheit: nur die projizierten Felder zählen ──────────────────────────────────────
@@ -550,7 +604,10 @@ const eventGleich = (a: Event, b: Event): boolean =>
   eventDescription(a) === eventDescription(b);
 
 const citationGleich = (a: Citation, b: Citation): boolean =>
-  a.sourceId === b.sourceId && a.page === b.page && a.quay === b.quay;
+  a.sourceId === b.sourceId && a.page === b.page && a.quay === b.quay &&
+  // Evidenz-Bewertung (BL-83): ohne sie bliebe ein Zitat, an dem NUR die Bewertung geändert
+  // wurde, „unverändert" und der Edit fiele still unter den Tisch.
+  evidenceEvalEqual(a.eval, b.eval);
 
 // ── Owner-Gleichheit inkl. Referenz-Mengen (BL-144) ─────────────────────────────────────
 // Ein Owner (Person/Familie) gilt zusätzlich als geändert, wenn sich die MENGE seiner
