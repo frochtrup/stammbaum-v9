@@ -111,3 +111,68 @@ function transformSubtree(node: GedNode, isHead: boolean): void {
   }
   node.children = kept;
 }
+
+// --- SCHMA: Deklaration der eigenen Extension-Tags (BL-242) -------------------
+//
+// GEDCOM 7 unterscheidet DOKUMENTIERTE und UNDOKUMENTIERTE Extension-Tags (öffentliche
+// Spec, HEAD.SCHMA/TAG): ein `_`-Tag ohne SCHMA-Eintrag ist undokumentiert — erlaubt,
+// aber seine Bedeutung ist „durch seine Superstruktur und seinen Tag" bestimmt, also rein
+// datei-lokal; die Spec empfiehlt ausdrücklich, keine zu verwenden. Erst die URI gibt dem
+// Tag eine Identität über die Datei hinaus: zwei Programme, die beide `_EVAL` schreiben,
+// meinen nur dann dasselbe, wenn sie auf dieselbe URI zeigen.
+//
+// Die Liste wird aus den TATSÄCHLICH geschriebenen Tags abgeleitet, nicht gepflegt. Das
+// v8-Orakel (`gedcom-writer.js` `_g7WriteSchma`) führte eine feste 29er-Liste — die
+// deklarierte einerseits Tags, die in der Datei gar nicht vorkommen, und verfehlte
+// andererseits alles seither Hinzugekommene (`_TASKID`, `_HKIND`, `_HREF` fehlen dort
+// bereits). Eine zweite, nachzupflegende Wahrheit neben dem Writer; abgeleitet kann sie
+// nicht driften.
+
+/**
+ * URI-Basis der Extension-Tags. Bewusst die des v8-Orakels: dieselbe URI bedeutet dasselbe
+ * Konzept — ein neuer Präfix behauptete, `_EVAL` aus v8 und aus v9 seien verschiedene Dinge.
+ *
+ * BEKANNTE GRENZE: deklariert werden ALLE geschriebenen `_`-Tags, also auch FREMDE, die
+ * nur durchgereicht werden (an Realdaten gemessen: von 14 deklarierten Tags einer
+ * Ancestris-Datei stammen die meisten — `_LATI`/`_STYLE`/`_VALID`/… — nicht von uns). Sie
+ * unter unserem Namensraum zu führen heißt streng genommen „in DIESEM Dokument bedeutet
+ * `_LATI`, was Stammbaum darunter versteht". Die Alternative wäre, sie undeklariert zu
+ * lassen — laut Spec zulässig (ihre Bedeutung ergibt sich dann aus Superstruktur + Tag),
+ * aber ausdrücklich nicht empfohlen. Bewusst so gewählt, weil die Unterscheidung „eigener
+ * vs. fremder Tag" nur über eine gepflegte Zweitliste ginge — genau die, die dieser Bau
+ * abschafft. Sollte sich das als Fehlannahme erweisen, ist es EINE Filterstelle hier.
+ */
+const EXT_URI_BASE = 'https://github.com/frochtrup/Stammbaum/ext';
+
+/** Alle `_`-Tags eines Baums, aufsteigend sortiert (deterministische Ausgabe). */
+function collectExtTags(node: GedNode, seen: Set<string>): void {
+  if (node.tag.startsWith('_')) seen.add(node.tag);
+  for (const c of node.children) collectExtTags(c, seen);
+}
+
+/**
+ * Der `1 SCHMA`-Block für einen fertig nach GED7 transformierten Baum — `null`, wenn die
+ * Datei keinen einzigen Extension-Tag führt (ein leerer Block deklarierte nichts).
+ *
+ * Muss NACH `transformGed7` laufen: dort wird u. a. `_TRAN` zu `TRAN`, ein vorher
+ * gesammelter Tag wäre also falsch. Ein bereits vorhandener SCHMA-Block wird vom
+ * Aufrufer ersetzt, nicht ergänzt — sonst wüchse bei jedem GED7→GED7-Durchlauf einer nach.
+ */
+export function g7Schma(roots: readonly GedNode[]): GedNode | null {
+  const seen = new Set<string>();
+  for (const r of roots) collectExtTags(r, seen);
+  if (seen.size === 0) return null;
+  return {
+    level: 1,
+    xref: null,
+    tag: 'SCHMA',
+    value: '',
+    children: [...seen].sort().map((tag) => ({
+      level: 2,
+      xref: null,
+      tag: 'TAG',
+      value: `${tag} ${EXT_URI_BASE}/${tag}`,
+      children: [],
+    })),
+  };
+}

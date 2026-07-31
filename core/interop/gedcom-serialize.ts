@@ -14,7 +14,7 @@
 import { writeNode } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
 import type { ParsedGedcom, GedFormat, Clock } from './types';
-import { transformGed7 } from './ged7-adapter';
+import { transformGed7, g7Schma } from './ged7-adapter';
 import { stripStrict } from './strict-adapter';
 
 const EOL = '\r\n';
@@ -43,8 +43,12 @@ export function serializeGedcom(doc: ParsedGedcom, opts: SerializeOptions = {}):
   const format = opts.format ?? '5.5.1';
   let roots = doc.roots;
 
-  if (format === '7.0') roots = roots.map(transformGed7);
-  else if (format === 'strict') roots = roots.map(stripStrict).filter((n): n is GedNode => n != null);
+  if (format === '7.0') {
+    roots = roots.map(transformGed7);
+    roots = withSchma(roots);
+  } else if (format === 'strict') {
+    roots = roots.map(stripStrict).filter((n): n is GedNode => n != null);
+  }
 
   const lines: string[] = [];
   for (const rec of roots) {
@@ -55,6 +59,23 @@ export function serializeGedcom(doc: ParsedGedcom, opts: SerializeOptions = {}):
     }
   }
   return lines.join(EOL);
+}
+
+/**
+ * Hängt den GED7-`SCHMA`-Block in den HEAD (BL-242). Ein bereits vorhandener wird
+ * ERSETZT, nicht ergänzt — sonst wüchse bei jedem GED7→GED7-Durchlauf einer nach
+ * (dieselbe Doppelschreibungs-Falle wie bei modellierten `_`-Tags, Spec 13 §2.3).
+ *
+ * Angehängt statt einsortiert: die öffentliche Spec schreibt für die HEAD-Unterstrukturen
+ * keine Reihenfolge vor und empfiehlt lediglich, dass `GEDC` zuerst steht — das bleibt so.
+ */
+function withSchma(roots: GedNode[]): GedNode[] {
+  const schma = g7Schma(roots);
+  return roots.map((rec) => {
+    if (rec.tag !== 'HEAD') return rec;
+    const ohneAlt = rec.children.filter((c) => c.tag !== 'SCHMA');
+    return { ...rec, children: schma ? [...ohneAlt, schma] : ohneAlt };
+  });
 }
 
 /**
