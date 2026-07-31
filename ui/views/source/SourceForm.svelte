@@ -73,6 +73,14 @@
     if (!callMedia.trim()) callMedia = t.callMedia;
   }
 
+  // `callMedia` reist als `SOUR.REPO.CALN.MEDI` — strukturell unter der Signatur, die
+  // wiederum unter dem Archiv hängt. `write-back-emit.ts` schreibt MEDI deshalb nur bei
+  // gesetztem Archiv UND gesetzter Signatur; das ist korrektes GEDCOM, macht aber aus
+  // einem allein ausgefüllten Medientyp-Feld eine stille Löschung (tippen, speichern,
+  // nach dem Neuladen weg). Da die Vorlagen oben das Feld von sich aus vorbelegen, ist
+  // das der Regelfall, nicht der Ausnahmefall — also sagen wir es, statt es zu schlucken.
+  const mediaOrphan = $derived(!!callMedia.trim() && !(repo && callNumber.trim()));
+
   function applyTemplateByLabel() {
     const match = SOURCE_TEMPLATES.find((t) => t.label === templateQuery);
     if (match) applyTemplate(match);
@@ -157,8 +165,21 @@
            (write-back-emit.ts emitSource). Keine erfundene Vorgabe: dieselbe Kopplung
            gilt bereits für die read-only-Anzeige im Steckbrief (ADR-v9-151). -->
       Medientyp (zur Signatur)
-      <input type="text" bind:value={callMedia} placeholder="z. B. manuscript, tombstone" />
+      <input
+        type="text"
+        bind:value={callMedia}
+        placeholder="z. B. manuscript, tombstone"
+        aria-describedby={mediaOrphan ? 'source-form-media-warn' : undefined}
+      />
     </label>
+    <!-- Der Hinweis steht ausserhalb des <label>: dort drin wuerde er Teil des
+         Accessible Name des Feldes ("Medientyp (zur Signatur) Medientyp wird erst …"),
+         statt als Beschreibung angesagt zu werden. Deshalb aria-describedby. -->
+    {#if mediaOrphan}
+      <p class="source-form__warn" id="source-form-media-warn">
+        Medientyp wird erst mit Archiv und Signatur gespeichert.
+      </p>
+    {/if}
     <div class="stb-field">
       <span class="stb-field__caption">Archiv</span>
       <RepositoryPicker
@@ -206,6 +227,18 @@
     font-size: 0.8rem;
     color: var(--stb-text-dim);
     margin-top: 0.4rem;
+  }
+
+  /* Hinweis, kein Fehler: die Eingabe ist gültig, nur noch nicht speicherbar — deshalb
+     die gedämpfte Warnfarbe statt der Fehler-Rotstufe. */
+  .source-form__warn {
+    font-size: 0.72rem;
+    color: var(--stb-warn);
+    line-height: 1.3;
+    margin: 0.15rem 0 0;
+    /* Volle Breite im auto-fill-Raster, damit der Satz nicht in einer 180px-Spalte
+       umbricht und dabei vom zugehörigen Feld weggeschoben wird. */
+    grid-column: 1 / -1;
   }
 
   .source-form__chips {

@@ -64,7 +64,9 @@
   }
 
   interface BranchRow {
-    branch: AncestorBranch;
+    /** `null` bei der Restzeile — sie ist kein Ast, wird aber gleich behandelt. */
+    branch: AncestorBranch | null;
+    label: string;
     index: number;
     scope: ReadonlySet<PersonId>;
     total: number;
@@ -72,20 +74,33 @@
     cleanPct: number | null;
   }
 
+  /** Beschriftung der Restzeile — kein Ast-Name, deshalb bewusst anders formuliert. */
+  const REST_LABEL = 'Übrige (außerhalb aller Äste)';
+
   // Je Ast EIN zusätzlicher `buildQualityDashboard`-Lauf über die (mit einem aktiven
   // Projekt UND-verknüpfte, ADR-v9-167 Pkt 5) Astmenge — bis zu MAX_BRANCH_LEVEL-1
   // Bits = 16 Läufe bei Ebene 5. Gemessen an Realdaten (s. Commit-Bericht); das bestehende
   // Perf-Gate (`npm run test:perf`) deckt Regressionen ab.
-  function buildRow(branch: AncestorBranch, index: number): BranchRow {
-    const scope = intersect(projectScope, branch.personIds);
+  function buildRow(branch: AncestorBranch | null, label: string, index: number, menge: ReadonlySet<PersonId>): BranchRow {
+    const scope = intersect(projectScope, menge);
     if (scope.size === 0) {
-      return { branch, index, scope, total: 0, cleanPct: null };
+      return { branch, label, index, scope, total: 0, cleanPct: null };
     }
     const d = buildQualityDashboard(appState.db, findings, { scope });
-    return { branch, index, scope, total: d.total, cleanPct: d.cleanPct };
+    return { branch, label, index, scope, total: d.total, cleanPct: d.cleanPct };
   }
 
-  const rows = $derived((data?.branches ?? []).map((branch, index) => buildRow(branch, index)));
+  // Äste + EINE Restzeile (ADR-v9-167 Pkt 4): Nachkommen, Seitenlinien und Unverbundene
+  // liegen in keinem Ast. Ohne diese Zeile summierten sich die Balken stillschweigend auf
+  // weniger als den Bestand, und die Ansicht behauptete eine Vollständigkeit, die sie
+  // nicht hat. Sie ist dieselbe Sorte Zeile wie ein Ast (gleiche Engine, gleicher Klick →
+  // Brennpunkte scopen) — kein zweiter Mechanismus für eine zweite Zeilenart.
+  const rows = $derived([
+    ...(data?.branches ?? []).map((branch, index) => buildRow(branch, branch.label, index, branch.personIds)),
+    ...(data && data.rest.size > 0
+      ? [buildRow(null, REST_LABEL, data.branches.length, data.rest)]
+      : []),
+  ]);
   /** Die aktuell gewählte Zeile, falls vorhanden — als eigener Wert, damit TS die
    *  `selectedIndex !== null`-Prüfung nicht über eine Closure hinweg neu bewerten muss. */
   const selectedRow = $derived(selectedIndex !== null ? (rows[selectedIndex] ?? null) : null);
@@ -102,7 +117,7 @@
       onSelectBranch(null);
     } else {
       selectedIndex = row.index;
-      onSelectBranch({ label: row.branch.label, personIds: row.scope });
+      onSelectBranch({ label: row.label, personIds: row.scope });
     }
   }
 
@@ -139,15 +154,16 @@
           <button
             type="button"
             class="branches__row"
+            class:branches__row--rest={row.branch === null}
             class:branches__row--selected={selectedIndex === row.index}
             aria-pressed={selectedIndex === row.index}
             onclick={() => toggleBranch(row)}
           >
-            <span class="branches__label">{row.branch.label}</span>
+            <span class="branches__label">{row.label}</span>
             {#if row.cleanPct === null}
               <span class="branches__pct branches__pct--empty">—</span>
             {:else}
-              <span class="branches__bar" role="img" aria-label="{row.branch.label}: {row.cleanPct} Prozent befundfrei">
+              <span class="branches__bar" role="img" aria-label="{row.label}: {row.cleanPct} Prozent befundfrei">
                 <span
                   class="branches__bar-fill branches__bar-fill--{barClass(row.cleanPct)}"
                   style:width="{row.cleanPct}%"
@@ -161,7 +177,7 @@
     </ul>
     {#if selectedRow}
       <p class="branches__filter-note">
-        Brennpunkte gefiltert nach Ast „{selectedRow.branch.label}" —
+        Brennpunkte gefiltert nach {selectedRow.branch ? 'Ast' : ''} „{selectedRow.label}" —
         <button type="button" class="branches__clear" onclick={() => toggleBranch(selectedRow)}>
           Auswahl aufheben
         </button>
@@ -241,6 +257,13 @@
     cursor: pointer;
     text-align: left;
     font-size: 0.78rem;
+  }
+
+  /* Die Restzeile ist kein Ast — sie wird abgesetzt, damit die Balkenreihe lesbar
+     bleibt, ohne dass sie wie eine fünfte Linie mitzählt. */
+  .branches__row--rest {
+    border-style: dashed;
+    color: var(--stb-text-dim);
   }
 
   .branches__row--selected {
