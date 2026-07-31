@@ -8,3 +8,11 @@ export { makeProject, matchesScope } from './project';
 export { makeHypothesis, addHypothesisEvidence, isIdentityExclusion } from './hypothesis';
 export { evalToQuay, isEvidenceEvalEmpty, makeEvidenceEval } from './eval';
 export { buildProofSummary, type ProofSummary, type ProofSources } from './proof-summary';
+export {
+  ancestorBranches,
+  DEFAULT_BRANCH_LEVEL,
+  MIN_BRANCH_LEVEL,
+  MAX_BRANCH_LEVEL,
+  type AncestorBranch,
+  type AncestorBranches,
+} from './branches';

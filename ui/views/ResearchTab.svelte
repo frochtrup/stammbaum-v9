@@ -20,6 +20,7 @@
   // BL-90/ADR-v9-101).
   import type { AppState } from '../shell/app-state.svelte';
   import type { Route } from '../shell/route.svelte';
+  import type { ViewState } from '../shell/view-state.svelte';
   import { RESEARCH_TARGETS } from '../shell/nav-model';
   import { layout } from '../shell/layout.svelte';
   import TasksView from './tasks/TasksView.svelte';
@@ -34,6 +35,9 @@
   interface Props {
     appState: AppState;
     route: Route;
+    /** Für das Qualitäts-Dashboard/Ast-Reifegrad: `resolveProband(db, viewState)`
+     *  (ADR-v9-140/167) — die EINE Proband-Auflösung, kein zweiter Rückfall hier. */
+    viewState: ViewState;
     /** Forschungsprojekte + aktive Auswahl (BL-58) — scopen Aufgaben/Protokoll/Hypothesen. */
     projects: ProjectsState;
     onNavigateToPerson?: (id: string) => void;
@@ -44,6 +48,7 @@
   const {
     appState,
     route,
+    viewState,
     projects,
     onNavigateToPerson,
     onNavigateToFamily,
@@ -114,6 +119,7 @@
   {:else if activeSegment === 'quality'}
     <QualityDashboard
       {appState}
+      {viewState}
       scope={projects.activeScope}
       {onNavigateToPerson}
       {onNavigateToFamily}

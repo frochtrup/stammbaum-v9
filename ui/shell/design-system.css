@@ -591,3 +591,38 @@ button.stb-coord-indicator__glyph:focus-visible {
   font-size: 0.82rem;
   align-self: flex-end;
 }
+
+/* Qualitäts-Dashboard (Spec 20 §1.11g) — Klassen, die MEHR als eine Komponente unter
+   ui/views/quality/ teilen (QualityDashboard.svelte selbst, FocusPersonList.svelte,
+   BranchMaturitySection.svelte via eigenes Präfix). Svelte scoped CSS pro Komponente,
+   ein `.quality__dot` in QualityDashboard.svelte hätte die Ampel-Punkte in der aus BL-231
+   ausgelagerten Brennpunkte-Liste NICHT erreicht — deshalb hier, EINE Quelle statt
+   Duplikat je Konsument (INV-UI-4, ADR-v9-26-Lehre). */
+.quality__empty {
+  padding: 1.5rem;
+  color: var(--stb-text-dim);
+}
+
+.quality__section {
+  margin: 1rem 0.75rem 0.4rem;
+  font-family: var(--stb-font-title);
+  font-size: 0.9rem;
+  color: var(--stb-gold-light);
+}
+
+.quality__section-count {
+  color: var(--stb-text-dim);
+  font-weight: 400;
+}
+
+.quality__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.quality__dot--error { background: var(--stb-danger, #e06c6c); }
+.quality__dot--warn { background: var(--stb-warn, #d9a441); }
+.quality__dot--info { background: var(--stb-text-dim); }
+.quality__dot--clean { background: var(--stb-ok); }

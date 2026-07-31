@@ -11,6 +11,7 @@ import ResearchTab from '../../ui/views/ResearchTab.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createRoute } from '../../ui/shell/route.svelte';
 import { createProjectsState } from '../../ui/shell/projects-state.svelte';
+import { createViewState } from '../../ui/shell/view-state.svelte';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
@@ -29,7 +30,7 @@ describe('ResearchTab — mobile Segment-Reihe (Dashboard/Aufgaben/Protokoll/Hyp
 
   it('zeigt alle vier Segment-Buttons; Dashboard steht an erster Stelle, "Aufgaben" ist beim Mount aktiv', () => {
     mobile();
-    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), viewState: createViewState(), projects: mkProjects() } });
 
     // Reihenfolge im DOM: Dashboard zuerst (ADR-v9-116), aber die Default-Auswahl bleibt
     // "Aufgaben" — Reihenfolge ≠ Default-Landung. Scope auf die Segment-Reihe, weil
@@ -46,13 +47,13 @@ describe('ResearchTab — mobile Segment-Reihe (Dashboard/Aufgaben/Protokoll/Hyp
 
   it('zeigt standardmäßig den Aufgaben-Inhalt (TasksView, "+ Aufgabe"-Button sichtbar)', () => {
     mobile();
-    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), viewState: createViewState(), projects: mkProjects() } });
     expect(screen.getByText('+ Aufgabe')).toBeTruthy();
   });
 
   it('Klick auf "Protokoll" wechselt zu LogView ("+ Eintrag"-Button sichtbar, TasksView-Button weg)', async () => {
     mobile();
-    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), viewState: createViewState(), projects: mkProjects() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Protokoll' }));
 
@@ -62,7 +63,7 @@ describe('ResearchTab — mobile Segment-Reihe (Dashboard/Aufgaben/Protokoll/Hyp
 
   it('Klick auf "Hypothesen" wechselt zu HypothesesView ("+ Hypothese"-Button sichtbar), andere Inhalte weg', async () => {
     mobile();
-    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route: createRoute(), viewState: createViewState(), projects: mkProjects() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Hypothesen' }));
 
@@ -74,7 +75,7 @@ describe('ResearchTab — mobile Segment-Reihe (Dashboard/Aufgaben/Protokoll/Hyp
   it('ein Segment-Klick setzt das Ziel über die EINE Routen-Quelle (route.setTarget, ADR-v9-116)', async () => {
     mobile();
     const route = createRoute();
-    render(ResearchTab, { props: { appState: createAppState(), route, projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route, viewState: createViewState(), projects: mkProjects() } });
 
     await fireEvent.click(screen.getByRole('tab', { name: 'Hypothesen' }));
 
@@ -94,7 +95,7 @@ describe('ResearchTab — auf Desktop entfällt die Segment-Reihe (Spec 21 §3, 
   it('rendert keine Segment-Reihe; die Sidebar trägt die Ziele — der Inhalt folgt route.researchTarget', () => {
     unpin = pinLayout(true);
     const route = createRoute({ researchTarget: 'hypotheses' });
-    render(ResearchTab, { props: { appState: createAppState(), route, projects: mkProjects() } });
+    render(ResearchTab, { props: { appState: createAppState(), route, viewState: createViewState(), projects: mkProjects() } });
 
     // Die Forschungs-Segmentreihe rendert nicht mehr (die Sidebar navigiert) — auf ihren
     // accessible name geprüft, da Unter-Views eigene tab-Reihen haben können. Der Inhalt
@@ -116,12 +117,12 @@ describe('ResearchTab — das offene Ziel überlebt das Wegnavigieren (ADR-v9-10
     const appState = createAppState();
     const route = createRoute();
 
-    const first = render(ResearchTab, { props: { appState, route, projects: mkProjects() } });
+    const first = render(ResearchTab, { props: { appState, route, viewState: createViewState(), projects: mkProjects() } });
     await fireEvent.click(screen.getByRole('tab', { name: 'Hypothesen' }));
     // Wegnavigieren = Unmount (App.svelte rendert die Ziele über `{:else if}`).
     first.unmount();
 
-    render(ResearchTab, { props: { appState, route, projects: mkProjects() } });
+    render(ResearchTab, { props: { appState, route, viewState: createViewState(), projects: mkProjects() } });
 
     expect(screen.getByRole('tab', { name: 'Hypothesen' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tab', { name: 'Aufgaben' }).getAttribute('aria-selected')).toBe('false');

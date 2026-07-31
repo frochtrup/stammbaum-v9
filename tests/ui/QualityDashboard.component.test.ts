@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import QualityDashboard from '../../ui/views/quality/QualityDashboard.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson } from '../../core/model';
 
 /** Otto hat einen echten Fehler (Sterbejahr vor Geburtsjahr), Anna nur Lücken. */
@@ -29,9 +30,10 @@ function seedDb() {
 function renderView(db = seedDb()) {
   const appState = createAppState();
   appState.loadDatabase(db, 'test.ged');
+  const viewState = createViewState();
   const onNavigateToPerson = vi.fn();
-  const utils = render(QualityDashboard, { props: { appState, onNavigateToPerson } });
-  return { ...utils, appState, onNavigateToPerson };
+  const utils = render(QualityDashboard, { props: { appState, viewState, onNavigateToPerson } });
+  return { ...utils, appState, viewState, onNavigateToPerson };
 }
 
 describe('QualityDashboard — Score, Ampel, Radar', () => {

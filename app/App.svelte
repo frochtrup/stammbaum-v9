@@ -484,6 +484,7 @@
       <ResearchTab
         {appState}
         {route}
+        {viewState}
         projects={projectsState}
         onNavigateToPerson={openPersonFromSearch}
         onNavigateToFamily={openFamilyFromSearch}
