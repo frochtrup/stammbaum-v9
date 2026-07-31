@@ -62,6 +62,17 @@ export interface EvidenceRef {
   page: string;
 }
 
+/**
+ * Art der Behauptung (ADR-v9-174). `identity` = „die referenzierten Datensätze
+ * bezeichnen dieselbe Person"; zusammen mit `status` trägt sie das Dubletten-Urteil
+ * (`rejected` = Ausschluss, `confirmed` = Merge-Begründung, `open` = in Prüfung).
+ *
+ * Warum das nicht am Freitext hängen darf: ohne maschinenlesbare Art läse der
+ * Dubletten-Filter eine abgelehnte Hypothese „A ist der Vater von B", die A und B
+ * referenziert, als Dublettenausschluss — ein stiller Fehlschluss.
+ */
+export type HypothesisKind = 'free' | 'identity';
+
 export interface Hypothesis {
   id: string;
   /** injizierter Zeitstempel (TST-3). */
@@ -72,6 +83,14 @@ export interface Hypothesis {
   evidence: EvidenceRef[];
   rationale: string;
   conclusion: string;
+  /** Art der Behauptung (ADR-v9-174). Vorgabe `free` = die bisherige freie Hypothese. */
+  kind: HypothesisKind;
+  /**
+   * Weitere betroffene Datensätze (`@I…@`/`@F…@`) — eine Hypothese hängt an EINEM
+   * Datensatz, spricht aber oft über zwei. Wiederholbar; deckt Person↔Person,
+   * Person↔Familie und Familie↔Familie ab (beide Träger führen `hypotheses[]`).
+   */
+  refs: string[];
 }
 
 // --- §5 Forschungsprojekt (app-privat) --------------------------------------

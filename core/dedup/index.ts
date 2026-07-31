@@ -12,6 +12,9 @@ export {
   type DuplicateCandidate,
 } from './person-duplicates';
 
+export { collectIdentityExclusions } from './identity-exclusions';
+export { isIdentityExclusion } from '../research/hypothesis';
+
 export {
   mergePersons,
   MERGEABLE_PERSON_FIELDS,

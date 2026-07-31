@@ -406,7 +406,12 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
     if (
       x.id !== y.id || x.text !== y.text || x.status !== y.status ||
       x.weight !== y.weight || x.created !== y.created ||
-      x.rationale !== y.rationale || x.conclusion !== y.conclusion
+      x.rationale !== y.rationale || x.conclusion !== y.conclusion ||
+      // kind/refs (ADR-v9-174) gehören in DENSELBEN Vergleich: ohne sie gälte ein
+      // Dublettenausschluss, der nur diese beiden Felder setzt, als „unverändert" und
+      // würde nie geschrieben.
+      x.kind !== y.kind || x.refs.length !== y.refs.length ||
+      x.refs.some((r, k) => r !== y.refs[k])
     ) return false;
     if (x.evidence.length !== y.evidence.length) return false;
     for (let j = 0; j < x.evidence.length; j++) {

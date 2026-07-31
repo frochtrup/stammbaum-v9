@@ -50,14 +50,25 @@ export function deletePersonCascade(db: ReadonlyDatabase, id: PersonId): Databas
 
     // 2. Assoziationen/Aliasse anderer Personen bereinigen (eine Assoziation ohne Ziel ist
     //    bedeutungslos — ganze Zeile entfernen, nicht nur personRef nullen).
+    //    Hypothesen-`refs` (ADR-v9-174) sind derselbe Fall EINE Ebene feiner: gestrichen
+    //    wird nur der tote Zeiger, nicht die Hypothese — ihr Text bleibt als Befund
+    //    stehen. Ein Identitäts-Befund ohne Bezug ist danach kein Ausschluss mehr
+    //    (INV-H3), was genau richtig ist: die Aussage „diese beiden sind dieselben"
+    //    verliert ihren Sinn, wenn eine der beiden Seiten fort ist.
     for (const pid of d.personIds()) {
       if (pid === id) continue;
       const p = d.peekPerson(pid)!;
-      const touched = p.associations.some((a) => a.personRef === id) || p.aliases.includes(id);
+      const touched =
+        p.associations.some((a) => a.personRef === id) ||
+        p.aliases.includes(id) ||
+        p.hypotheses.some((h) => h.refs.includes(id));
       if (!touched) continue;
       const person = d.person(pid)!;
       person.associations = person.associations.filter((a) => a.personRef !== id);
       person.aliases = person.aliases.filter((a) => a !== id);
+      person.hypotheses = person.hypotheses.map((h) =>
+        h.refs.includes(id) ? { ...h, refs: h.refs.filter((r) => r !== id) } : h,
+      );
     }
 
     // 3. Person entfernen.
@@ -85,6 +96,24 @@ export function deleteFamilyCascade(db: ReadonlyDatabase, id: FamilyId): Databas
     if (fam.husband !== null) removeParentFromFamily(d, id, 'husband');
     if (fam.wife !== null) removeParentFromFamily(d, id, 'wife');
     for (const cid of [...fam.children]) removeChildFromFamily(d, id, cid);
+    // Tote Hypothesen-Zeiger auf DIESE Familie streichen (ADR-v9-174) — dieselbe Regel
+    // wie in deletePersonCascade Schritt 2; `refs` ist der erste Zeiger im Modell, der
+    // auf eine Familie zeigen kann, deshalb gab es hier bisher nichts zu bereinigen.
+    for (const pid of d.personIds()) {
+      if (!d.peekPerson(pid)!.hypotheses.some((h) => h.refs.includes(id))) continue;
+      const person = d.person(pid)!;
+      person.hypotheses = person.hypotheses.map((h) =>
+        h.refs.includes(id) ? { ...h, refs: h.refs.filter((r) => r !== id) } : h,
+      );
+    }
+    for (const fid of d.familyIds()) {
+      if (fid === id) continue;
+      if (!d.peekFamily(fid)!.hypotheses.some((h) => h.refs.includes(id))) continue;
+      const other = d.family(fid)!;
+      other.hypotheses = other.hypotheses.map((h) =>
+        h.refs.includes(id) ? { ...h, refs: h.refs.filter((r) => r !== id) } : h,
+      );
+    }
     d.removeFamily(id);
   });
 }

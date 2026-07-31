@@ -192,8 +192,9 @@ function logEntryNode(l: LogEntry): GedNode {
 /**
  * Hypothese (Hypothesis) → `1 _HYPO`-Block (Spec 12 §4, Wire-Format 13 §2.3).
  * parseHypothesis ist die Umkehr. Reihenfolge nach v8-Oracle: `_ID`, `_HSTAT`, `_HWGT`,
- * `_DATE` (eigener Tag, wie bei _TASK), dann je evidence[]-Item ein `2 SOUR` (+ optional
- * `3 PAGE`), zuletzt `_RATIO`/`_CONCL` (beide CONT-fähig).
+ * `_DATE` (eigener Tag, wie bei _TASK), `_HKIND`/`_HREF` (v9-Erweiterung, ADR-v9-174 —
+ * nur bei kind='identity' bzw. vorhandenen refs), dann je evidence[]-Item ein `2 SOUR`
+ * (+ optional `3 PAGE`), zuletzt `_RATIO`/`_CONCL` (beide CONT-fähig).
  */
 function hypothesisNode(h: Hypothesis): GedNode {
   const kids: GedNode[] = [];
@@ -201,6 +202,8 @@ function hypothesisNode(h: Hypothesis): GedNode {
   kids.push(N('_HSTAT', h.status));
   kids.push(N('_HWGT', h.weight));
   if (h.created) kids.push(N('_DATE', h.created));
+  if (h.kind === 'identity') kids.push(N('_HKIND', 'IDENT'));
+  for (const r of h.refs) kids.push(N('_HREF', r));
   for (const e of h.evidence) {
     const ekids = e.page ? [N('PAGE', e.page)] : [];
     kids.push(N('SOUR', e.sourceId, ekids));

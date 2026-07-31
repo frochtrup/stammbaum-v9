@@ -37,6 +37,25 @@ function citationOrphans(
  * INV-P2: sammelt alle verwaisten ID-Referenzen. Nichts wird still ignoriert —
  * jede fehlende Referenz wird als OrphanRef gemeldet.
  */
+/**
+ * Tote Hypothesen-Zeiger (`refs`, ADR-v9-174) — dieselbe Klasse wie `association.personRef`:
+ * ein Zeiger auf einen Datensatz, den es nicht (mehr) gibt. Ziel kann Person ODER Familie
+ * sein, deshalb zählt der Treffer in EINER der beiden Maps.
+ */
+function hypothesisRefOrphans(
+  hypotheses: readonly { id: string; refs: string[] }[],
+  db: Database,
+  ownerId: string,
+  out: OrphanRef[],
+): void {
+  for (const h of hypotheses) {
+    for (const r of h.refs) {
+      if (db.individuals.has(r as PersonId) || db.families.has(r as FamilyId)) continue;
+      out.push({ kind: 'missing-ref', ownerId, field: 'hypotheses.refs', targetId: r });
+    }
+  }
+}
+
 export function findOrphanRefs(db: Database): OrphanRef[] {
   const out: OrphanRef[] = [];
 
@@ -53,6 +72,7 @@ export function findOrphanRefs(db: Database): OrphanRef[] {
       }
     }
     citationOrphans(fam.citations, db, fam.id, 'fam', out);
+    hypothesisRefOrphans(fam.hypotheses, db, fam.id, out);
   }
 
   for (const p of db.individuals.values()) {
@@ -76,6 +96,7 @@ export function findOrphanRefs(db: Database): OrphanRef[] {
         out.push({ kind: 'missing-ref', ownerId: p.id, field: 'aliases', targetId: al });
       }
     }
+    hypothesisRefOrphans(p.hypotheses, db, p.id, out);
     citationOrphans(p.topLevelCitations, db, p.id, 'indi', out);
     citationOrphans(p.nameCitations, db, p.id, 'indi.name', out);
   }

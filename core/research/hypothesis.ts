@@ -18,7 +18,30 @@ export function makeHypothesis(id: string, patch: Partial<Omit<Hypothesis, 'id'>
     evidence: patch.evidence ? patch.evidence.map((e) => ({ ...e })) : [],
     rationale: patch.rationale ?? '',
     conclusion: patch.conclusion ?? '',
+    kind: patch.kind ?? 'free',
+    // Kopie wie bei evidence — ein übergebenes Array wird nicht geteilt.
+    refs: patch.refs ? [...patch.refs] : [],
   };
+}
+
+/**
+ * INV-H3 (Spec 12 §4, ADR-v9-174): Ist diese Hypothese ein gültiger Dublettenausschluss?
+ *
+ * Drei Bedingungen, jede aus einem eigenen Grund:
+ *   - `kind === 'identity'` — die ART der Behauptung entscheidet, nicht der Status. Eine
+ *     abgelehnte FREIE Hypothese über dieselben zwei Personen sagt etwas ganz anderes.
+ *   - `status === 'rejected'` — `confirmed` ist die Merge-Begründung, `open` die laufende
+ *     Prüfung; nur die Ablehnung blendet das Paar aus.
+ *   - Bezug UND Begründung nicht leer — ein Ausschluss ohne Begründung ist eine
+ *     Abweisung, kein Befund; ohne Bezug fehlt die halbe Aussage.
+ */
+export function isIdentityExclusion(h: Hypothesis): boolean {
+  return (
+    h.kind === 'identity' &&
+    h.status === 'rejected' &&
+    h.refs.length > 0 &&
+    h.rationale.trim() !== ''
+  );
 }
 
 /**

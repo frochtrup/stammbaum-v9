@@ -28,6 +28,7 @@ import type {
   Hypothesis,
   HypothesisStatus,
   HypothesisWeight,
+  HypothesisKind,
   EvidenceRef,
 } from '../research/types';
 import { normalizeSex } from '../model/sex';
@@ -286,6 +287,9 @@ function parseLogEntry(node: GedNode): LogEntry {
  *   2 _HSTAT <open|confirmed|rejected>
  *   2 _HWGT <low|medium|high>
  *   2 _DATE <created>        (EIGENER Tag `_DATE`, wie bei _TASK)
+ *   2 _HKIND IDENT           (v9-Erweiterung, ADR-v9-174 — nur dieser eine Wert; fehlt bei
+ *                             einer freien Hypothese. Kein Oracle-Vorbild, wie _TASKID)
+ *   2 _HREF <@I…@|@F…@>      (v9-Erweiterung, WIEDERHOLBAR — weitere betroffene Datensätze)
  *   2 SOUR <sourceId>        (WIEDERHOLBAR — ein evidence[]-Item pro Block)
  *   3 PAGE <page>            (gehört zum vorangehenden SOUR-Block)
  *   2 _RATIO <rationale>     (CONT-fähig)
@@ -308,7 +312,13 @@ function parseHypothesis(node: GedNode): Hypothesis {
   }
   const ratio = child(node, '_RATIO');
   const concl = child(node, '_CONCL');
+  // Unbekannte _HKIND-Werte fallen bewusst auf 'free' zurück (wie _HSTAT/_HWGT): ein
+  // fremder oder künftiger Wert darf nicht dazu führen, dass ein Filter ihn als
+  // Identitäts-Aussage liest.
+  const kind: HypothesisKind = childValue(node, '_HKIND') === 'IDENT' ? 'identity' : 'free';
   return makeHypothesis(childValue(node, '_ID'), {
+    kind,
+    refs: children(node, '_HREF').map((r) => unescapeAt(r.value)),
     text: collectText(node),
     status,
     weight,
