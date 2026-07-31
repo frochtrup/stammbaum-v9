@@ -185,7 +185,6 @@
         <button
           type="button"
           class="tree-view__export-btn"
-          aria-haspopup="menu"
           aria-expanded={exportMenuOpen}
           disabled={exporting || !focusId}
           onclick={() => (exportMenuOpen = !exportMenuOpen)}
@@ -193,9 +192,13 @@
           {exporting ? '…' : '↓ Export'}
         </button>
         {#if exportMenuOpen}
-          <div class="tree-view__export-menu" role="menu">
-            <button type="button" role="menuitem" onclick={exportPng}>PNG-Bild</button>
-            <button type="button" role="menuitem" onclick={exportA1Svg}>A1-Poster (SVG)</button>
+          <!-- `role="group"` statt `menu`/`menuitem` — dieselbe Begründung wie in
+               `EventTypeMenu.svelte` (BL-66): ohne wandernden Fokus und Escape-Behandlung
+               wäre `menu` ein Versprechen, das die Komponente nicht einlöst. Ein
+               Aufklapp-Muster für die ganze App (INV-UI-4), nicht zwei. -->
+          <div class="tree-view__export-menu" role="group" aria-label="Export">
+            <button type="button" onclick={exportPng}>PNG-Bild</button>
+            <button type="button" onclick={exportA1Svg}>A1-Poster (SVG)</button>
           </div>
         {/if}
       </div>

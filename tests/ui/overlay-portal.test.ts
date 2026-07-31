@@ -136,6 +136,7 @@ describe('portal — der eigentliche Fix (BL-85)', () => {
 
   it('anchoredTo portaliert ebenfalls und schreibt die Position als CSS-Variablen', () => {
     const t = document.createElement('button');
+    t.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(t);
     const handle = anchoredTo(overlay, t);
     expect(overlay.parentElement).toBe(document.body);
@@ -149,6 +150,7 @@ describe('portal — der eigentliche Fix (BL-85)', () => {
     // Ein zurückgebliebener Scroll-Listener misst einen längst entfernten Knoten neu —
     // bei einem Menü, das oft auf- und zugeht, summiert sich das still.
     const t = document.createElement('button');
+    t.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(t);
     const original = window.addEventListener.bind(window);
     let zugefuegt = 0;

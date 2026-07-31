@@ -1163,7 +1163,7 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     viewState.setCurrent('person', '@I2@');
     await view.rerender({ appState, viewState, clipboard });
     await fireEvent.click(screen.getByRole('button', { name: '+ Ereignis' }));
-    await fireEvent.click(screen.getByRole('menuitem', { name: /Übernehmen/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
 
     const berta = appState.db.individuals.get('@I2@')!;
     expect(berta.events).toHaveLength(1);

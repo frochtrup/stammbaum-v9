@@ -161,13 +161,20 @@
               <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
                    stünde die Soundex-Reihenfolge kommentarlos da. Nur im Soundex-Modus,
                    und nur wenn beide Mengen nicht leer sind. -->
+              <!-- `role="separator"` am inneren `<span>`, nicht am `<li>` — Begründung
+                   wie in `PlaceList.svelte` (BL-66/axe: ein `<ul>` besitzt nur
+                   Listeneinträge). -->
               {#if phonSplit && i === 0}
-                <li class="global-search__subhead" role="separator" aria-label="Ähnlich klingender Nachname">
-                  Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+                <li class="global-search__subhead">
+                  <span role="separator" aria-label="Ähnlich klingender Nachname">
+                    Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+                  </span>
                 </li>
               {:else if phonSplit && i === phonCount}
-                <li class="global-search__subhead" role="separator" aria-label="Weitere Treffer">
-                  Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
+                <li class="global-search__subhead">
+                  <span role="separator" aria-label="Weitere Treffer">
+                    Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
+                  </span>
                 </li>
               {/if}
               <li>

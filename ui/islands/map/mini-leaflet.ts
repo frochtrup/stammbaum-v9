@@ -13,7 +13,7 @@
 // analog `MapLensView` (ADR-v9-25).
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { OSM_TILE_URL, OSM_ATTRIBUTION, OSM_MAX_ZOOM } from './leaflet-map';
+import { OSM_TILE_URL, OSM_MAX_ZOOM } from './leaflet-map';
 import type { MiniMapBounds, LatLong } from './mini-map-bounds';
 
 export interface MiniLeafletOptions {
@@ -51,7 +51,14 @@ export function mountMiniLeaflet(container: HTMLElement, options: MiniLeafletOpt
 
   const map = L.map(mapEl, {
     zoomControl: false,
-    attributionControl: true,
+    // KEINE Attribution IM Kartenrahmen (BL-66/axe `nested-interactive`): der Rahmen der
+    // Mini-Karte ist selbst die Schaltfläche zur großen Karte (ADR-v9-150), und Leaflets
+    // Attribution bringt einen fokussierbaren `<a>` mit — ein Bedienelement im
+    // Bedienelement. Die Attribution steht deshalb als eigene Zeile UNTER dem Rahmen
+    // (`PlaceMiniMap.svelte`), sichtbar und mit echtem Link: die OSM-Namensnennung bleibt
+    // erfüllt, nur nicht mehr innerhalb einer Schaltfläche. Die große Karte
+    // (`leaflet-map.ts`) behält ihre eingebaute Attribution — sie ist keine Schaltfläche.
+    attributionControl: false,
     dragging: false,
     scrollWheelZoom: false,
     doubleClickZoom: false,
@@ -60,7 +67,7 @@ export function mountMiniLeaflet(container: HTMLElement, options: MiniLeafletOpt
     touchZoom: false,
   });
 
-  const tileLayer = L.tileLayer(OSM_TILE_URL, { attribution: OSM_ATTRIBUTION, maxZoom: OSM_MAX_ZOOM });
+  const tileLayer = L.tileLayer(OSM_TILE_URL, { maxZoom: OSM_MAX_ZOOM });
   let tileErrored = false;
   tileLayer.on('tileerror', () => {
     if (tileErrored) return;

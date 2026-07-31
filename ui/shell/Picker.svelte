@@ -354,7 +354,12 @@
            zugänglichen Namen sind für Screenreader-Nutzer nicht unterscheidbar. -->
       <ul class="stb-picker__results" role="listbox" id={listId} aria-label={`${label} — Treffer`}>
         {#each rows as row, i (row.kind === 'item' ? row.id : row.kind)}
-          <li>
+          <!-- `role="presentation"` ist hier Pflicht, nicht Kosmetik (BL-66/axe): ein
+               `listbox` MUSS `option`s besitzen, und ein dazwischenliegendes `<li>`
+               (implizit `listitem`) unterbricht diese Eltern-Kind-Kette — Screenreader
+               finden die Treffer dann nicht als Optionen der Liste. Das `<li>` bleibt
+               trotzdem stehen: es trägt das Zeilen-Layout und hält das `<ul>` gültig. -->
+          <li role="presentation">
             {#if row.kind === 'none'}
               <button
                 type="button"
@@ -401,10 +406,10 @@
           </li>
         {/each}
         {#if candidates.length === 0}
-          <li class="stb-picker__empty">Keine Treffer gefunden.</li>
+          <li role="presentation" class="stb-picker__empty">Keine Treffer gefunden.</li>
         {/if}
         {#if hiddenCount > 0}
-          <li class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</li>
+          <li role="presentation" class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</li>
         {/if}
       </ul>
       {#if footer}

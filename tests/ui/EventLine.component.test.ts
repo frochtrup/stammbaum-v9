@@ -32,13 +32,28 @@ function row(patch: Partial<EventLineRow> = {}): EventLineRow {
   };
 }
 
+/**
+ * EventLine rendert ein <li> — im echten Baum liegt es in EventsByType's <ul>. Isoliert
+ * in den <body> gerendert fehlte dieser Rahmen, und der a11y-Scanner (BL-66) meldete zu
+ * Recht „li ohne ul". Der Befund galt dem Testaufbau, nicht der Komponente: der
+ * Testkontext bildet den echten Elternteil jetzt nach, statt die Regel abzuschalten.
+ */
+function renderEventLine(options: Parameters<typeof render>[1]) {
+  // `target` (Mount-Option), NICHT `container` (Render-Option): letztere bindet nur die
+  // Queries, gemountet wird trotzdem in ein frisch erzeugtes <div> — der <li> hätte
+  // weiterhin keinen Listen-Elternteil. Nachgelesen in @testing-library/svelte-core.
+  const ul = document.createElement('ul');
+  document.body.appendChild(ul);
+  return render(EventLine, { ...options, target: ul });
+}
+
 describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
   it('rendert "Datum, Ort" mit dem Ort als klickbarem Link, wenn placeId + onNavigateToPlace vorhanden sind', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const onNavigateToPlace = vi.fn();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '12. März 1890', placeLabel: 'Ochtrup', placeId: '@P1@' }),
         appState,
@@ -60,7 +75,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const onNavigateToPlace = vi.fn();
     const onNavigateToHof = vi.fn();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1950', placeLabel: 'Wall 33', placeId: '@P1@', hofId: '@H1@' }),
         appState,
@@ -81,7 +96,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1950', placeLabel: 'Irgendwo' }),
         appState,
@@ -99,7 +114,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1950', placeLabel: 'Ochtrup', placeId: '@P1@' }),
         appState,
@@ -119,7 +134,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    const { container } = render(EventLine, {
+    const { container } = renderEventLine( {
       props: {
         ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
         appState,
@@ -140,7 +155,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
         appState,
@@ -158,7 +173,7 @@ describe('EventLine — Datum + klickbarer Ort (ADR-v9-80 Punkt 1)', () => {
     const viewState = createViewState();
     const onNavigateToPlace = vi.fn();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1930', placeLabel: 'Ochtrup', placeId: '@P1@' }),
         appState,
@@ -180,7 +195,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1950', coords: { lat: 52.1, long: 7.6 } }),
         appState,
@@ -197,7 +212,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: { ev: row({ value: 'Bauer' }), appState, viewState, onEdit: vi.fn() },
     });
 
@@ -225,7 +240,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
       schemaVersion: 1,
     });
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1950', coords: { lat: 52.1, long: 7.6 }, placeId: '@P1@', hofId: '@H1@' }),
         appState,
@@ -250,7 +265,7 @@ describe('EventLine — CoordIndicator statt "Karte ↗"-Text-Link (ADR-v9-80 Pu
     // Fallback (eventCoords-Chokepoint, Spec 11 §5), NICHT vom PlaceObject selbst.
     appState.db.placeObjects.set('@P1@', place('@P1@', { title: 'Rheine' }));
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ dateLabel: '1930', placeLabel: 'Rheine', coords: { lat: 52.28, long: 7.43 }, placeId: '@P1@' }),
         appState,
@@ -283,7 +298,7 @@ describe('EventLine — Quellen-Badges (unverändert übernommen)', () => {
     db.sources.set('@S42@', makeSource('@S42@', { abbr: 'KB Ochtrup' }));
     appState.loadDatabase(db, 'test.ged');
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ citations: [makeCitation('@S42@', { quay: 3 })] }),
         appState,
@@ -303,14 +318,14 @@ describe('EventLine — ✕-Rücknahme + ✎-Bearbeiten', () => {
     const viewState = createViewState();
     const onRetract = vi.fn();
 
-    const { unmount } = render(EventLine, {
+    const { unmount } = renderEventLine( {
       props: { ev: row({ empty: true }), appState, viewState, onRetract, onEdit: vi.fn() },
     });
     await fireEvent.click(screen.getByLabelText('Geburt zurücknehmen'));
     expect(onRetract).toHaveBeenCalledWith('BIRT');
     unmount();
 
-    render(EventLine, { props: { ev: row({ empty: true }), appState, viewState, onEdit: vi.fn() } });
+    renderEventLine( { props: { ev: row({ empty: true }), appState, viewState, onEdit: vi.fn() } });
     expect(screen.queryByLabelText('Geburt zurücknehmen')).toBeNull();
   });
 
@@ -319,7 +334,7 @@ describe('EventLine — ✕-Rücknahme + ✎-Bearbeiten', () => {
     const viewState = createViewState();
     const onEdit = vi.fn();
 
-    render(EventLine, { props: { ev: row({ key: 'ev-2' }), appState, viewState, onEdit } });
+    renderEventLine( { props: { ev: row({ key: 'ev-2' }), appState, viewState, onEdit } });
     await fireEvent.click(screen.getByLabelText('Geburt bearbeiten'));
 
     expect(onEdit).toHaveBeenCalledWith('ev-2');
@@ -331,7 +346,7 @@ describe('EventLine — Note/Addr/Value', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    render(EventLine, {
+    renderEventLine( {
       props: {
         ev: row({ value: 'Bauer', addr: 'Wall 33', note: 'Anmerkung' }),
         appState,
@@ -351,7 +366,7 @@ describe('EventLine — Note/Addr/Value', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    const { container } = render(EventLine, {
+    const { container } = renderEventLine( {
       props: {
         ev: row({ addr: 'Gronauer Str. 30', note: 'Gronauer Str. 30' }),
         appState,
@@ -371,7 +386,7 @@ describe('EventLine — Note/Addr/Value', () => {
     const appState = createAppState();
     const viewState = createViewState();
 
-    const { container } = render(EventLine, {
+    const { container } = renderEventLine( {
       props: {
         ev: row({ addr: 'Wall 33', note: 'zusätzliche Anmerkung' }),
         appState,
@@ -394,7 +409,7 @@ describe('EventLine — GEDCOM-Flag value="Y" wird nicht als Wert angezeigt (#1)
     const appState = createAppState();
     const viewState = createViewState();
 
-    const { container } = render(EventLine, {
+    const { container } = renderEventLine( {
       props: {
         ev: row({ key: 'MARR', label: 'Heirat', value: 'Y' }),
         appState,
@@ -412,7 +427,7 @@ describe('EventLine — GEDCOM-Flag value="Y" wird nicht als Wert angezeigt (#1)
     const appState = createAppState();
     const viewState = createViewState();
 
-    const { container } = render(EventLine, {
+    const { container } = renderEventLine( {
       props: { ev: row({ label: 'Beruf', value: 'Lehrer' }), appState, viewState, onEdit: vi.fn() },
     });
 

@@ -113,26 +113,28 @@ describe('PlaceMiniMap — Sprung zur Karte-Lens (ADR-v9-150)', () => {
     expect(seen).toEqual(['map']);
   });
 
-  it('ein Klick auf die Leaflet-Attribution springt NICHT zur Lens (der Link behält sein Ziel)', async () => {
-    // Die Attribution liegt IM Kartenrahmen; ohne diese Ausnahme würde der Rahmen-Handler
-    // den OSM-Link kapern.
+  it('die OSM-Attribution steht AUSSERHALB der klickbaren Fläche (BL-66)', () => {
+    // Vormals lag Leaflets Attribution IM Rahmen, und ein Klick-Wächter (`closest('a')`)
+    // hielt den Rahmen-Handler davon ab, den Link zu kapern. Das löste nur die halbe
+    // Frage: ein fokussierbarer Link INNERHALB eines `role="button"` ist für Screenreader
+    // und Tastatur ein Bedienelement im Bedienelement (axe `nested-interactive`) —
+    // dagegen half kein Klick-Wächter. Jetzt trägt Leaflet keine Attribution mehr
+    // (`attributionControl: false`), und die Namensnennung steht als eigene Zeile
+    // darunter. Damit ist der Wächter überflüssig statt nur unauffällig.
     onlineStatus.start(env(true));
     const viewState = createViewState();
-    const seen: string[] = [];
     const { container } = render(PlaceMiniMap, {
       props: {
         lat: 52.2, long: 7.19, label: 'Ochtrup', context: { kind: 'ort' },
-        viewState, focusId: '@P1@', onNavigateLens: (l: string) => seen.push(l),
+        viewState, focusId: '@P1@', onNavigateLens: () => {},
       },
     });
 
     const frame = container.querySelector('.mini-map__frame--clickable')!;
-    const link = document.createElement('a');
-    link.href = 'https://openstreetmap.org/';
-    frame.querySelector('.mini-map__leaflet')!.appendChild(link);
-    await fireEvent.click(link);
+    expect(frame.querySelector('a')).toBeNull();
 
-    expect(seen).toEqual([]);
-    expect(viewState.getMapCoordFocus()).toBeNull();
+    const attribution = container.querySelector('.mini-map__attribution a') as HTMLAnchorElement | null;
+    expect(attribution?.href).toBe('https://openstreetmap.org/copyright');
+    expect(frame.contains(attribution)).toBe(false);
   });
 });

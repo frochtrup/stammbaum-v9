@@ -20,6 +20,12 @@ jobs:
       - run: npm ci
       - run: npm run check:arch
       - run: npm run check:csp
+      # Barrierefreiheits-Gate (Spec 32 TST-15). Eigener Schritt, eigene Vitest-Config:
+      # der Scanner braucht `sequence.hooks: 'list'`, damit er den DOM VOR dem Aufräumen
+      # durch @testing-library sieht — im Hauptlauf mitzuschalten hieße, die
+      # Hook-Reihenfolge aller 1.771 Tests zu ändern. Der Wrapper schreibt die erreichte
+      # Reichweite ins Log und schlägt an, wenn sie einbricht (grün ohne Reichweite).
+      - run: npm run check:a11y
       # Das Editor-Handbuch ist ein Extrakt (Spec 22 §8) — ein veralteter Extrakt faellt
       # sonst niemandem auf, weil ihn niemand liest, bevor er ausgeliefert ist.
       - run: npm run check:handbuch-orte
