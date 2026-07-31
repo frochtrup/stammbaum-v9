@@ -63,41 +63,72 @@ const browserEnv: LayoutEnv = {
 
 class Layout {
   #desktop = $state(false);
-  // MUSS `$state` sein, nicht ein einfaches Feld — dieselbe Falle, die `onlineStatus`
-  // schon einmal gestellt hat (2026-07-18): der Getter liest `#started` als ERSTES,
-  // und Kind-Komponenten rendern VOR dem `onMount` der Wurzel. Als plain field nähme
-  // ein `$derived` beim ersten Auswerten den Direktabruf-Zweig und erfasste damit gar
-  // keine reaktive Abhängigkeit — danach für immer eingefroren, bei grünen Tests.
-  #started = $state(false);
-  #env: LayoutEnv = browserEnv;
+  #stop: () => void = () => {};
+
+  /**
+   * MELDET SICH SELBST AN — es gibt keinen Zustand „noch nicht gestartet" mehr.
+   *
+   * Vorher fragte der Getter vor `start()` die Plattform DIREKT. Dieser Zweig war als
+   * Überbrückung für den ersten Frame gedacht (Kind-Komponenten rendern vor dem
+   * `onMount` der Wurzel) und setzte voraus, dass `start()` unmittelbar folgt. Genau
+   * diese Voraussetzung ist eine Erinnerungspflicht — und der Standalone-Orte-Editor
+   * (Spec 22) hat sie nicht erfüllt: `start()` wurde dort nie gerufen, der Direktabruf
+   * ist NICHT reaktiv, und der Formfaktor blieb auf dem Wert des ersten Renderns
+   * stehen. Sichtbare Folge: „← Zur Liste" verschwand nach dem Verkleinern des
+   * Fensters und kam nie zurück — der einzige Rückweg aus dem Steckbrief
+   * (ADR-v9-171).
+   *
+   * Der Konstruktor läuft beim Import des Moduls. `browserEnv` ist gegen fehlendes
+   * `window`/`matchMedia` abgesichert (Node-Testumgebung: `false` + No-op-Abmeldung),
+   * ein Nebeneffekt beim Import ist hier also folgenlos — und der Singleton lebt
+   * ohnehin so lange wie die Seite.
+   */
+  constructor() {
+    this.#connect(browserEnv);
+  }
 
   /**
    * True ab der Layout-Grenze (Spec 21 §3): Sidebar statt Bottom-Nav, zwei Panes
    * statt einem.
    *
-   * VOR `start()` wird die Plattform direkt gefragt, statt einen Default zu behaupten
-   * — sonst rendert ein Kind auf einem Desktop-Fenster einen Frame lang das
-   * Mobile-Layout (Mount-Reihenfolge Kind vor Wurzel, s. o.).
+   * Immer der ANGEMELDETE Wert — es gibt keinen un-angemeldeten Zustand mehr (s.
+   * Konstruktor). Ein Formfaktor-Wechsel schlägt damit durch, unabhängig davon, ob eine
+   * Schale `start()` gerufen hat.
    */
   get isDesktopLayout(): boolean {
-    return this.#started ? this.#desktop : this.#env.matches(LAYOUT_QUERY);
+    return this.#desktop;
   }
 
-  /** Verdrahtet den Listener; gibt die Abmeldefunktion zurück. */
-  start(env: LayoutEnv = browserEnv): () => void {
-    this.#env = env;
-    this.#started = true;
+  /**
+   * Verbindet den Zustand mit einer Umgebung: Startwert lesen, Listener setzen, den
+   * vorherigen abmelden.
+   */
+  #connect(env: LayoutEnv): void {
+    this.#stop();
     this.#desktop = env.matches(LAYOUT_QUERY);
-    return env.subscribe(LAYOUT_QUERY, (matches) => {
+    this.#stop = env.subscribe(LAYOUT_QUERY, (matches) => {
       this.#desktop = matches;
     });
   }
 
-  /** Nur für Tests. */
+  /**
+   * Verdrahtet eine EIGENE Umgebung (Test-Injektion, `App.svelte`s `layoutEnv`-Prop) und
+   * gibt die Abmeldefunktion zurück.
+   *
+   * Nicht mehr nötig, damit der Zustand überhaupt funktioniert — nur, um ihn zu
+   * ÜBERSTEUERN. Das ist der Unterschied zu vorher (ADR-v9-171).
+   */
+  start(env: LayoutEnv = browserEnv): () => void {
+    this.#connect(env);
+    return () => {
+      this.#stop();
+      this.#stop = () => {};
+    };
+  }
+
+  /** Nur für Tests: zurück auf die Plattform-Umgebung. */
   reset(): void {
-    this.#desktop = false;
-    this.#started = false;
-    this.#env = browserEnv;
+    this.#connect(browserEnv);
   }
 }
 

@@ -30,6 +30,9 @@
   import { createFileService } from '../services/file/create-file-service';
   import { IdbPlacesFileHandleStore } from '../services/places';
   import { loadContextDocument } from './orte-context';
+  // Formfaktor: EINE Quelle für beide Programme (Spec 21 §3). Seit ADR-v9-171 meldet sie
+  // sich selbst an — der Editor braucht kein eigenes `start()`.
+  import { layout } from '../ui/shell/layout.svelte';
   // Update-Hinweis statt stillem Bruch (Spec 30 NFR-2) — dieselbe Komponente wie im
   // Hauptprogramm, kein zweiter Mechanismus (INV-UI-4).
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
@@ -98,7 +101,7 @@
       notice = opened.state.readOnly
         ? 'Nur-Lese-Modus: die Datei stammt aus einer neueren Programmfassung.'
         : `${opened.content.placeObjects.size} Orte, ${opened.content.hofObjects.size} Höfe geladen.`;
-      await draftStore.clear();
+      await draftStore.clear().catch(() => {});
     } catch (err) {
       notice = err instanceof Error ? err.message : 'Die Datei konnte nicht gelesen werden.';
     } finally {
@@ -112,7 +115,7 @@
     host.loadContent(fresh.content);
     doc = fresh.state;
     notice = 'Neues, leeres Ortsverzeichnis.';
-    await draftStore.clear();
+    await draftStore.clear().catch(() => {});
   }
 
   async function save(): Promise<void> {
@@ -128,7 +131,7 @@
         // zur Quelle werden, aus der ein späterer Start etwas anderes wiederherstellt,
         // als in der Datei steht.
         draftWriter.flushCancel();
-        await draftStore.clear();
+        await draftStore.clear().catch(() => {});
       }
     } finally {
       busy = false;
@@ -162,13 +165,19 @@
   }
 
   // Absturz-Wiederherstellung (OE-4): beim Start ANBIETEN, nie stillschweigend einsetzen.
+  //
+  // Der ganze Block ist abgesichert: der Entwurf ist eine Rettungsleine, keine
+  // Voraussetzung (INV-ORTE-3). Ist IndexedDB nicht verfügbar — privater Modus,
+  // gesperrter Speicher, Testumgebung —, muss der Editor trotzdem starten. Ohne den
+  // Fang riss der abgewiesene Speicherzugriff den Effekt mit; im Komponententest wurde
+  // das als geworfener Fehler sichtbar, im Browser wäre es ein toter Startbildschirm.
   $effect(() => {
     void (async () => {
-      const draft: OrteDraft | null = await draftStore.load();
+      const draft: OrteDraft | null = await draftStore.load().catch(() => null);
       if (!draft || doc.open) return;
       const when = new Date(draft.savedAt).toLocaleString('de-DE');
       if (!confirm(`Ungespeicherter Entwurf von ${when} gefunden (${draft.placeObjects.length} Orte). Wiederherstellen?`)) {
-        await draftStore.clear();
+        await draftStore.clear().catch(() => {});
         return;
       }
       host.loadContent({
@@ -191,7 +200,24 @@
 
   const placeId = $derived(nav.getCurrent('place'));
   const hofId = $derived(nav.getCurrent('hof'));
+  const hasSelection = $derived(tab === 'places' ? placeId !== null : hofId !== null);
 </script>
+
+{#snippet listPane()}
+  {#if tab === 'places'}
+    <PlaceList appState={host} viewState={nav} onOpenDedup={() => (tool = 'dedup')} />
+  {:else}
+    <HofList appState={host} viewState={nav} onOpenDedup={() => (tool = 'dedup')} />
+  {/if}
+{/snippet}
+
+{#snippet detailPane()}
+  {#if tab === 'places'}
+    <PlaceDetail appState={host} viewState={nav} onBack={() => nav.setCurrent('place', null)} />
+  {:else}
+    <HofDetail appState={host} viewState={nav} onBack={() => nav.setCurrent('hof', null)} />
+  {/if}
+{/snippet}
 
 <div class="orte-app">
   <UpdateBanner visible={swUpdate.ready} onApply={applyUpdate} />
@@ -247,20 +273,23 @@
     </div>
 
     <main class="orte-app__body">
-      {#if tab === 'places'}
-        {#if tool === 'dedup'}
+      {#if tool === 'dedup'}
+        <!-- Werkzeuge nehmen die ganze Fläche — wie im Hauptprogramm: ein Massen-Dedup
+             ist eine eigene Arbeitsfläche, keine Detailansicht neben der Liste. -->
+        {#if tab === 'places'}
           <PlaceDedupView appState={host} onClose={() => (tool = null)} />
-        {:else if placeId}
-          <PlaceDetail appState={host} viewState={nav} onBack={() => nav.setCurrent('place', null)} />
         {:else}
-          <PlaceList appState={host} viewState={nav} onOpenDedup={() => (tool = 'dedup')} />
+          <HofDedupView appState={host} onClose={() => (tool = null)} />
         {/if}
-      {:else if tool === 'dedup'}
-        <HofDedupView appState={host} onClose={() => (tool = null)} />
-      {:else if hofId}
-        <HofDetail appState={host} viewState={nav} onBack={() => nav.setCurrent('hof', null)} />
+      {:else if layout.isDesktopLayout}
+        <div class="orte-app__panes">
+          <div class="orte-app__pane orte-app__pane--list">{@render listPane()}</div>
+          <div class="orte-app__pane orte-app__pane--detail">{@render detailPane()}</div>
+        </div>
+      {:else if hasSelection}
+        {@render detailPane()}
       {:else}
-        <HofList appState={host} viewState={nav} onOpenDedup={() => (tool = 'dedup')} />
+        {@render listPane()}
       {/if}
     </main>
   {/if}
@@ -342,6 +371,35 @@
 
   .orte-app__tabs {
     margin: 0.5rem 0.75rem 0;
+  }
+
+  /* Zwei Fenster ab der Layout-Grenze (Spec 21 §3, ADR-v9-171) — dasselbe Muster wie
+     `EntityTab`, keine zweite Media-Query: der Formfaktor wird an genau einer Stelle
+     entschieden. Für die Ortskuration ist die Liste kein Index zum Überfliegen, sondern
+     das Arbeitsmittel — Dubletten, Schreibvarianten und Ketten vergleicht man
+     nebeneinander, nicht nacheinander. */
+  .orte-app__panes {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .orte-app__pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+  }
+
+  .orte-app__pane--list {
+    width: 22rem;
+    flex-shrink: 0;
+    border-right: 1px solid var(--stb-surface-3);
+  }
+
+  .orte-app__pane--detail {
+    flex: 1;
   }
 
   .orte-app__body {
