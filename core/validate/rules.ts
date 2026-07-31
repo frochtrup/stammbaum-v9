@@ -11,15 +11,18 @@
 import type { Hit, Rule, RuleContext } from './types';
 import type { Family, Person } from '../model/types';
 import { distanceKm } from './geo';
+import type { CitationFact } from './facts';
 import {
   birthYear,
   citedSourceIds,
   deathYear,
+  familyCitationFacts,
   familyCitations,
   hasAnyEval,
   hasAnyQuay,
   hasSources,
   openHypotheses,
+  personCitationFacts,
   personCitations,
   personLabel,
   yearOf,
@@ -48,6 +51,31 @@ function familyAnchor(f: Family): string | null {
 /** Jahr aus einem Dated-Feld (`from`/`to` sind bereits Jahre, `dateRaw` der Rohtext). */
 function datedYear(v: number | null, raw: string | null | undefined): number | null {
   return v ?? yearOf(raw ?? null);
+}
+
+/**
+ * Widersprüchliche Evidenz JE FAKTUM (EVIDENCE_CONFLICT, ADR-v9-165): dieselbe Aussage
+ * einmal direkt belegt und einmal negativ. EIN Befund je Faktum, nicht je Zitatpaar —
+ * vier sich kreuzende Zitate sind EIN Widerspruch, nicht vier.
+ *
+ * Unbewertete Zitate zählen nicht: über eine fehlende Bewertung klagt MISSING_EVAL.
+ */
+function konflikte(facts: readonly CitationFact[]): Hit[] {
+  const out: Hit[] = [];
+  for (const f of facts) {
+    let direkt = false;
+    let negativ = false;
+    for (const c of f.citations) {
+      if (c.eval?.evidence === 'direct') direkt = true;
+      else if (c.eval?.evidence === 'negative') negativ = true;
+    }
+    if (direkt && negativ) {
+      out.push({
+        text: `${f.label}: ein Zitat belegt direkt, ein anderes negativ — Widerspruch klären`,
+      });
+    }
+  }
+  return out;
 }
 
 export const RULES: readonly Rule[] = [
@@ -496,6 +524,25 @@ export const RULES: readonly Rule[] = [
       hasSources(p) && !hasAnyEval(p)
         ? hit('Quellenangaben ohne Evidenzbewertung (Quellentyp/Information/Evidenz)')
         : NONE,
+  },
+  {
+    id: 'EVIDENCE_CONFLICT',
+    label: 'Widersprüchliche Evidenz an einem Faktum',
+    group: 'quellen',
+    severity: 'warn',
+    // Ab Werk AN (Spec 20 §3, ADR-v9-165 Pkt 4) — und das ist KEIN Widerspruch zum
+    // default-off von MISSING_EVAL direkt darüber: jene Regel klagt über die ABWESENHEIT
+    // einer Bewertung und würde jede unbewertete Quelle fluten; diese hier schlägt
+    // ausschließlich dort an, wo jemand ZWEI Bewertungen bewusst gesetzt hat und sie
+    // einander widersprechen. Wer nie bewertet, sieht sie nie.
+    defaultEnabled: true,
+    threshold: null,
+    category: 'kirchenbuch',
+    person: (p) => konflikte(personCitationFacts(p)),
+    family: (f) => {
+      const anchor = familyAnchor(f);
+      return anchor ? konflikte(familyCitationFacts(f)).map((h) => ({ ...h, personId: anchor })) : NONE;
+    },
   },
   {
     id: 'OPEN_HYPO',

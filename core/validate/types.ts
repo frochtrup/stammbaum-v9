@@ -216,6 +216,7 @@ export type RuleId =
   | 'NO_FAM_SOURCES'
   | 'ORPHAN_CITATION'
   | 'MISSING_EVAL'
+  | 'EVIDENCE_CONFLICT'
   | 'OPEN_HYPO'
   // Vernetzung
   | 'ISOLATED_PERSON'
