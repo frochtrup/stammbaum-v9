@@ -35,10 +35,19 @@
   // die eigenen Aktionsknöpfe. Nur das Panel bleibt lokal (Breite/Polsterung je Fall).
   import { untrack } from 'svelte';
   import type { AppState } from './app-state.svelte';
-  import type { Event, Quay, MediaCitation } from '../../core/model/types';
-  import { makeCitation, makeMedia, makeMediaCitation } from '../../core/model/factory';
-  import { setCitationQuay, setCitationUrl } from '../../core/model/citation';
+  import type { Event, MediaCitation } from '../../core/model/types';
+  import { makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { HOF_EVENT_TYPES } from '../../core/places';
+  import {
+    addCitationFor,
+    removeCitationAt,
+    setCitationSourceAt,
+    setCitationPageAt,
+    setCitationNoteAt,
+    setCitationQuayAt,
+    setCitationUrlAt,
+    setCitationEvalAt,
+  } from './event-edit-citations';
   import SourceCitationRow from './SourceCitationRow.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
@@ -127,33 +136,12 @@
 
   const sources = $derived(Array.from(appState.db.sources.values()));
 
+  // Citation-Array-Editier-Funktionen (add/remove/setXAt) sind reine Funktionen aus
+  // ./event-edit-citations (max-lines-Extraktion, s. dortiger Kopfkommentar) — hier nur
+  // noch der EINE Guard, der eine Quelle voraussetzt.
   function addCitation() {
     if (sources.length === 0) return;
-    editable.citations = [...editable.citations, makeCitation(sources[0].id)];
-  }
-
-  function removeCitation(index: number) {
-    editable.citations = editable.citations.filter((_, i) => i !== index);
-  }
-
-  function setCitationSource(index: number, sourceId: string) {
-    editable.citations = editable.citations.map((c, i) => (i === index ? { ...c, sourceId } : c));
-  }
-
-  function setCitationPage(index: number, page: string) {
-    editable.citations = editable.citations.map((c, i) => (i === index ? { ...c, page } : c));
-  }
-
-  function setCitationNote(index: number, note: string) {
-    editable.citations = editable.citations.map((c, i) => (i === index ? { ...c, note } : c));
-  }
-
-  function setCitationQuayAt(index: number, quay: Quay) {
-    editable.citations = editable.citations.map((c, i) => (i === index ? setCitationQuay(c, quay) : c));
-  }
-
-  function setCitationUrlAt(index: number, url: string) {
-    editable.citations = editable.citations.map((c, i) => (i === index ? setCitationUrl(c, url) : c));
+    editable.citations = addCitationFor(editable.citations, sources[0].id);
   }
 
   // 📷-Kamera-Schnellzugriff (Spec 20 §1.4 [S]): das gewählte/aufgenommene Foto wird SOFORT
@@ -359,12 +347,13 @@
           citation={cit}
           index={i}
           labelPrefix={label}
-          onSourceChange={(id) => setCitationSource(i, id)}
-          onPageChange={(page) => setCitationPage(i, page)}
-          onQuayChange={(quay) => setCitationQuayAt(i, quay)}
-          onNoteChange={(note) => setCitationNote(i, note)}
-          onUrlChange={(u) => setCitationUrlAt(i, u)}
-          onRemove={() => removeCitation(i)}
+          onSourceChange={(id) => (editable.citations = setCitationSourceAt(editable.citations, i, id))}
+          onPageChange={(page) => (editable.citations = setCitationPageAt(editable.citations, i, page))}
+          onQuayChange={(quay) => (editable.citations = setCitationQuayAt(editable.citations, i, quay))}
+          onNoteChange={(note) => (editable.citations = setCitationNoteAt(editable.citations, i, note))}
+          onUrlChange={(u) => (editable.citations = setCitationUrlAt(editable.citations, i, u))}
+          onEvalChange={(ev) => (editable.citations = setCitationEvalAt(editable.citations, i, ev))}
+          onRemove={() => (editable.citations = removeCitationAt(editable.citations, i))}
         />
       {/each}
     </div>
