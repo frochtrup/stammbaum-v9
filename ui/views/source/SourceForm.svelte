@@ -2,6 +2,15 @@
   // ui/views/source/SourceForm.svelte — Quellen-Editor (Spec 20 §2 Formular-Feldtabelle
   // "Quelle": Titel, Kurzname, Autor, Datum, Verlag, Archiv, Signatur, Notiz).
   //
+  // BL-128 (Spec 20 §1.6 [S] "Quellen-Vorlagen") ergänzt zwei Dinge: ① einen optionalen
+  // Vorlagen-Picker, NUR beim Anlegen einer frischen Quelle sichtbar, der Kurzname/Titel/
+  // Autor/Medientyp aus `core/model/source-templates.ts` vorbelegt (Preset+Freitext-
+  // <datalist>-Mechanik wie TaskForm.svelte/PersonAssociations.svelte, INV-UI-4) — jedes
+  // Feld bleibt danach frei editierbar, kein geschlossenes Enum. ② das bisher komplett
+  // fehlende `callMedia`-Feld ("Medientyp", GEDCOM SOUR.REPO.CALN.MEDI) — vormals laut
+  // ADR-v9-151 nur read-only im Steckbrief sichtbar; ohne ein editierbares Feld hätte die
+  // Vorlage nichts, das "danach frei editierbar" bleibt (Spec-Vorgabe).
+  //
   // Source ist ein FLACHES Modell (Spec 10 §4): date/text/… sind PLAIN STRINGS, keine
   // Event-Objekte — anders als PersonForm.svelte braucht es KEIN Dirty-Tracking/Tristate
   // fuer Datum/Ort. Einfache bind:value-Textfelder reichen (analog den Identitaetsfeldern
@@ -18,6 +27,7 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Source } from '../../../core/model/types';
+  import { SOURCE_TEMPLATES, type SourceTemplate } from '../../../core/model/source-templates';
   import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
 
   interface Props {
@@ -40,9 +50,33 @@
   let date = $state(untrack(() => source.date));
   let publisher = $state(untrack(() => source.publisher));
   let callNumber = $state(untrack(() => source.callNumber));
+  let callMedia = $state(untrack(() => source.callMedia));
   let text = $state(untrack(() => source.text));
 
   let repo = $state(untrack(() => source.repo));
+
+  // Vorlagen-Auswahl (BL-128, Spec 20 §1.6 [S]): NUR beim Anlegen einer frischen Quelle
+  // sichtbar (Kurzname UND Titel beim Mount leer) — dieselbe, bereits vorhandene
+  // Heuristik wie die Überschrift unten ("Neue Quelle" vs. "Quelle bearbeiten"). Der
+  // Vorlagen-Picker ist KEIN Dauer-Feld an jeder bestehenden Quelle.
+  const showTemplates = untrack(() => !source.title && !source.abbr);
+  let templateQuery = $state('');
+
+  // Auswahl füllt NUR leere Felder — schon getippter eigener Text (oder eine zuvor
+  // gewählte andere Vorlage) wird nie stillschweigend überschrieben. Jedes Feld bleibt
+  // danach frei editierbar (Spec 20 §1.6: "kein geschlossenes Enum"). Wer die Vorlage
+  // wechseln will, überschreibt das jeweilige Feld selbst von Hand.
+  function applyTemplate(t: SourceTemplate) {
+    if (!abbr.trim()) abbr = t.abbr;
+    if (!title.trim()) title = t.title;
+    if (!author.trim()) author = t.author;
+    if (!callMedia.trim()) callMedia = t.callMedia;
+  }
+
+  function applyTemplateByLabel() {
+    const match = SOURCE_TEMPLATES.find((t) => t.label === templateQuery);
+    if (match) applyTemplate(match);
+  }
 
   function save() {
     const next: Source = {
@@ -54,6 +88,7 @@
       publisher: publisher.trim(),
       repo,
       callNumber: callNumber.trim(),
+      callMedia: callMedia.trim(),
       text,
     };
     appState.saveSource(next);
@@ -67,6 +102,29 @@
 
 <div class="source-form">
   <h3>{source.title || source.abbr ? 'Quelle bearbeiten' : 'Neue Quelle'}</h3>
+
+  {#if showTemplates}
+    <div class="source-form__field stb-field">
+      <span class="stb-field__caption">Vorlage (optional)</span>
+      <input
+        type="text"
+        bind:value={templateQuery}
+        list="source-templates"
+        placeholder="Vorlage wählen…"
+        onchange={applyTemplateByLabel}
+      />
+      <datalist id="source-templates">
+        {#each SOURCE_TEMPLATES as t (t.key)}
+          <option value={t.label}></option>
+        {/each}
+      </datalist>
+      <div class="source-form__chips">
+        {#each SOURCE_TEMPLATES as t (t.key)}
+          <button type="button" class="source-form__chip" onclick={() => applyTemplate(t)}>{t.label}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <div class="source-form__grid">
     <label>
@@ -92,6 +150,14 @@
     <label>
       Signatur
       <input type="text" bind:value={callNumber} />
+    </label>
+    <label>
+      <!-- GEDCOM SOUR.REPO.CALN.MEDI: hängt strukturell an der Signatur (CALN) — der
+           Writer emittiert MEDI nur, wenn zugleich eine Signatur gesetzt ist
+           (write-back-emit.ts emitSource). Keine erfundene Vorgabe: dieselbe Kopplung
+           gilt bereits für die read-only-Anzeige im Steckbrief (ADR-v9-151). -->
+      Medientyp (zur Signatur)
+      <input type="text" bind:value={callMedia} placeholder="z. B. manuscript, tombstone" />
     </label>
     <div class="stb-field">
       <span class="stb-field__caption">Archiv</span>
@@ -129,6 +195,35 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 0.5rem;
+  }
+
+  /* Vorlagen-Auswahl (BL-128) — gleicher Aufbau wie TaskForm.svelte's Kategorie-Feld
+     (Preset+Freitext-<datalist> + Chip-Reihe, INV-UI-4). */
+  .source-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--stb-text-dim);
+    margin-top: 0.4rem;
+  }
+
+  .source-form__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+
+  .source-form__chip {
+    background: var(--stb-surface-3);
+    color: var(--stb-text-dim);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+    min-height: var(--stb-touch-target);
   }
 
   .source-form label {

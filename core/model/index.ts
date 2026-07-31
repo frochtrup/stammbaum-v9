@@ -71,3 +71,4 @@ export {
   deleteSourceCascade,
   deleteRepositoryCascade,
 } from './delete-cascade';
+export { SOURCE_TEMPLATES, type SourceTemplate } from './source-templates';
