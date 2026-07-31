@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import ValidationPanel from '../../ui/views/validation/ValidationPanel.svelte';
 import ValConfigSheet from '../../ui/views/validation/ValConfigSheet.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeSource, SOURCE_TEMPLATES } from '../../core/model';
 import { defaultConfig, runValidation, type Finding } from '../../core/validate/index';
 
 function stateWithPerson() {
@@ -141,5 +141,97 @@ describe('ValConfigSheet', () => {
 
     expect(onClose).toHaveBeenCalled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+// ADR-v9-165 / BL-228: der VORHANDENE „→ Als Aufgabe übernehmen"-Knopf wird schlauer,
+// er bekommt keinen zweiten daneben. Geprüft wird hier die VERDRAHTUNG — dass die
+// angelegte Aufgabe die vorgeschlagene Gattung und den Quellenbezug wirklich trägt
+// (die Vorschlagsregel selbst liegt in tests/core/research-suggest.test.ts).
+describe('ValidationPanel — Forschungsschritt-Vorschlag am Übernehmen-Knopf', () => {
+  // Bewusst EIN handgebauter Befund statt `runValidation`: welcher Befund zuerst
+  // gerendert wird, hängt sonst an der Schwere-Gruppierung — und damit hinge die
+  // Zusicherung an etwas anderem als dem, was sie prüfen will.
+  function befund(rule: string): Finding {
+    return {
+      rule,
+      severity: 'info',
+      text: 'Testbefund',
+      category: 'kirchenbuch',
+      personId: '@I1@',
+      familyId: null,
+      placeId: null,
+      hofId: null,
+    } as Finding;
+  }
+
+  function stateVorStandesamt(mitQuelle = true) {
+    const appState = createAppState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Otto', surname: 'Bauer', name: 'Otto /Bauer/' });
+    p.birth.date = '1820';
+    p.birth.place = 'Ochtrup';
+    db.individuals.set('@I1@', p);
+    if (mitQuelle) {
+      const s = makeSource('@S1@');
+      s.title = 'Kirchenbuch Taufen, Ochtrup, 1800-1850';
+      db.sources.set('@S1@', s);
+    }
+    appState.loadDatabase(db, 'test.ged');
+    return appState;
+  }
+
+  function uebernehmen(appState: ReturnType<typeof createAppState>, findings: Finding[], staStAera?: number) {
+    render(ValidationPanel, {
+      props: { appState, findings, onClose: () => {}, onOpenConfig: () => {}, ...(staStAera ? { staStAera } : {}) },
+    });
+    return fireEvent.click(screen.getAllByLabelText('Als Aufgabe übernehmen')[0]);
+  }
+
+  it('die angelegte Aufgabe trägt die Vorlagen-Gattung, nicht den Regel-Slug', async () => {
+    const appState = stateVorStandesamt();
+    await uebernehmen(appState, [befund('NO_SOURCES_AT_ALL')]);
+
+    const task = appState.db.individuals.get('@I1@')!.tasks[0];
+    expect(task.category).toBe('Kirchenbuch Taufen');
+    expect(SOURCE_TEMPLATES.map((t) => t.label)).toContain(task.category);
+    expect(task.category).not.toBe('kirchenbuch');
+  });
+
+  it('die angelegte Aufgabe trägt den eindeutig ableitbaren Quellenbezug', async () => {
+    const appState = stateVorStandesamt();
+    await uebernehmen(appState, [befund('NO_SOURCES_AT_ALL')]);
+    expect(appState.db.individuals.get('@I1@')!.tasks[0].sourceRef).toBe('@S1@');
+  });
+
+  it('ohne eindeutige Quelle bleibt der Bezug leer statt geraten zu werden', async () => {
+    const appState = stateVorStandesamt(false);
+    await uebernehmen(appState, [befund('NO_SOURCES_AT_ALL')]);
+    expect(appState.db.individuals.get('@I1@')!.tasks[0].sourceRef).toBe('');
+  });
+
+  it('ein Sterbe-Befund an derselben Person schlägt eine ANDERE Gattung vor', async () => {
+    const appState = stateVorStandesamt();
+    await uebernehmen(appState, [befund('MISSING_DEATHPLACE')]);
+    const task = appState.db.individuals.get('@I1@')!.tasks[0];
+    expect(task.category).toBe('Kirchenbuch Beerdigungen');
+    // Die Taufen-Quelle passt nicht zur Beerdigungs-Gattung — kein geratener Bezug.
+    expect(task.sourceRef).toBe('');
+  });
+
+  it('die Schwelle des Aufrufers schlägt durch (Regel und Vorschlag teilen sie)', async () => {
+    const appState = stateVorStandesamt(false);
+    appState.db.individuals.get('@I1@')!.birth.date = '1890';
+
+    await uebernehmen(appState, [befund('NO_SOURCES_AT_ALL')], 1900);
+    expect(appState.db.individuals.get('@I1@')!.tasks[0].category).toBe('Kirchenbuch Taufen');
+  });
+
+  it('ohne verschobene Schwelle ergibt dasselbe Jahr die Standesamts-Gattung', async () => {
+    const appState = stateVorStandesamt(false);
+    appState.db.individuals.get('@I1@')!.birth.date = '1890';
+
+    await uebernehmen(appState, [befund('NO_SOURCES_AT_ALL')]);
+    expect(appState.db.individuals.get('@I1@')!.tasks[0].category).toBe('Standesamt Geburt');
   });
 });

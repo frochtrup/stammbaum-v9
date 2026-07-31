@@ -7,6 +7,12 @@ export { makeLogEntry, linkLogToTask } from './log';
 export { makeProject, matchesScope } from './project';
 export { makeHypothesis, addHypothesisEvidence, isIdentityExclusion } from './hypothesis';
 export { evalToQuay, isEvidenceEvalEmpty, makeEvidenceEval } from './eval';
+export {
+  suggestResearchStep,
+  type ResearchStepInput,
+  type ResearchStepContext,
+  type ResearchStepSuggestion,
+} from './suggest';
 export { buildProofSummary, type ProofSummary, type ProofSources } from './proof-summary';
 export {
   ancestorBranches,

@@ -36,7 +36,7 @@
   } from '../../../core/validate/index';
   import { loadValConfig } from '../../../services/validate/index';
   import { createValConfigStore } from '../../../services/app-data';
-  import { matchesScope } from '../../../core/research/index';
+  import { matchesScope, suggestResearchStep } from '../../../core/research/index';
   import type { ProjectScope } from '../../../core/research/types';
   import type { PersonId } from '../../../core/model/types';
 
@@ -179,9 +179,24 @@
     return pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low';
   }
 
+  // Der vorhandene Knopf wird schlauer, statt einen zweiten zu bekommen (ADR-v9-165,
+  // INV-UI-11): `suggestResearchStep` belegt Gattung und — wo eindeutig — Quellenbezug
+  // vor. Angelegt wird weiter erst auf Klick, jedes Feld bleibt danach editierbar (LP-6).
   function promote(personId: string, f: Finding) {
     const today = new Date().toISOString().slice(0, 10);
-    appState.addTask('person', personId, newTaskId(), f.text, f.category, today, '');
+    const vorschlag = suggestResearchStep(f, {
+      db: appState.db,
+      staStAera: valConfig.thresholds.staStAera,
+    });
+    appState.addTask(
+      'person',
+      personId,
+      newTaskId(),
+      f.text,
+      vorschlag.category,
+      today,
+      vorschlag.sourceRef,
+    );
   }
 
   /**
@@ -252,6 +267,7 @@
       <!-- Prüfbericht — Umfang je nach Öffner: „✓ Bericht" zeigt alles, die „Orte &
            Höfe"-Kachel nur die Geo-Befunde. Dieselbe Komponente, gefilterte Befundmenge. -->
       <ValidationPanel
+        staStAera={valConfig.thresholds.staStAera}
         {appState}
         findings={reportFindings}
         scopeLabel={reportScope === 'geo' ? 'Orte & Höfe' : null}

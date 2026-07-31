@@ -10,6 +10,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Finding } from '../../../core/validate/index';
   import { newTaskId } from '../tasks/tasks-commands';
+  import { suggestResearchStep } from '../../../core/research/index';
+  import { defaultThresholds } from '../../../core/validate/index';
   import { groupBySeverity, summaryText, SEVERITY_ICON, SEVERITY_LABEL } from './validation-model';
 
   interface Props {
@@ -29,6 +31,12 @@
     /** Optionaler Umfangs-Hinweis in der Kopfzeile (z. B. „Orte & Höfe", wenn der Bericht
      *  auf eine Teilmenge gefiltert geöffnet wurde). `null` = voller Bericht, kein Label. */
     scopeLabel?: string | null;
+    /**
+     * Grenzjahr der Standesamts-Ära für den Forschungsschritt-Vorschlag (ADR-v9-165) —
+     * kommt aus der Regel-Konfiguration des Aufrufers, damit Regel (`BIRTH_AFTER_STAERA`)
+     * und Vorschlag dieselbe Schwelle benutzen. Ohne Angabe gilt die Vorgabe.
+     */
+    staStAera?: number;
   }
   const {
     appState,
@@ -40,6 +48,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     scopeLabel = null,
+    staStAera = defaultThresholds().staStAera,
   }: Props = $props();
 
   /**
@@ -60,7 +69,19 @@
     // (Spec 12 §1), deshalb ist der Knopf dort gar nicht erst sichtbar.
     if (!f.personId) return;
     const today = new Date().toISOString().slice(0, 10);
-    appState.addTask('person', f.personId, newTaskId(), f.text, f.category, today, '');
+    // Derselbe Knopf, nur besser vorbelegt (ADR-v9-165): Gattung aus dem Vokabular der
+    // Quellen-Vorlagen, Quellenbezug nur bei Eindeutigkeit. Kein zweites Bedienelement
+    // (INV-UI-11), kein neues Modellfeld — `category`/`sourceRef` gibt es längst.
+    const vorschlag = suggestResearchStep(f, { db: appState.db, staStAera });
+    appState.addTask(
+      'person',
+      f.personId,
+      newTaskId(),
+      f.text,
+      vorschlag.category,
+      today,
+      vorschlag.sourceRef,
+    );
     promoted = new Set([...promoted, key(f)]);
   }
 
