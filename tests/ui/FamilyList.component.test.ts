@@ -3,12 +3,13 @@
 // (Spec 32 §6; Spec 20 §1.5 [K]). Deckt Rendering ab: Zeilen erscheinen im DOM,
 // zyklischer Sortier-Umschalter (3 Zustände), Suche + Filter-Panel reagieren auf
 // Nutzer-Interaktion, Klick ruft den EINEN ViewState-Weg auf (INV-VS).
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyList from '../../ui/views/family/FamilyList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makeFamily, makePerson } from '../../core/model';
+import { AnchorDownloadAdapter } from '../../services/file/download-adapter';
 
 function seedAppState() {
   const appState = createAppState();
@@ -157,5 +158,45 @@ describe('FamilyList — Filter-Panel (Component)', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Filter zurücksetzen' }));
 
     expect(screen.getByText('Karl Adler ⚭ Berta Zimmer')).toBeTruthy();
+  });
+});
+
+describe('FamilyList — CSV-Export der gefilterten Liste (BL-125, ADR-v9-159, EINE toCsv wie PersonList)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('Export-Button liegt hinter der FilterBar (kein Dauer-Icon in der Kopfzeile)', async () => {
+    const appState = seedAppState();
+    const viewState = createViewState();
+
+    render(FamilyList, { props: { appState, viewState } });
+
+    expect(screen.queryByRole('button', { name: /Als CSV exportieren/ })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(screen.getByRole('button', { name: /Als CSV exportieren/ })).toBeTruthy();
+  });
+
+  it('exportiert NUR die gefilterte Zeilenmenge, inkl. Entitäts-ID, nicht die ganze Datenbank', async () => {
+    const appState = seedTwoFamilies(); // F1: Zimmer/Adler 1950, F2: Adler/Zimmer 1900
+    const viewState = createViewState();
+    const downloadSpy = vi.spyOn(AnchorDownloadAdapter.prototype, 'download').mockImplementation(() => {});
+
+    render(FamilyList, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    const from = screen.getByLabelText(/Heiratsjahr von/);
+    await fireEvent.input(from, { target: { value: '1940' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Als CSV exportieren/ }));
+
+    expect(downloadSpy).toHaveBeenCalledTimes(1);
+    const [csv, filename, mimeType] = downloadSpy.mock.calls[0]!;
+    expect(filename).toMatch(/^familien_\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(mimeType).toBe('text/csv;charset=utf-8');
+    expect(String(csv)).toContain('@F1@');
+    expect(String(csv)).toContain('Otto Zimmer');
+    expect(String(csv)).not.toContain('@F2@');
+    expect(String(csv)).not.toContain('Karl Adler');
+    expect(String(csv).charCodeAt(0)).toBe(0xfeff);
   });
 });

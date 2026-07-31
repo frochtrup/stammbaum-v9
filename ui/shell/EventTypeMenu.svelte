@@ -38,6 +38,15 @@
     otherItems?: EventMenuItem[];
     otherLabel?: string;
     onSelect: (tag: string) => void;
+    /** Sonder-Eintrag ganz oben (BL-212: „⧉ Übernehmen") — KEIN Ereignistyp, deshalb ein
+     *  eigener Callback statt eines Pseudo-Tags in `groups`: er legt kein leeres Ereignis
+     *  eines Typs an, sondern fügt ein vollständiges kopiertes ein. Weglassen = kein
+     *  Eintrag (FamilyDetail und Tests bleiben unverändert). */
+    pasteItem?: { label: string; onSelect: () => void };
+    /** „Ablage leeren" (Design-Kritik 2026-07-31): ohne diesen Weg blieb ein einmal
+     *  kopiertes Ereignis die ganze Sitzung als Eintrag stehen. Nur zusammen mit
+     *  `pasteItem` sinnvoll. */
+    clearItem?: { label: string; onSelect: () => void };
   }
   const {
     triggerLabel = '+ Ereignis',
@@ -45,6 +54,8 @@
     otherItems = [],
     otherLabel = 'Anderer Ereignistyp',
     onSelect,
+    pasteItem,
+    clearItem,
   }: Props = $props();
 
   let open = $state(false);
@@ -84,6 +95,27 @@
   {#if open}
     <button type="button" class="stb-event-menu__backdrop" aria-label="Menü schließen" onclick={close} use:portal></button>
     <div class="stb-event-menu__panel" role="menu" aria-label={triggerLabel} use:anchoredTo={triggerEl}>
+      {#if pasteItem}
+        <button
+          type="button"
+          class="stb-event-menu__item stb-event-menu__item--paste"
+          role="menuitem"
+          onclick={() => { close(); pasteItem.onSelect(); }}
+        >
+          {pasteItem.label}
+        </button>
+        {#if clearItem}
+          <button
+            type="button"
+            class="stb-event-menu__item stb-event-menu__item--clear"
+            role="menuitem"
+            onclick={() => { close(); clearItem.onSelect(); }}
+          >
+            {clearItem.label}
+          </button>
+        {/if}
+        <div class="stb-event-menu__divider"></div>
+      {/if}
       {#each groups as group, gi (gi)}
         {#if gi > 0 && group.length > 0}<div class="stb-event-menu__divider"></div>{/if}
         {#each group as item (item.tag)}
@@ -151,7 +183,12 @@
   }
 
   .stb-event-menu__item {
-    display: block;
+    /* Trefferflächen-Kontrakt (Spec 21 §6i, ADR-v9-155): die Einträge maßen 31px —
+       der Wächter fängt nur ZU KLEINE explizite Werte, nicht fehlende (Design-Kritik
+       2026-07-31). `display: flex` statt `block`, damit die Beschriftung mittig sitzt. */
+    min-height: var(--stb-touch-target);
+    align-items: center;
+    display: flex;
     width: 100%;
     text-align: left;
     background: transparent;
@@ -161,6 +198,18 @@
     font: inherit;
     padding: 0.35rem 0.5rem;
     border-radius: var(--stb-radius-control);
+  }
+
+  /* Sonder-Eintrag „⧉ Übernehmen" (BL-212) — MUSS nach `.stb-event-menu__item` stehen:
+     gleiche Spezifität, es gewinnt die spätere Regel. Vorher stand sie davor und war
+     wirkungslos, die Hervorhebung existierte nur im Quelltext (Design-Kritik 2026-07-31). */
+  .stb-event-menu__item--paste {
+    color: var(--stb-gold-light);
+  }
+
+  .stb-event-menu__item--clear {
+    color: var(--stb-text-dim);
+    font-size: 0.85rem;
   }
 
   .stb-event-menu__item:hover,

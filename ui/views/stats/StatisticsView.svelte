@@ -11,7 +11,8 @@
   // rohes style="..."-Attribut im markup) — CSP-konform ohne unsafe-inline (LP-8).
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
-  import { computeStatistics, type TopEntry } from './stats-model';
+  import { computeStatistics } from './stats-model';
+  import StatsTopList from './StatsTopList.svelte';
 
   interface Props {
     appState: AppState;
@@ -22,10 +23,6 @@
 
   function fmt(n: number): string {
     return n.toLocaleString('de-DE');
-  }
-
-  function barMax(entries: TopEntry[]): number {
-    return entries.length ? Math.max(...entries.map((e) => e.count)) : 1;
   }
 </script>
 
@@ -102,12 +99,13 @@
           {#each ls.histogram as h (h.bin)}
             <div class="stats-tl-item">
               <div class="stats-tl-bar-wrap">
-                <div class="stats-tl-bar stats-tl-bar--ls" style:--stb-bar-h={Math.round((h.count / lsMaxCount) * 80)} use:tooltip={String(h.count)}></div>
+                <div class="stats-tl-bar stats-tl-bar--ls" style:--stb-bar-h={Math.round((h.count / lsMaxCount) * 80)} use:tooltip={`${h.count} (${h.pct}%)`}></div>
               </div>
               <div class="stats-tl-lbl">{h.bin}–{h.bin + 9}</div>
             </div>
           {/each}
         </div>
+        <p class="stats-caption">{fmt(ls.count)} Personen gesamt</p>
       </section>
     {/if}
 
@@ -125,8 +123,8 @@
           {#each ma.bins as b (b.bin)}
             <div class="stats-tl-item">
               <div class="stats-tl-bar-wrap stats-tl-bar-wrap--dual">
-                <div class="stats-tl-bar stats-tl-bar--marr-m" style:--stb-bar-h={Math.round((b.male / maMaxCount) * 72)} use:tooltip={`♂ ${b.male}`}></div>
-                <div class="stats-tl-bar stats-tl-bar--marr-f" style:--stb-bar-h={Math.round((b.female / maMaxCount) * 72)} use:tooltip={`♀ ${b.female}`}></div>
+                <div class="stats-tl-bar stats-tl-bar--marr-m" style:--stb-bar-h={Math.round((b.male / maMaxCount) * 72)} use:tooltip={`♂ ${b.male} (${b.malePct}%)`}></div>
+                <div class="stats-tl-bar stats-tl-bar--marr-f" style:--stb-bar-h={Math.round((b.female / maMaxCount) * 72)} use:tooltip={`♀ ${b.female} (${b.femalePct}%)`}></div>
               </div>
               <div class="stats-tl-lbl">{b.bin}–{b.bin + 4}</div>
             </div>
@@ -136,6 +134,7 @@
           <span class="stats-legend__dot stats-legend__dot--m"></span><span>♂ Männer</span>
           <span class="stats-legend__dot stats-legend__dot--f"></span><span>♀ Frauen</span>
         </div>
+        <p class="stats-caption">{fmt(ma.count)} Datenpunkte gesamt</p>
       </section>
     {/if}
 
@@ -149,11 +148,14 @@
             {@const b = dec.births[d] ?? 0}
             {@const dt = dec.deaths[d] ?? 0}
             {@const m = dec.marriages[d] ?? 0}
+            {@const bPct = dec.birthPct[d] ?? 0}
+            {@const dtPct = dec.deathPct[d] ?? 0}
+            {@const mPct = dec.marriagePct[d] ?? 0}
             <div class="stats-tl-item">
               <div class="stats-tl-bar-wrap stats-tl-bar-wrap--tri">
-                <div class="stats-tl-bar stats-tl-bar--birth" style:--stb-bar-h={Math.round((b / decMaxCount) * 72)} use:tooltip={`Geburten ${b}`}></div>
-                <div class="stats-tl-bar stats-tl-bar--death" style:--stb-bar-h={Math.round((dt / decMaxCount) * 72)} use:tooltip={`Sterbefälle ${dt}`}></div>
-                <div class="stats-tl-bar stats-tl-bar--marr" style:--stb-bar-h={Math.round((m / decMaxCount) * 72)} use:tooltip={`Heiraten ${m}`}></div>
+                <div class="stats-tl-bar stats-tl-bar--birth" style:--stb-bar-h={Math.round((b / decMaxCount) * 72)} use:tooltip={`Geburten ${b} (${bPct}%)`}></div>
+                <div class="stats-tl-bar stats-tl-bar--death" style:--stb-bar-h={Math.round((dt / decMaxCount) * 72)} use:tooltip={`Sterbefälle ${dt} (${dtPct}%)`}></div>
+                <div class="stats-tl-bar stats-tl-bar--marr" style:--stb-bar-h={Math.round((m / decMaxCount) * 72)} use:tooltip={`Heiraten ${m} (${mPct}%)`}></div>
               </div>
               <div class="stats-tl-lbl">{d}er</div>
             </div>
@@ -164,6 +166,10 @@
           <span class="stats-legend__dot stats-legend__dot--death"></span><span>Sterbefälle</span>
           <span class="stats-legend__dot stats-legend__dot--marr"></span><span>Heiraten</span>
         </div>
+        <p class="stats-caption">
+          {fmt(dec.totalBirths)} Geburten · {fmt(dec.totalDeaths)} Sterbefälle ·
+          {fmt(dec.totalMarriages)} Heiraten gesamt
+        </p>
       </section>
     {/if}
 
@@ -175,72 +181,45 @@
           {#each stats.childCounts as c (c.label)}
             <div class="stats-tl-item">
               <div class="stats-tl-bar-wrap">
-                <div class="stats-tl-bar stats-tl-bar--child" style:--stb-bar-h={Math.round((c.count / childMaxCount) * 80)} use:tooltip={String(c.count)}></div>
+                <div class="stats-tl-bar stats-tl-bar--child" style:--stb-bar-h={Math.round((c.count / childMaxCount) * 80)} use:tooltip={`${c.count} (${c.pct}%)`}></div>
               </div>
               <div class="stats-tl-lbl">{c.label}</div>
             </div>
           {/each}
         </div>
+        <p class="stats-caption">{fmt(stats.familyCount)} Familien gesamt</p>
       </section>
     {/if}
 
     {#if stats.topSurnames.length > 0}
       <section class="stats-section">
         <h2 class="stats-section__title">Häufigste Nachnamen</h2>
-        {#each stats.topSurnames as entry (entry.label)}
-          <div class="stats-bar-row">
-            <div class="stats-bar-row__lbl" use:tooltip={entry.label}>{entry.label}</div>
-            <div class="stats-bar-row__track">
-              <div class="stats-bar-row__fill" style:--stb-bar-pct={Math.round((entry.count / barMax(stats.topSurnames)) * 100)}></div>
-            </div>
-            <div class="stats-bar-row__cnt">{entry.count}</div>
-          </div>
-        {/each}
+        <StatsTopList entries={stats.topSurnames} />
+        <p class="stats-caption">{fmt(stats.topSurnames[0]?.total ?? 0)} Personen mit erfasstem Nachnamen</p>
       </section>
     {/if}
 
     {#if stats.topGivenNames.length > 0}
       <section class="stats-section">
         <h2 class="stats-section__title">Häufigste Vornamen</h2>
-        {#each stats.topGivenNames as entry (entry.label)}
-          <div class="stats-bar-row">
-            <div class="stats-bar-row__lbl" use:tooltip={entry.label}>{entry.label}</div>
-            <div class="stats-bar-row__track">
-              <div class="stats-bar-row__fill stats-bar-row__fill--blue" style:--stb-bar-pct={Math.round((entry.count / barMax(stats.topGivenNames)) * 100)}></div>
-            </div>
-            <div class="stats-bar-row__cnt">{entry.count}</div>
-          </div>
-        {/each}
+        <StatsTopList entries={stats.topGivenNames} variant="blue" />
+        <p class="stats-caption">{fmt(stats.topGivenNames[0]?.total ?? 0)} Personen mit erfasstem Vornamen</p>
       </section>
     {/if}
 
     {#if stats.topBirthPlaces.length > 0}
       <section class="stats-section">
         <h2 class="stats-section__title">Häufigste Geburtsorte</h2>
-        {#each stats.topBirthPlaces as entry (entry.label)}
-          <div class="stats-bar-row">
-            <div class="stats-bar-row__lbl" use:tooltip={entry.label}>{entry.label}</div>
-            <div class="stats-bar-row__track">
-              <div class="stats-bar-row__fill stats-bar-row__fill--dim" style:--stb-bar-pct={Math.round((entry.count / barMax(stats.topBirthPlaces)) * 100)}></div>
-            </div>
-            <div class="stats-bar-row__cnt">{entry.count}</div>
-          </div>
-        {/each}
+        <StatsTopList entries={stats.topBirthPlaces} variant="dim" />
+        <p class="stats-caption">{fmt(stats.topBirthPlaces[0]?.total ?? 0)} Geburtsorts-Angaben gesamt</p>
       </section>
     {/if}
 
     {#if stats.topDeathPlaces.length > 0}
       <section class="stats-section">
         <h2 class="stats-section__title">Häufigste Sterbeorte</h2>
-        {#each stats.topDeathPlaces as entry (entry.label)}
-          <div class="stats-bar-row">
-            <div class="stats-bar-row__lbl" use:tooltip={entry.label}>{entry.label}</div>
-            <div class="stats-bar-row__track">
-              <div class="stats-bar-row__fill stats-bar-row__fill--dim" style:--stb-bar-pct={Math.round((entry.count / barMax(stats.topDeathPlaces)) * 100)}></div>
-            </div>
-            <div class="stats-bar-row__cnt">{entry.count}</div>
-          </div>
-        {/each}
+        <StatsTopList entries={stats.topDeathPlaces} variant="dim" />
+        <p class="stats-caption">{fmt(stats.topDeathPlaces[0]?.total ?? 0)} Sterbeorts-Angaben gesamt</p>
       </section>
     {/if}
 
@@ -253,12 +232,13 @@
           {#each fb.bins as bin (bin.bin)}
             <div class="stats-tl-item">
               <div class="stats-tl-bar-wrap">
-                <div class="stats-tl-bar" style:--stb-bar-h={Math.round((bin.count / fbMaxCount) * 80)} use:tooltip={String(bin.count)}></div>
+                <div class="stats-tl-bar" style:--stb-bar-h={Math.round((bin.count / fbMaxCount) * 80)} use:tooltip={`${bin.count} (${bin.pct}%)`}></div>
               </div>
               <div class="stats-tl-lbl">{bin.bin}er</div>
             </div>
           {/each}
         </div>
+        <p class="stats-caption">{fmt(fb.total)} Personen gesamt</p>
       </section>
     {/if}
   {/if}
@@ -409,6 +389,16 @@
     color: var(--stb-text-dim);
   }
 
+  /* Gesamt-Caption unter einer Verteilung (BL-219, ADR-v9-157, v8-Vorbild
+     ui-views-stats.js:266 "N Familien gesamt") — "Balken beziffern sich selbst": neben dem
+     Anteil in Prozent (im Tooltip jedes Balkens) nennt jede Verteilung hier zusätzlich
+     ihre Gesamtzahl, statt sie nur implizit aus den Einzelwerten erschließen zu lassen. */
+  .stats-caption {
+    margin: 0.4rem 0 0;
+    font-size: 0.72rem;
+    color: var(--stb-text-dim);
+  }
+
   /* Kennzahlen-Zusammenfassung (Lebensspannen/Heiratsalter) */
   .stats-summary {
     display: flex;
@@ -550,47 +540,5 @@
 
   .stats-legend__dot--marr {
     background: #4ac86e;
-  }
-
-  /* Top-Listen (horizontale Balken) */
-  .stats-bar-row {
-    display: grid;
-    grid-template-columns: 8rem 1fr 2rem;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.3rem 0;
-    font-size: 0.85rem;
-  }
-
-  .stats-bar-row__lbl {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .stats-bar-row__track {
-    height: 8px;
-    background: var(--stb-surface-2);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .stats-bar-row__fill {
-    width: calc(var(--stb-bar-pct, 0) * 1%);
-    height: 100%;
-    background: var(--stb-gold-dim);
-  }
-
-  .stats-bar-row__fill--blue {
-    background: var(--stb-sex-m);
-  }
-
-  .stats-bar-row__fill--dim {
-    background: var(--stb-text-dim);
-  }
-
-  .stats-bar-row__cnt {
-    text-align: right;
-    color: var(--stb-text-dim);
   }
 </style>

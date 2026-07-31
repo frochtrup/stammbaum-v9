@@ -15,6 +15,7 @@
   import type { LensId } from '../shell/lens-model';
   import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
   import type { Route } from '../shell/route.svelte';
+  import type { EventClipboard } from '../shell/event-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
@@ -40,17 +41,21 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Ereignis-Zwischenablage der Sitzung (BL-212) — nur durchgereicht, s. PersonDetail. */
+    clipboard?: EventClipboard;
     /**
-     * Cross-Navigation "Im Baum anzeigen" (PersonDetail -> Baum-Tab, Spec 20 §1.3 [K]).
-     * Optional durchgereicht statt hier verdrahtet: `activeTarget` (welcher Bottom-Nav-
-     * Slot aktiv ist) sitzt in App.svelte, nicht in EntityTab — das ist bewusst KEIN
-     * EntityTab-Sub-Callback wie navigateToPerson/-Family/etc. (die bleiben INNERHALB
-     * dieser Scheibe), sondern ein Durchreichen nach oben zum echten Ziel-Umschalter.
+     * Personen-Kontext-Sprung in eine Lens (PersonDetail -> Baum/Karte/Zeitleiste/Story,
+     * BL-60/ADR-v9-153 — ersetzt die vormaligen Einzel-Callbacks `onNavigateToTree`/
+     * `onOpenStoryForPerson`). Optional durchgereicht statt hier verdrahtet: `activeTarget`
+     * (welcher Bottom-Nav-Slot aktiv ist) sitzt in App.svelte, nicht in EntityTab — das ist
+     * bewusst KEIN EntityTab-Sub-Callback wie navigateToPerson/-Family/etc. (die bleiben
+     * INNERHALB dieser Scheibe), sondern ein Durchreichen nach oben zum echten
+     * Ziel-Umschalter.
      */
-    onNavigateToTree?: (personId: string) => void;
-    /** "📖 Story" aus PersonDetail/FamilyDetail → Story-Lens (BL-133/186). Durchgereicht;
-     *  der Ziel-Umschalter + Fokus-/Modus-Setzung sitzt in App.svelte, nicht hier. */
-    onOpenStoryForPerson?: (personId: string) => void;
+    onOpenLensForPerson?: (personId: string, lens: LensId) => void;
+    /** "📖 Story" aus FamilyDetail → Story-Lens im Familien-Modus (BL-186). Bleibt ein
+     *  eigener Callback: eine Familie ist KEIN Personen-Lens-Fokus (Karte/Zeitleiste/Baum
+     *  kennen sie nicht), der Absprung hat dort also genau ein Ziel. */
     onOpenStoryForFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`/`EventLine`)
      *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
@@ -63,10 +68,10 @@
     appState,
     viewState,
     route,
-    onNavigateToTree,
-    onOpenStoryForPerson,
+    onOpenLensForPerson,
     onOpenStoryForFamily,
     onNavigateLens,
+    clipboard,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -401,10 +406,10 @@
         onNavigateToSource={navigateToSource}
         onNavigateToPlace={navigateToPlace}
         onNavigateToHof={navigateToHof}
-        {onNavigateToTree}
-        onOpenStory={onOpenStoryForPerson}
+        onOpenLens={onOpenLensForPerson}
         {onNavigateLens}
         onBack={backToList}
+        {clipboard}
         startInEdit={selectedPersonId === createdPersonId}
       />
     {:else if activeSegment === 'family' && selectedFamilyId}
@@ -444,9 +449,10 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onBack={backToList}
+        {onNavigateLens}
       />
     {:else if activeSegment === 'hof' && selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} />
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} {onNavigateLens} />
     {:else if activeSegment === 'media' && selectedMediaId}
       <MediaDetail
         {appState}

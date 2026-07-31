@@ -78,7 +78,17 @@ let ok = true;
 // nicht durch dieses Gate, weil sie als public/-Datei am Vite-Plugin vorbeiläuft
 // (statt einer zweiten, laxeren Regel für „statische" Seiten: dieselbe Regel, ein
 // Mechanismus).
-const hardFailFiles = ['app/index.html', ...walk('app/public', ['.html']), ...walk('ui', ['.svelte'])];
+// BEIDE Programme (Spec 22 §2/§7): das zweite index.html und die Svelte-Dateien des
+// Orte-Editors gehoeren in dieselbe Hard-Fail-Menge. Ein Gate, das nur das Hauptprogramm
+// sieht, laesst den Editor unbemerkt zurueckfallen — dieselbe Klasse wie ein Gate, das
+// null Tests findet und gruen meldet.
+const hardFailFiles = [
+  'app/index.html',
+  'app-orte/index.html',
+  ...walk('app/public', ['.html']),
+  ...walk('ui', ['.svelte']),
+  ...walk('app-orte', ['.svelte']),
+];
 const violations = scanHardFail(hardFailFiles);
 if (violations.length) {
   ok = false;

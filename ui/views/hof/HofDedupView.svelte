@@ -2,13 +2,13 @@
   // ui/views/hof/HofDedupView.svelte — Massen-Dedup-Ansicht für Höfe (Spec 20 §1.8 [K]
   // "Massen-Dedup", Spec 11 §9.2, ADR-v9-45). Analog PlaceDedupView.svelte. Merge läuft
   // NUR über appState.mergeHof(survivorId, mergedIds) — keine Merge-Logik hier.
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
   import { buildHofDedupGroups } from './hof-dedup-model';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     onClose?: () => void;
   }
   const { appState, onClose }: Props = $props();

@@ -10,6 +10,7 @@ import { eventHofId, placeDisplayName, slugify } from '../../../core/places';
 import { getSpouseFamilies } from '../../islands/tree/tree-model';
 import { renderReport, esc } from '../../../services/reports';
 import { renderMiniMapSvg } from '../../islands/map/mini-map';
+import { fitMiniMapBounds, type LatLong } from '../../islands/map/mini-map-bounds';
 import { personName, lifeYears, yearOf, eventLine } from './report-format';
 
 const MARR = '⚭';
@@ -209,13 +210,32 @@ export function buildFarmChronicle(db: Database, ctx: PlaceContext, generatedOn:
             .filter((a) => a.value && addrFirstLine(a.value) !== title)
             .map((a) => (a.to != null ? `bis ${a.to}: ${a.value}` : a.from != null ? `ab ${a.from}: ${a.value}` : a.value))
             .join(' · ');
-          // Geodaten: Text-Koordinate PLUS Mini-Karte (BL-09) — Höfe tragen eigene Koordinaten
-          // (Binnenmigration im Dorf, Spec 11 §1); self-contained inline-SVG, gleicher Renderer
-          // wie im Steckbrief/Ortsbuch (INV-UI-4).
-          const geo = hof && hof.lat != null && hof.long != null
-            ? `<div class="hc-hof-geo">📍 ${hof.lat.toFixed(4)}, ${hof.long.toFixed(4)}</div>` +
-              `<div class="rep-mini-map">${renderMiniMapSvg({ lat: hof.lat, long: hof.long, label: title })}</div>`
-            : '';
+          // Geodaten: Text-Koordinate PLUS Mini-Karte (BL-09/BL-214) — Höfe tragen eigene
+          // Koordinaten (Binnenmigration im Dorf, Spec 11 §1). Hof-Kontext: Ausschnitt über
+          // Dorf + Geschwisterhöfe (ADR-v9-147 Punkt 1); self-contained Vektor-SVG, gleicher
+          // Renderer wie im Steckbrief/Ortsbuch (INV-UI-4).
+          let geo = '';
+          if (hof && hof.lat != null && hof.long != null) {
+            const village = ctx.places.byId(hof.villageId);
+            const villageCoords: LatLong | null =
+              village && village.lat != null && village.long != null ? { lat: village.lat, long: village.long } : null;
+            const siblingCoords: LatLong[] = [];
+            for (const sibId of ctx.hofs.byVillage(hof.villageId)) {
+              if (sibId === hof.id) continue;
+              const sib = ctx.hofs.byId(sibId);
+              if (sib && sib.lat != null && sib.long != null) siblingCoords.push({ lat: sib.lat, long: sib.long });
+            }
+            const contextPoints = [...(villageCoords ? [villageCoords] : []), ...siblingCoords];
+            geo =
+              `<div class="hc-hof-geo">📍 ${hof.lat.toFixed(4)}, ${hof.long.toFixed(4)}</div>` +
+              `<div class="rep-mini-map">${renderMiniMapSvg({
+                lat: hof.lat,
+                long: hof.long,
+                bounds: fitMiniMapBounds({ kind: 'hof', lat: hof.lat, long: hof.long, villageCoords, siblingCoords }),
+                label: title,
+                contextPoints,
+              })}</div>`;
+          }
           const note = hof?.note ? `<div class="hc-hof-note">${esc(hof.note)}</div>` : '';
 
           const hp = peopleByHof.get(hofId);

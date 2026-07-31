@@ -49,14 +49,34 @@
   // (`yearPlaceSummary`) und dieselbe Match-Logik wie die globale Suche
   // (`matchesSearch`, nicht bloß ein Substring-Vergleich auf dem Anzeigenamen).
   import PersonPicker from '../../shell/PersonPicker.svelte';
+  import MapExplorePanel from './MapExplorePanel.svelte';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
     route: Route;
     onNavigateLens?: (lens: LensId) => void;
+    /** Marker-Klick → Explorationspanel → Personen-/Orts-/Hof-Sprung (BL-210). Optional,
+     *  damit isolierte Tests/Kontexte ohne Ziel-Umschalter weiterlaufen. */
+    onNavigateToPerson?: (personId: string) => void;
+    onNavigateToPlace?: (placeId: string) => void;
+    onNavigateToHof?: (hofId: string) => void;
   }
-  const { appState, viewState, route, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    route,
+    onNavigateLens,
+    onNavigateToPerson,
+    onNavigateToPlace,
+    onNavigateToHof,
+  }: Props = $props();
+
+  // Geklickter Marker (BL-210) — komponenten-lokal, bewusst NICHT in Route/ViewState:
+  // das ist weder eine Entitäts-Auswahl noch ein Anzeige-Modus, sondern ein flüchtiger
+  // Aufklapp-Zustand (dieselbe Abgrenzung wie bei den Dedup-/Review-Overlays in
+  // EntityTab, ADR-v9-104).
+  let explorePlaceId = $state<string | null>(null);
 
   // Anzeige-Modus im Routen-Merker, nicht lokal (ADR-v9-102): fiel sonst bei jeder
   // Rückkehr auf "Orte" zurück — und verdeckte damit die erhaltene Personenauswahl,
@@ -140,7 +160,17 @@
   function switchMode(next: MapMode): void {
     stopAnim();
     animIndex = -1;
+    // Das Explorationspanel gehört zum Orte-Modus (nur dort gibt es Orts-/Hof-Marker) —
+    // beim Moduswechsel schließen, sonst bliebe ein Panel ohne zugehörige Marker stehen.
+    explorePlaceId = null;
     route.setMapMode(next);
+  }
+
+  /** Marker-Klick (BL-210) — Callback der BEIDEN Rendering-Pfade (Leaflet + SVG-
+   *  Fallback), damit das Panel offline genauso erscheint (Offline-Pfad-Parität, wie
+   *  schon beim Fokus-Sprung ADR-v9-78). */
+  function selectPlaceMarker(id: string): void {
+    explorePlaceId = id;
   }
 
   function selectPerson(id: string | null): void {
@@ -162,7 +192,7 @@
           biography,
           focusPlaceId,
           focusCoords,
-          onSelectPlace: () => {},
+          onSelectPlace: selectPlaceMarker,
         });
       } else {
         (handle as SvgFallbackHandle).update({
@@ -172,12 +202,13 @@
           biography,
           focusPlaceId,
           focusCoords,
-          onSelectPlace: () => {},
+          onSelectPlace: selectPlaceMarker,
         });
       }
     } else {
       if (!handle) {
         handle = mountLeafletMap(containerEl, data, {
+          onSelectPlace: selectPlaceMarker,
           onTileError: () => {
             // Verlässliches Signal (auch wenn navigator.onLine=true meldete): Kacheln
             // laden nicht -> auf den Offline-Fallback wechseln (ADR-v9-25).
@@ -343,6 +374,19 @@
 
   <div class="map-lens-view__host" bind:this={containerEl}></div>
 
+  <!-- Orts-Explorationspanel (BL-210): unter der Karte, nicht darüber — s.
+       MapExplorePanel.svelte. Nur im Orte-Modus, weil nur dort Orts-/Hof-Marker
+       existieren. -->
+  {#if mode === 'orte'}
+    <MapExplorePanel
+      {appState}
+      placeId={explorePlaceId}
+      onClose={() => (explorePlaceId = null)}
+      {onNavigateToPerson}
+      {onNavigateToPlace}
+      {onNavigateToHof}
+    />
+  {/if}
 </div>
 
 <style>

@@ -29,5 +29,5 @@
 // gar nicht hat. Immer `npm run check:svelte` laufen lassen, nie das nackte Werkzeug.
 {
   "extends": "./tsconfig.json",
-  "include": ["core", "services", "ui", "app"]
+  "include": ["core", "services", "ui", "app", "app-orte"]
 }

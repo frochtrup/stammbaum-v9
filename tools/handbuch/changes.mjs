@@ -26,7 +26,9 @@ export function resolveBase(repo, sinceArg = '') {
 
 const TYPE = /^(feat|fix|perf)(\(|:|!)/i;
 /** Nur echter App-Code zählt als user-relevant — Tooling/Doku/Tests fallen per Pfad heraus. */
-export const APP_PATHS = ['app', 'ui', 'core', 'services'];
+// `app` matcht als git-Pathspec NUR `app/` — `app-orte/` faellt sonst lautlos aus
+// Changelog UND Textabgleich, und das Handbuch erwaehnte den Orte-Editor (Spec 22) nie.
+export const APP_PATHS = ['app', 'app-orte', 'ui', 'core', 'services'];
 
 /**
  * Alle Commits im Fenster `base..HEAD`, die App-Code berühren, angereichert mit Dateien und
@@ -65,6 +67,7 @@ const SECTION_MAP = [
   { section: 'Kap. 4 (Personen)', kw: ['person', 'duplikat', 'dedup', 'beweisführung', 'proof-summary'] },
   { section: 'Kap. 5 (Familien)', kw: ['famil'] },
   { section: 'Kap. 6 (Quellen/Archive)', kw: ['quelle', 'source', 'zitat', 'citation', 'archiv', 'repository', 'quay', 'evidenz', 'eval', 'beweiskraft'] },
+  { section: 'Anhang E (Orte-Editor)', kw: ['app-orte', 'orte-editor', 'orte-doc', 'places-host', 'standalone'] },
   { section: 'Kap. 7 (Orte) + orte.json', kw: ['/place', 'ort', 'orte', 'verwaltung', 'enclosed', 'pname', 'hierarchie', 'seed'] },
   { section: 'Kap. 8 (Höfe)', kw: ['hof', 'höfe', 'farm', 'building'] },
   { section: 'Kap. 9 (Baum/Karte/Zeitleiste)', kw: ['sanduhr', 'tree', 'baum', 'karte', '/map', 'zeitleiste', 'timeline', 'fächer', 'fan-chart', 'nachkommen', 'lens', 'island', 'insel', 'migration'] },

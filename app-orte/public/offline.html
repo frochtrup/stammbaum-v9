@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Eigene, maximal enge CSP: diese Seite lädt kein Skript und keine Fremdquelle.
+         Sie braucht ein eigenes Meta-Tag, weil das Vite-CSP-Plugin (app/csp-plugin.ts)
+         nur die gebaute index.html anfasst — public/-Dateien gehen unverändert durch,
+         stünden also ohne diese Zeile ganz ohne CSP da (LP-8, Spec 30 NFR-3).
+         ABWEICHUNG vom v8-Orakel: dort stand `style-src 'unsafe-inline'` für einen
+         <style>-Block im Kopf; v9 fährt projektweit `style-src 'self'`, deshalb liegt
+         das CSS in offline.css daneben. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'self';"
+    />
+    <title>Stammbaum — Offline</title>
+    <link rel="stylesheet" href="./offline.css" />
+  </head>
+  <body>
+    <div class="card">
+      <div class="ornament">✦ ✦ ✦</div>
+      <h1>Stammbaum</h1>
+      <p>
+        Keine Verbindung — und diese Seite ist noch nicht im Offline-Speicher.<br />
+        Einmal online geöffnet, läuft die App auch ohne Netz.
+      </p>
+      <a class="btn" href="./">Erneut versuchen</a>
+    </div>
+  </body>
+</html>

@@ -14,6 +14,13 @@ export interface EventLineRow {
   key: string;
   label: string;
   dateLabel: string;
+  /** Menschenlesbarer Datums-Freitext (GEDCOM `PHRASE`, `Event.datePhrase`) — z. B.
+   *  „vor der Hochzeit". BL-197: Modell-Feld, das die Ereigniszeile bisher verschwieg;
+   *  wird kursiv neben dem formatierten Datum gezeigt. Leer = nichts anzeigen. */
+  datePhrase: string;
+  /** Alter der Person bei diesem Ereignis (BL-196, `ageAtEvent`) — nur in Personen-Kontext
+   *  gesetzt (Familien-/Orts-/Hof-Zeilen haben kein Einzel-Subjekt → leer). */
+  age: string;
   placeLabel: string;
   value: string;
   addr: string;

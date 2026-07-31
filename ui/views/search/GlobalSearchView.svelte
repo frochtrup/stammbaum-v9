@@ -13,6 +13,15 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
+  import { sexSymbol } from '../../shell/person-display';
+
+  /**
+   * Soundex-Umschalter der globalen Suche (BL-10, ADR-v9-159): sichtbares Bedienelement
+   * neben dem Suchfeld — anders als in der Personenliste (Filteroption hinter
+   * `FilterBar`), weil diese Fläche keine `FilterBar` hat und heute erst EIN dauerhaftes
+   * Bedienelement trägt (gemessen bei 375px, [21 §6h]). EIGENER Zustand, kein gemeinsamer
+   * Topf mit `PersonFilters.soundex` (INV-VS).
+   */
 
   interface Props {
     appState: AppState;
@@ -42,8 +51,9 @@
   }: Props = $props();
 
   let query = $state('');
+  let soundexEnabled = $state(false);
 
-  const results = $derived(globalSearch(appState.db, appState.placeContext, query));
+  const results = $derived(globalSearch(appState.db, appState.placeContext, query, soundexEnabled));
 
   // Typ-Filter der Ergebnisse (ADR-v9-130): Segment-Chips über den Treffern, ein Tipp
   // scopt auf einen Entitätstyp. Reiner UI-Zustand — das Such-Modell (`globalSearch`)
@@ -77,6 +87,11 @@
   // Hinweis, wenn die Query schlicht noch zu kurz ist).
   const queryTooShort = $derived(query.trim().length < MIN_QUERY_LENGTH);
   const hasResults = $derived(totalResultCount(results) > 0);
+  /** Anzahl der phonetischen Nachnamen-Treffer und ob eine Aufteilung überhaupt etwas
+   *  erklärt (ADR-v9-169): trifft alles oder nichts über den Nachnamen, wären zwei
+   *  Zwischenüberschriften nur Lärm. */
+  const phonCount = $derived(results.persons.filter((r) => r.phonetic).length);
+  const phonSplit = $derived(phonCount > 0 && phonCount < results.persons.length);
 
   function clearSearch() {
     query = '';
@@ -96,6 +111,16 @@
         <button type="button" class="global-search__clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
       {/if}
     </div>
+    <button
+      type="button"
+      class="stb-segment-btn global-search__soundex-toggle"
+      class:stb-segment-btn--active={soundexEnabled}
+      aria-pressed={soundexEnabled}
+      use:tooltip={'Auch ähnlich klingende Namen finden (Soundex)'}
+      onclick={() => (soundexEnabled = !soundexEnabled)}
+    >
+      ≈ Soundex
+    </button>
   </div>
 
   {#if queryTooShort}
@@ -132,10 +157,25 @@
         <section class="global-search__group">
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
-            {#each results.persons as row (row.id)}
+            {#each results.persons as row, i (row.id)}
+              <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
+                   stünde die Soundex-Reihenfolge kommentarlos da. Nur im Soundex-Modus,
+                   und nur wenn beide Mengen nicht leer sind. -->
+              {#if phonSplit && i === 0}
+                <li class="global-search__subhead" role="separator" aria-label="Ähnlich klingender Nachname">
+                  Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+                </li>
+              {:else if phonSplit && i === phonCount}
+                <li class="global-search__subhead" role="separator" aria-label="Weitere Treffer">
+                  Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
+                </li>
+              {/if}
               <li>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
-                  <span class="global-search__primary">{row.primary}</span>
+                  <span class="global-search__primary">
+                    {#if row.sex}<span class="global-search__sex global-search__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>{/if}
+                    {row.primary}
+                  </span>
                   {#if row.secondary}
                     <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
                   {/if}
@@ -223,6 +263,8 @@
 
   .global-search__toolbar {
     display: flex;
+    align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: var(--stb-surface-2);
     position: sticky;
@@ -235,6 +277,18 @@
     flex: 1;
     display: flex;
     align-items: center;
+  }
+
+  /* Zweites von fünf zulässigen Dauer-Elementen in dieser Toolbar (ADR-v9-159,
+     gemessen bei 375px) — schrumpft nie (TST-11: das Suchfeld gibt nach, nicht der
+     Schalter). */
+  /* Trefferflächen-Kontrakt (Spec 21 §6i) + sichtbare Kontur: der Umschalter maß 73×26px
+     und sah im Aus-Zustand nicht bedienbar aus (Design-Kritik 2026-07-31). Der
+     Aktiv-Zustand kommt weiterhin aus `.stb-segment-btn--active`. */
+  .global-search__soundex-toggle {
+    flex-shrink: 0;
+    min-height: var(--stb-touch-target);
+    border: 1px solid var(--stb-gold-dim);
   }
 
   .global-search__field input[type='search'] {
@@ -277,6 +331,22 @@
     flex-direction: column;
   }
 
+  /* Zwischenüberschrift innerhalb der Personen-Gruppe (ADR-v9-169) — leiser als der
+     Gruppentitel, damit die Hierarchie „Gruppe > Abschnitt" lesbar bleibt. */
+  .global-search__subhead {
+    font-size: 0.75rem;
+    color: var(--stb-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.35rem 1rem 0.15rem;
+    list-style: none;
+  }
+
+  .global-search__subcount {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
   .global-search__group-title {
     position: sticky;
     top: 0;
@@ -317,6 +387,18 @@
 
   .global-search__primary {
     font-weight: 600;
+  }
+
+  /* Geschlechts-Icon in Personen-Treffern (BL-211, geteilt mit PersonList — INV-UI-4). */
+  .global-search__sex {
+    font-weight: 400;
+    color: var(--stb-text-dim);
+  }
+  .global-search__sex--m {
+    color: var(--stb-sex-m);
+  }
+  .global-search__sex--f {
+    color: var(--stb-sex-f);
   }
 
   .global-search__secondary {

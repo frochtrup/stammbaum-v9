@@ -9,6 +9,7 @@ import type {
   Event,
   Database,
   Citation,
+  Association,
   Media,
   MediaCitation,
   PersonId,
@@ -178,6 +179,16 @@ export function makeMediaCitation(
   patch: Partial<Omit<MediaCitation, 'mediaId'>> = {},
 ): MediaCitation {
   return { mediaId, title: '', date: '', note: '', primary: false, extra: [], ...patch };
+}
+
+/** Assoziation (ASSO/RELA bzw. ROLE) — Zeuge/Pate/Informant ohne Familienbindung.
+ *  `personRef` ist die Wahrheit; `grampsHandle` bleibt für GRAMPS-Importe erhalten,
+ *  deren Ziel (noch) nicht auf eine id abgebildet werden konnte (BL-127). */
+export function makeAssociation(
+  personRef: PersonId | null,
+  patch: Partial<Omit<Association, 'personRef'>> = {},
+): Association {
+  return { personRef, grampsHandle: null, role: '', note: '', citations: [], ...patch };
 }
 
 export function makeCitation(

@@ -60,8 +60,9 @@ describe('HofList — Sammlung, Dorf-Gruppierung, Klick-Navigation', () => {
   });
 });
 
-describe('HofList — Anreicherungs-Pille (ADR-v9-44, Spec 11 §9.1)', () => {
-  it('plain HofObject zeigt die Pille "ohne Zusatzangaben"', () => {
+describe('HofList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', () => {
+  it('ein plain HofObject trägt KEINE "ohne Zusatzangaben"-Pille mehr', () => {
+    // Geschwister-Stelle zu PlaceList: derselbe Fix, nicht nur dort, wo er aufgefallen ist.
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -72,24 +73,34 @@ describe('HofList — Anreicherungs-Pille (ADR-v9-44, Spec 11 §9.1)', () => {
 
     render(HofList, { props: { appState, viewState } });
 
-    expect(screen.getByText('ohne Zusatzangaben')).toBeTruthy();
+    expect(screen.getByText('Wall 33')).toBeTruthy();
+    expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
   });
 
-  it('angereicherter Hof (Notiz gesetzt) zeigt KEINE Pille', () => {
+  it('der Filter "nur unvollständige" blendet kuratierte Höfe aus', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
     db.hofObjects.set(
-      '@H1@',
-      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'Hof am Bach' }),
+      '@H2@',
+      hof('@H2@', '@P1@', { addrs: [{ value: 'Bachweg 7', from: null, to: null }], note: 'Hof am Bach' }),
     );
     withReferencingPerson(db, '@I1@', '@H1@');
+    withReferencingPerson(db, '@I2@', '@H2@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
     render(HofList, { props: { appState, viewState } });
 
-    expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
+    expect(screen.getByText('Wall 33')).toBeTruthy();
+    expect(screen.getByText('Bachweg 7')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('Filter'));
+    await fireEvent.click(screen.getByLabelText('nur unvollständige'));
+
+    expect(screen.getByText('Wall 33')).toBeTruthy();
+    expect(screen.queryByText('Bachweg 7')).toBeNull();
   });
 });
 
@@ -202,5 +213,43 @@ describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup"
 
     expect(onOpenReview).toHaveBeenCalledOnce();
     expect(onOpenDedup).toHaveBeenCalledOnce();
+  });
+});
+
+describe('HofList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR-v9-148)', () => {
+  it('ohne offene Fälle trägt der Trigger keinen Punkt (Name bleibt schlicht "Werkzeuge")', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(HofList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(screen.getByRole('button', { name: 'Werkzeuge' })).toBeTruthy();
+    expect(container.querySelector('.stb-filterbar__dot')).toBeNull();
+  });
+
+  it('Dedup-Gruppe > 0 setzt den Achtungs-Punkt; aufgeklappt steht der beschriftete Zähler', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // Zwei gleichadressige Höfe im selben Dorf → EINE Dedup-Gruppe (findHofDuplicates).
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    withReferencingPerson(db, '@I2@', '@H2@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(HofList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+    const trigger = screen.getByRole('button', { name: /Werkzeuge.*Handlungsbedarf/ });
+
+    await fireEvent.click(trigger);
+    expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
   });
 });

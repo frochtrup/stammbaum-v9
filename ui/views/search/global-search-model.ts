@@ -12,9 +12,9 @@
 // Höfe (ADR-v9-24): Spec 20 §1.1 wurde korrigiert, Höfe gehören seither explizit in
 // die globale Suche dazu — hier über dieselbe `matchesSearch`+`toRow`-Aufbereitung
 // wie die Höfe-Liste (hof-list-model.ts), keine Parallel-Formatierung.
-import type { Database } from '../../../core/model/types';
+import type { Database, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
-import { matchesSearch as matchesPersonSearch } from '../person/person-list-model';
+import { matchesSearch as matchesPersonSearch, matchesSurnameSoundex } from '../person/person-list-model';
 import { matchesSearch as matchesFamilySearch } from '../family/family-list-model';
 import { matchesSearch as matchesSourceSearch } from '../source/source-list-model';
 import { matchesSearch as matchesPlaceSearch } from '../place/place-list-model';
@@ -39,6 +39,12 @@ export interface SearchResultRow {
    *  Quellen/Orten/Höfen bedeutet `secondary` etwas anderes (Autor/Typ/Dorf), kein
    *  Orts-Tooltip nötig. */
   secondaryFull?: string;
+  /** Geschlecht für das Ergebnis-Icon (BL-211, ♂/♀/◇) — nur bei Personen gesetzt. */
+  sex?: Sex;
+  /** Phonetischer NACHNAMEN-Treffer (ADR-v9-160/169) — nur im Soundex-Modus gesetzt. Die
+   *  View setzt daraus dieselben zwei Zwischenüberschriften wie die Personenliste; ohne
+   *  sie stünde die Reihenfolge unerklärt da (Design-Kritik 2026-07-31). */
+  phonetic?: boolean;
 }
 
 export interface GroupedSearchResults {
@@ -68,22 +74,42 @@ export function totalResultCount(results: GroupedSearchResults): number {
  * Durchsucht Personen/Familien/Quellen/Orte/Höfe der übergebenen Datenbank und liefert
  * gruppierte Ergebnisse (Spec 20 §1.1 [K], ADR-v9-24). Reine Funktion (db/ctx/query ->
  * Ergebnis), kein eigener Zustand — Command-Palette-tauglich (Spec 21 §3).
+ *
+ * `soundex` (BL-10, ADR-v9-159, Default `false` — bestehende Aufrufer unverändert):
+ * eigener Schalterzustand der globalen Suche (kein gemeinsamer Topf mit dem Soundex-
+ * Filter der Personenliste, INV-VS), wirkt hier NUR auf die Personen-Teilsuche — dieselbe
+ * `matchesSearch`-Funktion aus person-list-model.ts (INV-UI-4, EIN Rechenkern).
  */
-export function globalSearch(db: Database, ctx: PlaceContext, query: string): GroupedSearchResults {
+export function globalSearch(
+  db: Database,
+  ctx: PlaceContext,
+  query: string,
+  soundex = false,
+): GroupedSearchResults {
   const q = query.trim();
   if (q.length < MIN_QUERY_LENGTH) return emptyResults();
 
   const persons: SearchResultRow[] = [];
   for (const p of db.individuals.values()) {
-    if (!matchesPersonSearch(p, q)) continue;
+    if (!matchesPersonSearch(p, q, soundex)) continue;
     persons.push({
       id: p.id,
       primary: displayName(p),
       secondary: yearPlaceSummary(p.birth, ctx),
       secondaryFull: eventPlaceLabel(p.birth, ctx),
+      sex: p.sex,
     });
   }
   persons.sort((a, b) => a.primary.localeCompare(b.primary, 'de'));
+  // Soundex-Vorrang (ADR-v9-160, dieselbe Regel wie in der Personenliste): phonetische
+  // NACHNAMEN-Treffer zuerst, alles andere behält seine alphabetische Reihenfolge (stabile
+  // Sortierung). Kein Filter — die Treffermenge ist identisch, nur die Reihenfolge ändert sich.
+  if (soundex) {
+    const isLead = new Map<string, boolean>();
+    for (const p of db.individuals.values()) isLead.set(p.id, matchesSurnameSoundex(p, q));
+    persons.sort((a, b) => Number(isLead.get(b.id) ?? false) - Number(isLead.get(a.id) ?? false));
+    for (const row of persons) row.phonetic = isLead.get(row.id) ?? false;
+  }
 
   const families: SearchResultRow[] = [];
   for (const f of db.families.values()) {

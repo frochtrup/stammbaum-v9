@@ -2,11 +2,14 @@
 // (Spec 20 §1.6 [K]: "Archive (Repository): Picker, Detail mit verlinkten Quellen,
 // Signatur"). Reine Funktion (db -> Zeilen).
 import type { Database, Repository } from '../../../core/model/types';
+import { repoTypeLabel } from '../../shell/repo-labels';
 
 export interface RepositoryRow {
   id: string;
   name: string;
-  type: string;
+  /** DEUTSCHES Label (`repoTypeLabel`), nicht der rohe GRAMPS-/`_RTYPE`-Wert (BL-203).
+   *  Leer bei `Unknown`/kein Typ — die Zeile zeigt dann gar kein Typ-Element. */
+  typeLabel: string;
   sourceCount: number;
 }
 
@@ -21,7 +24,7 @@ export function countSourcesByRepository(db: Database): Map<string, number> {
 }
 
 function toRow(r: Repository, sourceCount: number): RepositoryRow {
-  return { id: r.id, name: r.name || r.id, type: r.type, sourceCount };
+  return { id: r.id, name: r.name || r.id, typeLabel: repoTypeLabel(r.type), sourceCount };
 }
 
 /** Alphabetisch nach Name sortiert. */
@@ -42,6 +45,13 @@ export function buildRepositoryRows(db: Database): RepositoryRow[] {
 export function matchesSearch(r: Repository, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const haystack = [r.name, r.type, r.address].filter(Boolean).join(' ').toLowerCase();
+  // BL-203: gesucht wird über BEIDE Schreibweisen des Typs — den rohen Speicherwert
+  // (`Library`) UND das angezeigte deutsche Label („Bibliothek"). Nur den Rohwert zu
+  // durchsuchen hieße, dass die Suche genau den Text nicht findet, den die Liste zeigt;
+  // nur das Label, dass ein aus GRAMPS gewohnter englischer Begriff nicht mehr trifft.
+  const haystack = [r.name, r.type, repoTypeLabel(r.type), r.address]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
   return haystack.includes(q);
 }

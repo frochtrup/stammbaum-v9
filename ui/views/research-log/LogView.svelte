@@ -179,6 +179,8 @@
       class="log-view__row"
       class:log-view__row--found={row.entry.result === 'found'}
       class:log-view__row--partial={row.entry.result === 'partial'}
+      class:log-view__row--notfound={row.entry.result === 'notfound'}
+      class:log-view__row--pending={row.entry.result === 'pending'}
     >
       <div class="log-view__row-head">
         {#if logMode === 'timeline'}
@@ -186,7 +188,7 @@
           {#if row.entitySummary}<span class="stb-entity-summary">{row.entitySummary}</span>{/if}
         {/if}
         <span class="log-view__row-date">{row.entry.date || '(kein Datum)'}</span>
-        <span class="log-view__row-result">{resultLabel(row.entry.result)}</span>
+        <span class="log-view__row-result log-view__row-result--{row.entry.result}">{resultLabel(row.entry.result)}</span>
       </div>
       <p class="log-view__row-query">{row.entry.query || '(kein Suchbegriff)'}</p>
       {#if linkedTaskText(appState.db, row)}<p class="log-view__row-task">🔗 aus Aufgabe: {linkedTaskText(appState.db, row)}</p>{/if}
@@ -288,6 +290,19 @@
     border-left: 3px solid var(--stb-quay-1);
   }
 
+  /* „Nichts gefunden" — negativ (BL-208, ADR-v9-157): vervollständigt dieselbe
+     Linksbalken-Kodierung auf alle vier LogResult-Zustände, statt nur found/partial zu
+     signalisieren. Redundant zum Text-Label (resultLabel), kein zusätzliches Badge. */
+  .log-view__row--notfound {
+    border-left: 3px solid var(--stb-danger);
+  }
+
+  /* „Ausstehend" — neutral/gedämpft, klar unterscheidbar von "nichts gefunden" (Rot):
+     kein Ergebnis liegt vor, kein Befund. */
+  .log-view__row--pending {
+    border-left: 3px solid var(--stb-text-dim);
+  }
+
   .log-view__row-head {
     display: flex;
     flex-wrap: wrap;
@@ -316,6 +331,31 @@
     border: 1px solid var(--stb-gold-dim);
     border-radius: var(--stb-radius-control);
     padding: 0.05em 0.4em;
+  }
+
+  /* Das Ergebnis-Pill trägt die Farbe SELBST (Design-Kritik 2026-07-31): vorher lag das
+     Signal allein auf dem 3px-Randstreifen am Kartenrand, während das neutrale Pill den
+     Blick zog — Farbe und Bedeutung standen an zwei verschiedenen Stellen. Der Randstreifen
+     bleibt als zweite, gröbere Spur beim Überfliegen der Liste. Die Schrift bleibt in jedem
+     Fall lesbar (keine Farbe-allein-Bedeutung, Spec 21 §6i). */
+  .log-view__row-result--found {
+    color: var(--stb-quay-3);
+    border-color: var(--stb-quay-3);
+  }
+
+  .log-view__row-result--partial {
+    color: var(--stb-quay-1);
+    border-color: var(--stb-quay-1);
+  }
+
+  .log-view__row-result--notfound {
+    color: var(--stb-danger);
+    border-color: var(--stb-danger);
+  }
+
+  .log-view__row-result--pending {
+    color: var(--stb-text-dim);
+    border-color: var(--stb-text-dim);
   }
 
   .log-view__row-query {

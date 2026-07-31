@@ -2,7 +2,7 @@
 // Kurzname, Autor, Datum, Referenzzähler über alle Personen/Familien. Reine Funktion,
 // deshalb Unit statt Component-Test (TST-5).
 import { describe, expect, it } from 'vitest';
-import { makeCitation, makeDatabase, makeFamily, makePerson, makeSource } from '../../core/model';
+import { makeCitation, makeDatabase, makeFamily, makePerson, makeSource, makeRepository, makeMediaCitation } from '../../core/model';
 import { buildSourceRows, countReferencesBySource } from '../../ui/views/source/source-list-model';
 
 describe('buildSourceRows — Kurzname/Autor/Datum/Referenzzähler, alphabetisch sortiert', () => {
@@ -91,5 +91,26 @@ describe('countReferencesBySource — Zitat-Map nach Quellen-Id', () => {
 
     expect(bySource.get('@S1@')).toHaveLength(1);
     expect(bySource.get('@S2@')).toHaveLength(1);
+  });
+});
+
+describe('BL-200/202 — Medien-📎 + Archiv-🏛 in der Quellenzeile', () => {
+  it('hasMedia true bei Medien-Zitat; repoName aus db.repositories aufgelöst', () => {
+    const db = makeDatabase();
+    db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Bistumsarchiv Münster' }));
+    const s = makeSource('@S1@', { abbr: 'KB', repo: '@R1@' });
+    s.media.push(makeMediaCitation('scan.jpg'));
+    db.sources.set('@S1@', s);
+    const row = buildSourceRows(db)[0];
+    expect(row.hasMedia).toBe(true);
+    expect(row.repoName).toBe('Bistumsarchiv Münster');
+  });
+
+  it('freier Repo-Text wird durchgereicht; ohne Medien hasMedia=false', () => {
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB', repo: 'Privatbesitz' }));
+    const row = buildSourceRows(db)[0];
+    expect(row.repoName).toBe('Privatbesitz');
+    expect(row.hasMedia).toBe(false);
   });
 });

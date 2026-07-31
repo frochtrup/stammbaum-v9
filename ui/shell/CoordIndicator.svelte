@@ -27,10 +27,11 @@
   //
   // Ohne Koordinaten ist der Glyph reiner, nicht-interaktiver Text (kein Link ohne
   // Ziel) — einziger verbleibender nicht-interaktiver Fall.
-  import type { ViewState } from './view-state.svelte';
+  import type { PlacesNav } from './places-host';
   import type { LensId } from './lens-model';
   import { geoHref } from './geo-link';
   import { tooltip } from './tooltip';
+  import { focusOnMap } from './map-focus';
 
   interface Props {
     coords: { lat: number; long: number } | null;
@@ -38,22 +39,22 @@
      *  `null`, wenn kein aufgelöstes Orts-/Hof-Objekt existiert (der Koordinaten-
      *  Sprung selbst funktioniert trotzdem, s. o.). */
     focusId: string | null;
-    viewState: ViewState;
+    viewState: PlacesNav;
     /** Cross-Tab-Navigation zur Karte-Lens (App.svelte's `navigateLens`, INV-UI-3) —
      *  optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
   }
   const { coords, focusId, viewState, onNavigateLens }: Props = $props();
 
+  // Der Sprung selbst lebt in `map-focus.ts` (INV-UI-4) — die Mini-Karte im Steckbrief
+  // löst denselben aus (ADR-v9-150), und zwei Kopien derselben Slot-Reihenfolge sind
+  // genau die Drift, die dieses Projekt schon zweimal bezahlt hat.
   function handleClick() {
-    if (!coords) return;
-    viewState.setMapCoordFocus(coords);
-    if (focusId) viewState.setCurrent('lensPlaceFocus', focusId);
-    onNavigateLens?.('map');
+    focusOnMap(viewState, coords, focusId, onNavigateLens);
   }
 </script>
 
-<span class="stb-coord-indicator">
+<span class="stb-coord-indicator" class:stb-coord-indicator--chip={!!coords}>
   {#if coords}
     <button
       type="button"

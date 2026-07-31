@@ -12,6 +12,8 @@
   import { resolveCoordFields, type GeocodeHit } from '../../../core/places';
   import CoordFields from '../../shell/CoordFields.svelte';
   import GeocodeButton from '../../shell/GeocodeButton.svelte';
+  import TypeSelect from '../../shell/TypeSelect.svelte';
+  import { PLACE_TYPE_OPTIONS } from '../../shell/place-labels';
 
   interface Props {
     place: PlaceObject;
@@ -25,13 +27,20 @@
   // je Bearbeiten-Sitzung — sie soll bewusst NICHT auf spätere `place`-Änderungen reagieren).
   // Aus einer plain-Const initialisieren, nicht direkt aus dem Prop (svelte-check
   // `state_referenced_locally`).
+  // `?? ''` ist hier PFLICHT, nicht Vorsicht: `shortName` (ADR-v9-90) ist ein NACHTRÄGLICH
+  // ergänztes, abwärtskompatibles orte.json-Feld — an einem Ort aus einer älteren Datei
+  // fehlt es schlicht, und `undefined.trim()` in `save()` wirft. Am echten Bestand gemessen:
+  // ALLE 128 Orte von `tools/handbuch/fixtures/orte.json` haben weder `shortName` noch
+  // `translations`. Aufgefallen erst bei der Browser-Verifikation des Orte-Editors, weil
+  // dessen Dateien beliebigen Alters sind; im Hauptprogramm setzen die Fixtures das Feld
+  // immer. Dieselbe Klasse wie das `?? []` in `app-state.svelte.ts::importGovEntry`.
   const init = untrack(() => ({
-    title: place.title,
-    shortName: place.shortName,
-    type: place.type,
+    title: place.title ?? '',
+    shortName: place.shortName ?? '',
+    type: place.type ?? '',
     latText: place.lat != null ? String(place.lat) : '',
     longText: place.long != null ? String(place.long) : '',
-    note: place.note,
+    note: place.note ?? '',
     existsFrom: place.existsFrom,
     existsTo: place.existsTo,
     govId: place.govId ?? '',
@@ -91,10 +100,14 @@
     <input type="text" bind:value={title} />
   </label>
   <label>Anzeigename (Listen) <input type="text" bind:value={shortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
-  <label>
-    Typ
-    <input type="text" bind:value={type} placeholder="z. B. Village, City, County…" />
-  </label>
+  <!-- Geschwister-Stelle zu BL-203: ADR-v9-149 hat die ANZEIGE des Ortstyps auf Deutsch
+       umgestellt, das Eingabefeld blieb englischer Freitext („z. B. Village, City…") —
+       getippt englisch, angezeigt deutsch. Gleicher Mechanismus wie der Archivtyp
+       (`TypeSelect`, INV-UI-4); ein vorhandener Custom-/Geocoder-Wert bleibt erhalten. -->
+  <div class="stb-field">
+    <span class="stb-field__caption">Typ</span>
+    <TypeSelect value={type} options={PLACE_TYPE_OPTIONS} onChange={(v) => (type = v)} label="Typ" />
+  </div>
   <CoordFields bind:latText bind:longText />
   <GeocodeButton name={title.trim() || place.title} onResult={applyGeocodeHit} />
   <label>

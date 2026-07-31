@@ -32,7 +32,43 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
     render(PlaceList, { props: { appState, viewState } });
 
     expect(screen.getByText('Ochtrup')).toBeTruthy();
-    expect(screen.getByText('Village')).toBeTruthy();
+    // Deutsch, nicht der rohe GRAMPS-Wert (ADR-v9-149) — vormals wurde hier „Village"
+    // erwartet, was die B7-Regression im Test festgeschrieben hat.
+    expect(screen.getByText('Dorf')).toBeTruthy();
+    expect(screen.queryByText('Village')).toBeNull();
+  });
+
+  it('übersetzt den Typ ins Deutsche statt den rohen GRAMPS-Wert zu zeigen (ADR-v9-149)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ahaus', type: 'Town' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    render(PlaceList, { props: { appState, viewState } });
+
+    expect(screen.getByText('Stadt')).toBeTruthy();
+    expect(screen.queryByText('Town')).toBeNull();
+  });
+
+  it('zeigt für type="Unknown" GAR KEINEN Chip (kein "Unknown", kein "Unbekannt")', () => {
+    // Der häufigste Zustand direkt nach dem Import (ADR-v9-77 „der normale, unauffällige
+    // Fall") — ein Chip darauf ist Rauschen auf der Mehrheit der Zeilen, kein Signal.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Albersloh', type: 'Unknown' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(PlaceList, { props: { appState, viewState } });
+
+    expect(screen.getByText('Albersloh')).toBeTruthy();
+    expect(screen.queryByText('Unknown')).toBeNull();
+    expect(screen.queryByText('Unbekannt')).toBeNull();
+    const row = container.querySelector('.place-list__row')!;
+    expect(Array.from(row.querySelectorAll('.stb-pill')).map((el) => el.textContent)).toEqual([]);
   });
 
   it('Klick auf eine Zeile setzt die ViewState-Auswahl "place"', async () => {
@@ -49,7 +85,7 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
     expect(viewState.getCurrent('place')).toBe('@P1@');
   });
 
-  it('Gruppen-Modus zeigt pnames-Varianten unter dem Titel', async () => {
+  it('„Namensvarianten anzeigen" zeigt pnames-Varianten unter dem Titel', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set(
@@ -61,7 +97,10 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
     const viewState = createViewState();
 
     render(PlaceList, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByLabelText('Varianten gruppiert'));
+    // Liegt seit ADR-v9-149 hinter der Filter-Disclosure (INV-UI-11: als Dauer-Element
+    // erzwang sie bei 375px eine dritte Toolbar-Zeile).
+    await fireEvent.click(screen.getByText('Filter'));
+    await fireEvent.click(screen.getByLabelText('Namensvarianten anzeigen'));
 
     expect(screen.getByText('Sassenbergk')).toBeTruthy();
   });
@@ -97,9 +136,10 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
     render(PlaceList, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('Filter'));
     const select = screen.getByLabelText('Typ') as HTMLSelectElement;
-    await fireEvent.change(select, { target: { value: 'Village' } });
+    // Optionswert ist die deutsche Kategorie, nicht der GRAMPS-Rohwert (ADR-v9-149).
+    await fireEvent.change(select, { target: { value: 'Dorf' } });
 
-    expect(select.value).toBe('Village');
+    expect(select.value).toBe('Dorf');
     expect(screen.queryByText('Kreis Steinfurt')).toBeNull();
     expect(screen.getByText('Ochtrup')).toBeTruthy();
   });
@@ -117,8 +157,11 @@ describe('PlaceList — Sammlung, Typ-Badge, Koordinaten-Indikator, Klick-Naviga
   });
 });
 
-describe('PlaceList — Anreicherungs-Pille (ADR-v9-44, Spec 11 §9.1)', () => {
-  it('plain PlaceObject zeigt die Pille "ohne Zusatzangaben"', () => {
+describe('PlaceList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', () => {
+  it('ein plain PlaceObject trägt KEINE "ohne Zusatzangaben"-Pille mehr', () => {
+    // Vormals (ADR-v9-44/79) stand hier eine Pille. Sie ist entfallen: `enriched === false`
+    // ist nach dem Import der Regelfall, die Pille stand also auf der Mehrheit der Zeilen
+    // und trug die höchste Wortlast für den informationsärmsten Zustand.
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -128,20 +171,31 @@ describe('PlaceList — Anreicherungs-Pille (ADR-v9-44, Spec 11 §9.1)', () => {
 
     render(PlaceList, { props: { appState, viewState } });
 
-    expect(screen.getByText('ohne Zusatzangaben')).toBeTruthy();
+    expect(screen.getByText('Ochtrup')).toBeTruthy();
+    expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
   });
 
-  it('angereichertes PlaceObject (gesetzter Typ) zeigt KEINE Pille', () => {
+  it('der Filter "nur unvollständige" blendet kuratierte Orte aus', async () => {
     const appState = createAppState();
     const db = makeDatabase();
-    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Plainhausen' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Kurierthausen', type: 'Village' }));
     withReferencingPerson(db, '@I1@', '@P1@');
+    withReferencingPerson(db, '@I2@', '@P2@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
 
     render(PlaceList, { props: { appState, viewState } });
 
-    expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
+    // Beide sichtbar, solange der Filter aus ist (opt-in).
+    expect(screen.getByText('Plainhausen')).toBeTruthy();
+    expect(screen.getByText('Kurierthausen')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('Filter'));
+    await fireEvent.click(screen.getByLabelText('nur unvollständige'));
+
+    expect(screen.getByText('Plainhausen')).toBeTruthy();
+    expect(screen.queryByText('Kurierthausen')).toBeNull();
   });
 });
 
@@ -285,5 +339,85 @@ describe('PlaceList — Toolbar-Ownership "Massen-Dedup" (Spec 21 §10c)', () =>
     await fireEvent.click(screen.getByText('Massen-Dedup'));
 
     expect(onOpenDedup).toHaveBeenCalledOnce();
+  });
+});
+
+describe('PlaceList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR-v9-148)', () => {
+  it('ohne offene Fälle trägt der Trigger keinen Punkt (Name bleibt schlicht "Werkzeuge")', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(PlaceList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    expect(screen.getByRole('button', { name: 'Werkzeuge' })).toBeTruthy();
+    expect(container.querySelector('.stb-filterbar__dot')).toBeNull();
+  });
+
+  it('Dedup-Gruppe > 0 setzt den Achtungs-Punkt; aufgeklappt steht der beschriftete Zähler', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    // Zwei gleichnamige Orte → EINE Dedup-Gruppe (findPlaceDuplicates, Spec 11 §9.2).
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@P2@', place('@P2@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    withReferencingPerson(db, '@I2@', '@P2@');
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(PlaceList, { props: { appState, viewState, onOpenDedup: () => {} } });
+
+    // Dot am immer sichtbaren Trigger — proaktiv, ohne die Disclosure zu öffnen.
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+    const trigger = screen.getByRole('button', { name: /Werkzeuge.*Handlungsbedarf/ });
+
+    // Beschrifteter Einzelzähler erst aufgeklappt (echte Wörter, keine Glyphen).
+    await fireEvent.click(trigger);
+    expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
+  });
+});
+
+describe('PlaceList — GOV-Platzhalter als Kurations-Signal + Filter (BL-131)', () => {
+  function dbWithPlaceholder() {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    withReferencingPerson(db, '@I1@', '@P1@');
+    // Ein GOV-Import-Rest: Elternort, den nur seine Kennung benennt.
+    db.placeObjects.set('_gov_object_9', place('_gov_object_9', { title: 'object_9', govId: 'object_9' }));
+    return db;
+  }
+
+  it('ein unaufgelöster Platzhalter setzt den Achtungs-Punkt — der dritte in ADR-v9-148 vorgesehene Fall', () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlaceholder(), 'test.ged');
+
+    const { container } = render(PlaceList, {
+      props: { appState, viewState: createViewState(), onOpenDedup: () => {} },
+    });
+
+    expect(container.querySelector('.stb-filterbar__dot')).not.toBeNull();
+  });
+
+  it('der Filter „nur GOV-Platzhalter" zeigt genau diese Orte und trägt ihre Zahl', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlaceholder(), 'test.ged');
+
+    render(PlaceList, { props: { appState, viewState: createViewState() } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    const box = screen.getByLabelText(/nur GOV-Platzhalter/) as HTMLInputElement;
+    expect(box.parentElement!.textContent).toMatch(/\(1\)/);
+
+    await fireEvent.click(box);
+    // Ein GOV-Platzhalter ist immer ein VERWALTUNGS-Elternteil: kein Ereignis zeigt auf
+    // ihn, er lebt also in „Ohne Bezug" — wie jeder Kreis/jedes Land. Die Segment-Zähler
+    // machen das sichtbar (Orte (0) · Ohne Bezug (1)), der Filter wirkt auf beide.
+    expect(screen.getByRole('tab', { name: 'Orte (0)' })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('tab', { name: 'Ohne Bezug (1)' }));
+    expect(screen.getByText('object_9')).toBeTruthy();
+    expect(screen.queryByText('Ochtrup')).toBeNull();
   });
 });

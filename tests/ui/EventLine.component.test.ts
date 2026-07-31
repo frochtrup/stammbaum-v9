@@ -17,6 +17,8 @@ function row(patch: Partial<EventLineRow> = {}): EventLineRow {
     key: 'BIRT',
     label: 'Geburt',
     dateLabel: '',
+    datePhrase: '',
+    age: '',
     placeLabel: '',
     value: '',
     addr: '',

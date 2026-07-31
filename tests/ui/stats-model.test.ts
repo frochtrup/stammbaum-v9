@@ -148,11 +148,28 @@ describe('computeStatistics — Lebensspannen', () => {
     expect(result.lifespans!.min).toBe(50);
     expect(result.lifespans!.max).toBe(90);
     expect(result.lifespans!.histogram).toEqual([
-      { bin: 50, count: 1 },
-      { bin: 60, count: 1 },
-      { bin: 70, count: 1 },
-      { bin: 80, count: 1 },
-      { bin: 90, count: 1 },
+      { bin: 50, count: 1, pct: 20 },
+      { bin: 60, count: 1, pct: 20 },
+      { bin: 70, count: 1, pct: 20 },
+      { bin: 80, count: 1, pct: 20 },
+      { bin: 90, count: 1, pct: 20 },
+    ]);
+  });
+
+  it('Histogramm-Bins tragen den Anteil in Prozent (BL-219, ADR-v9-157)', () => {
+    const db = makeDatabase();
+    // 4× 50 Jahre, 1× 90 Jahre -> Bin 50 hat 80%, Bin 90 hat 20%.
+    [50, 50, 50, 50, 90].forEach((age, i) => {
+      const p = makePerson(`@I${i}@`);
+      p.birth.date = '1 JAN 1900';
+      p.death.date = `1 JAN ${1900 + age}`;
+      db.individuals.set(p.id, p);
+    });
+
+    const result = computeStatistics(db, emptyContext());
+    expect(result.lifespans!.histogram).toEqual([
+      { bin: 50, count: 4, pct: 80 },
+      { bin: 90, count: 1, pct: 20 },
     ]);
   });
 
@@ -219,6 +236,49 @@ describe('computeStatistics — Heiratsalter', () => {
     expect(result.marriageAges!.avgFemale).toBe(23); // (18+23+28)/3
     expect(result.marriageAges!.bins.length).toBeGreaterThanOrEqual(3);
   });
+
+  it('Bins tragen malePct/femalePct als Anteil an ALLEN Datenpunkten des jeweiligen Geschlechts (BL-219)', () => {
+    const db = makeDatabase();
+    // 4 Männer über 3 Bins (20/30/40), 1 Frau (Bin 20) -> je eigener Nenner (Männer/Frauen
+    // getrennt), nicht der kombinierte Gesamt-Nenner.
+    const marriages: { hAge: number; wAge: number | null; year: number }[] = [
+      { hAge: 20, wAge: 20, year: 1920 },
+      { hAge: 20, wAge: null, year: 1925 },
+      { hAge: 30, wAge: null, year: 1930 },
+      { hAge: 40, wAge: null, year: 1940 },
+    ];
+    marriages.forEach(({ hAge, wAge, year }, i) => {
+      const husb = makePerson(`@Ih${i}@`, { sex: 'M' });
+      husb.birth.date = `1 JAN ${year - hAge}`;
+      db.individuals.set(husb.id, husb);
+      let wifeId: string | null = null;
+      if (wAge != null) {
+        const wife = makePerson(`@Iw${i}@`, { sex: 'F' });
+        wife.birth.date = `1 JAN ${year - wAge}`;
+        db.individuals.set(wife.id, wife);
+        wifeId = wife.id;
+      }
+      const f = makeFamily(`@F${i}@`, { husband: husb.id, wife: wifeId });
+      f.marriage.date = `1 JAN ${year}`;
+      db.families.set(f.id, f);
+    });
+
+    const result = computeStatistics(db, emptyContext());
+    const bin20 = result.marriageAges!.bins.find((b) => b.bin === 20)!;
+    const bin30 = result.marriageAges!.bins.find((b) => b.bin === 30)!;
+    const bin40 = result.marriageAges!.bins.find((b) => b.bin === 40)!;
+
+    expect(bin20.male).toBe(2);
+    expect(bin20.malePct).toBe(50); // 2 von 4 Männern
+    expect(bin20.female).toBe(1);
+    expect(bin20.femalePct).toBe(100); // 1 von 1 Frau
+    expect(bin30.male).toBe(1);
+    expect(bin30.malePct).toBe(25);
+    expect(bin40.male).toBe(1);
+    expect(bin40.malePct).toBe(25);
+    expect(bin40.female).toBe(0);
+    expect(bin40.femalePct).toBe(0);
+  });
 });
 
 describe('computeStatistics — Ereignisse pro Jahrzehnt', () => {
@@ -257,6 +317,28 @@ describe('computeStatistics — Ereignisse pro Jahrzehnt', () => {
     expect(result.decadeEvents!.deaths[1920]).toBe(1);
     expect(result.decadeEvents!.marriages[1930]).toBe(1);
   });
+
+  it('trägt Prozentanteil je Serie + Serien-Gesamtzahlen (BL-219, ADR-v9-157)', () => {
+    const db = makeDatabase();
+    // Geburten: 1900er 3x, 1910er 1x, 1920er 1x -> 60%/20%/20% von totalBirths=5.
+    for (let i = 0; i < 3; i++) {
+      const p = makePerson(`@Ib${i}@`);
+      p.birth.date = '1 JAN 1900';
+      db.individuals.set(p.id, p);
+    }
+    const p4 = makePerson('@Ib3@');
+    p4.birth.date = '1 JAN 1910';
+    db.individuals.set(p4.id, p4);
+    const p5 = makePerson('@Ib4@');
+    p5.birth.date = '1 JAN 1920';
+    db.individuals.set(p5.id, p5);
+
+    const result = computeStatistics(db, emptyContext());
+    expect(result.decadeEvents!.totalBirths).toBe(5);
+    expect(result.decadeEvents!.birthPct[1900]).toBe(60); // 3 von 5
+    expect(result.decadeEvents!.birthPct[1910]).toBe(20);
+    expect(result.decadeEvents!.birthPct[1920]).toBe(20);
+  });
 });
 
 describe('computeStatistics — Kinderzahl pro Familie', () => {
@@ -283,9 +365,9 @@ describe('computeStatistics — Kinderzahl pro Familie', () => {
     const result = computeStatistics(db, emptyContext());
 
     expect(result.childCounts).toEqual([
-      { label: '0', count: 1 },
-      { label: '1', count: 1 },
-      { label: '10+', count: 1 },
+      { label: '0', count: 1, pct: 33 },
+      { label: '1', count: 1, pct: 33 },
+      { label: '10+', count: 1, pct: 33 },
     ]);
   });
 });
@@ -301,7 +383,9 @@ describe('computeStatistics — Top-Listen (Sortierung + Kappung)', () => {
     const result = computeStatistics(db, emptyContext());
 
     expect(result.topSurnames.length).toBe(10);
-    expect(result.topSurnames[0]).toEqual({ label: 'Bauer', count: 3 });
+    // 3 von 14 Nachnamen-Nennungen insgesamt (BL-219: pct/total gegen ALLE Werte, nicht
+    // nur die Top-10).
+    expect(result.topSurnames[0]).toEqual({ label: 'Bauer', count: 3, pct: 21, total: 14 });
   });
 
   it('nutzt surnameCandidate() als Nachname-Quelle (Fallback auf Slash-Form ohne GIVN/SURN)', () => {
@@ -310,7 +394,7 @@ describe('computeStatistics — Top-Listen (Sortierung + Kappung)', () => {
     db.individuals.set('@I2@', makePerson('@I2@', { name: 'Karl /Anders/' }));
 
     const result = computeStatistics(db, emptyContext());
-    expect(result.topSurnames).toEqual([{ label: 'Anders', count: 2 }]);
+    expect(result.topSurnames).toEqual([{ label: 'Anders', count: 2, pct: 100, total: 2 }]);
   });
 
   it('Top-Vornamen: erstes Namens-Token, sortiert + gekappt', () => {
@@ -320,7 +404,7 @@ describe('computeStatistics — Top-Listen (Sortierung + Kappung)', () => {
     db.individuals.set('@I3@', makePerson('@I3@', { given: 'Anna', surname: 'C' }));
 
     const result = computeStatistics(db, emptyContext());
-    expect(result.topGivenNames[0]).toEqual({ label: 'Otto', count: 2 });
+    expect(result.topGivenNames[0]).toEqual({ label: 'Otto', count: 2, pct: 67, total: 3 });
   });
 
   it('häufigste Geburts-/Sterbeorte: placeId -> places.byId(...).title, sonst ev.place roh', () => {
@@ -336,8 +420,13 @@ describe('computeStatistics — Top-Listen (Sortierung + Kappung)', () => {
 
     const result = computeStatistics(db, ctx);
 
-    expect(result.topBirthPlaces).toContainEqual({ label: 'Hildesheim (Kreisstadt)', count: 1 });
-    expect(result.topBirthPlaces).toContainEqual({ label: 'Hannover', count: 1 });
+    expect(result.topBirthPlaces).toContainEqual({
+      label: 'Hildesheim (Kreisstadt)',
+      count: 1,
+      pct: 50,
+      total: 2,
+    });
+    expect(result.topBirthPlaces).toContainEqual({ label: 'Hannover', count: 1, pct: 50, total: 2 });
   });
 });
 
@@ -373,9 +462,10 @@ describe('computeStatistics — Fallback "Zeitliche Verteilung" (nur ohne Jahrze
 
     expect(result.decadeEvents).toBeNull(); // nur 2 Jahrzehnte -> kein Jahrzehnt-Diagramm
     expect(result.fallbackTimeline).not.toBeNull();
+    expect(result.fallbackTimeline!.total).toBe(2);
     expect(result.fallbackTimeline!.bins).toEqual([
-      { bin: 1900, count: 1 },
-      { bin: 1950, count: 1 },
+      { bin: 1900, count: 1, pct: 50 },
+      { bin: 1950, count: 1, pct: 50 },
     ]);
   });
 });

@@ -8,6 +8,7 @@ import { tick } from 'svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { onlineStatus, type OnlineStatusEnv } from '../../ui/shell/online-status.svelte';
 import { makeDatabase, makePerson, makeCitation, makeSource } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
@@ -63,6 +64,42 @@ describe('PlaceDetail — Steckbrief (read-only Teile)', () => {
     expect(screen.getByText('Geburt (1)')).toBeTruthy();
     await fireEvent.click(screen.getByText('Otto Bauer'));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+  });
+});
+
+describe('PlaceDetail — Typ-Badge im Kopfbereich (B7-Regression, ADR-v9-149)', () => {
+  it('zeigt den Ortstyp deutsch statt als rohen GRAMPS-Wert', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Bayern', type: 'State' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Bundesland')).toBeTruthy();
+    expect(screen.queryByText('State')).toBeNull();
+  });
+
+  it('zeigt bei type="Unknown" KEIN Badge — der gemeldete Fund (Burgsteinfurt)', () => {
+    // Nutzer-Fund 2026-07-29 (Design-Kritik): der Steckbrief-Kopf trug einen prominenten
+    // „Unknown"-Chip. Doppelt falsch — englisch in deutscher UI (Altlast B7, bereits
+    // einmal gefixt) UND ein Dauer-Signal auf einem Zustand, den ADR-v9-77 ausdrücklich
+    // als „normalen, unauffälligen Fall" führt.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Burgsteinfurt', type: 'Unknown' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Burgsteinfurt')).toBeTruthy();
+    expect(screen.queryByText('Unknown')).toBeNull();
+    expect(screen.queryByText('Unbekannt')).toBeNull();
+    expect(container.querySelector('.place-detail__type-badge')).toBeNull();
   });
 });
 
@@ -283,7 +320,19 @@ describe('PlaceDetail — Übersetzungen (Sprachachse, BL-59)', () => {
   });
 });
 
-describe('PlaceDetail — Mini-Karte (BL-09)', () => {
+describe('PlaceDetail — Mini-Karte (BL-09/BL-214)', () => {
+  // Offline-Pfad erzwingen: dann rendert der deterministische Vektor-SVG-Renderer
+  // (App-online würde Leaflet-Kacheln mounten, in happy-dom nicht sinnvoll prüfbar).
+  // Die online/offline-Umschaltung selbst ist Unit-getestet (mini-map/mini-map-bounds).
+  const offlineEnv: OnlineStatusEnv = {
+    isOnline: () => false,
+    addListener: () => {},
+    removeListener: () => {},
+    hasAppCache: async () => true,
+  };
+  beforeEach(() => onlineStatus.start(offlineEnv));
+  afterEach(() => onlineStatus.reset());
+
   it('rendert die Karte-Sektion, wenn der Ort Koordinaten trägt', () => {
     const appState = createAppState();
     const db = makeDatabase();

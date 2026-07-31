@@ -6,6 +6,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import HofDetail from '../../ui/views/hof/HofDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { onlineStatus, type OnlineStatusEnv } from '../../ui/shell/online-status.svelte';
 import { makeDatabase, makePerson, makeEvent } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
@@ -66,7 +67,17 @@ describe('HofDetail — Steckbrief (read-only Teile)', () => {
   });
 });
 
-describe('HofDetail — Mini-Karte (BL-09)', () => {
+describe('HofDetail — Mini-Karte (BL-09/BL-214)', () => {
+  // Offline-Pfad erzwingen → deterministischer Vektor-SVG-Renderer (s. PlaceDetail-Test).
+  const offlineEnv: OnlineStatusEnv = {
+    isOnline: () => false,
+    addListener: () => {},
+    removeListener: () => {},
+    hasAppCache: async () => true,
+  };
+  beforeEach(() => onlineStatus.start(offlineEnv));
+  afterEach(() => onlineStatus.reset());
+
   it('rendert die Karte, wenn der Hof eigene Koordinaten trägt', () => {
     const appState = createAppState();
     const db = makeDatabase();

@@ -3,14 +3,14 @@
   // Spec 11 §6). Zeigt Events mit event.addr ohne aufgelösten Hof, klassifiziert A/C/D,
   // mit den drei Aktionstypen. "Quelle schärfen" navigiert zur Person/Familie (Event-
   // Edit-Formular existiert in dieser Scheibe noch nicht — Navigations-Stub, s. Auftrag).
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import Picker from '../../shell/Picker.svelte';
   import type { HofObject } from '../../../core/places/types';
   import { buildHofReview, type HofReviewRow } from './hof-review-model';
   import { applyCreateHof, applyAddVariant, applyChooseHof } from './hof-review-actions';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     onNavigateToPerson?: (personId: string) => void;
     onNavigateToFamily?: (familyId: string) => void;
     onClose?: () => void;

@@ -1,10 +1,12 @@
 // ui/views/hof/hof-list-model.ts — reine Aufbereitung der Höfe-Liste (Spec 20 §1.8
 // [K]: "Hof-Liste (aus Events aufgelöst, numerisch sortiert), Detail mit Bewohnern
 // chronologisch"). Liest AUSSCHLIESSLICH db.hofObjects + db.placeObjects (id-basiert).
-import type { Database, Event, PlaceId, HofId } from '../../../core/model/types';
+import type { Database, Event, Person, PlaceId, HofId } from '../../../core/model/types';
 import type { HofObject, PlaceContext } from '../../../core/places';
-import { isEnrichedHof, hasReference, placeDisplayName } from '../../../core/places';
+import { isEnrichedHof, hasReference, placeDisplayName, eventHofId, eventYear } from '../../../core/places';
+import { isEventPresent } from '../../../core/model';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
+import { hofRole } from './hof-detail-model';
 
 export interface HofRow {
   id: HofId;
@@ -21,12 +23,93 @@ export interface HofRow {
   coords: { lat: number; long: number } | null;
   /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille). */
   enriched: boolean;
+  /** Distinkte Bewohner (RESI/CENS/Lebensereignis) an diesem Hof (BL-205) — `0`, wenn keine
+   *  Belegung übergeben wurde. Über den `eventHofId`-Chokepoint, wie der Steckbrief. */
+  residents: number;
+  /** Distinkte Eigentümer (PROP) an diesem Hof (BL-205). */
+  owners: number;
+  /** Jahres-Spanne der Belegung „min–max" (BL-205) — leer, wenn keine datierten Ereignisse. */
+  yearSpan: string;
+  /** Notiz-Marker (📝, BL-205) — `true`, wenn `hof.note` nicht leer ist. */
+  hasNote: boolean;
+}
+
+/** Aggregierte Belegungs-Kennzahlen je Hof (BL-205). */
+export interface HofOccupancy {
+  residents: Set<string>;
+  owners: Set<string>;
+  minYear: number | null;
+  maxYear: number | null;
+}
+
+/** Reihenfolge der Ereignisse einer Person mit ihrem REALEN Tag (wie `collectResident`). */
+function hofEventEntries(p: Person): [Event, string][] {
+  return [
+    [p.birth, 'BIRT'],
+    [p.chr, 'CHR'],
+    [p.death, 'DEAT'],
+    [p.buri, 'BURI'],
+    ...p.events.map((ev): [Event, string] => [ev, ev.type || 'EVEN']),
+  ];
+}
+
+/**
+ * Belegung je Hof (BL-205): distinkte Bewohner/Eigentümer + Jahres-Spanne, EINMAL für den
+ * ganzen Bestand über den `eventHofId`-Chokepoint (Spec 11 §5) — dieselbe Rollen-Regel
+ * (`hofRole`, PROP = Eigentümer) wie der Steckbrief, keine zweite Klassifikation (INV-UI-4).
+ */
+export function countHofOccupancy(db: Database, ctx: PlaceContext): Map<HofId, HofOccupancy> {
+  const map = new Map<HofId, HofOccupancy>();
+  const get = (id: HofId): HofOccupancy => {
+    let o = map.get(id);
+    if (!o) {
+      o = { residents: new Set(), owners: new Set(), minYear: null, maxYear: null };
+      map.set(id, o);
+    }
+    return o;
+  };
+  for (const p of db.individuals.values()) {
+    for (const [ev, tag] of hofEventEntries(p)) {
+      if (!isEventPresent(ev)) continue;
+      const hofId = eventHofId(ev, ctx);
+      if (hofId == null) continue;
+      const o = get(hofId);
+      (hofRole(tag) === 'Eigentümer' ? o.owners : o.residents).add(p.id);
+      const y = eventYear(ev);
+      if (y != null) {
+        o.minYear = o.minYear == null ? y : Math.min(o.minYear, y);
+        o.maxYear = o.maxYear == null ? y : Math.max(o.maxYear, y);
+      }
+    }
+  }
+  return map;
+}
+
+function formatYearSpan(o: HofOccupancy | undefined): string {
+  if (!o || o.minYear == null || o.maxYear == null) return '';
+  return o.minYear === o.maxYear ? String(o.minYear) : `${o.minYear}–${o.maxYear}`;
 }
 
 /** Beide Kurations-Abschnitte der Hauptliste (Spec 20 §1.8 [K] Referenz-Filter, ADR-v9-46). */
 export interface HofListSections {
   referenced: HofRow[];
   unreferenced: HofRow[];
+}
+
+/**
+ * Filter der Höfe-Liste (ADR-v9-149). Bewusst schmal — die Höfe-Liste hatte bislang gar
+ * keine Filter, nur Suche; hinzu kommt genau das Kriterium, das vorher als „ohne
+ * Zusatzangaben"-Pille auf jeder Zeile stand. Eigener Typ statt Wiederverwendung von
+ * `PlaceFilters`: Höfe kennen weder Typ noch Verwaltungsrang, ein geteilter Typ mit zwei
+ * für Höfe sinnlosen Feldern wäre die schlechtere Kopplung.
+ */
+export interface HofFilters {
+  /** Nur unvollständige (nicht angereicherte) Höfe zeigen — s. `PlaceFilters.onlyIncomplete`. */
+  onlyIncomplete: boolean;
+}
+
+export function defaultHofFilters(): HofFilters {
+  return { onlyIncomplete: false };
 }
 
 /**
@@ -50,10 +133,11 @@ export function streetNameOf(addr: string): string {
   return name || addr.trim();
 }
 
-export function toRow(h: HofObject, db: Database): HofRow {
+export function toRow(h: HofObject, db: Database, occupancy?: Map<HofId, HofOccupancy>): HofRow {
   const village = db.placeObjects.get(h.villageId);
   const addr = h.addrs[0]?.value ?? '';
   const hasCoords = h.lat != null && h.long != null;
+  const o = occupancy?.get(h.id);
   return {
     id: h.id,
     key: h.id,
@@ -64,6 +148,10 @@ export function toRow(h: HofObject, db: Database): HofRow {
     hasCoords,
     coords: hasCoords ? { lat: h.lat as number, long: h.long as number } : null,
     enriched: isEnrichedHof(h),
+    residents: o?.residents.size ?? 0,
+    owners: o?.owners.size ?? 0,
+    yearSpan: formatYearSpan(o),
+    hasNote: h.note.trim() !== '',
   };
 }
 
@@ -83,10 +171,18 @@ export function matchesSearch(row: HofRow, query: string): boolean {
  *  Hausnummer (Nutzer-Vorgabe 2026-07-10 — vorher umgekehrt: numerisch zuerst, was
  *  gleiche Hausnummern verschiedener Straßen nebeneinander stellte, statt Straßen
  *  zusammenzuhalten). Voller Adress-String bleibt als letzter Tie-Breaker. */
-export function buildHofRows(db: Database, query = ''): HofRow[] {
+export function buildHofRows(
+  db: Database,
+  query = '',
+  occupancy?: Map<HofId, HofOccupancy>,
+  filters: HofFilters = defaultHofFilters(),
+): HofRow[] {
   return Array.from(db.hofObjects.values())
-    .map((h) => toRow(h, db))
+    .map((h) => toRow(h, db, occupancy))
     .filter((row) => matchesSearch(row, query))
+    // `enriched` stammt aus `isEnrichedHof` (Kern) — dasselbe Prädikat wie die frühere
+    // Pille, jetzt als Abfrage (ADR-v9-149).
+    .filter((row) => !filters.onlyIncomplete || !row.enriched)
     .sort((a, b) => {
       const streetCmp = streetNameOf(a.addr).localeCompare(streetNameOf(b.addr), 'de');
       if (streetCmp !== 0) return streetCmp;
@@ -117,8 +213,9 @@ export function buildHofListSections(
   ctx: PlaceContext,
   events: readonly Event[],
   query = '',
+  filters: HofFilters = defaultHofFilters(),
 ): HofListSections {
-  const rows = buildHofRows(db, query);
+  const rows = buildHofRows(db, query, countHofOccupancy(db, ctx), filters);
   const referenced: HofRow[] = [];
   const unreferenced: HofRow[] = [];
   for (const row of rows) {

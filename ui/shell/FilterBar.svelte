@@ -38,9 +38,20 @@
      * steht als BL-69 im Backlog — hier bewusst NICHT vorweggenommen.)
      */
     label?: string;
+    /**
+     * Reiner Achtungs-Punkt am Trigger (BL-206, ADR-v9-148): `true` zeigt einen kleinen
+     * Punkt (KEINE Zahl) neben dem Label, sobald hinter der Disclosure Handlungsbedarf
+     * liegt — für die Orts-/Hof-Kurationswerkzeuge, deren Buttons hinter dieser Disclosure
+     * verborgen sind (ein Badge auf einem verborgenen Button wäre nicht proaktiv sichtbar,
+     * §6h/INV-UI-11). Bewusst ein Boolean, keine Zahl: die summierte Zahl mischte fachlich
+     * getrennte Signale (Dedup/Review) zu einer bedeutungslosen Summe (ADR-v9-148 Verworfen b);
+     * die beschrifteten Einzelzähler stehen aufgeklappt in den Panel-Inhalten. Der zugängliche
+     * Name des Triggers trägt den Handlungsbedarf mit (LP-8/§6i), nicht nur die Farbe.
+     */
+    attention?: boolean;
     children: Snippet;
   }
-  const { activeCount = 0, label = 'Filter', children }: Props = $props();
+  const { activeCount = 0, label = 'Filter', attention = false, children }: Props = $props();
 
   let open = $state(false);
   let triggerEl = $state<HTMLElement | undefined>(undefined);
@@ -63,6 +74,7 @@
     bind:this={triggerEl}
   >
     {label}{activeCount > 0 ? ` · ${activeCount}` : ''}
+    {#if attention}<span class="stb-filterbar__dot" aria-hidden="true"></span><span class="stb-filterbar__sr"> — Handlungsbedarf</span>{/if}
   </button>
 
   {#if open}
@@ -99,6 +111,32 @@
   .stb-filterbar__trigger:hover,
   .stb-filterbar__trigger[aria-expanded='true'] {
     border-color: var(--stb-gold);
+  }
+
+  /* Reiner Achtungs-Punkt (BL-206): amber (--stb-warn) — ein Nudge „hier ist etwas zu
+     tun", bewusst NICHT --stb-danger (Rot = Fehler) und nicht Gold (verschwände im
+     goldenen Trigger-Rand). Kleiner gefüllter Kreis, inline nach dem Label. */
+  .stb-filterbar__dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 0.4rem;
+    border-radius: 50%;
+    background: var(--stb-warn);
+    vertical-align: middle;
+  }
+
+  /* Screenreader-Text: der Punkt darf nicht nur visuell existieren (LP-8/§6i). */
+  .stb-filterbar__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .stb-filterbar__backdrop {

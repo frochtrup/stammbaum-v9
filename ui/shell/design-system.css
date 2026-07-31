@@ -15,6 +15,13 @@
   --stb-gold-light: #e5c96e;
   --stb-gold-dim: #7a6328;
 
+  /* Mindest-Trefferfläche für Touch-Ziele (Spec 21 §6i, ADR-v9-155). 44 CSS-px ist die
+     Apple-HIG-Vorgabe für die Primärplattform (iPhone/iPad); WCAG 2.2 SC 2.5.8 (AA)
+     verlangt 24 als Untergrenze — wir halten den strengeren Wert, weil die App
+     mobil-first ist. Als Token, damit die Zahl EINMAL steht und der Wächter
+     (`tests/ui/touch-target.test.ts`) sie gegen die Komponenten prüfen kann. */
+  --stb-touch-target: 44px;
+
   /* Überlagerungs-Ebenen (Spec 21 §6, INV-UI-4). Die Reihenfolge ist hier EINMAL
      festgelegt, statt in jeder Komponente neu geraten zu werden — genau daran ist sie
      zweimal gescheitert: EventEditModal und PlaceEnclosureEditModal lagen mit 100 UNTER
@@ -43,6 +50,13 @@
      als Fallback im Dashboard-Score referenziert; seit BL-121 echter Token, den Dashboard
      UND Baum-Vollständigkeits-Ring (Spec 21 §8) teilen. */
   --stb-warn: #d9a441;
+  /* Positiv-/„sauber"-Stufe (Spec 20 §1.11g): grün, Gegenstück zu --stb-danger/--stb-warn.
+     War bis ADR-v9-157 NIRGENDS definiert — `QualityDashboard.svelte` referenzierte ihn
+     dreimal (Score-Kachel, Ampel-Punkt „sauber", Lückenradar-Balken ≥80%), jedes Mal nur
+     über den Inline-Fallback `#5fb85f` (der Fallback griff also faktisch IMMER). Konsumenten
+     bei einer Änderung: `.quality__score--good`, `.quality__dot--clean`,
+     `.quality__bar-fill--good` (alle drei `QualityDashboard.svelte`). */
+  --stb-ok: #5fb85f;
 
   /* QUAY-Status-Palette (Spec 21 §7): rot/orange/blau/grün = q0..q3.
      NICHT (mehr) die Beweiskraft-Anzeige der Quellen-Pille — die trägt seit ADR-v9-118
@@ -70,6 +84,23 @@
      unterschiedliche Blau-/Rosa-Töne). */
   --stb-sex-m: #4a80c8;
   --stb-sex-f: #c84a92;
+
+  /* Forschungsprojekt-Palette (Spec 20 §1.11f, BL-209, ADR-v9-158). EIN Token-Satz statt
+     der sechs rohen v8-Hex-Werte (`PROJ_COLORS`, ui-views-projects.js:10) — die waren
+     gegen ein helles Thema gewählt und auf den dunklen v9-Flächen ungeprüft. Gemessen
+     (WCAG-Kontrastformel, wie tests/ui/text-contrast.test.ts) gegen --stb-surface-1/
+     --stb-surface-2, den beiden Flächen, auf denen Chip-Punkt/Swatch tatsächlich sitzen:
+     vier der sechs Werte bestehen unverändert (proj-1/2/4/6 ≥ 3,6:1 auf beiden Flächen),
+     proj-3 (Rot) und proj-5 (Lila) waren zu dunkel (2,65–2,86:1 auf --stb-surface-2,
+     unter der 3:1-Schwelle für nicht-textuelle UI-Komponenten, WCAG 1.4.11) und wurden bei
+     gleichem Farbton/Sättigung um wenige L-Punkte aufgehellt (v8 #c0392b -> hier,
+     #8e44ad -> hier). Konsumenten: `ProjectBar.svelte` (Chip-Punkt + Swatch-Auswahl). */
+  --stb-proj-1: #b8860b;
+  --stb-proj-2: #4caf50;
+  --stb-proj-3: #c83b2d;
+  --stb-proj-4: #2980b9;
+  --stb-proj-5: #994db9;
+  --stb-proj-6: #d68910;
 
   /* Radius */
   --stb-radius-card: 14px;
@@ -162,6 +193,35 @@ textarea::placeholder {
   color: var(--stb-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+/* Dreistufig getöntes Textlabel (Spec 20 §1.11d, BL-208, ADR-v9-157): DER EINE Stil für
+   eine Forscher-Einschätzung mit drei Stufen (bisher nur Hypothesen-Konfidenz — low/
+   medium/high). Übernimmt die Größe/GROSS-Optik von `.stb-role-label` (derselbe
+   "kleine Vorsatz-Beschriftung"-Charakter), aber MIT Ton statt einheitlich gedimmt.
+   Bewusst NICHT die `QuayMeter`-Pip-Form (gefüllte Kreise 0–3): INV-H1 trennt
+   Forscher-Konfidenz ausdrücklich von Quellen-Beweiskraft — eine identische Optik
+   ließe genau die zwei Konzepte verschmelzen, die das Modell auseinanderhält. */
+/* Getöntes Stufen-Label (Konfidenz u. Ä.). BEWUSST leiser als ein Status-Pill: eine
+   Selbsteinschätzung des Forschers darf nicht lauter sprechen als der harte Status einer
+   Hypothese (Design-Kritik 2026-07-31 — „HOCH" in Versalien/fett überstrahlte „Offen").
+   Die Farbe trägt die Stufe, Gewicht und Versalien tun es nicht mehr. */
+.stb-tone-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+}
+
+.stb-tone-label--low {
+  color: var(--stb-text-dim);
+}
+
+.stb-tone-label--medium {
+  color: var(--stb-warn);
+}
+
+.stb-tone-label--high {
+  color: var(--stb-quay-3);
 }
 
 /* Disambiguierendes Sekundärmerkmal (Geburtsjahr/-ort) neben einem Namen — EINE Quelle
@@ -380,13 +440,26 @@ textarea::placeholder {
 .stb-coord-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.15rem;
+  line-height: 1;
+}
+
+/* Vorhanden-Zustand als pill-förmiger Outline-Chip (Design-Kritik 2026-07-29, ADR-v9-146):
+   visuell konsistent mit der Badge-Familie, aber transparent statt gefüllt — bleibt als
+   interaktiver Paar-Zustand von reinen Präsenz-Pills unterscheidbar (Spec 21 §10l). Das
+   Padding vergrößert zugleich das (vorher ~16px kleine) Touch-Target von ◎/↗. Der
+   Fehlend-Zustand (◌, nicht interaktiv) bekommt BEWUSST keinen Chip: ein Rahmen suggerierte
+   Klickbarkeit, die dort nicht existiert. */
+.stb-coord-indicator--chip {
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: 999px;
+  padding: 0.05em 0.3em;
 }
 
 .stb-coord-indicator__glyph {
   background: transparent;
   border: none;
-  padding: 0;
+  padding: 0.15em 0.2em;
   font: inherit;
   color: var(--stb-quay-3);
   cursor: default;
@@ -411,6 +484,7 @@ button.stb-coord-indicator__glyph:focus-visible {
 .stb-coord-indicator__osm {
   font-size: 0.9rem;
   line-height: 1;
+  padding: 0.15em 0.2em;
   color: var(--stb-gold-light);
   text-decoration: none;
 }
@@ -486,11 +560,25 @@ button.stb-coord-indicator__glyph:focus-visible {
   padding: 0;
 }
 
+/* EINE Filteroption (Checkbox/Radio + Beschriftung in einer Zeile) — Layout-Mechanismus
+   für JEDES Filterpanel (INV-UI-4). Vorher hatten fünf Listen-Views (`PersonList`,
+   `FamilyList`, `PlaceList`, `HofList`, `PlaceContemporaries`) je eine eigene
+   `…__checkbox`-Kopie davon, vier davon mit `!important`-Gegenregeln gegen die eigene,
+   zu breit gefasste `…__filters label { flex-direction: column }`-Regel. */
 .stb-filter-opt {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
+}
+
+/* Dichtere Variante für Panels, die NEBEN den Optionen auch Feldbeschriftungen über
+   Eingabefeldern tragen (die Entitäts-Listen). Dort sind Beschriftung und Option
+   typografisch eine Familie — 0.85rem/volle Farbe würde die Optionen aus dem Panel
+   herausstechen lassen. Kein zweiter Mechanismus, nur eine Dichte-Variante. */
+.stb-filter-opt--compact {
+  font-size: 0.78rem;
+  color: var(--stb-text-dim);
 }
 
 .stb-filter-export {

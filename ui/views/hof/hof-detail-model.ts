@@ -30,7 +30,7 @@ export interface HofResidentRow {
  *  das `role`-Feld je Zeile (Format, nicht Gruppierung). NIMMT den REALEN Tag (nicht
  *  die übersetzte Anzeige) — die Rollen-Klassifikation darf sich nicht durch die
  *  Übersetzung ändern. */
-function hofRole(tag: string): HofResidentRole {
+export function hofRole(tag: string): HofResidentRole {
   return tag === 'PROP' ? 'Eigentümer' : 'Bewohner';
 }
 
@@ -45,6 +45,12 @@ function compareByRoleThenName(a: HofResidentRow, b: HofResidentRow): number {
   return a.personName.localeCompare(b.personName, 'de');
 }
 
+/** Koordinatenpaar (Mini-Karten-Kontext, BL-214). */
+export interface HofCoords {
+  lat: number;
+  long: number;
+}
+
 export interface HofDetailModel {
   hof: HofObject;
   villageId: string;
@@ -55,6 +61,16 @@ export interface HofDetailModel {
   residents: HofResidentRow[];
   predecessorLabel: string | null;
   successorLabel: string | null;
+  /** Dorf-Koordinaten für den Mini-Karten-Ausschnitt (BL-214, ADR-v9-147) — null,
+   *  wenn das Dorf keine eigenen Koordinaten trägt. */
+  villageCoords: HofCoords | null;
+  /** Koordinaten der Geschwisterhöfe im selben Dorf (nur die mit Koordinaten) — für
+   *  den Hof-im-Ortskontext-Ausschnitt der Mini-Karte (BL-214). */
+  siblingCoords: HofCoords[];
+}
+
+function coordsOf(o: { lat: number | null; long: number | null } | undefined | null): HofCoords | null {
+  return o && o.lat != null && o.long != null ? { lat: o.lat, long: o.long } : null;
 }
 
 /** `tag` ist der REALE GEDCOM-Tag — Quelle für Rollen-Klassifikation (`hofRole`) UND
@@ -116,6 +132,16 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
   const predecessor = hof.predecessor ? db.hofObjects.get(hof.predecessor) : null;
   const successor = hof.successor ? db.hofObjects.get(hof.successor) : null;
 
+  // Geschwisterhöfe im selben Dorf (mit Koordinaten) für den Mini-Karten-Ausschnitt
+  // (BL-214, ADR-v9-147) — über den Registry-Chokepoint `byVillage`, nicht per eigenem
+  // Filter über hofObjects (INV-ARCH-1).
+  const siblingCoords: HofCoords[] = [];
+  for (const sibId of ctx.hofs.byVillage(hof.villageId)) {
+    if (sibId === hofId) continue;
+    const c = coordsOf(db.hofObjects.get(sibId));
+    if (c) siblingCoords.push(c);
+  }
+
   return {
     hof,
     villageId: hof.villageId,
@@ -124,5 +150,7 @@ export function buildHofDetail(db: Database, ctx: PlaceContext, hofId: HofId): H
     residents: rows,
     predecessorLabel: predecessor ? predecessor.addrs[0]?.value ?? predecessor.id : null,
     successorLabel: successor ? successor.addrs[0]?.value ?? successor.id : null,
+    villageCoords: coordsOf(village),
+    siblingCoords,
   };
 }

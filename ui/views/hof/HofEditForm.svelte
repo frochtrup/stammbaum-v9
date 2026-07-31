@@ -8,7 +8,7 @@
   // je Bearbeiten-Sitzung, `{#if editing}`). Sie schreibt NICHT selbst: `save()` baut das
   // aktualisierte HofObject und reicht es per `onSave` an den Aufrufer (der ruft appState.saveHof).
   // Die inline-Neuanlage eines Vorgänger-/Nachfolger-Hofs läuft über den `onCreateHof`-Callback
-  // (der Aufrufer kennt Dorf-Kontext + appState) — die Form bleibt frei von AppState/Plattform.
+  // (der Aufrufer kennt Dorf-Kontext + appState) — die Form bleibt frei von PlacesHost/Plattform.
   // Name & Adressvarianten bleiben BEWUSST im HofDetail: sie committen sofort (eigenes Timing),
   // nicht über den „Speichern"-Button dieser Form.
   import { untrack } from 'svelte';
@@ -35,7 +35,10 @@
   const init = untrack(() => ({
     latText: hof.lat != null ? String(hof.lat) : '',
     longText: hof.long != null ? String(hof.long) : '',
-    note: hof.note,
+    // Geschwister-Stelle zu PlaceEditForm: dieselbe Absicherung gegen Objekte aus älteren
+    // orte.json-Fassungen, auch wo heute noch kein Feld fehlt — die Regel gilt nicht nur
+    // dort, wo sie aufgefallen ist.
+    note: hof.note ?? '',
     existsFrom: hof.existsFrom,
     existsTo: hof.existsTo,
     predecessor: hof.predecessor ?? '',

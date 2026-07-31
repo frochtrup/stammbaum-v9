@@ -3,8 +3,8 @@
   // "Detail mit Bewohnern chronologisch", "Hof-Bearbeitung (Adressvarianten,
   // Koordinaten, Notiz, Lebenszyklus)"). Bewohner-Zeilen verlinken zur Person
   // (Cross-Tab-Navigation, ADR-v9-17-Muster).
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
+  import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
@@ -13,14 +13,16 @@
   import type { HofObject } from '../../../core/places/types';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     onNavigateToPerson?: (personId: string) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Sprung zur Karte-Lens über die Mini-Karte (ADR-v9-150, INV-UI-3). */
+    onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, onNavigateToPerson, onBack }: Props = $props();
+  const { appState, viewState, onNavigateToPerson, onBack, onNavigateLens }: Props = $props();
 
   const hofId = $derived(viewState.getCurrent('hof'));
   const detail = $derived(hofId ? buildHofDetail(appState.db, appState.placeContext, hofId) : null);
@@ -217,10 +219,32 @@
       </section>
     {/if}
 
-    <!-- Mini-Karte (BL-09) — Höfe tragen eigene Geodaten (Binnenmigration im Dorf sichtbar,
-         Spec 11 §1); gleicher gemeinsamer Renderer wie im Ort-Steckbrief (INV-UI-4). -->
-    <PlaceMiniMap lat={detail.hof.lat} long={detail.hof.long} label={detail.hof.addrs[0]?.value || detail.hof.id} />
+    <!-- Mini-Karte (BL-09/BL-214) — Höfe tragen eigene Geodaten (Binnenmigration im Dorf
+         sichtbar, Spec 11 §1). Hof-Kontext: Ausschnitt über Dorf + Geschwisterhöfe
+         (ADR-v9-147 Punkt 1), gleicher gemeinsamer Renderer wie im Ort-Steckbrief (INV-UI-4). -->
+    <PlaceMiniMap
+      lat={detail.hof.lat}
+      long={detail.hof.long}
+      label={detail.hof.addrs[0]?.value || detail.hof.id}
+      context={{ kind: 'hof', villageCoords: detail.villageCoords, siblingCoords: detail.siblingCoords }}
+      {viewState}
+      focusId={hofId}
+      {onNavigateLens}
+    />
 
+    <!-- TST-14 — Geschwister-Stelle zum Ort-Steckbrief: die Hof-Notiz war ebenfalls nur
+         eingebbar. Die Hof-LISTE signalisiert sie sogar mit einer 📝-Pille, ohne dass der
+         Inhalt je zu sehen war. -->
+    {#if !editing && detail.hof.note}
+      <section class="hof-detail__section">
+        <h3>Notiz</h3>
+        <p class="hof-detail__note">{detail.hof.note}</p>
+      </section>
+    {/if}
+
+    <!-- D3 (Spec 22 §3.1) — Geschwister-Stelle zu PlaceContemporaries: ohne
+         Ereignis-Kontext gibt es keine Bewohner-Auskunft, also auch keinen Abschnitt. -->
+    {#if appState.caps.hasEventContext}
     <section class="hof-detail__section">
       <h3>Bewohner &amp; Eigentümer</h3>
       {#if detail.residents.length === 0}
@@ -233,10 +257,19 @@
         </ul>
       {/if}
     </section>
+    {/if}
   {/if}
 </div>
 
 <style>
+  .hof-detail__note {
+    margin: 0;
+    white-space: pre-wrap;
+    color: var(--stb-text);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
   .hof-detail {
     padding: 1rem;
     overflow-y: auto;

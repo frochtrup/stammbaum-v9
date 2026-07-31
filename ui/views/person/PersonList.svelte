@@ -11,11 +11,15 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
+  import { resolveProband } from '../../shell/proband';
+  import { sexSymbol } from '../../shell/person-display';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
   import { layout } from '../../shell/layout.svelte';
+  import { toCsv, type CsvColumn } from '../../shell/csv';
+  import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import {
     buildPersonGroups,
     defaultPersonFilters,
@@ -23,6 +27,17 @@
     type PersonSortMode,
     type PersonRow,
   } from './person-list-model';
+
+  /** CSV-Export der gefilterten/sortierten Liste (BL-125, ADR-v9-159) — Spalten =
+   *  sichtbare Listenspalten + Entitäts-ID (Wiederauffindbarkeit). */
+  const SEX_LABEL: Record<PersonRow['sex'], string> = { M: 'Männlich', F: 'Weiblich', U: 'Unbekannt' };
+  const csvColumns: CsvColumn<PersonRow>[] = [
+    { header: 'ID', value: (r) => r.id },
+    { header: 'Name', value: (r) => r.name },
+    { header: 'Geschlecht', value: (r) => SEX_LABEL[r.sex] },
+    { header: 'Geburt', value: (r) => r.birthSummary },
+    { header: 'Tod', value: (r) => r.deathSummary },
+  ];
 
   interface Props {
     appState: AppState;
@@ -50,9 +65,26 @@
   let filters = $state<PersonFilters>(defaultPersonFilters());
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultPersonFilters()));
-  const groups = $derived(buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters));
+  // Effektiver Proband (BL-120) bestimmt die Kekulé-Ziffern der Zeilen (BL-195). Das Modell
+  // bleibt DOM-frei; die Auflösung passiert hier in der Schale.
+  const probandId = $derived(resolveProband(appState.db, viewState));
+  const groups = $derived(
+    buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters, probandId),
+  );
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
+  // Die exportierte Zeilenmenge ist die gefilterte/sortierte Datengrundlage der Liste,
+  // NICHT der aktuelle Auf-/Zuklapp-Zustand der Namenlosen-Gruppe (BL-125: „gefilterte
+  // und sortierte Zeilenmenge, wie sie die Liste gerade zeigt" meint die Filterung, nicht
+  // die View-lokale Kollaps-Anzeige).
+  const flatRows = $derived(groups.flatMap((g) => g.rows));
+
+  function exportCsv() {
+    const csv = toCsv(flatRows, csvColumns);
+    const adapter = new AnchorDownloadAdapter();
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    adapter.download(csv, `personen_${dateSlug}.csv`, 'text/csv;charset=utf-8');
+  }
 
   // Namenlose (die "#"-Gruppe) werden als EINE kollabierbare Zeile gezeigt statt einzeln
   // gelistet (ADR-v9-121) — sonst öffnet die Liste mit einem Stapel „(ohne Namen)"/„?".
@@ -105,19 +137,19 @@
         <div class="person-list__filters">
           <fieldset class="person-list__sex-filter">
             <legend>Geschlecht</legend>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="" />
               Alle
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="M" />
               Männlich
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="F" />
               Weiblich
             </label>
-            <label class="person-list__checkbox">
+            <label class="stb-filter-opt stb-filter-opt--compact">
               <input type="radio" bind:group={filters.sex} value="U" />
               Unbekannt
             </label>
@@ -134,19 +166,26 @@
             Geburtsort
             <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noDeathDate} />
             kein Sterbedatum
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noSources} />
             keine Quellen
           </label>
-          <label class="person-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noParents} />
             keine Eltern
           </label>
+          <label class="stb-filter-opt stb-filter-opt--compact">
+            <input type="checkbox" bind:checked={filters.soundex} />
+            Ähnlich klingende Namen (Soundex)
+          </label>
           <button type="button" class="person-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+          <button type="button" class="stb-filter-export" onclick={exportCsv}>
+            ↓ Als CSV exportieren
+          </button>
         </div>
       </FilterBar>
       {#if onOpenDedup || onOpenRelationship}
@@ -174,7 +213,9 @@
           <li>
             <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
               <span class="person-list__name-line">
+                <span class="person-list__sex person-list__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>
                 <span class="person-list__name">{row.name}</span>
+                {#if row.kekule != null}<span class="person-list__kekule" use:tooltip={'Ahnenziffer (Kekulé) zum Probanden'}>#{row.kekule}</span>{/if}
                 {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
               </span>
               <span class="person-list__meta">
@@ -194,7 +235,10 @@
     {#if !hasResults}
       <p class="person-list__empty">Keine Personen gefunden.</p>
     {:else}
-      {#each groups as group (group.letter ?? '·')}
+      <!-- Schlüssel muss die Vorrang-Gruppe unterscheiden (ADR-v9-160): im Datum-Modus
+           trägt AUCH die Restgruppe `letter === null` — ohne das eigene Präfix kollidierten
+           beide Schlüssel. -->
+      {#each groups as group (group.phonetic ? 'phon' : (group.letter ?? '·'))}
         {#if group.nameless}
           <div class="person-list__group person-list__group--nameless">
             <button
@@ -211,8 +255,18 @@
             {/if}
           </div>
         {:else}
+          {#if group.restStart}
+            <!-- Ohne diese Zeile stünde die Restmenge kommentarlos da (ADR-v9-169). -->
+            <div class="person-list__letter person-list__letter--phonetic" role="separator" aria-label="Weitere Treffer">
+              Weitere Treffer <span class="person-list__section-count">{group.sectionCount}</span>
+            </div>
+          {/if}
           <div class="person-list__group">
-            {#if group.letter !== null}
+            {#if group.phonetic}
+              <div class="person-list__letter person-list__letter--phonetic" role="separator" aria-label="Ähnlich klingender Nachname">
+                Ähnlicher Nachname <span class="person-list__section-count">{group.sectionCount}</span>
+              </div>
+            {:else if group.letter !== null}
               <div class="person-list__letter" role="separator" aria-label="Buchstabe {group.letter}">
                 {group.letter}
               </div>
@@ -324,7 +378,10 @@
     align-items: flex-end;
   }
 
-  .person-list__filters label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .person-list__filters label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -341,11 +398,6 @@
     padding: 0.3rem 0.5rem;
   }
 
-  .person-list__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .person-list__sex-filter {
     display: flex;
@@ -372,6 +424,19 @@
     font-weight: 700;
     padding: 0.2rem 1rem;
     font-family: var(--stb-font-title);
+  }
+
+  /* Vorrang-Gruppe des Soundex-Modus (ADR-v9-160) — gleicher Trenner-Stil wie die
+     Buchstaben, nur mit Wort statt Einzelbuchstabe: kein zweiter Trennertyp. */
+  .person-list__letter--phonetic {
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+  }
+
+  .person-list__section-count {
+    color: var(--stb-text-dim);
+    font-family: var(--stb-font-body);
+    font-weight: 400;
   }
 
   /* Sammelzeile der Namenlosen — sieht aus wie ein Buchstaben-Trenner, ist aber ein
@@ -439,6 +504,35 @@
 
   .person-list__name {
     font-weight: 600;
+  }
+
+  /* Geschlechts-Icon (BL-195) — dieselben Farben wie Sanduhr/Statistik (--stb-sex-*). */
+  .person-list__sex {
+    flex: none;
+    font-size: 0.9rem;
+    line-height: 1;
+    color: var(--stb-text-dim);
+  }
+  .person-list__sex--m {
+    color: var(--stb-sex-m);
+  }
+  .person-list__sex--f {
+    color: var(--stb-sex-f);
+  }
+
+  /* Kekulé-/Ahnenziffer relativ zum Probanden (BL-195, v8-Orakel `p-kekule`).
+     Sekundär-Datum → bewusst entdramatisiert (Design-Kritik 2026-07-29): Outline statt
+     gefülltem Gold, damit der Name primär bleibt und die Ziffer nicht mit Aktions-Pills
+     konkurriert. Löst zugleich das Gold-auf-Gold-Kontrastrisiko. */
+  .person-list__kekule {
+    flex: none;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--stb-gold-light);
+    background: transparent;
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: 0.6rem;
+    padding: 0.05rem 0.4rem;
   }
 
   .person-list__meta {

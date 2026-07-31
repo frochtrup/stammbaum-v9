@@ -2,19 +2,27 @@
   // ui/views/hof/HofList.svelte — Höfe-Tab-Liste (Spec 20 §1.8 [K]: "Hof-Liste
   // (aus Events aufgelöst, numerisch sortiert), Zugehöriges Dorf anzeigen"). Anreicherungs-
   // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
-  import type { AppState } from '../../shell/app-state.svelte';
-  import type { ViewState } from '../../shell/view-state.svelte';
+  import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
-  import { buildHofListSections, groupHofRowsByVillage, type HofRow } from './hof-list-model';
+  import {
+    buildHofListSections,
+    groupHofRowsByVillage,
+    defaultHofFilters,
+    type HofRow,
+    type HofFilters,
+  } from './hof-list-model';
+  import { countActiveFilters } from '../../shell/count-active-filters';
+  import { buildHofDedupGroups } from './hof-dedup-model';
+  import { buildHofReview } from './hof-review-model';
   import EventsByType from '../../shell/EventsByType.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
 
   interface Props {
-    appState: AppState;
-    viewState: ViewState;
+    appState: PlacesHost;
+    viewState: PlacesNav;
     /** "Hof-Zuweisungen prüfen"/"Massen-Dedup" (Spec 20 §1.8 [K], Spec 21 §10c): beide
      *  Buttons leben in der eigenen Toolbar dieser Liste (Toolbar-Ownership) — die
      *  Ansichts-Umschaltung (welches Overlay rendert) bleibt bei EntityTab. */
@@ -28,10 +36,31 @@
 
   let query = $state('');
   let section = $state<'referenced' | 'unreferenced'>('referenced');
+  /** ADR-v9-149 — ersetzt die frühere „ohne Zusatzangaben"-Zeilenpille. */
+  let filters = $state<HofFilters>(defaultHofFilters());
 
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultHofFilters()));
   const events = $derived(collectAllEvents(appState.db));
-  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query));
-  const rows = $derived(section === 'referenced' ? sections.referenced : sections.unreferenced);
+  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query, filters));
+
+  // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): analog PlaceList — der immer sichtbare
+  // „Werkzeuge"-Trigger trägt einen Achtungs-Punkt bei offenen Hof-Dedup-Gruppen oder
+  // Hof-Review-Fällen. Nur von appState.db abhängig (nicht von query), rechnet bei
+  // Datenänderung, nicht pro Tastendruck.
+  const hofDedupCount = $derived(buildHofDedupGroups(appState.db, appState.placeContext, events).length);
+  const hofReviewCount = $derived(buildHofReview(appState.db).rows.length);
+  const toolsAttention = $derived(hofDedupCount > 0 || hofReviewCount > 0);
+  // D1 (Spec 22 §3.1) — Geschwister-Stelle zu PlaceList, identische Regel: ohne
+  // Ereignis-Kontext trifft `hasReference` nie zu, die Hauptliste stünde leer da. Dann
+  // zeigt die Liste alle Höfe; `referenced` ist in diesem Fall leer, die Verkettung
+  // erhält also die Sortierung.
+  const rows = $derived(
+    !appState.caps.hasEventContext
+      ? [...sections.referenced, ...sections.unreferenced]
+      : section === 'referenced'
+        ? sections.referenced
+        : sections.unreferenced,
+  );
   const groups = $derived(groupHofRowsByVillage(rows));
   const isEmpty = $derived(appState.db.hofObjects.size === 0);
 
@@ -48,11 +77,21 @@
   <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
     <span class="hof-list__title-line">
       <span class="hof-list__addr">{row.addr || row.id}</span>
+      {#if row.hasNote}<span class="stb-pill" use:tooltip={'Notiz erfasst'}>📝</span>{/if}
       <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
-      {#if !row.enriched}
-        <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
-      {/if}
+      <!-- „ohne Zusatzangaben"-Pille entfallen (ADR-v9-149) — identische Begründung wie in
+           PlaceList: Regelfall-Zustand, höchste Wortlast, jetzt Filter statt Zeilen-Label.
+           Beide Geschwister-Listen ziehen mit (die Regel gilt nicht nur dort, wo sie
+           aufgefallen ist). -->
     </span>
+    <!-- Belegungs-Kennzahlen (BL-205): Bewohner/Eigentümer-Zähler + Jahres-Spanne. -->
+    {#if row.residents > 0 || row.owners > 0 || row.yearSpan}
+      <span class="hof-list__meta">
+        {#if row.residents > 0}<span>{row.residents} {row.residents === 1 ? 'Bewohner' : 'Bewohner'}</span>{/if}
+        {#if row.owners > 0}<span>{row.owners} {row.owners === 1 ? 'Eigentümer' : 'Eigentümer'}</span>{/if}
+        {#if row.yearSpan}<span>{row.yearSpan}</span>{/if}
+      </span>
+    {/if}
   </button>
 {/snippet}
 
@@ -79,6 +118,22 @@
           <button type="button" class="hof-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
+      <!-- Erste Filter dieser Liste überhaupt (ADR-v9-149): die Höfe-Liste hatte bislang
+           nur eine Suche, die Anreicherungs-Information stand als Pille auf jeder Zeile.
+           Sie zieht jetzt denselben `FilterBar`-Mechanismus wie PlaceList (INV-UI-4) —
+           kein listen-eigener Steuerungstyp, und das Kopf-Budget (INV-UI-11) bleibt bei
+           EINER Toolbar-Zeile, weil der Filter hinter der Disclosure liegt. -->
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="hof-list__filters">
+          <label class="stb-filter-opt stb-filter-opt--compact">
+            <input type="checkbox" bind:checked={filters.onlyIncomplete} />
+            nur unvollständige
+          </label>
+          <button type="button" class="hof-list__review-btn" onclick={() => (filters = defaultHofFilters())}>
+            Filter zurücksetzen
+          </button>
+        </div>
+      </FilterBar>
       {#if onOpenReview || onOpenDedup}
         <!-- Wie in PlaceList: Kuratierungs-Werkzeuge hinter EINEN Einstiegspunkt
              (Spec 21 §6h, BL-96). Dieselbe Rolle, derselbe Mechanismus — nicht je Liste
@@ -86,19 +141,20 @@
              Der LEERZUSTAND oben behält die Knöpfe bewusst offen: dort sind sie das
              Einzige auf der Fläche, und eine Disclosure über einer leeren Liste würde
              das einzige Angebot verstecken statt Platz zu sparen. -->
-        <FilterBar label="Werkzeuge">
+        <FilterBar label="Werkzeuge" attention={toolsAttention}>
           <div class="hof-list__tools">
             {#if onOpenReview}
-              <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen</button>
+              <button type="button" class="hof-list__review-btn" onclick={onOpenReview}>Hof-Zuweisungen prüfen{hofReviewCount > 0 ? ` · ${hofReviewCount}` : ''}</button>
             {/if}
             {#if onOpenDedup}
-              <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup</button>
+              <button type="button" class="hof-list__review-btn" onclick={onOpenDedup}>Massen-Dedup{hofDedupCount > 0 ? ` · ${hofDedupCount} ${hofDedupCount === 1 ? 'Gruppe' : 'Gruppen'}` : ''}</button>
             {/if}
           </div>
         </FilterBar>
       {/if}
     </div>
 
+    {#if appState.caps.hasEventContext}
     <div class="stb-segment-row hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
       <button
         type="button"
@@ -121,10 +177,11 @@
         Ohne Bezug ({sections.unreferenced.length})
       </button>
     </div>
+    {/if}
 
     {#if rows.length === 0}
       <p class="hof-list__empty">
-        {section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
+        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
       </p>
     {:else}
       <!-- Gruppiert nach Dorf (Nutzer-Vorgabe 2026-07-10) — DIE EINE Gruppen+Header-
@@ -181,6 +238,15 @@
     display: flex;
     align-items: center;
   }
+
+  /* Filter-Inhalt der Disclosure (ADR-v9-149) — analog .place-list__filters. */
+  .hof-list__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
 
   /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in
      der Zeile ist. margin-left:auto ist hier sicher (TST-11), weil dieser Block IMMER
@@ -243,13 +309,26 @@
   .hof-list__row {
     width: 100%;
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     background: transparent;
     border: none;
-    padding: 0 1rem;
+    padding: 0.3rem 1rem;
     text-align: left;
     cursor: pointer;
     color: var(--stb-text);
   }
+
+  /* Belegungs-Kennzahlen (BL-205) — dezente Meta-Zeile unter der Adresse. */
+  .hof-list__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+  }
+
 
   .hof-list__row:hover,
   .hof-list__row:focus-visible {

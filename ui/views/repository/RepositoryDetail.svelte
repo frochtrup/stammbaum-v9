@@ -9,6 +9,7 @@
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import { buildRepositoryDetail } from './repository-detail-model';
+  import { repoTypeLabel } from '../../shell/repo-labels';
   import RepositoryForm from './RepositoryForm.svelte';
 
   interface Props {
@@ -57,9 +58,12 @@
     </DetailHeader>
 
     <dl class="repository-detail__meta">
-      {#if detail.repository.type}
+      <!-- BL-203: deutsches Label über DIE EINE Quelle (`repoTypeLabel`), nie der rohe
+           GRAMPS-/`_RTYPE`-Wert. `Unknown`/leer liefern '' → die Zeile entfällt (dieselbe
+           Polarität wie der Ortstyp, ADR-v9-149). -->
+      {#if repoTypeLabel(detail.repository.type)}
         <dt>Typ</dt>
-        <dd>{detail.repository.type}</dd>
+        <dd>{repoTypeLabel(detail.repository.type)}</dd>
       {/if}
       {#if detail.repository.address}
         <dt>Adresse</dt>

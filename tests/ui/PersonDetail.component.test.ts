@@ -4,13 +4,14 @@
 // Geo-Links). Deckt tatsächliches DOM-Rendering ab (Klassen/Titel/Links), das
 // person-detail-model.test.ts (reine Projektion) nicht prüft.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, isEventPresent } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource, makeCitation, makeEvent, makeAssociation, isEventPresent } from '../../core/model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
 import { place } from '../core/places-fixtures';
+import { createEventClipboard } from '../../ui/shell/event-clipboard.svelte';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
@@ -95,7 +96,10 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     expect(screen.getByText(/nicht gefunden/)).toBeTruthy();
   });
 
-  it('zeigt "Im Baum anzeigen" nur, wenn onNavigateToTree übergeben wurde, und ruft es mit der Person-ID auf', async () => {
+  // BL-60/ADR-v9-153: die vormaligen Einzelknöpfe „⧖ Im Baum anzeigen"/„📖 Story" sind
+  // durch DEN EINEN Lens-Umschalter im Absprung-Modus ersetzt (INV-UI-3) — damit sind
+  // Karte und Zeitleiste als Ziel überhaupt erst erreichbar.
+  it('zeigt den Lens-Absprung nur, wenn onOpenLens übergeben wurde, und ruft ihn mit Person-ID + Lens auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -104,13 +108,32 @@ describe('PersonDetail — Quellen-Badge + Geo-Link (Component)', () => {
     viewState.setCurrent('person', '@I1@');
 
     const { unmount } = render(PersonDetail, { props: { appState, viewState } });
-    expect(screen.queryByText(/Im Baum anzeigen/)).toBeNull();
+    expect(screen.queryByRole('group', { name: /andere[nr]? Ansicht/i })).toBeNull();
     unmount();
 
-    const onNavigateToTree = vi.fn();
-    render(PersonDetail, { props: { appState, viewState, onNavigateToTree } });
-    await fireEvent.click(screen.getByText(/Im Baum anzeigen/));
-    expect(onNavigateToTree).toHaveBeenCalledWith('@I1@');
+    const onOpenLens = vi.fn();
+    render(PersonDetail, { props: { appState, viewState, onOpenLens } });
+    const row = screen.getByRole('group', { name: /andere[nr]? Ansicht/i });
+    await fireEvent.click(within(row).getByText('Karte'));
+    expect(onOpenLens).toHaveBeenCalledWith('@I1@', 'map');
+  });
+
+  it('bietet ALLE vier Lenses als Absprung an (Baum · Karte · Zeitleiste · Story) — die vormaligen zwei Knöpfe deckten nur zwei davon ab', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState, onOpenLens: vi.fn() } });
+    const row = screen.getByRole('group', { name: /andere[nr]? Ansicht/i });
+    for (const label of ['Baum', 'Karte', 'Zeitleiste', 'Story']) {
+      expect(within(row).getByText(label)).toBeTruthy();
+    }
+    // Kein zweiter, handgebauter Sprung-Knopf daneben (INV-UI-3) — genau das war der
+    // Grund, warum die Aktions-Reihe bei 375px auf 3 Zeilen/5 Elemente lief (INV-UI-11).
+    expect(screen.queryByText(/Im Baum anzeigen/)).toBeNull();
   });
 });
 
@@ -931,5 +954,222 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     expect(saved.events.filter((e) => e.type === 'CENS').map((e) => e.value)).toEqual([
       'Zählung 1', 'Zählung 3', 'Zählung 5', 'Zählung 7', 'Zählung 9',
     ]);
+  });
+});
+
+describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
+  function seedAssoc() {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const kind = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    const pate = makePerson('@I2@', { given: 'Josef', surname: 'Meyer' });
+    kind.associations.push(makeAssociation('@I2@', { role: 'Taufpate', note: 'aus dem Kirchenbuch' }));
+    db.individuals.set('@I1@', kind);
+    db.individuals.set('@I2@', pate);
+    appState.loadDatabase(db, 'test.ged');
+    return { appState, viewState };
+  }
+
+  it('zeigt Rolle, klickbaren Namen und Notiz in EINER Zeile (INV-UI-5)', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I1@');
+    render(PersonDetail, { props: { appState, viewState } });
+
+    // Überschrift trägt jetzt das Spec-eigene Wort statt der Latinisierung (Design-Kritik
+    // 2026-07-31) — der Code-Name `associations` bleibt (GEDCOM-Begriff).
+    expect(screen.getByRole('heading', { name: /Personenbezüge/ })).toBeTruthy();
+    expect(screen.getByText('Taufpate')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Josef Meyer/ })).toBeTruthy();
+    expect(screen.getByText('aus dem Kirchenbuch')).toBeTruthy();
+  });
+
+  it('die Sektion bleibt bei leerer Liste sichtbar — sonst wäre die erste Assoziation nicht anlegbar', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I2@'); // der Pate hat selbst keine Assoziationen
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByRole('heading', { name: /Personenbezüge/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Assoziation' })).toBeTruthy();
+    // Keine redundante „Keine X erfasst"-Zeile (Spec 21 §10f).
+    expect(screen.queryByText(/Keine Assoziationen/i)).toBeNull();
+  });
+
+  it('beim Paten erscheint das Patenkind als berechneter Chip — ohne Entfernen-Knopf', () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I2@');
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Patenkinder')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Anna Bauer/ })).toBeTruthy();
+    // Die Gegenrichtung ist eine Projektion: hier gibt es nichts zu löschen.
+    expect(screen.queryByRole('button', { name: 'Assoziation entfernen' })).toBeNull();
+  });
+
+  it('Entfernen schreibt über den Kommando-Chokepoint und lässt andere Felder unberührt', async () => {
+    const { appState, viewState } = seedAssoc();
+    viewState.setCurrent('person', '@I1@');
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Assoziation entfernen' }));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.associations).toEqual([]);
+    expect(saved.given).toBe('Anna');
+    expect(confirmSpy).toHaveBeenCalledOnce();
+  });
+
+  it('eine unauflösbare Referenz wird als Platzhalter gezeigt, nicht verschluckt', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.associations.push(makeAssociation(null, { grampsHandle: '_abc', role: 'Zeuge' }));
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('(unbekannte Person)')).toBeTruthy();
+    // Kein Navigations-Knopf für etwas, wohin man nicht navigieren kann.
+    expect(screen.queryByRole('button', { name: /unbekannte Person/ })).toBeNull();
+  });
+});
+
+describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
+  function seedMitTod() {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.death.date = '3 MAR 1832';
+    p.death.seen = true;
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    return { appState, viewState };
+  }
+
+  it('das Sterbealter merkt ein Geburtsdatum VOR und schreibt es erst beim Speichern (ADR-v9-168)', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+
+    // Vorgemerkt, aber NOCH NICHT geschrieben — ein Dialog, ein Commit-Punkt.
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+    expect(screen.getByText(/wird beim Speichern auf/)).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBe('CAL 3 MAR 1807');
+  });
+
+  it('„Abbrechen" verwirft die Vormerkung mit — nicht nur die Ereignisfelder', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+  });
+
+  it('die Vormerkung lässt sich im Dialog wieder verwerfen', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Vormerkung verwerfen' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    expect(appState.db.individuals.get('@I1@')!.birth.date).toBeNull();
+  });
+
+  it('das Datum erscheint lokalisiert, nicht als roher GEDCOM-String (INV-UI-9)', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+
+    const btn = screen.getByRole('button', { name: /Geburtsdatum vormerken/ });
+    expect(btn.textContent).toContain('3. März 1807');
+    expect(btn.textContent).not.toContain('CAL');
+  });
+
+  it('ein VORHANDENES Geburtsdatum wird nur nach Rückfrage ersetzt — der Rest wird trotzdem gespeichert', async () => {
+    const { appState, viewState } = seedMitTod();
+    appState.savePerson({ ...appState.db.individuals.get('@I1@')!, birth: { ...appState.db.individuals.get('@I1@')!.birth, date: '1 JAN 1806' } });
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmSpy);
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    await fireEvent.change(screen.getByLabelText('Alter: Jahre'), { target: { value: '25' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Geburtsdatum vormerken/ }));
+    // `bind:value` reagiert auf `input`, nicht auf `change` (happy-dom-Falle, TST-12-Nachbarschaft).
+    await fireEvent.input(screen.getByLabelText('Todesursache'), { target: { value: 'Altersschwäche' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    const p = appState.db.individuals.get('@I1@')!;
+    expect(p.birth.date).toBe('1 JAN 1806');
+    // Die Ablehnung betrifft NUR das Geburtsdatum, nicht die übrige Bearbeitung.
+    expect(p.cause).toBe('Altersschwäche');
+  });
+
+  it('Sonder-Ereignisse (Tod/Taufe) sind NICHT kopierbar — sonst entstünde eine zweite DEAT-Zeile', async () => {
+    const { appState, viewState } = seedMitTod();
+    const clipboard = createEventClipboard();
+    render(PersonDetail, { props: { appState, viewState, clipboard } });
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    expect(screen.queryByRole('button', { name: /Kopieren/ })).toBeNull();
+  });
+
+  it('ohne Zwischenablage-Prop gibt es weder „Kopieren" noch „Übernehmen"', async () => {
+    const { appState, viewState } = seedMitTod();
+    render(PersonDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
+    expect(screen.queryByRole('button', { name: /Kopieren/ })).toBeNull();
+  });
+
+  it('Kopieren legt ab, Übernehmen hängt das Ereignis bei der nächsten Person an', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const a = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    a.events.push(makeEvent('RESI', { place: 'Ochtrup', seen: true }));
+    db.individuals.set('@I1@', a);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Berta', surname: 'Bauer' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    const clipboard = createEventClipboard();
+
+    const view = render(PersonDetail, { props: { appState, viewState, clipboard } });
+    await fireEvent.click(screen.getByRole('button', { name: /Wohnort bearbeiten/i }));
+    await fireEvent.click(screen.getByRole('button', { name: /Kopieren/ }));
+    expect(clipboard.event?.place).toBe('Ochtrup');
+
+    // Zur zweiten Person wechseln — die Ablage überlebt den Wechsel (sie lebt oberhalb).
+    viewState.setCurrent('person', '@I2@');
+    await view.rerender({ appState, viewState, clipboard });
+    await fireEvent.click(screen.getByRole('button', { name: '+ Ereignis' }));
+    await fireEvent.click(screen.getByRole('menuitem', { name: /Übernehmen/ }));
+
+    const berta = appState.db.individuals.get('@I2@')!;
+    expect(berta.events).toHaveLength(1);
+    expect(berta.events[0].place).toBe('Ochtrup');
+    // Das Original bleibt unangetastet, und beide teilen kein Objekt.
+    expect(appState.db.individuals.get('@I1@')!.events[0].place).toBe('Ochtrup');
+    expect(berta.events[0]).not.toBe(appState.db.individuals.get('@I1@')!.events[0]);
   });
 });

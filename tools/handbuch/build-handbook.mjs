@@ -169,6 +169,16 @@ writeFileSync(HTML, html);
 // Versionsdatei fortschreiben (builtAtCommit rein informativ; die Basis kommt aus git log).
 writeFileSync(VFILE, JSON.stringify({ version: nextVersion, date: today, builtAtCommit: gitIn(REPO, 'rev-parse HEAD') || null }, null, 2) + '\n');
 
+// Editor-Handbuch (BL-224/OE-9, Spec 22 §8) im selben Zug neu erzeugen: es ist ein
+// EXTRAKT dieser Datei. Liefe es getrennt, veraltete es genau dann, wenn jemand das
+// Handbuch pflegt — also immer.
+try {
+  const { execFileSync } = await import('node:child_process');
+  execFileSync(process.execPath, [join(__dirname, 'build-orte-handbook.mjs')], { stdio: 'inherit' });
+} catch {
+  die('Editor-Handbuch konnte nicht erzeugt werden (s. Meldung oben).');
+}
+
 log(`Handbuch auf ${stamp} gestempelt. Changelog aus ${bullets.length} Commit(s)/Notiz(en) erzeugt.`);
 if (openTextPoints > 0) log(`ERINNERUNG: ${openTextPoints} Feature(s) im Fenster — vor dem Commit sicherstellen, dass HANDBUCH.html den TEXT dazu enthält (Bericht oben).`);
 log('Fertig. Bitte Diff prüfen und bewusst committen (Handbuch + Assets + Changelog).');

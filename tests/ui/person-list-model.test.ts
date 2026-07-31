@@ -4,12 +4,14 @@
 // selbst ist aber reine Funktion, deshalb hier statt als Component-Test, s. TST-5
 // Testpyramide).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeCitation, makeMediaCitation } from '../../core/model';
+import type { ChildLink } from '../../core/model/types';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import {
   buildPersonGroups,
   filterAndSortPersons,
   defaultPersonFilters,
+  matchesSearch,
   type PersonFilters,
 } from '../../ui/views/person/person-list-model';
 
@@ -315,5 +317,160 @@ describe('filterAndSortPersons — erweiterte Filter (jede Dimension einzeln + k
     const filters: PersonFilters = { ...defaultPersonFilters(), sex: 'M' };
     const rows = filterAndSortPersons(seeded(), emptyContext(), 'name', 'anna', filters);
     expect(rows).toEqual([]);
+  });
+});
+
+describe('BL-10/ADR-v9-159 — Soundex-Modus der Personensuche', () => {
+  function seededVariants() {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Karl', surname: 'Maier' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Otto', surname: 'Schulz' }));
+    return db;
+  }
+
+  it('Soundex aus (Default): findet NUR die exakte Schreibweise, nicht die phonetische Variante', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: false };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', 'maier', filters);
+    expect(rows.map((p) => p.id)).toEqual(['@I2@']);
+  });
+
+  it('Soundex an: "maier" findet zusätzlich die phonetisch gleiche Schreibweise "Meyer"', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', 'maier', filters);
+    expect(rows.map((p) => p.id).sort()).toEqual(['@I1@', '@I2@']);
+  });
+
+  it('Soundex an: eine Anfrage mit Ziffern bleibt reiner Substring-Match (kein Soundex-Guard-Bruch)', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Meyer', noteText: 'Reg.-Nr. 1900' });
+    db.individuals.set('@I1@', p);
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    // "1900" ist keine reine Buchstaben-Anfrage -> kein Soundex, aber der bestehende
+    // Substring-Treffer über die Notiz bleibt erhalten (Verhalten bei gemischten
+    // Anfragen unverändert, der Soundex-Guard verschluckt keinen bestehenden Treffer).
+    const rows = filterAndSortPersons(db, emptyContext(), 'name', '1900', filters);
+    expect(rows.map((p) => p.id)).toEqual(['@I1@']);
+  });
+
+  it('Soundex bleibt ohne dritten Parameter deaktiviert (bestehende Aufrufer unverändert, z. B. PersonPicker/Picker)', () => {
+    const db = seededVariants();
+    // Direkter matchesSearch-Aufruf ohne dritten Parameter — wie PersonPicker.svelte/
+    // Picker.svelte ihn nutzen: soundex defaultet auf false.
+    const matchedIds = Array.from(db.individuals.values())
+      .filter((p) => matchesSearch(p, 'maier'))
+      .map((p) => p.id);
+    expect(matchedIds).toEqual(['@I2@']);
+  });
+
+  it('leere/nur-Leerzeichen-Anfrage bleibt bei Soundex an unverändert "alle Treffer"', () => {
+    const filters: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+    const rows = filterAndSortPersons(seededVariants(), emptyContext(), 'name', '   ', filters);
+    expect(rows).toHaveLength(3);
+  });
+});
+
+describe('ADR-v9-160 — Soundex-Vorrang: Nachnamen-Treffer stehen oben', () => {
+  /** Der gemessene Realfall: "Meier" und der VORNAME "Maria" teilen den Code M600, die
+   *  Vornamens-Treffer erdrücken die gesuchten Nachnamen-Varianten (85 von 90 an echten
+   *  Daten). Geprüft wird die Reihenfolge — die Menge bleibt ausdrücklich unverändert. */
+  function seededNoise() {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Maria', surname: 'Albers' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Maria', surname: 'Zwiebel' }));
+    db.individuals.set('@I4@', makePerson('@I4@', { given: 'Otto', surname: 'Schulz' }));
+    return db;
+  }
+  const soundexOn: PersonFilters = { ...defaultPersonFilters(), soundex: true };
+
+  it('die Nachnamen-Treffer bilden die erste Gruppe, die Vornamens-Treffer folgen darunter', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[0].letter).toBeNull();
+    expect(groups[0].rows.map((r) => r.id)).toEqual(['@I2@']);
+    // Darunter unverändert die Buchstaben-Gruppierung der übrigen Treffer.
+    expect(groups.slice(1).every((g) => g.phonetic === false)).toBe(true);
+    expect(groups.slice(1).flatMap((g) => g.rows.map((r) => r.id))).toEqual(['@I1@', '@I3@']);
+  });
+
+  it('die Treffermenge ist identisch mit und ohne Vorrang-Gruppierung (Reihenfolge, kein Filter)', () => {
+    const flat = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meier', soundexOn)
+      .flatMap((g) => g.rows.map((r) => r.id))
+      .sort();
+    const gefiltert = filterAndSortPersons(seededNoise(), emptyContext(), 'name', 'meier', soundexOn)
+      .map((p) => p.id)
+      .sort();
+    expect(flat).toEqual(gefiltert);
+    expect(flat).toEqual(['@I1@', '@I2@', '@I3@']);
+  });
+
+  it('ohne Soundex-Modus entsteht KEINE Vorrang-Gruppe', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'name', 'meyer', defaultPersonFilters());
+    expect(groups.some((g) => g.phonetic)).toBe(false);
+  });
+
+  it('treffen ALLE Ergebnisse über den Nachnamen, bleibt es bei der gewohnten Gruppierung', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Hans', surname: 'Meyer' }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Karl', surname: 'Maier' }));
+    const groups = buildPersonGroups(db, emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups.some((g) => g.phonetic)).toBe(false);
+    expect(groups.map((g) => g.letter)).toEqual(['M']);
+  });
+
+  it('Datum-Modus: Vorrang-Gruppe oben, Restgruppe darunter — beide Schlüssel unterscheidbar', () => {
+    const groups = buildPersonGroups(seededNoise(), emptyContext(), 'birthDate', 'meier', soundexOn);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[1].phonetic).toBe(false);
+    expect(groups[1].letter).toBeNull();
+  });
+
+  it('ein phonetisch passender Nachname einer NAMENSVARIANTE zählt ebenfalls für den Vorrang', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Maria', surname: 'Albers' });
+    p.extraNames.push({ nameRaw: 'Anna /Meyer/', given: 'Anna', surname: 'Meyer', type: 'married', prefix: '', suffix: '', citations: [] });
+    db.individuals.set('@I1@', p);
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Maria', surname: 'Zwiebel' }));
+    const groups = buildPersonGroups(db, emptyContext(), 'name', 'meier', soundexOn);
+    expect(groups[0].phonetic).toBe(true);
+    expect(groups[0].rows.map((r) => r.id)).toEqual(['@I1@']);
+  });
+});
+
+describe('BL-195 — Geschlecht + Kekulé-Ziffer je Zeile', () => {
+  function childLink(familyId: string): ChildLink {
+    return { familyId, pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] };
+  }
+
+  function dbWithChildAndFather() {
+    const db = makeDatabase();
+    const father = makePerson('@I2@', { given: 'Otto', surname: 'Bauer', sex: 'M' });
+    const child = makePerson('@I1@', { given: 'Anna', surname: 'Bauer', sex: 'F', childOf: [childLink('@F1@')] });
+    db.individuals.set('@I2@', father);
+    db.individuals.set('@I1@', child);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I2@', children: ['@I1@'] }));
+    return db;
+  }
+
+  it('sex-Feld wird je Zeile durchgereicht', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext()).flatMap((g) => g.rows);
+    expect(rows.find((r) => r.id === '@I1@')?.sex).toBe('F');
+    expect(rows.find((r) => r.id === '@I2@')?.sex).toBe('M');
+  });
+
+  it('mit Proband → Kekulé: Proband=1, Vater=2 (geteiltes computeKekuleNumbers)', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext(), 'name', '', defaultPersonFilters(), '@I1@').flatMap((g) => g.rows);
+    expect(rows.find((r) => r.id === '@I1@')?.kekule).toBe(1);
+    expect(rows.find((r) => r.id === '@I2@')?.kekule).toBe(2);
+  });
+
+  it('ohne Proband → keine Ahnenziffern (null)', () => {
+    const db = dbWithChildAndFather();
+    const rows = buildPersonGroups(db, emptyContext()).flatMap((g) => g.rows);
+    expect(rows.every((r) => r.kekule === null)).toBe(true);
   });
 });

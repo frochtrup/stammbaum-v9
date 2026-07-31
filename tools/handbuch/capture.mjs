@@ -190,9 +190,13 @@ await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contain
 // Davon erben gleich Beziehungsrechner (Person A), Ausgaben-Bezugsperson und Story-Modus
 // ihre Vorbelegung — der Screenshot des „★ Proband"-Zustands liegt im Steckbrief-Kopf.
 await click('☆ Als Proband'); await sleep(400);
-// Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997): „Im Baum
-// anzeigen" setzt den geteilten lensFocus → davon erben gleich Karte-Personen-Modus & Zeitleiste.
-await click('Im Baum anzeigen', { contains: true }); await sleep(1000); await shot('14-sanduhr');
+// Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997). Der
+// Absprung ist seit BL-60/ADR-v9-153 der kanonische Lens-Umschalter im Steckbrief (vormals
+// der Einzelknopf „Im Baum anzeigen") — er setzt lensFocus, davon erben gleich Karte-
+// Personen-Modus & Zeitleiste. Exakt-Treffer auf die Reihen-Beschriftung, damit nicht der
+// gleichnamige Bottom-Nav-/Sidebar-Eintrag gewinnt.
+await click('Diese Person in einer anderen Ansicht öffnen'); await sleep(200);
+await click('⧖ Baum'); await sleep(1000); await shot('14-sanduhr');
 // Export-Menü (BL-124) am Handy: EIN Einstiegspunkt „↓ Export" öffnet PNG/A1-Poster.
 // EXAKTER Text, nicht contains: bei `contains` gewinnt bei Gleich-Länge der umschließende
 // `.tree-view__export`-<div> (dessen Klick den Button-onclick NICHT auslöst); nur der

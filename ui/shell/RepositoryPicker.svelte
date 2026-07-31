@@ -16,6 +16,7 @@
   import { matchesSearch } from '../views/repository/repository-list-model';
   import RepositoryForm from '../views/repository/RepositoryForm.svelte';
   import Picker from './Picker.svelte';
+  import { repoTypeLabel } from './repo-labels';
 
   interface Props {
     appState: AppState;
@@ -47,7 +48,9 @@
   }
 
   function getSubLabel(r: Repository): string {
-    return [r.type, r.address].filter(Boolean).join(' · ');
+    // BL-203: deutsches Label, nie der rohe GRAMPS-Wert (dieselbe eine Quelle wie
+    // Liste/Steckbrief) — `Unknown`/kein Typ liefert '' und fällt weg.
+    return [repoTypeLabel(r.type), r.address].filter(Boolean).join(' · ');
   }
 
   /** Frisches Archiv-Gerüst mit kollisionsfreier id — exakt das RepositoryList.svelte-Muster. */

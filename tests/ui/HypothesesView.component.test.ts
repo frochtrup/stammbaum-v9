@@ -129,6 +129,40 @@ describe('HypothesesView — Bearbeiten/Löschen', () => {
   });
 });
 
+describe('HypothesesView — Konfidenz als getöntes Label (BL-208, ADR-v9-157)', () => {
+  it('trägt eine Ton-Klasse je Konfidenzstufe (low/medium/high) und zeigt weiterhin den Textwert', () => {
+    const db = makeDatabase();
+    const weights = ['low', 'medium', 'high'] as const;
+    weights.forEach((weight, i) => {
+      const p = makePerson(`@I${i}@`, { given: `P${i}`, surname: 'Test' });
+      p.hypotheses.push({
+        id: `h${i}`,
+        created: '2026-01-01',
+        text: `Hypothese ${weight}`,
+        status: 'open',
+        weight,
+        evidence: [],
+        rationale: '',
+        conclusion: '',
+      });
+      db.individuals.set(`@I${i}@`, p);
+    });
+
+    const { container } = renderView(db);
+    for (const weight of weights) {
+      const label = container.querySelector(`.stb-tone-label--${weight}`);
+      expect(label, `Ton-Klasse für ${weight} fehlt`).toBeTruthy();
+    }
+
+    // NICHT die QuayMeter-Pip-Optik (INV-H1: Forscher-Konfidenz != Quellen-Beweiskraft).
+    expect(container.querySelector('.quay-meter')).toBeNull();
+
+    expect(screen.getByText('Niedrig')).toBeTruthy();
+    expect(screen.getByText('Mittel')).toBeTruthy();
+    expect(screen.getByText('Hoch')).toBeTruthy();
+  });
+});
+
 describe('HypothesesView — Klick-Navigation zur Trägerentität', () => {
   it('Klick auf den Trägerentität-Link ruft den passenden onNavigate-Callback auf', async () => {
     const { onNavigateToPerson } = renderView(seedDb());

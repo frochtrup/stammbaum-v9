@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent, isEventEmpty } from '../../../core/model';
-import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
@@ -28,6 +28,12 @@ export interface EventRow {
    *  s. FamilyNavRow.children unten). Getrennt von `placeLabel` (ADR-v9-80 Punkt 1,
    *  `EventLine.svelte`: "Datum, [Ort-Link]" statt eines vorverknüpften Strings). */
   dateLabel: string;
+  /** GEDCOM-`PHRASE` (`Event.datePhrase`) — Datums-Freitext, kursiv neben dem Datum
+   *  (BL-197). Leer = nichts anzeigen. */
+  datePhrase: string;
+  /** Alter der Person bei diesem Ereignis (BL-196, `ageAtEvent`) — leer beim Geburts-
+   *  ereignis selbst (triviales „0 J.") und wenn nicht berechenbar. */
+  age: string;
   /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
    *  Text in `EventLine.svelte`, klickbar wenn `placeId`/`hofId` gesetzt ist, sonst
    *  unverlinkter Text. */
@@ -69,6 +75,38 @@ export interface FamilyNavRow {
    *  Nachtrag 2026-07-06 [20 §1.5]) zur eindeutigen Identifikation bei Namensgleichheit —
    *  fehlte hier bisher, obwohl FamilyDetail dieselben Kinder bereits so anzeigt. */
   children: { personId: string; name: string; summary: string }[];
+  /** Nur bei role==='childOf': das Kind-Verhältnis DIESER Person zu diesen Eltern (BL-199,
+   *  PEDI) — leer bei leiblich/leer und bei role==='parentIn'. Spiegelbild zur
+   *  Kind-Zeile in `family-detail-model.ts` (INV-UI-4, dieselbe `pedigreeLabel`). */
+  pedigree: string;
+}
+
+/** Eine eigene Assoziation der Person (ASSO/RELA, [10 §2]) — Zeuge/Pate/Informant ohne
+ *  Familienbindung. Die Zeile bleibt AUCH dann bestehen, wenn `personRef` nicht auflösbar
+ *  ist (gelöschte Person, GRAMPS-Handle ohne id-Abbildung): `index` adressiert den Eintrag
+ *  im ursprünglichen `associations[]`, und ein Filtern würde diese Adressierung verschieben. */
+export interface AssociationRow {
+  /** Position in `person.associations` — Adresse fürs Bearbeiten/Entfernen. */
+  index: number;
+  /** null = nicht auflösbar → Name ist ein Platzhalter, keine Navigation. */
+  personId: string | null;
+  name: string;
+  /** Disambiguierendes Sekundärmerkmal (INV-UI-6, [21 §6c]) — leer, wenn unauflösbar. */
+  summary: string;
+  role: string;
+  note: string;
+}
+
+/** Berechnete Rückverknüpfung „Patenkinder" — reine Projektion, KEIN neues Feld: die
+ *  Wahrheit ist und bleibt der Eintrag bei der anderen Person ([20 §1.4], dasselbe Muster
+ *  wie die Beweisführungsnotiz). Deshalb hier ohne `index`: von dieser Seite aus gibt es
+ *  nichts zu löschen. */
+export interface GodchildRow {
+  personId: string;
+  name: string;
+  summary: string;
+  /** Die Rolle, wie sie beim Patenkind steht („Taufpate", „godmother", …). */
+  role: string;
 }
 
 export interface PersonDetailModel {
@@ -82,6 +120,24 @@ export interface PersonDetailModel {
    *  danach chronologisch (`sortWithinCategory`, Nutzer-Vorgabe 2026-07-10). */
   eventGroups: EventGroup<EventRow>[];
   families: FamilyNavRow[];
+  /** Eigene Assoziationen dieser Person (sie ist die Bezugsperson). */
+  associations: AssociationRow[];
+  /** Personen, die DIESE Person als Paten führen — Gegenrichtung, berechnet. */
+  godchildren: GodchildRow[];
+}
+
+/**
+ * Paten-Muster für die Rückverknüpfung. Bewusst breit: die Rolle ist laut [12]/[10]
+ * Freitext, und dieselbe Beziehung steht im Bestand deutsch („Taufpate", „Patin") wie
+ * englisch (GEDCOM-`RELA`-Konvention „godfather"/„godmother"/„godparent"). Ein
+ * geschlossenes Enum würde importierte Werte still nicht mehr erkennen.
+ * `Trauzeuge` fällt bewusst NICHT darunter — nur Patenschaft, nicht jede Zeugenrolle.
+ */
+const GODPARENT_ROLE = /pat(e|in)\b|patin|godfather|godmother|godparent/i;
+
+/** Ist `role` eine Patenrolle? Exportiert, damit die Regel EINE Fundstelle hat. */
+export function isGodparentRole(role: string): boolean {
+  return GODPARENT_ROLE.test(role.trim());
 }
 
 /**
@@ -113,6 +169,7 @@ function toEventRow(
   ev: Event,
   ctx: PlaceContext,
   alwaysShow = false,
+  birth?: Event,
 ): EventRow | null {
   if (!alwaysShow && !isEventPresent(ev)) return null;
   return {
@@ -122,6 +179,9 @@ function toEventRow(
     category: eventCategory(tag, ev.eventType),
     year: eventYear(ev),
     dateLabel: fullDateLabel(ev),
+    datePhrase: ev.datePhrase,
+    // Alter nur für Nicht-Geburts-Ereignisse (beim Geburtsereignis wäre es trivial 0).
+    age: birth && key !== 'BIRT' ? ageAtEvent(birth, ev) : '',
     placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -184,11 +244,11 @@ export function buildPersonDetail(
     ['BURI', person.buri],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, tag, ev, ctx);
+    const row = toEventRow(tag, tag, ev, ctx, false, person.birth);
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {
-    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true);
+    const row = toEventRow(`ev-${i}`, ev.type || 'EVEN', ev, ctx, true, person.birth);
     if (row) events.push(row);
   });
 
@@ -209,7 +269,7 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
       })
       .filter((c) => c.name);
-    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children });
+    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children, pedigree: '' });
   }
   for (const link of person.childOf) {
     const f = db.families.get(link.familyId);
@@ -221,7 +281,43 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(m), summary: yearPlaceSummary(m.birth, ctx) };
       })
       .filter((m) => m.name);
-    families.push({ familyId: link.familyId, role: 'childOf', label: familyLabel(f, db), members, children: [] });
+    families.push({
+      familyId: link.familyId,
+      role: 'childOf',
+      label: familyLabel(f, db),
+      members,
+      children: [],
+      pedigree: pedigreeLabel(link.pedigree),
+    });
+  }
+
+  // Eigene Assoziationen: 1:1 auf die Einträge, NICHT gefiltert (s. AssociationRow.index).
+  const associations: AssociationRow[] = person.associations.map((a, index) => {
+    const target = a.personRef ? db.individuals.get(a.personRef) : undefined;
+    return {
+      index,
+      personId: target ? a.personRef : null,
+      name: target ? displayName(target) || a.personRef! : '(unbekannte Person)',
+      summary: target ? yearPlaceSummary(target.birth, ctx) : '',
+      role: a.role,
+      note: a.note,
+    };
+  });
+
+  // Rückverknüpfung: ein Durchlauf über den Bestand — dieselbe Kostenordnung wie die
+  // übrigen Chokepoint-Scans der Detailansicht, und der Bestand ist bereits im Speicher.
+  const godchildren: GodchildRow[] = [];
+  for (const [id, other] of db.individuals) {
+    if (id === personId) continue;
+    for (const a of other.associations) {
+      if (a.personRef !== personId || !isGodparentRole(a.role)) continue;
+      godchildren.push({
+        personId: id,
+        name: displayName(other) || id,
+        summary: yearPlaceSummary(other.birth, ctx),
+        role: a.role,
+      });
+    }
   }
 
   const eventGroups = groupByKey(events, (row) => row.category, EVENT_CATEGORY_ORDER).map((group) => ({
@@ -229,5 +325,5 @@ export function buildPersonDetail(
     rows: sortWithinCategory(group.type, group.rows),
   }));
 
-  return { person, events, eventGroups, families };
+  return { person, events, eventGroups, families, associations, godchildren };
 }

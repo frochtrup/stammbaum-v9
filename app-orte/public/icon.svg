@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Stammbaum">
+  <!-- Komposition + Farben aus dem v8-Orakel (icon.svg): dunkles abgerundetes
+       Quadrat, goldene Marke. ABWEICHUNG: v8 zeichnete die Marke als <text>-Glyphe
+       (⚘ in "serif" plus Schriftzug) — das hängt an plattformabhängigen Font-
+       Fallbacks und sieht auf einem installierten iOS-Homescreen anders aus als in
+       Chrome. Hier als Pfade/Kreise, damit das Icon überall identisch rendert. -->
+  <rect width="512" height="512" rx="80" fill="#18140f"/>
+  <g stroke="#c8a84a" stroke-width="16" stroke-linecap="round" fill="none">
+    <!-- Stammbaum: zwei Elternknoten, eine Verbindung, ein Kindknoten -->
+    <path d="M168 196 v40 h176 v-40"/>
+    <path d="M256 236 v52"/>
+  </g>
+  <g fill="#c8a84a">
+    <circle cx="168" cy="160" r="40"/>
+    <circle cx="344" cy="160" r="40"/>
+  </g>
+  <circle cx="256" cy="332" r="44" fill="#7a6328"/>
+</svg>

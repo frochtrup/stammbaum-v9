@@ -57,16 +57,18 @@ export interface LifespanStats {
   median: number;
   min: number;
   max: number;
-  /** 10-Jahres-Bins, aufsteigend sortiert nach Bin-Start. */
-  histogram: { bin: number; count: number }[];
+  /** 10-Jahres-Bins, aufsteigend sortiert nach Bin-Start. `pct` = Anteil an `count`,
+   *  gerundet (BL-219 „Balken beziffern sich selbst", ADR-v9-157). */
+  histogram: { bin: number; count: number; pct: number }[];
 }
 
 export interface MarriageAgeStats {
   count: number;
   avgMale: number | null;
   avgFemale: number | null;
-  /** 5-Jahres-Bins, aufsteigend sortiert nach Bin-Start. */
-  bins: { bin: number; male: number; female: number }[];
+  /** 5-Jahres-Bins, aufsteigend sortiert nach Bin-Start. `malePct`/`femalePct` = Anteil
+   *  dieses Bins an ALLEN Datenpunkten des jeweiligen Geschlechts (BL-219). */
+  bins: { bin: number; male: number; female: number; malePct: number; femalePct: number }[];
 }
 
 export interface DecadeEventStats {
@@ -75,22 +77,40 @@ export interface DecadeEventStats {
   births: Record<number, number>;
   deaths: Record<number, number>;
   marriages: Record<number, number>;
+  /** Anteil je Jahrzehnt an der jeweiligen Serien-Gesamtzahl, gerundet (BL-219). */
+  birthPct: Record<number, number>;
+  deathPct: Record<number, number>;
+  marriagePct: Record<number, number>;
+  /** Serien-Gesamtzahlen — Basis der Gesamt-Caption unter der Verteilung (BL-219). */
+  totalBirths: number;
+  totalDeaths: number;
+  totalMarriages: number;
 }
 
 export interface ChildCountRow {
   /** "0".."9" oder "10+". */
   label: string;
   count: number;
+  /** Anteil an ALLEN Familien der DB (nicht nur den mit belegtem Kinderzahl-Wert), gerundet. */
+  pct: number;
 }
 
 export interface TopEntry {
   label: string;
   count: number;
+  /** Anteil an ALLEN Werten dieser Kategorie (nicht nur den Top-N-Einträgen), gerundet
+   *  (BL-219). */
+  pct: number;
+  /** Gesamtzahl aller Werte dieser Kategorie — auf jedem Eintrag identisch, damit die
+   *  Vorlage für die Gesamt-Caption keine eigene Rechnung braucht. */
+  total: number;
 }
 
 /** 50-Jahres-Bins (Geburten) — NUR als Fallback gezeigt, wenn dec.decades.length < 3 (Orakel-Parität). */
 export interface FallbackTimelineStats {
-  bins: { bin: number; count: number }[];
+  bins: { bin: number; count: number; pct: number }[];
+  /** Summe aller Bin-Zählungen — Basis der Gesamt-Caption (BL-219). */
+  total: number;
 }
 
 export interface StatisticsResult {
@@ -102,6 +122,9 @@ export interface StatisticsResult {
   marriageAges: MarriageAgeStats | null;
   decadeEvents: DecadeEventStats | null;
   childCounts: ChildCountRow[];
+  /** Basis der Gesamt-Caption unter "Kinderzahl pro Familie" (= alle Familien, nicht nur
+   *  die mit belegtem Kinderzahl-Wert — Nenner von ChildCountRow.pct, BL-219). */
+  familyCount: number;
   topSurnames: TopEntry[];
   topGivenNames: TopEntry[];
   topBirthPlaces: TopEntry[];
@@ -110,11 +133,17 @@ export interface StatisticsResult {
   fallbackTimeline: FallbackTimelineStats | null;
 }
 
+/** Prozent, gerundet — 0, wenn `total` 0 ist (Division durch 0 vermeiden, BL-219). */
+function pctOf(count: number, total: number): number {
+  return total > 0 ? Math.round((count / total) * 100) : 0;
+}
+
 function topN(map: Map<string, number>, n: number): TopEntry[] {
+  const total = Array.from(map.values()).reduce((s, v) => s + v, 0);
   return Array.from(map.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, n)
-    .map(([label, count]) => ({ label, count }));
+    .map(([label, count]) => ({ label, count, pct: pctOf(count, total), total }));
 }
 
 function bump(map: Map<string, number>, key: string | null | undefined): void {
@@ -171,6 +200,7 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
       marriageAges: null,
       decadeEvents: null,
       childCounts: [],
+      familyCount: 0,
       topSurnames: [],
       topGivenNames: [],
       topBirthPlaces: [],
@@ -238,7 +268,7 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
     }
     const histogram = Array.from(histMap.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([bin, count]) => ({ bin, count }));
+      .map(([bin, count]) => ({ bin, count, pct: pctOf(count, lifespanValues.length) }));
     lifespans = { count: lifespanValues.length, avg, median, min, max, histogram };
   }
 
@@ -270,7 +300,13 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
     const avgFemale = marrF.length ? Math.round(marrF.reduce((s, v) => s + v, 0) / marrF.length) : null;
     const bins = Array.from(marrBinMap.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([bin, v]) => ({ bin, male: v.male, female: v.female }));
+      .map(([bin, v]) => ({
+        bin,
+        male: v.male,
+        female: v.female,
+        malePct: pctOf(v.male, marrM.length),
+        femalePct: pctOf(v.female, marrF.length),
+      }));
     marriageAges = { count: marrAges.length, avgMale, avgFemale, bins };
   }
 
@@ -304,11 +340,22 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
   );
   let decadeEvents: DecadeEventStats | null = null;
   if (decadeKeys.length >= 3) {
+    const totalBirths = Array.from(decBirth.values()).reduce((s, v) => s + v, 0);
+    const totalDeaths = Array.from(decDeath.values()).reduce((s, v) => s + v, 0);
+    const totalMarriages = Array.from(decMarr.values()).reduce((s, v) => s + v, 0);
+    const pctRecord = (map: Map<number, number>, total: number): Record<number, number> =>
+      Object.fromEntries(Array.from(map.entries()).map(([k, v]) => [k, pctOf(v, total)]));
     decadeEvents = {
       decades: decadeKeys,
       births: Object.fromEntries(decBirth),
       deaths: Object.fromEntries(decDeath),
       marriages: Object.fromEntries(decMarr),
+      birthPct: pctRecord(decBirth, totalBirths),
+      deathPct: pctRecord(decDeath, totalDeaths),
+      marriagePct: pctRecord(decMarr, totalMarriages),
+      totalBirths,
+      totalDeaths,
+      totalMarriages,
     };
   }
 
@@ -327,7 +374,7 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
             const bv = b[0] === '10+' ? 10 : Number(b[0]);
             return av - bv;
           })
-          .map(([label, count]) => ({ label, count }))
+          .map(([label, count]) => ({ label, count, pct: pctOf(count, families.length) }))
       : [];
 
   // ── Top-Listen ──
@@ -360,10 +407,12 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
       }
     }
     if (binMap.size > 1) {
+      const total = Array.from(binMap.values()).reduce((s, v) => s + v, 0);
       fallbackTimeline = {
         bins: Array.from(binMap.entries())
           .sort((a, b) => a[0] - b[0])
-          .map(([bin, count]) => ({ bin, count })),
+          .map(([bin, count]) => ({ bin, count, pct: pctOf(count, total) })),
+        total,
       };
     }
   }
@@ -377,6 +426,7 @@ export function computeStatistics(db: Database, ctx: PlaceContext): StatisticsRe
     marriageAges,
     decadeEvents,
     childCounts,
+    familyCount: families.length,
     topSurnames,
     topGivenNames,
     topBirthPlaces,

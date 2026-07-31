@@ -42,6 +42,7 @@
   import SourceCitationRow from './SourceCitationRow.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
+  import EventAgeHelper from './EventAgeHelper.svelte';
   import {
     toEditable,
     markDateDirty,
@@ -49,6 +50,8 @@
     pickPlaceFor as sharedPickPlaceFor,
     pickHofFor as sharedPickHofFor,
     onMonthBlur,
+    computeDate,
+    liveEventFrom,
     QUALIFIER_OPTIONS,
     type EditableEvent,
   } from './event-edit';
@@ -74,10 +77,21 @@
     /** Vollständiges, aktualisiertes Event-Objekt + (ggf. leere) Todesursache — der
      *  Aufrufer baut daraus das volle Person-/Family-Objekt und ruft
      *  appState.savePerson/saveFamily(model) auf (kein Speichern hier im Modal). */
-    onSave: (updatedEvent: Event, cause: string) => void;
+    /** Drittes Argument (BL-212/ADR-v9-168): ein im Dialog VORGEMERKTES Geburtsdatum —
+     *  es wird zusammen mit dem Ereignis committet, nicht vorher. Aufrufer ohne
+     *  `onDeriveBirth` bekommen hier immer `null`. */
+    onSave: (updatedEvent: Event, cause: string, derivedBirth: string | null) => void;
     onClose: () => void;
+    /** „⧉ Kopieren" — legt dieses Ereignis in die Sitzungs-Zwischenablage (BL-212).
+     *  Weglassen blendet den Knopf aus (Kontexte ohne Zwischenablage, z. B. FamilyDetail). */
+    onCopy?: (ev: Event) => void;
+    /** Nur sinnvoll am Sterbe-Ereignis (BL-212): schaltet die Alters-Eingabehilfe frei.
+     *  Das errechnete Geburtsdatum wird VORGEMERKT und über `onSave` übergeben — der
+     *  Aufrufer besitzt die Person und entscheidet, ob er ein vorhandenes Datum
+     *  überschreibt. Dieses Modal kennt nur EIN Ereignis. */
+    allowDeriveBirth?: boolean;
   }
-  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose }: Props = $props();
+  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, allowDeriveBirth = false }: Props = $props();
   const headingVerb = $derived(mode === 'create' ? 'anlegen' : 'bearbeiten');
 
   // Formular-Zustand wird NUR beim Mount aus dem übergebenen Event initialisiert (analog
@@ -101,6 +115,15 @@
   function pickHofFor(hofId: string): void {
     sharedPickHofFor(appState, editable, hofId);
   }
+
+  /** Die Alters-Eingabehilfe (BL-212) lebt in EventAgeHelper.svelte — hier nur die Frage,
+   *  OB sie gezeigt wird: nur am Sterbe-Ereignis und nur, wenn der Aufrufer ein
+   *  Geburtsdatum entgegennehmen kann. */
+  const showAgeHelper = $derived(allowDeriveBirth && editable.type === 'DEAT');
+  /** Vorgemerktes Geburtsdatum (ADR-v9-168): EIN Commit-Punkt je Dialog — „Abbrechen"
+   *  verwirft es zusammen mit allen übrigen Feldänderungen. Vorher schrieb die Hilfe
+   *  sofort, sodass „Abbrechen" die halbe Änderung stehen ließ (Design-Kritik 2026-07-31). */
+  let stagedBirth = $state<string | null>(null);
 
   const sources = $derived(Array.from(appState.db.sources.values()));
 
@@ -159,7 +182,7 @@
 
   function save() {
     const updated = fromEditable(event, editable);
-    onSave({ ...updated, media: [...event.media, ...pendingMedia] }, deathCause.trim());
+    onSave({ ...updated, media: [...event.media, ...pendingMedia] }, deathCause.trim(), stagedBirth);
   }
 
   function onBackdropKeydown(e: KeyboardEvent) {
@@ -267,6 +290,10 @@
       {/if}
     </div>
 
+    {#if showAgeHelper}
+      <EventAgeHelper deathDate={computeDate(editable)} onStage={(d) => (stagedBirth = d)} staged={stagedBirth} />
+    {/if}
+
     {#if showTypeText}
       <label>
         Typ-Freitext (TYPE)
@@ -361,6 +388,13 @@
     </div>
 
     <div class="event-edit-modal__actions">
+      {#if onCopy}
+        <button
+          type="button"
+          class="event-edit-modal__copy-btn"
+          onclick={() => onCopy(liveEventFrom(editable))}
+        >⧉ Kopieren</button>
+      {/if}
       <button type="button" class="event-edit-modal__save-btn" onclick={save}>Speichern</button>
       <button type="button" class="event-edit-modal__cancel-btn" onclick={onClose}>Abbrechen</button>
     </div>
@@ -514,6 +548,23 @@
   .event-edit-modal__media-count {
     font-size: 0.78rem;
     color: var(--stb-text-dim);
+  }
+
+
+
+
+
+
+
+  .event-edit-modal__copy-btn {
+    margin-right: auto;
+    background: transparent;
+    color: var(--stb-text-dim);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    min-height: var(--stb-touch-target);
   }
 
   .event-edit-modal__actions {

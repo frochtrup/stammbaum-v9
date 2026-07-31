@@ -1,13 +1,15 @@
 // tests/ui/hof-list-model.test.ts — Höfe-Listen-Aufbereitung (Spec 20 §1.8 [K]:
 // "Hof-Liste (aus Events aufgelöst, numerisch sortiert)"). Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase } from '../../core/model';
+import { makeDatabase, makePerson } from '../../core/model';
 import { place, hof, ev } from '../core/places-fixtures';
 import { makePlaceRegistry, makeHofRegistry } from '../../core/places';
 import type { PlaceContext } from '../../core/places';
 import {
   buildHofRows,
   buildHofListSections,
+  countHofOccupancy,
+  defaultHofFilters,
   groupHofRowsByVillage,
   houseNumberOf,
   streetNameOf,
@@ -143,6 +145,48 @@ describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile'
   });
 });
 
+describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben"-Pille', () => {
+  /** Ein plainer und ein kuratierter Hof im selben Dorf. */
+  function twoHofs() {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Am Bach 1', from: null, to: null }] }));
+    db.hofObjects.set(
+      '@H2@',
+      hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'Hof am Bach' }),
+    );
+    return db;
+  }
+
+  it('onlyIncomplete=true zeigt NUR nicht angereicherte Höfe', () => {
+    const rows = buildHofRows(twoHofs(), '', undefined, { onlyIncomplete: true });
+
+    expect(rows.map((r) => r.id)).toEqual(['@H1@']);
+  });
+
+  it('Default zeigt beide — der Filter ist opt-in', () => {
+    expect(buildHofRows(twoHofs(), '', undefined, defaultHofFilters()).map((r) => r.id)).toEqual([
+      '@H1@',
+      '@H2@',
+    ]);
+  });
+
+  it('nutzt DASSELBE Prädikat wie das enriched-Feld der Zeile (keine zweite Definition)', () => {
+    const db = twoHofs();
+    const filtered = buildHofRows(db, '', undefined, { onlyIncomplete: true });
+    const allUnenriched = buildHofRows(db).filter((r) => !r.enriched);
+
+    expect(filtered.map((r) => r.id)).toEqual(allUnenriched.map((r) => r.id));
+  });
+
+  it('greift auch über buildHofListSections (beide Abschnitte)', () => {
+    const db = twoHofs();
+    const sections = buildHofListSections(db, ctxOf(db), [], '', { onlyIncomplete: true });
+
+    expect([...sections.referenced, ...sections.unreferenced].map((r) => r.id)).toEqual(['@H1@']);
+  });
+});
+
 describe('buildHofListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => {
   it('referenzierter Hof landet in "referenced", referenzloser in "unreferenced"', () => {
     const db = makeDatabase();
@@ -166,5 +210,28 @@ describe('buildHofListSections — Referenz-Filter (§9.3, ADR-v9-46)', () => {
 
     expect(sections.referenced).toEqual([]);
     expect(sections.unreferenced.map((r) => r.id)).toEqual(['@H1@']);
+  });
+});
+
+describe('BL-205 — Bewohner-/Eigentümer-Zähler + Jahres-Spanne (countHofOccupancy)', () => {
+  it('trennt Bewohner (RESI) und Eigentümer (PROP), zählt distinkt, bildet Jahres-Spanne', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('V1', place('V1', { title: 'Ochtrup' }));
+    db.hofObjects.set('H1', hof('H1', 'V1', { addrs: [{ value: 'Hof 1', from: null, to: null }], note: 'wichtig' }));
+    const resident = makePerson('@I1@', { given: 'R' });
+    resident.events = [ev('RESI', { hofId: 'H1', date: '1850' }), ev('RESI', { hofId: 'H1', date: '1860' })];
+    const owner = makePerson('@I2@', { given: 'O' });
+    owner.events = [ev('PROP', { hofId: 'H1', date: '1902' })];
+    db.individuals.set('@I1@', resident);
+    db.individuals.set('@I2@', owner);
+    const occ = countHofOccupancy(db, ctxOf(db));
+    expect(occ.get('H1')!.residents.size).toBe(1);
+    expect(occ.get('H1')!.owners.size).toBe(1);
+
+    const row = buildHofRows(db, '', occ).find((r) => r.id === 'H1')!;
+    expect(row.residents).toBe(1);
+    expect(row.owners).toBe(1);
+    expect(row.yearSpan).toBe('1850–1902');
+    expect(row.hasNote).toBe(true);
   });
 });

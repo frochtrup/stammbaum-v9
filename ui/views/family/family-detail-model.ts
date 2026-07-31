@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { Coords, PlaceContext } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent, isEventEmpty } from '../../../core/model';
-import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
 
 export interface FamilyMemberRow {
@@ -18,6 +18,10 @@ export interface FamilyMemberRow {
    *  Nachtrag 2026-07-06 [20 §1.5]). Für Eltern die Sekundärzeile der Box, für Kinder
    *  das sichtbare Geburtsjahr zur eindeutigen Identifikation bei Namensgleichheit. */
   summary: string;
+  /** Kind-Verhältnis-Label (BL-199, PEDI) — nur bei `role === 'child'` und nur bei einem
+   *  ABWEICHENDEN Verhältnis gesetzt (adoptiert/Pflege/gesiegelt); leer bei leiblich/leer
+   *  und für Eltern (`pedigreeLabel`, INV-UI-4 mit dem Personen-Detail-Eltern-Suffix). */
+  pedigree: string;
 }
 
 export interface FamilyEventRow {
@@ -29,6 +33,11 @@ export interface FamilyEventRow {
    *  (die bleibt bei yearPlaceSummary/Jahr-only, s. FamilyMemberRow.summary oben).
    *  Getrennt von `placeLabel` (ADR-v9-80 Punkt 1, `EventLine.svelte`). */
   dateLabel: string;
+  /** GEDCOM-`PHRASE` (`Event.datePhrase`) — kursiv neben dem Datum (BL-197). */
+  datePhrase: string;
+  /** Alter — bei Familien-Ereignissen stets leer (kein Einzel-Subjekt), nur zur
+   *  strukturellen Kompatibilität mit `EventLineRow` (BL-196). */
+  age: string;
   /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
    *  Text in `EventLine.svelte`. */
   placeLabel: string;
@@ -63,11 +72,17 @@ function memberRow(
   role: FamilyMemberRow['role'],
   db: Database,
   ctx: PlaceContext,
+  familyId?: string,
 ): FamilyMemberRow | null {
   if (!id) return null;
   const p = db.individuals.get(id);
   if (!p) return null;
-  return { personId: id, name: displayName(p), role, summary: yearPlaceSummary(p.birth, ctx) };
+  // Kind-Verhältnis aus DIESER Familie (INV-P4: Beziehungstyp lebt INDI-seitig, ChildLink).
+  const pedigree =
+    role === 'child' && familyId
+      ? pedigreeLabel(p.childOf.find((cl) => cl.familyId === familyId)?.pedigree ?? '')
+      : '';
+  return { personId: id, name: displayName(p), role, summary: yearPlaceSummary(p.birth, ctx), pedigree };
 }
 
 /** `tag` ist der reale GEDCOM-Tag — Label-Fallback via `eventTypeLabel` (`ui/shell/
@@ -90,6 +105,9 @@ function toEventRow(
     key,
     label: ev.eventType || eventTypeLabel(tag),
     dateLabel: fullDateLabel(ev),
+    datePhrase: ev.datePhrase,
+    // Familien-Ereignisse haben kein Einzel-Subjekt → kein Alter (BL-196 nur im Personen-Kontext).
+    age: '',
     placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
     addr: ev.addr,
@@ -117,7 +135,7 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
   const wife = memberRow(family.wife, 'wife', db, ctx);
   if (wife) members.push(wife);
   for (const childId of family.children) {
-    const child = memberRow(childId, 'child', db, ctx);
+    const child = memberRow(childId, 'child', db, ctx, familyId);
     if (child) members.push(child);
   }
 

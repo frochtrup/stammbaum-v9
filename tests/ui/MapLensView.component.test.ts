@@ -404,3 +404,44 @@ describe('MapLensView — Offline-Fallback (ADR-v9-25)', () => {
     expect(container.querySelector('.map-fallback__svg')).toBeTruthy();
   });
 });
+
+// BL-210: `onSelectPlace` war in BEIDEN Rendering-Pfaden als `() => {}` verdrahtet — der
+// Callback existierte, tat aber nichts. Geprüft wird hier der SVG-Fallback-Pfad, weil
+// Leaflet unter happy-dom nicht sinnvoll rendert; die Offline-Parität ist damit zugleich
+// belegt (dieselbe Anforderung wie beim Fokus-Sprung, ADR-v9-78).
+describe('MapLensView — Marker-Klick öffnet das Explorationspanel (BL-210)', () => {
+  afterEach(() => setOnline(true));
+
+  it('Klick auf einen Ortsmarker zeigt die Personen an diesem Ort', async () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute() },
+    });
+
+    expect(container.querySelector('.map-explore')).toBeNull();
+    const marker = container.querySelector('.map-fallback__marker');
+    expect(marker).toBeTruthy();
+    await fireEvent.click(marker!);
+
+    expect(container.querySelector('.map-explore')).toBeTruthy();
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+  });
+
+  it('ein Moduswechsel schließt das Panel (es gehört zum Orte-Modus)', async () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute() },
+    });
+    await fireEvent.click(container.querySelector('.map-fallback__marker')!);
+    expect(container.querySelector('.map-explore')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
+    expect(container.querySelector('.map-explore')).toBeNull();
+  });
+});

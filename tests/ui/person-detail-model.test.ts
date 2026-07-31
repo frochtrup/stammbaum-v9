@@ -420,3 +420,41 @@ describe('buildPersonDetail — INV-UI-6 bei Ehepartner und Eltern (BL-64)', () 
     expect(modell.families[0].members[0].summary).toBe('');
   });
 });
+
+describe('BL-199 — Kind-Verhältnis der Person zu ihren Eltern (childOf-Zeile)', () => {
+  function ctx(): PlaceContext {
+    return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+  }
+  it('Pflegekind → pedigree "Pflegekind" an der Herkunftsfamilie; parentIn bleibt leer', () => {
+    const db = makeDatabase();
+    const father = makePerson('@I2@', { given: 'Otto', surname: 'Bauer' });
+    const person = makePerson('@I1@', { given: 'Anna', surname: 'Bauer', childOf: [{ familyId: '@F1@', pedigree: 'foster', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] }], parentIn: ['@F2@'] });
+    db.individuals.set('@I1@', person);
+    db.individuals.set('@I2@', father);
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I2@', children: ['@I1@'] }));
+    db.families.set('@F2@', makeFamily('@F2@', { husband: '@I1@' }));
+    const model = buildPersonDetail(db, ctx(), '@I1@')!;
+    expect(model.families.find((f) => f.role === 'childOf')?.pedigree).toBe('Pflegekind');
+    expect(model.families.find((f) => f.role === 'parentIn')?.pedigree).toBe('');
+  });
+})
+
+describe('BL-196/197 — Alter + datePhrase in der Ereigniszeile', () => {
+  function ctx(): PlaceContext {
+    return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+  }
+  it('Nicht-Geburts-Ereignis trägt Alter; Geburt selbst nicht; datePhrase durchgereicht', () => {
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.date = '1 JAN 1850';
+    p.death.date = '1 JAN 1920';
+    p.death.datePhrase = 'kurz vor Weihnachten';
+    db.individuals.set('@I1@', p);
+    const model = buildPersonDetail(db, ctx(), '@I1@')!;
+    const birth = model.events.find((e) => e.key === 'BIRT')!;
+    const death = model.events.find((e) => e.key === 'DEAT')!;
+    expect(birth.age).toBe('');
+    expect(death.age).toBe('70 J.');
+    expect(death.datePhrase).toBe('kurz vor Weihnachten');
+  });
+});

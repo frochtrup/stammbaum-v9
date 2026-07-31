@@ -21,6 +21,19 @@ export interface SourceRow {
    *  (`Citation.note`, pro Referenz) gemeint waren, gehört das zu SourceCitationRow
    *  (Spec 21 §10d), nicht hierher — vor einer Änderung am Nutzer verifizieren. */
   hasNotes: boolean;
+  /** 📎-Medien-Badge (BL-200) — `true`, wenn die Quelle mind. eine Medien-Zitation trägt
+   *  (`Source.media`). Dasselbe 📎-Vokabular wie in der Personenliste (Spec 21 §7). */
+  hasMedia: boolean;
+  /** 🏛-Archiv-Name (BL-202) — der Name des Archivs, in dem die Quelle liegt (`Source.repo`
+   *  über `db.repositories` aufgelöst; freier Repo-Text durchgereicht). Leer = kein Archiv. */
+  repoName: string;
+}
+
+/** Archiv-Name zu `Source.repo` — aufgelöst über `db.repositories`, sonst der freie
+ *  Repo-Text (GEDCOM erlaubt sowohl `@R1@`-Pointer als auch Inline-Text). */
+function repoNameOf(db: Database, s: Source): string {
+  if (!s.repo) return '';
+  return db.repositories.get(s.repo)?.name || s.repo;
 }
 
 /** Alle Zitate der Datenbank, gruppiert nach Quellen-Id -> Zitat-Liste (mit Herkunft). */
@@ -34,7 +47,7 @@ export function countReferencesBySource(db: Database): Map<string, Citation[]> {
   return bySource;
 }
 
-function toRow(s: Source, refCount: number): SourceRow {
+function toRow(s: Source, refCount: number, db: Database): SourceRow {
   return {
     id: s.id,
     label: s.abbr || s.title || s.id,
@@ -42,6 +55,8 @@ function toRow(s: Source, refCount: number): SourceRow {
     date: s.date,
     refCount,
     hasNotes: s.text.trim() !== '',
+    hasMedia: s.media.length > 0,
+    repoName: repoNameOf(db, s),
   };
 }
 
@@ -50,7 +65,7 @@ export function buildSourceRows(db: Database): SourceRow[] {
   const refCounts = countReferencesBySource(db);
   const sources = Array.from(db.sources.values());
   return sources
-    .map((s) => toRow(s, refCounts.get(s.id)?.length ?? 0))
+    .map((s) => toRow(s, refCounts.get(s.id)?.length ?? 0, db))
     .sort((a, b) => a.label.localeCompare(b.label, 'de'));
 }
 

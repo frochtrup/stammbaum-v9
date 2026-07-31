@@ -13,13 +13,28 @@
   // Trägt selbst KEINEN Fokus-Zustand: der Aufrufer (App.svelte) entscheidet, wohin
   // navigiert wird, und der gemeinsame ViewState-Slot `lensFocus` (view-state.svelte.ts)
   // hält den eigentlichen Fokus über den Lens-Wechsel hinweg (INV-VS).
+  //
+  // `active = null` (BL-60, ADR-v9-153): derselbe Umschalter, aufgerufen aus einer
+  // Fläche, die SELBST keine Lens ist (Personen-Steckbrief) — ein reiner Absprung
+  // „diese Person in Ansicht X". Dann ist die Reihe kein `tablist` mit einem aktiven
+  // Tab, sondern eine Gruppe gleichrangiger Sprung-Knöpfe: `role="tab"`/`aria-selected`
+  // ohne ausgewählten Tab wäre für Screenreader eine Falschaussage (LP-8, §6i). Optik
+  // und Mechanismus bleiben identisch — das ist der Punkt (INV-UI-3: EIN Umschalter,
+  // nicht je Fläche ein eigener Satz Sprung-Knöpfe).
   import { LENSES, type LensId } from './lens-model';
 
   interface Props {
-    active: LensId;
+    /** Aktive Lens — `null`, wenn der Aufrufer selbst keine Lens ist (Absprung-Modus). */
+    active: LensId | null;
     onNavigate: (lens: LensId) => void;
+    /** Beschriftung der Reihe für Screenreader; im Absprung-Modus benennt sie den Bezug
+     *  („Diese Person in einer anderen Ansicht öffnen"). */
+    ariaLabel?: string;
   }
-  const { active, onNavigate }: Props = $props();
+  const { active, onNavigate, ariaLabel = 'Ansicht wählen' }: Props = $props();
+
+  /** Absprung-Modus (kein aktiver Tab) — s. Kopfkommentar. */
+  const isJump = $derived(active === null);
 
   function select(id: LensId, implemented: boolean): void {
     if (!implemented) return;
@@ -27,17 +42,17 @@
   }
 </script>
 
-<div class="lens-switcher stb-segment-row" role="tablist" aria-label="Ansicht wählen">
+<div class="lens-switcher stb-segment-row" role={isJump ? 'group' : 'tablist'} aria-label={ariaLabel}>
   {#each LENSES as lens (lens.id)}
     <button
       type="button"
-      role="tab"
+      role={isJump ? undefined : 'tab'}
       class="stb-segment-btn lens-switcher__item"
       class:stb-segment-btn--active={active === lens.id}
       class:lens-switcher__item--active={active === lens.id}
       class:lens-switcher__item--disabled={!lens.implemented}
       aria-current={active === lens.id ? 'page' : undefined}
-      aria-selected={active === lens.id}
+      aria-selected={isJump ? undefined : active === lens.id}
       disabled={!lens.implemented}
       onclick={() => select(lens.id, lens.implemented)}
     >

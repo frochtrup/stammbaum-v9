@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["vitest/globals"]
   },
-  "include": ["core", "services", "ui", "app", "tests", "vite.config.ts", "vitest.config.ts"]
+  "include": ["core", "services", "ui", "app", "app-orte", "tests", "vite.config.ts", "vitest.config.ts"]
 }

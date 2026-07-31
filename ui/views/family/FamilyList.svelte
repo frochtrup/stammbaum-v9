@@ -16,12 +16,25 @@
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
   import { layout } from '../../shell/layout.svelte';
+  import { toCsv, type CsvColumn } from '../../shell/csv';
+  import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import {
     buildFamilyRows,
     defaultFamilyFilters,
     type FamilyFilters,
     type FamilySortMode,
+    type FamilyRow,
   } from './family-list-model';
+
+  /** CSV-Export der gefilterten/sortierten Liste (BL-125, ADR-v9-159 — dieselbe `toCsv`
+   *  wie PersonList, kein zweiter Rechenweg). Spalten = sichtbare Listenspalten +
+   *  Entitäts-ID. */
+  const csvColumns: CsvColumn<FamilyRow>[] = [
+    { header: 'ID', value: (r) => r.id },
+    { header: 'Eltern', value: (r) => r.parentsLabel },
+    { header: 'Heirat', value: (r) => r.marriageSummary },
+    { header: 'Kinderzahl', value: (r) => r.childCount },
+  ];
 
   interface Props {
     appState: AppState;
@@ -55,6 +68,13 @@
 
   function selectFamily(id: string) {
     viewState.setCurrent('family', id);
+  }
+
+  function exportCsv() {
+    const csv = toCsv(rows, csvColumns);
+    const adapter = new AnchorDownloadAdapter();
+    const dateSlug = new Date().toISOString().slice(0, 10);
+    adapter.download(csv, `familien_${dateSlug}.csv`, 'text/csv;charset=utf-8');
   }
 
   function cycleSortMode() {
@@ -108,19 +128,22 @@
             Heiratsort
             <input type="text" bind:value={filters.marriagePlace} placeholder="Ort…" />
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noMarriageDate} />
             kein Heiratsdatum
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noSources} />
             keine Quellen
           </label>
-          <label class="family-list__checkbox">
+          <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noChildren} />
             keine Kinder
           </label>
           <button type="button" class="family-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
+          <button type="button" class="stb-filter-export" onclick={exportCsv}>
+            ↓ Als CSV exportieren
+          </button>
         </div>
       </FilterBar>
     </div>
@@ -231,7 +254,10 @@
     align-items: flex-end;
   }
 
-  .family-list__filters label {
+  /* Nur die Feld-Beschriftungen (Text ÜBER dem Eingabefeld) sind eine Spalte. Die
+     Filteroptionen tragen `.stb-filter-opt` und bleiben eine Zeile — vorher traf diese
+     Regel ALLE Labels des Panels und musste per `!important` zurückgenommen werden. */
+  .family-list__filters label:not(.stb-filter-opt) {
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -247,11 +273,6 @@
     padding: 0.3rem 0.5rem;
   }
 
-  .family-list__checkbox {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 0.4rem !important;
-  }
 
   .family-list__rows {
     list-style: none;

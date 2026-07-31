@@ -1,0 +1,78 @@
+/* Offline-Fallback-Seite (BL-02, Spec 30 NFR-2).
+   Eigenständige Datei statt Wiederverwendung von design-system.css: die gebaute
+   CSS-Datei trägt einen Inhalts-Hash im Namen (assets/index-*.css), den eine
+   statische public/-Seite nicht kennen kann. Die wenigen Werte hier sind bewusste
+   Kopien der Tokens aus ui/shell/design-system.css — sie ändern sich praktisch nie,
+   und die Alternative (Hash zur Build-Zeit einsetzen) wäre mehr Mechanik als die
+   Sache wert. */
+:root {
+  --bg: #18140f;
+  --surface: #211c14;
+  --gold: #c8a84a;
+  --gold-dim: #7a6328;
+  --text: #f2e8d4;
+  --text-dim: #a0906e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Georgia, 'Times New Roman', serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  text-align: center;
+  padding: 48px 36px;
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--gold-dim);
+  max-width: 320px;
+  width: 90%;
+}
+
+.ornament {
+  color: var(--gold-dim);
+  letter-spacing: 0.4em;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 28px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 8px;
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+}
+
+.btn:active {
+  background: var(--gold-dim);
+  color: var(--bg);
+}

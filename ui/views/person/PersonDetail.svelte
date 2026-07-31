@@ -9,9 +9,10 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { LensId } from '../../shell/lens-model';
+  import type { EventClipboard } from '../../shell/event-clipboard.svelte';
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
-  import DetailHeader from '../../shell/DetailHeader.svelte';
+  import PersonDetailHeader from './PersonDetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
@@ -22,10 +23,12 @@
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import PersonForm from './PersonForm.svelte';
   import PersonFamilies from './PersonFamilies.svelte';
+  import PersonAssociations from './PersonAssociations.svelte';
   import ProofSummaryNote from './ProofSummaryNote.svelte';
-  import { makeEvent } from '../../../core/model/factory';
+  import { makeEvent, makeAssociation } from '../../../core/model/factory';
   import { isEventPresent, isEventEmpty } from '../../../core/model';
   import { eventTypeLabel } from '../../shell/event-labels';
+  import { formatDateForDisplay } from '../../../core/model/gedcom-date';
 
   interface Props {
     appState: AppState;
@@ -38,17 +41,19 @@
     onNavigateToPlace?: (placeId: string) => void;
     /** Cross-Tab-Navigation zum Höfe-Tab (optional — Tests/Kontexte ohne Höfe-Tab). */
     onNavigateToHof?: (hofId: string) => void;
-    /** "Im Baum anzeigen" (optional — Tests/Kontexte ohne Baum-Tab, Spec 20 §1.3 [K]). */
-    onNavigateToTree?: (personId: string) => void;
-    /** "📖 Story" — Personen-Biografie in der Story-Lens öffnen (BL-133/186, Spec 20 §1.10).
-     *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
-    onOpenStory?: (personId: string) => void;
+    /** „Diese Person in Ansicht X" — Baum/Karte/Zeitleiste/Story über DEN EINEN
+     *  Lens-Umschalter (BL-60, ADR-v9-153; ersetzt die vormaligen Einzel-Callbacks
+     *  `onNavigateToTree`/`onOpenStory`). Optional — Tests/Kontexte ohne Lens-Fläche. */
+    onOpenLens?: (personId: string, lens: LensId) => void;
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `EventLine`/`CoordIndicator`)
      *  — optional, damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Ereignis-Zwischenablage der Sitzung (BL-212) — optional: ohne sie entfallen
+     *  „⧉ Kopieren" und „⧉ Übernehmen" ersatzlos (Tests/Kontexte ohne Schale). */
+    clipboard?: EventClipboard;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -60,10 +65,10 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
-    onNavigateToTree,
-    onOpenStory,
+    onOpenLens,
     onNavigateLens,
     onBack,
+    clipboard,
     startInEdit = false,
   }: Props = $props();
 
@@ -233,6 +238,50 @@
     modal = null;
   }
 
+  /** Zwischenablage (BL-212): kopieren aus dem Editor, einfügen über das „+ Ereignis"-
+   *  Menü. Das eingefügte Ereignis wird direkt angehängt — es ist bereits vollständig,
+   *  ein leerer Editor-Zwischenschritt wäre nur ein Klick mehr. */
+  /** Beschriftung der Ablage: Typ + der Wert, der das Ereignis unterscheidbar macht,
+   *  + Herkunftsperson (Design-Kritik 2026-07-31 — „⧉ Übernehmen: Beruf" verriet weder,
+   *  WELCHER Beruf noch VON WEM; nach ein paar Minuten ist das nicht mehr erratbar). */
+  function copyEvent(ev: Event) {
+    if (!detail) return;
+    const typ = eventTypeLabel(ev.type);
+    const wert = ev.value || ev.addr || ev.place || '';
+    const wer = displayName(detail.person) || detail.person.id;
+    clipboard?.copy(ev, wert ? `${typ} (${wert}) von ${wer}` : `${typ} von ${wer}`);
+  }
+
+  /** Kopieren gibt es NUR für generische `events[]`-Einträge, nicht für die vier
+   *  Sonder-Felder (BIRT/CHR/DEAT/BURI): eingefügt landet ein Ereignis immer in `events[]`,
+   *  ein dort abgelegtes DEAT erzeugte also eine ZWEITE `1 DEAT`-Zeile im Export neben
+   *  `person.death` — beim nächsten Laden gewönne eine davon still (dieselbe Falle wie
+   *  RELI, ADR-v9-156). */
+  const copyable = $derived(modal?.kind === 'edit' && modal.key.startsWith('ev-'));
+
+  function pasteEvent() {
+    if (!detail || !clipboard) return;
+    const ev = clipboard.take();
+    if (!ev) return;
+    appState.savePerson({ ...detail.person, events: [...detail.person.events, ev] });
+  }
+
+  /** Assoziationen (BL-127) — dasselbe Kommando-Chokepoint-Muster wie `saveModal`:
+   *  vollständige Person an `savePerson`, kein Feld-Setter. Bestehende Einträge werden
+   *  unverändert durchgereicht, damit `grampsHandle` und Zitate erhalten bleiben (die
+   *  Zeilen-Projektion trägt sie nicht — sie zu „ersetzen" hieße, sie zu verlieren). */
+  function addAssociation(personId: string, role: string, note: string) {
+    if (!detail) return;
+    const p = detail.person;
+    appState.savePerson({ ...p, associations: [...p.associations, makeAssociation(personId, { role, note })] });
+  }
+
+  function removeAssociation(index: number) {
+    if (!detail) return;
+    const p = detail.person;
+    appState.savePerson({ ...p, associations: p.associations.filter((_, i) => i !== index) });
+  }
+
   const modalEvent = $derived.by<Event | null>(() => {
     if (!detail || !modal) return null;
     if (modal.kind === 'edit') return eventForKey(detail.person, modal.key);
@@ -261,7 +310,7 @@
    *  appState.savePerson(model) mit dem VOLLSTÄNDIGEN Objekt auf (Spec 02 §3 Kommando-
    *  Chokepoint, kein Feld-Setter-Pattern). `cause` (Todesursache) wird nur bei
    *  key==='DEAT' übernommen (lebt auf Person.cause, nicht am Event). */
-  function saveModal(updated: Event, cause: string) {
+  function saveModal(updated: Event, cause: string, derivedBirth: string | null = null) {
     if (!detail || !modal) return;
     const p = detail.person;
     const next: Person = { ...p };
@@ -282,6 +331,16 @@
       if (tag === 'CHR') next.chr = updated;
       else if (tag === 'BURI') next.buri = updated;
       else next.events = [...p.events, updated];
+    }
+    // Im Dialog vorgemerktes Geburtsdatum (BL-212/ADR-v9-168) im SELBEN Kommando
+    // schreiben — ein Speichern, ein Undo-Schritt. Ein vorhandenes Datum wird nie still
+    // überschrieben; sagt der Nutzer hier Nein, bleibt der Rest der Änderung trotzdem.
+    if (derivedBirth) {
+      const vorhanden = next.birth.date;
+      const label = formatDateForDisplay(derivedBirth);
+      if (!vorhanden || window.confirm(`Geburtsdatum ist bereits „${formatDateForDisplay(vorhanden)}". Durch „${label}" ersetzen?`)) {
+        next.birth = { ...next.birth, date: derivedBirth };
+      }
     }
     appState.savePerson(next);
     modal = null;
@@ -331,42 +390,14 @@
   {:else if editing}
     <PersonForm {appState} person={detail.person} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
-    <DetailHeader title={displayName(detail.person)} onBack={onBack ?? (() => {})}>
-      {#snippet actions()}
-        <button type="button" class="person-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
-        <!-- „Als Proband setzen" (BL-120): setzt die Referenzperson der Sitzung (transient,
-             ADR-v9-135). Ist diese Person es bereits, zeigt der Knopf den Zustand statt
-             einer wirkungslosen Wiederholung. -->
-        <button
-          type="button"
-          class="person-detail__proband-btn"
-          class:person-detail__proband-btn--active={isProband}
-          disabled={isProband}
-          title={isProband
-            ? 'Diese Person ist der Proband dieser Sitzung'
-            : 'Als Proband (Referenzperson der Sitzung) setzen'}
-          onclick={() => viewState.setProband(detail.person.id)}
-        >{isProband ? '★ Proband' : '☆ Als Proband'}</button>
-        {#if onNavigateToTree}
-          <button
-            type="button"
-            class="person-detail__tree-link"
-            onclick={() => onNavigateToTree(detail.person.id)}
-          >
-            ⧖ Im Baum anzeigen
-          </button>
-        {/if}
-        {#if onOpenStory}
-          <button
-            type="button"
-            class="person-detail__tree-link"
-            onclick={() => onOpenStory(detail.person.id)}
-          >
-            📖 Story
-          </button>
-        {/if}
-      {/snippet}
-    </DetailHeader>
+    <PersonDetailHeader
+      person={detail.person}
+      {isProband}
+      onBack={onBack ?? (() => {})}
+      onEdit={startEdit}
+      onSetProband={() => viewState.setProband(detail.person.id)}
+      {onOpenLens}
+    />
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
@@ -385,7 +416,13 @@
           <button type="button" class="stb-activation-pill" onclick={markDeceased}>☠ Verstorben markieren</button>
         {/if}
         <button type="button" class="stb-activation-pill" onclick={() => startCreate('RESI')}>+ Wohnort</button>
-        <EventTypeMenu groups={[menuPrimary, menuSecondary]} otherItems={menuOther} onSelect={startCreate} />
+        <EventTypeMenu
+          groups={[menuPrimary, menuSecondary]}
+          otherItems={menuOther}
+          onSelect={startCreate}
+          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: pasteEvent } : undefined}
+          clearItem={clipboard?.event ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
+        />
       </div>
 
       {#each remainingGroups as group (group.type)}
@@ -407,6 +444,8 @@
         mode={modal.kind}
         onSave={saveModal}
         onClose={closeModal}
+        onCopy={clipboard && copyable ? copyEvent : undefined}
+        allowDeriveBirth={true}
       />
     {/if}
 
@@ -416,6 +455,16 @@
         <PersonFamilies families={detail.families} onGoToPerson={goToPerson} {onNavigateToFamily} />
       </section>
     {/if}
+
+    <PersonAssociations
+      {appState}
+      rows={detail.associations}
+      godchildren={detail.godchildren}
+      selfId={detail.person.id}
+      onGoToPerson={goToPerson}
+      onAdd={addAssociation}
+      onRemove={removeAssociation}
+    />
 
     {#if detail.person.hypotheses.length > 0}
       <ProofSummaryNote person={detail.person} />
@@ -440,47 +489,6 @@
 
   .person-detail__empty {
     color: var(--stb-text-dim);
-  }
-
-  .person-detail__tree-link {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .person-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
-
-  .person-detail__proband-btn {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  /* Ist die Person bereits Proband: aktiver Gold-Zustand, nicht klickbar (kein No-op). */
-  .person-detail__proband-btn--active {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border-color: var(--stb-gold);
-    font-weight: 600;
-    cursor: default;
   }
 
   .person-detail__section {

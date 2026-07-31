@@ -4,11 +4,11 @@
 // zur Person/Familie (kein eigenes Kommando hier — Event-Edit-Formular existiert in
 // dieser Scheibe noch nicht, s. Auftrag). Jede Aktion mutiert am *korrekten* Ort
 // persistent (Spec 11 §6): Hof-Anlage/-Variante in hofObjects (cross-stammbaum), die
-// Hof-Wahl direkt am Event (stammbaum-spezifisch, läuft über AppState.touch()).
+// Hof-Wahl direkt am Event (stammbaum-spezifisch, läuft über PlacesHost.touch()).
 import type { Event } from '../../../core/model/types';
 import type { HofObjects } from '../../../core/places';
 import { findOrCreateHof, addHofVariant } from '../../../core/places';
-import type { AppState } from '../../shell/app-state.svelte';
+import type { PlacesHost } from '../../shell/places-host';
 import type { HofReviewRow } from './hof-review-model';
 
 /** Das übergebene Event lebt nicht in der geladenen Datenbank — die Verknüpfung kann nicht
@@ -31,7 +31,7 @@ const NOT_IN_DB = { ok: false as const, reason: 'Ereignis nicht in der geladenen
  * und verknüpft das Event via `linkEventToHof` (Sofort-Reprojektion).
  */
 export function applyCreateHof(
-  appState: AppState,
+  appState: PlacesHost,
   event: Event,
   villageId: string,
 ): { ok: true } | { ok: false; reason: string } {
@@ -50,7 +50,7 @@ export function applyCreateHof(
  * "Variante zum Hof" (Klasse D, Norm-Drift): hängt row.addr als neue addrs[]-
  * Bezeichnung an einen bestehenden Hof an und verknüpft das Event (Sofort-Reprojektion).
  */
-export function applyAddVariant(appState: AppState, event: Event, targetHofId: string): { ok: true } | { ok: false; reason: string } {
+export function applyAddVariant(appState: PlacesHost, event: Event, targetHofId: string): { ok: true } | { ok: false; reason: string } {
   const hof = appState.db.hofObjects.get(targetHofId);
   if (!hof) return { ok: false, reason: 'Ziel-Hof nicht gefunden.' };
   const next = addHofVariant(hof, event.addr);
@@ -62,7 +62,7 @@ export function applyAddVariant(appState: AppState, event: Event, targetHofId: s
 
 /** "Hof wählen" (Klasse C, mehrdeutig): verknüpft das Event via `linkEventToHof` (Sofort-Reprojektion). */
 export function applyChooseHof(
-  appState: AppState,
+  appState: PlacesHost,
   event: Event,
   chosenHofId: string,
 ): { ok: true } | { ok: false; reason: string } {

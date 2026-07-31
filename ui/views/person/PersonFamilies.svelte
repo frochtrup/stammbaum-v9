@@ -35,6 +35,7 @@
           {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
         </span>
       {/if}
+      {#if fam.pedigree}<span class="person-families__pedigree" use:tooltip={'Kind-Verhältnis'}>· {fam.pedigree}</span>{/if}
       {#if fam.members.length === 0}
         <span class="person-families__label">{fam.label}</span>
       {:else}
@@ -110,6 +111,13 @@
     font-size: 0.82rem;
     text-decoration: none;
     margin-left: 0.2rem;
+  }
+
+  /* Kind-Verhältnis der Person zu ihren Eltern (BL-199) — nur bei abweichendem PEDI. */
+  .person-families__pedigree {
+    color: var(--stb-gold-light);
+    font-size: 0.78rem;
+    margin-left: 0.3rem;
   }
 
   /* Rollen-Label als Link zur Familien-Detailseite (INV-UI-12) — behält die

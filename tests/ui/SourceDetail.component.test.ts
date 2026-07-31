@@ -222,3 +222,90 @@ describe('SourceDetail — Referenzen gruppiert + paginiert (Spec 21 §10b)', ()
     expect(screen.queryByText(/weitere laden/)).toBeNull();
   });
 });
+
+// BL-201: drei Quellen-Modellfelder waren geparst/geschrieben, aber in keiner Fläche
+// sichtbar. Gebaut sind die beiden, die der Parser tatsächlich füllt — `callMedia`
+// (SOUR.REPO.CALN.MEDI) und `externalRefs` (SOUR.REFN + TYPE). Das dritte Feld der
+// Backlog-Zeile, `dataEvents` (SOUR.DATA.EVEN), füllt KEIN Parser (weder GEDCOM noch
+// GRAMPS) und schreibt kein Writer — dafür ist keine Anzeige baubar, s. ADR-v9-151.
+describe('SourceDetail — Signatur-Medium und externe Referenz-Nummern (BL-201)', () => {
+  it('hängt das Signatur-Medium (CALN.MEDI) an die Signatur-Zeile', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { callNumber: 'KB 12', callMedia: 'Buch' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('KB 12 (Buch)')).toBeTruthy();
+  });
+
+  it('zeigt die Signatur ohne Klammer, wenn kein Medium hinterlegt ist', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { callNumber: 'KB 12' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('KB 12')).toBeTruthy();
+  });
+
+  it('rendert je REFN eine Zeile — mit TYPE als Qualifier, ohne TYPE generisch', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const s = makeSource('@S1@');
+    // Der einzige REFN im echten Bestand ist eine URL (Herkunftsnachweis des Portals),
+    // deshalb bewusst als Beispiel — bleibt Text, kein `↗` (Spec 21 §7 reserviert das
+    // Symbol für Weblinks, die als solche modelliert sind).
+    s.externalRefs.push({ value: 'https://example.org/getperson.php', type: '' });
+    s.externalRefs.push({ value: 'Bestand 47/9', type: 'Findbuch' });
+    db.sources.set('@S1@', s);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('Externe Referenz')).toBeTruthy();
+    expect(screen.getByText('https://example.org/getperson.php')).toBeTruthy();
+    expect(screen.getByText('Externe Referenz (Findbuch)')).toBeTruthy();
+    expect(screen.getByText('Bestand 47/9')).toBeTruthy();
+  });
+
+  it('„Externe Referenz" kollidiert nicht mit der Sektion „Referenzen (N)" (zitierende Personen)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    p.birth.citations.push(makeCitation('@S1@'));
+    db.individuals.set('@I1@', p);
+    const s = makeSource('@S1@');
+    s.externalRefs.push({ value: 'Bestand 47/9', type: '' });
+    db.sources.set('@S1@', s);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.getByText('Externe Referenz')).toBeTruthy();
+    expect(screen.getByText('Referenzen (1)')).toBeTruthy();
+  });
+
+  it('ohne externalRefs erscheint keine Externe-Referenz-Zeile', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB' }));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('source', '@S1@');
+
+    render(SourceDetail, { props: { appState, viewState, ...baseProps() } });
+
+    expect(screen.queryByText(/^Externe Referenz/)).toBeNull();
+  });
+});

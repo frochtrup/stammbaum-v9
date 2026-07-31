@@ -12,14 +12,15 @@
   // Nachlauf nach Dorf-Merge, ADR-v9-45 Nachtrag 2026-07-10) als lokale Status-Meldung
   // (Transparenz, LP-6) — kein app-weites Toast-System vorhanden, ein lokaler Hinweis an
   // der Merge-Stelle selbst reicht für diesen Zweck (Vereinfachen vor Erfinden).
-  import type { AppState } from '../../shell/app-state.svelte';
+  import type { PlacesHost } from '../../shell/places-host';
   import { placeDisplayName } from '../../../core/places';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
+  import { placeTypeLabel } from '../../shell/place-labels';
   import { buildPlaceDedupGroups } from './place-dedup-model';
 
   interface Props {
-    appState: AppState;
+    appState: PlacesHost;
     onClose?: () => void;
   }
   const { appState, onClose }: Props = $props();
@@ -118,8 +119,11 @@
                   {#if m.id === group.suggestedWinnerId}
                     <span class="place-dedup__suggested">(Vorschlag)</span>
                   {/if}
-                  {#if m.type}
-                    <span class="stb-pill">{m.type}</span>
+                  {#if placeTypeLabel(m.type)}
+                    <!-- Deutsch über DIE EINE Quelle (ADR-v9-149). Die Typ-Pille bleibt
+                         hier bei JEDEM Mitglied sichtbar (ADR-v9-77: Kategorisierung auch
+                         ohne ausgelöstes `typeMismatch` prüfbar) — nur eben übersetzt. -->
+                    <span class="stb-pill">{placeTypeLabel(m.type)}</span>
                   {/if}
                   {#if !m.enriched}
                     <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>

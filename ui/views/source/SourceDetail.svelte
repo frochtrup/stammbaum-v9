@@ -127,9 +127,13 @@
         <dt>Verlag</dt>
         <dd>{detail.source.publisher}</dd>
       {/if}
+      <!-- BL-201: das Signatur-MEDIUM (GEDCOM `SOUR.REPO.CALN.MEDI`, `source.callMedia`)
+           hängt an der Signatur selbst, statt eine eigene Zeile für einen Zusatz zur
+           bereits gezeigten Zahl aufzumachen — dieselbe Verdichtung wie im v8-Orakel
+           (`Signatur: X (Buch)`). Ohne Medium bleibt die Zeile unverändert. -->
       {#if detail.source.callNumber}
         <dt>Signatur</dt>
-        <dd>{detail.source.callNumber}</dd>
+        <dd>{detail.source.callNumber}{detail.source.callMedia ? ` (${detail.source.callMedia})` : ''}</dd>
       {/if}
       {#if detail.repository}
         <dt>Archiv</dt>
@@ -143,6 +147,17 @@
           </button>
         </dd>
       {/if}
+      <!-- BL-201: externe Referenz-Nummern (GEDCOM `SOUR.REFN` + `TYPE`, `externalRefs`) —
+           die Kennung, unter der die Quelle beim FÜHRENDEN Archiv/Portal läuft. Beschriftung
+           bewusst „Externe Referenz" und nicht das v8-„Referenz": auf derselben Seite steht
+           bereits die Sektion „Referenzen (N)" für die ZITIERENDEN Personen/Familien — zwei
+           gleichnamige, gegensätzlich gerichtete Begriffe wären eine echte Verwechslung.
+           Read-only: Spec 20 §2 führt das Feld nicht in der Quellen-Feldtabelle; der Wert
+           reist unverändert über Parser/Writer (LP-1). -->
+      {#each detail.source.externalRefs as ref, i (`${ref.type}-${ref.value}-${i}`)}
+        <dt>{ref.type ? `Externe Referenz (${ref.type})` : 'Externe Referenz'}</dt>
+        <dd>{ref.value}</dd>
+      {/each}
     </dl>
 
     {#if detail.source.text}<p class="source-detail__text">{detail.source.text}</p>{/if}

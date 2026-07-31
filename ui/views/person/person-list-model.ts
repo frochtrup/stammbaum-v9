@@ -4,10 +4,12 @@
 // Name/Titel/Ereignisse/Notizen/Religion", "erweiterte Filter: Geschlecht, Geburtsjahr-
 // Bereich, Geburtsort, fehlende Felder"). Reine Funktionen (db → Zeilen/Gruppen), damit
 // sie ohne DOM unit-testbar sind (Testpyramide, TST-5) — die Svelte-Komponente rendert nur.
-import type { Database, Person, Sex } from '../../../core/model/types';
+import type { Database, Person, PersonId, Sex } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import { eventYear, buildListPlaceName } from '../../../core/places';
 import { displayName, sortKey, sortLetter, yearPlaceSummary, eventPlaceLabel, NAMELESS_LETTER } from '../../shell/person-display';
+import { computeKekuleNumbers } from '../../islands/tree/tree-model';
+import { germanSoundex, isPureLetterQuery } from '../../shell/soundex';
 
 export type PersonSortMode = 'name' | 'birthDate';
 
@@ -23,6 +25,12 @@ export interface PersonFilters {
   noDeathDate: boolean;
   noSources: boolean;
   noParents: boolean;
+  /**
+   * Soundex-Modus (BL-10, ADR-v9-159): Filteroption hinter der `FilterBar`, zählt in
+   * `countActiveFilters` mit — kein eigener Dauer-Toggle in der Kopfzeile (INV-UI-11).
+   * Getrennter Zustand von der globalen Suche (kein gemeinsamer Topf, INV-VS).
+   */
+  soundex: boolean;
 }
 
 export function defaultPersonFilters(): PersonFilters {
@@ -34,6 +42,7 @@ export function defaultPersonFilters(): PersonFilters {
     noDeathDate: false,
     noSources: false,
     noParents: false,
+    soundex: false,
   };
 }
 
@@ -51,6 +60,12 @@ export interface PersonRow {
    *  mind. einen Eintrag hat. Wiederverwendetes 📎-Symbol (Spec 21 §7: "ausschließlich
    *  Medien/OBJE, nie Quellen"). */
   hasMedia: boolean;
+  /** Geschlecht für das Zeilen-Icon (BL-195, ♂/♀/◇ via `sexSymbol`). */
+  sex: Sex;
+  /** Kekulé-/Ahnenziffer relativ zum Proband (BL-195, v8-Orakel `p-kekule`) — `null`, wenn
+   *  die Person kein Vorfahr des Probanden ist oder kein Proband bestimmbar war. Aus dem
+   *  geteilten `computeKekuleNumbers` (kein zweiter Rechenweg, INV-UI-4). */
+  kekule: number | null;
 }
 
 export interface PersonGroup {
@@ -61,6 +76,19 @@ export interface PersonGroup {
    *  sie als kollabierbare „N ohne Namen"-Zeile statt einzeln (ADR-v9-121). Im Datum-Modus
    *  stets false (keine Buchstaben-Gruppierung). */
   nameless: boolean;
+  /** Die Vorrang-Gruppe des Soundex-Modus (ADR-v9-160): Treffer, deren NACHNAME phonetisch
+   *  zur Anfrage passt, stehen als EINE Gruppe ganz oben — darunter folgt die gewohnte
+   *  Gruppierung mit allen übrigen Treffern. `letter` ist dabei null (kein Buchstaben-
+   *  Trenner); die View beschriftet die Gruppe eigens. Außerhalb des Soundex-Modus nie true. */
+  phonetic: boolean;
+  /** Erste Gruppe NACH der Vorrang-Gruppe (ADR-v9-169) — die View setzt davor eine
+   *  Zwischenüberschrift „Weitere Treffer (N)". Ohne sie stünde die Restmenge kommentarlos
+   *  da: bei „Meier" sind das überwiegend Vornamens-Zufallstreffer („Maria" teilt den Code),
+   *  und niemand erriete, warum sie in der Liste stehen. */
+  restStart: boolean;
+  /** Anzahl der Zeilen ab dieser Gruppe bis zum Ende — nur auf `phonetic`/`restStart`
+   *  gesetzt, damit die View „(N)" beschriften kann, ohne selbst zu zählen. */
+  sectionCount: number;
 }
 
 /** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]). */
@@ -84,16 +112,59 @@ function personSearchText(p: Person): string {
     .toLowerCase();
 }
 
+/** Namensfelder für den Soundex-Vergleich — dieselben Namensträger, die bereits in
+ *  `personSearchText` einfließen (inkl. Namensvarianten `extraNames`), nicht mehr. */
+function nameFieldsFor(p: Person): string[] {
+  return [
+    p.name,
+    p.given,
+    p.surname,
+    p.nick,
+    ...p.extraNames.flatMap((en) => [en.nameRaw, en.given, en.surname]),
+  ].filter((s): s is string => Boolean(s));
+}
+
 /**
  * Textmatch über Name/Titel/Ereignisse/Notizen/Religion (Spec 20 §1.4 [K]).
  * EXPORTIERT, damit die globale Suche (ui/views/search/global-search-model.ts,
  * Spec 20 §1.1 [K]) denselben Baustein nutzt statt einer zweiten, abweichenden
  * Personen-Matchlogik (ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift).
+ *
+ * `soundex` (BL-10, ADR-v9-159, Default `false` — bestehende Aufrufer bleiben
+ * unverändert): ergänzt den Substring-Treffer um einen phonetischen Treffer auf den
+ * Namensfeldern (inkl. Namensvarianten), wenn die Anfrage rein aus Buchstaben besteht
+ * ("greift wie in v8 nur bei reinen Buchstaben-Anfragen") — der bestehende Substring-
+ * Treffer über ALLE Felder (Ereignisse/Notizen/Religion/…) bleibt zusätzlich erhalten,
+ * eine Vollzeichenkette wird durch den Soundex-Modus also nie unauffindbar.
  */
-export function matchesSearch(p: Person, query: string): boolean {
+export function matchesSearch(p: Person, query: string, soundex = false): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return personSearchText(p).includes(q);
+  if (personSearchText(p).includes(q)) return true;
+  if (soundex && isPureLetterQuery(q)) {
+    const qSdx = germanSoundex(q);
+    if (qSdx && nameFieldsFor(p).some((name) => germanSoundex(name) === qSdx)) return true;
+  }
+  return false;
+}
+
+/**
+ * Trifft die Anfrage phonetisch den NACHNAMEN (inkl. der Nachnamen von Namensvarianten)?
+ *
+ * Warum eigens neben `matchesSearch` (BL-10-Nachtrag, ADR-v9-160): der Soundex-Modus trifft
+ * bewusst Vor- UND Nachnamen (v8-Verhalten) — an echten Daten gemessen sind das für eine
+ * Nachnamen-Anfrage aber überwiegend Vornamens-Zufallstreffer ("Meier" und "Maria" haben
+ * beide den Code M600: 85 der 90 Treffer waren Vornamen). Die TrefferMENGE bleibt deshalb
+ * unverändert — nur die REIHENFOLGE nutzt dieses Prädikat, damit die gesuchten Namensvarianten
+ * oben stehen. Kein Filter: wer nach einem Vornamen sucht, verliert nichts.
+ */
+export function matchesSurnameSoundex(p: Person, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q || !isPureLetterQuery(q)) return false;
+  const qSdx = germanSoundex(q);
+  if (!qSdx) return false;
+  const surnames = [p.surname, ...p.extraNames.map((en) => en.surname)].filter((s): s is string => Boolean(s));
+  return surnames.some((s) => germanSoundex(s) === qSdx);
 }
 
 function hasAnyCitations(p: Person): boolean {
@@ -150,7 +221,7 @@ export function filterAndSortPersons(
   filters: PersonFilters,
 ): Person[] {
   const all = Array.from(db.individuals.values());
-  const filtered = all.filter((p) => matchesSearch(p, query) && matchesFilters(p, filters, ctx));
+  const filtered = all.filter((p) => matchesSearch(p, query, filters.soundex) && matchesFilters(p, filters, ctx));
 
   if (sortMode === 'birthDate') {
     return filtered.slice().sort((a, b) => {
@@ -175,10 +246,15 @@ export function filterAndSortPersons(
  * Buchstaben-Trenner nur im Name-Modus (Spec 20 §1.4: "ersetzt die Buchstaben-Trenner-
  * Gruppierung im Datum-Modus durch schlichte chronologische Reihenfolge").
  */
-export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: PersonSortMode): PersonGroup[] {
+export function groupPersonRows(
+  persons: Person[],
+  ctx: PlaceContext,
+  sortMode: PersonSortMode,
+  kekule?: Map<PersonId, number> | null,
+): PersonGroup[] {
   if (sortMode === 'birthDate') {
     if (persons.length === 0) return [];
-    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx)), nameless: false }];
+    return [{ letter: null, rows: persons.map((p) => toRow(p, ctx, kekule)), nameless: false, phonetic: false, restStart: false, sectionCount: 0 }];
   }
 
   const groups: PersonGroup[] = [];
@@ -187,10 +263,10 @@ export function groupPersonRows(persons: Person[], ctx: PlaceContext, sortMode: 
   for (const p of persons) {
     const letter = sortLetter(p);
     if (!current || current.letter !== letter) {
-      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER };
+      current = { letter, rows: [], nameless: letter === NAMELESS_LETTER, phonetic: false, restStart: false, sectionCount: 0 };
       groups.push(current);
     }
-    current.rows.push(toRow(p, ctx));
+    current.rows.push(toRow(p, ctx, kekule));
   }
   return groups;
 }
@@ -202,12 +278,44 @@ export function buildPersonGroups(
   sortMode: PersonSortMode = 'name',
   query = '',
   filters: PersonFilters = defaultPersonFilters(),
+  /** Effektiver Proband (BL-195/BL-120) — bestimmt die Kekulé-Ziffern der Zeilen. `null`
+   *  (Default) = keine Ahnenziffern. Von der View über `resolveProband` gereicht, damit
+   *  das Modell rein/DOM-frei bleibt. */
+  probandId: PersonId | null = null,
 ): PersonGroup[] {
   const persons = filterAndSortPersons(db, ctx, sortMode, query, filters);
-  return groupPersonRows(persons, ctx, sortMode);
+  // Kekulé EINMAL für den ganzen Bestand berechnen (kein zweiter Rechenweg, INV-UI-4),
+  // nicht je Zeile — computeKekuleNumbers traversiert den Ahnenbaum des Probanden.
+  const kekule = probandId ? computeKekuleNumbers(db, probandId) : null;
+
+  // Soundex-Vorrang (ADR-v9-160): Nachnamen-Treffer als EINE Gruppe nach oben. Die Menge
+  // bleibt unverändert — die übrigen (meist Vornamens-)Treffer folgen darunter in der
+  // gewohnten Gruppierung. Ohne Soundex-Modus fällt der ganze Zweig weg.
+  if (filters.soundex) {
+    const leading = persons.filter((p) => matchesSurnameSoundex(p, query));
+    if (leading.length > 0 && leading.length < persons.length) {
+      const inLead = new Set(leading);
+      const rest = persons.filter((p) => !inLead.has(p));
+      const head: PersonGroup = {
+        letter: null,
+        rows: leading.map((p) => toRow(p, ctx, kekule)),
+        nameless: false,
+        phonetic: true,
+        restStart: false,
+        sectionCount: leading.length,
+      };
+      const restGroups = groupPersonRows(rest, ctx, sortMode, kekule);
+      if (restGroups.length > 0) {
+        restGroups[0] = { ...restGroups[0], restStart: true, sectionCount: rest.length };
+      }
+      return [head, ...restGroups];
+    }
+  }
+
+  return groupPersonRows(persons, ctx, sortMode, kekule);
 }
 
-function toRow(p: Person, ctx: PlaceContext): PersonRow {
+function toRow(p: Person, ctx: PlaceContext, kekule?: Map<PersonId, number> | null): PersonRow {
   return {
     id: p.id,
     name: displayName(p),
@@ -216,5 +324,7 @@ function toRow(p: Person, ctx: PlaceContext): PersonRow {
     birthPlaceFull: eventPlaceLabel(p.birth, ctx),
     deathPlaceFull: eventPlaceLabel(p.death, ctx),
     hasMedia: p.media.length > 0,
+    sex: p.sex,
+    kekule: kekule?.get(p.id) ?? null,
   };
 }

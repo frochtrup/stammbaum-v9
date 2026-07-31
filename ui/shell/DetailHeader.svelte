@@ -32,8 +32,12 @@
      *  wiederholen). Default false — PersonDetail/PlaceDetail/HofDetail behalten ihre
      *  bisherige große Titelzeile. */
     compact?: boolean;
+    /** Optionaler Inhalt DIREKT vor dem Titel (z. B. Geschlechts-Icon, BL-198) — inline im
+     *  `<h2>`, damit ein einzelnes Icon nicht als verwaiste eigene Zeile darunter steht
+     *  (Design-Kritik 2026-07-29). Nur in der großen Titelzeile (nicht im Kompakt-Modus). */
+    titlePrefix?: Snippet;
   }
-  const { title, onBack, actions, compact = false }: Props = $props();
+  const { title, onBack, actions, compact = false, titlePrefix }: Props = $props();
 </script>
 
 <div class="detail-header">
@@ -59,7 +63,7 @@
     {/if}
   </div>
   {#if !compact}
-    <h2 class="detail-header__title">{title}</h2>
+    <h2 class="detail-header__title">{#if titlePrefix}{@render titlePrefix()}{/if}{title}</h2>
   {/if}
 </div>
 
