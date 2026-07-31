@@ -9,8 +9,10 @@
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
   import HofEditForm from './HofEditForm.svelte';
+  import Picker from '../../shell/Picker.svelte';
+  import { placeDisplayName, normPlaceName } from '../../../core/places';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
-  import type { HofObject } from '../../../core/places/types';
+  import type { HofObject, PlaceObject } from '../../../core/places/types';
 
   interface Props {
     appState: PlacesHost;
@@ -122,6 +124,32 @@
     appState.updateHofAddr(detail.hof.id, index, a.value, a.from, to);
   }
 
+  /** Dorf-Kandidaten: alle PlaceObjects — welcher Ort ein „Dorf" ist, entscheidet der
+   *  Nutzer, nicht der Typ (ein Hof kann an einer Bauerschaft, einem Kirchspiel oder einer
+   *  Stadt hängen). Kein Typ-Filter, der ihn aussperrt. */
+  const villages = $derived([...appState.db.placeObjects.values()]);
+  const villageLabel = (p: PlaceObject) => placeDisplayName(p);
+  const villageMatches = (p: PlaceObject, q: string) =>
+    normPlaceName(placeDisplayName(p)).includes(normPlaceName(q));
+
+  let moveNotice = $state('');
+
+  /**
+   * Hängt den Hof an ein anderes Dorf. Meldet, wenn im Zieldorf ein gleichadressiger Hof
+   * konsolidiert wurde — der Nachlauf ist verlustfrei, aber er soll nicht unbemerkt
+   * passieren (LP-6, analog dem Toast nach dem Dorf-Merge).
+   */
+  function moveToVillage(id: string | null): void {
+    if (!detail || !id || id === detail.hof.villageId) return;
+    const result = appState.moveHof(detail.hof.id, id);
+    moveNotice =
+      result.merged > 0
+        ? `Im Zieldorf lag bereits ein Hof mit dieser Adresse — ${result.merged} Eintrag/Einträge wurden verlustfrei zusammengeführt.`
+        : '';
+    // Wurde der Hof selbst zum Verlierer, lebt er unter der Gewinner-Id weiter.
+    if (result.hofId !== detail.hof.id) viewState.setCurrent('hof', result.hofId);
+  }
+
   const otherHofs = $derived(
     detail ? Array.from(appState.db.hofObjects.values()).filter((h) => h.id !== detail.hof.id) : [],
   );
@@ -197,6 +225,28 @@
           <input type="number" placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr)" />
           <button type="button" onclick={addAddr}>+ Hinzufügen</button>
         </div>
+
+        <!-- Das Dorf gehört zur IDENTITÄT eines Hofes, nicht zu seinen Grunddaten:
+             `(villageId, normalisierte Adresse)` ist der Identitätsschlüssel (Spec 11 §1,
+             §9.2). Deshalb steht der Picker hier neben den Adressen und nicht unten im
+             Grunddaten-Formular — und deshalb committet er SOFORT wie add/remove daneben,
+             statt auf dessen „Speichern" zu warten (ADR-v9-172; dasselbe Timing wie
+             `updateHofAddr`). -->
+        <div class="hof-detail__village-edit">
+          <Picker
+            items={villages}
+            getId={(p) => p.id}
+            getLabel={villageLabel}
+            matches={villageMatches}
+            value={detail.hof.villageId}
+            onChange={moveToVillage}
+            label="Dorf des Hofes"
+            placeholder="Dorf wählen…"
+          />
+          {#if moveNotice}
+            <p class="hof-detail__muted" role="status">{moveNotice}</p>
+          {/if}
+        </div>
       {/if}
     </section>
 
@@ -262,6 +312,10 @@
 </div>
 
 <style>
+  .hof-detail__village-edit {
+    margin-top: 0.6rem;
+  }
+
   .hof-detail__note {
     margin: 0;
     white-space: pre-wrap;

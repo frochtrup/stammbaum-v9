@@ -31,6 +31,7 @@ const HOST_MEMBERS = [
   'deleteHof',
   'mergeHof',
   'updateHofAddr',
+  'moveHof',
   'linkEventToPlace',
   'linkEventToHof'
 ] as const;

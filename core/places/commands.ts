@@ -518,3 +518,57 @@ function reconcileHofsUnderVillage(
   }
   return merged;
 }
+
+/** Ergebnis eines Hof-Umzugs in ein anderes Dorf (BL-236/OE-12, ADR-v9-172). */
+export interface MoveHofResult {
+  /** Id, unter der der Hof danach lebt — bei Kollision im Zieldorf die des Überlebenden. */
+  hofId: HofId;
+  /** Umgehängte `event.hofId`-Referenzen (leer, wenn nichts konsolidiert wurde). */
+  remap: ReadonlyMap<HofId, HofId>;
+  /** Zahl der beim Umzug automatisch zusammengeführten Verlierer-Höfe. */
+  merged: number;
+}
+
+/**
+ * Hängt einen Hof an ein anderes Dorf (Spec 11 §1: `villageId` ist Pflicht-FK und Teil der
+ * Hof-Identität `(villageId, normalisierte Adresse)`).
+ *
+ * WARUM DAS MEHR IST ALS EIN FELD-SETZER — zwei Nachläufe, beide mit Präzedenz:
+ *
+ * 1. **Kollision im Zieldorf.** Trägt dort bereits ein Hof dieselbe normalisierte Adresse,
+ *    entstünden zwei Höfe mit identischer Identität; `hof-registry.ts::findByAddr` liefert
+ *    bei ≥2 Kandidaten `null`, und zuvor eindeutige Ereignisse kippten in Review-Klasse C
+ *    (§6). Das ist exakt die Regression, die ADR-v9-45s Nachtrag für den Dorf-Merge
+ *    beschreibt — und dieselbe Antwort gilt: `(villageId, Adresse)` IST die Identität, der
+ *    Nutzer hat mit dem Umzug bereits entschieden, dass der Hof dorthin gehört. Also
+ *    konsolidiert derselbe, verlustfreie Nachlauf (`reconcileHofsUnderVillage`), statt eine
+ *    zweite Nutzer-Entscheidung zu verlangen.
+ * 2. **Die Id bleibt.** `_hof_<addr>_<village>` trägt das Dorf im Namen, wird aber NIRGENDS
+ *    geparst (am Code geprüft) — sie ist ein Schlüssel, kein Datum. Sie mitzuwandern hieße,
+ *    jede `event.hofId`-Referenz umzuhängen, ohne dass irgendwer davon profitiert; der
+ *    Merge lässt die Gewinner-Id aus demselben Grund stehen.
+ *
+ * Der dritte Nachlauf liegt NICHT hier, sondern in `services/places` (`relinkHofVillageInEvents`):
+ * die `event.placeId`-Dorfanker referenzierender Ereignisse. Dieses Modul kennt keine
+ * Ereignisse (INV-ARCH-1) — `events` dient allein der Gewinner-Heuristik.
+ *
+ * Mutiert `hofs` in place (Copy-on-Write je berührtem Objekt). No-Op, wenn der Hof fehlt
+ * oder bereits an diesem Dorf hängt.
+ */
+export function moveHofToVillage(
+  hofs: HofObjects,
+  hofId: HofId,
+  villageId: PlaceId,
+  events: readonly Event[] = [],
+): MoveHofResult {
+  const remap = new Map<HofId, HofId>();
+  const current = hofs.get(hofId);
+  if (!current || !villageId || current.villageId === villageId) return { hofId, remap, merged: 0 };
+
+  const thawed = new Set<HofId>();
+  editableIn(hofs, hofId, thawed)!.villageId = villageId;
+
+  const merged = reconcileHofsUnderVillage(hofs, villageId, events, thawed, remap);
+  // Wurde der umgezogene Hof selbst zum Verlierer, lebt er ab jetzt unter der Gewinner-Id.
+  return { hofId: remap.get(hofId) ?? hofId, remap, merged };
+}

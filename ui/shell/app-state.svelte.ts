@@ -43,6 +43,7 @@ import {
   saveHofObject,
   mergePlaceObjects,
   mergeHofObjects,
+  moveHofToVillage,
   withUpdatedHofAddr,
   linkEventToPlace as linkEventToPlaceCmd,
   linkEventToHof as linkEventToHofCmd,
@@ -50,6 +51,7 @@ import {
   parseGovText,
   type PlaceContext,
   type MergeResult,
+  type MoveHofResult,
   type GovApplyResult,
 } from '../../core/places';
 import { editDatabase, mapAllEvents } from '../../core/model/draft';
@@ -74,7 +76,13 @@ import {
   buildGrampsTreeFromModel,
 } from '../../core/interop';
 import type { DocFormat } from '../../services/file';
-import { applyPlaceResolution, deletePlaceCascade, deleteHofCascade, renameHofAddrInEvents } from '../../services/places';
+import {
+  applyPlaceResolution,
+  deletePlaceCascade,
+  deleteHofCascade,
+  relinkHofVillageInEvents,
+  renameHofAddrInEvents,
+} from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
 import type { TaskEntityKind } from '../views/tasks/tasks-model';
@@ -282,6 +290,12 @@ export interface AppState extends PlacesHost {
    * gleich) propagieren NICHT — nur ein tatsächlicher Namenswechsel ist eine Umbenennung.
    */
   updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
+  /**
+   * Kommando: hängt einen Hof an ein anderes Dorf (Spec 11 §1, ADR-v9-172). Liefert das
+   * Umzugs-Ergebnis zurück — Grundlage für den Hinweis, falls im Zieldorf ein
+   * gleichadressiger Hof konsolidiert wurde.
+   */
+  moveHof(hofId: HofId, villageId: PlaceId): MoveHofResult;
   /** Kommando: entfernt ein HofObject. */
   deleteHof(id: HofId): void;
   /**
@@ -711,6 +725,20 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
         nextDb = renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
       }
       commit(nextDb, { places: true, workingCopy: true });
+    },
+    moveHof(hofId, villageId) {
+      // Zwei Nachläufe, beide mit Präzedenz (ADR-v9-172): Kollisions-Konsolidierung im
+      // Zieldorf (wie nach einem Dorf-Merge) und der `event.placeId`-Dorfanker der
+      // referenzierenden Ereignisse (wie bei der Hof-Umbenennung, ADR-v9-81). Beide
+      // Persistenz-Pfade nötig: Höfe (orte.json) UND Event-Referenzen (Arbeitskopie).
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextHofs = new Map(db.hofObjects);
+      const result = moveHofToVillage(nextHofs, hofId, villageId, collectAllEvents(db));
+      commit(relinkHofVillageInEvents({ ...db, hofObjects: nextHofs }, hofId, villageId, result.remap), {
+        places: true,
+        workingCopy: true,
+      });
+      return result;
     },
     deleteHof(id) {
       // deleteHofCascade (ADR-v9-78 Punkt 1) — analog deletePlace oben, aber für den

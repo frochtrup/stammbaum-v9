@@ -263,3 +263,42 @@ export function applyPlaceResolution(db: Database, opts: ApplyResolutionOptions 
 
   return { review: result.review, hofObjectsGrew, placeObjectsGrew };
 }
+
+/**
+ * Kommando-Nachlauf zum Hof-Umzug (`moveHofToVillage`, BL-236/OE-12, ADR-v9-172): zieht den
+ * DORFANKER `event.placeId` aller referenzierenden Ereignisse mit.
+ *
+ * WARUM DAS NICHT OPTIONAL IST. `buildPlacForGedcom` liest das Dorf aus `hof.villageId` und
+ * ignoriert `ev.placeId`, solange `hofId` gesetzt ist — Anzeige und Export folgen dem Umzug
+ * also von selbst. `ev.placeId` bleibt aber die Hälfte, die niemand nachzieht, und sie ist
+ * die, die den nächsten VOLLEN Lade-Pass steuert: `hofId` wird nie persistiert (Spec 11 §2),
+ * das Ereignis wird über seinen Dorfanker neu aufgelöst — und fände dort den umgezogenen Hof
+ * nicht mehr. Ergebnis wäre ein frisch gebootstrappter Hof im ALTEN Dorf neben dem
+ * umgezogenen im neuen: der Umzug hielte genau bis zum nächsten Laden.
+ *
+ * Dieselbe Lehre und dieselbe Form wie `renameHofAddrInEvents` (ADR-v9-81): ein Edit an einem
+ * Feld, das anderswo gespiegelt ist, ist erst fertig, wenn ALLE Repräsentationen mitziehen.
+ *
+ * `remap` hängt zusätzlich Ereignisse um, deren Hof beim Umzug konsolidiert wurde.
+ */
+export function relinkHofVillageInEvents(
+  db: ReadonlyDatabase,
+  hofId: HofId,
+  villageId: PlaceId,
+  remap: ReadonlyMap<HofId, HofId> = new Map(),
+): Database {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+  const zielIds = new Set<HofId>([hofId, ...remap.keys()]);
+
+  return mapAllEvents(db, (ev) => {
+    if (ev.hofId == null || !zielIds.has(ev.hofId)) return null;
+    const next: Event = { ...ev, hofId: remap.get(ev.hofId) ?? ev.hofId, placeId: villageId };
+    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    if (proj != null) next.place = proj;
+    return next;
+  });
+}

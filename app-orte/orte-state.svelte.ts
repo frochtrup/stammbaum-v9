@@ -26,6 +26,7 @@ import {
   makePlaceRegistry,
   mergeHofObjects,
   mergePlaceObjects,
+  moveHofToVillage,
   parseGovText,
   saveHofObject,
   savePlaceObject,
@@ -33,10 +34,16 @@ import {
   type GovApplyResult,
   type HofObject,
   type MergeResult,
+  type MoveHofResult,
   type PlaceContext,
   type PlaceObject
 } from '../core/places';
-import { deleteHofCascade, deletePlaceCascade, renameHofAddrInEvents } from '../services/places';
+import {
+  deleteHofCascade,
+  deletePlaceCascade,
+  relinkHofVillageInEvents,
+  renameHofAddrInEvents
+} from '../services/places';
 import { createUndoStack } from '../services/undo';
 import { collectAllEvents } from '../ui/shell/all-events';
 import type { PlacesHost, PlacesHostCaps } from '../ui/shell/places-host';
@@ -232,6 +239,19 @@ export function createOrteHost(opts: OrteHostOptions = {}): OrteHost {
         nextDb = renameHofAddrInEvents(nextDb, hofId, oldValue, newValue);
       }
       commit(nextDb);
+    },
+
+    moveHof(hofId: HofId, villageId: PlaceId): MoveHofResult {
+      // Identisch zum Hauptprogramm — nur ohne dessen Persistenz-Seitenkanäle. Ohne
+      // Kontextdatei ist der Ereignis-Nachlauf ein No-op (es gibt keine Ereignisse);
+      // die Kollisions-Konsolidierung im Zieldorf greift trotzdem, denn sie ist eine
+      // Aussage über den Bestand, nicht über die Ereignisse.
+      // Plain Map, keine SvelteMap: s. Begründung oben.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      const nextHofs = new Map(db.hofObjects);
+      const result = moveHofToVillage(nextHofs, hofId, villageId, collectAllEvents(db));
+      commit(relinkHofVillageInEvents({ ...db, hofObjects: nextHofs }, hofId, villageId, result.remap));
+      return result;
     },
 
     deleteHof(id: HofId) {
