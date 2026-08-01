@@ -33,6 +33,16 @@ export interface PlaceCandidate {
    */
   level: EnrichmentLevel;
   reviewed: boolean;
+  /**
+   * Roher `PlaceObject.type` (BL-268) — die UI übersetzt über `placeTypeLabel`
+   * (ADR-v9-149, EINE Quelle). Ergänzt Kette und Anreicherungs-Grad um die Achse, die
+   * beide nicht tragen: **welche Verwaltungsebene** ist gemeint. Befund bei der
+   * Verifikation von BL-267 an Realdaten — der Grad trennt zwei „Ochtrup" sauber, zwei
+   * „Münster" nicht: dort sind beide „ausführlich" und der Unterschied ist Stadt ⇄ Kreis,
+   * genau der `typeMismatch`-Fall, den der Dedup-Dialog seit ADR-v9-77 je Mitglied zeigt.
+   * Leerer Typ zeigt nichts (ADR-v9-77: der normale, unauffällige Fall).
+   */
+  type: string;
 }
 
 export interface PlaceReviewRow {
@@ -115,6 +125,7 @@ export function buildPlaceReview(db: Database, ctx: PlaceContext): PlaceReviewRe
         label: candidateLabel(ctx, placeId, year),
         level: po ? placeEnrichmentLevel(po) : 'none',
         reviewed: po ? isReviewed(po) : false,
+        type: po?.type ?? '',
       };
     });
     return {

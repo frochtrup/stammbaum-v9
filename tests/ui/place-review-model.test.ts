@@ -215,3 +215,43 @@ describe('buildPlaceReview — Kurationsstand am Kandidaten (ADR-v9-191)', () =>
     expect(byId.get('@A@')!.label).toBe(byId.get('@B@')!.label);
   });
 });
+
+// BL-268 — die Achse, die Kette und Anreicherungs-Grad beide nicht tragen.
+describe('buildPlaceReview — Ortstyp am Kandidaten (BL-268)', () => {
+  it('liefert den rohen type je Kandidat — auch wenn Kette UND Grad gleich sind', () => {
+    const db = makeDatabase();
+    // Der reale Fall aus der BL-267-Verifikation: „Münster" als Stadt und als Kreis, beide
+    // gepflegt. Grad und Label unterscheiden hier NICHT — der Typ ist das Einzige, was bleibt.
+    const gepflegt = {
+      pnames: [{ value: 'Monasterium', from: 800, to: 1500 }],
+      lat: 51.96,
+      long: 7.63,
+      note: 'x',
+    };
+    db.placeObjects.set('@A@', place('@A@', { title: 'Münster', type: 'Town', ...gepflegt }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Münster', type: 'County', ...gepflegt }));
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Münster' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    const byId = new Map(result.rows[0].candidates.map((c) => [c.placeId, c]));
+    expect(byId.get('@A@')!.type).toBe('Town');
+    expect(byId.get('@B@')!.type).toBe('County');
+    // Der Beleg, dass der Typ hier gebraucht wird: alles andere ist identisch.
+    expect(byId.get('@A@')!.level).toBe(byId.get('@B@')!.level);
+    expect(byId.get('@A@')!.label).toBe(byId.get('@B@')!.label);
+  });
+
+  it('liefert einen leeren type für nicht kategorisierte Orte (die Ansicht zeigt dann nichts)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Bremen' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Bremen' }));
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Bremen' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    for (const c of result.rows[0].candidates) expect(c.type).toBe('');
+  });
+});

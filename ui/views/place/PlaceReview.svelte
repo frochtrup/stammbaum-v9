@@ -15,7 +15,7 @@
   import type { PlacesHost } from '../../shell/places-host';
   import { buildPlaceReview, type PlaceReviewRow } from './place-review-model';
   import { applyPlaceChoice } from './place-review-actions';
-  import { enrichmentLabel } from '../../shell/place-labels';
+  import { enrichmentLabel, placeTypeLabel } from '../../shell/place-labels';
 
   interface Props {
     appState: PlacesHost;
@@ -96,8 +96,15 @@
                    und die Zeile stellt genau diese Frage. -->
               <button type="button" onclick={() => choosePlace(row, c.placeId)}>
                 Ort wählen: {c.label}
-                <span class="place-review__cand-level">· {enrichmentLabel(c.level)}</span>
-                {#if c.reviewed}<span class="place-review__cand-level">· ✓ geprüft</span>{/if}
+                <!-- BL-268: die Verwaltungsebene. Wo zwei Kandidaten gleich heißen UND
+                     gleich gepflegt sind (Stadt/Kreis Münster), ist sie das Unterscheidende
+                     — dieselbe Angabe, die der Dedup-Dialog je Mitglied zeigt (ADR-v9-77).
+                     Leerer Typ rendert nichts (ADR-v9-149 Punkt 2). -->
+                {#if placeTypeLabel(c.type)}
+                  <span class="place-review__cand-meta">· {placeTypeLabel(c.type)}</span>
+                {/if}
+                <span class="place-review__cand-meta">· {enrichmentLabel(c.level)}</span>
+                {#if c.reviewed}<span class="place-review__cand-meta">· ✓ geprüft</span>{/if}
               </button>
             {/each}
             <button type="button" class="place-review__sharpen-btn" onclick={() => sharpenSource(row)}>
@@ -217,9 +224,10 @@
     margin-left: auto;
   }
 
-  /* Der Kandidaten-Zusatz ordnet sich dem Namen unter: die Kette entscheidet zuerst,
-     der Kurationsstand erst, wenn sie nicht unterscheidet (ADR-v9-191). */
-  .place-review__cand-level {
+  /* Die Kandidaten-Zusätze (Typ · Grad · Prüf-Marker) ordnen sich dem Namen unter: die
+     Kette entscheidet zuerst, alles Weitere erst, wenn sie nicht unterscheidet
+     (ADR-v9-191, BL-268). */
+  .place-review__cand-meta {
     color: var(--stb-text-dim);
     font-size: 0.8em;
   }
