@@ -30,14 +30,8 @@
 
   let editing = $state(untrack(() => startInEdit));
 
-  function startEdit() {
-    editing = true;
-  }
-
-  function cancelEdit() {
-    editing = false;
-  }
-
+  /** Speichern schließt den Modus (Transaktion abgeschlossen, INV-UI-16); „Verwerfen"
+   *  im Formular darf das nicht — es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
   }
@@ -48,14 +42,21 @@
     <p class="repository-detail__empty">Kein Archiv ausgewählt.</p>
   {:else if !detail}
     <p class="repository-detail__empty">Archiv nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
-  {:else if editing}
-    <RepositoryForm {appState} repository={detail.repository} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
+    <!-- BL-274/INV-UI-16: die Kopfzeile bleibt im Bearbeiten-Modus stehen. Vorher ersetzte
+         das Formular die ganze Seite — Titel und Rückweg verschwanden genau dann, wenn der
+         Nutzer den Namen ändert. Der Schalter öffnet UND schließt (kein zweiter Ausgang). -->
     <DetailHeader title={detail.repository.name || detail.repository.id} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
-        <button type="button" class="stb-btn" data-variant="secondary" onclick={startEdit}>✎ Bearbeiten</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = !editing)}>
+          {editing ? 'Fertig' : '✎ Bearbeiten'}
+        </button>
       {/snippet}
     </DetailHeader>
+
+    {#if editing}
+      <RepositoryForm {appState} repository={detail.repository} onSaved={afterSave} />
+    {/if}
 
     <dl class="repository-detail__meta">
       <!-- BL-203: deutsches Label über DIE EINE Quelle (`repoTypeLabel`), nie der rohe

@@ -97,14 +97,8 @@
     viewState.setCurrent('person', id);
   }
 
-  function startEdit() {
-    editing = true;
-  }
-
-  function cancelEdit() {
-    editing = false;
-  }
-
+  /** Speichern schließt den Modus — die Transaktion ist abgeschlossen (INV-UI-16).
+   *  „Verwerfen" im Formular darf das NICHT, es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
   }
@@ -369,17 +363,25 @@
     <p class="person-detail__empty">Keine Person ausgewählt.</p>
   {:else if !detail}
     <p class="person-detail__empty">Person nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
-  {:else if editing}
-    <PersonForm {appState} person={detail.person} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
+    <!-- BL-274/INV-UI-16: der Editor ERSETZT die Seite nicht mehr. Vorher stand hier ein
+         `{:else if editing}`-Zweig VOR der Kopfzeile — damit verschwanden Titel und
+         Rückweg genau in dem Moment, in dem der Nutzer den Namen ändert, und es blieb
+         nur ein `<h3>Person bearbeiten` ohne die Person. Jetzt wie bei Ort/Hof: Kopfzeile
+         bleibt, das Formular erscheint darunter. -->
     <PersonDetailHeader
       person={detail.person}
       {isProband}
+      {editing}
       onBack={onBack ?? (() => {})}
-      onEdit={startEdit}
+      onToggleEdit={() => (editing = !editing)}
       onSetProband={() => viewState.setProband(detail.person.id)}
       {onOpenLens}
     />
+
+    {#if editing}
+      <PersonForm {appState} person={detail.person} onSaved={afterSave} />
+    {/if}
 
     <!-- Porträt (BL-260): das als `_PRIM` markierte Bild der Person, sonst ihr erstes.
          Reine ANZEIGE — verwaltet wird in der Medien-Fläche (INV-UI-11, kein neues

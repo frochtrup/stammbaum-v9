@@ -26,14 +26,18 @@ describe('SourceForm — Speichern/Vorbefüllung', () => {
     expect(onSaved).toHaveBeenCalledWith('@S1@');
   });
 
-  it('zeigt "Neue Quelle" für eine leere Quelle, "Quelle bearbeiten" für eine befüllte', () => {
+  // Seit BL-274 trägt NUR der Anlage-Fall diese Zeile: auf der Detailseite bleibt die
+  // Kopfzeile im Bearbeiten-Modus stehen und nennt den Namen bereits — „Quelle bearbeiten"
+  // wäre dort ein zweiter, ärmerer Titel (§10e).
+  it('zeigt "Neue Quelle" nur für einen leeren Datensatz, sonst gar keine Titelzeile', () => {
     const appState = createAppState();
     const { unmount } = render(SourceForm, { props: { appState, source: makeSource('@S1@') } });
     expect(screen.getByText('Neue Quelle')).toBeTruthy();
     unmount();
 
     render(SourceForm, { props: { appState, source: makeSource('@S2@', { title: 'Bestehend' }) } });
-    expect(screen.getByText('Quelle bearbeiten')).toBeTruthy();
+    expect(screen.queryByText('Quelle bearbeiten')).toBeNull();
+    expect(screen.queryByText('Neue Quelle')).toBeNull();
   });
 
   it('Abbrechen ruft onCancel, speichert nichts', async () => {

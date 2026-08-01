@@ -26,7 +26,14 @@
     person: Person;
     /** Nach erfolgreichem Speichern (z. B. um zur Detailansicht zurückzukehren). */
     onSaved?: (personId: string) => void;
-    /** Abbrechen ohne Speichern. */
+    /**
+     * NUR für den Wegwerf-Entwurf: setzt der Aufrufer diese Prop, ist das Formular eine
+     * transiente ANLAGE-Fläche (Picker „+ neu anlegen") ohne eigenen Ausgang — dann
+     * schließt der Sekundär-Knopf sie („Abbrechen"), und Feldwerte zu verwerfen wäre
+     * dasselbe wie sie wegzuwerfen. Auf einer Detailseite bleibt sie WEG: dort trägt die
+     * Kopfzeile den Ausgang, und der Knopf verwirft nur die Feldwerte („Verwerfen",
+     * INV-UI-16/ADR-v9-193). Ein Knopf, der beides täte, war genau der behobene Defekt.
+     */
     onCancel?: () => void;
   }
   const { appState, person, onSaved, onCancel }: Props = $props();
@@ -97,6 +104,28 @@
     return list;
   });
 
+
+  /**
+   * Setzt die Feldwerte auf den GESPEICHERTEN Stand zurück (INV-UI-16, BL-270/274).
+   * Liest `person` frisch statt eines Mount-Snapshots — daneben können sofort committende
+   * Abschnitte den Datensatz geändert haben, und ein Verwerfen darf deren Ergebnis nicht
+   * mitnehmen. Es schließt den Modus NICHT: das tut der Schalter, der ihn geöffnet hat.
+   */
+  function discard() {
+    given = person.given;
+    surname = person.surname;
+    prefix = person.prefix;
+    suffix = person.suffix;
+    nick = person.nick;
+    sex = person.sex;
+    title = person.title;
+    religion = person.religion;
+    noteText = person.noteText;
+    restriction = person.restriction;
+    email = person.email;
+    www = person.www;
+  }
+
   function save() {
     // `person.name` (der rohe GEDCOM-NAME-Wert) ist die ZWEITE Hälfte derselben Sache
     // wie given/surname/suffix: der Writer schreibt NAME aus dem einen Feld und
@@ -137,14 +166,16 @@
     appState.savePerson(next);
     onSaved?.(next.id);
   }
-
-  function cancel() {
-    onCancel?.();
-  }
 </script>
 
 <div class="person-form" data-no-swipe>
-  <h3>{person.given || person.surname ? 'Person bearbeiten' : 'Neue Person'}</h3>
+  <!-- Nur im ANLAGE-Fall (BL-274, §10e Redundanter Hero-Titel): auf der Detailseite steht
+       der Name bereits in der Kopfzeile, die seit BL-274 im Bearbeiten-Modus stehen bleibt
+       — „Person bearbeiten" wäre dort ein zweiter, ärmerer Titel. Im Picker-Entwurf gibt
+       es keine Kopfzeile, dort trägt diese Zeile die Einordnung. -->
+  {#if !person.given && !person.surname}
+    <h3>Neue Person</h3>
+  {/if}
 
   <section class="person-form__section">
     <h4>Identität</h4>
@@ -232,7 +263,11 @@
 
   <div class="person-form__actions">
     <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
-    <button type="button" class="stb-btn" data-variant="secondary" onclick={cancel}>Abbrechen</button>
+    {#if onCancel}
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
+    {:else}
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
+    {/if}
   </div>
 </div>
 

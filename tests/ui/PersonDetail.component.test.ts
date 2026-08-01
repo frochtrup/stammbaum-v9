@@ -317,7 +317,10 @@ describe('PersonDetail — wesentliche Beziehungen (ADR-v9-30 Punkt 6/Nachtrag)'
 });
 
 describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
-  it('"✎ Bearbeiten" öffnet den Editor; Speichern zeigt die Änderung wieder im Steckbrief', async () => {
+  // „✎ Identität" statt „✎ Bearbeiten" (BL-274): der Modus öffnet NUR das Identitäts-
+  // Formular (ADR-v9-63) — Ereignisse werden ohne ihn bearbeitet. Der Knopf benennt jetzt,
+  // was er öffnet.
+  it('"✎ Identität" öffnet den Editor; Speichern zeigt die Änderung wieder im Steckbrief', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -326,14 +329,18 @@ describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
     viewState.setCurrent('person', '@I1@');
 
     render(PersonDetail, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('✎ Identität'));
     await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Anna Maria' } });
     await fireEvent.click(screen.getByText('Speichern'));
 
     expect(screen.getByText('Anna Maria Bauer')).toBeTruthy();
   });
 
-  it('"Abbrechen" verwirft Änderungen und kehrt zum read-only Steckbrief zurück', async () => {
+  // ZUSICHERUNG BEWUSST GEÄNDERT (ADR-v9-193/BL-270): vormals „…und kehrt zum read-only
+  // Steckbrief zurück". „Verwerfen" betrifft jetzt nur die FELDWERTE und schließt den Modus
+  // NICHT — der alte Doppelgriff war der behobene Defekt (er las sich als Rücknahme von
+  // allem seit dem Öffnen). Den Modus schließt „Fertig".
+  it('"Verwerfen" setzt die Feldwerte zurück, ohne den Modus zu verlassen; „Fertig" schließt ihn', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -342,12 +349,18 @@ describe('PersonDetail — Bearbeiten (Spec 20 §2)', () => {
     viewState.setCurrent('person', '@I1@');
 
     render(PersonDetail, { props: { appState, viewState } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('✎ Identität'));
     await fireEvent.input(screen.getByLabelText('Vorname'), { target: { value: 'Geändert' } });
-    await fireEvent.click(screen.getByText('Abbrechen'));
+    await fireEvent.click(screen.getByText('Verwerfen'));
 
-    expect(screen.getByText('Anna Bauer')).toBeTruthy();
+    // Feld zurück, Modus offen, nichts geschrieben.
+    expect((screen.getByLabelText('Vorname') as HTMLInputElement).value).toBe('Anna');
+    expect(screen.getByText('Fertig')).toBeTruthy();
     expect(appState.db.individuals.get('@I1@')?.given).toBe('Anna');
+
+    await fireEvent.click(screen.getByText('Fertig'));
+    expect(screen.getByText('✎ Identität')).toBeTruthy();
+    expect(screen.getByText('Anna Bauer')).toBeTruthy();
   });
 
   it('startInEdit öffnet den Editor sofort beim Mount (Fluss "＋ Neue Person")', () => {
@@ -772,7 +785,7 @@ describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig
 });
 
 describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('"← Zurück" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
+  it('"← Zurück" und "✎ Identität" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -786,7 +799,7 @@ describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     const row = container.querySelector('.detail-header__row');
     const title = container.querySelector('.detail-header__title');
     expect(row?.contains(screen.getByText('← Zurück'))).toBe(true);
-    expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
+    expect(row?.contains(screen.getByText('✎ Identität'))).toBe(true);
     expect(title?.textContent).toBe('Anna Bauer');
     expect(row?.contains(title)).toBe(false);
   });

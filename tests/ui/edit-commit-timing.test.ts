@@ -23,7 +23,7 @@
 // (`*EditForm.svelte` unter `ui/views`). Ein künftiges Formular unter anderem Namen fällt
 // nicht automatisch darunter — dafür bräuchte es ein Markup-Merkmal statt einer
 // Namenskonvention. Der Fall, der diesen Wächter ausgelöst hat, ist abgedeckt.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -43,7 +43,10 @@ function svelteFiles(dir: string): string[] {
 /** Entfernt Block- und Zeilenkommentare, damit eine Erklärung im Kopf der Datei nicht
  *  als Verstoß zählt (dieselbe Falle wie bei `txt:`-Belegen, s. check-backlog.mjs). */
 function ohneKommentare(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  return src
+    .replace(/<!--[\s\S]*?-->/g, '') // Svelte-Markup-Kommentare: die Erklärung eines
+    .replace(/\/\*[\s\S]*?\*\//g, '') // Verstoßes darf nicht selbst als Verstoß zählen
+    .replace(/^\s*\/\/.*$/gm, '');
 }
 
 /** Die Transaktions-Formulare: eine umgrenzte Fläche mit Speichern + Verwerfen darin. */
@@ -74,13 +77,32 @@ describe('INV-UI-16 — die Transaktionsgrenze ist sichtbar und schreibt nicht s
     expect(verstoesse, '`onCancel` schließt die Fläche — INV-UI-16 verlangt das Trennen von Verwerfen und Modus-Ende').toEqual([]);
   });
 
+  // BL-274: der Editor ersetzt die Seite nicht. Der Defekt hatte eine feste Form —
+  // ein `{:else if editing}`-Zweig VOR der Kopfzeile, der Titel und Rückweg genau dann
+  // wegnahm, wenn der Nutzer den Namen ändert. Person/Quelle/Archiv trugen ihn, Ort/Hof
+  // nie. Diese Form ist greppbar, also wird sie verboten statt beschrieben.
+  it('keine Detail-Ansicht verdrängt ihre Kopfzeile durch den Editor (`{:else if editing}`)', () => {
+    const verstoesse = svelteFiles(UI_DIR)
+      .filter((p) => /Detail\.svelte$/.test(p))
+      .filter((p) => /\{:else if editing\}/.test(ohneKommentare(readFileSync(p, 'utf8'))))
+      .map((p) => p.replace(UI_DIR, 'ui'));
+    expect(verstoesse, 'Editor steht VOR der Kopfzeile — Titel und Rückweg verschwinden beim Bearbeiten').toEqual([]);
+  });
+
   it('jede Detail-Ansicht mit Bearbeiten-Modus bietet einen eigenen Ausgang („Fertig")', () => {
     const fehlend = svelteFiles(UI_DIR)
       .filter((p) => /Detail\.svelte$/.test(p))
       .map((pfad) => ({ pfad, src: readFileSync(pfad, 'utf8') }))
-      // Nur Ansichten, die ein Transaktions-Formular einbetten.
-      .filter(({ src }) => /<\w+EditForm\b/.test(src))
-      .filter(({ src }) => !/Fertig/.test(ohneKommentare(src)))
+      // Jede Ansicht mit eigenem Bearbeiten-Zustand — nicht nur die mit `*EditForm`:
+      // Person/Quelle/Archiv betten `*Form` ein und brauchen denselben Ausgang (BL-274).
+      .filter(({ src }) => /let editing = \$state/.test(src))
+      // Der Ausgang darf in der zugehörigen Kopfzeilen-Komponente sitzen (PersonDetail
+      // delegiert seinen Kopf an PersonDetailHeader) — gesucht wird in beiden.
+      .filter(({ pfad, src }) => {
+        const header = pfad.replace(/Detail\.svelte$/, 'DetailHeader.svelte');
+        const zusatz = existsSync(header) ? readFileSync(header, 'utf8') : '';
+        return !/Fertig/.test(ohneKommentare(src + zusatz));
+      })
       .map(({ pfad }) => pfad.replace(UI_DIR, 'ui'));
     expect(fehlend, 'Bearbeiten-Modus ohne eigenen Ausgang — dann muss „Verwerfen" ihn schließen').toEqual([]);
   });
