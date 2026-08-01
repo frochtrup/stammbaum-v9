@@ -17,6 +17,7 @@
 // Ableitung beim EntityTab-Remount hatte eine Rangfolge (Familie vor Quelle vor Ort vor
 // Hof) und traf bei mehreren gleichzeitig gesetzten Auswahlen nicht zwingend das gerade
 // angeklickte Segment (BL-90).
+import { isNavCommand, type Command } from './command-palette-model';
 import type { EntityTargetId } from './nav-model';
 import type { Route } from './route.svelte';
 import type { ViewState } from './view-state.svelte';
@@ -50,4 +51,35 @@ export function jumpToFamilyStory(viewState: ViewState, route: Route, familyId: 
   viewState.setCurrent('storyFamily', familyId);
   route.setStoryMode('family');
   route.setTarget('story');
+}
+
+/**
+ * Führt einen Befehl der Palette (⌘K) aus: Navigationsziel ODER Sprung auf eine Entität.
+ *
+ * Liegt hier statt in der Schale, weil jeder Zweig auf `jumpToEntity` hinausläuft — die
+ * Palette ist damit nachweislich kein zweiter Sprung-Pfad neben der Suchfläche (INV-UI-2),
+ * statt dass die Gleichheit nur in einem Kommentar behauptet wird. Den Probanden reicht
+ * die Schale als Rückruf herein: wer die Referenzperson ist, hängt an `appState.db` und
+ * am Sitzungszustand — Wissen der Schale, nicht des Sprungs.
+ */
+export function runPaletteCommand(
+  viewState: ViewState,
+  route: Route,
+  cmd: Command,
+  goToProband: () => void,
+): void {
+  if (cmd.kind === 'proband') {
+    goToProband();
+    return;
+  }
+  if (isNavCommand(cmd)) {
+    route.setTarget(cmd.id);
+    return;
+  }
+  // `isNavCommand` ist ein positiver Typwächter — seine Verneinung nimmt 'nav' NICHT aus
+  // `cmd.kind` heraus (`Command` ist keine diskriminierte Union). Die Abfrage steht
+  // deshalb hier: sie ist praktisch unerreichbar, aber der Compiler engt erst dadurch
+  // auf die Entitäts-Segmente ein.
+  if (cmd.kind === 'nav') return;
+  jumpToEntity(viewState, route, cmd.kind, cmd.id);
 }

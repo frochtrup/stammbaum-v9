@@ -69,7 +69,12 @@
        nicht auf eine geschätzte Zahl angewiesen sind (design-system.css). */
     min-height: var(--stb-nav-height);
     z-index: var(--stb-z-nav);
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    /* Geräte-Insets aus dem Design-System (EINE Quelle, s. --stb-safe-bottom) statt
+       env() hier direkt: unten der Home-Indikator, links/rechts der Notch im Querformat
+       — die Nav spannt über die volle Breite, ihre äußeren Slots lägen sonst darunter. */
+    padding-bottom: var(--stb-safe-bottom);
+    padding-left: var(--stb-safe-left);
+    padding-right: var(--stb-safe-right);
   }
 
   .bottom-nav__item {

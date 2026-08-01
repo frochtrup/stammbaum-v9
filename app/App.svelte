@@ -60,11 +60,11 @@
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import { focusPersonInLens } from '../ui/shell/lens-jump';
-  import { jumpToEntity, jumpToFamilyStory } from '../ui/shell/entity-jump';
+  import { jumpToEntity, jumpToFamilyStory, runPaletteCommand } from '../ui/shell/entity-jump';
   import UndoControls from '../ui/shell/UndoControls.svelte';
-  import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
+  import { createShortcutHandler } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
-  import { isNavCommand, type Command } from '../ui/shell/command-palette-model';
+  import type { Command } from '../ui/shell/command-palette-model';
   import { saveCurrentDoc } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
@@ -340,21 +340,7 @@
     return p ? { id: p.id, label: displayName(p) } : null;
   });
 
-  function runCommand(cmd: Command) {
-    if (cmd.kind === 'proband') {
-      goToProband();
-      return;
-    }
-    if (isNavCommand(cmd)) {
-      route.setTarget(cmd.id);
-      return;
-    }
-    if (cmd.kind === 'person') openPerson(cmd.id);
-    else if (cmd.kind === 'family') openFamily(cmd.id);
-    else if (cmd.kind === 'source') openSource(cmd.id);
-    else if (cmd.kind === 'place') openPlace(cmd.id);
-    else openHof(cmd.id);
-  }
+  const runCommand = (cmd: Command) => runPaletteCommand(viewState, route, cmd, goToProband);
 
   async function runSave() {
     if (!appState.fileName) return;
@@ -369,41 +355,22 @@
   // dort dem Feld, Escape und ⌘S gerade NICHT — ein Escape, das ein Overlay nicht
   // schließt, weil der Fokus in dessen eigenem Suchfeld steht, wäre die Falle statt der
   // Rettung (LP-8, Spec 21 §6i).
-  function onWindowKeydown(e: KeyboardEvent) {
-    const action = matchShortcut(e);
-    if (!action) return;
-    if (belongsToField(action) && isEditableTarget(e.target)) return;
-
-    if (action === 'palette') {
-      paletteOpen = !paletteOpen;
-      e.preventDefault();
-      return;
-    }
-    if (action === 'escape') {
-      // Nur beanspruchen, wenn wirklich etwas zu schließen war — sonst nimmt die App
-      // anderen Overlays (Modals, Menüs) ihr eigenes Escape weg.
-      if (paletteOpen) {
-        paletteOpen = false;
-        e.preventDefault();
-      }
-      return;
-    }
-    if (action === 'save') {
-      e.preventDefault();
-      void runSave();
-      return;
-    }
-    if (action === 'back' || action === 'forward') {
-      // Nur beanspruchen, wenn es wirklich einen Schritt gab (s. u. bei undo/redo).
-      if (action === 'back' ? navHistory.back() : navHistory.forward()) e.preventDefault();
-      return;
-    }
-
-    const handled = action === 'undo' ? appState.undo() : appState.redo();
-    // Nur beanspruchen, wenn wirklich etwas passiert ist — sonst schluckt die App ein
-    // Kürzel, das der Browser sinnvoller behandeln könnte.
-    if (handled) e.preventDefault();
-  }
+  // Der Dispatch selbst liegt in `shortcuts.ts` neben der Taste→Aktion-Zuordnung
+  // (createShortcutHandler): hier bleiben nur die Aktionen der Schale. Jede meldet, ob
+  // sie wirklich etwas getan hat — nur dann beansprucht der Handler das Ereignis.
+  const onWindowKeydown = createShortcutHandler({
+    togglePalette: () => (paletteOpen = !paletteOpen),
+    closePalette: () => {
+      if (!paletteOpen) return false;
+      paletteOpen = false;
+      return true;
+    },
+    save: () => void runSave(),
+    back: () => navHistory.back(),
+    forward: () => navHistory.forward(),
+    undo: () => appState.undo(),
+    redo: () => appState.redo(),
+  });
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
@@ -549,12 +516,25 @@
   }
 
   .app-shell__header {
-    padding: 0.5rem 1rem 0;
+    /* Oberste Fläche der App — und damit die, die unter der iOS-Statusleiste liegt
+       (`viewport-fit=cover`, s. --stb-safe-top). Ohne das Inset überdeckte die Uhr den
+       Titel und die Systemsymbole rechts lagen genau auf Rückgängig/Wiederherstellen:
+       sichtbar UND nicht bedienbar (Nutzer-Fund per Screenshot 2026-08-01).
+       Links/rechts ebenfalls, weil im Querformat der Notch hineinragt. */
+    padding: calc(0.5rem + var(--stb-safe-top)) calc(1rem + var(--stb-safe-right)) 0
+      calc(1rem + var(--stb-safe-left));
     /* Titel links, Undo/Redo rechts — die Leiste soll den Titel nicht verschieben. */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+  }
+
+  /* Auf Desktop liegt links die Sidebar, nicht der Bildschirmrand — dort trägt SIE das
+     linke Inset (Sidebar.svelte), die Kopfzeile bekäme sonst eine zweite, falsche
+     Einrückung. */
+  .app-shell--desktop .app-shell__header {
+    padding-left: 1rem;
   }
 
   .app-shell__title {
@@ -577,7 +557,10 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding-bottom: 4.5rem; /* Platz für die fixed Bottom-Nav */
+    /* Platz für die fixed Bottom-Nav — inkl. des Home-Indikator-Insets, das die Nav sich
+       selbst anpolstert (--stb-nav-total). Ohne das Inset verschwindet die letzte
+       Listenzeile auf einem iPhone genau um diese 34px unter der Nav. */
+    padding-bottom: calc(1.4rem + var(--stb-nav-total));
   }
 
   /* Auf Desktop gibt es keine Bottom-Nav mehr — der reservierte Platz muss mit ihr

@@ -88,7 +88,11 @@
     flex-shrink: 0;
     height: 100%;
     overflow-y: auto;
-    padding: 0.75rem 0.6rem 1rem;
+    /* Die Sidebar berührt auf Desktop/iPad den linken UND den oberen Bildschirmrand —
+       im Standalone-Modus liegt dort die Statusleiste (s. --stb-safe-top). Ohne die
+       Insets stünde „Stammbaum" unter der Uhr, wie es mobil in der Kopfzeile passierte. */
+    padding: calc(0.75rem + var(--stb-safe-top)) 0.6rem calc(1rem + var(--stb-safe-bottom))
+      calc(0.6rem + var(--stb-safe-left));
     background: var(--stb-surface-1);
     border-right: 1px solid var(--stb-surface-3);
   }

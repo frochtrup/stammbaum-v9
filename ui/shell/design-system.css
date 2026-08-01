@@ -28,10 +28,29 @@
      der Bottom-Nav (400), waren also gar nicht modal und ließen ihre eigenen
      Aktionsknöpfe verdecken (gefunden bei BL-04, ADR-v9-96). Wer eine neue Ebene
      braucht, ergänzt sie hier und sieht die Nachbarn. */
+  /* Geräte-Sicherheitsabstände (iOS Statusleiste/Dynamic Island, Home-Indikator, Notch
+     im Querformat). `app/index.html` setzt `viewport-fit=cover` + `black-translucent`:
+     die App zeichnet damit BEWUSST unter die Systemleisten (randlos-dunkle Optik) — was
+     dort steht, muss die Insets aber selbst einrechnen, sonst liegt es unerreichbar
+     unter der Statusleiste. Als Token, weil (a) jede randberührende Fläche denselben
+     Wert braucht (INV-UI-4) und (b) `env()` in einer Variablen im Test/Browser
+     überschreibbar ist — die Wirkung lässt sich damit ohne echtes Gerät prüfen.
+     Wächter: `tests/ui/safe-area.test.ts`. */
+  --stb-safe-top: env(safe-area-inset-top, 0px);
+  --stb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --stb-safe-left: env(safe-area-inset-left, 0px);
+  --stb-safe-right: env(safe-area-inset-right, 0px);
+
   /* Höhe der Bottom-Nav. EINE Quelle für zwei Nutzer: die Nav selbst (min-height) und
      alles, was sich darüber andocken muss — sonst driften die beiden Werte auseinander
      und ein Overlay landet wieder unter der Nav (s. FilterBar-Bottom-Sheet). */
   --stb-nav-height: 3.1rem;
+  /* Was die Nav auf dem Gerät WIRKLICH belegt: ihre Höhe plus der Home-Indikator-Abstand,
+     den sie sich unten anpolstert. Wer über ihr andockt oder Platz für sie freihält,
+     rechnet mit DIESEM Wert — `--stb-nav-height` allein liegt auf einem iPhone um das
+     Inset (34px) zu hoch, das Angedockte verschwindet genau um diesen Betrag unter der
+     Nav. */
+  --stb-nav-total: calc(var(--stb-nav-height) + var(--stb-safe-bottom));
   --stb-z-nav: 400;
   --stb-z-modal: 500;
   --stb-z-tooltip: 1000;
@@ -555,7 +574,9 @@ button.stb-coord-indicator__glyph:focus-visible {
 
    `padding-bottom` ist bewusst grosszügig: bei einem Panel, das höher als der Viewport
    ist, scrollt der Backdrop — ohne diesen Freiraum landen die Aktionsknöpfe am Listenende
-   hinter der Bottom-Nav. */
+   hinter der Bottom-Nav. Oben/unten zusätzlich die Geräte-Insets: der Backdrop liegt
+   `inset: 0` am Viewport-Rand, sein Panel-Kopf (Titel + Schließen-Knopf) läge sonst unter
+   der Statusleiste. */
 .stb-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -563,7 +584,7 @@ button.stb-coord-indicator__glyph:focus-visible {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1.5rem 1rem 6rem;
+  padding: calc(1.5rem + var(--stb-safe-top)) 1rem calc(6rem + var(--stb-safe-bottom));
   overflow-y: auto;
   z-index: var(--stb-z-modal);
 }

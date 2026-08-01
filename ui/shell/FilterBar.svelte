@@ -157,12 +157,15 @@
      Gestaltungsentscheidung, kein Notbehelf mehr: seit dem Portal (BL-85) läge das Sheet
      ohnehin über der Nav, aber eine Navigation, die das Sheet verdeckt, ist genauso
      falsch wie eine, die verdeckt wird. Die Höhe kommt aus EINEM Token, das auch
-     `BottomNav` setzt — sonst driften Nav und Andockpunkt auseinander (ADR-v9-98). */
+     `BottomNav` setzt — sonst driften Nav und Andockpunkt auseinander (ADR-v9-98).
+     `--stb-nav-total` statt `--stb-nav-height`: die Nav ist auf dem Gerät um das
+     Home-Indikator-Inset höher als ihre Basis-Höhe, das Sheet läge sonst um genau
+     diesen Betrag darunter. */
   .stb-filterbar__panel {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--stb-nav-height);
+    bottom: var(--stb-nav-total);
     z-index: var(--stb-z-modal);
     max-height: 70vh;
     overflow-y: auto;
