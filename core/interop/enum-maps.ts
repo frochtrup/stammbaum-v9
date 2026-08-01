@@ -196,3 +196,67 @@ export function evidenceEvalEqual(a: EvidenceEval | null, b: EvidenceEval | null
   if (la || lb) return la && lb;
   return EVAL_TAGS.every((t) => evalAxisValue(a!, t) === evalAxisValue(b!, t));
 }
+
+// ── 5. Signatur-Medium: GEDCOM `SOUR.REPO.CALN.MEDI` ↔ GRAMPS `<reporef medium=…>` ──────
+// (BL-245, ADR-v9-180.) Abgeleitet aus den GRAMPS-Quellen SELBST, nicht aus einer
+// Bestandsdatei: `plugins/lib/libgedcom.py::MEDIA_MAP` (GEDCOM-Wert, kleingeschrieben →
+// Enum) und `gen/lib/srcmediatype.py::_DATAMAP` (Enum → der `xml_str`, den GRAMPS in die
+// Datei schreibt). Beleg im Realbestand: `<reporef … medium="Book"/>` an 9 Stellen.
+//
+// NICHT UMKEHRBAR, und zwar von GRAMPS aus so gebaut: `microfiche` und `microfilm` fallen
+// mit `fiche` auf denselben Enum-Wert, `grave` mit `tombstone`. Der Rückweg wählt den
+// kanonischen GEDCOM-Wert (`fiche`/`tombstone`); ein `microfilm` kehrt daher als `fiche`
+// zurück. Das ist eine Repräsentationsgrenze des Zielformats, kein Fehler unserer Abbildung
+// — sie steht als solche in [13 §1] und tritt im Realbestand 0× auf (dort nur `manuscript`).
+//
+// Unbekannte Werte reisen WÖRTLICH in beide Richtungen: GRAMPS legt sie als CUSTOM-Typ mit
+// genau diesem Text ab (`MEDIA_MAP.get(name.lower(), (CUSTOM, name))`), verliert sie also
+// nicht — und wir dürfen sie deshalb ebenfalls nicht normalisieren (LP-1).
+
+const MEDIUM_BY_MEDI: Record<string, string> = {
+  audio: 'Audio',
+  book: 'Book',
+  card: 'Card',
+  electronic: 'Electronic',
+  fiche: 'Fiche',
+  microfiche: 'Fiche',
+  microfilm: 'Fiche',
+  film: 'Film',
+  magazine: 'Magazine',
+  manuscript: 'Manuscript',
+  map: 'Map',
+  newspaper: 'Newspaper',
+  photo: 'Photo',
+  tombstone: 'Tombstone',
+  grave: 'Tombstone',
+  video: 'Video',
+};
+
+/** Kanonischer GEDCOM-Wert je GRAMPS-`medium` (Rückweg; die Mehrdeutigen s. o.). */
+const MEDI_BY_MEDIUM: Record<string, string> = {
+  Audio: 'audio',
+  Book: 'book',
+  Card: 'card',
+  Electronic: 'electronic',
+  Fiche: 'fiche',
+  Film: 'film',
+  Magazine: 'magazine',
+  Manuscript: 'manuscript',
+  Map: 'map',
+  Newspaper: 'newspaper',
+  Photo: 'photo',
+  Tombstone: 'tombstone',
+  Video: 'video',
+};
+
+/** `MEDI`-Wert → `<reporef medium>`. Unbekanntes bleibt wörtlich (GRAMPS-CUSTOM). */
+export function mediToGrampsMedium(medi: string): string {
+  if (!medi) return '';
+  return MEDIUM_BY_MEDI[medi.toLowerCase()] ?? medi;
+}
+
+/** `<reporef medium>` → `MEDI`-Wert. Unbekanntes bleibt wörtlich. */
+export function grampsMediumToMedi(medium: string): string {
+  if (!medium) return '';
+  return MEDI_BY_MEDIUM[medium] ?? medium;
+}

@@ -48,7 +48,7 @@ import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { remapIdsForFormat, type IdRemap } from './id-remap';
-import { EVAL_TAGS, evalAxisValue, quayToConfidence, tagToGrampsType } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, mediToGrampsMedium, quayToConfidence, tagToGrampsType } from './enum-maps';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import { descriptionIsAddress } from './gramps-events';
 import { gedcomToGramps } from './gramps-date';
@@ -358,8 +358,24 @@ function sourceRecord(id: string, s: Source, refs: Refs): XmlNode {
     const h = refs.mediaHandle(m.mediaId);
     if (h) children.push(el('objref', [['hlink', h]]));
   }
+  // Externe Referenzen (BL-244, ADR-v9-180) — DTD-Position: nach objref, VOR reporef
+  // (`source (…, noteref*, objref*, srcattribute*, reporef*, tagref*)`). `type="REFN"` ist
+  // die Form, die GRAMPS selbst schreibt und liest; ohne sie ging der Wert beim Export
+  // verloren, obwohl das Zielprogramm ihn erhält.
+  for (const ref of s.externalRefs) {
+    if (ref.value) children.push(el('srcattribute', [['type', 'REFN'], ['value', ref.value]]));
+  }
   const repo = refs.repoHandle(typeof s.repo === 'string' ? s.repo : '');
-  if (repo) children.push(el('reporef', [['hlink', repo]]));
+  if (repo) {
+    // Signatur (BL-245): native `<reporef>`-Attribute. `medium` wird auf GRAMPS'
+    // Vokabular abgebildet (`manuscript` → `Manuscript`), sonst liest GRAMPS es als
+    // Custom-Typ statt als das Medium, das gemeint war.
+    const a: [string, string][] = [['hlink', repo]];
+    if (s.callNumber) a.push(['callno', s.callNumber]);
+    const medium = mediToGrampsMedium(s.callMedia);
+    if (medium) a.push(['medium', medium]);
+    children.push(el('reporef', a));
+  }
   return el('source', recordAttrs(handle, id), children);
 }
 

@@ -53,7 +53,7 @@ import { buildEnrichContext } from './gramps-enrich';
 import { descriptionIsAddress, projectGrampsEvent, tagToGrampsType } from './gramps-events';
 import { projectBuildingHof, projectPlaceobj } from './gramps-places';
 import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
-import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag, mediToGrampsMedium } from './enum-maps';
 import { projectGrampsObject } from './gramps-media';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
 import { parseCoord } from './gedcom-parse';
@@ -333,6 +333,31 @@ function reconcileRefs(
   return out;
 }
 
+/**
+ * Ein NEBEN-Attribut eines vorhandenen Elements setzen/entfernen (BL-245).
+ *
+ * Abgrenzung zu `setzeAttribut`: dort trägt das Attribut die Existenzberechtigung des
+ * Elements (ein `<reporef>` ohne `hlink` ist sinnlos), ein leerer Wert löscht deshalb das
+ * ganze Element. Für `callno`/`medium` wäre das fatal — sie stehen auf demselben
+ * `<reporef>` wie der `hlink`, und eine geleerte Signatur würde die Archiv-Zuordnung
+ * mitreißen. Hier wird deshalb nur das Attribut entfernt; fehlt das Element, passiert
+ * nichts (es entsteht über seinen `hlink`, nicht über eine Signatur).
+ */
+function setzeNebenAttribut(children: XmlNode[], tag: string, name: string, wert: string): XmlNode[] {
+  const idx = children.findIndex((c) => c.tag === tag);
+  if (idx < 0) return children;
+  const alt = children[idx];
+  if (attr(alt, name) === wert) return children;
+  const attrs = wert === ''
+    ? alt.attrs.filter(([k]) => k !== name)
+    : alt.attrs.some(([k]) => k === name)
+      ? alt.attrs.map(([k, v]) => (k === name ? [k, wert] : [k, v]) as [string, string])
+      : [...alt.attrs, [name, wert] as [string, string]];
+  const neu = [...children];
+  neu[idx] = { ...alt, attrs };
+  return neu;
+}
+
 // ── Aktualisierung je Entität (nur die erkannten Elemente) ──────────────────────────────
 
 /** Rolle „Primary" oder fehlend zählt als Personen-Owner (spiegelt `ownedEvents` beim Lesen). */
@@ -420,7 +445,13 @@ function sourceKinder(orig: XmlNode, cur: Source, index: GrampsRefIndex): XmlNod
   // Quellen-Ebene-Medien (BL-126): `<objref>` Add/Remove modellgetrieben (vorher Passthrough).
   children = reconcileRefs(children, DTD_ORDER.source, 'objref', () => true,
     mediaHandles(cur.media, index), objref);
-  return setzeAttribut(children, DTD_ORDER.source, 'reporef', 'hlink', toHandle(cur.repo ?? '', index));
+  children = setzeAttribut(children, DTD_ORDER.source, 'reporef', 'hlink', toHandle(cur.repo ?? '', index));
+  // Signatur (BL-245) NACH dem hlink: der Aufruf oben kann das `<reporef>` erst anlegen
+  // oder ganz entfernen — callno/medium hängen an dem Element, das dabei entsteht.
+  // `externalRefs` bleibt hier bewusst unbehandelt: das Feld ist read-only ([20 §1.6]),
+  // sein `<srcattribute>` wird also von niemandem geändert und der Passthrough erhält es.
+  children = setzeNebenAttribut(children, 'reporef', 'callno', cur.callNumber);
+  return setzeNebenAttribut(children, 'reporef', 'medium', mediToGrampsMedium(cur.callMedia));
 }
 
 function repoKinder(orig: XmlNode, cur: Repository): XmlNode[] {
@@ -572,9 +603,16 @@ const familyGleich = (a: Family, b: Family): boolean =>
 const sameMediaSet = (a: readonly { mediaId: string }[], b: readonly { mediaId: string }[]): boolean =>
   sameHandleSet(a.map((m) => m.mediaId), b.map((m) => m.mediaId));
 
+// Quelle: nur die in GRAMPS SCHREIBBAREN projizierten Felder. `callNumber`/`callMedia`
+// zählen seit BL-245 mit — ohne sie bliebe eine Quelle, an der NUR die Signatur geändert
+// wurde, „unverändert", und der Edit fiele still unter den Tisch (dieselbe Lücke, die
+// BL-83 bei der Evidenz-Bewertung des Zitats hatte). `externalRefs` bleibt bewusst
+// DRAUSSEN: das Feld ist read-only ([20 §1.6]), kann sich also nie unterscheiden, und
+// sein `<srcattribute>` reist über den Passthrough.
 const sourceGleich = (a: Source, b: Source): boolean =>
   a.title === b.title && a.author === b.author && a.abbr === b.abbr && a.publisher === b.publisher &&
-  (a.repo ?? '') === (b.repo ?? '') && sameMediaSet(a.media, b.media);
+  (a.repo ?? '') === (b.repo ?? '') && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
+  sameMediaSet(a.media, b.media);
 
 const repoGleich = (a: Repository, b: Repository): boolean =>
   a.name === b.name && a.type === b.type && a.www === b.www;
