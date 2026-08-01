@@ -534,3 +534,70 @@ describe('HofDetail — Name & Adressvarianten steht am Anfang (Nutzer-Wunsch)',
     expect(headings[0]).toBe('Name & Adressvarianten');
   });
 });
+
+// ADR-v9-191 / BL-266 — Geschwister-Stelle zu PlaceDetail: derselbe Schalter, dieselbe
+// Komponente (INV-UI-4). Ein Fix an einer Regel ist erst fertig, wenn beide Stellen ihn tragen.
+describe('HofDetail — Prüf-Marker (ADR-v9-191)', () => {
+  function setup(reviewedAt?: number | null) {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set(
+      '@H1@',
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], reviewedAt }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+    render(HofDetail, { props: { appState, viewState } });
+    return appState;
+  }
+
+  it('setzt den Marker per Klick', async () => {
+    const appState = setup();
+
+    await fireEvent.click(screen.getByText('Geprüft markieren'));
+
+    expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeTypeOf('number');
+  });
+
+  it('nimmt ihn beim zweiten Klick zurück', async () => {
+    const appState = setup(1_700_000_000_000);
+
+    const datum = new Date(1_700_000_000_000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    await fireEvent.click(screen.getByText(`✓ Geprüft ${datum}`));
+
+    expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeNull();
+  });
+});
+
+// --- INV-UI-16: Geschwister-Stelle zu PlaceDetail (Spec 21 §6m, ADR-v9-193, BL-270) ---
+// Beim Hof wiegt es schwerer: die Adressvarianten daneben committen sofort, und eine
+// Umbenennung zieht über alle referenzierenden Ereignisse mit (ADR-v9-81). Ein
+// „Abbrechen", das den Modus schloss, sah nach Rücknahme genau davon aus.
+describe('HofDetail — Transaktionsgrenze (INV-UI-16)', () => {
+  it('„Verwerfen" setzt die Notiz zurück, hält den Modus offen und lässt die sofort committete Adressvariante stehen', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@'));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'alt' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+
+    render(HofDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+
+    await fireEvent.input(screen.getByLabelText('Neue Adressvariante'), { target: { value: 'Wallstraße 33' } });
+    await fireEvent.click(screen.getByText('+ Hinzufügen'));
+    expect(appState.db.hofObjects.get('@H1@')?.addrs).toHaveLength(2);
+
+    await fireEvent.input(screen.getByLabelText('Notiz'), { target: { value: 'FALSCH' } });
+    await fireEvent.click(screen.getByText('Verwerfen'));
+
+    expect((screen.getByLabelText('Notiz') as HTMLTextAreaElement).value).toBe('alt');
+    expect(screen.getByText('Fertig')).toBeTruthy();
+    expect(screen.queryByText('✎ Bearbeiten')).toBeNull();
+    expect(appState.db.hofObjects.get('@H1@')?.addrs).toHaveLength(2);
+  });
+});

@@ -18,7 +18,7 @@
 {#if visible}
   <div class="stb-update" role="status">
     <span class="stb-update__text">Neue Version verfügbar.</span>
-    <button type="button" class="stb-update__action" onclick={onApply}>Neu laden</button>
+    <button type="button" class="stb-btn stb-update__action" data-variant="secondary" onclick={onApply}>Neu laden</button>
   </div>
 {/if}
 
@@ -38,14 +38,11 @@
     color: var(--stb-text);
   }
 
+  /* Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` (design-system.css).
+     Der `stb-`-Präfix ließ diese Klasse wie eine geteilte aussehen — sie war es nie;
+     sie trug sogar einen eigenen `border-radius: 6px` statt des Tokens. */
   .stb-update__action {
-    padding: 0.2rem 0.75rem;
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--stb-gold);
     font: inherit;
-    cursor: pointer;
   }
 
   .stb-update__action:hover,

@@ -21,6 +21,8 @@
   import { dedupeAddrNote, displayEventValue, type EventLineRow } from './event-line-row';
   import SourceBadge from './SourceBadge.svelte';
   import CoordIndicator from './CoordIndicator.svelte';
+  import MediaThumb from './MediaThumb.svelte';
+  import type { MediaResolver } from '../../services/media';
   import { tooltip } from './tooltip';
 
   interface Props {
@@ -41,6 +43,11 @@
     onRetract?: (key: string) => void;
     /** ✎-Bearbeiten. */
     onEdit: (key: string) => void;
+    /** Bilder AM EREIGNIS (BL-260) — bereits ausgewählt vom Aufrufer (`eventImages`),
+     *  damit diese Zeile keine eigene Auswahl trifft. Leer = keine Miniatur. */
+    images?: readonly { file: string; form: string; title: string }[];
+    /** Medien-Auflösung — ohne sie bleibt die Miniatur aus. */
+    mediaResolver?: MediaResolver;
   }
   const {
     ev,
@@ -52,6 +59,8 @@
     onNavigateLens,
     onRetract,
     onEdit,
+    images = [],
+    mediaResolver,
   }: Props = $props();
 
   // Hof-vor-Ort-Priorität (unverändert aus den alten Kopien übernommen): ein Ereignis
@@ -109,6 +118,17 @@
 </script>
 
 <li class="event-line">
+  <!-- Miniatur (BL-260): nur bei Ereignissen mit EIGENEN Medien (am Realbestand 20).
+       Sie steht VOR der Kopfzeile, damit die Zeile ihre Informationshierarchie behält
+       (INV-UI-7) — das Bild begleitet das Ereignis, es führt es nicht an. Auswahl trifft
+       der Aufrufer (`eventImages`), Auflösung `MediaThumb`. -->
+  {#if images.length > 0 && mediaResolver}
+    <span class="event-line__thumbs">
+      {#each images.slice(0, 3) as img (img.file)}
+        <MediaThumb file={img.file} form={img.form} alt={img.title} resolver={mediaResolver} size="inline" />
+      {/each}
+    </span>
+  {/if}
   <div class="event-line__head">
     <span class="event-line__label">{ev.label}</span>
     {#if shownValue}<span class="event-line__value">{shownValue}</span>{/if}
@@ -161,6 +181,19 @@
 </li>
 
 <style>
+  /* Kleine, begleitende Miniaturen — bewusst klein: die Zeile ist eine LISTE, kein
+     Galerie-Eintrag (INV-UI-5, kompakte Zeilen). Höchstens drei; wer alle sehen will,
+     geht in die Medien-Fläche. */
+  .event-line__thumbs {
+    /* Kontext-Höhe statt einer zweiten Größenregel (s. MediaThumb): die Miniatur behält
+       ihr Seitenverhältnis und wird nur niedriger. */
+    --stb-thumb-h: 3.4rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.25rem;
+  }
+
   .event-line {
     background: var(--stb-surface-1);
     border-radius: var(--stb-radius-card);

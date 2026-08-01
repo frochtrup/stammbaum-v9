@@ -29,15 +29,18 @@
   import { mountStoryDiagram } from '../../islands/story/story-diagram';
   import { buildStoryHtml } from './story-to-html';
   import { openReportInNewTab } from '../reports/open-report';
-  import { buildPersonStory, buildFamilyStory, type StoryDoc } from './story-model';
+  import { buildPersonStory, buildFamilyStory, storyMediaFiles, type StoryDoc } from './story-model';
+  import type { MediaResolver } from '../../../services/media';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
     route: Route;
     onNavigateLens?: (lens: LensId) => void;
+    /** Medien-Auflösung (BL-261) — ohne sie zeigt die Story nur eingebettete Fotos. */
+    mediaResolver?: MediaResolver;
   }
-  const { appState, viewState, route, onNavigateLens }: Props = $props();
+  const { appState, viewState, route, onNavigateLens, mediaResolver }: Props = $props();
 
   const MODES = [
     { id: 'person', label: 'Person' },
@@ -52,13 +55,40 @@
   // Ehefamilie der Fokus-Person.
   const familyId = $derived(viewState.getCurrent('storyFamily') ?? subject?.parentIn[0] ?? null);
 
+  // Foto-Vorlauf (BL-261, ADR-v9-187 Punkt 7): die Auflösung von Dateipfaden ist
+  // asynchron, der Story-Bau ist es NICHT. Also erst die Bytes holen, dann bauen — die
+  // Story rendert sofort (ohne Fotos) und ergänzt sie, sobald die Map da ist.
+  const photoSubjects = $derived(
+    route.storyMode === 'family'
+      ? [appState.db.families.get(familyId ?? '')?.husband, appState.db.families.get(familyId ?? '')?.wife]
+          .filter((x): x is string => !!x)
+      : subject
+        ? [subject.id]
+        : [],
+  );
+  let embed = $state<ReadonlyMap<string, string>>(new Map());
+  $effect(() => {
+    const files = storyMediaFiles(appState.db, photoSubjects);
+    if (!mediaResolver || files.length === 0) {
+      embed = new Map();
+      return;
+    }
+    let gilt = true;
+    void mediaResolver.dataUrls(files).then((m) => {
+      if (gilt) embed = m;
+    });
+    return () => {
+      gilt = false;
+    };
+  });
+
   const doc = $derived<StoryDoc | null>(
     route.storyMode === 'family'
       ? familyId && appState.db.families.get(familyId)
-        ? buildFamilyStory(appState.db, familyId)
+        ? buildFamilyStory(appState.db, familyId, embed)
         : null
       : subject
-        ? buildPersonStory(appState.db, appState.placeContext, subject.id)
+        ? buildPersonStory(appState.db, appState.placeContext, subject.id, embed)
         : null,
   );
 

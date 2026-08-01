@@ -33,7 +33,8 @@ describe('RepositoryForm — Speichern/Vorbefüllung', () => {
     unmount();
 
     render(RepositoryForm, { props: { appState, repository: makeRepository('@R2@', { name: 'Bestehend' }) } });
-    expect(screen.getByText('Archiv bearbeiten')).toBeTruthy();
+    expect(screen.queryByText('Archiv bearbeiten')).toBeNull();
+    expect(screen.queryByText('Neues Archiv')).toBeNull();
   });
 
   it('Abbrechen ruft onCancel, speichert nichts', async () => {

@@ -40,7 +40,20 @@ gepflegtes `[Unreleased]`.
   berühren. `docs`/`chore`/`test`/Tooling fallen durch Typ- **und** Pfad-Filter heraus.
 - **Vorschau ohne zu schreiben:** `npm run handbuch -- --skip-capture --dry-run`.
 - **Nützliche Schalter:** `--since <ref>` (Basis übersteuern), `--all-commits` (auch
-  andere Typen), `--notes "a ;; b"` (optionale redaktionelle Zeilen), `--version X.Y`.
+  andere Typen), `--notes "a ;; b"` (optionale redaktionelle Zeilen), `--version X.Y`,
+  `--port <n>` (Dev-Server-Port, Standard 5173).
+
+### Wenn der Port belegt ist
+Der Bau braucht seinen Port **exklusiv** (`--strictPort`): `capture.mjs` bekommt die URL
+fest übergeben, ein selbstgewählter Ausweichport von Vite zeigte ins Leere. Läuft schon
+etwas auf 5173 — eine parallele Bau-Session, ein vergessener Dev-Server —, bricht der Lauf
+**vor** dem `demo.ged`-Tausch ab und nennt einen tatsächlich freien Port:
+
+```bash
+npm run handbuch -- --port 5200
+```
+Der Abbruch liegt bewusst vor dem Tausch: mittendrin bliebe die 1,4-MB-Fixture als
+`app/public/demo.ged` im Arbeitsbaum liegen.
 
 Praktische Folge: Wer ein user-sichtbares Feature baut, muss **nichts** am Changelog tun —
 der nächste `npm run handbuch`-Lauf listet den Commit automatisch. Nur der eigentliche

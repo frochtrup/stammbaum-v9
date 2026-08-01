@@ -14,8 +14,8 @@
 // auf ein Orts-Problem nicht passen. Nach deren Filterung waren sie unsichtbar —
 // `hof-review-model.ts` war der einzige Konsument von `resolveEvents().review`.
 import type { Database, Event, PlaceId } from '../../../core/model/types';
-import type { PlaceContext, ReviewItem } from '../../../core/places';
-import { resolveEvents } from '../../../core/places';
+import type { EnrichmentLevel, PlaceContext, ReviewItem } from '../../../core/places';
+import { isReviewed, placeEnrichmentLevel, resolveEvents } from '../../../core/places';
 import { collectAllEvents, ownerLabelFor, type OwnerRef } from '../../shell/review-events';
 
 export interface PlaceCandidate {
@@ -23,6 +23,26 @@ export interface PlaceCandidate {
   /** Voller Ketten-Text („Oldenburg › Niedersachsen") — bei Klasse P sind ALLE Kandidaten
    *  per Definition gleichnamig, der blosse Titel wäre als Auswahlhilfe wertlos. */
   label: string;
+  /**
+   * Anreicherungs-Grad + Prüf-Marker (Spec 11 §9.1, ADR-v9-191). Diese Ansicht trug bis
+   * dahin GAR KEIN Kurations-Signal, obwohl sie die Frage stellt, für die es gemacht ist:
+   * welcher der gleichnamigen Kandidaten ist der gepflegte? Wo die Kette nicht
+   * unterscheidet (`candidatesIndistinguishable`), ist das oft das einzige, was noch
+   * unterscheidet. Reine Anzeige — die Auswahl selbst bleibt Nutzersache, und der Kern rät
+   * weiterhin nicht (ADR-v9-29).
+   */
+  level: EnrichmentLevel;
+  reviewed: boolean;
+  /**
+   * Roher `PlaceObject.type` (BL-268) — die UI übersetzt über `placeTypeLabel`
+   * (ADR-v9-149, EINE Quelle). Ergänzt Kette und Anreicherungs-Grad um die Achse, die
+   * beide nicht tragen: **welche Verwaltungsebene** ist gemeint. Befund bei der
+   * Verifikation von BL-267 an Realdaten — der Grad trennt zwei „Ochtrup" sauber, zwei
+   * „Münster" nicht: dort sind beide „ausführlich" und der Unterschied ist Stadt ⇄ Kreis,
+   * genau der `typeMismatch`-Fall, den der Dedup-Dialog seit ADR-v9-77 je Mitglied zeigt.
+   * Leerer Typ zeigt nichts (ADR-v9-77: der normale, unauffällige Fall).
+   */
+  type: string;
 }
 
 export interface PlaceReviewRow {
@@ -98,10 +118,16 @@ export function buildPlaceReview(db: Database, ctx: PlaceContext): PlaceReviewRe
     const owner = owners[item.index];
     const ev = events[item.index];
     const year = result.events[item.index]?.event.date ? Number(String(ev.date).match(/\d{4}/)?.[0] ?? '') || null : null;
-    const candidates: PlaceCandidate[] = item.candidates.map((placeId) => ({
-      placeId,
-      label: candidateLabel(ctx, placeId, year),
-    }));
+    const candidates: PlaceCandidate[] = item.candidates.map((placeId) => {
+      const po = ctx.places.byId(placeId);
+      return {
+        placeId,
+        label: candidateLabel(ctx, placeId, year),
+        level: po ? placeEnrichmentLevel(po) : 'none',
+        reviewed: po ? isReviewed(po) : false,
+        type: po?.type ?? '',
+      };
+    });
     return {
       index: item.index,
       klass: 'P' as const,

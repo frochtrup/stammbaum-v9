@@ -38,6 +38,15 @@
   opacity: 0.85;
 }
 
+/* Im Vollbild liegt die Insel am Viewport-Rand, der Schalter also genau dort, wo iOS
+   Uhr/Batterie zeichnet — der EINZIGE Ausweg aus dem Modus wäre unerreichbar. Nur hier,
+   nicht am Grundzustand: eingebettet sitzt die Insel unterhalb der Kopfzeile, ein Inset
+   wäre dort eine falsche Einrückung. */
+.tree-island--fullscreen .tree-island__fs-btn {
+  top: calc(0.5rem + var(--stb-safe-top));
+  right: calc(0.5rem + var(--stb-safe-right));
+}
+
 .tree-island__fs-btn:hover,
 .tree-island__fs-btn:focus-visible {
   opacity: 1;

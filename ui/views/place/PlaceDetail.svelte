@@ -21,6 +21,8 @@
   import type { LensId } from '../../shell/lens-model';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
+  import { markPlaceReviewed } from '../../../core/places';
   import { placeTypeLabel, placeHeading } from '../../shell/place-labels';
   import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
@@ -63,6 +65,13 @@
     'Zugehörigkeit nach Jahr: die volle Verwaltungskette (bearbeitbar über ' +
     '„Zugehörigkeit bearbeiten") zu jedem Jahr, in dem sich die Kette ändert — auch ' +
     'wenn nur eine übergeordnete Ebene wechselt, nicht die direkte Zugehörigkeit selbst.';
+
+  /** ADR-v9-191: erklärt, WESSEN Geschichte der zweite Block zeigt — ohne diese Zuschreibung
+   *  las sich eine geerbte Jahresreihe wie die Historie dieses Orts. */
+  const ANCESTOR_INFO =
+    'Für diesen Ort ist keine datierte Zugehörigkeit erfasst. Die folgenden Jahre sind ' +
+    'die Verwaltungsgeschichte der übergeordneten Ebenen — sie sagen nichts darüber aus, ' +
+    'wann sich die Zugehörigkeit dieses Orts selbst geändert hat.';
 
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
@@ -168,7 +177,22 @@
              im Steckbrief-Kopf. -->
         {#if placeTypeLabel(detail.place.type)}<span class="place-detail__type-badge">{placeTypeLabel(detail.place.type)}</span>{/if}
         {#if !editing}
-          <button type="button" class="place-detail__edit-btn" onclick={() => (editing = true)}>✎ Bearbeiten</button>
+          <!-- ADR-v9-191: der EINZIGE Weg zum Prüf-Marker. Bewusst neben „Bearbeiten" und
+               nicht darin: „angesehen, nichts zu ergänzen" ist gerade der Fall, in dem
+               niemand den Editor öffnet. -->
+          <ReviewedToggle
+            reviewedAt={detail.place.reviewedAt}
+            kind="Ort"
+            onToggle={(at) => appState.savePlace(markPlaceReviewed(detail.place, at))}
+          />
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = true)}>✎ Bearbeiten</button>
+        {:else}
+          <!-- Der Modus wird von dem Schalter geschlossen, der ihn geöffnet hat (INV-UI-16,
+               ADR-v9-193). Vorher tat das „Abbrechen" des Grunddaten-Formulars mit — und
+               weil `editing` auch die sofort committenden Abschnitte sichtbar macht
+               (Namensvarianten, Zugehörigkeit, GOV-Import, Merge), las sich dieser Klick
+               als Rücknahme von allem seit dem Öffnen. Das war er nie. -->
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = false)}>Fertig</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -177,7 +201,6 @@
       <PlaceEditForm
         place={detail.place}
         onSave={handleSaveEdit}
-        onCancel={() => (editing = false)}
         onDelete={handleDelete}
       />
     {/if}
@@ -192,7 +215,11 @@
         <p class="place-detail__chain">{@render chainRow(detail.enclosureChain, false)}</p>
       {/if}
       {#if detail.hierarchyTimeline.length > 0}
-        <p class="place-detail__hint">Zugehörigkeit nach Jahr (volle Kette):</p>
+        <p class="place-detail__hint">
+          {detail.hierarchyTimeline[0].year == null
+            ? 'Eigene Zugehörigkeit:'
+            : 'Zugehörigkeit nach Jahr (volle Kette):'}
+        </p>
         <ul class="place-detail__timeline-list">
           {#each detail.hierarchyTimeline as row, i (i)}
             <li class="place-detail__timeline-row">
@@ -205,8 +232,35 @@
             </li>
           {/each}
         </ul>
-      {:else}
+      {:else if detail.enclosureChain.length <= 1}
+        <!-- Nur, wenn WIRKLICH nichts erfasst ist: bei einer undatierten Zuordnung steht die
+             Kette bereits über „Aktuell:", und „keine erfasst" wäre falsch (ADR-v9-191). -->
         <p class="place-detail__muted">Keine übergeordnete Zugehörigkeit erfasst.</p>
+      {/if}
+      <!-- ADR-v9-191: geerbte Jahres-Zeilen sind Aussagen des ELTERNORTS und tragen
+           deshalb eine eigene Überschrift, statt unter dem Namen dieses Orts zu stehen. -->
+      {#if detail.ancestorHistory.length > 0}
+        <p class="place-detail__hint">
+          Geschichte der übergeordneten Ebenen
+          <span
+            class="place-detail__info-icon"
+            role="note"
+            aria-label={ANCESTOR_INFO}
+            use:tooltip={ANCESTOR_INFO}>ⓘ</span
+          >
+        </p>
+        <ul class="place-detail__timeline-list place-detail__timeline-list--ancestor">
+          {#each detail.ancestorHistory as row, i (i)}
+            <li class="place-detail__timeline-row">
+              <span class="place-detail__timeline-span">{row.label}</span>
+              {#if row.chain}
+                <span>{@render chainRow(row.chain, row.truncated)}</span>
+              {:else}
+                <span class="place-detail__muted">unbekannt</span>
+              {/if}
+            </li>
+          {/each}
+        </ul>
       {/if}
       <div class="place-detail__enclosure-edit-row">
         <button type="button" class="place-detail__enclosure-edit-btn" onclick={openEnclosureModal}>
@@ -332,15 +386,6 @@
     padding: 0.1em 0.5em;
   }
 
-  .place-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .place-detail__section {
     margin-top: 1.25rem;
@@ -443,6 +488,13 @@
   .place-detail__timeline-span {
     color: var(--stb-text-dim);
     font-size: 0.8rem;
+  }
+
+  /* ADR-v9-191: fremde Aussage, sichtbar abgesetzt. Die Überschrift trägt die Bedeutung —
+     der Einzug ist die Verstärkung, nicht der einzige Kanal (Spec 21 §2). */
+  .place-detail__timeline-list--ancestor {
+    border-left: 2px solid var(--stb-surface-2);
+    padding-left: 0.6rem;
   }
 
   .place-detail__enclosure-edit-row {

@@ -46,20 +46,32 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
-  import { createAppDataIO, createProjectsStore, type AppDataIO } from '../services/app-data';
+  import { createAppDataIO, createProjectsStore, createTourStore, type AppDataIO, type TourStore } from '../services/app-data';
+  import {
+    createMediaResolver,
+    FsMediaFolderAdapter,
+    IdbMediaFolderHandleStore,
+    browserThumbnail,
+    canMakeThumbnails,
+    IdbMediaBytesStore,
+    InputMediaFilePicker,
+    type MediaResolver,
+  } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import { focusPersonInLens } from '../ui/shell/lens-jump';
-  import { jumpToEntity, jumpToFamilyStory } from '../ui/shell/entity-jump';
+  import { jumpToEntity, jumpToFamilyStory, runPaletteCommand } from '../ui/shell/entity-jump';
   import UndoControls from '../ui/shell/UndoControls.svelte';
-  import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
+  import { createShortcutHandler } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
-  import { isNavCommand, type Command } from '../ui/shell/command-palette-model';
+  import type { Command } from '../ui/shell/command-palette-model';
   import { saveCurrentDoc } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
   import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
+  import OnboardingTour from '../ui/shell/OnboardingTour.svelte';
+  import { createTourState } from '../ui/shell/onboarding-state.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
   import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
 
@@ -79,6 +91,12 @@
     /** Injizierbar für Tests (analog placesFileIO) — B1-Bündel `app-data.json` (BL-180):
      * dateiübergreifender app-privater Zustand, eigener Picker, eigener IDB-Spiegel. */
     appDataIO?: AppDataIO;
+    /** Injizierbar für Tests (analog appDataIO) — Medien-Auflösung (BL-257): hält den
+     * Verzeichnis-Handle des Medien-Ordners (Kategorie A) und löst relative Pfade auf. */
+    mediaResolver?: MediaResolver;
+    /** Injizierbar für Tests (analog appDataIO) — Merker „Erstnutzer-Rundgang gesehen"
+     * im B1-Bündel (BL-213). Default ist die echte Instanz auf demselben Bündel. */
+    tourStore?: TourStore;
     /** Injizierbar für Tests — Formfaktor-Quelle (BL-91). Default ist window.matchMedia.
      *
      * Nötig, weil `layout` ein Modul-Singleton ist und `start()` hier im onMount läuft:
@@ -92,6 +110,18 @@
     persister = createPlacesPersister(createPlacesSyncService()),
     placesFileIO = createPlacesFileIO(),
     appDataIO = createAppDataIO(),
+    mediaResolver = createMediaResolver({
+      adapter: new FsMediaFolderAdapter(),
+      store: new IdbMediaFolderHandleStore(),
+      // Ohne `createImageBitmap`/`OffscreenCanvas` (ältere Browser, Testumgebung) bleibt
+      // es beim Original — kleiner ist eine Optimierung, kein Anzeige-Vorbehalt.
+      makeThumbnail: canMakeThumbnails() ? browserThumbnail : undefined,
+      // Zweiter Zugangsweg (BL-259): einzeln importierte Dateien. Immer verdrahtet —
+      // welcher Weg angeboten wird, entscheidet die Fläche anhand der Plattform.
+      bytes: new IdbMediaBytesStore(),
+      picker: new InputMediaFilePicker(),
+    }),
+    tourStore = createTourStore(appDataIO),
     layoutEnv,
   }: Props = $props();
 
@@ -155,6 +185,16 @@
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
     void projectsState.load();
 
+    // Merker des Erstnutzer-Rundgangs (BL-213) — bis er gelesen ist, zeigt der Rundgang
+    // nichts; ein Speicherfehler gilt als „schon gesehen".
+    void tour.load();
+
+    // Medien-Ordner wiederherstellen (BL-257): gespeicherter Verzeichnis-Handle +
+    // Leserecht-Nachfrage, genau wie beim Arbeitskopie-Handle. Kein Ordner oder kein
+    // erneut erteiltes Recht ist KEIN Fehler — die App läuft vollständig weiter, nur
+    // ohne Medien-Vorschauen.
+    void mediaResolver.restore().catch(() => {});
+
     // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
     // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
     // lange wie die App, aber ein Listener-Leck in Komponententests (mehrfaches
@@ -172,6 +212,12 @@
       stopLayout();
     };
   });
+
+  // Erstnutzer-Rundgang (BL-213): die Bedingung lebt in `onboarding-state.svelte.ts`,
+  // hier bleibt die Verdrahtung.
+  // `untrack` wie bei `projectsState` darüber: der Merker-Store wird genau einmal beim
+  // Start gebunden (eine Instanz, kein Wert, der sich ändert).
+  const tour = createTourState(untrack(() => tourStore), () => appState.fileName);
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
   // $derived liest appState.db über den Chokepoint neu, sobald ein Aufgaben-Kommando
@@ -310,21 +356,7 @@
     return p ? { id: p.id, label: displayName(p) } : null;
   });
 
-  function runCommand(cmd: Command) {
-    if (cmd.kind === 'proband') {
-      goToProband();
-      return;
-    }
-    if (isNavCommand(cmd)) {
-      route.setTarget(cmd.id);
-      return;
-    }
-    if (cmd.kind === 'person') openPerson(cmd.id);
-    else if (cmd.kind === 'family') openFamily(cmd.id);
-    else if (cmd.kind === 'source') openSource(cmd.id);
-    else if (cmd.kind === 'place') openPlace(cmd.id);
-    else openHof(cmd.id);
-  }
+  const runCommand = (cmd: Command) => runPaletteCommand(viewState, route, cmd, goToProband);
 
   async function runSave() {
     if (!appState.fileName) return;
@@ -339,41 +371,22 @@
   // dort dem Feld, Escape und ⌘S gerade NICHT — ein Escape, das ein Overlay nicht
   // schließt, weil der Fokus in dessen eigenem Suchfeld steht, wäre die Falle statt der
   // Rettung (LP-8, Spec 21 §6i).
-  function onWindowKeydown(e: KeyboardEvent) {
-    const action = matchShortcut(e);
-    if (!action) return;
-    if (belongsToField(action) && isEditableTarget(e.target)) return;
-
-    if (action === 'palette') {
-      paletteOpen = !paletteOpen;
-      e.preventDefault();
-      return;
-    }
-    if (action === 'escape') {
-      // Nur beanspruchen, wenn wirklich etwas zu schließen war — sonst nimmt die App
-      // anderen Overlays (Modals, Menüs) ihr eigenes Escape weg.
-      if (paletteOpen) {
-        paletteOpen = false;
-        e.preventDefault();
-      }
-      return;
-    }
-    if (action === 'save') {
-      e.preventDefault();
-      void runSave();
-      return;
-    }
-    if (action === 'back' || action === 'forward') {
-      // Nur beanspruchen, wenn es wirklich einen Schritt gab (s. u. bei undo/redo).
-      if (action === 'back' ? navHistory.back() : navHistory.forward()) e.preventDefault();
-      return;
-    }
-
-    const handled = action === 'undo' ? appState.undo() : appState.redo();
-    // Nur beanspruchen, wenn wirklich etwas passiert ist — sonst schluckt die App ein
-    // Kürzel, das der Browser sinnvoller behandeln könnte.
-    if (handled) e.preventDefault();
-  }
+  // Der Dispatch selbst liegt in `shortcuts.ts` neben der Taste→Aktion-Zuordnung
+  // (createShortcutHandler): hier bleiben nur die Aktionen der Schale. Jede meldet, ob
+  // sie wirklich etwas getan hat — nur dann beansprucht der Handler das Ereignis.
+  const onWindowKeydown = createShortcutHandler({
+    togglePalette: () => (paletteOpen = !paletteOpen),
+    closePalette: () => {
+      if (!paletteOpen) return false;
+      paletteOpen = false;
+      return true;
+    },
+    save: () => void runSave(),
+    back: () => navHistory.back(),
+    forward: () => navHistory.forward(),
+    undo: () => appState.undo(),
+    redo: () => appState.redo(),
+  });
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
@@ -386,6 +399,12 @@
     onClose={() => (paletteOpen = false)}
     onRun={runCommand}
   />
+{/if}
+
+{#if tour.visible}
+  <!-- `onStart` führt auf die Datenfläche: gestartet wird der Rundgang dort, wo
+       „Demo laden" steht (Mehr → Datei) — seine Ziele stehen woanders. -->
+  <OnboardingTour onStart={() => route.openEntities()} onDone={() => tour.finish()} />
 {/if}
 
 <div class="app-shell" class:app-shell--desktop={layout.isDesktopLayout}>
@@ -418,6 +437,7 @@
         {clipboard}
         {appState}
         {viewState}
+        {mediaResolver}
         {route}
         {navHistory}
         onOpenLensForPerson={openLensForPerson}
@@ -449,7 +469,7 @@
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'story'}
-      <StoryLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
+      <StoryLensView {appState} {viewState} {route} {mediaResolver} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
@@ -477,6 +497,7 @@
         {persister}
         {placesFileIO}
         {appDataIO}
+        {mediaResolver}
         {fileHandle}
         {route}
         {viewState}
@@ -517,12 +538,25 @@
   }
 
   .app-shell__header {
-    padding: 0.5rem 1rem 0;
+    /* Oberste Fläche der App — und damit die, die unter der iOS-Statusleiste liegt
+       (`viewport-fit=cover`, s. --stb-safe-top). Ohne das Inset überdeckte die Uhr den
+       Titel und die Systemsymbole rechts lagen genau auf Rückgängig/Wiederherstellen:
+       sichtbar UND nicht bedienbar (Nutzer-Fund per Screenshot 2026-08-01).
+       Links/rechts ebenfalls, weil im Querformat der Notch hineinragt. */
+    padding: calc(0.5rem + var(--stb-safe-top)) calc(1rem + var(--stb-safe-right)) 0
+      calc(1rem + var(--stb-safe-left));
     /* Titel links, Undo/Redo rechts — die Leiste soll den Titel nicht verschieben. */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+  }
+
+  /* Auf Desktop liegt links die Sidebar, nicht der Bildschirmrand — dort trägt SIE das
+     linke Inset (Sidebar.svelte), die Kopfzeile bekäme sonst eine zweite, falsche
+     Einrückung. */
+  .app-shell--desktop .app-shell__header {
+    padding-left: 1rem;
   }
 
   .app-shell__title {
@@ -545,7 +579,10 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding-bottom: 4.5rem; /* Platz für die fixed Bottom-Nav */
+    /* Platz für die fixed Bottom-Nav — inkl. des Home-Indikator-Insets, das die Nav sich
+       selbst anpolstert (--stb-nav-total). Ohne das Inset verschwindet die letzte
+       Listenzeile auf einem iPhone genau um diese 34px unter der Nav. */
+    padding-bottom: calc(1.4rem + var(--stb-nav-total));
   }
 
   /* Auf Desktop gibt es keine Bottom-Nav mehr — der reservierte Platz muss mit ihr

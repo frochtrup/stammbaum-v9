@@ -11,7 +11,7 @@ import type { Citation, Database, Event, Person, PersonId } from '../../../core/
 import { isEventPresent } from '../../../core/model';
 import { formatDateForDisplay } from '../../../core/model/gedcom-date';
 import { computeKekuleNumbers, getParentIds, getSpouseFamilies } from '../../islands/tree/tree-model';
-import { collectStoryMedia } from '../story/story-model';
+import { collectStoryMedia, storyMediaFiles } from '../story/story-model';
 import { eventTypeLabel } from '../../shell/event-labels';
 import { renderReport, esc } from '../../../services/reports';
 import { personName, lifeYears, yearOf, cleanPlace } from './report-format';
@@ -130,7 +130,21 @@ function personSection(db: Database, p: Person, kekule: number | undefined, phot
  * das Buch enthält deren Vorfahren in Kekulé-Nummerierung. `generatedOn` wird injiziert
  * (kein Wall-Clock, TST-3) → deterministisch goldfile-testbar.
  */
-export function buildFamilyBook(db: Database, probandId: PersonId, generatedOn: string): string {
+/**
+ * Welche Mediendateien das Familienbuch einbetten will (BL-261) — der Aufrufer löst sie
+ * VOR dem Bau auf und reicht die fertige Map herein. Ohne diesen Vorlauf müsste der
+ * Builder `async` werden und wäre nicht mehr goldfile-testbar (ADR-v9-138).
+ */
+export function familyBookMediaFiles(db: Database, probandId: PersonId): string[] {
+  return storyMediaFiles(db, [...computeKekuleNumbers(db, probandId).keys()]);
+}
+
+export function buildFamilyBook(
+  db: Database,
+  probandId: PersonId,
+  generatedOn: string,
+  embed?: ReadonlyMap<string, string>,
+): string {
   const proband = db.individuals.get(probandId);
   if (!proband) throw new Error('Person nicht gefunden: ' + probandId);
 
@@ -151,7 +165,7 @@ export function buildFamilyBook(db: Database, probandId: PersonId, generatedOn: 
   const sections = sortedIds
     .map((id) => {
       const p = db.individuals.get(id)!;
-      const photo = collectStoryMedia(db, id)[0]?.src ?? null;
+      const photo = collectStoryMedia(db, id, embed)[0]?.src ?? null;
       return personSection(db, p, kekule.get(id), photo);
     })
     .join('\n');
@@ -163,7 +177,7 @@ export function buildFamilyBook(db: Database, probandId: PersonId, generatedOn: 
     .map((p) => `<a href="#p-${esc(p.id)}">${esc(personName(p))} (${kekule.get(p.id)})</a>`)
     .join('');
 
-  const coverSrc = collectStoryMedia(db, probandId)[0]?.src ?? null;
+  const coverSrc = collectStoryMedia(db, probandId, embed)[0]?.src ?? null;
   const cover = coverSrc
     ? `<div class="book-cover"><img class="book-cover-photo" src="${esc(coverSrc)}" alt="${esc(personName(proband))}"></div>`
     : '';

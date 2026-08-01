@@ -130,7 +130,7 @@ describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile'
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
 
-    expect(buildHofRows(db)[0].enriched).toBe(false);
+    expect(buildHofRows(db)[0].level).toBe('none');
   });
 
   it('angereichert (z. B. Notiz gesetzt) → enriched=true', () => {
@@ -141,7 +141,7 @@ describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile'
       hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'Hof am Bach' }),
     );
 
-    expect(buildHofRows(db)[0].enriched).toBe(true);
+    expect(buildHofRows(db)[0].level).not.toBe('none');
   });
 });
 
@@ -158,8 +158,8 @@ describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben
     return db;
   }
 
-  it('onlyIncomplete=true zeigt NUR nicht angereicherte Höfe', () => {
-    const rows = buildHofRows(twoHofs(), '', undefined, { onlyIncomplete: true });
+  it("level='none' zeigt NUR Höfe ohne Zusatzangaben", () => {
+    const rows = buildHofRows(twoHofs(), '', undefined, { level: 'none' as const });
 
     expect(rows.map((r) => r.id)).toEqual(['@H1@']);
   });
@@ -173,15 +173,15 @@ describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben
 
   it('nutzt DASSELBE Prädikat wie das enriched-Feld der Zeile (keine zweite Definition)', () => {
     const db = twoHofs();
-    const filtered = buildHofRows(db, '', undefined, { onlyIncomplete: true });
-    const allUnenriched = buildHofRows(db).filter((r) => !r.enriched);
+    const filtered = buildHofRows(db, '', undefined, { level: 'none' as const });
+    const allUnenriched = buildHofRows(db).filter((r) => r.level === 'none');
 
     expect(filtered.map((r) => r.id)).toEqual(allUnenriched.map((r) => r.id));
   });
 
   it('greift auch über buildHofListSections (beide Abschnitte)', () => {
     const db = twoHofs();
-    const sections = buildHofListSections(db, ctxOf(db), [], '', { onlyIncomplete: true });
+    const sections = buildHofListSections(db, ctxOf(db), [], '', { level: 'none' as const });
 
     expect([...sections.referenced, ...sections.unreferenced].map((r) => r.id)).toEqual(['@H1@']);
   });

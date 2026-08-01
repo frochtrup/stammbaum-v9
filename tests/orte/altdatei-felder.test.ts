@@ -59,9 +59,10 @@ describe('Ort aus älterer orte.json', () => {
     render(PlaceDetail, { props: { appState: host, viewState: nav } });
 
     await fireEvent.click(screen.getByText(/Bearbeiten/));
-    const save = document.querySelector('.place-edit-form__save') as HTMLButtonElement;
-    expect(save).toBeTruthy();
-    await fireEvent.click(save);
+    // Über die Beschriftung statt über eine CSS-Klasse: seit BL-273 kommen die
+    // beschrifteten Knöpfe aus `.stb-btn`, eine view-eigene Klasse gibt es nicht mehr.
+    // Ein Test, der an der Optik hängt, bricht bei jeder Konsolidierung erneut.
+    await fireEvent.click(screen.getByText('Speichern'));
 
     // Die fehlenden Felder sind danach gesetzt, nicht undefined — sonst wanderte das
     // Problem beim nächsten Speichern in die Datei.

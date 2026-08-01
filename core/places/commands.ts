@@ -36,6 +36,29 @@ export function deleteHofObject(hofs: HofObjects, id: HofId): void {
 }
 
 /**
+ * Setzt oder entfernt den Prüf-Marker eines Orts (Spec 11 §9.1, ADR-v9-191). Reine Kopie —
+ * der Aufrufer speichert über `savePlaceObject`.
+ *
+ * `at = null` hebt den Marker auf. Das ist kein Sonderfall, sondern die Gegenrichtung
+ * derselben Handlung: wer feststellt, dass er sich getäuscht hat, muss die Aussage
+ * zurücknehmen können (INV-UI-10-Geist — ein Direkt-Kommando braucht eine ebenso leichte
+ * Rücknahme).
+ *
+ * **Diese Funktion ist der einzige Weg zum Marker.** Kein Lade-, Seed-, Bootstrap-, GOV-
+ * oder Merge-Pfad ruft sie auf; sie hängt allein am „geprüft"-Knopf des Steckbriefs. Genau
+ * das macht die Aussage belastbar: ein automatisch gesetzter Marker sagte nichts mehr über
+ * einen Menschen aus.
+ */
+export function markPlaceReviewed(pl: PlaceObject, at: number | null): PlaceObject {
+  return { ...pl, reviewedAt: at };
+}
+
+/** Geschwister von `markPlaceReviewed` für Höfe (Spec 11 §9.1, ADR-v9-191). */
+export function markHofReviewed(h: HofObject, at: number | null): HofObject {
+  return { ...h, reviewedAt: at };
+}
+
+/**
  * Hängt eine Namensvariante (`pnames`) mit optionalem Zeitraum an ein bestehendes
  * PlaceObject an. Reine Kopie — der Aufrufer speichert das Ergebnis über
  * savePlaceObject(). Keine Dedup-Logik hier (Nutzer-Intent bleibt erhalten, analog
@@ -392,6 +415,13 @@ function mergePlaceObjectPair(
   }
   if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
   if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
+  // `reviewedAt` folgt BEWUSST NICHT dem fill-if-empty-Muster der Metadaten darüber
+  // (ADR-v9-191): der Marker ist keine Eigenschaft des Inhalts, sondern eine Aussage über
+  // einen Menschen. Ihn vom Verlierer zu erben hieße, dem Überlebenden eine Prüfung
+  // zuzuschreiben, die nie an ihm stattfand — und der Merge wäre der automatische Pfad, den
+  // es für dieses Feld nicht geben darf. Der Überlebende behält seinen eigenen Stand; wer
+  // das Ergebnis für geprüft hält, sagt es mit einem Klick (der Dedup-Dialog zeigt den
+  // Marker je Mitglied, BL-267).
 
   // 4. Fremd-Referenzen umhängen: andere PlaceObjects.enclosedBy, die auf mergedId zeigen.
   //    Erst prüfen (auf dem geteilten Objekt), dann NUR die Treffer auftauen — sonst wäre

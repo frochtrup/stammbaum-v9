@@ -12,7 +12,7 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
-  import { placeTypeLabel } from '../../shell/place-labels';
+  import { placeTypeLabel, enrichmentLabel } from '../../shell/place-labels';
   import { countUnresolvedGovPlaceholders } from '../../../core/places';
   import {
     buildPlaceListSections,
@@ -166,13 +166,22 @@
             <input type="checkbox" bind:checked={filters.hideAdmin} />
             Verwaltungseinheiten ausblenden
           </label>
-          <!-- Kurations-Arbeitsliste statt Zeilen-Pille (ADR-v9-149). Liegt hier in der
-               FilterBar-Disclosure, nicht als Dauer-Element — dieselbe Zuordnungsregel wie
-               INV-UI-11 („Filter → immer hinter FilterBar") und dieselbe Richtung wie
-               ADR-v9-148 (Kurations-Handlungsbedarf aggregiert, nicht je Zeile verstreut). -->
+          <!-- Kurations-Arbeitsliste statt Zeilen-Pille (ADR-v9-149), dreistufig seit
+               ADR-v9-191: „leer" allein beantwortet nicht die Frage „was habe ich nur
+               angefasst?". Liegt hier in der FilterBar-Disclosure, nicht als Dauer-Element
+               (INV-UI-11 „Filter → immer hinter FilterBar"). `onchange` statt `bind:value`
+               — TST-12/ESLint-Regel (happy-dom-Falle). -->
           <label class="stb-filter-opt stb-filter-opt--compact">
-            <input type="checkbox" bind:checked={filters.onlyIncomplete} />
-            nur unvollständige
+            Anreicherung
+            <select
+              value={filters.level}
+              onchange={(e) => (filters = { ...filters, level: (e.currentTarget as HTMLSelectElement).value as PlaceFilters['level'] })}
+            >
+              <option value="">alle</option>
+              <option value="none">{enrichmentLabel('none')}</option>
+              <option value="sparse">{enrichmentLabel('sparse')}</option>
+              <option value="rich">{enrichmentLabel('rich')}</option>
+            </select>
           </label>
           <!-- GOV-Platzhalter (BL-131): die Elternorte, die der GOV-Import anlegen musste
                und die noch keinen Namen haben — eine abschließbare Arbeitsliste, anders

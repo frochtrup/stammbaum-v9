@@ -25,6 +25,15 @@ export {
   makeMediaCitation,
 } from './factory';
 export { isEventPresent, isEventEmpty } from './event';
+export {
+  classifyMediaFile,
+  isWebLink,
+  webLinkHost,
+  webLinkLabel,
+  isImageMedia,
+  isEmbeddedImage,
+  type MediaFileKind,
+} from './media-kind';
 export { smallestPersonId, getParentIds, type ParentIds } from './queries';
 export {
   parseDateValue,

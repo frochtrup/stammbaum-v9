@@ -517,3 +517,57 @@ describe('renameHofAddrInEvents — explizite Hof-Umbenennung zieht referenziere
     expect(updated.place).toBe('Wall 33, Ochtrup');
   });
 });
+
+// ADR-v9-191 / BL-266 — „kuratiert" heißt jetzt geprüft ODER angereichert.
+describe('resetUncuratedLinks — der Prüf-Marker schützt mit (ADR-v9-191)', () => {
+  it('ein GEPRÜFTER, inhaltlich blanker Ort behält seine Zuordnung', () => {
+    const db = makeDatabase();
+    // Genau der Fall, den es ohne Marker nicht gibt: jemand hat „Ochtrup" angesehen, für
+    // richtig befunden und nichts ergänzt. Inhaltlich ist der Ort vom Seed-Rohzustand nicht
+    // zu unterscheiden — vor ADR-v9-191 wurde seine Zuordnung deshalb weggeworfen.
+    db.placeObjects.set('SEED1', place('SEED1', { title: 'Ochtrup', reviewedAt: 1_700_000_000_000 }));
+    db.placeObjects.set('CURATED1', place('CURATED1', { title: 'Ochtrup', type: 'Town' }));
+    const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'SEED1' }) });
+    db.individuals.set(p.id, p);
+
+    applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    expect(db.individuals.get('I1')!.birth.placeId).toBe('SEED1');
+  });
+
+  it('ein ANGEREICHERTER, nie geprüfter Ort behält seine Zuordnung ebenfalls — der Marker nimmt keinen Schutz weg', () => {
+    // Die Gegenprobe zur Zeile darüber: hinge der Schutz allein am Marker, verlöre jeder
+    // von Hand gepflegte, aber nie geklickte Ort seine Zuordnungen.
+    const db = makeDatabase();
+    db.placeObjects.set('CURATED1', place('CURATED1', { title: 'Ochtrup', type: 'Town' }));
+    db.placeObjects.set('CURATED2', place('CURATED2', { title: 'Ochtrup', type: 'Village' }));
+    const p = makePerson('I1', { birth: makeEvent('BIRT', { place: 'Ochtrup', placeId: 'CURATED1' }) });
+    db.individuals.set(p.id, p);
+
+    applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    expect(db.individuals.get('I1')!.birth.placeId).toBe('CURATED1');
+  });
+
+  it('ein GEPRÜFTER Hof behält seine Zuordnung (Geschwister-Stelle)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('V1', place('V1', { title: 'Ochtrup', type: 'Town' }));
+    db.hofObjects.set(
+      'H1',
+      hof('H1', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }], reviewedAt: 1_700_000_000_000 }),
+    );
+    // ZWEITER Hof mit derselben Adresse im selben Dorf — ohne ihn wäre der Test wirkungslos:
+    // `findByAddr` fände nach einem Reset denselben Hof sofort wieder, und die Zusicherung
+    // hielte auch ohne jeden Schutz. Bei ≥2 Kandidaten liefert er `null` (Review-Klasse C),
+    // erst dadurch misst die Zeile den Schutz statt der Wiederauffindbarkeit.
+    db.hofObjects.set('H2', hof('H2', 'V1', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const p = makePerson('I1', {
+      events: [makeEvent('RESI', { place: 'Ochtrup', addr: 'Wall 33', placeId: 'V1', hofId: 'H1' })],
+    });
+    db.individuals.set(p.id, p);
+
+    applyPlaceResolution(db, { resetUncuratedLinks: true });
+
+    expect(db.individuals.get('I1')!.events[0].hofId).toBe('H1');
+  });
+});

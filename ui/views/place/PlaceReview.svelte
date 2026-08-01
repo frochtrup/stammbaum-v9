@@ -15,6 +15,7 @@
   import type { PlacesHost } from '../../shell/places-host';
   import { buildPlaceReview, type PlaceReviewRow } from './place-review-model';
   import { applyPlaceChoice } from './place-review-actions';
+  import { enrichmentLabel, placeTypeLabel } from '../../shell/place-labels';
 
   interface Props {
     appState: PlacesHost;
@@ -90,8 +91,20 @@
                  Klasse P sind ALLE Kandidaten gleichnamig, der Titel allein wäre als
                  Auswahlhilfe wertlos ("Oldenburg" vs. "Oldenburg"). -->
             {#each row.candidates as c (c.placeId)}
+              <!-- ADR-v9-191: Grad + Prüf-Marker AM Kandidaten. Wo die Verwaltungskette
+                   nicht unterscheidet, ist das oft das einzige, was noch unterscheidet —
+                   und die Zeile stellt genau diese Frage. -->
               <button type="button" onclick={() => choosePlace(row, c.placeId)}>
                 Ort wählen: {c.label}
+                <!-- BL-268: die Verwaltungsebene. Wo zwei Kandidaten gleich heißen UND
+                     gleich gepflegt sind (Stadt/Kreis Münster), ist sie das Unterscheidende
+                     — dieselbe Angabe, die der Dedup-Dialog je Mitglied zeigt (ADR-v9-77).
+                     Leerer Typ rendert nichts (ADR-v9-149 Punkt 2). -->
+                {#if placeTypeLabel(c.type)}
+                  <span class="place-review__cand-meta">· {placeTypeLabel(c.type)}</span>
+                {/if}
+                <span class="place-review__cand-meta">· {enrichmentLabel(c.level)}</span>
+                {#if c.reviewed}<span class="place-review__cand-meta">· ✓ geprüft</span>{/if}
               </button>
             {/each}
             <button type="button" class="place-review__sharpen-btn" onclick={() => sharpenSource(row)}>
@@ -209,5 +222,13 @@
 
   .place-review__sharpen-btn {
     margin-left: auto;
+  }
+
+  /* Die Kandidaten-Zusätze (Typ · Grad · Prüf-Marker) ordnen sich dem Namen unter: die
+     Kette entscheidet zuerst, alles Weitere erst, wenn sie nicht unterscheidet
+     (ADR-v9-191, BL-268). */
+  .place-review__cand-meta {
+    color: var(--stb-text-dim);
+    font-size: 0.8em;
   }
 </style>

@@ -43,14 +43,8 @@
 
   let editing = $state(untrack(() => startInEdit));
 
-  function startEdit() {
-    editing = true;
-  }
-
-  function cancelEdit() {
-    editing = false;
-  }
-
+  /** Speichern schließt den Modus (Transaktion abgeschlossen, INV-UI-16); „Verwerfen"
+   *  im Formular darf das nicht — es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
   }
@@ -101,14 +95,21 @@
     <p class="source-detail__empty">Keine Quelle ausgewählt.</p>
   {:else if !detail}
     <p class="source-detail__empty">Quelle nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
-  {:else if editing}
-    <SourceForm {appState} source={detail.source} onSaved={afterSave} onCancel={cancelEdit} />
   {:else}
+    <!-- BL-274/INV-UI-16: die Kopfzeile bleibt im Bearbeiten-Modus stehen. Vorher ersetzte
+         das Formular die ganze Seite — Titel und Rückweg verschwanden genau dann, wenn der
+         Nutzer den Namen ändert. Der Schalter öffnet UND schließt (kein zweiter Ausgang). -->
     <DetailHeader title={detail.source.abbr || detail.source.title || detail.source.id} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
-        <button type="button" class="source-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = !editing)}>
+          {editing ? 'Fertig' : '✎ Bearbeiten'}
+        </button>
       {/snippet}
     </DetailHeader>
+
+    {#if editing}
+      <SourceForm {appState} source={detail.source} onSaved={afterSave} />
+    {/if}
 
     {#if detail.source.abbr && detail.source.title && detail.source.abbr !== detail.source.title}
       <p class="source-detail__fulltitle">{detail.source.title}</p>
@@ -209,15 +210,6 @@
     color: var(--stb-text-dim);
   }
 
-  .source-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .source-detail__fulltitle {
     color: var(--stb-text-dim);

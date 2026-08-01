@@ -80,3 +80,58 @@ export function belongsToField(shortcut: Shortcut): boolean {
   // Ansicht wegzieht, wäre dieselbe Falle wie ein ⌘Z, das die Datenbank zurücknimmt.
   return shortcut === 'undo' || shortcut === 'redo' || shortcut === 'back' || shortcut === 'forward';
 }
+
+/** Was die Schale an Aktionen bereitstellt. Jede meldet mit `true`, ob sie WIRKLICH
+ *  etwas getan hat — nur dann wird das Ereignis beansprucht (s. `createShortcutHandler`). */
+export interface ShortcutActions {
+  /** Befehlspalette auf/zu. Immer wirksam. */
+  togglePalette: () => void;
+  /** Palette schließen; `false`, wenn sie gar nicht offen war. */
+  closePalette: () => boolean;
+  /** Aktuelle Datei speichern. Immer wirksam (auch aus einem Eingabefeld heraus). */
+  save: () => void;
+  back: () => boolean;
+  forward: () => boolean;
+  undo: () => boolean;
+  redo: () => boolean;
+}
+
+/**
+ * Baut den `keydown`-Handler der Schale: Taste → Aktion (`matchShortcut`) → Ausführung.
+ *
+ * Liegt hier statt in App.svelte, weil die Zuordnung und ihre Ausführung EINE Sache sind
+ * — die Feld-Ausnahme (`belongsToField`) ist nur zusammen mit dem Dispatch vollständig,
+ * und getrennt war sie nur über einen echten Event-Dispatch auf der gemounteten App
+ * prüfbar. Die Schale verdrahtet weiterhin (`<svelte:window onkeydown>`) und reicht ihre
+ * Aktionen herein; DOM-frei bleibt das Modul bis auf den Ereignistyp.
+ *
+ * `preventDefault` NUR bei tatsächlicher Wirkung: ein geschlucktes Kürzel, das nichts
+ * getan hat, nimmt dem Browser (oder einem inneren Overlay) sein eigenes Verhalten weg.
+ */
+export function createShortcutHandler(actions: ShortcutActions): (e: KeyboardEvent) => void {
+  return (e: KeyboardEvent) => {
+    const action = matchShortcut(e);
+    if (!action) return;
+    if (belongsToField(action) && isEditableTarget(e.target)) return;
+
+    if (action === 'palette') {
+      actions.togglePalette();
+      e.preventDefault();
+      return;
+    }
+    if (action === 'escape') {
+      if (actions.closePalette()) e.preventDefault();
+      return;
+    }
+    if (action === 'save') {
+      e.preventDefault();
+      actions.save();
+      return;
+    }
+    if (action === 'back' || action === 'forward') {
+      if (action === 'back' ? actions.back() : actions.forward()) e.preventDefault();
+      return;
+    }
+    if (action === 'undo' ? actions.undo() : actions.redo()) e.preventDefault();
+  };
+}

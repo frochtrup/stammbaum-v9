@@ -16,7 +16,14 @@
     repository: Repository;
     /** Nach erfolgreichem Speichern (z. B. um zur Detailansicht zurückzukehren). */
     onSaved?: (repoId: string) => void;
-    /** Abbrechen ohne Speichern. */
+    /**
+     * NUR für den Wegwerf-Entwurf: setzt der Aufrufer diese Prop, ist das Formular eine
+     * transiente ANLAGE-Fläche (Picker „+ neu anlegen") ohne eigenen Ausgang — dann
+     * schließt der Sekundär-Knopf sie („Abbrechen"), und Feldwerte zu verwerfen wäre
+     * dasselbe wie sie wegzuwerfen. Auf einer Detailseite bleibt sie WEG: dort trägt die
+     * Kopfzeile den Ausgang, und der Knopf verwirft nur die Feldwerte („Verwerfen",
+     * INV-UI-16/ADR-v9-193). Ein Knopf, der beides täte, war genau der behobene Defekt.
+     */
     onCancel?: () => void;
   }
   const { appState, repository, onSaved, onCancel }: Props = $props();
@@ -30,6 +37,23 @@
   let www = $state(untrack(() => repository.www));
   let email = $state(untrack(() => repository.email));
   let findingAid = $state(untrack(() => repository.findingAid));
+
+
+  /**
+   * Setzt die Feldwerte auf den GESPEICHERTEN Stand zurück (INV-UI-16, BL-270/274).
+   * Liest `repository` frisch statt eines Mount-Snapshots — daneben können sofort committende
+   * Abschnitte den Datensatz geändert haben, und ein Verwerfen darf deren Ergebnis nicht
+   * mitnehmen. Es schließt den Modus NICHT: das tut der Schalter, der ihn geöffnet hat.
+   */
+  function discard() {
+    name = repository.name;
+    type = repository.type;
+    address = repository.address;
+    phone = repository.phone;
+    www = repository.www;
+    email = repository.email;
+    findingAid = repository.findingAid;
+  }
 
   function save() {
     const next: Repository = {
@@ -45,14 +69,16 @@
     appState.saveRepository(next);
     onSaved?.(next.id);
   }
-
-  function cancel() {
-    onCancel?.();
-  }
 </script>
 
-<div class="repository-form">
-  <h3>{repository.name ? 'Archiv bearbeiten' : 'Neues Archiv'}</h3>
+<div class="repository-form" data-no-swipe>
+  <!-- Nur im ANLAGE-Fall (BL-274, §10e Redundanter Hero-Titel): auf der Detailseite steht
+       der Name bereits in der Kopfzeile, die seit BL-274 im Bearbeiten-Modus stehen bleibt
+       — „Archiv bearbeiten" wäre dort ein zweiter, ärmerer Titel. Im Picker-Entwurf gibt
+       es keine Kopfzeile, dort trägt diese Zeile die Einordnung. -->
+  {#if !repository.name}
+    <h3>Neues Archiv</h3>
+  {/if}
 
   <div class="repository-form__grid">
     <label>
@@ -89,8 +115,12 @@
   </div>
 
   <div class="repository-form__actions">
-    <button type="button" class="repository-form__save-btn" onclick={save}>Speichern</button>
-    <button type="button" class="repository-form__cancel-btn" onclick={cancel}>Abbrechen</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    {#if onCancel}
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
+    {:else}
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
+    {/if}
   </div>
 </div>
 
@@ -133,19 +163,5 @@
     margin-top: 1.25rem;
   }
 
-  .repository-form__save-btn,
-  .repository-form__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.45rem 1rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .repository-form__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
 </style>

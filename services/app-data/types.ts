@@ -53,8 +53,40 @@ export interface AppDataSections {
    * `app-data-sync-service.ts`.
    */
   projects?: Project[];
+  /**
+   * Medien-Zuordnung (BL-257, ADR-v9-188). Bewusst DÜNN: hier reist die REGEL, nicht der
+   * Zugang. Der Verzeichnis-Handle selbst ist Kategorie A (nicht serialisierbar, auf einem
+   * zweiten Gerät bedeutungslos) und bleibt im IDB-Store `media-folder-handle`.
+   *
+   * Was übrig bleibt, ist ehrlicherweise wenig — der Ordnername als Wiederfindungs-Hinweis
+   * („auf dem anderen Gerät hieß der Ordner *Genealogie*"). Weitere Felder (zusätzliche
+   * Suchordner) erst, wenn der Index sie nachweislich braucht; erfundene Konfiguration,
+   * damit die Datei etwas zu tragen hat, wäre der falsche Weg.
+   */
+  media?: MediaPrefs;
+  /**
+   * Erstnutzer-Rundgang gesehen (BL-213, ADR-v9-190). Ein Flag, das in keinen Bestand
+   * zeigt — B1 nach dem Kriterium aus ADR-v9-173, und es reist sinnvoll mit: wer den
+   * Rundgang auf dem iPad gesehen hat, braucht ihn auf dem Mac nicht noch einmal.
+   *
+   * v8 legte dieselbe Information in `localStorage` („stammbaum_onboarding_done") —
+   * dieselbe Bauform wie das Hof-Sidecar aus Altlast §7, und gerätelokal ohne Not.
+   */
+  tour?: TourPrefs;
   // Später (eigene Backlog-Zeilen, kein Platzhalter-Code):
   //   quickTemplates (BL-232) · mapLayer (BL-230)
+}
+
+/** B1-Anteil des Erstnutzer-Rundgangs — bewusst ein Feld, kein Fortschritts-Zustand:
+ *  ein abgebrochener Rundgang ist beendet, nicht halb gesehen. */
+export interface TourPrefs {
+  done: boolean;
+}
+
+/** B1-Anteil der Medien-Anbindung (Spec 30 §2.2). */
+export interface MediaPrefs {
+  /** Anzeigename des zuletzt verbundenen Ordners — reiner Hinweis, kein Zugang. */
+  folderName: string;
 }
 
 /** Der gespeicherte/exportierte Wrapper — Feldnamen wie bei `orte.json`. */

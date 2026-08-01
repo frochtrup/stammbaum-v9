@@ -110,7 +110,18 @@
   let editable = $state<EditableEvent>(untrack(() => toEditable('modal-event', event, appState.placeContext)));
   let deathCause = $state(untrack(() => cause ?? ''));
 
-  const showAddr = $derived(HOF_EVENT_TYPES.has(editable.type));
+  /** Ereignis brachte beim Öffnen einen ADDR-Wert mit — EINMAL beim Mount festgehalten,
+   *  bewusst NICHT reaktiv: ein live abgeleiteter Ausdruck ließe das Feld beim Leeren unter
+   *  dem Cursor verschwinden, und Leeren ist bei einem Non-Hof-Ereignis die häufigste
+   *  Auflösung (s. showAddr). */
+  const hadAddrOnOpen = untrack(() => event.addr.trim() !== '');
+  /** Hof-Typen (RESI/PROP/CENS) haben das Adressfeld immer — dort entsteht Hof-Identität
+   *  (`resolve.ts` Pfad B′). Ein Non-Hof-Typ bekommt es, wenn das Ereignis eine ADDR
+   *  MITBRINGT: genau diese Kombination landet in der Hof-Review als Klasse A/D
+   *  (`resolve.ts` Schritt 7), und Spec 11 §6 nennt „Quelle schärfen" → „Nutzer passt
+   *  PLAC/ADDR an" als deren Auflösung — ohne sichtbares Feld war dieser Weg zu, die Review
+   *  zeigte also einen Befund, den man in der UI nicht beheben konnte (ADR-v9-186). */
+  const showAddr = $derived(HOF_EVENT_TYPES.has(editable.type) || hadAddrOnOpen);
   /** Analog PersonForm/FamilyForm: EVEN/FACT haben keine eigene Tag-Bedeutung — der freie
    *  TYPE-Text (`eventType`) trägt die eigentliche fachliche Beschriftung UND entscheidet
    *  (über `eventCategory`'s CATEGORY_BY_CUSTOM_TEXT) mit über die Kategorie-Gruppierung
@@ -312,6 +323,7 @@
           onTextChange={(v) => (editable.addr = v)}
           onPick={(hofId) => pickHofFor(hofId)}
           villageId={editable.placeId}
+          allowCreate={HOF_EVENT_TYPES.has(editable.type)}
           label={`${label} Adresse`}
         />
       </div>
@@ -384,8 +396,8 @@
           onclick={() => onCopy(liveEventFrom(editable))}
         >⧉ Kopieren</button>
       {/if}
-      <button type="button" class="event-edit-modal__save-btn" onclick={save}>Speichern</button>
-      <button type="button" class="event-edit-modal__cancel-btn" onclick={onClose}>Abbrechen</button>
+      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={onClose}>Abbrechen</button>
     </div>
   </div>
 </div>
@@ -563,19 +575,5 @@
     margin-top: 1.1rem;
   }
 
-  .event-edit-modal__save-btn,
-  .event-edit-modal__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.45rem 1rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .event-edit-modal__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
 </style>

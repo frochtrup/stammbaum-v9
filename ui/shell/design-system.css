@@ -28,10 +28,29 @@
      der Bottom-Nav (400), waren also gar nicht modal und ließen ihre eigenen
      Aktionsknöpfe verdecken (gefunden bei BL-04, ADR-v9-96). Wer eine neue Ebene
      braucht, ergänzt sie hier und sieht die Nachbarn. */
+  /* Geräte-Sicherheitsabstände (iOS Statusleiste/Dynamic Island, Home-Indikator, Notch
+     im Querformat). `app/index.html` setzt `viewport-fit=cover` + `black-translucent`:
+     die App zeichnet damit BEWUSST unter die Systemleisten (randlos-dunkle Optik) — was
+     dort steht, muss die Insets aber selbst einrechnen, sonst liegt es unerreichbar
+     unter der Statusleiste. Als Token, weil (a) jede randberührende Fläche denselben
+     Wert braucht (INV-UI-4) und (b) `env()` in einer Variablen im Test/Browser
+     überschreibbar ist — die Wirkung lässt sich damit ohne echtes Gerät prüfen.
+     Wächter: `tests/ui/safe-area.test.ts`. */
+  --stb-safe-top: env(safe-area-inset-top, 0px);
+  --stb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --stb-safe-left: env(safe-area-inset-left, 0px);
+  --stb-safe-right: env(safe-area-inset-right, 0px);
+
   /* Höhe der Bottom-Nav. EINE Quelle für zwei Nutzer: die Nav selbst (min-height) und
      alles, was sich darüber andocken muss — sonst driften die beiden Werte auseinander
      und ein Overlay landet wieder unter der Nav (s. FilterBar-Bottom-Sheet). */
   --stb-nav-height: 3.1rem;
+  /* Was die Nav auf dem Gerät WIRKLICH belegt: ihre Höhe plus der Home-Indikator-Abstand,
+     den sie sich unten anpolstert. Wer über ihr andockt oder Platz für sie freihält,
+     rechnet mit DIESEM Wert — `--stb-nav-height` allein liegt auf einem iPhone um das
+     Inset (34px) zu hoch, das Angedockte verschwindet genau um diesen Betrag unter der
+     Nav. */
+  --stb-nav-total: calc(var(--stb-nav-height) + var(--stb-safe-bottom));
   --stb-z-nav: 400;
   --stb-z-modal: 500;
   --stb-z-tooltip: 1000;
@@ -164,6 +183,72 @@ textarea {
 input::placeholder,
 textarea::placeholder {
   color: var(--stb-text-muted);
+}
+
+/* Aktions-Schaltfläche (INV-UI-4, ADR-v9-128 „genau eine Primärfläche je Zustand").
+   EIN Layout, zwei Varianten: gefüllt = Primär, outline = Sekundär.
+
+   WARUM ZENTRAL, obwohl `data-variant` schon existierte: das Attribut SAH aus wie ein
+   globaler Hook, war aber keiner — jede Komponente brachte ihre eigene Regel mit
+   (ImportButton, SaveButton, PlacesFileButtons, AppDataFileButtons, SettingsView).
+   Beim Bau von BL-258 hat genau das einen Knopf im Browser-Default rendern lassen
+   (hellgrauer Grund, heller Text, praktisch unlesbar); die Component-Tests blieben grün,
+   weil happy-dom keine Farben rechnet. Ein Attribut, das nur manchmal etwas bewirkt, ist
+   schlimmer als keins.
+
+   UND: die vier lokalen Kopien waren nicht identisch. Zwei setzten `min-height: 44px`,
+   zwei gar nichts — am laufenden System gemessen (Datei-Fläche, Desktop): „Speichern"
+   31,5 px, „Datei öffnen"/„Demo laden"/„Orte exportieren"/„Orte importieren" je 33,5 px,
+   die Austausch-Disclosures 36,5 px. Alle unter der 44-px-Vorgabe aus Spec 21 §6i/
+   ADR-v9-155 — und die zwei konformen Kopien trugen die Zahl als Literal, obwohl §6i
+   ausdrücklich verlangt, dass sie EINMAL als Token steht. Der vorhandene Wächter konnte
+   das nicht sehen: er fängt eine zu KLEIN gesetzte Größe, nicht eine fehlende. */
+.stb-btn {
+  min-height: var(--stb-touch-target);
+  border: 1px solid transparent;
+  border-radius: var(--stb-radius-control);
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stb-btn[data-variant='primary'] {
+  background: var(--stb-gold);
+  color: var(--stb-bg);
+  border-color: var(--stb-gold);
+}
+
+.stb-btn[data-variant='secondary'] {
+  background: transparent;
+  color: var(--stb-gold);
+  border-color: var(--stb-gold-dim);
+}
+
+.stb-btn[data-variant='secondary']:hover,
+.stb-btn[data-variant='secondary']:focus-visible {
+  border-color: var(--stb-gold);
+}
+
+/* Destruktive Variante (BL-273). Sie kam mit der Umstellung der Bearbeitungs-Knöpfe
+   dazu: „Ort löschen"/„Hof löschen" stehen in derselben Knopfreihe wie Speichern und
+   Verwerfen, und eine Reihe, in der zwei Knöpfe aus der Primitive kommen und der dritte
+   aus lokalem CSS, sieht kaputt aus — die Alternative wäre gewesen, die Umstellung an
+   der gefährlichsten Fläche aufhören zu lassen. Outline statt Füllung: destruktiv soll
+   nicht wie die Primäraktion aussehen (dieselbe Haltung wie `.delete-entity__btn`, das
+   diese Variante übernehmen kann, sobald es ohnehin angefasst wird). */
+.stb-btn[data-variant='danger'] {
+  background: transparent;
+  color: var(--stb-danger);
+  border-color: var(--stb-danger);
+}
+
+/* EIN Disabled-Bild für beide Varianten. Die lokalen Kopien wechselten zwischen
+   `cursor: default` und `cursor: progress`; beide Zustände treten nur auf, solange die
+   Aktion läuft, und ein zweiter Mechanismus für einen Mauszeiger wäre den Unterschied
+   nicht wert. */
+.stb-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* Formularfeld ohne <label>-Wrapper (ADR-v9-103, TST-18, INV-UI-4).
@@ -502,7 +587,9 @@ button.stb-coord-indicator__glyph:focus-visible {
 
    `padding-bottom` ist bewusst grosszügig: bei einem Panel, das höher als der Viewport
    ist, scrollt der Backdrop — ohne diesen Freiraum landen die Aktionsknöpfe am Listenende
-   hinter der Bottom-Nav. */
+   hinter der Bottom-Nav. Oben/unten zusätzlich die Geräte-Insets: der Backdrop liegt
+   `inset: 0` am Viewport-Rand, sein Panel-Kopf (Titel + Schließen-Knopf) läge sonst unter
+   der Statusleiste. */
 .stb-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -510,7 +597,7 @@ button.stb-coord-indicator__glyph:focus-visible {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1.5rem 1rem 6rem;
+  padding: calc(1.5rem + var(--stb-safe-top)) 1rem calc(6rem + var(--stb-safe-bottom));
   overflow-y: auto;
   z-index: var(--stb-z-modal);
 }

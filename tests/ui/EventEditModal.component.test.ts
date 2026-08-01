@@ -43,13 +43,70 @@ describe('EventEditModal — Rendering + Vorbefüllung', () => {
     expect(causeInput.value).toBe('Typhus');
   });
 
-  it('zeigt KEIN Adresse-Feld für nicht-hofrelevante Typen (z. B. BIRT)', () => {
+  it('zeigt KEIN Adresse-Feld für nicht-hofrelevante Typen OHNE ADDR (z. B. BIRT)', () => {
     const appState = createAppState();
     const ev = makeEvent('BIRT');
 
     render(EventEditModal, { props: { appState, event: ev, label: 'Geburt', onSave: vi.fn(), onClose: vi.fn() } });
 
     expect(screen.queryByLabelText('Geburt Adresse')).toBeNull();
+  });
+
+  // ADR-v9-186: ein Non-Hof-Ereignis MIT ADDR ist genau der Fall, den die Hof-Review als
+  // Klasse A/D vorlegt (resolve.ts Schritt 7). Spec 11 §6 löst ihn über „Quelle schärfen"
+  // → Event-Edit an PLAC/ADDR — ohne sichtbares Feld war die Review unauflösbar.
+  it('zeigt das Adresse-Feld für einen Non-Hof-Typ, der eine ADDR MITBRINGT (Klasse-A-Fall)', () => {
+    const appState = createAppState();
+    const ev = makeEvent('GRAD', { addr: 'Staatl. Ing.-Schule für Bauwesen' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Abschluss', onSave: vi.fn(), onClose: vi.fn() } });
+
+    const field = screen.getByLabelText('Abschluss Adresse') as HTMLInputElement;
+    expect(field.value).toBe('Staatl. Ing.-Schule für Bauwesen');
+  });
+
+  it('bietet bei einem Non-Hof-Typ KEINE Hof-Neuanlage an (Pfad B′ gilt dort nicht)', async () => {
+    const appState = createAppState();
+    appState.savePlace(place('_po_ms', { title: 'Münster' }));
+    const ev = makeEvent('GRAD', { addr: 'Staatl. Ing.-Schule für Bauwesen', placeId: '_po_ms' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Abschluss', onSave: vi.fn(), onClose: vi.fn() } });
+
+    // Der Picker-Footer (und damit die Anlage-Zeile) rendert erst bei geöffneter Liste.
+    await fireEvent.focus(screen.getByLabelText('Abschluss Adresse'));
+
+    expect(screen.queryByText(/Hof .* anlegen/)).toBeNull();
+    expect(screen.getByText(/entsteht kein Hof/)).toBeTruthy();
+  });
+
+  it('bietet bei einem Hof-Typ die Hof-Neuanlage weiterhin an (Gegenprobe zum Gate)', async () => {
+    const appState = createAppState();
+    appState.savePlace(place('_po_ms', { title: 'Münster' }));
+    const ev = makeEvent('RESI', { addr: 'Wall 33', placeId: '_po_ms' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Wohnort', onSave: vi.fn(), onClose: vi.fn() } });
+    await fireEvent.focus(screen.getByLabelText('Wohnort Adresse'));
+
+    expect(screen.getByText(/Hof .* anlegen/)).toBeTruthy();
+    expect(screen.queryByText(/entsteht kein Hof/)).toBeNull();
+  });
+
+  it('leert die ADDR und behält das Feld sichtbar (die häufigste Klasse-A-Auflösung)', async () => {
+    const appState = createAppState();
+    const onSave = vi.fn();
+    const ev = makeEvent('GRAD', { addr: 'Staatl. Ing.-Schule für Bauwesen' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Abschluss', onSave, onClose: vi.fn() } });
+
+    const field = screen.getByLabelText('Abschluss Adresse') as HTMLInputElement;
+    await fireEvent.input(field, { target: { value: '' } });
+
+    // Feld bleibt stehen (hadAddrOnOpen ist bewusst nicht reaktiv) — sonst verschwände es
+    // dem Nutzer unter dem Cursor, genau während er die Auflösung vornimmt.
+    expect(screen.getByLabelText('Abschluss Adresse')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('Speichern'));
+    expect(onSave.mock.calls[0][0].addr).toBe('');
   });
 
   it('zeigt das Adresse-Feld für hofrelevante Typen (RESI/PROP/CENS/OCCU)', () => {

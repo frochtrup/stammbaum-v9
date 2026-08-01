@@ -477,7 +477,11 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
     // keine Pillen — die gefaltete Variante steht dort als Feldwert.
     expect((screen.getByLabelText('Namensvariante 1') as HTMLInputElement).value).toBe('Ochtrup');
     // Auf der LESEFLÄCHE bleibt sie die Herkunfts-Pille (Verlustfreiheit sichtbar).
-    await fireEvent.click(screen.getByText('Abbrechen'));
+    // „Fertig" statt vormals „Abbrechen" (INV-UI-16, ADR-v9-193): der Modus wird von dem
+    // Schalter geschlossen, der ihn geöffnet hat. Dieser Test ist selbst ein Beleg für den
+    // behobenen Defekt — der Merge oben ist längst geschrieben, und trotzdem stand hier
+    // „Abbrechen".
+    await fireEvent.click(screen.getByText('Fertig'));
     const pill = screen.getByText('Ochtrup', { selector: '.stb-pill' });
     expect(pill.closest('.stb-pill')).toBeTruthy();
   });
@@ -1279,5 +1283,188 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
       'Ochtorp',
       'Ochtrup',
     ]);
+  });
+});
+
+// ADR-v9-191 / BL-265 — die geerbte Verwaltungshistorie steht unter ihrem eigenen Namen.
+describe('PlaceDetail — geerbte Verwaltungshistorie gehört dem Elternort (ADR-v9-191)', () => {
+  /** Realfall (Erkelsdorf): der Ort hängt undatiert an einem Elter, dessen eigene
+   *  Geschichte alle Schlüsseljahre stellt. */
+  function renderErkelsdorf(): void {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@HRR@', place('@HRR@', { title: 'Heiliges Römisches Reich' }));
+    db.placeObjects.set('@REICH@', place('@REICH@', { title: 'Deutsches Reich' }));
+    db.placeObjects.set(
+      '@BAYERN@',
+      place('@BAYERN@', {
+        title: 'Bayern',
+        enclosedBy: [
+          { placeId: '@HRR@', from: 1180, to: 1805 },
+          { placeId: '@REICH@', from: 1871, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@OPF@',
+      place('@OPF@', { title: 'Oberpfalz', enclosedBy: [{ placeId: '@BAYERN@', from: 1180, to: null }] }),
+    );
+    db.placeObjects.set(
+      '@ERK@',
+      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@ERK@');
+    render(PlaceDetail, { props: { appState, viewState } });
+  }
+
+  it('setzt die geerbten Jahres-Zeilen unter eine eigene Überschrift, nicht unter „Zugehörigkeit nach Jahr"', () => {
+    renderErkelsdorf();
+
+    expect(screen.getByText('Geschichte der übergeordneten Ebenen')).toBeTruthy();
+    // Die Jahres-Überschrift, unter der dieselben Zeilen bis ADR-v9-191 als Historie
+    // DIESES Orts standen, darf hier nicht auftauchen.
+    expect(screen.queryByText('Zugehörigkeit nach Jahr (volle Kette):')).toBeNull();
+    // Die Information selbst bleibt sichtbar (verworfene Alternative (f)).
+    expect(screen.getByText('ab 1180')).toBeTruthy();
+    expect(screen.getByText('ab 1871')).toBeTruthy();
+  });
+
+  it('behauptet für einen undatiert zugeordneten Ort keine eigene Datierung', () => {
+    renderErkelsdorf();
+
+    const eigene = screen.getByText('Eigene Zugehörigkeit:').parentElement!;
+    const zeile = within(eigene).getByText('undatiert').parentElement!;
+    expect(zeile.textContent).toContain('Oberpfalz');
+    expect(zeile.textContent).not.toMatch(/\d{3,4}/);
+  });
+
+  it('meldet NICHT „Keine übergeordnete Zugehörigkeit erfasst", wenn eine undatierte erfasst ist', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    // Die Zeitleiste bleibt hier bewusst leer (sie verdoppelte sonst nur die „Aktuell:"-
+    // Kette) — der frühere Else-Zweig log dabei: erfasst IST eine Zuordnung, nur ohne Datum.
+    expect(screen.queryByText('Keine übergeordnete Zugehörigkeit erfasst.')).toBeNull();
+    expect(screen.getByText('Aktuell:')).toBeTruthy();
+  });
+
+  it('sagt „Keine übergeordnete Zugehörigkeit erfasst", wenn wirklich keine erfasst ist', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Keine übergeordnete Zugehörigkeit erfasst.')).toBeTruthy();
+  });
+});
+
+// ADR-v9-191 / BL-266 — der „geprüft"-Schalter ist der EINZIGE Weg zum Marker.
+describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
+  function setup(reviewedAt?: number | null) {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', reviewedAt }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    render(PlaceDetail, { props: { appState, viewState } });
+    return appState;
+  }
+
+  it('setzt den Marker per Klick und beschriftet beide Zustände mit eigenem TEXT (nicht nur Farbe)', async () => {
+    const appState = setup();
+
+    const knopf = screen.getByText('Geprüft markieren');
+    expect(knopf.getAttribute('aria-pressed')).toBe('false');
+    await fireEvent.click(knopf);
+
+    const pl = appState.db.placeObjects.get('@P1@')!;
+    expect(pl.reviewedAt).toBeTypeOf('number');
+    // Zweiter Zustand trägt sein eigenes Wort samt Datum — auf dem Telefon ist eine
+    // Füllung allein kein Kanal (Spec 21 §2).
+    const heute = new Date(pl.reviewedAt as number).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    expect(screen.getByText(`✓ Geprüft ${heute}`)).toBeTruthy();
+    expect(screen.queryByText('Geprüft markieren')).toBeNull();
+  });
+
+  it('nimmt den Marker beim zweiten Klick zurück (INV-UI-10: ebenso leichte Rücknahme)', async () => {
+    const appState = setup(1_700_000_000_000);
+
+    const heute = new Date(1_700_000_000_000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    await fireEvent.click(screen.getByText(`✓ Geprüft ${heute}`));
+
+    expect(appState.db.placeObjects.get('@P1@')!.reviewedAt).toBeNull();
+    expect(screen.getByText('Geprüft markieren')).toBeTruthy();
+  });
+
+  it('ist ohne den Editor erreichbar — „angesehen, nichts zu ergänzen" öffnet kein Formular', () => {
+    setup();
+
+    // Der Knopf steht neben „✎ Bearbeiten", nicht darin: genau der Fall, der den Marker
+    // nötig macht, ist der, in dem niemand den Editor öffnet.
+    expect(screen.getByText('Geprüft markieren')).toBeTruthy();
+    expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
+  });
+});
+
+// --- INV-UI-16: „Verwerfen" betrifft die Feldwerte, nicht die Sitzung ----------------
+// (Spec 21 §6m, ADR-v9-193, BL-270). Die zweite Zusicherung ist die eigentliche: sie
+// unterscheidet ein ehrliches „Verwerfen" vom alten „Abbrechen", das eine Rücknahme
+// suggerierte, die es nie leistete — die Namensvariante daneben ist längst geschrieben.
+describe('PlaceDetail — Transaktionsgrenze (INV-UI-16)', () => {
+  it('„Verwerfen" setzt das Feld zurück, hält den Modus offen und lässt die sofort committete Namensvariante stehen', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+
+    await fireEvent.input(screen.getByLabelText('Neue Namensvariante'), { target: { value: 'Ochtorp' } });
+    await fireEvent.click(screen.getByText('+ Hinzufügen'));
+    expect(appState.db.placeObjects.get('@P1@')?.pnames.some((p) => p.value === 'Ochtorp')).toBe(true);
+
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'FALSCH' } });
+    await fireEvent.click(screen.getByText('Verwerfen'));
+
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Ochtrup');
+    expect(screen.getByText('Fertig')).toBeTruthy();
+    expect(screen.queryByText('✎ Bearbeiten')).toBeNull();
+    expect(appState.db.placeObjects.get('@P1@')?.pnames.some((p) => p.value === 'Ochtorp')).toBe(true);
+  });
+
+  it('„Fertig" schließt den Bearbeiten-Modus', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Fertig'));
+
+    expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
+    expect(screen.queryByText('Speichern')).toBeNull();
   });
 });

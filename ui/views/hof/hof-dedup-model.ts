@@ -3,15 +3,19 @@
 // `findPlaceDuplicates(items, 'farms')` aufbauend.
 import type { Database, Event, HofId } from '../../../core/model/types';
 import type { PlaceContext, HofObject } from '../../../core/places';
-import { findPlaceDuplicates, eventHofId, isEnrichedHof, placeDisplayName } from '../../../core/places';
+import { findPlaceDuplicates, eventHofId, hofEnrichmentLevel, isReviewed, placeDisplayName } from '../../../core/places';
+import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
 export interface HofDedupMember {
   id: HofId;
   addr: string;
-  /** ADR-v9-44/Spec 11 §9.1: `true` = kuratiert/angereichert; `false` → „ohne Zusatzangaben"-
-   * Pille im Dedup-Dialog (Kennzeichnung, kein Einfluss auf die Gewinner-Heuristik, A1). */
-  enriched: boolean;
+  /** Anreicherungs-GRAD (Spec 11 §9.1, ADR-v9-191) — bei JEDEM Mitglied sichtbar. Eigene
+   * Hof-Schwelle, s. `hofEnrichmentLevel`: „ausführlich" heißt hier „mehr als die
+   * massenhaft gesetzte Koordinate". */
+  level: EnrichmentLevel;
+  /** Prüf-Marker (ADR-v9-191) — zweite, unabhängige Achse. */
+  reviewed: boolean;
 }
 
 export interface HofDedupGroup {
@@ -53,12 +57,16 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
           ];
         }),
       );
-      const enrichedOf = (id: HofId): boolean => {
+      const levelOf = (id: HofId): EnrichmentLevel => {
         const h = db.hofObjects.get(id);
-        return h ? isEnrichedHof(h) : false;
+        return h ? hofEnrichmentLevel(h) : 'none';
+      };
+      const reviewedOf = (id: HofId): boolean => {
+        const h = db.hofObjects.get(id);
+        return h ? isReviewed(h) : false;
       };
       const members: HofDedupMember[] = ids
-        .map((id) => ({ id, addr: addrOf(id), enriched: enrichedOf(id) }))
+        .map((id) => ({ id, addr: addrOf(id), level: levelOf(id), reviewed: reviewedOf(id) }))
         .sort((a, b) => a.addr.localeCompare(b.addr, 'de'));
       const firstVillageId = db.hofObjects.get(ids[0])?.villageId;
       const villageTitle =

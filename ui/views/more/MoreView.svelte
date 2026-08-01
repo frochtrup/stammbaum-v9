@@ -8,7 +8,9 @@
   // KEINE Diagramm-/imperative-Insel-Lens (anders als Baum/Karte/Zeitleiste), bekommt
   // keinen gemeinsamen Lens-Umschalter und ist ausschließlich über diesen Hub-Eintrag
   // erreichbar. "Ausgaben" ist seit BL-169 ebenfalls echt (ReportsView, Druck-Reports §4).
-  // Story/Einstellungen bleiben Platzhalter (eigene, spätere Bauabschnitte).
+  // "Einstellungen" ist seit BL-257 echt (SettingsView, Spec 20 §1.14) — und hat der
+  // Datei-Fläche dabei die app-data.json-Gruppe abgenommen (ADR-v9-188). Story bleibt
+  // Platzhalter (eigener, späterer Bauabschnitt).
   //
   // "Karte" und "Zeitleiste" haben inzwischen echten Inhalt (Karte: Leaflet+OSM-
   // Primärpfad + SVG-Offline-Fallback, ADR-v9-25; Zeitleiste: Swim-Lane + Dekaden-Modus,
@@ -34,17 +36,18 @@
   import ImportButton from '../../shell/ImportButton.svelte';
   import SaveButton from '../../shell/SaveButton.svelte';
   import PlacesFileButtons from '../../shell/PlacesFileButtons.svelte';
-  import AppDataFileButtons from '../../shell/AppDataFileButtons.svelte';
   import type { AppDataIO } from '../../../services/app-data';
   import ImportCompareView from '../import/ImportCompareView.svelte';
   import ExportView from '../export/ExportView.svelte';
   import ReportsView from '../reports/ReportsView.svelte';
+  import SettingsView from '../settings/SettingsView.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
   import { layout } from '../../shell/layout.svelte';
   import type { FileService } from '../../../services/file';
   import type { PlacesPersister } from '../../shell/places-persister';
   import type { PlacesFileIO } from '../../../services/places';
+  import type { MediaResolver } from '../../../services/media';
 
   interface Props {
     appState: AppState;
@@ -57,8 +60,12 @@
      * bestehende Tests (die diesen Prop nicht kennen) unverändert weiterlaufen; ohne ihn
      * bleiben die "Orte exportieren/importieren"-Buttons unsichtbar. */
     placesFileIO?: PlacesFileIO;
-    /** B1-Bündel (app-data.json, BL-180) — dateiübergreifender app-privater Zustand. */
+    /** B1-Bündel (app-data.json, BL-180) — dateiübergreifender app-privater Zustand.
+     *  Seit BL-257 nur noch für die Einstellungen-Fläche (der Transport ist dorthin
+     *  umgezogen, ADR-v9-188), nicht mehr für eine eigene Gruppe in „Datei". */
     appDataIO?: AppDataIO;
+    /** Medien-Auflösung (BL-257) — durchgereicht an die Einstellungen. */
+    mediaResolver?: MediaResolver;
     /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
     fileHandle?: unknown;
     /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
@@ -69,7 +76,7 @@
      *  durchgereicht. Optional, damit bestehende Tests unverändert laufen. */
     viewState?: ViewState;
   }
-  const { appState, fileService, persister, placesFileIO, appDataIO, fileHandle, onImported, route, viewState }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, appDataIO, mediaResolver, fileHandle, onImported, route, viewState }: Props = $props();
 
   // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
   // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
@@ -117,7 +124,9 @@
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'reports'}
-      <ReportsView {appState} {viewState} />
+      <ReportsView {appState} {viewState} {mediaResolver} />
+    {:else if openEntry.id === 'settings'}
+      <SettingsView {appState} {fileService} {appDataIO} {mediaResolver} onNavigate={(t) => route.setTarget(t)} />
     {:else if openEntry.id === 'file'}
       <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen
@@ -146,18 +155,11 @@
           </section>
         {/if}
 
-        {#if appDataIO}
-          <!-- Dritte Datei, dritte Gruppe: das B1-Bündel trägt dateiübergreifende
-               Einstellungen (Regel-Konfiguration, Export-Vorwahl) und ist damit weder
-               Stammbaum noch Orts-Bestand (Spec 30 §2.2/§2.3, ADR-v9-173). -->
-          <section class="more-view__group more-view__group--aside" role="group" aria-labelledby="filegrp-appdata">
-            <h3 id="filegrp-appdata" class="stb-role-label more-view__group-label">App-Daten (app-data.json)</h3>
-            <p class="more-view__group-hint">
-              Ihre Einstellungen (Prüfregeln, Export-Vorwahl) — gilt für alle Stammbäume, enthält keine Personendaten.
-            </p>
-            <AppDataFileButtons {fileService} {appDataIO} />
-          </section>
-        {/if}
+        <!-- Die app-data.json-Gruppe stand hier bis BL-257 als dritte Datei-Gruppe. Sie
+             ist in die Einstellungen UMGEZOGEN (ADR-v9-188): das Bündel trägt die
+             Einstellungen, also gehört sein Transport zu ihnen. Umzug, keine Kopie — ein
+             zweiter Bedienort wäre ein zweiter Weg zum selben Ziel (INV-UI-2).
+             `orte.json` bleibt hier: das ist genealogisches Fachwissen (LP-4). -->
 
         <section class="more-view__group" role="group" aria-labelledby="filegrp-exchange">
           <h3 id="filegrp-exchange" class="stb-role-label more-view__group-label">Austausch</h3>
@@ -165,13 +167,13 @@
                Speichern ist und ein Strict-/GED7-/anonymisierter Export die Ausnahme
                (kein eigenes Nav-Ziel, ADR-v9-113). -->
           <details class="more-view__compare">
-            <summary data-variant="secondary">In anderes Format exportieren</summary>
+            <summary class="stb-btn" data-variant="secondary">In anderes Format exportieren</summary>
             <ExportView {appState} {fileService} handle={fileHandle} {appDataIO} />
           </details>
           <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
                geladenen Bestand. Aufklappbar, weil selten gebraucht. -->
           <details class="more-view__compare">
-            <summary data-variant="secondary">Mit zweiter Datei vergleichen</summary>
+            <summary class="stb-btn" data-variant="secondary">Mit zweiter Datei vergleichen</summary>
             <ImportCompareView {appState} {fileService} />
           </details>
         </section>
@@ -293,18 +295,15 @@
      übrigen Datei-Knöpfe (ADR-v9-128, Kritik-Folge): kein weißer Rohtext mehr. Bleibt ein
      <summary> (native Disclosure-Tastaturbedienung), nur optisch als Knopf. Eigener Chevron
      statt des Default-Dreiecks; dreht bei geöffnetem <details>. */
+  /* Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` (design-system.css,
+     INV-UI-4) — hier stand bis zur Konsolidierung die FÜNFTE Kopie derselben Regel.
+     Übrig bleibt, was ein <summary> von einem <button> unterscheidet: das eigene
+     Aufklapp-Dreieck statt des Browser-Markers. */
   .more-view__compare > summary {
     display: inline-flex;
     align-items: center;
     gap: 0.45em;
     width: fit-content;
-    background: transparent;
-    color: var(--stb-gold);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
     list-style: none;
   }
 

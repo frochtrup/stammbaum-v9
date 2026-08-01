@@ -95,8 +95,8 @@
   </label>
 
   <div class="place-form__actions">
-    <button type="button" class="place-form__save-btn" onclick={save} disabled={!title.trim()}>Speichern</button>
-    <button type="button" class="place-form__cancel-btn" onclick={cancel}>Abbrechen</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save} disabled={!title.trim()}>Speichern</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={cancel}>Abbrechen</button>
   </div>
 </div>
 
@@ -141,24 +141,6 @@
     margin-top: 0.3rem;
   }
 
-  .place-form__save-btn,
-  .place-form__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .place-form__save-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
 
-  .place-form__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
 </style>

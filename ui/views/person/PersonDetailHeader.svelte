@@ -16,13 +16,16 @@
     person: Person;
     isProband: boolean;
     onBack: () => void;
-    onEdit: () => void;
+    /** Bearbeiten-Modus offen? Steuert die Beschriftung des Schalters (BL-274). */
+    editing: boolean;
+    /** Öffnet UND schließt den Modus — derselbe Schalter, INV-UI-16/ADR-v9-193. */
+    onToggleEdit: () => void;
     onSetProband: () => void;
     /** „Diese Person in Ansicht X" — DER EINE Lens-Umschalter (BL-60, ADR-v9-153),
      *  optional, damit isolierte Tests/Kontexte ohne Lens-Fläche weiterlaufen. */
     onOpenLens?: (personId: string, lens: LensId) => void;
   }
-  const { person, isProband, onBack, onEdit, onSetProband, onOpenLens }: Props = $props();
+  const { person, isProband, onBack, editing, onToggleEdit, onSetProband, onOpenLens }: Props = $props();
 </script>
 
 <DetailHeader title={displayName(person)} {onBack}>
@@ -33,13 +36,22 @@
     {/if}
   {/snippet}
   {#snippet actions()}
-    <button type="button" class="person-detail-header__edit-btn" onclick={onEdit}>✎ Bearbeiten</button>
+    <!-- „Identität", nicht „Bearbeiten" (BL-274): dieser Modus öffnet NUR das
+         Identitäts-Formular (ADR-v9-63) — Ereignisse werden ohne ihn bearbeitet, direkt
+         an der Zeile. Ein Knopf, der „Bearbeiten" verspricht und nur einen Teil öffnet,
+         ist dieselbe Sorte Falschaussage wie das alte „Abbrechen". Bei Ort/Hof wäre die
+         Verengung umgekehrt falsch — dort gibt derselbe Schalter die ganze Kuration frei
+         (ADR-v9-193). -->
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={onToggleEdit}>
+      {editing ? 'Fertig' : '✎ Identität'}
+    </button>
     <!-- „Als Proband setzen" (BL-120): setzt die Referenzperson der Sitzung (transient,
          ADR-v9-135). Ist diese Person es bereits, zeigt der Knopf den Zustand statt einer
          wirkungslosen Wiederholung. -->
     <button
       type="button"
-      class="person-detail-header__proband-btn"
+      class="stb-btn person-detail-header__proband-btn"
+      data-variant="secondary"
       class:person-detail-header__proband-btn--active={isProband}
       disabled={isProband}
       title={isProband
@@ -91,24 +103,11 @@
     margin: 0 -0.15rem 0.4rem;
   }
 
-  .person-detail-header__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
+  /* Nur noch, was `.stb-btn[data-variant="secondary"]` NICHT sagt (BL-273/274): er steht
+     in DERSELBEN Kopfzeile wie „✎ Identität", und ein 29px-Knopf daneben liest sich als
+     Versehen — dieselbe Geschwister-Stelle wie `ReviewedToggle` bei Ort/Hof. */
   .person-detail-header__proband-btn {
-    background: var(--stb-surface-2);
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-gold-light);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.6rem;
-    font-size: 0.78rem;
-    cursor: pointer;
     white-space: nowrap;
   }
 

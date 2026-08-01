@@ -21,6 +21,11 @@
 
   const items = bottomNavItems();
 
+  /** Anker des Erstnutzer-Rundgangs (BL-213) — nur zwei Slots tragen einen; die übrigen
+   *  bekommen `undefined` und damit gar kein Attribut. Reine Markierung: die Nav weiß
+   *  nichts vom Rundgang, sie stellt ihm nur einen Namen für ihre Knöpfe zur Verfügung. */
+  const TOUR_ANCHOR_JE_SLOT: Partial<Record<BottomNavSlot, string>> = { tree: 'lens', more: 'more' };
+
   interface Props {
     active: BottomNavSlot;
     onNavigate: (target: BottomNavSlot) => void;
@@ -40,6 +45,7 @@
       class:bottom-nav__item--active={active === item.id}
       aria-current={active === item.id ? 'page' : undefined}
       data-slot={item.id}
+      data-tour={TOUR_ANCHOR_JE_SLOT[item.id]}
       onclick={() => onNavigate(item.id)}
     >
       <span class="bottom-nav__bar" aria-hidden="true"></span>
@@ -69,7 +75,12 @@
        nicht auf eine geschätzte Zahl angewiesen sind (design-system.css). */
     min-height: var(--stb-nav-height);
     z-index: var(--stb-z-nav);
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    /* Geräte-Insets aus dem Design-System (EINE Quelle, s. --stb-safe-bottom) statt
+       env() hier direkt: unten der Home-Indikator, links/rechts der Notch im Querformat
+       — die Nav spannt über die volle Breite, ihre äußeren Slots lägen sonst darunter. */
+    padding-bottom: var(--stb-safe-bottom);
+    padding-left: var(--stb-safe-left);
+    padding-right: var(--stb-safe-right);
   }
 
   .bottom-nav__item {

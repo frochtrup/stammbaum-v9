@@ -110,7 +110,9 @@
   }
 </script>
 
-<div class="person-list">
+<!-- `data-tour`: Ziel des Erstnutzer-Rundgangs (BL-213). Reines Anker-Attribut —
+     die Liste weiß nichts vom Rundgang, der Rundgang nichts von der Liste. -->
+<div class="person-list" data-tour="list">
   {#if isEmpty}
     <p class="person-list__empty">{noDataHint('Personen', layout.isDesktopLayout)}</p>
     <div class="person-list__toolbar person-list__toolbar--empty">

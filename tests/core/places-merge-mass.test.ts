@@ -152,3 +152,32 @@ describe('Automatischer Hof-Nachlauf nach Dorf-Merge (ADR-v9-45 Nachtrag — Res
     expect(result.villageId).toBeNull();
   });
 });
+
+// ADR-v9-191 / BL-266 — der Prüf-Marker folgt NICHT dem fill-if-empty-Muster.
+describe('Merge und der Prüf-Marker (ADR-v9-191)', () => {
+  it('erbt reviewedAt NICHT vom Verlierer — der Merge ist kein automatischer Weg zum Marker', () => {
+    const places = placeMap(
+      place('@S@', { title: 'Ochtrup' }),
+      place('@L@', { title: 'Ochtrup', reviewedAt: 1_700_000_000_000, note: 'geprüft und gepflegt' }),
+    );
+
+    mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
+
+    const survivor = places.get('@S@')!;
+    // Die Notiz wandert (fill-if-empty, Inhalt), der Marker nicht (Aussage über einen
+    // Menschen — sie fand nie am Überlebenden statt).
+    expect(survivor.note).toBe('geprüft und gepflegt');
+    expect(survivor.reviewedAt ?? null).toBeNull();
+  });
+
+  it('lässt einen bereits gesetzten Marker des Überlebenden stehen', () => {
+    const places = placeMap(
+      place('@S@', { title: 'Ochtrup', reviewedAt: 42 }),
+      place('@L@', { title: 'Ochtrup' }),
+    );
+
+    mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
+
+    expect(places.get('@S@')!.reviewedAt).toBe(42);
+  });
+});

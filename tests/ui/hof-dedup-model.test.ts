@@ -47,18 +47,26 @@ describe('buildHofDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () =>
     expect(groups[0].suggestedWinnerId).toBe('@H2@');
   });
 
-  it('A1: enriched-Kennzeichen pro Mitglied (kuratiert vs. Bootstrap-Rohzustand)', () => {
+  it('A1: Anreicherungs-GRAD und Prüf-Marker pro Mitglied (ADR-v9-191, eigene Hof-Schwelle)', () => {
     const db = makeDatabase();
     db.placeObjects.set('@V@', place('@V@', { title: 'Ochtrup' }));
-    // @H1@ kuratiert (Koordinaten) → enriched; @H2@ blanker Bootstrap-Rohzustand → nicht enriched.
+    // Nur die Koordinate = der Massen-Geocoding-Fall (am Realbestand 163 von 183 Höfen):
+    // „wenig ergänzt", NICHT ausführlich. Erst eine zweite Angabe hebt die Stufe.
     db.hofObjects.set('@H1@', hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.2 }));
     db.hofObjects.set('@H2@', hof('@H2@', '@V@', { addrs: [{ value: 'wall 33', from: null, to: null }] }));
+    db.hofObjects.set(
+      '@H3@',
+      hof('@H3@', '@V@', { addrs: [{ value: 'Wall  33', from: null, to: null }], lat: 52.2, long: 7.2, note: 'Hofchronik', reviewedAt: 1 }),
+    );
 
     const groups = buildHofDedupGroups(db, ctxOf(db), []);
-    const byId = new Map(groups[0].members.map((m) => [m.id, m.enriched]));
+    const byId = new Map(groups[0].members.map((m) => [m.id, m]));
 
-    expect(byId.get('@H1@')).toBe(true);
-    expect(byId.get('@H2@')).toBe(false);
+    expect(byId.get('@H1@')!.level).toBe('sparse');
+    expect(byId.get('@H2@')!.level).toBe('none');
+    expect(byId.get('@H3@')!.level).toBe('rich');
+    expect(byId.get('@H3@')!.reviewed).toBe(true);
+    expect(byId.get('@H1@')!.reviewed).toBe(false);
   });
 
   it('TST-7 Kapazitätsfall: viele überlappende Gruppen gleichzeitig, deterministisch', () => {

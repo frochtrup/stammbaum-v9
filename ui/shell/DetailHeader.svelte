@@ -36,8 +36,20 @@
      *  `<h2>`, damit ein einzelnes Icon nicht als verwaiste eigene Zeile darunter steht
      *  (Design-Kritik 2026-07-29). Nur in der großen Titelzeile (nicht im Kompakt-Modus). */
     titlePrefix?: Snippet;
+    /**
+     * Rückweg AUCH auf Desktop (ADR-v9-192). Die Regel unten („kein Zurück auf Desktop")
+     * begründet sich nicht am Formfaktor, sondern daran, dass im Multi-Pane die Herkunfts-
+     * fläche daneben sichtbar BLEIBT. Für ein Segment, dessen Übersicht die ganze Fläche
+     * belegt und vom Detail ERSETZT wird (Medien-Kachelgalerie), trifft die Begründung
+     * nicht zu — dort führte das Weglassen in eine Sackgasse ohne Rückweg.
+     *
+     * Bewusst eine Ausnahme mit Namen statt einer Umstellung auf „Liste sichtbar?" als
+     * Pflicht-Prop an allen sieben Aufrufern: heute weicht genau ein Segment ab, und die
+     * Abweichung gilt statisch (nicht je Zustand) — sie gehört dorthin, wo sie entsteht.
+     */
+    backAlways?: boolean;
   }
-  const { title, onBack, actions, compact = false, titlePrefix }: Props = $props();
+  const { title, onBack, actions, compact = false, titlePrefix, backAlways = false }: Props = $props();
 </script>
 
 <div class="detail-header">
@@ -56,7 +68,7 @@
            verspricht und woanders hinführt, wäre schlimmer als die alte Enge. KEIN
            zweiter Knopf für Vorwärts: das trägt die Gegenrichtung der Wisch-Geste bzw.
            Alt+→ (INV-UI-11, ADR-v9-177). -->
-      {#if !layout.isDesktopLayout}
+      {#if !layout.isDesktopLayout || backAlways}
         <button type="button" class="detail-header__back" onclick={onBack}>← Zurück</button>
       {/if}
       {#if compact}

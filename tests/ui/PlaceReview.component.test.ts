@@ -106,3 +106,48 @@ describe('PlaceReview — Dubletten-Hinweis statt sinnloser Wahl', () => {
     expect(screen.queryByText(/nicht unterscheidbar/)).toBeNull();
   });
 });
+
+// BL-268 — der Ortstyp am Kandidaten, deutsch über DIE EINE Quelle (ADR-v9-149).
+describe('PlaceReview — Ortstyp am Kandidaten (BL-268)', () => {
+  /** Zwei gleichnamige, gleich gepflegte Orte, die sich NUR in der Ebene unterscheiden —
+   *  der reale Münster-Fall aus der BL-267-Verifikation. */
+  function stadtUndKreis() {
+    const db = makeDatabase();
+    const gepflegt = { pnames: [{ value: 'Monasterium', from: 800, to: 1500 }], lat: 51.96, long: 7.63, note: 'x' };
+    db.placeObjects = placeMap(
+      place('@STADT@', { title: 'Münster', type: 'Town', ...gepflegt }),
+      place('@KREIS@', { title: 'Münster', type: 'County', ...gepflegt }),
+    );
+    const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
+    person.death.place = 'Münster';
+    person.death.date = '1900';
+    db.individuals.set('@I1@', person);
+    return db;
+  }
+
+  it('macht Stadt und Kreis unterscheidbar, wo Kette und Anreicherungs-Grad es nicht tun', () => {
+    const appState = createAppState();
+    appState.loadDatabase(stadtUndKreis(), 'test.ged');
+
+    render(PlaceReview, { props: { appState } });
+
+    const knoepfe = screen.getAllByText(/Ort wählen/).map((n) => n.textContent ?? '');
+    expect(knoepfe).toHaveLength(2);
+    // Deutsch, nicht roh („Town"/„District") — dieselbe Quelle wie Liste und Dedup.
+    expect(knoepfe.some((t) => t.includes('Stadt'))).toBe(true);
+    expect(knoepfe.some((t) => t.includes('Kreis'))).toBe(true);
+    expect(knoepfe.some((t) => t.includes('Town') || t.includes('County'))).toBe(false);
+    // Der Beleg, dass der Typ hier trägt: die übrigen Angaben sind bei beiden gleich.
+    expect(knoepfe.every((t) => t.includes('ausführlich'))).toBe(true);
+  });
+
+  it('zeigt für nicht kategorisierte Orte GAR KEINEN Typ (ADR-v9-77: der unauffällige Regelfall)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(ambiguousDb(), 'test.ged');
+
+    render(PlaceReview, { props: { appState } });
+
+    // Beide Oldenburgs sind ohne Typ — kein „Unbekannt"-Chip auf jeder Zeile.
+    expect(screen.queryByText(/Unbekannt/)).toBeNull();
+  });
+});

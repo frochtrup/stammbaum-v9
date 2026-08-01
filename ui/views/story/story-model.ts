@@ -13,7 +13,8 @@ import { personBiographyPoints, type BiographyPoint } from '../../islands/map/ma
 import { EVENT_LABELS } from '../../islands/timeline/timeline-model';
 import { getParentIds, getSpouseFamilies } from '../../islands/tree/tree-model';
 import { displayName } from '../../shell/person-display';
-import { isDisplayableImage } from '../media/media-gallery-model';
+import { isEmbeddedImage } from '../../../core/model/media-kind';
+import { personImages } from '../../shell/entity-media';
 import { epochContext } from './story-epochs';
 import { buildPlaceContextSentence } from './place-context';
 import {
@@ -74,22 +75,38 @@ export interface StoryDoc {
 }
 
 /**
- * Direkt darstellbare Fotos einer Person (BL-189): löst `person.media` über `db.media` auf
- * und behält nur `data:image/…`-URIs (isDisplayableImage — EIN Kriterium wie die Medien-
- * Vorschau BL-181). Primärfoto (`_PRIM`) zuerst. Ein bloßer Dateipfad trägt im
- * serverlosen Browser keine Bytes und wird bewusst weggelassen (kein totes `<img>`).
+ * Einbettbare Fotos einer Person (BL-189, erweitert durch BL-261). Die AUSWAHL liegt in
+ * `entity-media.ts` (dieselbe wie Steckbrief und Ereigniszeile — kein zweiter
+ * Rechenweg); hier wird nur entschieden, was sich EINBETTEN lässt.
+ *
+ * `embed` ist der asynchrone Vorlauf (ADR-v9-187 Punkt 7): eine fertige Map
+ * `Media.file → data:`-URI, die der Aufrufer VOR dem Bau besorgt hat. Ohne sie bleiben
+ * nur die ohnehin eingebetteten Bilder übrig — genau der Zustand vor BL-261, in dem
+ * Story und Familienbuch am Realbestand 0 Fotos zeigten (`data:` kommt dort 0× vor,
+ * 76 der 85 Personen-Medien sind Dateipfade).
  */
-export function collectStoryMedia(db: Database, personId: PersonId): StoryPhoto[] {
-  const p = db.individuals.get(personId);
-  if (!p) return [];
-  const cits = [...p.media].sort((a, b) => Number(b.primary) - Number(a.primary));
+export function collectStoryMedia(
+  db: Database,
+  personId: PersonId,
+  embed?: ReadonlyMap<string, string>,
+): StoryPhoto[] {
   const out: StoryPhoto[] = [];
-  for (const mc of cits) {
-    const m = db.media.get(mc.mediaId);
-    if (!m || !isDisplayableImage(m.file)) continue;
-    out.push({ src: m.file, title: mc.title || m.title || '' });
+  for (const img of personImages(db, personId)) {
+    const src = isEmbeddedImage(img.file) ? img.file : (embed?.get(img.file) ?? '');
+    if (!src) continue;
+    out.push({ src, title: img.title });
   }
   return out;
+}
+
+/**
+ * Welche Dateien der Vorlauf auflösen muss, damit die Story ihre Fotos hat. Getrennt von
+ * `collectStoryMedia`, weil der Aufrufer sie BRAUCHT, bevor er bauen kann.
+ */
+export function storyMediaFiles(db: Database, personIds: readonly PersonId[]): string[] {
+  const files = new Set<string>();
+  for (const id of personIds) for (const img of personImages(db, id)) files.add(img.file);
+  return [...files];
 }
 
 function placeSuffix(place: string | null): string {
@@ -300,7 +317,12 @@ function death(db: Database, ctx: PlaceContext, personId: PersonId, pr: Pronoun)
 }
 
 /** Personen-Biografie als strukturiertes Dokument (Orakel `_renderStory`). */
-export function buildPersonStory(db: Database, ctx: PlaceContext, personId: PersonId): StoryDoc {
+export function buildPersonStory(
+  db: Database,
+  ctx: PlaceContext,
+  personId: PersonId,
+  embed?: ReadonlyMap<string, string>,
+): StoryDoc {
   const p = db.individuals.get(personId);
   if (!p) throw new Error('Person nicht gefunden: ' + personId);
   const pr = pronoun(p);
@@ -331,7 +353,7 @@ export function buildPersonStory(db: Database, ctx: PlaceContext, personId: Pers
     title: displayName(p) || personId,
     lifespan,
     subtitle: '',
-    photos: collectStoryMedia(db, personId),
+    photos: collectStoryMedia(db, personId, embed),
     sections,
     mapPoints: personBiographyPoints(db, ctx, personId),
   };
@@ -348,7 +370,11 @@ function lifeYearsOf(p: { birth: Event; chr: Event; death: Event }): number[] {
 }
 
 /** Familien-Biografie als strukturiertes Dokument (Orakel `_renderFamilyStory`, BL-186). */
-export function buildFamilyStory(db: Database, familyId: string): StoryDoc {
+export function buildFamilyStory(
+  db: Database,
+  familyId: string,
+  embed?: ReadonlyMap<string, string>,
+): StoryDoc {
   const fam = db.families.get(familyId);
   if (!fam) throw new Error('Familie nicht gefunden: ' + familyId);
   const husb = fam.husband ? (db.individuals.get(fam.husband) ?? null) : null;
@@ -478,7 +504,7 @@ export function buildFamilyStory(db: Database, familyId: string): StoryDoc {
   // Familien-Kopf zeigt (wie im v8-Orakel) das Primärfoto beider Partner.
   const famPhotos: StoryPhoto[] = [];
   for (const p of [husb, wife]) {
-    if (p) famPhotos.push(...collectStoryMedia(db, p.id).slice(0, 1));
+    if (p) famPhotos.push(...collectStoryMedia(db, p.id, embed).slice(0, 1));
   }
 
   return {

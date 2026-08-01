@@ -125,8 +125,8 @@
         <input type="text" bind:value={note} placeholder="z. B. Quelle der Angabe" />
       </label>
       <div class="person-assoc__actions">
-        <button type="button" class="person-assoc__cancel" onclick={reset}>Abbrechen</button>
-        <button type="submit" class="person-assoc__save" disabled={!pickedId}>Hinzufügen</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={reset}>Abbrechen</button>
+        <button type="submit" class="stb-btn" data-variant="primary" disabled={!pickedId}>Hinzufügen</button>
       </div>
     </form>
   {:else}
@@ -278,31 +278,9 @@
     gap: 0.5rem;
   }
 
-  .person-assoc__cancel,
-  .person-assoc__save {
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    min-height: var(--stb-touch-target);
-  }
 
-  .person-assoc__cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-  }
 
-  .person-assoc__save {
-    background: var(--stb-gold);
-    border: none;
-    color: var(--stb-bg);
-    font-weight: 700;
-  }
 
-  .person-assoc__save:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 
   .person-assoc__godchildren {
     display: flex;

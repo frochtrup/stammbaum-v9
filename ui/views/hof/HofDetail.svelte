@@ -6,7 +6,8 @@
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
+  import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
+  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof, markHofReviewed } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
   import HofEditForm from './HofEditForm.svelte';
   import Picker from '../../shell/Picker.svelte';
@@ -39,11 +40,9 @@
     editing = true;
   }
 
-  function cancelEdit() {
-    editing = false;
-  }
-
-  /** HofEditForm reicht das fertige HofObject zurück → speichern + Bearbeiten-Modus verlassen. */
+  /** HofEditForm reicht das fertige HofObject zurück → speichern + Bearbeiten-Modus verlassen.
+   *  Speichern DARF den Modus schließen (die Transaktion ist abgeschlossen, INV-UI-16) —
+   *  „Verwerfen" darf es nicht, weil es sonst eine Rücknahme verspricht, die es nicht leistet. */
   function handleSaveEdit(updated: HofObject) {
     appState.saveHof(updated);
     editing = false;
@@ -174,7 +173,22 @@
       {#snippet actions()}
         <span class="hof-detail__village">{detail.villageTitle}</span>
         {#if !editing}
-          <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+          <!-- Geschwister-Stelle zu PlaceDetail (ADR-v9-191, INV-UI-4): dieselbe Frage,
+               derselbe Schalter, dieselbe Komponente. -->
+          <ReviewedToggle
+            reviewedAt={detail.hof.reviewedAt}
+            kind="Hof"
+            onToggle={(at) => appState.saveHof(markHofReviewed(detail.hof, at))}
+          />
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={startEdit}>✎ Bearbeiten</button>
+        {:else}
+          <!-- Geschwister-Stelle zu PlaceDetail (INV-UI-16, ADR-v9-193): den Modus schließt
+               der Schalter, der ihn geöffnet hat — nicht das „Verwerfen" der Grunddaten.
+               Hier wiegt es schwerer als beim Ort: `editing` gibt daneben die Adress-
+               varianten und den Dorf-Picker frei, die beide SOFORT committen und deren
+               Nachläufe (Umbenennung über alle Ereignisse, Konsolidierung im Zieldorf)
+               längst geschrieben sind (ADR-v9-81/-172). -->
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = false)}>Fertig</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -256,7 +270,6 @@
         hof={detail.hof}
         {otherHofs}
         onSave={handleSaveEdit}
-        onCancel={cancelEdit}
         onDelete={handleDelete}
         onCreateHof={createHofForForm}
       />
@@ -339,15 +352,6 @@
     color: var(--stb-text-dim);
   }
 
-  .hof-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .hof-detail__section {
     margin-top: 1.25rem;

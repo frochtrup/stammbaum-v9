@@ -49,7 +49,12 @@ läuft dabei erneut mit — er erinnert an offene Prosa-Punkte, blockiert aber n
 Optionen: `-- --dry-run` (Changelog-Eintrag nur anzeigen), `-- --notes "a ;; b"`
 (optionale redaktionelle Zeile[n]), `-- --since <ref>` (Basis übersteuern),
 `-- --all-commits` (auch andere Commit-Typen), `-- --skip-text-review` (Bericht aus),
-`-- --version 9.3` (Version explizit), `-- --skip-capture` (nur Version/Changelog).
+`-- --version 9.3` (Version explizit), `-- --skip-capture` (nur Version/Changelog),
+`-- --port 5200` (Dev-Server-Port, Standard 5173).
+
+**Belegter Port:** Der Bau braucht ihn exklusiv (`--strictPort`). Hält eine parallele
+Sitzung die 5173, bricht der Lauf vor dem `demo.ged`-Tausch ab und nennt einen freien
+Port — dann mit `-- --port <n>` wiederholen, nicht den fremden Server abschießen.
 
 ## Voraussetzungen
 - `puppeteer-core` (devDependency) und **System-Chrome** (Pfad ggf. über `CHROME_PATH`).

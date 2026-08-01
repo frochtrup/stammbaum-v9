@@ -26,7 +26,9 @@
   } from '../../../core/model';
   import type { MediaCitation } from '../../../core/model/types';
   import { buildMediaDetail, type MediaReferenceRow } from './media-detail-model';
-  import { isDisplayableImage } from './media-gallery-model';
+  import { classifyMediaFile, isImageMedia, webLinkHost } from '../../../core/model/media-kind';
+  import MediaThumb from '../../shell/MediaThumb.svelte';
+  import type { MediaResolver } from '../../../services/media';
 
   interface Props {
     appState: AppState;
@@ -35,9 +37,18 @@
     onNavigateToFamily: (familyId: string) => void;
     onNavigateToSource: (sourceId: string) => void;
     onBack?: () => void;
+    /** Medien-Auflösung (BL-258) — ohne sie bleibt es bei eingebetteten Bildern. */
+    mediaResolver?: MediaResolver;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack }: Props =
-    $props();
+  const {
+    appState,
+    viewState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    onNavigateToSource,
+    onBack,
+    mediaResolver,
+  }: Props = $props();
 
   const mediaId = $derived(viewState.getCurrent('media'));
   const detail = $derived(mediaId ? buildMediaDetail(appState.db, mediaId) : null);
@@ -161,6 +172,13 @@
     const m = /^data:([^;,]+)[;,]/i.exec(file.trim());
     return m ? `eingebettet (${m[1]})` : file || '—';
   }
+
+  // Art des Werts aus dem EINEN Kern-Chokepoint (ADR-v9-187). Vorher entschied diese
+  // View selbst — und kannte nur `data:`; ein Weblink (der häufigste Fall im Bestand)
+  // stand hier als toter Text, obwohl derselbe Wert an der Quellen-Pille längst ein
+  // klickbares ↗ trägt.
+  const fileKind = $derived(detail ? classifyMediaFile(detail.media.file) : 'empty');
+  const linkHost = $derived(detail ? webLinkHost(detail.media.file) : '');
 </script>
 
 {#snippet refRow(row: MediaReferenceRow)}
@@ -182,8 +200,8 @@
       <label>Notiz <input type="text" bind:value={rNote} /></label>
       <label class="media-detail__ref-prim"><input type="checkbox" bind:checked={rPrimary} /> Primärbild/-dokument</label>
       <div class="media-detail__ref-form-actions">
-        <button type="button" class="media-detail__save-btn" onclick={() => saveRef(row)}>Speichern</button>
-        <button type="button" class="media-detail__cancel-btn" onclick={() => (editingKey = null)}>Abbrechen</button>
+        <button type="button" class="stb-btn" data-variant="primary" onclick={() => saveRef(row)}>Speichern</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingKey = null)}>Abbrechen</button>
       </div>
     </div>
   {/if}
@@ -195,10 +213,13 @@
   {:else if !detail}
     <p class="media-detail__empty">Medium nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <DetailHeader title={detail.displayTitle} onBack={onBack ?? (() => {})}>
+    <!-- `backAlways`: die Galerie belegt in beiden Formfaktoren die volle Fläche und wird
+         von diesem Detail ERSETZT (ADR-v9-192) — der Rückweg darf hier auch auf Desktop
+         nicht fehlen, anders als bei den Multi-Pane-Segmenten. -->
+    <DetailHeader title={detail.displayTitle} onBack={onBack ?? (() => {})} backAlways>
       {#snippet actions()}
         {#if !editingGlobal}
-          <button type="button" class="media-detail__edit-btn" onclick={startEditGlobal}>✎ Bearbeiten</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={startEditGlobal}>✎ Bearbeiten</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -210,19 +231,39 @@
         <label>Format (MIME) <input type="text" bind:value={gForm} /></label>
         <label>Medientyp <input type="text" bind:value={gType} /></label>
         <div class="media-detail__form-actions">
-          <button type="button" class="media-detail__save-btn" onclick={saveGlobal}>Speichern (alle Ref.)</button>
-          <button type="button" class="media-detail__cancel-btn" onclick={() => (editingGlobal = false)}>Abbrechen</button>
+          <button type="button" class="stb-btn" data-variant="primary" onclick={saveGlobal}>Speichern (alle Ref.)</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingGlobal = false)}>Abbrechen</button>
         </div>
       </div>
     {:else}
-      {#if isDisplayableImage(detail.media.file)}
+      {#if fileKind !== 'weblink' && isImageMedia(detail.media.file, detail.media.form)}
         <figure class="media-detail__preview">
-          <img src={detail.media.file} alt={detail.displayTitle} />
+          <MediaThumb
+            file={detail.media.file}
+            form={detail.media.form}
+            alt={detail.displayTitle}
+            resolver={mediaResolver}
+            size="large"
+          />
         </figure>
       {/if}
       <dl class="media-detail__meta">
-        <dt>Datei</dt>
-        <dd>{fileLabel(detail.media.file)}</dd>
+        <dt>{fileKind === 'weblink' ? 'Fundort' : 'Datei'}</dt>
+        <dd>
+          {#if fileKind === 'weblink'}
+            <!-- Verlinkt, NIE geladen (ADR-v9-187): kein Fetch für Vorschau oder Ausgabe.
+                 `rel` wie bei jedem anderen Fremdlink der App. -->
+            <a
+              class="media-detail__link"
+              href={detail.media.file}
+              target="_blank"
+              rel="noopener noreferrer"
+            >{linkHost || detail.media.file} ↗</a>
+            <span class="media-detail__link-full">{detail.media.file}</span>
+          {:else}
+            {fileLabel(detail.media.file)}
+          {/if}
+        </dd>
         {#if detail.media.form}<dt>Format</dt><dd>{detail.media.form}</dd>{/if}
         {#if detail.media.type}<dt>Typ</dt><dd>{detail.media.type}</dd>{/if}
       </dl>
@@ -274,14 +315,19 @@
     font-size: 0.85rem;
   }
 
-  .media-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
+
+  .media-detail__link {
+    color: var(--stb-gold);
+    overflow-wrap: anywhere;
+  }
+
+  /* Die volle Adresse bleibt lesbar (kopierbar), tritt aber optisch zurück — der Host
+     allein trägt die Orientierung, die volle URL ist bei matricula & Co. sehr lang. */
+  .media-detail__link-full {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--stb-text-dim);
+    overflow-wrap: anywhere;
   }
 
   .media-detail__preview {
@@ -289,12 +335,6 @@
     text-align: center;
   }
 
-  .media-detail__preview img {
-    max-width: 100%;
-    max-height: 320px;
-    border-radius: var(--stb-radius-control);
-    background: var(--stb-surface-2);
-  }
 
   .media-detail__meta {
     display: grid;
@@ -360,26 +400,7 @@
     gap: 0.5rem;
   }
 
-  .media-detail__save-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    font-weight: 600;
-    border: 1px solid var(--stb-gold);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
-  .media-detail__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .media-detail__section {
     margin-top: 1.25rem;

@@ -175,7 +175,7 @@ describe('PlaceList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)'
     expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
   });
 
-  it('der Filter "nur unvollständige" blendet kuratierte Orte aus', async () => {
+  it('die Anreicherungs-Stufe blendet die anderen Stufen aus (ADR-v9-191)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Plainhausen' }));
@@ -192,10 +192,18 @@ describe('PlaceList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)'
     expect(screen.getByText('Kurierthausen')).toBeTruthy();
 
     await fireEvent.click(screen.getByText('Filter'));
-    await fireEvent.click(screen.getByLabelText('nur unvollständige'));
+    const wahl = screen.getByLabelText('Anreicherung') as HTMLSelectElement;
+    await fireEvent.change(wahl, { target: { value: 'none' } });
 
     expect(screen.getByText('Plainhausen')).toBeTruthy();
     expect(screen.queryByText('Kurierthausen')).toBeNull();
+
+    // Die Gegenrichtung — das ist der Zugewinn gegenüber dem früheren Ja/Nein: „was habe
+    // ich nur angefasst?" war damit gar nicht abfragbar.
+    await fireEvent.change(wahl, { target: { value: 'sparse' } });
+
+    expect(screen.getByText('Kurierthausen')).toBeTruthy();
+    expect(screen.queryByText('Plainhausen')).toBeNull();
   });
 });
 

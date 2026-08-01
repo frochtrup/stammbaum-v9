@@ -6,7 +6,15 @@
   // Die Komponente OWNS ihren Formularzustand (init aus `place` beim Mount — sie mountet
   // frisch je Bearbeiten-Sitzung, `{#if editing}`). Sie schreibt NICHT selbst: `save()`
   // baut das aktualisierte PlaceObject und reicht es per `onSave` an den Aufrufer
-  // (der ruft appState.savePlace). Löschen/Abbrechen sind ebenfalls Callbacks.
+  // (der ruft appState.savePlace). Löschen ist ebenfalls ein Callback.
+  //
+  // DIESE FLÄCHE IST DIE TRANSAKTIONSGRENZE (Spec 21 §6m, INV-UI-16, ADR-v9-193).
+  // „Verwerfen" setzt die FELDWERTE zurück und schließt die Fläche NICHT — deshalb gibt
+  // es hier kein `onCancel` mehr. Vorher tat derselbe Knopf beides (`editing = false` im
+  // Aufrufer), und weil derselbe Schalter auch die sofort committenden Abschnitte
+  // daneben sichtbar macht (Namensvarianten, Zugehörigkeit, GOV-Import, Merge), las er
+  // sich als Rücknahme von allem seit dem Öffnen — die war er nie. Den Modus verlässt
+  // der Schalter, der ihn geöffnet hat („Fertig" im Kopf).
   import { untrack } from 'svelte';
   import type { PlaceObject } from '../../../core/places/types';
   import { resolveCoordFields, type GeocodeHit } from '../../../core/places';
@@ -18,10 +26,9 @@
   interface Props {
     place: PlaceObject;
     onSave: (updated: PlaceObject) => void;
-    onCancel: () => void;
     onDelete: () => void;
   }
-  const { place, onSave, onCancel, onDelete }: Props = $props();
+  const { place, onSave, onDelete }: Props = $props();
 
   // Startwerte EINMAL aus `place` lesen (die Form ist eine Arbeitskopie und mountet frisch
   // je Bearbeiten-Sitzung — sie soll bewusst NICHT auf spätere `place`-Änderungen reagieren).
@@ -75,6 +82,26 @@
     if ((!type.trim() || type === 'Unknown') && hit.type !== 'Unknown') type = hit.type;
   }
 
+  /**
+   * Setzt die Feldwerte auf den GESPEICHERTEN Stand zurück (INV-UI-16). Liest bewusst
+   * `place` frisch und nicht `init`: `init` ist der Stand beim Öffnen der Fläche, aber
+   * die sofort committenden Abschnitte daneben (Namensvarianten, GOV-Import) können den
+   * Ort seither geändert haben. Auf `init` zurückzusetzen hieße, deren Ergebnis beim
+   * nächsten „Speichern" zu überschreiben — ein Verwerfen, das fremde Arbeit mitnimmt.
+   */
+  function discard() {
+    title = place.title ?? '';
+    shortName = place.shortName ?? '';
+    type = place.type ?? '';
+    latText = place.lat != null ? String(place.lat) : '';
+    longText = place.long != null ? String(place.long) : '';
+    note = place.note ?? '';
+    existsFrom = place.existsFrom;
+    existsTo = place.existsTo;
+    govId = place.govId ?? '';
+    govTypesText = place.govTypes?.join(', ') ?? '';
+  }
+
   function save() {
     const { lat, long } = resolveCoordFields(latText, longText);
     onSave({
@@ -93,7 +120,7 @@
   }
 </script>
 
-<section class="place-edit-form">
+<section class="place-edit-form" data-no-swipe>
   <h3>Grunddaten</h3>
   <label>
     Name
@@ -131,9 +158,11 @@
     <input type="text" bind:value={govTypesText} placeholder="z. B. Stadt, Kreis" />
   </label>
   <div class="place-edit-form__actions">
-    <button type="button" class="place-edit-form__save" onclick={save}>Speichern</button>
-    <button type="button" class="place-edit-form__cancel" onclick={onCancel}>Abbrechen</button>
-    <button type="button" class="place-edit-form__delete" onclick={onDelete}>Ort löschen</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <!-- „Verwerfen", nicht „Abbrechen": es betrifft die Feldwerte DIESER Fläche, nicht
+         die Bearbeiten-Sitzung (INV-UI-16). Das alte Wort versprach mehr, als es hielt. -->
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
+    <button type="button" class="stb-btn" data-variant="danger" onclick={onDelete}>Ort löschen</button>
   </div>
 </section>
 
@@ -178,36 +207,8 @@
     flex-wrap: wrap;
   }
 
-  .place-edit-form__save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .place-edit-form__cancel {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  /* Destruktive Aktion — eigener Akzent (`--stb-danger`), `margin-left: auto` nur auf dem
-     letzten Element (TST-11 — sicher, da garantiert letztes in der flex-wrap-Zeile). */
-  .place-edit-form__delete {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
 
   .place-edit-form__actions > :last-child {
     margin-left: auto;

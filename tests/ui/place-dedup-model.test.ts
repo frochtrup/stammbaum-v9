@@ -68,17 +68,34 @@ describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () 
     expect(names).toEqual(['Arpke, Burgdorf, Region Hannover', 'Arpke, Uetze, Region Hannover']);
   });
 
-  it('A1: enriched-Kennzeichen pro Mitglied (kuratiert vs. Seed-Rohzustand)', () => {
+  it('A1: Anreicherungs-GRAD und Prüf-Marker pro Mitglied (ADR-v9-191, ersetzt das Ja/Nein)', () => {
     const db = makeDatabase();
-    // @A@ kuratiert (hat Koordinaten) → enriched; @B@ blanker Seed-Rohzustand → nicht enriched.
+    // Drei Stufen an einer Gruppe — genau die Unterscheidung, die ein Ja/Nein einebnete:
+    // @A@ trägt nur eine Koordinate (Massen-Geocoding), @C@ ist wirklich bearbeitet.
     db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }));
     db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    db.placeObjects.set(
+      '@C@',
+      place('@C@', {
+        title: 'Ochtrup',
+        type: 'Town',
+        pnames: [{ value: 'Ochtorpe', from: 1200, to: 1500 }],
+        lat: 52.2,
+        long: 7.2,
+        note: 'Kirchspiel',
+      }),
+    );
+    // Der Marker hängt an keiner Stufe: @B@ ist inhaltlich leer UND ausdrücklich geprüft.
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup', reviewedAt: 1_700_000_000_000 }));
 
     const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
-    const byId = new Map(groups[0].members.map((m) => [m.id, m.enriched]));
+    const byId = new Map(groups[0].members.map((m) => [m.id, m]));
 
-    expect(byId.get('@A@')).toBe(true);
-    expect(byId.get('@B@')).toBe(false);
+    expect(byId.get('@A@')!.level).toBe('sparse');
+    expect(byId.get('@B@')!.level).toBe('none');
+    expect(byId.get('@C@')!.level).toBe('rich');
+    expect(byId.get('@B@')!.reviewed).toBe(true);
+    expect(byId.get('@C@')!.reviewed).toBe(false);
   });
 
   it('ADR-v9-77: "Stadt X" + "Kreis X" → typeMismatch:true, type pro Mitglied sichtbar', () => {

@@ -7,7 +7,7 @@
 // fälschlich in die HOF-Review (mit leerem Klassen-Label und unpassenden Hof-Aktionen)
 // und war nach deren Filterung unsichtbar. Diese Datei deckt die neue, eigene Ansicht ab.
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model';
+import { makeDatabase, makeEvent, makePerson, makeFamily } from '../../core/model';
 import { place, placeMap } from '../core/places-fixtures';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { buildPlaceReview } from '../../ui/views/place/place-review-model';
@@ -177,5 +177,81 @@ describe('buildPlaceReview — nicht unterscheidbare Kandidaten (Dubletten-Fall)
     const review = buildPlaceReviewFor(db);
 
     expect(review.rows[0].candidatesIndistinguishable).toBe(false);
+  });
+});
+
+// ADR-v9-191 / BL-267 — die Zuordnungs-Fläche trug bis dahin GAR KEIN Kurations-Signal.
+describe('buildPlaceReview — Kurationsstand am Kandidaten (ADR-v9-191)', () => {
+  it('liefert Grad und Prüf-Marker je Kandidat — dort, wo die Kette nicht unterscheidet', () => {
+    const db = makeDatabase();
+    // Zwei gleichnamige Orte OHNE Elternkette: `candidatesIndistinguishable` schlägt an,
+    // das Label ist bei beiden identisch. Genau hier ist der Kurationsstand das Einzige,
+    // was noch unterscheidet.
+    db.placeObjects.set('@A@', place('@A@', { title: 'Bremen' }));
+    db.placeObjects.set(
+      '@B@',
+      place('@B@', {
+        title: 'Bremen',
+        type: 'Town',
+        pnames: [{ value: 'Freie Hansestadt Bremen', from: 1806, to: null }],
+        lat: 53.07,
+        long: 8.8,
+        note: 'Hansestadt',
+        reviewedAt: 1_700_000_000_000,
+      }),
+    );
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Bremen' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    expect(result.rows).toHaveLength(1);
+    const byId = new Map(result.rows[0].candidates.map((c) => [c.placeId, c]));
+    expect(byId.get('@A@')!.level).toBe('none');
+    expect(byId.get('@A@')!.reviewed).toBe(false);
+    expect(byId.get('@B@')!.level).toBe('rich');
+    expect(byId.get('@B@')!.reviewed).toBe(true);
+    // Die Labels selbst unterscheiden nicht — der Grund, warum der Stand hier hingehört.
+    expect(byId.get('@A@')!.label).toBe(byId.get('@B@')!.label);
+  });
+});
+
+// BL-268 — die Achse, die Kette und Anreicherungs-Grad beide nicht tragen.
+describe('buildPlaceReview — Ortstyp am Kandidaten (BL-268)', () => {
+  it('liefert den rohen type je Kandidat — auch wenn Kette UND Grad gleich sind', () => {
+    const db = makeDatabase();
+    // Der reale Fall aus der BL-267-Verifikation: „Münster" als Stadt und als Kreis, beide
+    // gepflegt. Grad und Label unterscheiden hier NICHT — der Typ ist das Einzige, was bleibt.
+    const gepflegt = {
+      pnames: [{ value: 'Monasterium', from: 800, to: 1500 }],
+      lat: 51.96,
+      long: 7.63,
+      note: 'x',
+    };
+    db.placeObjects.set('@A@', place('@A@', { title: 'Münster', type: 'Town', ...gepflegt }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Münster', type: 'County', ...gepflegt }));
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Münster' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    const byId = new Map(result.rows[0].candidates.map((c) => [c.placeId, c]));
+    expect(byId.get('@A@')!.type).toBe('Town');
+    expect(byId.get('@B@')!.type).toBe('County');
+    // Der Beleg, dass der Typ hier gebraucht wird: alles andere ist identisch.
+    expect(byId.get('@A@')!.level).toBe(byId.get('@B@')!.level);
+    expect(byId.get('@A@')!.label).toBe(byId.get('@B@')!.label);
+  });
+
+  it('liefert einen leeren type für nicht kategorisierte Orte (die Ansicht zeigt dann nichts)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Bremen' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Bremen' }));
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Bremen' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    for (const c of result.rows[0].candidates) expect(c.type).toBe('');
   });
 });

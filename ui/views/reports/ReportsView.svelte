@@ -11,6 +11,7 @@
   import { REPORTS } from './index';
   import { openReportInNewTab } from './open-report';
   import { resolveProband } from '../../shell/proband';
+  import type { MediaResolver } from '../../../services/media';
   import PersonPicker from '../../shell/PersonPicker.svelte';
 
   interface Props {
@@ -18,8 +19,10 @@
     /** Für die Proband-Vorbelegung der Bezugsperson (BL-120). Optional, damit bestehende
      *  Tests ohne ViewState weiterlaufen — ohne ihn bleibt die Bezugsperson zunächst leer. */
     viewState?: ViewState;
+    /** Medien-Auflösung (BL-261) — ohne sie enthalten Ausgaben nur eingebettete Fotos. */
+    mediaResolver?: MediaResolver;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, mediaResolver }: Props = $props();
 
   const hasData = $derived(appState.db.individuals.size > 0);
 
@@ -36,7 +39,7 @@
 
   let error = $state('');
 
-  function generate(reportId: string) {
+  async function generate(reportId: string) {
     error = '';
     const def = REPORTS.find((r) => r.id === reportId);
     if (!def) return;
@@ -47,7 +50,13 @@
     let html: string;
     try {
       const on = new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' });
-      html = def.build(appState.db, appState.placeContext, on, personId);
+      // Vorlauf (BL-261): erst die Bilder auflösen, dann synchron bauen. Nur Reports
+      // mit Fotos zahlen den Preis — die übrigen tragen kein `mediaFiles`.
+      const embed =
+        def.mediaFiles && mediaResolver
+          ? await mediaResolver.dataUrls(def.mediaFiles(appState.db, personId))
+          : undefined;
+      html = def.build(appState.db, appState.placeContext, on, personId, embed);
     } catch (err) {
       error = `${def.label}: ${err instanceof Error ? err.message : String(err)}`;
       return;

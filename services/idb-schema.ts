@@ -18,7 +18,7 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 8;
+const DB_VERSION = 10;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -46,6 +46,16 @@ export const STORE_ORTE_DRAFT = 'orte-editor-draft';
  * Zustand mit geräteübergreifendem Mitnahme-Weg. Baumgebundenes gehört ausdrücklich
  * NICHT hierher (Projekte, Ausschluss-Paare). */
 export const STORE_APP_DATA = 'app-data';
+/** Verzeichnis-Handle des Medien-Ordners (Spec 14 §7, Spec 30 §2.2, ADR-v9-187, BL-257) —
+ * Kategorie A: ein `FileSystemDirectoryHandle` ist nicht serialisierbar und auf einem
+ * zweiten Gerät bedeutungslos, er bleibt gerätelokal. Eigener Store neben den anderen
+ * FS-Handles, damit keiner den anderen überschreibt. */
+export const STORE_MEDIA_FOLDER_HANDLE = 'media-folder-handle';
+/** Importierte Medien-Bytes (Spec 14 §7 `img:<relPath>`, BL-259) — der zweite Zugangsweg
+ * neben dem Verzeichnis-Handle, für Plattformen ohne File-System-Access-API. Kategorie A:
+ * gerätelokal, reist nicht mit. Anders als die übrigen Stores trägt dieser VIELE
+ * Schlüssel (einen je Datei), nicht einen festen. */
+export const STORE_MEDIA_BYTES = 'media-bytes';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -79,6 +89,12 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_APP_DATA)) {
           db.createObjectStore(STORE_APP_DATA);
+        }
+        if (!db.objectStoreNames.contains(STORE_MEDIA_FOLDER_HANDLE)) {
+          db.createObjectStore(STORE_MEDIA_FOLDER_HANDLE);
+        }
+        if (!db.objectStoreNames.contains(STORE_MEDIA_BYTES)) {
+          db.createObjectStore(STORE_MEDIA_BYTES);
         }
       };
       req.onsuccess = () => resolve(req.result);

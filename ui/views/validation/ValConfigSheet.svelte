@@ -125,7 +125,7 @@
 
     <div class="valcfg__actions">
       <button type="button" onclick={onClose}>Abbrechen</button>
-      <button type="button" class="valcfg__save" onclick={save}>Speichern</button>
+      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
     </div>
   </div>
 </div>
@@ -218,8 +218,4 @@
     margin-top: 1rem;
   }
 
-  .valcfg__save {
-    border-color: var(--stb-gold-dim) !important;
-    color: var(--stb-gold-light) !important;
-  }
 </style>

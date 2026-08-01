@@ -10,6 +10,9 @@
   // Der Datei-Picker öffnet GEDCOM ODER GRAMPS (BL-139): der Picker gunzip-t und erkennt das
   // Format, `loadDocText` verzweigt in den passenden Ladepfad. Demo bleibt GEDCOM.
   import { loadGedcomText } from './load-gedcom-text';
+  // Dateiname des Demo-Bestands aus EINER Quelle: der Erstnutzer-Rundgang (BL-213)
+  // erkennt an genau diesem Namen, dass Demo-Material geladen ist.
+  import { DEMO_FILE_NAME } from './onboarding-state.svelte';
   import { loadDocText } from './load-doc-text';
   import type { AppState } from './app-state.svelte';
   import type { PlacesPersister } from './places-persister';
@@ -69,10 +72,10 @@
     errorMessage = '';
     placesNotice = '';
     try {
-      const res = await fetch('./demo.ged');
+      const res = await fetch(`./${DEMO_FILE_NAME}`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
-      const result = await loadGedcomText(text, 'demo.ged', appState, persister);
+      const result = await loadGedcomText(text, DEMO_FILE_NAME, appState, persister);
       placesNotice = result.placesNotice;
       onImported?.(undefined);
       status = 'idle';
@@ -86,7 +89,7 @@
 <div class="import-bar">
   <button
     type="button"
-    class="import-bar__button"
+    class="stb-btn"
     data-variant={openIsPrimary ? 'primary' : 'secondary'}
     onclick={handleClick}
     disabled={status === 'loading-file' || status === 'loading-demo'}
@@ -95,7 +98,7 @@
   </button>
   <button
     type="button"
-    class="import-bar__button"
+    class="stb-btn"
     data-variant="secondary"
     onclick={handleDemoClick}
     disabled={status === 'loading-file' || status === 'loading-demo'}
@@ -120,32 +123,8 @@
     flex-wrap: wrap;
   }
 
-  /* EIN Layout, zwei Varianten (ADR-v9-128): gefüllt = Primär, outline = Sekundär —
-     gesteuert über data-variant, damit „genau eine Primärfläche" testbar bleibt. */
-  .import-bar__button {
-    border: 1px solid transparent;
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .import-bar__button[data-variant='primary'] {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border-color: var(--stb-gold);
-  }
-
-  .import-bar__button[data-variant='secondary'] {
-    background: transparent;
-    color: var(--stb-gold);
-    border-color: var(--stb-gold-dim);
-  }
-
-  .import-bar__button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
+  /* Optik + Trefferfläche kommen aus `.stb-btn` (design-system.css, INV-UI-4) —
+     „EIN Layout, zwei Varianten" (ADR-v9-128) gilt jetzt app-weit statt nur hier. */
 
   .import-bar__error {
     color: var(--stb-danger);

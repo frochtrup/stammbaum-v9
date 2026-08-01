@@ -86,6 +86,8 @@ export {
   deletePlaceObject,
   saveHofObject,
   deleteHofObject,
+  markPlaceReviewed,
+  markHofReviewed,
   withAddedPname,
   withRemovedPname,
   withUpdatedPname,
@@ -112,10 +114,16 @@ export {
 export {
   isEnrichedPlace,
   isEnrichedHof,
+  placeEnrichmentLevel,
+  hofEnrichmentLevel,
+  isReviewed,
+  isCuratedPlace,
+  isCuratedHof,
   hasReference,
   findPlaceDuplicates,
   type DedupKind,
   type DuplicateGroup,
+  type EnrichmentLevel,
 } from './curation';
 
 // GOV-Import (BL-131, Spec 20 §1.7): Textzusammenfassung von gov.genealogy.net → Namen/

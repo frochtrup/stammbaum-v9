@@ -46,8 +46,26 @@ export interface AppDataBase {
   sections: AppDataSections;
 }
 
-const SECTION_KEYS = ['valConfig', 'exportPrefs', 'projects'] as const;
-type SectionKey = (typeof SECTION_KEYS)[number];
+/**
+ * Alle Abschnitte des Bündels — die Liste, über die der Drei-Wege-Abgleich läuft.
+ *
+ * Das `satisfies Record<keyof AppDataSections, true>` ist der eigentliche Punkt: ein
+ * neuer Abschnitt in `AppDataSections` bricht hier den Compiler, statt still zu
+ * verschwinden. Genau das passierte beim Bau von BL-213 — `tour` stand im Typ, fehlte
+ * hier, und der Merge-Pfad ließ den Merker fallen (gefunden vom Store-Test, nicht vom
+ * Auge). Eine Aufzählung, die man pflegen MUSS, ist besser als eine, die man pflegen
+ * SOLL (CLAUDE.md „Zwang statt Erinnerung").
+ */
+const SECTION_FLAGS = {
+  valConfig: true,
+  exportPrefs: true,
+  projects: true,
+  media: true,
+  tour: true,
+} satisfies Record<keyof AppDataSections, true>;
+
+const SECTION_KEYS = Object.keys(SECTION_FLAGS) as (keyof AppDataSections)[];
+type SectionKey = keyof AppDataSections;
 
 /**
  * Der eine Abschnitt, der je OBJEKT vereinigt wird statt je Abschnitt (BL-239).

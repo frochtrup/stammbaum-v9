@@ -6,6 +6,15 @@
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
   import { buildHofDedupGroups } from './hof-dedup-model';
+  import { enrichmentLabel } from '../../shell/place-labels';
+
+  /** Eigene Hof-Schwelle (ADR-v9-191): „ausführlich" heißt hier „mehr als die massenhaft
+   *  gesetzte Koordinate" — am Realbestand trugen 163 von 183 Höfen genau diese eine. */
+  const ANREICHERUNG_HILFE = {
+    none: 'Nur der Bootstrap aus einer Adresse — keine weiteren Angaben erfasst.',
+    sparse: 'Eine einzelne Angabe, meist nur die automatisch gesetzte Koordinate.',
+    rich: 'Mehr als die Koordinate: Adress-Historie, Notiz, Lebenszyklus oder Existenzspanne.',
+  } as const;
 
   interface Props {
     appState: PlacesHost;
@@ -94,8 +103,10 @@
                   {#if m.id === group.suggestedWinnerId}
                     <span class="hof-dedup__suggested">(Vorschlag)</span>
                   {/if}
-                  {#if !m.enriched}
-                    <span class="stb-pill" use:tooltip={'Noch keine weiteren Angaben (Adress-Historie/Koordinaten/Notiz) erfasst.'}>ohne Zusatzangaben</span>
+                  <!-- ADR-v9-191, Geschwister-Stelle zur Orts-Dedup-Ansicht (INV-UI-4). -->
+                  <span class="stb-pill" use:tooltip={ANREICHERUNG_HILFE[m.level]}>{enrichmentLabel(m.level)}</span>
+                  {#if m.reviewed}
+                    <span class="stb-pill" use:tooltip={'Ein Mensch hat diesen Hof ausdrücklich als geprüft markiert.'}>✓ geprüft</span>
                   {/if}
                 </label>
                 <label class="hof-dedup__include" use:tooltip={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>

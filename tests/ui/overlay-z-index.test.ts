@@ -98,9 +98,16 @@ describe('Überlagerungs-Ordnung (Spec 21 §6, INV-UI-4)', () => {
     const start = bar.indexOf('.stb-filterbar__panel {');
     expect(start, '.stb-filterbar__panel fehlt').toBeGreaterThan(-1);
     const body = bar.slice(start, bar.indexOf('}', start));
-    expect(body).toMatch(/bottom:\s*var\(--stb-nav-height\)/);
-    // Die Höhe kommt aus EINER Quelle — sonst driften Nav und Andockpunkt auseinander.
+    // Seit ADR-v9-189 `--stb-nav-total` statt `--stb-nav-height`: die Nav polstert sich
+    // unten um den Home-Indikator (`--stb-safe-bottom`) auf und belegt auf dem Gerät
+    // MEHR als ihre Basis-Höhe. Das ist keine Aufweichung dieser Invariante, sondern
+    // ihre Präzisierung — genau der verdeckte Streifen, aus dem sich das Sheet
+    // heraushalten soll, war um 34px größer als die geprüfte Zahl.
+    expect(body).toMatch(/bottom:\s*var\(--stb-nav-total\)/);
+    // Die Höhe kommt weiterhin aus EINER Quelle — sonst driften Nav und Andockpunkt
+    // auseinander. `--stb-nav-total` ist von ihr ABGELEITET, keine zweite Zahl.
     expect(designSystem).toMatch(/--stb-nav-height:/);
+    expect(designSystem).toMatch(/--stb-nav-total:\s*calc\(var\(--stb-nav-height\)\s*\+/);
     const nav = readFileSync(join(uiDir, 'shell/BottomNav.svelte'), 'utf8');
     expect(nav).toMatch(/min-height:\s*var\(--stb-nav-height\)/);
   });

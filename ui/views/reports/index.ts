@@ -10,7 +10,7 @@ import { buildBibliography } from './bibliography';
 import { buildResearchLogReport } from './research-log-report';
 import { buildDAbovilleReport } from './daboville-report';
 import { buildRelationshipProof } from './relationship-proof';
-import { buildFamilyBook } from './family-book';
+import { buildFamilyBook, familyBookMediaFiles } from './family-book';
 import { buildLocalFamilyBook } from './local-family-book';
 import { buildFarmChronicle } from './farm-chronicle';
 import { buildPlaceGazetteer } from './place-gazetteer';
@@ -33,8 +33,19 @@ export interface ReportDef {
   /** Braucht dieser Report eine Bezugs-/Wurzelperson (Ahnenliste/Familienbogen/Nachkommen)? */
   needsPerson: boolean;
   /** Reine Renderfunktion → standalone-HTML. `ctx` = PlaceContext für orts-/hofbezogene
-   *  Ausgaben (#11/#12/#13); `personId` nur für `needsPerson`-Reports. */
-  build: (db: Database, ctx: PlaceContext, generatedOn: string, personId: PersonId | null) => string;
+   *  Ausgaben (#11/#12/#13); `personId` nur für `needsPerson`-Reports. `embed` ist die
+   *  fertige `Media.file → data:`-Map aus dem Vorlauf (BL-261) — nur Reports mit Fotos
+   *  lesen sie. Die Funktion bleibt SYNCHRON und damit goldfile-testbar (ADR-v9-138). */
+  build: (
+    db: Database,
+    ctx: PlaceContext,
+    generatedOn: string,
+    personId: PersonId | null,
+    embed?: ReadonlyMap<string, string>,
+  ) => string;
+  /** Welche Mediendateien dieser Report einbetten will (BL-261). Fehlt sie, hat der
+   *  Report keine Fotos und der Aufrufer spart sich den Vorlauf. */
+  mediaFiles?: (db: Database, personId: PersonId | null) => string[];
 }
 
 /** Reihenfolge = §4-Tabelle (umgesetzt: #1–#4, #6, #7, #11, #12, #13). */
@@ -67,7 +78,8 @@ export const REPORTS: readonly ReportDef[] = [
   {
     id: 'family-book', no: 7, label: 'Familienbuch', needsPerson: true,
     description: 'Buchreife Ausgabe: Coverfoto, Inhaltsverzeichnis, Ahnen-Sektionen, Glossar, Namenindex.',
-    build: (db, _ctx, on, pid) => buildFamilyBook(db, requirePerson(pid), on),
+    build: (db, _ctx, on, pid, embed) => buildFamilyBook(db, requirePerson(pid), on, embed),
+    mediaFiles: (db, pid) => (pid ? familyBookMediaFiles(db, pid) : []),
   },
   {
     id: 'local-family-book', no: 11, label: 'Ortssippenbuch', needsPerson: false,
