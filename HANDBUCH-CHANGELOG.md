@@ -22,6 +22,15 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.11] — 2026-08-01
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`ebde29c`…HEAD) erzeugt._
+
+- feat(ui): BL-273 — beschriftete Bearbeitungs-Knöpfe kommen aus `.stb-btn` (INV-UI-4) (`4e25faa`)
+- fix(ui): Der Rundgang duzte als einzige Fläche der App (`ff88970`)
+
+---
+
 ## [9.10] — 2026-08-01
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`e246e0a`…HEAD) erzeugt._
