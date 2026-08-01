@@ -14,13 +14,18 @@
  * Wirft bei Formaten, die der Browser nicht dekodieren kann; der Aufrufer fällt dann
  * auf das Original zurück (siehe `resolveThumbnail`).
  */
-export async function browserThumbnail(blob: Blob, maxEdge: number): Promise<Blob> {
+export async function browserThumbnail(blob: Blob, maxEdge: number, reencode = false): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   try {
     const longest = Math.max(bitmap.width, bitmap.height);
-    if (longest <= maxEdge) return blob;
+    // `reencode` für den Einbettungs-Pfad (BL-261): dort geht es nicht nur um die
+    // Kantenlänge, sondern um die KODIERUNG. Am Realbestand sind 126 der 189 Bilder BMP —
+    // unkomprimiert. Drei davon in einer Story sind gemessen 1,7 MB, obwohl keines über
+    // 600 px hat; als JPEG bleibt davon ein Bruchteil. Ohne dieses Flag griffe die
+    // Verkleinerung nie, weil die Bilder unter der Kantenschwelle liegen.
+    if (longest <= maxEdge && !reencode) return blob;
 
-    const scale = maxEdge / longest;
+    const scale = Math.min(1, maxEdge / longest);
     const w = Math.max(1, Math.round(bitmap.width * scale));
     const h = Math.max(1, Math.round(bitmap.height * scale));
 

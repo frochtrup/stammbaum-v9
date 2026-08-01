@@ -403,6 +403,7 @@
         {onNavigateLens}
         onBack={goBack}
         {clipboard}
+        {mediaResolver}
         startInEdit={selectedPersonId === createdPersonId}
       />
     {:else if activeSegment === 'family' && selectedFamilyId}
@@ -416,6 +417,7 @@
         {onNavigateLens}
         onOpenStory={onOpenStoryForFamily}
         onBack={goBack}
+        {mediaResolver}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
       <RepositoryDetail

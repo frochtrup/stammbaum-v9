@@ -77,7 +77,7 @@ describe('Ordner verbinden', () => {
     const store = fakeStore();
     const r = makeResolver(REAL_PATHS, {}, store);
     expect(await r.connect()).toBe(true);
-    expect(r.status()).toEqual({ connected: true, folderName: 'Genealogie', fileCount: 5 });
+    expect(r.status()).toEqual({ connected: true, folderName: 'Genealogie', fileCount: 5, importedCount: 0 });
     expect(await store.load()).toEqual({ name: 'Genealogie' });
   });
 
@@ -312,5 +312,116 @@ describe('Unicode-Normalisierung — der Umlaut-Fall (eigene Verifikation an ech
     const r = makeResolver([NFD]);
     await r.connect();
     expect(r.matchReport([NFC])).toEqual({ total: 1, found: 1, missing: 0, byBasename: 0 });
+  });
+});
+
+describe('Import ohne Verzeichnis-Handle (BL-259) — der zweite Zugangsweg', () => {
+  function memBytes() {
+    const m = new Map<string, Blob>();
+    return {
+      store: {
+        put: async (path: string, blob: Blob) => {
+          m.set('img:' + path.trim().replace(/\\/g, '/').normalize('NFC').toLowerCase(), blob);
+        },
+        get: async (path: string) =>
+          m.get('img:' + path.trim().replace(/\\/g, '/').normalize('NFC').toLowerCase()) ?? null,
+        keys: async () => [...m.keys()].map((k) => k.slice(4)),
+        clear: async () => {
+          m.clear();
+        },
+      },
+      map: m,
+    };
+  }
+
+  function importing(picked: { path: string; blob: Blob }[], folderPaths: string[] = []) {
+    const b = memBytes();
+    let n = 0;
+    const r = createMediaResolver({
+      adapter: fakeAdapter(folderPaths, { isSupported: () => false }),
+      store: fakeStore(),
+      bytes: b.store,
+      picker: { pickMany: async () => picked },
+      createObjectUrl: () => `blob:import/${++n}`,
+      revokeObjectUrl: () => {},
+    });
+    return { r, bytes: b };
+  }
+
+  it('meldet die Import-Fähigkeit getrennt von der Ordner-Fähigkeit', () => {
+    const { r } = importing([]);
+    expect(r.isSupported()).toBe(false); // kein showDirectoryPicker (iOS/Safari)
+    expect(r.canImport()).toBe(true);
+  });
+
+  it('importierte Dateien werden über den Dateinamen gefunden — und als solche markiert', async () => {
+    const { r } = importing([{ path: 'bardel.jpg', blob: new Blob(['x']) }]);
+    expect(await r.importFiles()).toBe(1);
+
+    // Der Verweis trägt einen Ordner, die importierte Datei nur ihren Namen — genau der
+    // Fall, den der Browser beim Import erzwingt.
+    const res = await r.resolve('Pictures/bardel.jpg');
+    expect(res.state).toBe('ok');
+    expect(res.url).toMatch(/^blob:/);
+    expect(res.match).toBe('basename');
+  });
+
+  it('ein abgebrochener Import ändert nichts', async () => {
+    const { r } = importing([]);
+    expect(await r.importFiles()).toBe(0);
+    expect(r.status().importedCount).toBe(0);
+  });
+
+  it('zählt importierte Dateien im Status', async () => {
+    const { r } = importing([
+      { path: 'a.jpg', blob: new Blob(['a']) },
+      { path: 'b.jpg', blob: new Blob(['b']) },
+    ]);
+    await r.importFiles();
+    expect(r.status().importedCount).toBe(2);
+    expect(r.status().connected).toBe(false); // kein Ordner — trotzdem auflösbar
+  });
+
+  it('zählt sie auch in der Bilanz der Einstellungen — als Dateinamen-Treffer', async () => {
+    const { r } = importing([{ path: 'bardel.jpg', blob: new Blob(['x']) }]);
+    await r.importFiles();
+    expect(r.matchReport(['Pictures/bardel.jpg', 'Pictures/fehlt.jpg'])).toEqual({
+      total: 2,
+      found: 1,
+      missing: 1,
+      byBasename: 1,
+    });
+  });
+
+  it('findet auch Umlaut-Namen (dieselbe NFC-Form wie der Ordner-Index)', async () => {
+    const { r } = importing([{ path: 'Totenzettel_AnnaFlu\u0308gge.jpg', blob: new Blob(['x']) }]);
+    await r.importFiles();
+    expect((await r.resolve('Documents/Totenzettel_AnnaFl\u00fcgge.jpg')).state).toBe('ok');
+  });
+
+  it('der Ordner hat Vorrang vor dem Import — er kennt den echten Pfad', async () => {
+    const { r } = importing([{ path: 'bardel.jpg', blob: new Blob(['import']) }], ['Pictures/bardel.jpg']);
+    await r.connect();
+    await r.importFiles();
+    expect((await r.resolve('Pictures/bardel.jpg')).match).toBe('exact');
+  });
+
+  it('ohne Ordner UND ohne Import bleibt es bei „no-folder", nicht „missing"', async () => {
+    const { r } = importing([]);
+    expect((await r.resolve('Pictures/x.jpg')).state).toBe('no-folder');
+  });
+
+  it('MIT Import ist eine unbekannte Datei „missing" — jetzt IST etwas bekannt', async () => {
+    const { r } = importing([{ path: 'a.jpg', blob: new Blob(['a']) }]);
+    await r.importFiles();
+    expect((await r.resolve('Pictures/x.jpg')).state).toBe('missing');
+  });
+
+  it('clearImported() verwirft die Bytes wieder', async () => {
+    const { r } = importing([{ path: 'a.jpg', blob: new Blob(['a']) }]);
+    await r.importFiles();
+    await r.clearImported();
+    expect(r.status().importedCount).toBe(0);
+    expect((await r.resolve('a.jpg')).state).toBe('no-folder');
   });
 });

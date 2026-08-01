@@ -10,9 +10,13 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { LensId } from '../../shell/lens-model';
   import type { EventClipboard } from '../../shell/event-clipboard.svelte';
+  import type { MediaResolver } from '../../../services/media';
   import type { Person, Event } from '../../../core/model/types';
   import { untrack } from 'svelte';
   import PersonDetailHeader from './PersonDetailHeader.svelte';
+  import MediaThumb from '../../shell/MediaThumb.svelte';
+  import { personPortrait, eventImages } from '../../shell/entity-media';
+  import { primaryEventMenu, secondaryEventMenu, otherEventMenu } from './person-event-menu';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
@@ -51,6 +55,9 @@
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
+    /** Medien-Auflösung (BL-260) — optional; ohne sie bleibt das Porträt aus, weil ein
+     *  Pfad-Bild ohne verbundenen Ordner keine Bytes hat. */
+    mediaResolver?: MediaResolver;
     /** Ereignis-Zwischenablage der Sitzung (BL-212) — optional: ohne sie entfallen
      *  „⧉ Kopieren" und „⧉ Übernehmen" ersatzlos (Tests/Kontexte ohne Schale). */
     clipboard?: EventClipboard;
@@ -69,10 +76,15 @@
     onNavigateLens,
     onBack,
     clipboard,
+    mediaResolver,
     startInEdit = false,
   }: Props = $props();
 
   const personId = $derived(viewState.getCurrent('person'));
+
+  // Porträt (BL-260) — die Auswahl liegt in `entity-media.ts`, damit Steckbrief, Story
+  // und Familienbuch dasselbe Bild wählen (kein zweiter Rechenweg).
+  const portrait = $derived(personId ? personPortrait(appState.db, personId) : null);
 
   // Ist die angezeigte Person die effektive Referenzperson der Sitzung (Session-Proband,
   // sonst kleinste ID)? Steuert die Proband-Aktion im Kopf (BL-120, ADR-v9-135/139).
@@ -166,44 +178,12 @@
     }
   }
 
-  // --- "+ Ereignis"-Sammel-Menü (ADR-v9-62): Taufe/Beruf/Bestattung zuerst (zweite
-  // Häufigkeits-Gruppe), dann EVEN/Eigentum/Auswanderung/Abschluss/Ausbildung. Jedes
-  // Item verschwindet, sobald es nicht mehr "leer/nicht vorhanden" ist ("gefüllt schlägt
-  // selten") — der generische "andere Typ"-Fallback (`otherItems`, unverändert
-  // erreichbar für IMMI/MILI/CENS/NATU/ADOP/FACT UND Duplikate) bleibt davon unberührt. */
-  function hasEventType(tag: string): boolean {
-    return !!detail && detail.person.events.some((e) => e.type === tag);
-  }
-
-  interface MenuItem {
-    tag: string;
-    label: string;
-  }
-
-  const menuPrimary = $derived.by<MenuItem[]>(() => {
-    if (!detail) return [];
-    const list: MenuItem[] = [];
-    if (!isEventPresent(detail.person.chr)) list.push({ tag: 'CHR', label: eventTypeLabel('CHR') });
-    if (!hasEventType('OCCU')) list.push({ tag: 'OCCU', label: eventTypeLabel('OCCU') });
-    if (!isEventPresent(detail.person.buri)) list.push({ tag: 'BURI', label: eventTypeLabel('BURI') });
-    return list;
-  });
-
-  const menuSecondary = $derived.by<MenuItem[]>(() => {
-    if (!detail) return [];
-    return ['EVEN', 'PROP', 'EMIG', 'GRAD', 'EDUC']
-      .filter((t) => !hasEventType(t))
-      .map((t) => ({ tag: t, label: eventTypeLabel(t) }));
-  });
-
-  /** Generischer "beliebiger Typ"-Fallback (unverändert zum bisherigen Typ-Dropdown-
-   *  Mechanismus in PersonForm, Spec 20 §2) — bleibt für ALLE übrigen GEDCOM-Typen
-   *  (inkl. der sechs, die ihren eigenen Pill-Platz verloren haben) UND für Duplikate
-   *  bereits benannter Typen (z. B. Berufswechsel) erreichbar. */
-  const OTHER_EVENT_TYPES = [
-    'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP',
-  ] as const;
-  const menuOther: MenuItem[] = OTHER_EVENT_TYPES.map((t) => ({ tag: t, label: eventTypeLabel(t) }));
+  // Das „+ Ereignis"-Sammelmenü lebt seit BL-260 in `person-event-menu.ts` (max-lines-
+  // Ratsche): welche Typen noch angeboten werden, ist eine reine Projektion über die
+  // Person und braucht diese Komponente nicht.
+  const menuPrimary = $derived(primaryEventMenu(detail?.person ?? null));
+  const menuSecondary = $derived(secondaryEventMenu(detail?.person ?? null));
+  const menuOther = otherEventMenu;
 
   // --- Einzel-Ereignis-Editor (✎-Icon je Zeile, ADR-v9-60) + Neu-Anlage (ADR-v9-63) —
   // EIN Modal-Zustand für beide Aufrufarten: `edit` (bestehende Zeile, Row-`key` wie in
@@ -378,6 +358,8 @@
       {onNavigateLens}
       onRetract={ev.key !== 'DEAT' ? retractOrRemove : undefined}
       onEdit={openEventEdit}
+      images={detail ? eventImages(appState.db, eventForKey(detail.person, ev.key)) : []}
+      {mediaResolver}
     />
   {/if}
 {/snippet}
@@ -398,6 +380,22 @@
       onSetProband={() => viewState.setProband(detail.person.id)}
       {onOpenLens}
     />
+
+    <!-- Porträt (BL-260): das als `_PRIM` markierte Bild der Person, sonst ihr erstes.
+         Reine ANZEIGE — verwaltet wird in der Medien-Fläche (INV-UI-11, kein neues
+         Bedienelement). Erscheint nur, wenn es ein Bild GIBT und es auflösbar ist;
+         `MediaThumb` entscheidet das, nicht diese View. -->
+    {#if portrait}
+      <figure class="person-detail__portrait">
+        <MediaThumb
+          file={portrait.file}
+          form={portrait.form}
+          alt={portrait.title || displayName(detail.person)}
+          resolver={mediaResolver}
+          size="inline"
+        />
+      </figure>
+    {/if}
 
     <section class="person-detail__section">
       <h3>Ereignisse</h3>
@@ -482,6 +480,12 @@
 </div>
 
 <style>
+  /* Das Porträt begleitet den Kopf, es führt die Seite nicht an — linksbündig und klein
+     genug, dass „Ereignisse" ohne Scrollen sichtbar bleibt (INV-UI-5). */
+  .person-detail__portrait {
+    margin: 0.5rem 1rem 0;
+  }
+
   .person-detail {
     padding: 1rem;
     overflow-y: auto;

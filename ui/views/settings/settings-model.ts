@@ -55,6 +55,8 @@ export interface MediaFolderSummary {
   connected: boolean;
   folderName: string;
   fileCount: number;
+  /** Einzeln importierte Dateien (BL-259) — der zweite Zugangsweg. */
+  importedCount: number;
   total: number;
   found: number;
   missing: number;
@@ -67,14 +69,23 @@ export interface MediaFolderSummary {
  * diesen Abschnitt gibt, und sie gehört unit-getestet.
  */
 export function mediaFolderStatusText(s: MediaFolderSummary): string {
-  if (!s.connected) {
+  // Die Bilanz zählt, was TATSÄCHLICH auflösbar ist — egal über welchen der beiden Wege
+  // (Ordner oder Import). Sie steht deshalb vorn, sobald einer davon etwas liefert.
+  const quelle = s.connected
+    ? `Ordner „${s.folderName}" (${s.fileCount} Dateien)`
+    : s.importedCount > 0
+      ? `${s.importedCount} importierte ${s.importedCount === 1 ? 'Datei' : 'Dateien'}`
+      : '';
+
+  if (!quelle) {
     return s.total === 0
-      ? 'Kein Ordner verbunden.'
-      : `Kein Ordner verbunden — ${s.total} Dateiverweise sind daher nicht auflösbar.`;
+      ? 'Noch keine Medien verbunden.'
+      : `Nichts verbunden — ${s.total} Dateiverweise sind daher nicht auflösbar.`;
   }
-  if (s.total === 0) return `Ordner „${s.folderName}" verbunden (${s.fileCount} Dateien).`;
+  if (s.total === 0) return `${quelle} — der Bestand enthält keine Dateiverweise.`;
+
   const bits = [`${s.found} von ${s.total} Verweisen gefunden`];
   if (s.missing > 0) bits.push(`${s.missing} fehlen`);
   if (s.byBasename > 0) bits.push(`${s.byBasename} nur über den Dateinamen zugeordnet`);
-  return `Ordner „${s.folderName}" (${s.fileCount} Dateien) — ${bits.join(', ')}.`;
+  return `${quelle} — ${bits.join(', ')}.`;
 }

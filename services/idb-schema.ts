@@ -18,7 +18,7 @@
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -51,6 +51,11 @@ export const STORE_APP_DATA = 'app-data';
  * zweiten Gerät bedeutungslos, er bleibt gerätelokal. Eigener Store neben den anderen
  * FS-Handles, damit keiner den anderen überschreibt. */
 export const STORE_MEDIA_FOLDER_HANDLE = 'media-folder-handle';
+/** Importierte Medien-Bytes (Spec 14 §7 `img:<relPath>`, BL-259) — der zweite Zugangsweg
+ * neben dem Verzeichnis-Handle, für Plattformen ohne File-System-Access-API. Kategorie A:
+ * gerätelokal, reist nicht mit. Anders als die übrigen Stores trägt dieser VIELE
+ * Schlüssel (einen je Datei), nicht einen festen. */
+export const STORE_MEDIA_BYTES = 'media-bytes';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -87,6 +92,9 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(STORE_MEDIA_FOLDER_HANDLE)) {
           db.createObjectStore(STORE_MEDIA_FOLDER_HANDLE);
+        }
+        if (!db.objectStoreNames.contains(STORE_MEDIA_BYTES)) {
+          db.createObjectStore(STORE_MEDIA_BYTES);
         }
       };
       req.onsuccess = () => resolve(req.result);

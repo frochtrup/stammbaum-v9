@@ -78,7 +78,7 @@ describe('SettingsView — Medien-Ordner', () => {
     // Drei Dateipfade im Bestand; Weblink und data:-URI zählen NICHT mit — sonst läse
     // sich die Zeile als „5 fehlen", obwohl zwei davon gar keinen Ordner brauchen.
     expect(screen.getByTestId('media-folder-status').textContent).toContain(
-      'Kein Ordner verbunden — 3 Dateiverweise sind daher nicht auflösbar.',
+      'Nichts verbunden — 3 Dateiverweise sind daher nicht auflösbar.',
     );
   });
 
@@ -114,7 +114,7 @@ describe('SettingsView — Medien-Ordner', () => {
     mount(resolver([], { pick: async () => null }));
     await fireEvent.click(screen.getByRole('button', { name: 'Ordner wählen' }));
     await waitFor(() => expect(screen.getByText('Ordner-Auswahl abgebrochen.')).toBeTruthy());
-    expect(screen.getByTestId('media-folder-status').textContent).toContain('Kein Ordner verbunden');
+    expect(screen.getByTestId('media-folder-status').textContent).toContain('Nichts verbunden');
   });
 });
 
@@ -138,5 +138,80 @@ describe('SettingsView — was woanders bedient wird', () => {
     // zum selben Ziel. Ein Checkbox-/Schwellenwert-Feld hier wäre genau dieser Bruch.
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('spinbutton')).toBeNull();
+  });
+});
+
+describe('SettingsView — Import-Weg ohne Verzeichnis-Handle (BL-259)', () => {
+  function importing(picked: { path: string; blob: Blob }[]) {
+    const m = new Map<string, Blob>();
+    return createMediaResolver({
+      // isSupported=false = iOS/Safari: kein showDirectoryPicker.
+      adapter: adapter([], { isSupported: () => false }),
+      store: memStore(),
+      bytes: {
+        put: async (path, blob) => {
+          m.set(path.toLowerCase(), blob);
+        },
+        get: async (path) => m.get(path.toLowerCase()) ?? null,
+        keys: async () => [...m.keys()],
+        clear: async () => {
+          m.clear();
+        },
+      },
+      picker: { pickMany: async () => picked },
+      createObjectUrl: () => 'blob:x',
+      revokeObjectUrl: () => {},
+    });
+  }
+
+  it('bietet den Import an, wo kein Ordner gewählt werden kann — und keinen toten Knopf', () => {
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    render(SettingsView, { props: { appState, mediaResolver: importing([]) } });
+
+    expect(screen.queryByRole('button', { name: /Ordner wählen/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Medien importieren' })).toBeTruthy();
+  });
+
+  it('übernimmt gewählte Dateien und rechnet sie in die Bilanz ein', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    // `bardel.jpg` liegt im Bestand als `Pictures/bardel.jpg` — der Browser gibt beim
+    // Import nur den Dateinamen her, die Zuordnung läuft also darüber.
+    const r = importing([
+      { path: 'bardel.jpg', blob: new Blob(['x']) },
+      { path: 'marianne.jpg', blob: new Blob(['y']) },
+    ]);
+    render(SettingsView, { props: { appState, mediaResolver: r } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Medien importieren' }));
+    await waitFor(() => expect(screen.getByText('2 Dateien übernommen.')).toBeTruthy());
+
+    const text = screen.getByTestId('media-folder-status').textContent ?? '';
+    expect(text).toContain('2 importierte Dateien');
+    // Zwei importierte Dateien treffen zwei der drei Verweise (`Pictures/bardel.jpg`
+    // über den Namen, `marianne.jpg` direkt); `Pictures/weg.jpg` fehlt weiter.
+    expect(text).toContain('2 von 3 Verweisen gefunden');
+    expect(text).toContain('1 fehlen');
+    expect(text).toContain('2 nur über den Dateinamen zugeordnet');
+  });
+
+  it('sagt es, wenn nichts gewählt wurde', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    render(SettingsView, { props: { appState, mediaResolver: importing([]) } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Medien importieren' }));
+    await waitFor(() => expect(screen.getByText('Keine Dateien gewählt.')).toBeTruthy());
+  });
+
+  it('„Importierte verwerfen" erscheint erst, wenn es etwas zu verwerfen gibt', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    const r = importing([{ path: 'bardel.jpg', blob: new Blob(['x']) }]);
+    render(SettingsView, { props: { appState, mediaResolver: r } });
+
+    expect(screen.queryByRole('button', { name: /verwerfen/ })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Medien importieren' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /verwerfen/ })).toBeTruthy());
   });
 });

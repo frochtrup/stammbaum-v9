@@ -13,8 +13,11 @@
 //     Zustand „extern"; es gibt keinen Fetch-Pfad, den man versehentlich aktivieren
 //     könnte (LP-2/CSP).
 import { classifyMediaFile } from '../../core/model/media-kind';
-import { buildMediaIndex, type MediaIndex } from './media-index';
+import { blobToDataUrl } from './blob-data-url';
+import { buildMediaIndex, basenameOf, type MediaIndex } from './media-index';
+import type { MediaBytesStore } from './media-bytes-store';
 import type {
+  MediaFilePicker,
   MediaFolderAdapter,
   MediaFolderHandleStore,
   MediaMatchKind,
@@ -47,6 +50,8 @@ export interface MediaFolderStatus {
   folderName: string;
   /** Anzahl der im Ordner gefundenen Dateien. */
   fileCount: number;
+  /** Anzahl einzeln importierter Dateien (BL-259) — der zweite Zugangsweg. */
+  importedCount: number;
 }
 
 /**
@@ -67,15 +72,26 @@ export function createMediaResolver(opts: {
    * Warum überhaupt: 126 der 189 Bilddateien des Realbestands sind unkomprimierte BMP.
    * Ein Kachelraster, das sie in Originalgröße dekodiert, ist ein echter Speicherfehler.
    */
-  makeThumbnail?: (blob: Blob, maxEdge: number) => Promise<Blob>;
+  makeThumbnail?: (blob: Blob, maxEdge: number, reencode?: boolean) => Promise<Blob>;
+  /**
+   * Der ZWEITE Zugangsweg (BL-259): einzeln importierte Mediendateien. Ohne ihn bleibt
+   * die Medien-Anzeige auf Plattformen ohne File-System-Access-API (iOS/Safari) blind —
+   * also auf genau dem Formfaktor, den Spec 01 als primäre Feldarbeits-Plattform nennt.
+   * Optional, damit bestehende Tests unverändert laufen.
+   */
+  bytes?: MediaBytesStore;
+  picker?: MediaFilePicker;
 }) {
-  const { adapter, store, makeThumbnail } = opts;
+  const { adapter, store, makeThumbnail, bytes, picker } = opts;
   const createObjectUrl = opts.createObjectUrl ?? ((b: Blob) => URL.createObjectURL(b));
   const revokeObjectUrl = opts.revokeObjectUrl ?? ((u: string) => URL.revokeObjectURL(u));
 
   let handle: unknown = null;
   let index: MediaIndex | null = null;
   let folderName = '';
+  /** Basisname → gespeicherter Schlüssel der importierten Dateien. Beim Start einmal
+   *  gelesen; der Browser gibt beim Import nur den Dateinamen her (s. media-bytes-store). */
+  let importedByName = new Map<string, string>();
   /** Pfad → Objekt-URL. Wird beim Ordnerwechsel vollständig freigegeben; ohne das
    *  sammelt ein langlebiger Tab Blobs an, die nie eingesammelt werden. */
   const urlCache = new Map<string, ResolvedMedia>();
@@ -92,6 +108,22 @@ export function createMediaResolver(opts: {
     }
   }
 
+  async function loadImportedIndex(): Promise<void> {
+    if (!bytes) return;
+    const next = new Map<string, string>();
+    for (const key of await bytes.keys()) next.set(basenameOf(key).toLowerCase(), key);
+    importedByName = next;
+  }
+
+  /** Bytes aus dem Import-Speicher, wenn der Ordner nichts hat. Zuordnung über den
+   *  Dateinamen — mehr gibt der Browser beim Import nicht her, und der Treffer wird
+   *  entsprechend als `basename` gemeldet (ADR-v9-187 Punkt 5). */
+  async function fromImported(file: string): Promise<Blob | null> {
+    if (!bytes) return null;
+    const key = importedByName.get(basenameOf(file).toLowerCase());
+    return key ? bytes.get(key) : null;
+  }
+
   async function indexFolder(): Promise<void> {
     if (!handle) {
       index = null;
@@ -106,7 +138,12 @@ export function createMediaResolver(opts: {
     isSupported: () => adapter.isSupported(),
 
     status(): MediaFolderStatus {
-      return { connected: index !== null, folderName, fileCount: index?.size ?? 0 };
+      return {
+        connected: index !== null,
+        folderName,
+        fileCount: index?.size ?? 0,
+        importedCount: importedByName.size,
+      };
     },
 
     /**
@@ -115,6 +152,9 @@ export function createMediaResolver(opts: {
      * weiter, nur ohne Vorschauen.
      */
     async restore(): Promise<boolean> {
+      // Importierte Dateien überleben den Reload unabhängig vom Ordner-Handle — sie
+      // werden deshalb IMMER geladen, auch wenn kein Ordner (mehr) verbunden ist.
+      await loadImportedIndex();
       const saved = await store.load();
       if (!saved) return false;
       if (!(await adapter.requestPermission(saved))) return false;
@@ -158,28 +198,61 @@ export function createMediaResolver(opts: {
       if (kind === 'weblink') return { state: 'external', url: '', match: null };
       if (kind === 'embedded') return { state: 'ok', url: file.trim(), match: 'exact' };
 
-      if (!index) return NOT_RESOLVED;
       const cached = urlCache.get(file);
       if (cached) return cached;
 
-      const hit = index.find(file);
-      if (!hit) {
-        const miss: ResolvedMedia = { state: 'missing', url: '', match: null };
-        urlCache.set(file, miss);
-        return miss;
+      // ZWEI ZUGANGSWEGE, ein Ergebnis (BL-259): erst der verbundene Ordner, dann die
+      // einzeln importierten Bytes. Die Reihenfolge ist bewusst — ein Ordner liefert den
+      // ECHTEN Pfad, ein Import nur den Dateinamen.
+      const hit = index?.find(file) ?? null;
+      const remember = (r: ResolvedMedia) => {
+        urlCache.set(file, r);
+        return r;
+      };
+      if (hit) {
+        try {
+          const blob = await adapter.readFile(hit.entry);
+          return remember({ state: 'ok', url: createObjectUrl(blob), match: hit.kind });
+        } catch {
+          // Im Index, aber nicht lesbar (gelöscht/umbenannt seit dem Einlesen) — fällt
+          // unten auf den Import-Speicher durch, statt sofort aufzugeben.
+        }
       }
-      try {
-        const blob = await adapter.readFile(hit.entry);
-        const res: ResolvedMedia = { state: 'ok', url: createObjectUrl(blob), match: hit.kind };
-        urlCache.set(file, res);
-        return res;
-      } catch {
-        // Im Index, aber nicht lesbar (gelöscht/umbenannt seit dem Einlesen) — für den
-        // Nutzer dasselbe wie „nicht gefunden", nur ohne Absturz.
-        const miss: ResolvedMedia = { state: 'missing', url: '', match: null };
-        urlCache.set(file, miss);
-        return miss;
+
+      const imported = await fromImported(file);
+      if (imported) return remember({ state: 'ok', url: createObjectUrl(imported), match: 'basename' });
+
+      // Kein Ordner UND kein Import: über die Datei ist nichts bekannt. Das ist ein
+      // anderer Zustand als „Ordner verbunden, Datei nicht darin" — die UI zeigt nur den
+      // zweiten als ⚠ (sonst leuchtete die Warnung auf jeder Kachel, s. MediaThumb).
+      if (!index && importedByName.size === 0) return NOT_RESOLVED;
+      return remember({ state: 'missing', url: '', match: null });
+    },
+
+    /**
+     * Mediendateien einzeln importieren (BL-259) — der Weg ohne Verzeichnis-Handle.
+     * Liefert die Zahl der übernommenen Dateien; 0 heißt abgebrochen.
+     */
+    async importFiles(): Promise<number> {
+      if (!picker || !bytes) return 0;
+      const picked = await picker.pickMany();
+      for (const f of picked) await bytes.put(f.path, f.blob);
+      if (picked.length > 0) {
+        dropCache();
+        await loadImportedIndex();
       }
+      return picked.length;
+    },
+
+    /** Kann dieses Gerät überhaupt einzeln importieren? */
+    canImport: () => Boolean(picker && bytes),
+
+    /** Alle importierten Bytes verwerfen. */
+    async clearImported(): Promise<void> {
+      if (!bytes) return;
+      dropCache();
+      await bytes.clear();
+      await loadImportedIndex();
     },
 
     /**
@@ -209,6 +282,54 @@ export function createMediaResolver(opts: {
     },
 
     /**
+     * Eine Datei als `data:`-URI — für SELBST-ENTHALTENE Ausgaben (Story-Download,
+     * §4-Reports). Ein `blob:`-URL taugt dort nicht: er lebt nur, solange der Tab lebt,
+     * und ein heruntergeladenes HTML soll auch morgen noch Bilder zeigen.
+     *
+     * '' wenn nichts vorliegt — der Aufrufer lässt das Bild dann weg, statt einen toten
+     * Verweis in die Ausgabe zu schreiben.
+     */
+    async resolveDataUrl(file: string): Promise<string> {
+      const kind = classifyMediaFile(file);
+      if (kind === 'embedded') return file.trim();
+      if (kind !== 'file') return '';
+
+      const hit = index?.find(file) ?? null;
+      let blob: Blob | null = null;
+      if (hit) {
+        try {
+          blob = await adapter.readFile(hit.entry);
+        } catch {
+          blob = null;
+        }
+      }
+      blob ??= await fromImported(file);
+      if (!blob) return '';
+
+      // Verkleinert UND neu kodiert einbetten: eine Ausgabe mit 30 Fotos in
+      // Originalgröße wäre zweistellig megabytegroß. `reencode` ist dabei der
+      // entscheidende Teil — am Realbestand sind zwei Drittel der Bilder unkomprimierte
+      // BMP UNTER der Kantenschwelle; ohne Neukodierung griffe die Verkleinerung bei
+      // ihnen gar nicht (gemessen: drei Story-Fotos = 1,7 MB).
+      const small = makeThumbnail ? await makeThumbnail(blob, 900, true).catch(() => blob) : blob;
+      return blobToDataUrl(small);
+    },
+
+    /**
+     * Der VORLAUF (ADR-v9-187 Punkt 7): löst eine Menge Dateien auf einmal auf, damit die
+     * synchronen Report-Builder eine fertige Map bekommen. Ohne ihn müsste ein Builder
+     * `async` werden — und wäre nicht mehr goldfile-testbar (ADR-v9-138).
+     */
+    async dataUrls(files: readonly string[]): Promise<Map<string, string>> {
+      const out = new Map<string, string>();
+      for (const f of new Set(files)) {
+        const url = await this.resolveDataUrl(f);
+        if (url) out.set(f, url);
+      }
+      return out;
+    },
+
+    /**
      * Zuordnungs-Bilanz über eine Menge von Dateiwerten — das, was die Einstellungen
      * anzeigen („N gefunden · N fehlen · N nur über den Dateinamen"). Ohne Bytes zu
      * lesen: der Index allein beantwortet die Frage.
@@ -227,10 +348,16 @@ export function createMediaResolver(opts: {
         if (classifyMediaFile(f) !== 'file') continue;
         total++;
         const hit = index?.find(f) ?? null;
-        if (!hit) missing++;
-        else {
+        if (hit) {
           found++;
           if (hit.kind === 'basename') byBasename++;
+        } else if (importedByName.has(basenameOf(f).toLowerCase())) {
+          // Importierte Dateien zählen als gefunden — und zwar als Dateinamen-Treffer,
+          // denn mehr gibt der Browser beim Import nicht her.
+          found++;
+          byBasename++;
+        } else {
+          missing++;
         }
       }
       return { total, found, missing, byBasename };

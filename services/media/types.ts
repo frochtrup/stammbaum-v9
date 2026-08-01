@@ -49,6 +49,18 @@ export interface MediaFolderEntry {
   handle: unknown;
 }
 
+/** Eine vom Nutzer gewählte Mediendatei (BL-259). */
+export interface PickedMedia {
+  /** Relativer Pfad, wenn der Browser einen liefert — sonst der Basisname. */
+  path: string;
+  blob: Blob;
+}
+
+/** Mehrfachauswahl von Mediendateien — der Zugangsweg ohne Verzeichnis-Handle. */
+export interface MediaFilePicker {
+  pickMany(): Promise<PickedMedia[]>;
+}
+
 /** Wie ein Treffer zustande kam — die UI macht den unscharfen Fall sichtbar. */
 export type MediaMatchKind =
   /** Pfad stimmt zeichengenau. */

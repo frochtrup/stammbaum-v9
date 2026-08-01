@@ -124,7 +124,7 @@
     {#if openEntry.id === 'stats'}
       <StatisticsView {appState} />
     {:else if openEntry.id === 'reports'}
-      <ReportsView {appState} {viewState} />
+      <ReportsView {appState} {viewState} {mediaResolver} />
     {:else if openEntry.id === 'settings'}
       <SettingsView {appState} {fileService} {appDataIO} {mediaResolver} onNavigate={(t) => route.setTarget(t)} />
     {:else if openEntry.id === 'file'}

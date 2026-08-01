@@ -6,11 +6,15 @@ export type {
   MediaFolderHandleStore,
   MediaMatch,
   MediaMatchKind,
+  MediaFilePicker,
+  PickedMedia,
 } from './types';
 export { buildMediaIndex, normalizePath, basenameOf, type MediaIndex } from './media-index';
 export { FsMediaFolderAdapter } from './fs-media-folder-adapter';
 export { browserThumbnail, canMakeThumbnails } from './browser-thumbnailer';
 export { IdbMediaFolderHandleStore } from './idb-media-folder-handle-store';
+export { IdbMediaBytesStore, bytesKey, type MediaBytesStore } from './media-bytes-store';
+export { InputMediaFilePicker } from './media-file-picker';
 export {
   createMediaResolver,
   type MediaResolver,

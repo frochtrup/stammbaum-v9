@@ -19,6 +19,8 @@
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
+  import { eventImages } from '../../shell/entity-media';
+  import type { MediaResolver } from '../../../services/media';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import { eventTypeLabel } from '../../shell/event-labels';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
@@ -26,6 +28,8 @@
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Medien-Auflösung (BL-260) — ohne sie entfallen die Ereignis-Miniaturen. */
+    mediaResolver?: MediaResolver;
     /** Cross-Tab-Navigation zu einer Person (wechselt auch den Entitäts-Segment). */
     onNavigateToPerson: (personId: string) => void;
     /** Cross-Tab-Navigation zur Quellen-Detailseite (optional — Tests ohne Quellen-Tab). */
@@ -54,6 +58,7 @@
     onNavigateLens,
     onOpenStory,
     onBack,
+    mediaResolver,
   }: Props = $props();
 
   const familyId = $derived(viewState.getCurrent('family'));
@@ -228,6 +233,8 @@
     {onNavigateLens}
     onRetract={ev.key !== 'MARR' ? retractOrRemove : undefined}
     onEdit={openEventEdit}
+    images={detail ? eventImages(appState.db, eventForKey(detail.family, ev.key)) : []}
+    {mediaResolver}
   />
 {/snippet}
 

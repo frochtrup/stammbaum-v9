@@ -50,7 +50,12 @@
   const filePaths = $derived(mediaFilePaths(appState.db));
   const summary = $derived.by((): MediaFolderSummary => {
     void tick;
-    const status = mediaResolver?.status() ?? { connected: false, folderName: '', fileCount: 0 };
+    const status = mediaResolver?.status() ?? {
+      connected: false,
+      folderName: '',
+      fileCount: 0,
+      importedCount: 0,
+    };
     const report = mediaResolver?.matchReport(filePaths) ?? {
       total: filePaths.length,
       found: 0,
@@ -61,6 +66,34 @@
   });
 
   const folderSupported = $derived(mediaResolver?.isSupported() ?? false);
+  const canImport = $derived(mediaResolver?.canImport() ?? false);
+
+  async function importFiles() {
+    if (!mediaResolver) return;
+    busy = true;
+    notice = '';
+    try {
+      const n = await mediaResolver.importFiles();
+      notice = n === 0 ? 'Keine Dateien gewählt.' : `${n} ${n === 1 ? 'Datei' : 'Dateien'} übernommen.`;
+    } catch (err) {
+      notice = 'Import fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err));
+    } finally {
+      busy = false;
+      tick++;
+    }
+  }
+
+  async function clearImported() {
+    if (!mediaResolver) return;
+    busy = true;
+    try {
+      await mediaResolver.clearImported();
+      notice = '';
+    } finally {
+      busy = false;
+      tick++;
+    }
+  }
 
   async function connectFolder() {
     if (!mediaResolver) return;
@@ -129,10 +162,27 @@
     </p>
 
     {#if !mediaResolver || !folderSupported}
-      <p class="settings-view__hint settings-view__hint--warn">
-        Dieses Gerät kann keine Ordner freigeben (z. B. Safari auf iPhone/iPad). Hier wird
-        stattdessen der Medien-Import stehen; bis dahin bleiben Dateiverweise unaufgelöst.
+      <!-- Kein Verzeichnis-Handle auf dieser Plattform (iOS/Safari): statt eines toten
+           Ordner-Knopfes der Import-Weg (BL-259). Die Zuordnung läuft dann über den
+           Dateinamen — der Browser gibt beim Import keinen Ordner her. -->
+      <p class="settings-view__hint">
+        Dieses Gerät kann keine Ordner freigeben (z. B. Safari auf iPhone/iPad). Wählen Sie
+        die Bilder stattdessen einzeln aus — sie werden über ihren Dateinamen zugeordnet
+        und bleiben auf diesem Gerät gespeichert.
       </p>
+      {#if canImport}
+        <div class="settings-view__actions">
+          <button type="button" class="stb-btn" data-variant="secondary" disabled={busy} onclick={importFiles}>
+            Medien importieren
+          </button>
+          {#if summary.importedCount > 0}
+            <button type="button" class="stb-btn" data-variant="secondary" disabled={busy} onclick={clearImported}>
+              Importierte verwerfen
+            </button>
+          {/if}
+        </div>
+        {#if notice}<p class="settings-view__notice">{notice}</p>{/if}
+      {/if}
     {:else}
       <div class="settings-view__actions">
         <button
@@ -245,9 +295,6 @@
     color: var(--stb-text-dim);
   }
 
-  .settings-view__hint--warn {
-    color: var(--stb-warn, #d9a400);
-  }
 
   .settings-view__status {
     margin: 0.2rem 0 0;

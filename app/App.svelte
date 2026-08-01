@@ -53,6 +53,8 @@
     IdbMediaFolderHandleStore,
     browserThumbnail,
     canMakeThumbnails,
+    IdbMediaBytesStore,
+    InputMediaFilePicker,
     type MediaResolver,
   } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
@@ -109,6 +111,10 @@
       // Ohne `createImageBitmap`/`OffscreenCanvas` (ältere Browser, Testumgebung) bleibt
       // es beim Original — kleiner ist eine Optimierung, kein Anzeige-Vorbehalt.
       makeThumbnail: canMakeThumbnails() ? browserThumbnail : undefined,
+      // Zweiter Zugangsweg (BL-259): einzeln importierte Dateien. Immer verdrahtet —
+      // welcher Weg angeboten wird, entscheidet die Fläche anhand der Plattform.
+      bytes: new IdbMediaBytesStore(),
+      picker: new InputMediaFilePicker(),
     }),
     layoutEnv,
   }: Props = $props();
@@ -474,7 +480,7 @@
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'story'}
-      <StoryLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
+      <StoryLensView {appState} {viewState} {route} {mediaResolver} onNavigateLens={navigateLens} />
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}

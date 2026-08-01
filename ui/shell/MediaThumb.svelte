@@ -73,7 +73,12 @@
 {:else if kind === 'empty'}
   <span class="media-thumb media-thumb--warn" title="Kein Dateiverweis">⚠</span>
 {:else if src && isImage}
-  <span class="media-thumb media-thumb--img" class:media-thumb--tile={size === 'tile'} class:media-thumb--large={size === 'large'}>
+  <span
+    class="media-thumb media-thumb--img"
+    class:media-thumb--tile={size === 'tile'}
+    class:media-thumb--inline={size === 'inline'}
+    class:media-thumb--large={size === 'large'}
+  >
     <img {src} {alt} loading="lazy" />
     {#if viaBasename}
       <span
@@ -129,6 +134,28 @@
   .media-thumb--tile {
     width: 100%;
     aspect-ratio: 4 / 3;
+  }
+
+  /* „Miniaturen sind Miniaturen" (Spec 21 §10n Punkt 3): ohne Grenze rendert ein
+     Original-Foto in voller Breite und schiebt den Inhalt, der die Seite ausmacht, unter
+     die Falz — beim Steckbrief-Porträt genau so passiert (eigene Browser-Verifikation).
+     Die Höhe führt, die Breite folgt dem Seitenverhältnis. */
+  /* Die Höhe kommt über eine Variable, damit der KONTEXT sie setzen kann, ohne eine
+     zweite Größenregel danebenzustellen: der Steckbrief will ein Porträt (Default 9rem),
+     die Ereigniszeile eine Begleit-Miniatur (3,4rem). Zwei konkurrierende Regeln haben
+     das Bild vorher auf 72×144 gequetscht — bei der eigenen Verifikation gesehen. */
+  .media-thumb--inline {
+    display: inline-block;
+    width: max-content;
+    max-width: 100%;
+    max-height: var(--stb-thumb-h, 9rem);
+  }
+
+  .media-thumb--inline img {
+    width: auto;
+    height: var(--stb-thumb-h, 9rem);
+    max-width: 100%;
+    object-fit: contain;
   }
 
   .media-thumb--large {
