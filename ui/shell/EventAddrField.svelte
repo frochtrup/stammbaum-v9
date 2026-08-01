@@ -34,10 +34,17 @@
     onPick: (hofId: string) => void;
     /** Dorf-Kontext für die Neuanlage (ev.placeId) — null: "+ neuen Hof anlegen" deaktiviert. */
     villageId: string | null;
+    /** Darf aus diesem Feld ein Hof ENTSTEHEN? Spiegelt die Kern-Regel `HOF_EVENT_TYPES`
+     *  (ADR-v9-186): der Resolver bootstrappt einen Hof aus ADDR nur bei RESI/PROP/CENS
+     *  (Pfad B′) — bei einem Non-Hof-Typ mit ADDR darf die UI das folglich auch nicht
+     *  anbieten, sonst entstünde ein Hof aus einem Schul-/Behördennamen. Einen BESTEHENDEN
+     *  Hof zu wählen bleibt erlaubt: Pfad B gilt typunabhängig (Spec 11 §4.3, Konvention 2).
+     *  Default true — Hof-Typen sind der Regelfall. */
+    allowCreate?: boolean;
     /** aria-label-Basis (mehrere gleichnamige "Adresse"-Felder je Formular). */
     label: string;
   }
-  const { appState, value, onTextChange, onPick, villageId, label }: Props = $props();
+  const { appState, value, onTextChange, onPick, villageId, allowCreate = true, label }: Props = $props();
 
   const hofRows = $derived(Array.from(appState.db.hofObjects.values()).map((h) => toRow(h, appState.db)));
 
@@ -75,7 +82,11 @@
   {onTextChange}
 >
   {#snippet footer()}
-    {#if villageId}
+    {#if !allowCreate}
+      <p class="event-addr-field__hint">
+        Aus diesem Ereignistyp entsteht kein Hof — bestehenden Hof wählen oder Adresse leeren.
+      </p>
+    {:else if villageId}
       <button
         type="button"
         class="event-addr-field__create-btn"
