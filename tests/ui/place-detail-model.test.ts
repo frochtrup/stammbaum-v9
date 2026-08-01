@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { makeDatabase, makeCitation, makeFamily, makePerson } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { place } from '../core/places-fixtures';
-import { buildPlaceDetail, hierarchySpanLabel } from '../../ui/views/place/place-detail-model';
+import {
+  buildAncestorHistory,
+  buildPlaceDetail,
+  hasOwnDatedEnclosure,
+  hierarchySpanLabel,
+} from '../../ui/views/place/place-detail-model';
 
 function ctxFor(db: ReturnType<typeof makeDatabase>): PlaceContext {
   return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
@@ -365,7 +370,7 @@ describe('buildPlaceDetail — nach unten offene Zugehörigkeit (ADR-v9-181)', (
     expect(detail!.hierarchyTimeline.map((r) => r.year)).toEqual([1816]);
   });
 
-  it('lässt einen wirklich UNDATIERTEN Eintrag unverändert (from und to fehlen beide)', () => {
+  it('lässt einen einzelnen UNDATIERTEN Eintrag ohne Elterngeschichte bei der Zeitleiste leer', () => {
     const db = makeDatabase();
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
@@ -375,9 +380,13 @@ describe('buildPlaceDetail — nach unten offene Zugehörigkeit (ADR-v9-181)', (
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    // Undatiert heißt „jederzeit gültig" und liefert kein Schlüsseljahr — die Zeitleiste
-    // bleibt leer (unverändertes Verhalten, nur die Lesefläche „Aktuell:" zeigt die Kette).
+    // Undatiert heißt „jederzeit gültig" und liefert kein Schlüsseljahr. Eine undatierte
+    // Zeile (ADR-v9-191) erschiene hier nur als Verdopplung der „Aktuell:"-Kette — es gibt
+    // weder eine geerbte Historie abzugrenzen noch einen zweiten Elter zu zeigen. Was die
+    // Ansicht dabei NICHT mehr sagen darf („Keine übergeordnete Zugehörigkeit erfasst"),
+    // hält der Komponententest fest.
     expect(detail!.hierarchyTimeline).toEqual([]);
+    expect(detail!.ancestorHistory).toEqual([]);
   });
 
   it('endet die Aussage der ersten Zeile schon früher, wenn eine ÜBERGEORDNETE Ebene innerhalb der offenen Periode wechselt', () => {
@@ -483,5 +492,140 @@ describe('buildPlaceDetail — String→PlaceObject-Kandidaten (Spec 20 §1.7 [K
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
     expect(detail!.unlinkedEvents).toEqual([]);
+  });
+});
+
+// ADR-v9-191 / BL-265 — die Jahres-Zeilen gehören dem Ort nur, wenn er selbst datiert ist.
+// Nutzerbefund: „selbst in der Ortsdetaildarstellung erscheinen nicht kuratierte Orte reich
+// an Informationen, da z. B. ein Nürnberg, , , , Deutschland über die Auflösung von
+// Deutschland eine zeitlich sortierte Verwaltungshierarchie bekommt … ohne den lokalen
+// Veränderungen gerecht zu werden." Am Realbestand (Unsere Familie 2026.ged + orte.v9.json)
+// traf das 66 von 171 unangereicherten Orten.
+describe('Zugehörigkeit nach Jahr — geerbte Historie gehört dem Elternort (ADR-v9-191)', () => {
+  /** Der gemessene Realfall: Erkelsdorf hängt undatiert an der Oberpfalz, und ALLE
+   *  Schlüsseljahre der Zeitleiste stammen aus deren eigener Geschichte. */
+  function erkelsdorf(): ReturnType<typeof makeDatabase> {
+    const db = makeDatabase();
+    db.placeObjects.set('@HRR@', place('@HRR@', { title: 'Heiliges Römisches Reich' }));
+    db.placeObjects.set('@REICH@', place('@REICH@', { title: 'Deutsches Reich' }));
+    db.placeObjects.set(
+      '@BAYERN@',
+      place('@BAYERN@', {
+        title: 'Bayern',
+        enclosedBy: [
+          { placeId: '@HRR@', from: 1180, to: 1805 },
+          { placeId: '@REICH@', from: 1871, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@OPF@',
+      place('@OPF@', { title: 'Oberpfalz', enclosedBy: [{ placeId: '@BAYERN@', from: 1180, to: null }] }),
+    );
+    // Der Ort selbst: EIN undatierter Eintrag, sonst nichts (Seed-Rohzustand).
+    db.placeObjects.set(
+      '@ERK@',
+      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: null, to: null }] }),
+    );
+    return db;
+  }
+
+  it('behauptet für den Ort selbst kein einziges Jahr — die Zeitleiste trägt EINE undatierte Zeile', () => {
+    const db = erkelsdorf();
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@ERK@');
+
+    expect(detail!.hierarchyTimeline).toEqual([
+      { year: null, label: 'undatiert', chain: [{ id: '@OPF@', label: 'Oberpfalz' }], truncated: false },
+    ]);
+    // Der eigentliche Wächter: keine Zeile über diesen Ort trägt je ein Jahr, solange er
+    // selbst undatiert ist. Vor ADR-v9-191 standen hier die Jahre 1180/1805/1871 — jedes
+    // davon eine erfundene Aussage über Erkelsdorf.
+    expect(detail!.hierarchyTimeline.every((r) => r.year == null)).toBe(true);
+  });
+
+  it('zeigt die geerbten Jahres-Zeilen weiterhin — aber als Geschichte der übergeordneten Ebenen', () => {
+    const db = erkelsdorf();
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@ERK@');
+
+    // Die Information geht NICHT verloren (verworfene Alternative (f) des ADR) — sie
+    // bekommt ihren Eigentümer zurück. Jede Kette beginnt bei der Oberpfalz, nicht bei
+    // Erkelsdorf.
+    expect(detail!.ancestorHistory.length).toBeGreaterThan(1);
+    expect(detail!.ancestorHistory.map((r) => r.year)).toEqual([1180, 1871]);
+    for (const row of detail!.ancestorHistory) {
+      expect(row.chain?.[0]).toEqual({ id: '@OPF@', label: 'Oberpfalz' });
+    }
+  });
+
+  it('lässt einen Ort MIT eigener datierter Zugehörigkeit unverändert (ADR-v9-75/76 gilt weiter)', () => {
+    const db = erkelsdorf();
+    // Derselbe Ort, jetzt mit einer eigenen, datierten Zuordnung.
+    db.placeObjects.set(
+      '@ERK@',
+      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: 1500, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@ERK@');
+
+    // Jahres-Zeilen bleiben, wo sie hingehören — inklusive der Zeile, die NUR durch einen
+    // Wechsel zwei Ebenen höher entsteht (1871): dort ist die Verdichtung gewollt.
+    expect(detail!.hierarchyTimeline.map((r) => r.year)).toEqual([1500, 1871]);
+    expect(detail!.ancestorHistory).toEqual([]);
+  });
+
+  it('fasst mehrere undatierte Eltern (nach einem Merge, ADR-v9-72) in EINE Zeile, dedupliziert', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@A@', from: null, to: null },
+          { placeId: '@B@', from: null, to: null },
+          { placeId: '@A@', from: null, to: null },
+        ],
+      }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toHaveLength(1);
+    expect(detail!.hierarchyTimeline[0].chain).toEqual([
+      { id: '@A@', label: 'Amt Ochtrup' },
+      { id: '@B@', label: 'Kreis Steinfurt' },
+    ]);
+  });
+
+  it('lässt beide Listen leer, wenn gar keine Zugehörigkeit erfasst ist', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    expect(detail!.hierarchyTimeline).toEqual([]);
+    expect(detail!.ancestorHistory).toEqual([]);
+  });
+
+  it('hasOwnDatedEnclosure unterscheidet die drei Datierungs-Zustände (Spec 11 §1)', () => {
+    expect(hasOwnDatedEnclosure(place('@X@', { enclosedBy: [] }))).toBe(false);
+    expect(hasOwnDatedEnclosure(place('@X@', { enclosedBy: [{ placeId: '@A@', from: null, to: null }] }))).toBe(false);
+    expect(hasOwnDatedEnclosure(place('@X@', { enclosedBy: [{ placeId: '@A@', from: 1816, to: null }] }))).toBe(true);
+    // Nach unten offen („seit jeher bis 1806") ist ein ZEITRAUM, kein fehlender Anfang
+    // (ADR-v9-181) — er zählt als eigene Datierung.
+    expect(hasOwnDatedEnclosure(place('@X@', { enclosedBy: [{ placeId: '@A@', from: null, to: 1806 }] }))).toBe(true);
+  });
+
+  it('buildAncestorHistory ist leer, sobald der Ort selbst datiert ist (die Regel steckt in der Funktion)', () => {
+    const db = erkelsdorf();
+    const ctx = ctxFor(db);
+    const undatiert = db.placeObjects.get('@ERK@')!;
+    expect(buildAncestorHistory(ctx, '@ERK@', undatiert).length).toBeGreaterThan(0);
+
+    const datiert = place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: 1500, to: null }] });
+    expect(buildAncestorHistory(ctx, '@ERK@', datiert)).toEqual([]);
   });
 });

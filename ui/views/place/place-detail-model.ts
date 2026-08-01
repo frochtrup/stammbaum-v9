@@ -50,7 +50,9 @@ export interface ChainSegment {
  * markiert eine Lücke (kein Elternteil zu diesem Jahr dokumentiert — v8: "unbekannt").
  */
 export interface HierarchyTimelineRow {
-  year: number;
+  /** `null` bei der undatierten Zeile (ADR-v9-191) — dort gibt es kein Schlüsseljahr, und
+   *  eines zu erfinden wäre genau der Fehler, den diese Zeile behebt. */
+  year: number | null;
   /** Beschriftung der ersten Spalte — ein ZEITRAUM, keine Zahl (ADR-v9-181, Spec 20 §1.7).
    *  „ab 1816" für den Regelfall, „bis 1806" für eine nach unten offene Zuordnung, deren
    *  Anfang vor der Überlieferung liegt. `year` bleibt daneben stehen: es ist der
@@ -94,8 +96,16 @@ export interface PlaceDetailModel {
    *  Nutzer-Auftrag "Orts-Detailansicht" — Nachtrag ADR-v9-75, ERSETZT die zunächst
    *  zusätzlich gebaute, nur-direkter-Elternteil-Zeitraum-Ansicht — vom Nutzer nach
    *  Ansicht beider Sektionen nebeneinander als redundant erkannt und entfernt, zweiter
-   *  Nachtrag). Leer, wenn `place.enclosedBy` leer ist. */
+   *  Nachtrag). Leer, wenn `place.enclosedBy` leer ist.
+   *
+   *  **Jahres-Zeilen nur bei eigener datierter Zugehörigkeit (ADR-v9-191).** Fehlt sie,
+   *  steht hier die EINE undatierte Zeile, und die Jahres-Zeilen wandern nach
+   *  `ancestorHistory` — sie gehören dann dem Elternort. */
   hierarchyTimeline: HierarchyTimelineRow[];
+  /** Die Verwaltungsgeschichte der ÜBERGEORDNETEN Ebenen (ADR-v9-191) — dieselben
+   *  Jahres-Zeilen wie oben, aber ausdrücklich als fremde Aussage ausgewiesen. Nur
+   *  gefüllt, wenn dieser Ort selbst keine datierte Zugehörigkeit trägt. */
+  ancestorHistory: HierarchyTimelineRow[];
   /** String→PlaceObject-Kandidaten (Spec 20 §1.7 [K], Re-Import-Erkennung). */
   unlinkedEvents: UnlinkedEventRow[];
 }
@@ -302,12 +312,85 @@ function buildHierarchyTimeline(
   // der beiden Werte: das `to` der Zuordnung, oder das Jahr vor der nächsten Zeile —
   // wechselt eine ÜBERGEORDNETE Ebene noch innerhalb der offenen Periode, endet die
   // Aussage dieser Zeile dort, nicht erst bei `to`.
-  if (offenerAnfang && rows.length > 0 && rows[0].year <= offenerAnfang.to) {
+  // `year != null` ist hier Formsache: jede Zeile DIESER Funktion stammt aus
+  // `sortedKeyYears`, trägt also ein echtes Jahr. `null` kann nur die undatierte Zeile
+  // (ADR-v9-191), und die entsteht anderswo.
+  if (offenerAnfang && rows.length > 0 && rows[0].year != null && rows[0].year <= offenerAnfang.to) {
     const naechste = rows[1]?.year;
     const grenze = naechste != null ? Math.min(offenerAnfang.to, naechste - 1) : offenerAnfang.to;
     rows[0] = { ...rows[0], label: hierarchySpanLabel(null, grenze) };
   }
   return rows;
+}
+
+/**
+ * Trägt der Ort eine EIGENE datierte Zugehörigkeit? (ADR-v9-191, Spec 11 §1: `from` ODER
+ * `to` gesetzt — beides `null` heißt „undatiert, jederzeit gültig".)
+ *
+ * Das ist die Trennlinie, an der die Jahres-Zeilen ihren Eigentümer wechseln. Ohne eine
+ * eigene Datierung stammt JEDES Schlüsseljahr der Zeitleiste aus einer übergeordneten
+ * Ebene (`buildHierarchyTimeline` sammelt sie per BFS über den ganzen Elterngraphen), und
+ * die undatierte eigene Zuordnung gilt „jederzeit" — sie wird also auf jedes fremde Jahr
+ * projiziert. Das erzeugt zwei verschiedene Unwahrheiten: eine erfundene Datierung („ab
+ * 1180" über einem undatierten Eintrag) und eine vorgetäuschte lokale Veränderung (eine
+ * Zeile je Elternwechsel liest sich als „hier hat sich etwas geändert"). Am Realbestand
+ * betraf das 66 von 171 unangereicherten Orten.
+ */
+export function hasOwnDatedEnclosure(place: PlaceObject): boolean {
+  return place.enclosedBy.some((e) => e.from != null || e.to != null);
+}
+
+/**
+ * Die EINE undatierte Zeile (ADR-v9-191): sie nennt genau das, was über DIESEN Ort
+ * dokumentiert ist — seine direkten Elternorte, ohne Jahr. Bewusst nicht die volle Kette:
+ * die Ebenen darüber sind Aussagen der Eltern und stehen in `ancestorHistory`.
+ * Namen periodenunabhängig (`resolveAsOf(id, null)` → `title`) — es gibt hier kein Jahr,
+ * zu dem aufzulösen wäre.
+ *
+ * **Sie erscheint nur, wenn sie etwas hinzufügt** (Spec 21 §10 f/h — eine Detail-Sektion
+ * wiederholt nicht, was daneben schon steht). Das ist der Fall, wenn es eine geerbte
+ * Historie GIBT (dann ist die Zeile die Grenze zwischen „meins" und „deren") oder wenn
+ * mehrere Eltern gleichzeitig gelten (nach einem Merge, ADR-v9-72 — die „Aktuell:"-Kette
+ * zeigt davon nur einen). Bei einem einzelnen undatierten Elter ohne eigene Geschichte
+ * sagt die „Aktuell:"-Kette bereits alles Bekannte, und nichts Falsches wird behauptet.
+ * Ein Komponententest hatte genau diese Verdopplung gefangen.
+ */
+function buildUndatedEnclosureRow(
+  ctx: PlaceContext,
+  place: PlaceObject,
+  hatAhnenGeschichte: boolean,
+): HierarchyTimelineRow[] {
+  const chain: ChainSegment[] = [];
+  const seen = new Set<PlaceId>();
+  for (const e of place.enclosedBy) {
+    if (e.placeId == null || seen.has(e.placeId)) continue;
+    seen.add(e.placeId);
+    const label = ctx.places.resolveAsOf(e.placeId, null);
+    if (label != null) chain.push({ id: e.placeId, label });
+  }
+  if (!chain.length) return [];
+  if (!hatAhnenGeschichte && chain.length < 2) return [];
+  return [{ year: null, label: 'undatiert', chain, truncated: false }];
+}
+
+/**
+ * Die Verwaltungsgeschichte der ÜBERGEORDNETEN Ebenen (ADR-v9-191) — leer, sobald der Ort
+ * eine eigene datierte Zugehörigkeit trägt: dann sind die Jahres-Zeilen Aussagen über IHN
+ * und stehen in `hierarchyTimeline`.
+ *
+ * Die Zeilen selbst sind dieselben wie dort; was sich ändert, ist die Zuschreibung. Unter
+ * der Überschrift „Geschichte der übergeordneten Ebenen" ist „ab 1180: Oberpfalz ›
+ * Herzogtum Bayern" eine wahre Aussage über die Oberpfalz — unter dem Namen von Erkelsdorf
+ * war sie eine erfundene über Erkelsdorf. Die Information geht nicht verloren, sie bekommt
+ * ihren Eigentümer zurück.
+ */
+export function buildAncestorHistory(
+  ctx: PlaceContext,
+  placeId: PlaceId,
+  place: PlaceObject,
+): HierarchyTimelineRow[] {
+  if (hasOwnDatedEnclosure(place)) return [];
+  return buildHierarchyTimeline(ctx, placeId, place);
 }
 
 /**
@@ -382,7 +465,11 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
       return label != null ? { id, label } : null;
     })
     .filter((s): s is ChainSegment => s != null);
-  const hierarchyTimeline = buildHierarchyTimeline(ctx, placeId, place);
+  // ADR-v9-191: die Jahres-Zeilen gehören dem Ort nur, wenn er selbst datiert ist.
+  const ancestorHistory = buildAncestorHistory(ctx, placeId, place);
+  const hierarchyTimeline = hasOwnDatedEnclosure(place)
+    ? buildHierarchyTimeline(ctx, placeId, place)
+    : buildUndatedEnclosureRow(ctx, place, ancestorHistory.length > 0);
 
   // String→PlaceObject-Kandidaten: Events, deren rohes ev.place zum Titel ODER einer
   // pnames-Variante dieses PlaceObject normalisiert passt, aber noch ohne placeId sind.
@@ -410,6 +497,7 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
     variants,
     enclosureChain,
     hierarchyTimeline,
+    ancestorHistory,
     unlinkedEvents,
   };
 }

@@ -1281,3 +1281,91 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
     ]);
   });
 });
+
+// ADR-v9-191 / BL-265 — die geerbte Verwaltungshistorie steht unter ihrem eigenen Namen.
+describe('PlaceDetail — geerbte Verwaltungshistorie gehört dem Elternort (ADR-v9-191)', () => {
+  /** Realfall (Erkelsdorf): der Ort hängt undatiert an einem Elter, dessen eigene
+   *  Geschichte alle Schlüsseljahre stellt. */
+  function renderErkelsdorf(): void {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@HRR@', place('@HRR@', { title: 'Heiliges Römisches Reich' }));
+    db.placeObjects.set('@REICH@', place('@REICH@', { title: 'Deutsches Reich' }));
+    db.placeObjects.set(
+      '@BAYERN@',
+      place('@BAYERN@', {
+        title: 'Bayern',
+        enclosedBy: [
+          { placeId: '@HRR@', from: 1180, to: 1805 },
+          { placeId: '@REICH@', from: 1871, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@OPF@',
+      place('@OPF@', { title: 'Oberpfalz', enclosedBy: [{ placeId: '@BAYERN@', from: 1180, to: null }] }),
+    );
+    db.placeObjects.set(
+      '@ERK@',
+      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@ERK@');
+    render(PlaceDetail, { props: { appState, viewState } });
+  }
+
+  it('setzt die geerbten Jahres-Zeilen unter eine eigene Überschrift, nicht unter „Zugehörigkeit nach Jahr"', () => {
+    renderErkelsdorf();
+
+    expect(screen.getByText('Geschichte der übergeordneten Ebenen')).toBeTruthy();
+    // Die Jahres-Überschrift, unter der dieselben Zeilen bis ADR-v9-191 als Historie
+    // DIESES Orts standen, darf hier nicht auftauchen.
+    expect(screen.queryByText('Zugehörigkeit nach Jahr (volle Kette):')).toBeNull();
+    // Die Information selbst bleibt sichtbar (verworfene Alternative (f)).
+    expect(screen.getByText('ab 1180')).toBeTruthy();
+    expect(screen.getByText('ab 1871')).toBeTruthy();
+  });
+
+  it('behauptet für einen undatiert zugeordneten Ort keine eigene Datierung', () => {
+    renderErkelsdorf();
+
+    const eigene = screen.getByText('Eigene Zugehörigkeit:').parentElement!;
+    const zeile = within(eigene).getByText('undatiert').parentElement!;
+    expect(zeile.textContent).toContain('Oberpfalz');
+    expect(zeile.textContent).not.toMatch(/\d{3,4}/);
+  });
+
+  it('meldet NICHT „Keine übergeordnete Zugehörigkeit erfasst", wenn eine undatierte erfasst ist', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    // Die Zeitleiste bleibt hier bewusst leer (sie verdoppelte sonst nur die „Aktuell:"-
+    // Kette) — der frühere Else-Zweig log dabei: erfasst IST eine Zuordnung, nur ohne Datum.
+    expect(screen.queryByText('Keine übergeordnete Zugehörigkeit erfasst.')).toBeNull();
+    expect(screen.getByText('Aktuell:')).toBeTruthy();
+  });
+
+  it('sagt „Keine übergeordnete Zugehörigkeit erfasst", wenn wirklich keine erfasst ist', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(screen.getByText('Keine übergeordnete Zugehörigkeit erfasst.')).toBeTruthy();
+  });
+});

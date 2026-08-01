@@ -64,6 +64,13 @@
     '„Zugehörigkeit bearbeiten") zu jedem Jahr, in dem sich die Kette ändert — auch ' +
     'wenn nur eine übergeordnete Ebene wechselt, nicht die direkte Zugehörigkeit selbst.';
 
+  /** ADR-v9-191: erklärt, WESSEN Geschichte der zweite Block zeigt — ohne diese Zuschreibung
+   *  las sich eine geerbte Jahresreihe wie die Historie dieses Orts. */
+  const ANCESTOR_INFO =
+    'Für diesen Ort ist keine datierte Zugehörigkeit erfasst. Die folgenden Jahre sind ' +
+    'die Verwaltungsgeschichte der übergeordneten Ebenen — sie sagen nichts darüber aus, ' +
+    'wann sich die Zugehörigkeit dieses Orts selbst geändert hat.';
+
   const placeId = $derived(viewState.getCurrent('place'));
   const detail = $derived(placeId ? buildPlaceDetail(appState.db, appState.placeContext, placeId) : null);
 
@@ -192,7 +199,11 @@
         <p class="place-detail__chain">{@render chainRow(detail.enclosureChain, false)}</p>
       {/if}
       {#if detail.hierarchyTimeline.length > 0}
-        <p class="place-detail__hint">Zugehörigkeit nach Jahr (volle Kette):</p>
+        <p class="place-detail__hint">
+          {detail.hierarchyTimeline[0].year == null
+            ? 'Eigene Zugehörigkeit:'
+            : 'Zugehörigkeit nach Jahr (volle Kette):'}
+        </p>
         <ul class="place-detail__timeline-list">
           {#each detail.hierarchyTimeline as row, i (i)}
             <li class="place-detail__timeline-row">
@@ -205,8 +216,35 @@
             </li>
           {/each}
         </ul>
-      {:else}
+      {:else if detail.enclosureChain.length <= 1}
+        <!-- Nur, wenn WIRKLICH nichts erfasst ist: bei einer undatierten Zuordnung steht die
+             Kette bereits über „Aktuell:", und „keine erfasst" wäre falsch (ADR-v9-191). -->
         <p class="place-detail__muted">Keine übergeordnete Zugehörigkeit erfasst.</p>
+      {/if}
+      <!-- ADR-v9-191: geerbte Jahres-Zeilen sind Aussagen des ELTERNORTS und tragen
+           deshalb eine eigene Überschrift, statt unter dem Namen dieses Orts zu stehen. -->
+      {#if detail.ancestorHistory.length > 0}
+        <p class="place-detail__hint">
+          Geschichte der übergeordneten Ebenen
+          <span
+            class="place-detail__info-icon"
+            role="note"
+            aria-label={ANCESTOR_INFO}
+            use:tooltip={ANCESTOR_INFO}>ⓘ</span
+          >
+        </p>
+        <ul class="place-detail__timeline-list place-detail__timeline-list--ancestor">
+          {#each detail.ancestorHistory as row, i (i)}
+            <li class="place-detail__timeline-row">
+              <span class="place-detail__timeline-span">{row.label}</span>
+              {#if row.chain}
+                <span>{@render chainRow(row.chain, row.truncated)}</span>
+              {:else}
+                <span class="place-detail__muted">unbekannt</span>
+              {/if}
+            </li>
+          {/each}
+        </ul>
       {/if}
       <div class="place-detail__enclosure-edit-row">
         <button type="button" class="place-detail__enclosure-edit-btn" onclick={openEnclosureModal}>
@@ -443,6 +481,13 @@
   .place-detail__timeline-span {
     color: var(--stb-text-dim);
     font-size: 0.8rem;
+  }
+
+  /* ADR-v9-191: fremde Aussage, sichtbar abgesetzt. Die Überschrift trägt die Bedeutung —
+     der Einzug ist die Verstärkung, nicht der einzige Kanal (Spec 21 §2). */
+  .place-detail__timeline-list--ancestor {
+    border-left: 2px solid var(--stb-surface-2);
+    padding-left: 0.6rem;
   }
 
   .place-detail__enclosure-edit-row {
