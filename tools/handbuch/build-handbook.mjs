@@ -29,8 +29,17 @@
 //            --skip-text-review den Text-Abgleich-Bericht am Anfang unterdrücken
 //            --version X.Y      Version explizit setzen (sonst Minor-Bump)
 //            --skip-capture     nur Version/Changelog aktualisieren (kein Server/Screenshots)
+//            --port <n>         Port des Dev-Servers (Standard 5173)
+//
+// Zu --port: Der Server läuft mit `--strictPort`, weil capture.mjs die URL fest übergeben
+// bekommt — ein selbstgewählter Ausweichport von Vite würde ins Leere zeigen. Hält aber
+// eine zweite Sitzung den Standardport (parallele Bau-Session, vergessener Server), bricht
+// der Lauf sonst mit Vites Portfehler ab, ohne den Ausweg zu nennen. Deshalb: Port
+// wählbar, und die Vorbedingung prüft ihn VOR dem demo.ged-Tausch — ein Abbruch mitten im
+// Tausch hinterlässt sonst die 1,4-MB-Fixture als demo.ged im Arbeitsbaum.
 
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { readFileSync, writeFileSync, copyFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -50,11 +59,23 @@ const HTML = join(REPO, 'app', 'public', 'HANDBUCH.html');
 const CHANGELOG = join(REPO, 'HANDBUCH-CHANGELOG.md');
 const VFILE = join(__dirname, 'handbuch.version.json');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const PORT = 5173;
+const PORT = Number(arg('--port', '5173'));
 
 const log = (...a) => console.log('[handbuch]', ...a);
 const die = (m) => { console.error('[handbuch] FEHLER:', m); process.exit(1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Ist der Port frei? Bindet probehalber, statt HTTP anzuklopfen: ein belegter Port muss
+ *  nicht auf HTTP antworten (fremder Dienst, noch startender Server) — ein `listen` scheitert
+ *  in jedem dieser Fälle, und genau das tut Vite gleich auch. */
+function portFrei(port) {
+  return new Promise((res) => {
+    const srv = createServer();
+    srv.once('error', () => res(false));
+    srv.once('listening', () => srv.close(() => res(true)));
+    srv.listen(port, '127.0.0.1');
+  });
+}
 
 // --- 1. Vorbedingungen ---
 if (!existsSync(FIX)) die(`Anonymisierte Fixture fehlt: ${FIX}\n  → zuerst: node tools/handbuch/anonymize-ged.mjs <quelle.ged> ${FIX}`);
@@ -66,6 +87,20 @@ if (!/id="to-top"/.test(readFileSync(HTML, 'utf8')))
   die('„Nach oben"-Navigation fehlt in HANDBUCH.html (Element id="to-top"). Sie muss erhalten bleiben — siehe tools/handbuch/README.md („Wichtig").');
 try { await import('puppeteer-core'); } catch { die('puppeteer-core fehlt → npm install -D puppeteer-core'); }
 if (!has('--skip-capture') && !existsSync(CHROME)) die(`Chrome nicht gefunden: ${CHROME} (CHROME_PATH setzen)`);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) die(`--port braucht eine Portnummer 1…65535, bekommen: „${arg('--port', '')}"`);
+if (!has('--skip-capture') && !(await portFrei(PORT))) {
+  // Einen WIRKLICH freien Port vorschlagen, nicht irgendeine Zahl: ein Hinweis, der auf
+  // den nächsten belegten Port zeigt, kostet den zweiten Fehlversuch. (Erste Fassung
+  // schlug stur 5199 vor — und tat das auch dann, wenn 5199 genau der belegte war.)
+  let frei = null;
+  for (let p = PORT + 1; p <= PORT + 20 && frei === null; p++) if (await portFrei(p)) frei = p;
+  die(
+    `Port ${PORT} ist belegt — dort läuft schon etwas (parallele Sitzung? vergessener Dev-Server?).\n` +
+      `  Der Bau braucht den Port exklusiv (--strictPort, s. Kopfkommentar).\n` +
+      (frei ? `  → auf einen freien Port ausweichen:  npm run handbuch -- --port ${frei}\n` : '') +
+      `  → oder den laufenden Server beenden:  lsof -ti:${PORT} | xargs kill`,
+  );
+}
 
 // --- 1b. Textabgleich zuerst zeigen: welche Features brauchen NEUEN TEXT, nicht nur neue
 // Screenshots? Rein informativ (blockiert nicht — die Prosa-Edits liegen zum Bauzeitpunkt oft
