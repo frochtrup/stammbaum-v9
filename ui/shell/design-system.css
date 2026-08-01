@@ -229,6 +229,19 @@ textarea::placeholder {
   border-color: var(--stb-gold);
 }
 
+/* Destruktive Variante (BL-273). Sie kam mit der Umstellung der Bearbeitungs-Knöpfe
+   dazu: „Ort löschen"/„Hof löschen" stehen in derselben Knopfreihe wie Speichern und
+   Verwerfen, und eine Reihe, in der zwei Knöpfe aus der Primitive kommen und der dritte
+   aus lokalem CSS, sieht kaputt aus — die Alternative wäre gewesen, die Umstellung an
+   der gefährlichsten Fläche aufhören zu lassen. Outline statt Füllung: destruktiv soll
+   nicht wie die Primäraktion aussehen (dieselbe Haltung wie `.delete-entity__btn`, das
+   diese Variante übernehmen kann, sobald es ohnehin angefasst wird). */
+.stb-btn[data-variant='danger'] {
+  background: transparent;
+  color: var(--stb-danger);
+  border-color: var(--stb-danger);
+}
+
 /* EIN Disabled-Bild für beide Varianten. Die lokalen Kopien wechselten zwischen
    `cursor: default` und `cursor: progress`; beide Zustände treten nur auf, solange die
    Aktion läuft, und ein zweiter Mechanismus für einen Mauszeiger wäre den Unterschied

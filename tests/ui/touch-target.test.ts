@@ -121,7 +121,7 @@ function findUndersizedControls(threshold: number): Finding[] {
  * Lauf ergab 116. Eine Ratsche mit geschätztem Startwert ist entweder sofort rot oder
  * blind — beides macht sie wertlos (dieselbe Lehre wie beim Perf-Budget, ADR-v9-91).
  */
-const OHNE_GROESSE_RATSCHE = 116; // GEMESSEN am 2026-08-01, nicht geschätzt.
+const OHNE_GROESSE_RATSCHE = 94; // GEMESSEN. 116 → 94 durch BL-273 (`.stb-btn`-Umstellung).
 
 /** Regeln, die ein Bedienelement gestalten, aber seine Größe nicht beantworten. */
 function findControlsWithoutSize(): { file: string; selector: string }[] {

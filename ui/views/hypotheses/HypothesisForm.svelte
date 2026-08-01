@@ -153,8 +153,8 @@
   {/if}
 
   <div class="hyp-form__actions">
-    <button type="button" class="hyp-form__cancel" onclick={onCancel}>Abbrechen</button>
-    <button type="submit" class="hyp-form__save">Speichern</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
   </div>
 </form>
 
@@ -285,22 +285,5 @@
     gap: 0.5rem;
   }
 
-  .hyp-form__cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
 
-  .hyp-form__save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
 </style>

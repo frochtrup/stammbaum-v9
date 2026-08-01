@@ -556,7 +556,7 @@ describe('HofDetail — Prüf-Marker (ADR-v9-191)', () => {
   it('setzt den Marker per Klick', async () => {
     const appState = setup();
 
-    await fireEvent.click(screen.getByText('Als geprüft markieren'));
+    await fireEvent.click(screen.getByText('Geprüft markieren'));
 
     expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeTypeOf('number');
   });
@@ -564,7 +564,7 @@ describe('HofDetail — Prüf-Marker (ADR-v9-191)', () => {
   it('nimmt ihn beim zweiten Klick zurück', async () => {
     const appState = setup(1_700_000_000_000);
 
-    const datum = new Date(1_700_000_000_000).toLocaleDateString('de-DE');
+    const datum = new Date(1_700_000_000_000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
     await fireEvent.click(screen.getByText(`✓ Geprüft ${datum}`));
 
     expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeNull();

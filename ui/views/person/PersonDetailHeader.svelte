@@ -33,7 +33,7 @@
     {/if}
   {/snippet}
   {#snippet actions()}
-    <button type="button" class="person-detail-header__edit-btn" onclick={onEdit}>✎ Bearbeiten</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={onEdit}>✎ Bearbeiten</button>
     <!-- „Als Proband setzen" (BL-120): setzt die Referenzperson der Sitzung (transient,
          ADR-v9-135). Ist diese Person es bereits, zeigt der Knopf den Zustand statt einer
          wirkungslosen Wiederholung. -->
@@ -91,15 +91,6 @@
     margin: 0 -0.15rem 0.4rem;
   }
 
-  .person-detail-header__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .person-detail-header__proband-btn {
     background: var(--stb-surface-2);

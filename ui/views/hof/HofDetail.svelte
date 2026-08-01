@@ -180,7 +180,7 @@
             kind="Hof"
             onToggle={(at) => appState.saveHof(markHofReviewed(detail.hof, at))}
           />
-          <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={startEdit}>✎ Bearbeiten</button>
         {:else}
           <!-- Geschwister-Stelle zu PlaceDetail (INV-UI-16, ADR-v9-193): den Modus schließt
                der Schalter, der ihn geöffnet hat — nicht das „Verwerfen" der Grunddaten.
@@ -188,7 +188,7 @@
                varianten und den Dorf-Picker frei, die beide SOFORT committen und deren
                Nachläufe (Umbenennung über alle Ereignisse, Konsolidierung im Zieldorf)
                längst geschrieben sind (ADR-v9-81/-172). -->
-          <button type="button" class="hof-detail__edit-btn" onclick={() => (editing = false)}>Fertig</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = false)}>Fertig</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -352,15 +352,6 @@
     color: var(--stb-text-dim);
   }
 
-  .hof-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .hof-detail__section {
     margin-top: 1.25rem;

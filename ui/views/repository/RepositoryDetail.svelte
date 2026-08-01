@@ -53,7 +53,7 @@
   {:else}
     <DetailHeader title={detail.repository.name || detail.repository.id} onBack={onBack ?? (() => {})}>
       {#snippet actions()}
-        <button type="button" class="repository-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={startEdit}>✎ Bearbeiten</button>
       {/snippet}
     </DetailHeader>
 
@@ -131,15 +131,6 @@
     color: var(--stb-text-dim);
   }
 
-  .repository-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .repository-detail__meta {
     display: grid;

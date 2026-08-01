@@ -158,11 +158,11 @@
     <input type="text" bind:value={govTypesText} placeholder="z. B. Stadt, Kreis" />
   </label>
   <div class="place-edit-form__actions">
-    <button type="button" class="place-edit-form__save" onclick={save}>Speichern</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
     <!-- „Verwerfen", nicht „Abbrechen": es betrifft die Feldwerte DIESER Fläche, nicht
          die Bearbeiten-Sitzung (INV-UI-16). Das alte Wort versprach mehr, als es hielt. -->
-    <button type="button" class="place-edit-form__cancel" onclick={discard}>Verwerfen</button>
-    <button type="button" class="place-edit-form__delete" onclick={onDelete}>Ort löschen</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
+    <button type="button" class="stb-btn" data-variant="danger" onclick={onDelete}>Ort löschen</button>
   </div>
 </section>
 
@@ -207,36 +207,8 @@
     flex-wrap: wrap;
   }
 
-  .place-edit-form__save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .place-edit-form__cancel {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  /* Destruktive Aktion — eigener Akzent (`--stb-danger`), `margin-left: auto` nur auf dem
-     letzten Element (TST-11 — sicher, da garantiert letztes in der flex-wrap-Zeile). */
-  .place-edit-form__delete {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
 
   .place-edit-form__actions > :last-child {
     margin-left: auto;

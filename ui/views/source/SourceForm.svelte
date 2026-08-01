@@ -202,8 +202,8 @@
   </label>
 
   <div class="source-form__actions">
-    <button type="button" class="source-form__save-btn" onclick={save}>Speichern</button>
-    <button type="button" class="source-form__cancel-btn" onclick={cancel}>Abbrechen</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={cancel}>Abbrechen</button>
   </div>
 </div>
 
@@ -288,19 +288,5 @@
     margin-top: 1.25rem;
   }
 
-  .source-form__save-btn,
-  .source-form__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.45rem 1rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .source-form__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
 </style>

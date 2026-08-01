@@ -200,8 +200,8 @@
       <label>Notiz <input type="text" bind:value={rNote} /></label>
       <label class="media-detail__ref-prim"><input type="checkbox" bind:checked={rPrimary} /> Primärbild/-dokument</label>
       <div class="media-detail__ref-form-actions">
-        <button type="button" class="media-detail__save-btn" onclick={() => saveRef(row)}>Speichern</button>
-        <button type="button" class="media-detail__cancel-btn" onclick={() => (editingKey = null)}>Abbrechen</button>
+        <button type="button" class="stb-btn" data-variant="primary" onclick={() => saveRef(row)}>Speichern</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingKey = null)}>Abbrechen</button>
       </div>
     </div>
   {/if}
@@ -219,7 +219,7 @@
     <DetailHeader title={detail.displayTitle} onBack={onBack ?? (() => {})} backAlways>
       {#snippet actions()}
         {#if !editingGlobal}
-          <button type="button" class="media-detail__edit-btn" onclick={startEditGlobal}>✎ Bearbeiten</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={startEditGlobal}>✎ Bearbeiten</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -231,8 +231,8 @@
         <label>Format (MIME) <input type="text" bind:value={gForm} /></label>
         <label>Medientyp <input type="text" bind:value={gType} /></label>
         <div class="media-detail__form-actions">
-          <button type="button" class="media-detail__save-btn" onclick={saveGlobal}>Speichern (alle Ref.)</button>
-          <button type="button" class="media-detail__cancel-btn" onclick={() => (editingGlobal = false)}>Abbrechen</button>
+          <button type="button" class="stb-btn" data-variant="primary" onclick={saveGlobal}>Speichern (alle Ref.)</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingGlobal = false)}>Abbrechen</button>
         </div>
       </div>
     {:else}
@@ -315,15 +315,6 @@
     font-size: 0.85rem;
   }
 
-  .media-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .media-detail__link {
     color: var(--stb-gold);
@@ -409,26 +400,7 @@
     gap: 0.5rem;
   }
 
-  .media-detail__save-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    font-weight: 600;
-    border: 1px solid var(--stb-gold);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
-  .media-detail__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-surface-3);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .media-detail__section {
     margin-top: 1.25rem;

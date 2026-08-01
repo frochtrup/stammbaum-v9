@@ -216,10 +216,10 @@
     <input type="text" bind:value={formGovTypes} placeholder="z. B. Hof, Gehöft" />
   </label>
   <div class="hof-detail__form-actions">
-    <button type="button" class="hof-detail__save-btn" onclick={save}>Speichern</button>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
     <!-- „Verwerfen", nicht „Abbrechen" — Feldwerte dieser Fläche, nicht die Sitzung (INV-UI-16). -->
-    <button type="button" class="hof-detail__cancel-btn" onclick={discard}>Verwerfen</button>
-    <button type="button" class="hof-detail__delete-btn" onclick={onDelete}>Hof löschen</button>
+    <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
+    <button type="button" class="stb-btn" data-variant="danger" onclick={onDelete}>Hof löschen</button>
   </div>
 </section>
 
@@ -285,35 +285,8 @@
     flex-wrap: wrap;
   }
 
-  .hof-detail__save-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .hof-detail__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  /* Destruktive Aktion — eigener Akzent (`--stb-danger`), rechtsbündig (letztes Element). */
-  .hof-detail__delete-btn {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
 
   .hof-detail__form-actions > :last-child {
     margin-left: auto;

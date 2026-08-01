@@ -220,10 +220,10 @@
       <p class="project-bar__hint">Leere Achse schränkt nicht ein; alle Achsen sind UND-verknüpft.</p>
       <div class="project-bar__actions">
         {#if editing}
-          <button type="button" class="project-bar__delete" onclick={removeCurrent}>Löschen</button>
+          <button type="button" class="stb-btn" data-variant="danger" onclick={removeCurrent}>Löschen</button>
         {/if}
-        <button type="button" class="project-bar__cancel" onclick={() => (showForm = false)}>Abbrechen</button>
-        <button type="submit" class="project-bar__save">Speichern</button>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (showForm = false)}>Abbrechen</button>
+        <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
       </div>
     </form>
   {/if}
@@ -382,32 +382,6 @@
     gap: 0.5rem;
   }
 
-  .project-bar__delete {
-    margin-right: auto;
-    background: transparent;
-    border: 1px solid var(--stb-danger);
-    color: var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-  }
 
-  .project-bar__cancel {
-    background: transparent;
-    border: 1px solid var(--stb-surface-3);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-  }
 
-  .project-bar__save {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
 </style>

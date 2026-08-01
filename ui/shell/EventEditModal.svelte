@@ -396,8 +396,8 @@
           onclick={() => onCopy(liveEventFrom(editable))}
         >⧉ Kopieren</button>
       {/if}
-      <button type="button" class="event-edit-modal__save-btn" onclick={save}>Speichern</button>
-      <button type="button" class="event-edit-modal__cancel-btn" onclick={onClose}>Abbrechen</button>
+      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={onClose}>Abbrechen</button>
     </div>
   </div>
 </div>
@@ -575,19 +575,5 @@
     margin-top: 1.1rem;
   }
 
-  .event-edit-modal__save-btn,
-  .event-edit-modal__cancel-btn {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.45rem 1rem;
-    cursor: pointer;
-    font-weight: 600;
-  }
 
-  .event-edit-modal__cancel-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-  }
 </style>

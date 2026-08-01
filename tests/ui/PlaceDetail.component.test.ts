@@ -1390,7 +1390,7 @@ describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
   it('setzt den Marker per Klick und beschriftet beide Zustände mit eigenem TEXT (nicht nur Farbe)', async () => {
     const appState = setup();
 
-    const knopf = screen.getByText('Als geprüft markieren');
+    const knopf = screen.getByText('Geprüft markieren');
     expect(knopf.getAttribute('aria-pressed')).toBe('false');
     await fireEvent.click(knopf);
 
@@ -1398,19 +1398,19 @@ describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
     expect(pl.reviewedAt).toBeTypeOf('number');
     // Zweiter Zustand trägt sein eigenes Wort samt Datum — auf dem Telefon ist eine
     // Füllung allein kein Kanal (Spec 21 §2).
-    const heute = new Date(pl.reviewedAt as number).toLocaleDateString('de-DE');
+    const heute = new Date(pl.reviewedAt as number).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
     expect(screen.getByText(`✓ Geprüft ${heute}`)).toBeTruthy();
-    expect(screen.queryByText('Als geprüft markieren')).toBeNull();
+    expect(screen.queryByText('Geprüft markieren')).toBeNull();
   });
 
   it('nimmt den Marker beim zweiten Klick zurück (INV-UI-10: ebenso leichte Rücknahme)', async () => {
     const appState = setup(1_700_000_000_000);
 
-    const heute = new Date(1_700_000_000_000).toLocaleDateString('de-DE');
+    const heute = new Date(1_700_000_000_000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
     await fireEvent.click(screen.getByText(`✓ Geprüft ${heute}`));
 
     expect(appState.db.placeObjects.get('@P1@')!.reviewedAt).toBeNull();
-    expect(screen.getByText('Als geprüft markieren')).toBeTruthy();
+    expect(screen.getByText('Geprüft markieren')).toBeTruthy();
   });
 
   it('ist ohne den Editor erreichbar — „angesehen, nichts zu ergänzen" öffnet kein Formular', () => {
@@ -1418,7 +1418,7 @@ describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
 
     // Der Knopf steht neben „✎ Bearbeiten", nicht darin: genau der Fall, der den Marker
     // nötig macht, ist der, in dem niemand den Editor öffnet.
-    expect(screen.getByText('Als geprüft markieren')).toBeTruthy();
+    expect(screen.getByText('Geprüft markieren')).toBeTruthy();
     expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
   });
 });

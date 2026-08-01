@@ -185,14 +185,14 @@
             kind="Ort"
             onToggle={(at) => appState.savePlace(markPlaceReviewed(detail.place, at))}
           />
-          <button type="button" class="place-detail__edit-btn" onclick={() => (editing = true)}>✎ Bearbeiten</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = true)}>✎ Bearbeiten</button>
         {:else}
           <!-- Der Modus wird von dem Schalter geschlossen, der ihn geöffnet hat (INV-UI-16,
                ADR-v9-193). Vorher tat das „Abbrechen" des Grunddaten-Formulars mit — und
                weil `editing` auch die sofort committenden Abschnitte sichtbar macht
                (Namensvarianten, Zugehörigkeit, GOV-Import, Merge), las sich dieser Klick
                als Rücknahme von allem seit dem Öffnen. Das war er nie. -->
-          <button type="button" class="place-detail__edit-btn" onclick={() => (editing = false)}>Fertig</button>
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = false)}>Fertig</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -386,15 +386,6 @@
     padding: 0.1em 0.5em;
   }
 
-  .place-detail__edit-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
 
   .place-detail__section {
     margin-top: 1.25rem;
