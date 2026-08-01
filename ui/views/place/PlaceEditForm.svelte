@@ -120,7 +120,7 @@
   }
 </script>
 
-<section class="place-edit-form">
+<section class="place-edit-form" data-no-swipe>
   <h3>Grunddaten</h3>
   <label>
     Name

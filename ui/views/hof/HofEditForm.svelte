@@ -140,7 +140,7 @@
   }
 </script>
 
-<section class="hof-detail__section hof-detail__form">
+<section class="hof-detail__section hof-detail__form" data-no-swipe>
   <h3>Grunddaten</h3>
   <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
   <label>

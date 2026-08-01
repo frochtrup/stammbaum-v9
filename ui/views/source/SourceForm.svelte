@@ -111,7 +111,7 @@
   }
 </script>
 
-<div class="source-form">
+<div class="source-form" data-no-swipe>
   <h3>{source.title || source.abbr ? 'Quelle bearbeiten' : 'Neue Quelle'}</h3>
 
   {#if showTemplates}

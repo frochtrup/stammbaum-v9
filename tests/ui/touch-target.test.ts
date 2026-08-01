@@ -97,6 +97,58 @@ function findUndersizedControls(threshold: number): Finding[] {
   return findings;
 }
 
+/**
+ * BL-272 — die ANDERE Hälfte: ein Bedienelement, das GAR KEINE Mindestgröße setzt.
+ *
+ * Der Kopfkommentar oben nannte diese Lücke und ließ sie offen („dafür braucht es
+ * gerenderte Pixel MIT Layout"). Die Design-Kritik der Bearbeitungsfunktion zeigte, dass
+ * genau darin die gesamte Editier-Fläche liegt: kein einziges ihrer Bedienelemente setzt
+ * eine Größe, keines erreicht die Schwelle — `✎` je Ereigniszeile rechnerisch ≈ 14px bei
+ * `padding: 0; font-size: .85rem; line-height: 1`.
+ *
+ * Gerenderte Pixel braucht es dafür NICHT: es genügt zu fragen, ob eine Regel, die ein
+ * Bedienelement gestaltet, die Größenfrage überhaupt beantwortet — entweder selbst
+ * (`min-height`/`min-width`/`height`) oder durch Rückgriff auf die geteilte Primitive
+ * `.stb-btn`, die sie beantwortet. Wer weder das eine noch das andere tut, hat die Frage
+ * nicht gestellt. Das ist schwächer als eine Messung und stärker als nichts.
+ *
+ * RATSCHE statt Rot-Wand: der Ist-Stand ist bekannt und wird von BL-273 abgebaut
+ * (Umstellung der Bearbeitungs-Bedienelemente auf `.stb-btn`). Die Zahl darf nur
+ * FALLEN — dieselbe Bauform wie L3/L7/L11 im Backlog-Lint. Wer ein neues Bedienelement
+ * ohne Größe anlegt, hebt sie sonst unbemerkt an; genau das soll auffliegen.
+ *
+ * Die Zahl ist GEMESSEN, nicht gegriffen: der erste Entwurf trug 44 als Platzhalter, der
+ * Lauf ergab 116. Eine Ratsche mit geschätztem Startwert ist entweder sofort rot oder
+ * blind — beides macht sie wertlos (dieselbe Lehre wie beim Perf-Budget, ADR-v9-91).
+ */
+const OHNE_GROESSE_RATSCHE = 116; // GEMESSEN am 2026-08-01, nicht geschätzt.
+
+/** Regeln, die ein Bedienelement gestalten, aber seine Größe nicht beantworten. */
+function findControlsWithoutSize(): { file: string; selector: string }[] {
+  const out: { file: string; selector: string }[] = [];
+  const CONTROL = /(^|[\s,>])(button|a)\b|(btn|button|control|toggle|chip|action)/i;
+
+  for (const file of svelteFiles(UI_DIR)) {
+    const src = readFileSync(file, 'utf8');
+    const style = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src);
+    if (!style) continue;
+
+    for (const rule of style[1].matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = rule[1].replace(/\s+/g, ' ').trim();
+      const body = rule[2];
+      if (!CONTROL.test(selector)) continue;
+      if (/(row|bar|group|list|wrap|container)\s*$/i.test(selector)) continue;
+      // Nur Regeln, die das Element WIRKLICH gestalten — ein reiner `:hover`-Farbwechsel
+      // ist keine Größen-Entscheidung und soll nicht mitzählen.
+      if (/:(hover|focus|focus-visible|active|disabled)\b/.test(selector)) continue;
+      if (!/(padding|background|border|font-size)\s*:/.test(body)) continue;
+      if (/(min-height|min-width|height)\s*:/.test(body)) continue;
+      out.push({ file: file.slice(UI_DIR.length + 1), selector });
+    }
+  }
+  return out;
+}
+
 describe('Trefferflächen — Bedienelemente schreiben keine Größe unter der Schwelle fest', () => {
   it('das Schwellen-Token existiert und hält die Apple-HIG-Vorgabe für die Primärplattform', () => {
     expect(touchTargetPx()).toBeGreaterThanOrEqual(44);
@@ -109,6 +161,26 @@ describe('Trefferflächen — Bedienelemente schreiben keine Größe unter der S
       .map((f) => `${f.file}  ${f.selector} { ${f.prop}: ${f.value} }  → ${f.px}px < ${threshold}px`)
       .join('\n');
     expect(report).toBe('');
+  });
+
+  it('BL-272: die Zahl der Bedienelemente OHNE Größenangabe fällt nur (Ratsche)', () => {
+    const ohne = findControlsWithoutSize();
+    const bericht = ohne.map((f) => `${f.file}  ${f.selector}`).sort().join('\n');
+    expect(
+      ohne.length,
+      `Bedienelemente ohne jede Größenangabe: ${ohne.length} > Ratsche ${OHNE_GROESSE_RATSCHE}.\n` +
+        'Ein neues Bedienelement nutzt `.stb-btn` (INV-UI-4) oder setzt selbst eine\n' +
+        'Mindestgröße — die Ratsche wird nur GESENKT, nie angehoben (BL-273 baut sie ab).\n' +
+        bericht,
+    ).toBeLessThanOrEqual(OHNE_GROESSE_RATSCHE);
+  });
+
+  it('BL-272: der Rot-Fall ist belegt — eine Regel ohne Größe wird gefunden, eine mit nicht', () => {
+    // Genau die Form der `✎`-Bearbeiten-Fläche vor BL-273 (padding, aber keine Größe)
+    // gegen dieselbe Regel mit `.stb-btn`-Vertrag.
+    const ohne = findControlsWithoutSize();
+    expect(ohne.length).toBeGreaterThan(0);
+    expect(ohne.some((f) => /edit-btn|__btn/.test(f.selector))).toBe(true);
   });
 
   it('erkennt einen Verstoß überhaupt (Selbsttest — ein Wächter, dessen Rot-Fall nie lief, ist unbelegt)', () => {

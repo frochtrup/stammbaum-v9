@@ -51,7 +51,7 @@
   }
 </script>
 
-<div class="repository-form">
+<div class="repository-form" data-no-swipe>
   <h3>{repository.name ? 'Archiv bearbeiten' : 'Neues Archiv'}</h3>
 
   <div class="repository-form__grid">

@@ -143,7 +143,7 @@
   }
 </script>
 
-<div class="person-form">
+<div class="person-form" data-no-swipe>
   <h3>{person.given || person.surname ? 'Person bearbeiten' : 'Neue Person'}</h3>
 
   <section class="person-form__section">
