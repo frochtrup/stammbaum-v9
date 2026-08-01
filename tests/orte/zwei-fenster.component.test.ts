@@ -2,7 +2,7 @@
 // tests/orte/zwei-fenster.component.test.ts — Liste und Steckbrief nebeneinander
 // (OE-11, Spec 22 §6, ADR-v9-171).
 //
-// WARUM DAS MEHR IST ALS EINE LAYOUT-VORLIEBE: `DetailHeader` blendet „← Zur Liste"
+// WARUM DAS MEHR IST ALS EINE LAYOUT-VORLIEBE: `DetailHeader` blendet „← Zurück"
 // oberhalb der Layout-Grenze aus, mit der Begründung, im Multi-Pane stehe die Liste
 // ohnehin daneben. Solange der Editor eine Ein-Fenster-Fläche war, stimmte diese
 // Begründung für ihn NICHT — auf Desktop-Breite gab es dort gar keinen Rückweg mehr.
@@ -71,7 +71,7 @@ describe('Orte-Editor auf Desktop-Breite', () => {
       expect(screen.getAllByText('Ochtrup').length).toBeGreaterThan(0);
       expect(document.querySelector('.orte-app__pane--list')).toBeTruthy();
       // Und deshalb ist hier KEIN Rückweg nötig (DetailHeader-Regel, jetzt zutreffend).
-      expect(screen.queryByText('← Zur Liste')).toBeNull();
+      expect(screen.queryByText('← Zurück')).toBeNull();
     } finally {
       unpin();
     }
@@ -88,9 +88,9 @@ describe('Orte-Editor auf Mobil-Breite', () => {
       expect(document.querySelector('.orte-app__panes')).toBeNull();
       await fireEvent.click(screen.getAllByText('Albersloh')[0]);
 
-      // Hier ersetzt der Steckbrief die Liste — ohne „← Zur Liste" gäbe es keinen Weg
+      // Hier ersetzt der Steckbrief die Liste — ohne „← Zurück" gäbe es keinen Weg
       // zurück. Genau dieser Knopf fehlte im gemeldeten Fehlerbild.
-      expect(screen.getByText('← Zur Liste')).toBeTruthy();
+      expect(screen.getByText('← Zurück')).toBeTruthy();
     } finally {
       unpin();
     }
@@ -102,10 +102,10 @@ describe('Orte-Editor auf Mobil-Breite', () => {
       render(OrteApp);
       await ladeDokument(DOKUMENT);
       await fireEvent.click(screen.getAllByText('Albersloh')[0]);
-      await fireEvent.click(screen.getByText('← Zur Liste'));
+      await fireEvent.click(screen.getByText('← Zurück'));
 
       expect(screen.getAllByText('Ochtrup').length).toBeGreaterThan(0);
-      expect(screen.queryByText('← Zur Liste')).toBeNull();
+      expect(screen.queryByText('← Zurück')).toBeNull();
     } finally {
       unpin();
     }

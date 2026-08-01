@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 // tests/ui/DetailHeader.component.test.ts — DIE EINE Kopfzeile für Entitäten-Detail-
 // ansichten (Spec 21 §6b, INV-UI-4). Konsolidiert die vormals getrennten Zeilen
-// (EntityTab's `.entity-tab__detail-header` mit "← Zur Liste" + der jeweiligen Detail-
+// (EntityTab's `.entity-tab__detail-header` mit "← Zurück" + der jeweiligen Detail-
 // Komponente eigener `__hero`/`__head`-Zeile mit Titel+Aktionen) zu EINER Kopfzeile:
-// Zeile 1 = "Zur Liste" + Aktionen (flex-wrap, INV-UI-5), Zeile 2 = Titel.
+// Zeile 1 = "Zurück" + Aktionen (flex-wrap, INV-UI-5), Zeile 2 = Titel.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import DetailHeader from '../../ui/shell/DetailHeader.svelte';
@@ -11,7 +11,7 @@ import DetailHeaderActionsHarness from './fixtures/DetailHeaderActionsHarness.sv
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
-// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// Formfaktor explizit auf MOBIL: „← Zurück" ist eine mobile Navigation und entfällt
 // im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
 // Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
 let unpin: () => void;
@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 describe('DetailHeader — eine gemeinsame Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('rendert "← Zur Liste" und den Titel in derselben Komponente, Titel in eigener Zeile darunter', () => {
+  it('rendert "← Zurück" und den Titel in derselben Komponente, Titel in eigener Zeile darunter', () => {
     const { container } = render(DetailHeader, { props: { title: 'Anna Bauer', onBack: vi.fn() } });
 
     const row = container.querySelector('.detail-header__row');
@@ -35,11 +35,11 @@ describe('DetailHeader — eine gemeinsame Kopfzeile (Spec 21 §6b, INV-UI-4)', 
     expect(row?.contains(title)).toBe(false);
   });
 
-  it('Klick auf "← Zur Liste" ruft onBack auf', async () => {
+  it('Klick auf "← Zurück" ruft onBack auf', async () => {
     const onBack = vi.fn();
     render(DetailHeader, { props: { title: 'Anna Bauer', onBack } });
 
-    await fireEvent.click(screen.getByText('← Zur Liste'));
+    await fireEvent.click(screen.getByText('← Zurück'));
 
     expect(onBack).toHaveBeenCalledOnce();
   });
@@ -50,13 +50,13 @@ describe('DetailHeader — eine gemeinsame Kopfzeile (Spec 21 §6b, INV-UI-4)', 
     expect(container.querySelector('.detail-header__actions')).toBeNull();
   });
 
-  it('mit actions-Snippet stehen "Zur Liste" UND die Aktionen in EINER gemeinsamen Zeile (INV-UI-5)', () => {
+  it('mit actions-Snippet stehen "Zurück" UND die Aktionen in EINER gemeinsamen Zeile (INV-UI-5)', () => {
     const { container } = render(DetailHeaderActionsHarness, {
       props: { title: 'Anna Bauer', onBack: vi.fn() },
     });
 
     const row = container.querySelector('.detail-header__row');
-    const back = screen.getByText('← Zur Liste');
+    const back = screen.getByText('← Zurück');
     const editBtn = screen.getByText('✎ Bearbeiten');
     const treeBtn = screen.getByText('⧖ Im Baum anzeigen');
 

@@ -51,7 +51,7 @@ describe('collectAllTasks — globale Sammlung über Personen UND Familien', () 
     db.individuals.set('@I1@', decker);
     db.individuals.set('@I2@', meyer);
 
-    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personIds: [] };
+    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personRefs: [] };
     const all = collectAllTasks(db, undefined, null);
     const scoped = collectAllTasks(db, undefined, scope);
     expect(all).toHaveLength(2);
@@ -64,7 +64,7 @@ describe('collectAllTasks — globale Sammlung über Personen UND Familien', () 
     const f = makeFamily('@F1@');
     f.husband = '@I1@';
     db.families.set('@F1@', f);
-    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personIds: [] };
+    const scope = { surnames: ['Decker'], places: [], yearFrom: null, yearTo: null, personRefs: [] };
     expect(entityInScope(db, 'family', '@F1@', scope)).toBe(true);
     expect(entityInScope(db, 'family', '@F1@', { ...scope, surnames: ['Meyer'] })).toBe(false);
     expect(entityInScope(db, 'family', '@F1@', null)).toBe(true); // kein Scope = keine Einschränkung

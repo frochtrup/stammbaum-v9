@@ -19,7 +19,6 @@
   import { resolveProband } from '../ui/shell/proband';
   import { displayName } from '../ui/shell/person-display';
   import { createProjectsState } from '../ui/shell/projects-state.svelte';
-  import { IdbProjectsStore } from '../services/research/index';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
@@ -36,6 +35,7 @@
     type NavTargetId,
   } from '../ui/shell/nav-model';
   import { createRoute } from '../ui/shell/route.svelte';
+  import { createNavHistory } from '../ui/shell/nav-history.svelte';
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
@@ -46,10 +46,11 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
-  import { createAppDataIO, type AppDataIO } from '../services/app-data';
+  import { createAppDataIO, createProjectsStore, type AppDataIO } from '../services/app-data';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import { focusPersonInLens } from '../ui/shell/lens-jump';
+  import { jumpToEntity, jumpToFamilyStory } from '../ui/shell/entity-jump';
   import UndoControls from '../ui/shell/UndoControls.svelte';
   import { matchShortcut, isEditableTarget, belongsToField } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
@@ -95,9 +96,17 @@
   }: Props = $props();
 
   const viewState = createViewState();
-  // Forschungsprojekte (BL-58): app-privat, geräteweit in IndexedDB. Hier EINMAL erzeugt,
-  // damit die aktive Projekt-Auswahl das Wegnavigieren aus der Forschungsfläche überlebt.
-  const projectsState = createProjectsState(new IdbProjectsStore());
+  // Forschungsprojekte (BL-58): app-privat. Hier EINMAL erzeugt, damit die aktive
+  // Projekt-Auswahl das Wegnavigieren aus der Forschungsfläche überlebt.
+  //
+  // Seit BL-239 liegen sie im B1-Bündel (`app-data.json`) statt im eigenen IDB-Store und
+  // überleben damit den Gerätewechsel; der Altspeicher wird beim ersten Laden einmalig
+  // übernommen (`createProjectsStore`). Derselbe `appDataIO` wie die Regel-Konfiguration —
+  // eine Bündel-Instanz, nicht zwei.
+  // `untrack`: der Bündel-IO wird genau einmal beim Start gebunden (er ist eine Instanz,
+  // kein Wert, der sich ändert) — sonst warnt der Compiler zu Recht, dass hier nur der
+  // Anfangswert eines Props gelesen wird.
+  const projectsState = createProjectsState(untrack(() => createProjectsStore(appDataIO)));
   // Ereignis-Zwischenablage (BL-212): EINMAL hier erzeugt, damit sie den Wechsel zwischen
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
@@ -197,6 +206,17 @@
   // sondern eine Funktion des Registers (nav-model.ts) — dort auch getestet.
   const bottomNavActive = $derived<BottomNavSlot>(bottomNavSlotFor(route.target));
 
+  // Verlauf (BL-07, ADR-v9-177): Zurück/Vorwärts über die Routen-Quelle + die zugehörige
+  // Auswahl. Der Stack wird BEOBACHTET, nicht an jeder Navigationsstelle gefüttert —
+  // dieser eine Effekt ist der gesamte Aufzeichnungsweg (v8 rief `_beforeDetailNavigate()`
+  // am Anfang jeder show*-Funktion, Altlast §10). `record()` liest Route + Auswahl
+  // reaktiv; kehrt der Nutzer über `back()` zurück, ist der wiederhergestellte Punkt
+  // bereits der aktuelle und der erneute Lauf verbucht nichts (idempotent).
+  const navHistory = createNavHistory(route, viewState);
+  $effect(() => {
+    navHistory.record();
+  });
+
   // Der Mehr-Hub existiert nur im Mobile-Modell (Spec 21 §2): auf Desktop trägt die
   // Sidebar Datei/Statistik/Ausgaben/Einstellungen direkt, ein Hub-Menü wäre ein
   // zweiter Weg zu denselben Zielen (INV-UI-2). Wer beim Verbreitern des Fensters
@@ -243,14 +263,6 @@
     route.setTarget(lens);
   }
 
-  // Klick auf die Zentrum-Karte im Baum -> Personen-Detail (die Route sitzt in
-  // App.svelte, nicht in EntityTab — daher ein eigener Callback statt eines
-  // EntityTab-Sub-Callbacks).
-  function openPersonDetailFromTree(personId: string) {
-    viewState.setCurrent('person', personId);
-    route.setTarget('person');
-  }
-
   // Umgekehrte Richtung: Personen-Kontext-Sprung aus PersonDetail in eine Lens
   // (BL-60/ADR-v9-153; durchgereicht via EntityTab.onOpenLensForPerson ->
   // PersonDetail.onOpenLens -> PersonDetailHeader/LensSwitcher). Ersetzt die vormals
@@ -261,72 +273,33 @@
     focusPersonInLens(viewState, route, personId, lens);
   }
 
+  // Sprung auf eine Entitäts-Detailseite — aus der globalen Suche, der Befehlspalette,
+  // dem Baum (Zentrum-Karte -> Person, ⚭-Badge -> Familie) und „Zum Probanden". Die
+  // Mechanik (Auswahl setzen, Ziel setzen, Sonderfall Archiv) lebt EINMAL in
+  // `ui/shell/entity-jump.ts` (INV-UI-4), nicht hier siebenmal nachgebaut; hier bleiben
+  // nur die benannten Aufrufer, die die Kind-Komponenten als Callback bekommen.
+  const openPerson = (id: string) => jumpToEntity(viewState, route, 'person', id);
+  const openFamily = (id: string) => jumpToEntity(viewState, route, 'family', id);
+  const openSource = (id: string) => jumpToEntity(viewState, route, 'source', id);
+  const openPlace = (id: string) => jumpToEntity(viewState, route, 'place', id);
+  const openHof = (id: string) => jumpToEntity(viewState, route, 'hof', id);
+
   // "📖 Story" aus FamilyDetail: couple-zentrische Familien-Biografie in der Story-Lens
   // (BL-186). Setzt die explizit gewählte Familie + Familien-Modus.
-  function openStoryFromFamilyDetail(familyId: string) {
-    viewState.setCurrent('storyFamily', familyId);
-    route.setStoryMode('family');
-    route.setTarget('story');
-  }
-
-  // Klick auf den ⚭-Badge im Baum (zwischen Proband und aktivem Ehepartner) ->
-  // Familien-Detail (Spec 20 §1.3 [K]-Interaktion "Klick-Rezentrierung" ergänzende
-  // Familien-Navigation, analog v8 `showFamilyDetail`). Wechselt in den Personen-Tab
-  // (Familien-Segment), weil die Familien-Detailansicht dort lebt (EntityTab).
-  function openFamilyFromTree(familyId: string) {
-    viewState.setCurrent('family', familyId);
-    route.setTarget('family');
-  }
-
-  // Globale Suche (Spec 20 §1.1 [K]) -> Detailseiten leben alle in der Entitäten-Fläche
-  // (EntityTab-Umbrella, ADR-v9-17); ein Klick setzt GENAU die ViewState-Auswahl UND das
-  // Routen-Ziel des Zielsegments.
-  //
-  // Das Ziel wird seit BL-90 EXPLIZIT genannt (`setTarget('place')`) statt wie vorher
-  // implizit über einen EntityTab-Remount aus der ViewState-Auswahl abgeleitet zu
-  // werden. Die alte Ableitung hatte eine Rangfolge (Familie vor Quelle vor Ort vor
-  // Hof) und traf bei mehreren gleichzeitig gesetzten Auswahlen nicht zwingend das
-  // gerade angeklickte Segment.
-  function openPersonFromSearch(personId: string) {
-    viewState.setCurrent('person', personId);
-    route.setTarget('person');
-  }
-
-  function openFamilyFromSearch(familyId: string) {
-    viewState.setCurrent('family', familyId);
-    route.setTarget('family');
-  }
-
-  function openSourceFromSearch(sourceId: string) {
-    viewState.setCurrent('repository', null);
-    viewState.setCurrent('source', sourceId);
-    route.setTarget('source');
-  }
-
-  function openPlaceFromSearch(placeId: string) {
-    viewState.setCurrent('place', placeId);
-    route.setTarget('place');
-  }
-
-  function openHofFromSearch(hofId: string) {
-    viewState.setCurrent('hof', hofId);
-    route.setTarget('hof');
-  }
+  const openStoryFromFamilyDetail = (familyId: string) => jumpToFamilyStory(viewState, route, familyId);
   // Befehlspalette (⌘K, BL-93) — Desktop-Pendant zur Suche (Spec 21 §3). Sie lebt hier
   // an der Schale, weil sie in JEDER Ansicht erreichbar sein muss.
   let paletteOpen = $state(false);
 
   /** Ausführen eines Palette-Befehls: Navigationsziel ODER Sprung auf eine Entität.
    *  Die Entitäts-Sprünge nutzen exakt die Funktionen, die auch die Suchfläche
-   *  bedienen (openPersonFromSearch & Co.) — kein zweiter Sprung-Pfad. */
+   *  bedienen (openPerson & Co.) — kein zweiter Sprung-Pfad. */
   // „Zum Probanden" (BL-120): auf die Detailseite der effektiven Referenzperson springen
   // (Session-Proband, sonst kleinste ID — ADR-v9-135/139). Derselbe Sprung-Mechanismus wie
   // die globale Suche (ViewState-Auswahl + Routen-Ziel setzen).
   function goToProband() {
     const pid = resolveProband(appState.db, viewState);
-    if (!pid) return;
-    viewState.setCurrent('person', pid);
-    route.setTarget('person');
+    if (pid) openPerson(pid);
   }
 
   // Der effektive Proband als Palette-Befehl (id + Anzeigename) — App kennt viewState, die
@@ -346,11 +319,11 @@
       route.setTarget(cmd.id);
       return;
     }
-    if (cmd.kind === 'person') openPersonFromSearch(cmd.id);
-    else if (cmd.kind === 'family') openFamilyFromSearch(cmd.id);
-    else if (cmd.kind === 'source') openSourceFromSearch(cmd.id);
-    else if (cmd.kind === 'place') openPlaceFromSearch(cmd.id);
-    else openHofFromSearch(cmd.id);
+    if (cmd.kind === 'person') openPerson(cmd.id);
+    else if (cmd.kind === 'family') openFamily(cmd.id);
+    else if (cmd.kind === 'source') openSource(cmd.id);
+    else if (cmd.kind === 'place') openPlace(cmd.id);
+    else openHof(cmd.id);
   }
 
   async function runSave() {
@@ -388,6 +361,11 @@
     if (action === 'save') {
       e.preventDefault();
       void runSave();
+      return;
+    }
+    if (action === 'back' || action === 'forward') {
+      // Nur beanspruchen, wenn es wirklich einen Schritt gab (s. u. bei undo/redo).
+      if (action === 'back' ? navHistory.back() : navHistory.forward()) e.preventDefault();
       return;
     }
 
@@ -441,6 +419,7 @@
         {appState}
         {viewState}
         {route}
+        {navHistory}
         onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
@@ -451,8 +430,8 @@
         {viewState}
         {route}
         {fileService}
-        onOpenPersonDetail={openPersonDetailFromTree}
-        onNavigateToFamily={openFamilyFromTree}
+        onOpenPersonDetail={openPerson}
+        onNavigateToFamily={openFamily}
         onNavigateLens={navigateLens}
       />
     {:else if shownTarget === 'map'}
@@ -463,9 +442,9 @@
         {viewState}
         {route}
         onNavigateLens={navigateLens}
-        onNavigateToPerson={openPersonFromSearch}
-        onNavigateToPlace={openPlaceFromSearch}
-        onNavigateToHof={openHofFromSearch}
+        onNavigateToPerson={openPerson}
+        onNavigateToPlace={openPlace}
+        onNavigateToHof={openHof}
       />
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />
@@ -474,11 +453,11 @@
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
-        onNavigateToPerson={openPersonFromSearch}
-        onNavigateToFamily={openFamilyFromSearch}
-        onNavigateToSource={openSourceFromSearch}
-        onNavigateToPlace={openPlaceFromSearch}
-        onNavigateToHof={openHofFromSearch}
+        onNavigateToPerson={openPerson}
+        onNavigateToFamily={openFamily}
+        onNavigateToSource={openSource}
+        onNavigateToPlace={openPlace}
+        onNavigateToHof={openHof}
       />
     {:else if isResearchTarget(shownTarget)}
       <ResearchTab
@@ -486,10 +465,10 @@
         {route}
         {viewState}
         projects={projectsState}
-        onNavigateToPerson={openPersonFromSearch}
-        onNavigateToFamily={openFamilyFromSearch}
-        onNavigateToPlace={openPlaceFromSearch}
-        onNavigateToHof={openHofFromSearch}
+        onNavigateToPerson={openPerson}
+        onNavigateToFamily={openFamily}
+        onNavigateToPlace={openPlace}
+        onNavigateToHof={openHof}
       />
     {:else}
       <MoreView

@@ -4,7 +4,13 @@
 export * from './types';
 export { makeTask, setTaskStatus, isTaskDone } from './task';
 export { makeLogEntry, linkLogToTask } from './log';
-export { makeProject, matchesScope } from './project';
+export {
+  makeProject,
+  makeScopePersonRef,
+  matchesScope,
+  normalizeProject,
+  resolveScopePersonRef,
+} from './project';
 export { makeHypothesis, addHypothesisEvidence, isIdentityExclusion } from './hypothesis';
 export { evalToQuay, isEvidenceEvalEmpty, makeEvidenceEval } from './eval';
 export {

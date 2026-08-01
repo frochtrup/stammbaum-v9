@@ -80,7 +80,9 @@
       places: splitList(fPlaces),
       yearFrom: toYear(fFrom),
       yearTo: toYear(fTo),
-      personIds: editing ? editing.scope.personIds : [],
+      // Ausdrückliche Personenbezüge bleiben beim Bearbeiten der Achsen unangetastet
+      // (dieses Formular führt nur die drei Achsen, BL-58).
+      personRefs: editing ? editing.scope.personRefs : [],
     };
     if (editing) {
       projects.update({ ...editing, name: fName.trim(), scope, color: fColor, note: fNote });

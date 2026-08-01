@@ -14,6 +14,12 @@
 //   - BEIDE unterschiedlich geändert → lokal gewinnt, mit benanntem Konflikt-Hinweis.
 //     Kein stilles Überschreiben und keine Feld-Verschmelzung (dieselbe bewusste Grenze
 //     wie ADR-v9-116 beim shortName).
+//
+// AUSNAHME `projects` (BL-239): der einzige Abschnitt, der eine SAMMLUNG trägt. Dort
+// greift die id-gekeyte Politik von `orte.json` (`mergeProjects` unten) — nicht als
+// Sonderweg, sondern weil die Singleton-Begründung oben auf eine Sammlung nicht zutrifft.
+import type { Project } from '../../core/research/index';
+import { toList, toMap, unionMerge } from '../union-merge';
 import type {
   AppDataReconcileResult,
   AppDataSections,
@@ -40,8 +46,29 @@ export interface AppDataBase {
   sections: AppDataSections;
 }
 
-const SECTION_KEYS = ['valConfig', 'exportPrefs'] as const;
+const SECTION_KEYS = ['valConfig', 'exportPrefs', 'projects'] as const;
 type SectionKey = (typeof SECTION_KEYS)[number];
+
+/**
+ * Der eine Abschnitt, der je OBJEKT vereinigt wird statt je Abschnitt (BL-239).
+ *
+ * Die Abschnitts-Regel (Spec 30 §2.3) ist aus der SINGLETON-Natur von B1 abgeleitet:
+ * bei einer Regel-Konfiguration gibt es kein „beide Seiten bleiben erhalten", es stehen
+ * keine zwei Objekte nebeneinander. Bei einer Sammlung gibt es das sehr wohl — zwei
+ * Geräte, die je ein eigenes Projekt anlegen, haben keinen Konflikt, sondern zwei
+ * Projekte. Die Begründung der Abschnitts-Regel trägt hier also nicht, und statt sie
+ * über ihre Reichweite hinaus anzuwenden, greift die bereits vorhandene id-gekeyte
+ * Politik von `orte.json` (`services/union-merge.ts`, LP-9).
+ */
+function mergeProjects(
+  local: Project[] | undefined,
+  remote: Project[] | undefined,
+  base: Project[] | undefined,
+): { value: Project[] | undefined; conflict: boolean } {
+  if (local === undefined && remote === undefined) return { value: undefined, conflict: false };
+  const res = unionMerge(toMap(local ?? []), toMap(remote ?? []), toMap(base ?? []));
+  return { value: toList(res.merged), conflict: res.conflictIds.length > 0 };
+}
 
 /**
  * Abschnitts-Gleichheit über die serialisierte Form. Zulässig, weil alle Abschnitte
@@ -113,6 +140,16 @@ export class AppDataSyncService {
         const l = localSections[key];
         const r = remote.sections[key];
         const b = base.sections[key];
+        if (key === 'projects') {
+          const { value, conflict } = mergeProjects(
+            l as Project[] | undefined,
+            r as Project[] | undefined,
+            b as Project[] | undefined,
+          );
+          if (value !== undefined) merged.projects = value;
+          if (conflict) conflicts.push(key);
+          continue;
+        }
         if (sameSection(l, r)) {
           if (l !== undefined) merged[key] = l as never;
         } else if (sameSection(l, b)) {

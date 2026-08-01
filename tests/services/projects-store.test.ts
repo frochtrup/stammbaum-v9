@@ -20,7 +20,7 @@ describe('ProjectsStore', () => {
   it('speichern → laden erhält die Projekte inkl. Scope', async () => {
     const store = new MemoryStore();
     await store.save([
-      makeProject('p1', { name: 'Linie Decker', color: '#c33', created: '2026-07-25', scope: { surnames: ['Decker'], places: [], yearFrom: 1800, yearTo: 1900, personIds: [] } }),
+      makeProject('p1', { name: 'Linie Decker', color: '#c33', created: '2026-07-25', scope: { surnames: ['Decker'], places: [], yearFrom: 1800, yearTo: 1900, personRefs: [] } }),
     ]);
     const loaded = await loadProjects(store);
     expect(loaded).toHaveLength(1);

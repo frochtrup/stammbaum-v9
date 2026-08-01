@@ -8,7 +8,7 @@
 //
 // Plattform-API (indexedDB) bewusst NUR hier, hinter dem ProjectsStore-Vertrag: die
 // Aufrufer (UI/AppState) und der Kern sehen sie nie (Spec 02 §7, Spec 32 §5 TST-3).
-import type { Project } from '../../core/research/index';
+import { normalizeProject, type Project } from '../../core/research/index';
 import { openStammbaumDb, STORE_PROJECTS as STORE_NAME } from '../idb-schema';
 
 const KEY = 'all';
@@ -45,10 +45,16 @@ export class IdbProjectsStore implements ProjectsStore {
  * Projekte laden — fällt bei jedem Speicherfehler auf die leere Liste zurück. Ein
  * defekter/gelöschter Store darf die App nicht blockieren: der Nutzer verliert dann seine
  * Projekt-Definitionen, nicht die Funktion (wie loadValConfig).
+ *
+ * Was aus einem Speicher kommt, ist `unknown` und nicht `Project` — deshalb läuft JEDER
+ * Ladeweg (IDB-Altbestand wie `app-data.json`, BL-239) durch `normalizeProject`: es hebt
+ * den alten `personIds: string[]`-Scope auf die geprüfte Ref-Form (BL-238) und fängt
+ * Fremdeinflüsse ab. Hier und nicht im Store, damit kein zweiter Ladeweg es vergisst.
  */
 export async function loadProjects(store: ProjectsStore): Promise<Project[]> {
   try {
-    return await store.load();
+    const roh = await store.load();
+    return (Array.isArray(roh) ? roh : []).map(normalizeProject);
   } catch {
     return [];
   }

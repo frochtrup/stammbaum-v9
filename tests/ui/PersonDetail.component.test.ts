@@ -15,7 +15,7 @@ import { createEventClipboard } from '../../ui/shell/event-clipboard.svelte';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
-// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// Formfaktor explizit auf MOBIL: „← Zurück" ist eine mobile Navigation und entfällt
 // im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
 // Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
 let unpin: () => void;
@@ -772,7 +772,7 @@ describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig
 });
 
 describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('"← Zur Liste" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
+  it('"← Zurück" und "✎ Bearbeiten" stehen in derselben Kopfzeile, Titel in eigener Zeile darunter', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -785,13 +785,13 @@ describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
 
     const row = container.querySelector('.detail-header__row');
     const title = container.querySelector('.detail-header__title');
-    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('← Zurück'))).toBe(true);
     expect(row?.contains(screen.getByText('✎ Bearbeiten'))).toBe(true);
     expect(title?.textContent).toBe('Anna Bauer');
     expect(row?.contains(title)).toBe(false);
   });
 
-  it('Klick auf "← Zur Liste" ruft das von EntityTab übergebene onBack auf', async () => {
+  it('Klick auf "← Zurück" ruft das von EntityTab übergebene onBack auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -801,7 +801,7 @@ describe('PersonDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     const onBack = vi.fn();
 
     render(PersonDetail, { props: { appState, viewState, onBack } });
-    await fireEvent.click(screen.getByText('← Zur Liste'));
+    await fireEvent.click(screen.getByText('← Zurück'));
 
     expect(onBack).toHaveBeenCalledOnce();
   });

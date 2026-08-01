@@ -15,6 +15,9 @@
   import type { LensId } from '../shell/lens-model';
   import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
   import type { Route } from '../shell/route.svelte';
+  import type { NavHistory } from '../shell/nav-history.svelte';
+  import { swipeNav } from '../shell/swipe-nav';
+  import { createEntityTabOverlays } from './entity-tab-overlays.svelte';
   import type { EventClipboard } from '../shell/event-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
@@ -63,11 +66,18 @@
     onNavigateLens?: (lens: LensId) => void;
     /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
     route: Route;
+    /**
+     * Verlauf (BL-07). Optional, damit Komponententests diese Fläche weiterhin ohne
+     * Schale montieren können — fehlt er, verhält sich „← Zurück" wie vor BL-07 und
+     * führt zur Liste (der Fallback ist ohnehin der Rückweg, wenn nichts im Stack liegt).
+     */
+    navHistory?: NavHistory;
   }
   const {
     appState,
     viewState,
     route,
+    navHistory,
     onOpenLensForPerson,
     onOpenStoryForFamily,
     onNavigateLens,
@@ -96,35 +106,37 @@
   let sourceSubView = $state<'sources' | 'repositories'>(
     untrack(() => (viewState.getCurrent('repository') ? 'repositories' : 'sources')),
   );
-  // "Hof-Zuweisungen prüfen" (Spec 20 §1.8 [K], Spec 11 §6) ist ein Overlay innerhalb
-  // des Höfe-Segments, kein eigener Segment-Button (INV-UI-2: ein kanonischer Weg zu
-  // Höfe-nahen Daten bleibt "Höfe" — der Review ist ein Werkzeug darin, kein Ziel).
+  // Welches WERKZEUG-Overlay offen ist (Massen-Dedup, Orts-/Hof-Review, Personen-
+  // Dubletten, Verwandtschaft), lebt seit BL-07 in einer eigenen Datei — sechs Zustände
+  // mit einer Regel, die sich sauber herauslöst (`entity-tab-overlays.svelte.ts`, dort
+  // auch die Begründung, warum sie NICHT in der Routen-Quelle liegen).
   //
-  // Toolbar-Ownership (Spec 21 §10c): die Buttons, die diese Overlays ÖFFNEN, leben
-  // seit dem Listen-/Detail-Primitiven-Bauabschnitt in der jeweiligen Listen-eigenen
-  // Toolbar (PlaceList/HofList) statt in dieser gemeinsamen EntityTab-Kopfzeile —
-  // EntityTab bleibt aber die Stelle, die entscheidet, WELCHE Komponente rendert
-  // (Liste vs. Overlay), sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
-  let hofReviewOpen = $state(false);
-  // "Orts-Zuweisungen prüfen" (Klasse P, Spec 11 §6) — dasselbe Overlay-Muster im
-  // Orte-Segment. Eigene Ansicht, weil P eine Orts- und keine Hof-Mehrdeutigkeit ist:
-  // die Hof-Aktionen passen darauf nicht (Befund 2026-07-16).
-  let placeReviewOpen = $state(false);
-  // "Massen-Dedup" (Spec 20 §1.7/§1.8 [K], Spec 11 §9.2) ist analog ein Overlay innerhalb
-  // des jeweiligen Segments (Orte/Höfe), kein eigener Segment-Button — gleiche Begründung
-  // wie beim Hof-Review-Toggle oben (INV-UI-2).
-  let placeDedupOpen = $state(false);
-  // Duplikat-Erkennung für Personen (BL-104) — bewusst komponenten-lokal wie die
-  // Orte-/Höfe-Pendants und NICHT in der Routen-Quelle (ADR-v9-104): ADR-v9-102 verlangt
-  // die Route für Unterzustand, der eine AUSWAHL oder einen ANZEIGE-MODUS trägt. Ein
-  // On-Demand-Werkzeug, das der Nutzer bewusst öffnet, ist beides nicht.
-  let personDedupOpen = $state(false);
-  let relationshipToolOpen = $state(false);
-  let hofDedupOpen = $state(false);
+  // EntityTab bleibt die Stelle, die entscheidet, WELCHE Komponente rendert (Liste vs.
+  // Overlay) — sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
+  const overlays = createEntityTabOverlays();
 
   function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
     route.setTarget(segment.id);
+  }
+
+  /**
+   * „← Zurück" im Detail-Kopf (BL-07, ADR-v9-177) — herkunftsbewusst.
+   *
+   * Vor BL-07 hieß dieser Knopf „← Zur Liste" und tat immer dasselbe. Wer von Person A
+   * über eine Ereigniszeile zu Ort B und von dort zu Person C sprang, landete beim
+   * Zurück in der Personenliste statt bei Person A. Jetzt führt der erste Schritt
+   * dorthin, wo der Nutzer herkam; nur wenn der Verlauf leer ist (Detail direkt nach
+   * App-Start aus einer erhaltenen Auswahl), bleibt der alte Weg als Boden.
+   */
+  function goBack() {
+    if (navHistory?.back()) return;
+    backToList();
+  }
+
+  /** Gegenrichtung der Wisch-Geste (BL-07) — ohne Verlauf passiert nichts. */
+  function goForward() {
+    navHistory?.forward();
   }
 
   function backToList() {
@@ -140,8 +152,7 @@
 
   function navigateToPerson(id: string) {
     route.setTarget('person');
-    hofReviewOpen = false;
-    placeReviewOpen = false;
+    overlays.closeForPerson();
     viewState.setCurrent('person', id);
   }
 
@@ -157,8 +168,7 @@
 
   function navigateToFamily(id: string) {
     route.setTarget('family');
-    hofReviewOpen = false;
-    placeReviewOpen = false;
+    overlays.closeForPerson();
     viewState.setCurrent('family', id);
   }
 
@@ -204,76 +214,16 @@
 
   function navigateToPlace(id: string) {
     route.setTarget('place');
-    placeDedupOpen = false;
-    placeReviewOpen = false;
+    overlays.closeForPlace();
     viewState.setCurrent('place', id);
   }
 
   function navigateToHof(id: string) {
     route.setTarget('hof');
-    hofReviewOpen = false;
-    hofDedupOpen = false;
+    overlays.closeForHof();
     viewState.setCurrent('hof', id);
   }
 
-  /** Beide Höfe-Overlays (Review/Dedup) sind gegenseitig exklusiv — jeweils nur EIN
-   *  Werkzeug gleichzeitig sichtbar (INV-VS-Analog: eine aktive Overlay-Auswahl).
-   *  "open"/"close" statt "toggle", weil der öffnende Button jetzt in HofList sitzt
-   *  (Toolbar-Ownership, Spec 21 §10c) — HofList verschwindet aus dem DOM, sobald das
-   *  Overlay rendert, ein Toggle-Button könnte sich also nicht mehr selbst umschalten.
-   *  Das Schließen übernimmt stattdessen der onClose der jeweiligen Overlay-Komponente
-   *  (HofReview/HofDedupView/PlaceDedupView haben bereits einen eigenen "✕ Schließen"). */
-  function openHofReview() {
-    hofDedupOpen = false;
-    hofReviewOpen = true;
-  }
-
-  function closeHofReview() {
-    hofReviewOpen = false;
-  }
-
-  function openHofDedup() {
-    hofReviewOpen = false;
-    hofDedupOpen = true;
-  }
-
-  function closeHofDedup() {
-    hofDedupOpen = false;
-  }
-
-  function openPlaceReview() {
-    placeDedupOpen = false;
-    placeReviewOpen = true;
-  }
-
-  function closePlaceReview() {
-    placeReviewOpen = false;
-  }
-
-  function openPlaceDedup() {
-    placeReviewOpen = false;
-    placeDedupOpen = true;
-  }
-
-  function closePlaceDedup() {
-    placeDedupOpen = false;
-  }
-
-  function openPersonDedup() {
-    personDedupOpen = true;
-  }
-
-  function closePersonDedup() {
-    personDedupOpen = false;
-  }
-
-  function openRelationshipTool() {
-    relationshipToolOpen = true;
-  }
-
-  function closeRelationshipTool() {
-    relationshipToolOpen = false;
-  }
 
   const selectedPersonId = $derived(viewState.getCurrent('person'));
   const selectedFamilyId = $derived(viewState.getCurrent('family'));
@@ -299,9 +249,9 @@
    *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
    *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
   const overlayActive = $derived.by(() => {
-    if (activeSegment === 'person') return (personDedupOpen || relationshipToolOpen) && !selectedPersonId;
-    if (activeSegment === 'place') return (placeReviewOpen || placeDedupOpen) && !selectedPlaceId;
-    if (activeSegment === 'hof') return (hofReviewOpen || hofDedupOpen) && !selectedHofId;
+    if (activeSegment === 'person') return (overlays.personDedup || overlays.relationshipTool) && !selectedPersonId;
+    if (activeSegment === 'place') return (overlays.placeReview || overlays.placeDedup) && !selectedPlaceId;
+    if (activeSegment === 'hof') return (overlays.hofReview || overlays.hofDedup) && !selectedHofId;
     return false;
   });
 
@@ -379,7 +329,7 @@
        ohne Gewinn. -->
   {#snippet listPane()}
     {#if activeSegment === 'person'}
-      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={openPersonDedup} onOpenRelationship={openRelationshipTool} />
+      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={overlays.openPersonDedup} onOpenRelationship={overlays.openRelationshipTool} />
     {:else if activeSegment === 'family'}
       <FamilyList {appState} {viewState} onCreate={createFamily} />
     {:else if activeSegment === 'source'}
@@ -389,9 +339,9 @@
         <SourceList {appState} {viewState} onCreate={createSource} />
       {/if}
     {:else if activeSegment === 'place'}
-      <PlaceList {appState} {viewState} onOpenReview={openPlaceReview} onOpenDedup={openPlaceDedup} {onNavigateLens} />
+      <PlaceList {appState} {viewState} onOpenReview={overlays.openPlaceReview} onOpenDedup={overlays.openPlaceDedup} {onNavigateLens} />
     {:else if activeSegment === 'hof'}
-      <HofList {appState} {viewState} onOpenReview={openHofReview} onOpenDedup={openHofDedup} {onNavigateLens} />
+      <HofList {appState} {viewState} onOpenReview={overlays.openHofReview} onOpenDedup={overlays.openHofDedup} {onNavigateLens} />
     {:else if activeSegment === 'media'}
       <MediaGallery {appState} {viewState} />
     {/if}
@@ -408,7 +358,7 @@
         onNavigateToHof={navigateToHof}
         onOpenLens={onOpenLensForPerson}
         {onNavigateLens}
-        onBack={backToList}
+        onBack={goBack}
         {clipboard}
         startInEdit={selectedPersonId === createdPersonId}
       />
@@ -422,14 +372,14 @@
         onNavigateToHof={navigateToHof}
         {onNavigateLens}
         onOpenStory={onOpenStoryForFamily}
-        onBack={backToList}
+        onBack={goBack}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
       <RepositoryDetail
         {appState}
         {viewState}
         onNavigateToSource={navigateToSource}
-        onBack={backToList}
+        onBack={goBack}
         startInEdit={selectedRepositoryId === createdRepositoryId}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'sources' && selectedSourceId}
@@ -439,7 +389,7 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onNavigateToRepository={navigateToRepository}
-        onBack={backToList}
+        onBack={goBack}
         startInEdit={selectedSourceId === createdSourceId}
       />
     {:else if activeSegment === 'place' && selectedPlaceId}
@@ -448,11 +398,11 @@
         {viewState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
-        onBack={backToList}
+        onBack={goBack}
         {onNavigateLens}
       />
     {:else if activeSegment === 'hof' && selectedHofId}
-      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={backToList} {onNavigateLens} />
+      <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={goBack} {onNavigateLens} />
     {:else if activeSegment === 'media' && selectedMediaId}
       <MediaDetail
         {appState}
@@ -460,7 +410,7 @@
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onNavigateToSource={navigateToSource}
-        onBack={backToList}
+        onBack={goBack}
       />
     {:else}
       <!-- Leerzustand des Detail-Panes: existiert nur auf Desktop (mobil rendert bei
@@ -473,28 +423,28 @@
   {#if overlayActive}
     <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
          s. `overlayActive` oben. -->
-    {#if activeSegment === 'person' && personDedupOpen}
-      <PersonDedupView {appState} onClose={closePersonDedup} />
-    {:else if activeSegment === 'person' && relationshipToolOpen}
-      <RelationshipTool {appState} {viewState} onClose={closeRelationshipTool} />
-    {:else if activeSegment === 'place' && placeReviewOpen}
+    {#if activeSegment === 'person' && overlays.personDedup}
+      <PersonDedupView {appState} onClose={overlays.closePersonDedup} />
+    {:else if activeSegment === 'person' && overlays.relationshipTool}
+      <RelationshipTool {appState} {viewState} onClose={overlays.closeRelationshipTool} />
+    {:else if activeSegment === 'place' && overlays.placeReview}
       <PlaceReview
         {appState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
-        onClose={closePlaceReview}
+        onClose={overlays.closePlaceReview}
       />
-    {:else if activeSegment === 'place' && placeDedupOpen}
-      <PlaceDedupView {appState} onClose={closePlaceDedup} />
-    {:else if activeSegment === 'hof' && hofReviewOpen}
+    {:else if activeSegment === 'place' && overlays.placeDedup}
+      <PlaceDedupView {appState} onClose={overlays.closePlaceDedup} />
+    {:else if activeSegment === 'hof' && overlays.hofReview}
       <HofReview
         {appState}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
-        onClose={closeHofReview}
+        onClose={overlays.closeHofReview}
       />
-    {:else if activeSegment === 'hof' && hofDedupOpen}
-      <HofDedupView {appState} onClose={closeHofDedup} />
+    {:else if activeSegment === 'hof' && overlays.hofDedup}
+      <HofDedupView {appState} onClose={overlays.closeHofDedup} />
     {/if}
   {:else if layout.isDesktopLayout}
     <div class="entity-tab__panes">
@@ -502,7 +452,14 @@
       <div class="entity-tab__pane entity-tab__pane--detail">{@render detailPane()}</div>
     </div>
   {:else if hasSelection}
-    {@render detailPane()}
+    <!-- Wisch-Geste NUR auf der mobilen Detail-Fläche (BL-07, Spec 21 §2): dort ersetzt
+         das Detail die Liste, ein Rückweg ist also erwartbar. Die Lens-Inseln bekommen
+         sie ausdrücklich NICHT — dort gehört die waagerechte Geste dem Karten-/Baum-Pan
+         (v8 hielt es mit `_initDetailSwipe` genauso). Auf Desktop stehen beide Flächen
+         nebeneinander; dort trägt das Tastenkürzel. -->
+    <div class="entity-tab__swipe" use:swipeNav={{ onBack: goBack, onForward: goForward }}>
+      {@render detailPane()}
+    </div>
   {:else}
     {@render listPane()}
   {/if}

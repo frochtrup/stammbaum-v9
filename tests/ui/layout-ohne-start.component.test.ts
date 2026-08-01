@@ -13,7 +13,7 @@
 // alte Zustand zur Gegenprobe wiederhergestellt wurde. Er steht hier deshalb bewusst in
 // der Form, die den Rot-Fall tatsächlich sieht.
 //
-// Gegenstand ist der reale Fall: `DetailHeader` blendet „← Zur Liste" oberhalb der
+// Gegenstand ist der reale Fall: `DetailHeader` blendet „← Zurück" oberhalb der
 // Layout-Grenze aus (im Multi-Pane steht die Liste daneben). Im Standalone-Orte-Editor
 // verschwand der Knopf nach dem Verkleinern des Fensters und kam nie zurück.
 import { describe, expect, it, afterEach } from 'vitest';
@@ -48,20 +48,20 @@ function stubMatchMedia(initial: boolean) {
 afterEach(() => layout.reset());
 
 describe('Formfaktor ohne start() (ADR-v9-171)', () => {
-  it('zeigt „← Zur Liste" wieder an, wenn das Fenster unter die Grenze schrumpft', async () => {
+  it('zeigt „← Zurück" wieder an, wenn das Fenster unter die Grenze schrumpft', async () => {
     const mm = stubMatchMedia(true); // Start: Desktop-Breite
     try {
       layout.reset(); // verbindet mit der Plattform-Umgebung — KEIN start(), wie im Editor
       render(DetailHeader, { props: { title: 'Albersloh', onBack: () => {} } });
 
       // Oberhalb der Grenze: kein Rückweg nötig, die Liste stünde daneben.
-      expect(screen.queryByText('← Zur Liste')).toBeNull();
+      expect(screen.queryByText('← Zurück')).toBeNull();
 
       mm.resizeTo(false); // Fenster verkleinern
       await Promise.resolve();
 
       // Genau hier blieb die alte Fassung stehen: Wert stimmte, das Markup nicht.
-      expect(screen.getByText('← Zur Liste')).toBeTruthy();
+      expect(screen.getByText('← Zurück')).toBeTruthy();
     } finally {
       mm.restore();
     }
@@ -72,11 +72,11 @@ describe('Formfaktor ohne start() (ADR-v9-171)', () => {
     try {
       layout.reset();
       render(DetailHeader, { props: { title: 'Albersloh', onBack: () => {} } });
-      expect(screen.getByText('← Zur Liste')).toBeTruthy();
+      expect(screen.getByText('← Zurück')).toBeTruthy();
 
       mm.resizeTo(true);
       await Promise.resolve();
-      expect(screen.queryByText('← Zur Liste')).toBeNull();
+      expect(screen.queryByText('← Zurück')).toBeNull();
     } finally {
       mm.restore();
     }

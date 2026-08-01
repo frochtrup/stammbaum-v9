@@ -258,7 +258,7 @@ await bottomNav('more'); await click('Ausgaben'); await sleep(500); await scroll
 // (hier: Medien, von 13c) — deshalb explizit auf das Personen-Segment schalten.
 await bottomNav('person'); await click('Personen'); await scrollTop();
 // Kaspar-Steckbrief wurde oben geöffnet → das Personen-Segment zeigt noch das Detail.
-// „← Zur Liste" schließen, damit die Werkzeuge-Disclosure der LISTE erscheint.
+// „← Zurück" schließen, damit die Werkzeuge-Disclosure der LISTE erscheint.
 await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(450);
 await scrollTop(); await click('Werkzeuge'); await click('Verwandtschaft berechnen'); await sleep(600);
 await pickInField('Person B', 'Styna Hörstmann'); await sleep(400);

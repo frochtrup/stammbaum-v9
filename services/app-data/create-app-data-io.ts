@@ -7,10 +7,13 @@
 import { InputFilePickerAdapter } from '../file';
 import type { PickerAdapter } from '../file';
 import { LocalStorageDeviceIdProvider } from '../places';
+import { IdbProjectsStore } from '../research/index';
+import type { ProjectsStore } from '../research/index';
 import { IdbValConfigStore } from '../validate';
 import type { ValConfigStore } from '../validate';
 import { IdbAppDataStore } from './idb-app-data-store';
 import { AppDataSyncService } from './app-data-sync-service';
+import { AppDataProjectsStore } from './app-data-projects-store';
 import { AppDataValConfigStore } from './app-data-val-config-store';
 import type { AppDataStore } from './types';
 
@@ -39,4 +42,14 @@ export function createAppDataIO(): AppDataIO {
  */
 export function createValConfigStore(io: AppDataIO = createAppDataIO()): ValConfigStore {
   return new AppDataValConfigStore(io.sync, new IdbValConfigStore());
+}
+
+/**
+ * Die Forschungsprojekte aus dem B1-Bündel (BL-239) — mit dem alten, gerätelokalen
+ * Store als einmaliger Übernahme-Quelle. Exakt dieselbe Bauart wie
+ * `createValConfigStore` darüber: die UI kennt nur den `ProjectsStore`-Vertrag, DIESE
+ * Fabrik ist der einzige Ort, an dem steht, wo die Projekte tatsächlich wohnen.
+ */
+export function createProjectsStore(io: AppDataIO = createAppDataIO()): ProjectsStore {
+  return new AppDataProjectsStore(io.sync, new IdbProjectsStore());
 }

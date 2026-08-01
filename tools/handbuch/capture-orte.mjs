@@ -94,7 +94,9 @@ await shot('e4-bearbeiten');
 
 // 5) Höfe.
 await page.evaluate(() => {
-  const back = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Zur Liste'));
+  // Beschriftung seit BL-07 „← Zurück" (vormals „← Zur Liste") — Geschwister-Stelle zu
+  // capture.mjs; bei jeder Umbenennung dieses Knopfs mitziehen.
+  const back = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Zurück'));
   back?.click();
 });
 await sleep(300);

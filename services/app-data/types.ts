@@ -3,13 +3,19 @@
 //
 // B1 = app-privater Zustand, der GERÄTE- UND DATEIÜBERGREIFEND gilt: er ist über
 // Schema, Regelnamen, Flags oder URL identifiziert und zeigt in keinen Bestand
-// (ADR-v9-173). Baumgebundener Zustand gehört ausdrücklich NICHT hierher — der
-// Union-Merge kennt keinen Datei-Kontext und vereinigte sonst Ids aus verschiedenen
-// Beständen.
+// (ADR-v9-173).
+//
+// Der Merge kennt weiterhin KEINEN Datei-Kontext — deshalb war baumgebundener Zustand
+// hier ursprünglich ausgeschlossen. Die Forschungsprojekte sind seit BL-239 trotzdem
+// hier (ADR-v9-176), aber nicht per Ausnahme: ihre Personenbezüge tragen seit BL-238
+// einen Fingerabdruck und werden am Referenten geprüft, ein Scope aus einem fremden
+// Bestand ist damit wirkungslos statt falsch. Die Schranke lautet also nicht mehr
+// „keine GEDCOM-Ids", sondern „keine UNGEPRÜFTEN GEDCOM-Ids".
 //
 // Bauart bewusst wie `orte.json` (services/places): derselbe `_rev`/`_device`/`_ts`-
 // Wrapper, derselbe IDB-Spiegel als Laufzeit-Wahrheit, derselbe explizite Datei-Ein-/
 // Ausgang über `FileService` — kein zweiter Sync-Mechanismus (INV-FILE-3).
+import type { Project } from '../../core/research/index';
 import type { StoredValidationConfig } from '../../core/validate/index';
 
 /** Erhöhen, sobald sich die SECTIONS-Struktur unverträglich ändert (s. `schema-too-new`). */
@@ -35,6 +41,18 @@ export interface ExportPrefs {
 export interface AppDataSections {
   valConfig?: StoredValidationConfig;
   exportPrefs?: ExportPrefs;
+  /**
+   * Forschungsprojekte (BL-239, ADR-v9-176). Der EINZIGE Abschnitt, der GEDCOM-Ids
+   * berührt (`scope.personRefs`) — zulässig geworden, weil diese Bezüge seit BL-238
+   * einen Fingerabdruck tragen und beim Auswerten am Referenten geprüft werden: ein
+   * Scope aus einem fremden Bestand ist damit **wirkungslos statt falsch**. Ohne diese
+   * Prüfung wäre er hier nicht zulässig (der Merge kennt keinen Datei-Kontext).
+   *
+   * Zugleich der einzige Abschnitt, der eine SAMMLUNG statt eines Singletons trägt und
+   * deshalb je Objekt vereinigt wird (`unionMerge`), nicht je Abschnitt — s.
+   * `app-data-sync-service.ts`.
+   */
+  projects?: Project[];
   // Später (eigene Backlog-Zeilen, kein Platzhalter-Code):
   //   quickTemplates (BL-232) · mapLayer (BL-230)
 }

@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { AppDataSyncService } from '../../services/app-data/index';
 import type { AppDataStore, AppDataWrapper, AppDataSections } from '../../services/app-data/index';
 import { APP_DATA_SCHEMA_VERSION } from '../../services/app-data/index';
+import { makeProject, type Project } from '../../core/research/index';
 
 class MemoryAppDataStore implements AppDataStore {
   constructor(public wrapper: AppDataWrapper | null = null) {}
@@ -110,14 +111,72 @@ describe('AppDataSyncService — Abgleich je Abschnitt', () => {
   });
 });
 
-describe('INV: `app-data.json` trägt nur dateiübergreifenden Zustand (ADR-v9-173)', () => {
-  it('kennt keinen Abschnitt, der GEDCOM-Ids referenziert', () => {
-    // Der Schutz ist strukturell: die Abschnitts-Liste ist geschlossen. Diese Zusicherung
-    // ist der Wächter dagegen, dass jemand Projekte oder Ausschluss-Paare hier einhängt —
-    // beides ist baumgebunden, und der Merge kennt keinen Datei-Kontext (er vereinigte
-    // dann Ids aus verschiedenen Beständen).
-    const erlaubt: (keyof AppDataSections)[] = ['valConfig', 'exportPrefs'];
-    const verboten = ['projects', 'dedupIgnored', 'personIds'];
-    for (const k of verboten) expect(erlaubt).not.toContain(k as keyof AppDataSections);
+describe('BL-239: die Projekte reisen mit — je Objekt vereinigt, nicht je Abschnitt', () => {
+  function projekt(id: string, name: string): Project {
+    return makeProject(id, { name, created: '2026-08-01' });
+  }
+
+  it('zwei Geräte legen je ein eigenes Projekt an → BEIDE bleiben erhalten', async () => {
+    // Genau der Fall, den eine Abschnitts-Merge verloren hätte (mit Konflikt-Hinweis,
+    // aber verloren): zwei Projekte sind kein Konflikt, sie sind zwei Projekte.
+    const store = new MemoryAppDataStore(wrapperOf(1, 'geraet-B', { projects: [projekt('p2', 'Höfe Rheine')] }));
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { projects: [projekt('p1', 'Linie Decker')] },
+      { rev: 1, sections: {} },
+    );
+
+    expect(res.sections.projects?.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
+    expect(res.warning).toBeNull();
+  });
+
+  it('dasselbe Projekt beidseitig unterschiedlich geändert → lokal gewinnt, benannt', async () => {
+    const basis = projekt('p1', 'Linie Decker');
+    const store = new MemoryAppDataStore(wrapperOf(1, 'geraet-B', { projects: [projekt('p1', 'Fremd umbenannt')] }));
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { projects: [projekt('p1', 'Lokal umbenannt')] },
+      { rev: 1, sections: { projects: [basis] } },
+    );
+
+    expect(res.sections.projects?.[0].name).toBe('Lokal umbenannt');
+    expect(res.warning).toEqual({ kind: 'section-conflict', conflictSections: ['projects'] });
+  });
+
+  it('nur die Gegenseite hat geändert → ihre Fassung übernehmen (disjunkt)', async () => {
+    const basis = projekt('p1', 'Linie Decker');
+    const store = new MemoryAppDataStore(wrapperOf(1, 'geraet-B', { projects: [projekt('p1', 'Dort umbenannt')] }));
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { projects: [basis] },
+      { rev: 1, sections: { projects: [basis] } },
+    );
+
+    expect(res.sections.projects?.[0].name).toBe('Dort umbenannt');
+    expect(res.warning).toBeNull();
+  });
+});
+
+describe('INV: `app-data.json` trägt keine UNGEPRÜFTEN GEDCOM-Ids (ADR-v9-173/-176)', () => {
+  it('die Abschnitts-Liste ist geschlossen — der Dublettenausschluss gehört nicht hierher', () => {
+    // Der Schutz ist strukturell: die Abschnitts-Liste ist geschlossen. Bis ADR-v9-176 war
+    // die Regel „gar keine GEDCOM-Ids"; sie hätte auch die Projekte draußen gehalten.
+    // Jetzt lautet sie „keine UNGEPRÜFTEN": die Projekte dürfen hier sein, WEIL ihre
+    // Personenbezüge einen Fingerabdruck tragen (BL-238) und am Referenten geprüft werden.
+    // Der Dublettenausschluss bleibt draußen — er ist seit ADR-v9-174 gar kein app-privater
+    // Zustand mehr, sondern eine abgelehnte Identitäts-Hypothese in der Genealogie-Datei.
+    const erlaubt: (keyof AppDataSections)[] = ['valConfig', 'exportPrefs', 'projects'];
+    expect(erlaubt).not.toContain('dedupIgnored' as keyof AppDataSections);
+  });
+
+  it('jeder Personenbezug im mitgereisten Scope ist geprüft — blanke Ids gibt es nicht', () => {
+    // Der eigentliche Wächter: käme je wieder ein `personIds: string[]` in den Scope,
+    // reiste eine ungeprüfte Datei-Id mit — genau der Defekt aus BL-238.
+    const scope = makeProject('p1').scope;
+    expect(Object.keys(scope)).not.toContain('personIds');
+    expect(scope.personRefs).toEqual([]);
   });
 });

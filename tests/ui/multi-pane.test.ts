@@ -7,7 +7,7 @@
 // Richtung, damit kein Formfaktor das Verhalten des anderen erbt.
 //
 // Zwei Punkte, die aus der Nebeneinander-Anordnung folgen und mitgeprüft werden:
-// "← Zur Liste" entfällt (die Liste ist sichtbar), und ohne Auswahl trägt der
+// "← Zurück" entfällt (die Liste ist sichtbar), und ohne Auswahl trägt der
 // Detail-Pane einen Leerzustand statt gar nichts (Spec 21 §5: nie ein stiller Abbruch).
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
@@ -71,11 +71,11 @@ describe('Multi-Pane auf Desktop — Liste UND Detail nebeneinander', () => {
     expect(within(detail as HTMLElement).queryByText(/Kein Eintrag ausgewählt/)).toBeNull();
   });
 
-  it('blendet "← Zur Liste" aus — die Liste ist sichtbar, ein Rückweg wäre sinnlos', async () => {
+  it('blendet "← Zurück" aus — die Liste ist sichtbar, ein Rückweg wäre sinnlos', async () => {
     render(EntityTab, { props: { appState: seed(), viewState: createViewState(), route: createRoute() } });
     await fireEvent.click(screen.getByText(/Bauer/));
 
-    expect(screen.queryByRole('button', { name: /Zur Liste/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Zurück/ })).toBeNull();
   });
 
   it('wechselt den Detail-Pane bei einer zweiten Auswahl, ohne die Liste anzufassen', async () => {
@@ -103,13 +103,13 @@ describe('Mobile bleibt entweder-oder — der Multi-Pane erbt nicht nach unten',
     expect(screen.getByText(/Bauer/)).toBeTruthy();
   });
 
-  it('ersetzt die Liste durch das Detail und behält "← Zur Liste"', async () => {
+  it('ersetzt die Liste durch das Detail und behält "← Zurück"', async () => {
     render(EntityTab, { props: { appState: seed(), viewState: createViewState(), route: createRoute() } });
 
     await fireEvent.click(screen.getByText(/Bauer/));
 
     // Die zweite Person aus der Liste ist nicht mehr da: das Detail hat die Fläche.
     expect(screen.queryByText(/Klein/)).toBeNull();
-    expect(screen.getByRole('button', { name: /Zur Liste/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Zurück/ })).toBeTruthy();
   });
 });

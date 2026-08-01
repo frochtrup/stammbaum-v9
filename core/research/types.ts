@@ -94,12 +94,33 @@ export interface Hypothesis {
 }
 
 // --- §5 Forschungsprojekt (app-privat) --------------------------------------
+/**
+ * Ein ausdrücklicher Personenbezug im Projekt-Scope — Id PLUS Fingerabdruck der
+ * gemeinten Person (BL-238, ADR-v9-176).
+ *
+ * Die blanke Id reicht NICHT: sie ist datei-lokal, der Projekt-Speicher dagegen global
+ * (der Dateiwechsel zieht ihn nicht mit), und `@I1@` existiert in fast jeder Datei —
+ * ein Scope zeigte in einer zweiten Datei auf eine FREMDE Person. Der Fingerabdruck
+ * macht daraus einen prüfbaren Bezug: beim Auswerten wird am Referenten verglichen und
+ * Nicht-Passendes ignoriert (`resolveScopePersonRef`). Er fängt zusätzlich die
+ * Id-Neuvergabe im selben Baum (Fremdwerkzeug, GRAMPS→GEDCOM), an der eine
+ * Baum-Identität still gescheitert wäre.
+ */
+export interface ScopePersonRef {
+  /** Datei-lokale GEDCOM-Id (`@I…@`) zum Zeitpunkt der Aufnahme. */
+  id: string;
+  /** `given surname` der gemeinten Person. '' = Altbestand ohne Fingerabdruck (unprüfbar). */
+  name: string;
+  /** Geburtsjahr, sofern bekannt — entscheidet nur, wenn beide Seiten es kennen. */
+  year: number | null;
+}
+
 export interface ProjectScope {
   surnames: string[];
   places: string[];
   yearFrom: number | null;
   yearTo: number | null;
-  personIds: string[];
+  personRefs: ScopePersonRef[];
 }
 
 export interface Project {
