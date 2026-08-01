@@ -9,6 +9,7 @@ export type {
 } from './types';
 export { buildMediaIndex, normalizePath, basenameOf, type MediaIndex } from './media-index';
 export { FsMediaFolderAdapter } from './fs-media-folder-adapter';
+export { browserThumbnail, canMakeThumbnails } from './browser-thumbnailer';
 export { IdbMediaFolderHandleStore } from './idb-media-folder-handle-store';
 export {
   createMediaResolver,

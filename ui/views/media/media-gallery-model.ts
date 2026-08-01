@@ -12,7 +12,12 @@
 // Lösch-Kaskade nicht auseinanderdriften (INV-UI-4-Geist: eine Traversierung, zwei
 // Konsumenten).
 import type { Citation, Database, Media, MediaCitation, MediaId } from '../../../core/model/types';
-import { classifyMediaFile, isImageMedia, type MediaFileKind } from '../../../core/model/media-kind';
+import {
+  classifyMediaFile,
+  isImageMedia,
+  webLinkLabel,
+  type MediaFileKind,
+} from '../../../core/model/media-kind';
 
 export type MediaOwnerKind = 'person' | 'family' | 'source';
 export type MediaOwnerFilter = 'all' | MediaOwnerKind;
@@ -59,7 +64,13 @@ function basename(path: string): string {
 }
 
 export function displayTitle(m: Media): string {
-  return m.title || basename(m.file) || m.id;
+  if (m.title) return m.title;
+  // Ein Weblink hat keinen „Dateinamen" — sein letztes Pfadstück ist bei den häufigen
+  // Archiv-Adressen leer, und der Rückfall lieferte die Query (`?pg=10`). Am Realbestand
+  // hießen dadurch 451 Kacheln fast gleich (eigene Browser-Verifikation, BL-256).
+  const link = webLinkLabel(m.file);
+  if (link) return link;
+  return basename(m.file) || m.id;
 }
 
 // `isDisplayableImage` lebte hier bis ADR-v9-187 und entschied für die ganze UI, ob ein

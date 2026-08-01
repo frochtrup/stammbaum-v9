@@ -59,8 +59,17 @@ export function createMediaResolver(opts: {
   store: MediaFolderHandleStore;
   createObjectUrl?: (blob: Blob) => string;
   revokeObjectUrl?: (url: string) => void;
+  /**
+   * Verkleinert ein Bild für die Kachelansicht. Injizierbar, weil `createImageBitmap`/
+   * `OffscreenCanvas` unter happy-dom fehlen — und weil das Verkleinern eine
+   * Plattform-Fähigkeit ist, keine Logik. Fehlt sie, wird das Original angezeigt.
+   *
+   * Warum überhaupt: 126 der 189 Bilddateien des Realbestands sind unkomprimierte BMP.
+   * Ein Kachelraster, das sie in Originalgröße dekodiert, ist ein echter Speicherfehler.
+   */
+  makeThumbnail?: (blob: Blob, maxEdge: number) => Promise<Blob>;
 }) {
-  const { adapter, store } = opts;
+  const { adapter, store, makeThumbnail } = opts;
   const createObjectUrl = opts.createObjectUrl ?? ((b: Blob) => URL.createObjectURL(b));
   const revokeObjectUrl = opts.revokeObjectUrl ?? ((u: string) => URL.revokeObjectURL(u));
 
@@ -70,12 +79,17 @@ export function createMediaResolver(opts: {
   /** Pfad → Objekt-URL. Wird beim Ordnerwechsel vollständig freigegeben; ohne das
    *  sammelt ein langlebiger Tab Blobs an, die nie eingesammelt werden. */
   const urlCache = new Map<string, ResolvedMedia>();
+  /** Dasselbe für die verkleinerten Kachelbilder — getrennt, weil dieselbe Datei in
+   *  beiden Größen gebraucht wird (Kachel + Detailvorschau). */
+  const thumbCache = new Map<string, ResolvedMedia>();
 
   function dropCache(): void {
-    for (const r of urlCache.values()) {
-      if (r.url.startsWith('blob:')) revokeObjectUrl(r.url);
+    for (const c of [urlCache, thumbCache]) {
+      for (const r of c.values()) {
+        if (r.url.startsWith('blob:')) revokeObjectUrl(r.url);
+      }
+      c.clear();
     }
-    urlCache.clear();
   }
 
   async function indexFolder(): Promise<void> {
@@ -165,6 +179,32 @@ export function createMediaResolver(opts: {
         const miss: ResolvedMedia = { state: 'missing', url: '', match: null };
         urlCache.set(file, miss);
         return miss;
+      }
+    },
+
+    /**
+     * Wie `resolve`, aber für die Kachelansicht: liefert eine VERKLEINERTE Fassung,
+     * sofern die Plattform das kann. Ohne `makeThumbnail` (oder bei einem Fehlschlag —
+     * ein Format, das der Browser nicht dekodiert) fällt es auf das Original zurück:
+     * ein kleineres Bild ist eine Optimierung, kein Anzeige-Vorbehalt.
+     */
+    async resolveThumbnail(file: string, maxEdge = 320): Promise<ResolvedMedia> {
+      const full = await this.resolve(file);
+      if (full.state !== 'ok' || !makeThumbnail) return full;
+      if (classifyMediaFile(file) !== 'file') return full; // eingebettet: schon klein genug
+
+      const cached = thumbCache.get(file);
+      if (cached) return cached;
+
+      const hit = index?.find(file);
+      if (!hit) return full;
+      try {
+        const small = await makeThumbnail(await adapter.readFile(hit.entry), maxEdge);
+        const res: ResolvedMedia = { state: 'ok', url: createObjectUrl(small), match: hit.kind };
+        thumbCache.set(file, res);
+        return res;
+      } catch {
+        return full;
       }
     },
 

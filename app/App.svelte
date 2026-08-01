@@ -51,6 +51,8 @@
     createMediaResolver,
     FsMediaFolderAdapter,
     IdbMediaFolderHandleStore,
+    browserThumbnail,
+    canMakeThumbnails,
     type MediaResolver,
   } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
@@ -104,6 +106,9 @@
     mediaResolver = createMediaResolver({
       adapter: new FsMediaFolderAdapter(),
       store: new IdbMediaFolderHandleStore(),
+      // Ohne `createImageBitmap`/`OffscreenCanvas` (ältere Browser, Testumgebung) bleibt
+      // es beim Original — kleiner ist eine Optimierung, kein Anzeige-Vorbehalt.
+      makeThumbnail: canMakeThumbnails() ? browserThumbnail : undefined,
     }),
     layoutEnv,
   }: Props = $props();
@@ -437,6 +442,7 @@
         {clipboard}
         {appState}
         {viewState}
+        {mediaResolver}
         {route}
         {navHistory}
         onOpenLensForPerson={openLensForPerson}

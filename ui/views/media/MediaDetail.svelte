@@ -26,7 +26,9 @@
   } from '../../../core/model';
   import type { MediaCitation } from '../../../core/model/types';
   import { buildMediaDetail, type MediaReferenceRow } from './media-detail-model';
-  import { classifyMediaFile, isEmbeddedImage, webLinkHost } from '../../../core/model/media-kind';
+  import { classifyMediaFile, isImageMedia, webLinkHost } from '../../../core/model/media-kind';
+  import MediaThumb from '../../shell/MediaThumb.svelte';
+  import type { MediaResolver } from '../../../services/media';
 
   interface Props {
     appState: AppState;
@@ -35,9 +37,18 @@
     onNavigateToFamily: (familyId: string) => void;
     onNavigateToSource: (sourceId: string) => void;
     onBack?: () => void;
+    /** Medien-Auflösung (BL-258) — ohne sie bleibt es bei eingebetteten Bildern. */
+    mediaResolver?: MediaResolver;
   }
-  const { appState, viewState, onNavigateToPerson, onNavigateToFamily, onNavigateToSource, onBack }: Props =
-    $props();
+  const {
+    appState,
+    viewState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    onNavigateToSource,
+    onBack,
+    mediaResolver,
+  }: Props = $props();
 
   const mediaId = $derived(viewState.getCurrent('media'));
   const detail = $derived(mediaId ? buildMediaDetail(appState.db, mediaId) : null);
@@ -222,9 +233,15 @@
         </div>
       </div>
     {:else}
-      {#if isEmbeddedImage(detail.media.file)}
+      {#if fileKind !== 'weblink' && isImageMedia(detail.media.file, detail.media.form)}
         <figure class="media-detail__preview">
-          <img src={detail.media.file} alt={detail.displayTitle} />
+          <MediaThumb
+            file={detail.media.file}
+            form={detail.media.form}
+            alt={detail.displayTitle}
+            resolver={mediaResolver}
+            size="large"
+          />
         </figure>
       {/if}
       <dl class="media-detail__meta">
@@ -324,12 +341,6 @@
     text-align: center;
   }
 
-  .media-detail__preview img {
-    max-width: 100%;
-    max-height: 320px;
-    border-radius: var(--stb-radius-control);
-    background: var(--stb-surface-2);
-  }
 
   .media-detail__meta {
     display: grid;

@@ -57,6 +57,29 @@ export function webLinkHost(file: string): string {
 }
 
 /**
+ * Sprechende Kurzbezeichnung eines Weblinks, wenn das Medium keinen eigenen Titel trägt
+ * (bei der 5.5.1-Inline-Altform der Regelfall). '' wenn der Wert kein Weblink ist.
+ *
+ * Der naheliegende „Basisname" versagt hier: bei
+ * `…/muenster/KB001/?pg=10` ist das letzte Pfadstück leer und der Dateiname-Rückfall
+ * liefert `?pg=10`. Am Realbestand hieß dadurch fast jede Weblink-Kachel `?pg=NN` —
+ * 451 Kacheln, die sich nur durch eine Seitenzahl unterscheiden. Deshalb: letztes
+ * NICHT-leeres Pfadstück (das Buch/Register) plus die Seitenangabe, sonst der Host.
+ */
+export function webLinkLabel(file: string): string {
+  const f = file.trim();
+  if (!HTTP_RE.test(f)) return '';
+  try {
+    const u = new URL(f);
+    const seg = u.pathname.split('/').filter(Boolean).pop() ?? '';
+    const name = seg ? decodeURIComponent(seg) : u.host;
+    return u.search ? `${name} ${u.search}` : name;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Wie das Medium DARGESTELLT wird, sobald seine Bytes vorliegen: als Bild oder als
  * Dokument. Entschieden über das kanonische MIME (`Media.form`, seit ADR-v9-126 an der
  * Parse-Grenze vereinheitlicht); fehlt es, entscheidet die Datei-Endung über dieselbe

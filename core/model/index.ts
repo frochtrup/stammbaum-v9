@@ -29,6 +29,7 @@ export {
   classifyMediaFile,
   isWebLink,
   webLinkHost,
+  webLinkLabel,
   isImageMedia,
   isEmbeddedImage,
   type MediaFileKind,

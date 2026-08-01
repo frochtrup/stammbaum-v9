@@ -9,6 +9,7 @@ import {
   webLinkHost,
   isImageMedia,
   isEmbeddedImage,
+  webLinkLabel,
 } from '../../core/model/media-kind';
 
 describe('classifyMediaFile (ADR-v9-187)', () => {
@@ -103,5 +104,28 @@ describe('isEmbeddedImage — ersetzt isDisplayableImage (ADR-v9-136 → -187)',
 
   it('trifft NICHT auf Weblinks zu — sie werden verlinkt, nie geladen (LP-2/CSP)', () => {
     expect(isEmbeddedImage('https://sites-cf.mhcache.com/foto.jpg')).toBe(false);
+  });
+});
+
+describe('webLinkLabel — der Titel, den eine Weblink-Kachel trägt', () => {
+  it('nimmt das letzte Pfadstück plus die Seitenangabe, nicht die nackte Query', () => {
+    // Genau die Form, die am Realbestand 451× vorkommt.
+    expect(webLinkLabel('https://data.matricula-online.eu/de/deutschland/muenster/KB001/?pg=10')).toBe(
+      'KB001 ?pg=10',
+    );
+  });
+
+  it('kommt ohne Query aus', () => {
+    expect(webLinkLabel('https://www.archion.de/p/abcdef/')).toBe('abcdef');
+  });
+
+  it('fällt auf den Host zurück, wenn es keinen Pfad gibt', () => {
+    expect(webLinkLabel('https://www.online-ofb.de/')).toBe('www.online-ofb.de');
+    expect(webLinkLabel('https://www.online-ofb.de/?ofb=x')).toBe('www.online-ofb.de ?ofb=x');
+  });
+
+  it('liefert nichts für Nicht-Weblinks', () => {
+    expect(webLinkLabel('Pictures/x.jpg')).toBe('');
+    expect(webLinkLabel('')).toBe('');
   });
 });

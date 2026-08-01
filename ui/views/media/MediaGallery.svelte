@@ -30,13 +30,18 @@
     type MediaKindFilter,
     type MediaTileRow,
   } from './media-gallery-model';
-  import { isEmbeddedImage, webLinkHost } from '../../../core/model/media-kind';
+  import { webLinkHost } from '../../../core/model/media-kind';
+  import MediaThumb from '../../shell/MediaThumb.svelte';
+  import type { MediaResolver } from '../../../services/media';
 
   interface Props {
     appState: AppState;
     viewState: ViewState;
+    /** Medien-Auflösung (BL-258). Ohne sie bleiben Pfad-Bilder unaufgelöst — die Kachel
+     *  zeigt dann Metadaten statt eines toten Bildsymbols. */
+    mediaResolver?: MediaResolver;
   }
-  const { appState, viewState }: Props = $props();
+  const { appState, viewState, mediaResolver }: Props = $props();
 
   const allRows = $derived(buildMediaTiles(appState.db));
   const isEmpty = $derived(appState.db.media.size === 0);
@@ -69,12 +74,18 @@
     ),
   );
 
-  // "kaputte Datei-Referenz zeigt ⚠": ohne verbundenen Medien-Ordner (BL-257/BL-258) ist
-  // nur der leere Pfad zuverlässig als kaputt erkennbar. Das echte "Datei existiert nicht"
-  // kommt mit dem Auflösungsdienst; bis dahin bewusst diese erkennbare Teilmenge.
+  // ⚠ auf der Kachel-ÜBERSCHRIFT meint weiterhin nur den fehlenden Verweis; ob eine
+  // Datei im Ordner auffindbar ist, beantwortet `MediaThumb` an der Bildstelle selbst
+  // (dort steht auch der Dateiname im Tooltip).
   function isBroken(row: MediaTileRow): boolean {
     return row.fileKind === 'empty';
   }
+
+  // Ein Ordnerwechsel muss jede Kachel neu auflösen lassen; der Resolver ist bewusst
+  // kein Svelte-Store (er gehört der services-Schicht), also ist dieser Schlüssel die
+  // Brücke. Die Galerie liest ihn beim Mount und wenn die Zahl der Ordner-Dateien
+  // wechselt — mehr Kopplung braucht es nicht.
+  const folderKey = $derived(mediaResolver?.status().fileCount ?? 0);
 
   const OWNER_ICONS: Record<'person' | 'family' | 'source', string> = {
     person: '👤',
@@ -136,10 +147,14 @@
         {#each rows as row (row.id)}
           <li>
             <button type="button" class="media-gallery__tile" onclick={() => selectMedia(row.id)}>
-              {#if isEmbeddedImage(row.file)}
-                <span class="media-gallery__thumb">
-                  <img src={row.file} alt="" loading="lazy" />
-                </span>
+              {#if row.fileKind !== 'weblink' && row.isImage}
+                <MediaThumb
+                  file={row.file}
+                  form={row.form}
+                  resolver={mediaResolver}
+                  resolveKey={folderKey}
+                  size="tile"
+                />
               {/if}
               <span class="media-gallery__tile-title">
                 {#if isBroken(row)}<span class="media-gallery__warn" title="Datei-Referenz fehlt">⚠</span>{/if}
@@ -232,21 +247,6 @@
     background: var(--stb-surface-3);
   }
 
-  .media-gallery__thumb {
-    display: block;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: calc(var(--stb-radius-control) - 2px);
-    overflow: hidden;
-    background: var(--stb-surface-3);
-  }
-
-  .media-gallery__thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
 
   .media-gallery__tile-title {
     font-weight: 600;

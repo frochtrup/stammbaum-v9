@@ -135,14 +135,32 @@
       </p>
     {:else}
       <div class="settings-view__actions">
-        <button type="button" data-variant="secondary" disabled={busy} onclick={connectFolder}>
+        <button
+          type="button"
+          class="settings-view__btn"
+          data-variant="secondary"
+          disabled={busy}
+          onclick={connectFolder}
+        >
           {summary.connected ? 'Anderen Ordner wählen' : 'Ordner wählen'}
         </button>
         {#if summary.connected}
-          <button type="button" data-variant="secondary" disabled={busy} onclick={rescanFolder}>
+          <button
+            type="button"
+            class="settings-view__btn"
+            data-variant="secondary"
+            disabled={busy}
+            onclick={rescanFolder}
+          >
             Neu einlesen
           </button>
-          <button type="button" data-variant="secondary" disabled={busy} onclick={disconnectFolder}>
+          <button
+            type="button"
+            class="settings-view__btn"
+            data-variant="secondary"
+            disabled={busy}
+            onclick={disconnectFolder}
+          >
             Trennen
           </button>
         {/if}
@@ -247,6 +265,34 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 0.3rem;
+  }
+
+  /* Sekundär-Optik wie die Orts-/App-Daten-Aktionen (ADR-v9-128). `data-variant` allein
+     stylt NICHTS — es ist ein Marker, kein globaler CSS-Hook (jede Komponente bringt ihre
+     eigene Regel mit, s. ImportButton/AppDataFileButtons/PlacesFileButtons). Ohne diese
+     Regel rendert der Knopf im Browser-Default: hellgrauer Grund mit hellem Text, also
+     praktisch unlesbar — bei der eigenen Browser-Verifikation aufgefallen, nicht im Test
+     (happy-dom kennt keine Farben). Dass es hier die VIERTE Kopie derselben Regel ist,
+     ist ein bekannter Hygiene-Punkt, kein Freibrief. */
+  .settings-view__btn {
+    background: transparent;
+    color: var(--stb-gold);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.5rem 0.9rem;
+    min-height: 44px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .settings-view__btn:hover,
+  .settings-view__btn:focus-visible {
+    border-color: var(--stb-gold);
+  }
+
+  .settings-view__btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
   }
 
   .settings-view__jumps {

@@ -39,6 +39,7 @@
   import HofReview from './hof/HofReview.svelte';
   import HofDedupView from './hof/HofDedupView.svelte';
   import MediaGallery from './media/MediaGallery.svelte';
+  import type { MediaResolver } from '../../services/media';
   import MediaDetail from './media/MediaDetail.svelte';
 
   interface Props {
@@ -46,6 +47,8 @@
     viewState: ViewState;
     /** Ereignis-Zwischenablage der Sitzung (BL-212) — nur durchgereicht, s. PersonDetail. */
     clipboard?: EventClipboard;
+    /** Medien-Auflösung (BL-258) — nur durchgereicht an Galerie und Medium-Detail. */
+    mediaResolver?: MediaResolver;
     /**
      * Personen-Kontext-Sprung in eine Lens (PersonDetail -> Baum/Karte/Zeitleiste/Story,
      * BL-60/ADR-v9-153 — ersetzt die vormaligen Einzel-Callbacks `onNavigateToTree`/
@@ -82,6 +85,7 @@
     onOpenStoryForFamily,
     onNavigateLens,
     clipboard,
+    mediaResolver,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -382,7 +386,7 @@
         {onNavigateLens}
       />
     {:else if activeSegment === 'media'}
-      <MediaGallery {appState} {viewState} />
+      <MediaGallery {appState} {viewState} {mediaResolver} />
     {/if}
   {/snippet}
 
@@ -446,6 +450,7 @@
       <MediaDetail
         {appState}
         {viewState}
+        {mediaResolver}
         onNavigateToPerson={navigateToPerson}
         onNavigateToFamily={navigateToFamily}
         onNavigateToSource={navigateToSource}
