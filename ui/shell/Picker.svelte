@@ -316,9 +316,18 @@
    * `preventDefault` am `mousedown` unterbindet genau die Fokus-Verschiebung, die diese
    * Kette auslöst — der Fokus bleibt im Feld, `focusout` feuert gar nicht, und die
    * Reihenfolge ist in jedem Browser dieselbe. Kein Browser-Sniffing, kein `setTimeout`,
-   * kein zweiter Schließweg. Muss an JEDER Zeile hängen (Treffer, „keine Auswahl",
-   * „+ neu anlegen", Fußbereich) — eine Zeile ohne sie wäre die Stelle, an der der Defekt
-   * zurückkommt.
+   * kein zweiter Schließweg.
+   *
+   * Der Schutz sitzt am PANEL, nicht an den Zeilen (BL-254, ADR-v9-185). Er saß zuerst je
+   * Zeile, mit dem Vorsatz „muss an JEDER Zeile hängen" — und übersah damit alles, was
+   * keine Zeile ist: den **Scrollbalken** der Ergebnisliste (ab 25 Treffern der Regelfall),
+   * die Polsterung des Panels, die Leermeldung, den „… N weitere"-Hinweis. Am laufenden
+   * System gemessen (`scrollHeight` 993 / `clientHeight` 256): ein Klick auf die Polsterung
+   * ließ `activeElement` auf `BODY` zurück und räumte die Liste ab — in Chromium, nicht nur
+   * in Safari; wer scrollen wollte, klappte zu. Am Panel greift die Regel für den ganzen
+   * Teilbaum (das `mousedown` blubbert von jeder Zeile dorthin), und eine künftig neu
+   * hinzugefügte Zeilenart kann sie nicht mehr vergessen — das ist der Unterschied zwischen
+   * einer Erinnerung und einer Stelle.
    */
   function haltFokusImFeld(e: MouseEvent) {
     e.preventDefault();
@@ -369,6 +378,7 @@
       class="stb-picker__panel"
       bind:this={panelEl}
       use:anchoredTo={fieldEl}
+      onmousedown={haltFokusImFeld}
       onfocusout={onFocusOut}
       onkeydown={onKeydown}
     >
@@ -390,7 +400,6 @@
                 aria-selected={activeIndex === i}
                 class="stb-picker__result stb-picker__result--none"
                 class:stb-picker__result--active={activeIndex === i}
-                onmousedown={haltFokusImFeld}
                 onclick={selectNone}
               >
                 {noneLabel}
@@ -403,7 +412,6 @@
                 aria-selected={activeIndex === i}
                 class="stb-picker__result stb-picker__result--create"
                 class:stb-picker__result--active={activeIndex === i}
-                onmousedown={haltFokusImFeld}
                 onclick={requestCreate}
               >
                 {createLabel}
@@ -418,7 +426,6 @@
                   aria-selected={activeIndex === i}
                   class="stb-picker__result"
                   class:stb-picker__result--active={activeIndex === i}
-                  onmousedown={haltFokusImFeld}
                   onclick={() => select(row.id)}
                 >
                   <span class="stb-picker__result-name">{getLabel(item)}</span>
@@ -430,16 +437,20 @@
             {/if}
           </li>
         {/each}
-        {#if candidates.length === 0}
-          <li role="presentation" class="stb-picker__empty">Keine Treffer gefunden.</li>
-        {/if}
-        {#if hiddenCount > 0}
-          <li role="presentation" class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</li>
-        {/if}
       </ul>
+      <!-- Leermeldung und Kapazitäts-Hinweis stehen NEBEN der Liste, nicht darin (BL-254/
+           axe `aria-required-children`): ein `listbox` darf nur `option`s besitzen. Als
+           `<li role="presentation">` INNERHALB des `<ul>` waren sie die einzigen Kinder,
+           sobald die Suche nichts traf — genau der Zustand, den bis dahin kein Testzustand
+           erreicht hatte, weil kein Test je auf null Treffer filterte. -->
+      {#if candidates.length === 0}
+        <p class="stb-picker__empty">Keine Treffer gefunden.</p>
+      {/if}
+      {#if hiddenCount > 0}
+        <p class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</p>
+      {/if}
       {#if footer}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="stb-picker__footer" onmousedown={haltFokusImFeld}>{@render footer()}</div>
+        <div class="stb-picker__footer">{@render footer()}</div>
       {/if}
     </div>
   {/if}
@@ -573,6 +584,7 @@
 
   .stb-picker__empty,
   .stb-picker__more-hint {
+    margin: 0;
     padding: 0.4rem 0.5rem;
     color: var(--stb-text-dim);
     font-size: 0.8rem;

@@ -439,3 +439,84 @@ describe('Picker — die Trefferliste hängt nicht am Fokus (ADR-v9-182, BL-250)
     fremd.remove();
   });
 });
+
+describe('Picker — auch die Nicht-Zeilen des Panels halten den Fokus (BL-254, ADR-v9-185)', () => {
+  // Nachtrag zu ADR-v9-182: der Schutz saß an den ZEILEN, und der Kommentar dort sagte
+  // „muss an JEDER Zeile hängen". Der Panel-Hintergrund ist keine Zeile — und trägt genau
+  // die Flächen, die ein Nutzer mit der Maus anfasst, ohne einen Treffer zu meinen: den
+  // SCROLLBALKEN der Ergebnisliste (ab 25 Treffern der Regelfall), die Polsterung des
+  // Panels, die Leermeldung und den „… N weitere"-Hinweis. Am laufenden System gemessen
+  // (Zugehörigkeits-Picker, scrollHeight 993 / clientHeight 256): ein Klick auf die
+  // Panel-Polsterung liess `activeElement` auf BODY zurück und räumte die Liste ab — in
+  // CHROMIUM, nicht nur in Safari. Wer die Liste scrollen wollte, klappte sie zu.
+  function offenerPicker(anzahl = 3) {
+    const items = Array.from({ length: anzahl }, (_, i) => ({
+      id: `f${i}`,
+      name: `Frucht ${String(i).padStart(2, '0')}`,
+      color: 'rot',
+    }));
+    render(Picker, {
+      props: { items, getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht' },
+    });
+    return screen.getByLabelText('Frucht');
+  }
+
+  function mousedownAuf(el: Element): MouseEvent {
+    const ereignis = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    el.dispatchEvent(ereignis);
+    return ereignis;
+  }
+
+  it('der Panel-Hintergrund unterbindet die Vorgabe-Handlung wie eine Zeile', async () => {
+    const feld = offenerPicker();
+    await fireEvent.click(feld);
+
+    const panel = document.querySelector('.stb-picker__panel') as HTMLElement;
+    expect(mousedownAuf(panel).defaultPrevented).toBe(true);
+  });
+
+  it('die scrollende Ergebnisliste ebenfalls — sonst schliesst der Scrollbalken die Liste', async () => {
+    // Über der Kappungsgrenze (MAX_VISIBLE_RESULTS = 25): erst hier bekommt die Liste
+    // überhaupt einen Scrollbalken, und genau dann greift der Nutzer danach.
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+
+    const liste = document.querySelector('.stb-picker__results') as HTMLElement;
+    expect(mousedownAuf(liste).defaultPrevented).toBe(true);
+  });
+
+  it('der „… N weitere"-Hinweis ebenfalls (keine Zeile, aber im Panel)', async () => {
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+
+    const hinweis = document.querySelector('.stb-picker__more-hint') as HTMLElement;
+    expect(hinweis).toBeTruthy();
+    expect(mousedownAuf(hinweis).defaultPrevented).toBe(true);
+  });
+
+  it('die Leermeldung ebenfalls', async () => {
+    const feld = offenerPicker();
+    await fireEvent.click(feld);
+    await fireEvent.input(feld, { target: { value: 'GibtEsNicht' } });
+
+    const leer = document.querySelector('.stb-picker__empty') as HTMLElement;
+    expect(leer).toBeTruthy();
+    expect(mousedownAuf(leer).defaultPrevented).toBe(true);
+  });
+
+  it('die Liste überlebt einen Griff an den Scrollbalken (fremde Browser-Reihenfolge)', async () => {
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+    expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+
+    const liste = document.querySelector('.stb-picker__results') as HTMLElement;
+    const runter = mousedownAuf(liste);
+    // Dieselbe Kopplung wie in `klickWieSafari`: der Browser verschiebt den Fokus NUR,
+    // wenn die Vorgabe-Handlung nicht unterbunden wurde.
+    if (!runter.defaultPrevented) await fireEvent.focusOut(feld, { relatedTarget: null });
+
+    // Ohne den Schutz stünde hier 0 — die Liste wäre unter der Hand verschwunden.
+    expect(screen.queryAllByRole('option').length).toBeGreaterThan(0);
+  });
+});

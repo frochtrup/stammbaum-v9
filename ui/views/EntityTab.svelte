@@ -115,6 +115,27 @@
   // Overlay) — sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
   const overlays = createEntityTabOverlays();
 
+  /**
+   * Ein Werkzeug zu öffnen GIBT die Einzelauswahl des Segments auf (ADR-v9-184).
+   *
+   * Warum das nötig ist: `overlayActive` (unten) lässt ein Werkzeug nur die volle Breite
+   * belegen, solange nichts ausgewählt ist — sonst gewönne ein vergessener Overlay-Zustand
+   * gegen den gerade angesteuerten Datensatz. Diese Bedingung stammt aus dem MOBILEN
+   * Entweder-oder-Modell, wo die Liste (und damit der Werkzeug-Auslöser) bei vorhandener
+   * Auswahl gar nicht rendert. Mit dem Desktop-Multi-Pane (BL-92) bleibt die Listenspalte
+   * samt „Werkzeuge"-Disclosure dauerhaft sichtbar: dort setzte der Klick nur den Zustand,
+   * und nichts rendete — aus Nutzersicht „der Knopf tut nichts", bis zum Reload.
+   *
+   * Das Räumen ist die Gegenrichtung zu `closeForPlace()`/`closeForHof()`: dort weicht das
+   * Werkzeug dem angesteuerten Datensatz, hier weicht die Auswahl dem Werkzeug. Ein
+   * Review-/Dedup-Werkzeug IST eine ganzflächige Arbeitsfläche, keine zweite Detailansicht
+   * — beides gleichzeitig zu zeigen war nie die Absicht (Spec 11 §6/§9.2).
+   */
+  function openTool(slot: 'person' | 'place' | 'hof', open: () => void) {
+    viewState.setCurrent(slot, null);
+    open();
+  }
+
   function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
     route.setTarget(segment.id);
@@ -329,7 +350,13 @@
        ohne Gewinn. -->
   {#snippet listPane()}
     {#if activeSegment === 'person'}
-      <PersonList {appState} {viewState} onCreate={createPerson} onOpenDedup={overlays.openPersonDedup} onOpenRelationship={overlays.openRelationshipTool} />
+      <PersonList
+        {appState}
+        {viewState}
+        onCreate={createPerson}
+        onOpenDedup={() => openTool('person', overlays.openPersonDedup)}
+        onOpenRelationship={() => openTool('person', overlays.openRelationshipTool)}
+      />
     {:else if activeSegment === 'family'}
       <FamilyList {appState} {viewState} onCreate={createFamily} />
     {:else if activeSegment === 'source'}
@@ -339,9 +366,21 @@
         <SourceList {appState} {viewState} onCreate={createSource} />
       {/if}
     {:else if activeSegment === 'place'}
-      <PlaceList {appState} {viewState} onOpenReview={overlays.openPlaceReview} onOpenDedup={overlays.openPlaceDedup} {onNavigateLens} />
+      <PlaceList
+        {appState}
+        {viewState}
+        onOpenReview={() => openTool('place', overlays.openPlaceReview)}
+        onOpenDedup={() => openTool('place', overlays.openPlaceDedup)}
+        {onNavigateLens}
+      />
     {:else if activeSegment === 'hof'}
-      <HofList {appState} {viewState} onOpenReview={overlays.openHofReview} onOpenDedup={overlays.openHofDedup} {onNavigateLens} />
+      <HofList
+        {appState}
+        {viewState}
+        onOpenReview={() => openTool('hof', overlays.openHofReview)}
+        onOpenDedup={() => openTool('hof', overlays.openHofDedup)}
+        {onNavigateLens}
+      />
     {:else if activeSegment === 'media'}
       <MediaGallery {appState} {viewState} />
     {/if}
