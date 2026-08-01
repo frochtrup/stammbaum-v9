@@ -26,7 +26,12 @@
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import Picker from '../../shell/Picker.svelte';
-  import { withAddedEnclosedBy, withRemovedEnclosedBy, placeDisplayName } from '../../../core/places';
+  import {
+    withAddedEnclosedBy,
+    withRemovedEnclosedBy,
+    withUpdatedEnclosedBy,
+    placeDisplayName,
+  } from '../../../core/places';
   import PlaceForm from './PlaceForm.svelte';
 
   interface Props {
@@ -38,15 +43,43 @@
 
   const place = $derived(appState.db.placeObjects.get(placeId));
 
-  /** Nach Beginn-Jahr sortiert (v8-Vorbild `_renderEnclosedByList`: undatierte Einträge
-   *  ans Ende, `null` sortiert wie "9999"). Trägt den ORIGINAL-Index mit, weil
-   *  removeEnclosedBy/withAddedEnclosedBy über den Index im ROHEN `place.enclosedBy`-
-   *  Array arbeiten, nicht über die sortierte Anzeige-Reihenfolge. */
+  /**
+   * Sortier-Rang eines Eintrags — DREI Zustände, nicht zwei (ADR-v9-181, Spec 11 §1):
+   * nach unten offen (`from` fehlt, `to` gesetzt: „seit jeher bis X") gehört an den
+   * ANFANG, undatiert (beide fehlen) ans Ende, alles Datierte dazwischen nach `from`.
+   *
+   * Das v8-Vorbild `_renderEnclosedByList` sortierte mit `from ?? 9999` und warf damit
+   * beide offenen Fälle in einen Topf — „…–1806" stand deshalb UNTER „1816–…", also
+   * genau verkehrt herum.
+   */
+  type Zeitraum = { from: number | null; to: number | null };
+
+  /** 0 = nach unten offen · 1 = datiert · 2 = undatiert. */
+  function sortRang(enc: Zeitraum): 0 | 1 | 2 {
+    if (enc.from != null) return 1;
+    return enc.to != null ? 0 : 2;
+  }
+
+  /** Innerhalb desselben Rangs: Datierte nach `from`, nach unten offene nach `to` (die
+   *  früher endende Zuordnung zuerst). Bewusst KEINE Arithmetik über ±Infinity — sie
+   *  ergäbe zwischen zwei gleichrangigen Einträgen `NaN` und damit eine undefinierte
+   *  Sortierreihenfolge. */
+  function vergleicheZeitraum(a: Zeitraum, b: Zeitraum): number {
+    const ra = sortRang(a);
+    const rb = sortRang(b);
+    if (ra !== rb) return ra - rb;
+    if (ra === 1) return (a.from as number) - (b.from as number);
+    if (ra === 0) return (a.to as number) - (b.to as number);
+    return 0;
+  }
+
+  /** Chronologisch sortiert. Trägt den ORIGINAL-Index mit, weil die Kommandos über den
+   *  Index im ROHEN `place.enclosedBy`-Array arbeiten, nicht über die Anzeige-Reihenfolge. */
   const sortedEnclosedBy = $derived(
     place
       ? place.enclosedBy
           .map((enc, originalIndex) => ({ enc, originalIndex }))
-          .sort((a, b) => (a.enc.from ?? 9999) - (b.enc.from ?? 9999))
+          .sort((a, b) => vergleicheZeitraum(a.enc, b.enc))
       : [],
   );
 
@@ -82,6 +115,25 @@
   function removeEnclosedBy(index: number) {
     if (!place) return;
     appState.savePlace(withRemovedEnclosedBy(place, index));
+  }
+
+  /** Ändert den Zeitraum einer BESTEHENDEN Zuordnung (ADR-v9-183). Committet sofort —
+   *  gleiches Timing wie Hinzufügen/Entfernen daneben; dieses Modal hat keinen eigenen
+   *  Speichern-Knopf, „Fertig" schließt nur. */
+  function updateEnclosedBySpan(index: number, from: number | null, to: number | null) {
+    if (!place) return;
+    const enc = place.enclosedBy[index];
+    if (!enc) return;
+    appState.savePlace(withUpdatedEnclosedBy(place, index, enc.placeId, from, to));
+  }
+
+  /** `<input type="number">` liefert '' für ein geleertes Feld — das ist „offen" (null),
+   *  nicht 0. Ein geleertes „von" macht die Zuordnung nach unten offen (Spec 11 §1). */
+  function jahrAusEingabe(v: string): number | null {
+    const t = v.trim();
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
   }
 
   const otherPlaces = $derived(
@@ -126,10 +178,30 @@
       <p class="place-enclosure-modal__muted">Ort nicht (mehr) gefunden.</p>
     {:else}
       <ul class="place-enclosure-modal__list">
+        <!-- Der Zeitraum steht als ZWEI Eingabefelder da, nicht als Text in Klammern
+             (ADR-v9-183): er ist Auswertungsgrundlage (`enclosureWinnerAsOf` → PLAC-
+             Projektion, Verwaltungsgeschichte), und ein falsch getipptes Jahr kostete
+             vorher Entfernen + Neuanlegen samt Positionswechsel im Array. Ein geleertes
+             „von" ist der reguläre Weg zu einer nach unten offenen Zuordnung. -->
         {#each sortedEnclosedBy as { enc, originalIndex } (originalIndex)}
           <li>
-            <span>{placeTitleFor(enc.placeId)}</span>
-            {#if enc.from || enc.to}<span class="place-enclosure-modal__muted">({enc.from ?? '…'}–{enc.to ?? '…'})</span>{/if}
+            <span class="place-enclosure-modal__parent">{placeTitleFor(enc.placeId)}</span>
+            <input
+              type="number"
+              class="place-enclosure-modal__year"
+              value={enc.from ?? ''}
+              placeholder="von"
+              aria-label={`${placeTitleFor(enc.placeId)} — gültig von (Jahr)`}
+              onchange={(e) => updateEnclosedBySpan(originalIndex, jahrAusEingabe(e.currentTarget.value), enc.to)}
+            />
+            <input
+              type="number"
+              class="place-enclosure-modal__year"
+              value={enc.to ?? ''}
+              placeholder="bis"
+              aria-label={`${placeTitleFor(enc.placeId)} — gültig bis (Jahr)`}
+              onchange={(e) => updateEnclosedBySpan(originalIndex, enc.from, jahrAusEingabe(e.currentTarget.value))}
+            />
             <button type="button" class="place-enclosure-modal__remove-btn" onclick={() => removeEnclosedBy(originalIndex)} aria-label="Zugehörigkeit entfernen">✕</button>
           </li>
         {/each}
@@ -219,6 +291,23 @@
     padding: 0.3rem 0;
     border-bottom: 1px solid var(--stb-surface-2);
     flex-wrap: wrap;
+  }
+
+  /* Der Elternort trägt die Zeile; die beiden Jahresfelder bleiben schmal daneben. */
+  .place-enclosure-modal__parent {
+    flex: 1 1 8rem;
+    min-width: 0;
+  }
+
+  .place-enclosure-modal__year {
+    width: 5rem;
+    background: var(--stb-surface-2);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.35rem;
   }
 
   .place-enclosure-modal__remove-btn {

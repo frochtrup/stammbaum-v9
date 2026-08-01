@@ -290,7 +290,10 @@
    *  Knotens: der Fokus wandert beim Klick auf einen Treffer aus dem Feld-Teilbaum in den
    *  Panel-Teilbaum. Ohne diese zweite Hälfte schlösse `focusout` die Liste noch vor dem
    *  `click` — der Treffer wäre nicht mehr auswählbar, also genau der Defekt, der hier
-   *  behoben wird, nur eine Stufe später. */
+   *  behoben wird, nur eine Stufe später.
+   *
+   *  DIESE Prüfung reicht allein NICHT: sie setzt voraus, dass `relatedTarget` gesetzt
+   *  ist, was nur in Chromium gilt (s. `haltFokusImFeld`, ADR-v9-182). */
   function istInnen(next: FocusEvent['relatedTarget']): boolean {
     if (!(next instanceof Node)) return false;
     return !!rootEl?.contains(next) || !!panelEl?.contains(next);
@@ -300,6 +303,25 @@
     if (istInnen(e.relatedTarget)) return;
     if (!open) return;
     closeList();
+  }
+
+  /**
+   * Hält den Fokus im Eingabefeld, während ein Listeneintrag angeklickt wird (ADR-v9-182,
+   * BL-250). `istInnen` oben deckt nur den Fall ab, dass `relatedTarget` überhaupt GESETZT
+   * ist — Chromium fokussiert einen `<button>` beim `mousedown`, **Safari und Firefox
+   * nicht**. Dort ist `relatedTarget` `null`, `istInnen` sagt „außen", und `closeList()`
+   * räumt das Panel ab, BEVOR das `click` seinen Treffer erreicht: der Nutzer klickt an,
+   * und nichts geschieht (Nutzerbefund „Ortspicker wählt nicht aus", Safari).
+   *
+   * `preventDefault` am `mousedown` unterbindet genau die Fokus-Verschiebung, die diese
+   * Kette auslöst — der Fokus bleibt im Feld, `focusout` feuert gar nicht, und die
+   * Reihenfolge ist in jedem Browser dieselbe. Kein Browser-Sniffing, kein `setTimeout`,
+   * kein zweiter Schließweg. Muss an JEDER Zeile hängen (Treffer, „keine Auswahl",
+   * „+ neu anlegen", Fußbereich) — eine Zeile ohne sie wäre die Stelle, an der der Defekt
+   * zurückkommt.
+   */
+  function haltFokusImFeld(e: MouseEvent) {
+    e.preventDefault();
   }
 </script>
 
@@ -368,6 +390,7 @@
                 aria-selected={activeIndex === i}
                 class="stb-picker__result stb-picker__result--none"
                 class:stb-picker__result--active={activeIndex === i}
+                onmousedown={haltFokusImFeld}
                 onclick={selectNone}
               >
                 {noneLabel}
@@ -380,6 +403,7 @@
                 aria-selected={activeIndex === i}
                 class="stb-picker__result stb-picker__result--create"
                 class:stb-picker__result--active={activeIndex === i}
+                onmousedown={haltFokusImFeld}
                 onclick={requestCreate}
               >
                 {createLabel}
@@ -394,6 +418,7 @@
                   aria-selected={activeIndex === i}
                   class="stb-picker__result"
                   class:stb-picker__result--active={activeIndex === i}
+                  onmousedown={haltFokusImFeld}
                   onclick={() => select(row.id)}
                 >
                   <span class="stb-picker__result-name">{getLabel(item)}</span>
@@ -413,7 +438,8 @@
         {/if}
       </ul>
       {#if footer}
-        <div class="stb-picker__footer">{@render footer()}</div>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="stb-picker__footer" onmousedown={haltFokusImFeld}>{@render footer()}</div>
       {/if}
     </div>
   {/if}

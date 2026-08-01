@@ -98,6 +98,11 @@ export default tseslint.config(
         Event: 'readonly',
         FocusEvent: 'readonly',
         Node: 'readonly',
+        // `MouseEvent` für `haltFokusImFeld` (ADR-v9-182): die Trefferzeilen unterbinden
+        // die Vorgabe-Handlung ihres `mousedown`, damit der Fokus im Feld bleibt —
+        // Safari/Firefox fokussieren einen <button> beim mousedown sonst gar nicht und
+        // die Liste wäre vor dem Klick abgeräumt.
+        MouseEvent: 'readonly',
         // Standalone-Orte-Editor (Spec 22): `confirm` ist im Projekt das etablierte
         // Bestaetigungs-Muster (Loeschen von Ort/Hof), `localStorage` traegt die
         // Geraetekennung der gespeicherten Datei, `BeforeUnloadEvent` die Warnung vor

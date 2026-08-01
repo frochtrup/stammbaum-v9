@@ -196,7 +196,7 @@
         <ul class="place-detail__timeline-list">
           {#each detail.hierarchyTimeline as row, i (i)}
             <li class="place-detail__timeline-row">
-              <span class="place-detail__timeline-span">{row.year}</span>
+              <span class="place-detail__timeline-span">{row.label}</span>
               {#if row.chain}
                 <span>{@render chainRow(row.chain, row.truncated)}</span>
               {:else}
@@ -431,7 +431,9 @@
 
   .place-detail__timeline-row {
     display: grid;
-    grid-template-columns: 3.5rem 1fr;
+    /* Die Spalte trägt einen ZEITRAUM ("ab 1816" / "bis 1806"), keine nackte Jahreszahl
+       (ADR-v9-181) — 3.5rem reichten dafür nicht und hätten sie umbrechen lassen. */
+    grid-template-columns: 5.5rem 1fr;
     column-gap: 0.6rem;
     align-items: baseline;
     border-bottom: 1px solid var(--stb-surface-2);

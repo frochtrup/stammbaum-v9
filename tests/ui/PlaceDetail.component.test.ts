@@ -473,7 +473,12 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
     await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
 
     expect(screen.getByText('Ochtrupp')).toBeTruthy(); // Ziel-Titel im Steckbrief
-    const pill = screen.getByText('Ochtrup'); // gefaltete Variante als Pille
+    // Im Bearbeiten-Modus sind bestehende Varianten seit ADR-v9-183 änderbare ZEILEN,
+    // keine Pillen — die gefaltete Variante steht dort als Feldwert.
+    expect((screen.getByLabelText('Namensvariante 1') as HTMLInputElement).value).toBe('Ochtrup');
+    // Auf der LESEFLÄCHE bleibt sie die Herkunfts-Pille (Verlustfreiheit sichtbar).
+    await fireEvent.click(screen.getByText('Abbrechen'));
+    const pill = screen.getByText('Ochtrup', { selector: '.stb-pill' });
     expect(pill.closest('.stb-pill')).toBeTruthy();
   });
 
@@ -620,8 +625,11 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
     const { container } = render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
 
-    // Namens-Varianten/Merge bleiben im bestehenden inline-Bearbeiten-Toggle.
-    expect(container.querySelector('.stb-pill__remove')).toBeTruthy();
+    // Namens-Varianten/Merge bleiben im bestehenden inline-Bearbeiten-Toggle. Die
+    // bestehende Variante ist dort seit ADR-v9-183 eine änderbare Zeile mit Entfernen-
+    // Knopf (vorher: Pille mit `.stb-pill__remove`).
+    expect(container.querySelector('.place-detail__edit-remove')).toBeTruthy();
+    expect((screen.getByLabelText('Namensvariante 1') as HTMLInputElement).value).toBe('Ochtrupp');
     expect(screen.getByLabelText('Neue Namensvariante')).toBeTruthy();
     expect(screen.getByLabelText('Ziel-Ort für Merge')).toBeTruthy();
   });
@@ -1181,5 +1189,95 @@ describe('PlaceDetail — Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5
     await fireEvent.click(within(section).getByText('Nach Hof'));
     expect(within(section).getByText('Wall 33 (1)')).toBeTruthy(); // Header traegt die Identitaet
     expect(section.querySelectorAll('.stb-pill').length).toBe(0);
+  });
+});
+
+// ADR-v9-183 / BL-251 — Nutzerbefund „die zeitliche Gültigkeit von Ortsnamen wird weder
+// angezeigt noch ist sie editierbar". Die Datierung stand ausschließlich in einem
+// `use:tooltip` — auf einem Touchgerät gibt es sie damit gar nicht.
+describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
+  function ochtrup() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        pnames: [
+          { value: 'Ochtorpe', from: null, to: 1400 },
+          { value: 'Ochtrup', from: 1400, to: null },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    return { appState, viewState };
+  }
+
+  it('zeigt den Zeitraum im SICHTBAREN Text der Pille, nicht nur im Tooltip', () => {
+    const { appState, viewState } = ochtrup();
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    const pillen = Array.from(container.querySelectorAll('.stb-pill')).map((el) =>
+      el.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(pillen).toEqual(['Ochtorpe bis 1400', 'Ochtrup ab 1400']);
+  });
+
+  it('macht eine bestehende Variante im Bearbeiten-Modus änderbar (Wert)', async () => {
+    const { appState, viewState } = ochtrup();
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Namensvariante 1'), { target: { value: 'Ochtorp' } });
+
+    expect(appState.db.placeObjects.get('@P1@')?.pnames[0]).toEqual({
+      value: 'Ochtorp',
+      from: null,
+      to: 1400,
+    });
+  });
+
+  it('macht den Zeitraum einer bestehenden Variante änderbar, ohne den Wert zu verlieren', async () => {
+    const { appState, viewState } = ochtrup();
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Namensvariante 1 — gültig bis (Jahr)'), {
+      target: { value: '1380' },
+    });
+
+    expect(appState.db.placeObjects.get('@P1@')?.pnames[0]).toEqual({
+      value: 'Ochtorpe',
+      from: null,
+      to: 1380,
+    });
+  });
+
+  it('lässt ein geleertes Jahresfeld als „offen" durch (null, nicht 0)', async () => {
+    const { appState, viewState } = ochtrup();
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Namensvariante 2 — gültig von (Jahr)'), {
+      target: { value: '' },
+    });
+
+    expect(appState.db.placeObjects.get('@P1@')?.pnames[1].from).toBeNull();
+  });
+
+  it('behält die Reihenfolge — die Änderung ersetzt den Eintrag, sie hängt keinen neuen an', async () => {
+    const { appState, viewState } = ochtrup();
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Namensvariante 1'), { target: { value: 'Ochtorp' } });
+
+    expect(appState.db.placeObjects.get('@P1@')?.pnames.map((p) => p.value)).toEqual([
+      'Ochtorp',
+      'Ochtrup',
+    ]);
   });
 });

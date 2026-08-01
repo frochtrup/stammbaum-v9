@@ -51,6 +51,11 @@ export interface ChainSegment {
  */
 export interface HierarchyTimelineRow {
   year: number;
+  /** Beschriftung der ersten Spalte — ein ZEITRAUM, keine Zahl (ADR-v9-181, Spec 20 §1.7).
+   *  „ab 1816" für den Regelfall, „bis 1806" für eine nach unten offene Zuordnung, deren
+   *  Anfang vor der Überlieferung liegt. `year` bleibt daneben stehen: es ist der
+   *  Sortier-/Schlüsselwert, nicht der Anzeigewert. */
+  label: string;
   chain: ChainSegment[] | null;
   /** Die Kette wurde an einer mehrdeutigen/undokumentierten höheren Ebene abgeschnitten
    *  (`enclosureIdsAsOf`s `meta.truncated`) — kein eigenes Segment (kein Ziel-Ort), nur
@@ -160,6 +165,20 @@ function collectUnlinked(
 }
 
 /**
+ * Beschriftung der Jahresspalte einer Zeitleisten-Zeile (ADR-v9-181). `null` heißt
+ * "offen", und offen ist richtungsabhängig (Spec 11 §1): `bis` allein = nach unten offen
+ * ("seit jeher bis X"), `von` allein = nach oben offen ("ab X"). Reine Funktion — sie
+ * kennt weder Ort noch Kette, damit sie an genau EINER Stelle definiert, wie ein
+ * Zeitraum in dieser Ansicht heißt.
+ */
+export function hierarchySpanLabel(von: number | null, bis: number | null): string {
+  if (von == null && bis == null) return '';
+  if (von == null) return `bis ${bis}`;
+  if (bis == null) return `ab ${von}`;
+  return von === bis ? String(von) : `${von}–${bis}`;
+}
+
+/**
  * Vollständige Verwaltungshierarchie zu jedem Schlüsseljahr ("Zugehörigkeit nach Jahr",
  * v8-Vorbild `_placeDetailHierarchyTimeline`, `legacy-v8/ui-views-place.js`). Zeigt die
  * VOLLE Kette (alle Ebenen, nicht nur der direkte Elternteil) — und die Schlüsseljahre
@@ -171,6 +190,13 @@ function collectUnlinked(
  * Konsekutive Schlüsseljahre mit IDENTISCHER voller Kette werden zu einer Zeile
  * zusammengefasst; Lücken (kein Elternteil zu diesem Jahr dokumentiert) erzeugen genau
  * EINE "unbekannt"-Zeile pro Lücke, nicht pro Jahr. Reine Funktion, deterministisch.
+ *
+ * Eine **nach unten offene** Zuordnung (`from == null` bei gesetztem `to`) ist ein
+ * Zeitraum, kein fehlender Anfang (ADR-v9-181, Spec 11 §1). Sie wirkt hier zweimal: sie
+ * hebt die untere Klemme auf (ein Ort ohne dokumentierten Anfang klemmt nichts weg), und
+ * sie beschriftet die erste Zeile mit "bis …" statt mit einem Punktjahr. Ohne das fiel
+ * die gesamte Periode aus der Ansicht — `docStart` entstand nur aus Einträgen MIT `from`
+ * und warf alle früheren Schlüsseljahre weg (BL-249).
  */
 function buildHierarchyTimeline(
   ctx: PlaceContext,
@@ -206,7 +232,23 @@ function buildHierarchyTimeline(
   const exFrom = place.existsFrom;
   const exTo = place.existsTo;
   const withFrom = encs.filter((e) => e.from != null);
-  const docStart = withFrom.length ? Math.min(...withFrom.map((e) => e.from as number)) : null;
+  // Nach unten offen (`from == null` BEI GESETZTEM `to`) — nicht zu verwechseln mit
+  // undatiert (`from == null && to == null`, jederzeit gültig). Von mehreren gilt der mit
+  // dem spätesten `to`: er deckt den längsten Anfang ab.
+  const offenerAnfang = encs.reduce<{ to: number } | null>(
+    (best, e) =>
+      e.from == null && e.to != null && (best == null || e.to > best.to) ? { to: e.to } : best,
+    null,
+  );
+  // Ein vorne offener Eintrag HEBT die untere Klemme auf, statt sie zu verschieben: er hat
+  // definitionsgemäß keinen dokumentierten Anfang. `Math.min` über nur die datierten
+  // Einträge ergäbe hier den Beginn der NACHFOLGENDEN Zuordnung — und schnitte damit
+  // ausgerechnet die Periode weg, die dargestellt werden soll (BL-249).
+  const docStart = offenerAnfang
+    ? null
+    : withFrom.length
+      ? Math.min(...withFrom.map((e) => e.from as number))
+      : null;
   const hasOpenEnd = encs.some((e) => e.to == null);
   const docEnd = hasOpenEnd ? null : encs.length ? Math.max(...encs.map((e) => e.to ?? 0)) : null;
 
@@ -232,7 +274,7 @@ function buildHierarchyTimeline(
     const ids = ctx.places.enclosureIdsAsOf(placeId, year, meta).slice(1);
     if (!ids.length) {
       if (!inGap) {
-        rows.push({ year, chain: null, truncated: false });
+        rows.push({ year, label: hierarchySpanLabel(year, null), chain: null, truncated: false });
         inGap = true;
       }
       lastKey = null;
@@ -251,7 +293,19 @@ function buildHierarchyTimeline(
     const key = chain.map((s) => `${s.id}:${s.label}`).join('|') + (meta.truncated ? '|trunc' : '');
     if (key === lastKey) continue;
     lastKey = key;
-    rows.push({ year, chain, truncated: meta.truncated });
+    rows.push({ year, label: hierarchySpanLabel(year, null), chain, truncated: meta.truncated });
+  }
+
+  // Die ERSTE Zeile trägt "bis …", wenn eine nach unten offene Zuordnung sie regiert —
+  // ihr Anfang liegt vor der Überlieferung, ein Punktjahr davor wäre eine erfundene
+  // Datierung (ADR-v9-181, verworfene Alternative (a)). Die Obergrenze ist der frühere
+  // der beiden Werte: das `to` der Zuordnung, oder das Jahr vor der nächsten Zeile —
+  // wechselt eine ÜBERGEORDNETE Ebene noch innerhalb der offenen Periode, endet die
+  // Aussage dieser Zeile dort, nicht erst bei `to`.
+  if (offenerAnfang && rows.length > 0 && rows[0].year <= offenerAnfang.to) {
+    const naechste = rows[1]?.year;
+    const grenze = naechste != null ? Math.min(offenerAnfang.to, naechste - 1) : offenerAnfang.to;
+    rows[0] = { ...rows[0], label: hierarchySpanLabel(null, grenze) };
   }
   return rows;
 }

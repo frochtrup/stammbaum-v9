@@ -53,6 +53,33 @@ export function withRemovedPname(pl: PlaceObject, index: number): PlaceObject {
 }
 
 /**
+ * Bearbeitet eine BESTEHENDE Namensvariante am angegebenen Index (ADR-v9-183) —
+ * Geschwister von `withUpdatedHofAddr` und aus demselben Anlass: bis dahin ließ sich ein
+ * `pnames`-Eintrag nur wegwerfen und neu tippen, was bei einem Tippfehler im Zeitraum die
+ * Array-Position kostete. Gleiche Signaturform, gleiche No-Op-Toleranz (leerer `value` oder
+ * Index außerhalb `0..pnames.length-1` gibt `pl` unverändert zurück — kein Crash, kein
+ * stillschweigendes Löschen), gleiche Trim-Disziplin wie `withAddedPname`.
+ *
+ * `dateRaw` des ersetzten Eintrags wird bewusst NICHT übernommen: der Roh-Datumsstring
+ * belegt das GEDCOM/GRAMPS-Original (Roundtrip-Fidelity, `core/places/types.ts`) und wäre
+ * nach einer Hand-Korrektur von `from`/`to` eine Herkunftsbehauptung über einen Wert, den
+ * der Nutzer gerade selbst gesetzt hat. Ändert der Nutzer nur den `value`, gilt dasselbe —
+ * die Datierung dieses Eintrags kommt dann ebenfalls aus der Eingabe, nicht aus der Datei.
+ */
+export function withUpdatedPname(
+  pl: PlaceObject,
+  index: number,
+  value: string,
+  from: number | null,
+  to: number | null,
+): PlaceObject {
+  if (!value.trim()) return pl;
+  if (index < 0 || index >= pl.pnames.length) return pl;
+  const entry: DatedName = { value: value.trim(), from, to };
+  return { ...pl, pnames: pl.pnames.map((p, i) => (i === index ? entry : p)) };
+}
+
+/**
  * Hängt eine Übersetzung (Sprachachse `translations`, BL-59) an ein PlaceObject an — z. B.
  * `{ lang: 'pl', value: 'Wrocław' }`. Reine Kopie (Aufrufer speichert über
  * savePlaceObject()). Leerer Wert wird ignoriert; das Sprachkürzel wird getrimmt/klein
@@ -86,6 +113,33 @@ export function withAddedEnclosedBy(
 /** Entfernt eine enclosedBy-Zugehörigkeit am angegebenen Index. */
 export function withRemovedEnclosedBy(pl: PlaceObject, index: number): PlaceObject {
   return { ...pl, enclosedBy: pl.enclosedBy.filter((_, i) => i !== index) };
+}
+
+/**
+ * Bearbeitet eine BESTEHENDE enclosedBy-Zugehörigkeit am angegebenen Index (ADR-v9-183).
+ * Gleiche Bauform wie `withUpdatedPname`/`withUpdatedHofAddr`.
+ *
+ * Der Zeitraum ist hier nicht bloß Beschriftung, sondern Auswertungsgrundlage: er speist
+ * `enclosureWinnerAsOf` (Spec 11 §5) und damit die periodengerechte PLAC-Projektion sowie
+ * die Verwaltungsgeschichte im Steckbrief. Ein falsch getipptes Jahr war deshalb bisher
+ * nur durch Entfernen + Neuanlegen zu korrigieren — mit Positionswechsel im Array.
+ *
+ * Kein Re-Resolve hier (wie bei allen `with…`-Kommandos): der Aufrufer speichert über
+ * `savePlaceObject()`, der reguläre Lade-/Auflösungspfad rechnet die Zuordnung neu
+ * (Spec 11 §4.1 — Re-Derivation ist die Persistenz). `parentId` leer lassen ist kein
+ * Löschweg: dafür gibt es `withRemovedEnclosedBy`.
+ */
+export function withUpdatedEnclosedBy(
+  pl: PlaceObject,
+  index: number,
+  parentId: PlaceId,
+  from: number | null,
+  to: number | null,
+): PlaceObject {
+  if (!parentId) return pl;
+  if (index < 0 || index >= pl.enclosedBy.length) return pl;
+  const entry: DatedRef = { placeId: parentId, from, to };
+  return { ...pl, enclosedBy: pl.enclosedBy.map((e, i) => (i === index ? entry : e)) };
 }
 
 /**
