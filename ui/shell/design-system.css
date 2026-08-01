@@ -166,6 +166,59 @@ textarea::placeholder {
   color: var(--stb-text-muted);
 }
 
+/* Aktions-Schaltfläche (INV-UI-4, ADR-v9-128 „genau eine Primärfläche je Zustand").
+   EIN Layout, zwei Varianten: gefüllt = Primär, outline = Sekundär.
+
+   WARUM ZENTRAL, obwohl `data-variant` schon existierte: das Attribut SAH aus wie ein
+   globaler Hook, war aber keiner — jede Komponente brachte ihre eigene Regel mit
+   (ImportButton, SaveButton, PlacesFileButtons, AppDataFileButtons, SettingsView).
+   Beim Bau von BL-258 hat genau das einen Knopf im Browser-Default rendern lassen
+   (hellgrauer Grund, heller Text, praktisch unlesbar); die Component-Tests blieben grün,
+   weil happy-dom keine Farben rechnet. Ein Attribut, das nur manchmal etwas bewirkt, ist
+   schlimmer als keins.
+
+   UND: die vier lokalen Kopien waren nicht identisch. Zwei setzten `min-height: 44px`,
+   zwei gar nichts — am laufenden System gemessen (Datei-Fläche, Desktop): „Speichern"
+   31,5 px, „Datei öffnen"/„Demo laden"/„Orte exportieren"/„Orte importieren" je 33,5 px,
+   die Austausch-Disclosures 36,5 px. Alle unter der 44-px-Vorgabe aus Spec 21 §6i/
+   ADR-v9-155 — und die zwei konformen Kopien trugen die Zahl als Literal, obwohl §6i
+   ausdrücklich verlangt, dass sie EINMAL als Token steht. Der vorhandene Wächter konnte
+   das nicht sehen: er fängt eine zu KLEIN gesetzte Größe, nicht eine fehlende. */
+.stb-btn {
+  min-height: var(--stb-touch-target);
+  border: 1px solid transparent;
+  border-radius: var(--stb-radius-control);
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stb-btn[data-variant='primary'] {
+  background: var(--stb-gold);
+  color: var(--stb-bg);
+  border-color: var(--stb-gold);
+}
+
+.stb-btn[data-variant='secondary'] {
+  background: transparent;
+  color: var(--stb-gold);
+  border-color: var(--stb-gold-dim);
+}
+
+.stb-btn[data-variant='secondary']:hover,
+.stb-btn[data-variant='secondary']:focus-visible {
+  border-color: var(--stb-gold);
+}
+
+/* EIN Disabled-Bild für beide Varianten. Die lokalen Kopien wechselten zwischen
+   `cursor: default` und `cursor: progress`; beide Zustände treten nur auf, solange die
+   Aktion läuft, und ein zweiter Mechanismus für einen Mauszeiger wäre den Unterschied
+   nicht wert. */
+.stb-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Formularfeld ohne <label>-Wrapper (ADR-v9-103, TST-18, INV-UI-4).
    Überall dort, wo das Bedienelement eine Combobox mit aufklappender Trefferliste ist
    (`Picker.svelte`), darf KEIN <label> es umschließen: ein <label> reicht jeden Klick in

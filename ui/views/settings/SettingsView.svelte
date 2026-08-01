@@ -137,7 +137,7 @@
       <div class="settings-view__actions">
         <button
           type="button"
-          class="settings-view__btn"
+          class="stb-btn"
           data-variant="secondary"
           disabled={busy}
           onclick={connectFolder}
@@ -147,7 +147,7 @@
         {#if summary.connected}
           <button
             type="button"
-            class="settings-view__btn"
+            class="stb-btn"
             data-variant="secondary"
             disabled={busy}
             onclick={rescanFolder}
@@ -156,7 +156,7 @@
           </button>
           <button
             type="button"
-            class="settings-view__btn"
+            class="stb-btn"
             data-variant="secondary"
             disabled={busy}
             onclick={disconnectFolder}
@@ -267,33 +267,10 @@
     margin-top: 0.3rem;
   }
 
-  /* Sekundär-Optik wie die Orts-/App-Daten-Aktionen (ADR-v9-128). `data-variant` allein
-     stylt NICHTS — es ist ein Marker, kein globaler CSS-Hook (jede Komponente bringt ihre
-     eigene Regel mit, s. ImportButton/AppDataFileButtons/PlacesFileButtons). Ohne diese
-     Regel rendert der Knopf im Browser-Default: hellgrauer Grund mit hellem Text, also
-     praktisch unlesbar — bei der eigenen Browser-Verifikation aufgefallen, nicht im Test
-     (happy-dom kennt keine Farben). Dass es hier die VIERTE Kopie derselben Regel ist,
-     ist ein bekannter Hygiene-Punkt, kein Freibrief. */
-  .settings-view__btn {
-    background: transparent;
-    color: var(--stb-gold);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    min-height: 44px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .settings-view__btn:hover,
-  .settings-view__btn:focus-visible {
-    border-color: var(--stb-gold);
-  }
-
-  .settings-view__btn:disabled {
-    opacity: 0.6;
-    cursor: progress;
-  }
+  /* Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` (design-system.css).
+     `data-variant` ist seit dieser Konsolidierung ein ECHTER globaler Hook — vorher war
+     es ein Marker, der nur wirkte, wenn die Komponente zufällig eine eigene Regel
+     mitbrachte, und genau daran rendete dieser Knopf beim Bau im Browser-Default. */
 
   .settings-view__jumps {
     list-style: none;
@@ -304,11 +281,14 @@
     gap: 0.3rem;
   }
 
+  /* Eine ganze Zeile als Sprungziel — trotzdem ein Bedienelement, also gilt die
+     Trefferfläche (Spec 21 §6i). Sie lag gemessen bei 33,5 px. */
   .settings-view__jump {
     width: 100%;
+    min-height: var(--stb-touch-target);
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     gap: 0.5rem;
     background: var(--stb-surface-2);
     border: 1px solid var(--stb-surface-3);

@@ -36,7 +36,7 @@
 
 {#if appState.fileName}
   <div class="save-bar">
-    <button type="button" class="save-bar__button" data-variant="primary" onclick={handleClick} disabled={status === 'saving'}>
+    <button type="button" class="stb-btn" data-variant="primary" onclick={handleClick} disabled={status === 'saving'}>
       {status === 'saving' ? 'Speichere …' : 'Speichern'}
     </button>
     {#if notice}
@@ -57,20 +57,7 @@
     gap: 0.6rem;
   }
 
-  .save-bar__button {
-    background: var(--stb-gold);
-    color: var(--stb-bg);
-    border: none;
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .save-bar__button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
+  /* Optik + Trefferfläche aus `.stb-btn[data-variant='primary']` (design-system.css). */
 
   .save-bar__notice {
     color: var(--stb-text-dim);

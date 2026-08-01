@@ -71,7 +71,7 @@
   <div class="app-data-bar__action">
     <button
       type="button"
-      class="app-data-bar__button"
+      class="stb-btn"
       data-variant="secondary"
       onclick={handleExport}
       disabled={exportStatus === 'busy'}
@@ -84,7 +84,7 @@
   <div class="app-data-bar__action">
     <button
       type="button"
-      class="app-data-bar__button"
+      class="stb-btn"
       data-variant="secondary"
       onclick={handleImport}
       disabled={importStatus === 'busy'}
@@ -109,22 +109,9 @@
     flex-wrap: wrap;
   }
 
-  /* Sekundär wie die Orts-Aktionen (ADR-v9-128): eine Nebenaktion auf einer ANDEREN Datei. */
-  .app-data-bar__button {
-    background: transparent;
-    color: var(--stb-gold);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    min-height: 44px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .app-data-bar__button:disabled {
-    opacity: 0.6;
-    cursor: progress;
-  }
+  /* Sekundär wie die Orts-Aktionen (ADR-v9-128): eine Nebenaktion auf einer ANDEREN Datei.
+     Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` — die 44 px standen hier
+     als Literal, obwohl Spec 21 §6i sie EINMAL als Token verlangt. */
 
   .app-data-bar__notice {
     font-size: 0.85rem;

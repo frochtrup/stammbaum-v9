@@ -167,13 +167,13 @@
                Speichern ist und ein Strict-/GED7-/anonymisierter Export die Ausnahme
                (kein eigenes Nav-Ziel, ADR-v9-113). -->
           <details class="more-view__compare">
-            <summary data-variant="secondary">In anderes Format exportieren</summary>
+            <summary class="stb-btn" data-variant="secondary">In anderes Format exportieren</summary>
             <ExportView {appState} {fileService} handle={fileHandle} {appDataIO} />
           </details>
           <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
                geladenen Bestand. Aufklappbar, weil selten gebraucht. -->
           <details class="more-view__compare">
-            <summary data-variant="secondary">Mit zweiter Datei vergleichen</summary>
+            <summary class="stb-btn" data-variant="secondary">Mit zweiter Datei vergleichen</summary>
             <ImportCompareView {appState} {fileService} />
           </details>
         </section>
@@ -295,18 +295,15 @@
      übrigen Datei-Knöpfe (ADR-v9-128, Kritik-Folge): kein weißer Rohtext mehr. Bleibt ein
      <summary> (native Disclosure-Tastaturbedienung), nur optisch als Knopf. Eigener Chevron
      statt des Default-Dreiecks; dreht bei geöffnetem <details>. */
+  /* Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` (design-system.css,
+     INV-UI-4) — hier stand bis zur Konsolidierung die FÜNFTE Kopie derselben Regel.
+     Übrig bleibt, was ein <summary> von einem <button> unterscheidet: das eigene
+     Aufklapp-Dreieck statt des Browser-Markers. */
   .more-view__compare > summary {
     display: inline-flex;
     align-items: center;
     gap: 0.45em;
     width: fit-content;
-    background: transparent;
-    color: var(--stb-gold);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.5rem 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
     list-style: none;
   }
 

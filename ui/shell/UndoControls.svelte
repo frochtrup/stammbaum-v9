@@ -65,7 +65,8 @@
     {#if appState.canUndo}
       <button
         type="button"
-        class="undo-controls__btn"
+        class="stb-btn undo-controls__btn"
+        data-variant="secondary"
         onclick={onUndo}
         use:tooltip={'Tastenkürzel: ⌘Z'}
       >
@@ -75,7 +76,8 @@
     {#if appState.canRedo}
       <button
         type="button"
-        class="undo-controls__btn"
+        class="stb-btn undo-controls__btn"
+        data-variant="secondary"
         onclick={onRedo}
         use:tooltip={'Tastenkürzel: ⇧⌘Z'}
       >
@@ -133,19 +135,14 @@
     min-width: 0;
   }
 
+  /* Grund/Text/Rahmen/Radius kommen aus `.stb-btn[data-variant='secondary']`
+     (design-system.css, INV-UI-4). Hier bleibt nur, was diese Leiste unterscheidet:
+     quadratische Glyph-Knöpfe, die einem Statustext nicht weichen. */
   .undo-controls__btn {
-    background: transparent;
-    color: var(--stb-gold);
-    /* `--stb-gold-dim`, NICHT `--stb-border`: den Token gab es nie (nirgends definiert,
-       nur hier benutzt) — der Rahmen fiel still auf `currentColor` zurück und war
-       deshalb goldfarben statt Rahmenfarbe. ADR-v9-155. */
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
     /* Trefferfläche: §6i verlangt 44×44 CSS-px für Touch-Ziele. Vorher 2.2rem/35×27px —
-       die kleinsten interaktiven Flächen der App. `min-height` gehört dazu: die Breite
-       allein trägt die Beschriftung ohnehin, die HÖHE war der eigentliche Verstoß. */
+       die kleinsten interaktiven Flächen der App. Die HÖHE liefert `.stb-btn`; die
+       BREITE ist hier eigen, weil ein Glyph sie nicht von allein füllt. */
     min-width: var(--stb-touch-target);
-    min-height: var(--stb-touch-target);
     /* Eine Trefferfläche wird NIE von einem Statustext weggedrückt (§6i): ohne dies
        staucht die 2,5-s-Notice die Knöpfe unter das Maß, das eine Zeile darüber gerade
        erst gesetzt wurde. Gemessen 375px: mit Notice lief die Leiste auf 230px Anschlag,
