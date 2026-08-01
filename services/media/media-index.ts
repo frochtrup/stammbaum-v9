@@ -12,17 +12,30 @@
 // jeder Treffer MIT, wie er zustande kam; die UI zeigt das an, statt es zu verschlucken.
 import type { MediaFolderEntry, MediaMatch } from './types';
 
-/** `\` → `/`, führende `./` und `/` weg, Kleinschreibung — die Vergleichsform. */
+/**
+ * `\` → `/`, führende `./` und `/` weg, Unicode nach NFC, Kleinschreibung — die
+ * Vergleichsform.
+ *
+ * WARUM NFC: macOS/APFS gibt Dateinamen ZERLEGT zurück (NFD — `u` + kombinierendes
+ * Trema), GEDCOM-Dateien tragen sie zusammengesetzt (NFC — ein Zeichen `ü`). Beide sehen
+ * identisch AUS und sind als Zeichenketten verschieden, auch nach `toLowerCase()`. Ohne
+ * diese Zeile findet die Auflösung KEINE einzige Datei mit Umlaut im Namen — am echten
+ * Bestand waren das exakt die 6 von 189 Verweisen, die fehlschlugen (`…Flügge…`,
+ * `…Cläre…`, `…Änne…`, `…Böcker…`, `…Rückseite…`, `…übrarb…`). Aufgefallen erst mit einem
+ * tatsächlich verbundenen Ordner; kein Test hätte die Form von sich aus vorgeschlagen.
+ */
 export function normalizePath(path: string): string {
   return path
     .trim()
     .replace(/\\/g, '/')
     .replace(/^\.?\//, '')
+    .normalize('NFC')
     .toLowerCase();
 }
 
+/** Basisname in derselben Vergleichsform (s. `normalizePath` zur NFC-Begründung). */
 export function basenameOf(path: string): string {
-  const parts = path.trim().replace(/\\/g, '/').split('/');
+  const parts = path.trim().replace(/\\/g, '/').normalize('NFC').split('/');
   return parts[parts.length - 1] ?? '';
 }
 
@@ -53,7 +66,7 @@ export function buildMediaIndex(entries: readonly MediaFolderEntry[]): MediaInde
     const norm = normalizePath(e.path);
     if (!byNormalized.has(norm)) byNormalized.set(norm, e);
 
-    const base = e.name.toLowerCase();
+    const base = e.name.normalize('NFC').toLowerCase();
     if (byBasename.has(base)) ambiguousBasenames.add(base);
     else byBasename.set(base, e);
   }

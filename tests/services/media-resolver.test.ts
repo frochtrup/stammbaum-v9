@@ -272,3 +272,45 @@ describe('buildMediaIndex — direkt', () => {
     expect(buildMediaIndex(fakeFolder(REAL_PATHS)).find('')).toBeNull();
   });
 });
+
+describe('Unicode-Normalisierung — der Umlaut-Fall (eigene Verifikation an echten Dateien)', () => {
+  // BEFUND, nicht Theorie: mit einem echten, verbundenen Ordner (419 Dateien) fanden sich
+  // 183 von 189 Verweisen — und die sechs Fehlschläge trugen ALLE einen Umlaut
+  // (`AugusteScho_übrarb.bmp`, `TodesanzeigeCläreScho.BMP`, `Totenzettel_AnnaFlügge…`,
+  // `totenzettel_ÄnneZurloh…`, `…ElisabtehBöcker…`, `…Rückseite.bmp`).
+  //
+  // Ursache: macOS/APFS gibt Dateinamen in NFD zurück (`u` + kombinierendes Trema),
+  // GEDCOM-Dateien tragen sie in NFC (ein Zeichen `ü`). Beide sehen identisch AUS und
+  // sind als Zeichenketten verschieden — auch nach `toLowerCase()`.
+  const NFC = 'Documents/Totenzettel_AnnaFl\u00fcgge.jpg'; // ü als ein Zeichen (Datei)
+  const NFD = 'Documents/Totenzettel_AnnaFlu\u0308gge.jpg'; // u + Trema (Ordner, macOS)
+
+  it('die zwei Formen sind wirklich verschieden — sonst prüfte dieser Test nichts', () => {
+    expect(NFC).not.toBe(NFD);
+    expect(NFC.normalize('NFC')).toBe(NFD.normalize('NFC'));
+  });
+
+  it('findet eine NFD-Datei über einen NFC-Verweis', async () => {
+    const r = makeResolver([NFD]);
+    await r.connect();
+    expect((await r.resolve(NFC)).state).toBe('ok');
+  });
+
+  it('findet auch umgekehrt (NFC-Datei, NFD-Verweis)', async () => {
+    const r = makeResolver([NFC]);
+    await r.connect();
+    expect((await r.resolve(NFD)).state).toBe('ok');
+  });
+
+  it('greift auch im Basisnamen-Rückfall', async () => {
+    const r = makeResolver(['Fotos/Cl\u00e4reScho.bmp']);
+    await r.connect();
+    expect((await r.resolve('Bilder/Cla\u0308reScho.bmp')).match).toBe('basename');
+  });
+
+  it('zählt die Umlaut-Fälle in der Bilanz als gefunden', async () => {
+    const r = makeResolver([NFD]);
+    await r.connect();
+    expect(r.matchReport([NFC])).toEqual({ total: 1, found: 1, missing: 0, byBasename: 0 });
+  });
+});
