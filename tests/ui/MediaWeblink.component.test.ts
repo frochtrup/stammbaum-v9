@@ -140,4 +140,39 @@ describe('MediaGallery — Art-Facette im DOM', () => {
     expect(screen.getByText('Taufbuch 1820')).toBeTruthy();
     expect(screen.getByText(/data\.matricula-online\.eu/)).toBeTruthy();
   });
+
+  // --- ADR-v9-192: beide Reihen wirken additiv --------------------------------
+  it('„Weblinks" dazuwählen ERSETZT „Dateien" nicht — beide Arten stehen danach nebeneinander', async () => {
+    const { appState, viewState } = seeded();
+    render(MediaGallery, { props: { appState, viewState } });
+    screen.getByRole('button', { name: /Weblinks/ }).click();
+    await Promise.resolve();
+
+    // Genau das war vorher unmöglich: der Tipp auf Weblinks verwarf die Dateien.
+    expect(screen.getByText('Taufbuch 1820')).toBeTruthy();
+    expect(screen.getByText('Anna')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Dateien/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Weblinks/ }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('derselbe Chip nochmal = wieder abgewählt; „Alle" leert die Auswahl', async () => {
+    const { appState, viewState } = seeded();
+    render(MediaGallery, { props: { appState, viewState } });
+    const weblinks = () => screen.getByRole('button', { name: /Weblinks/ });
+
+    weblinks().click();
+    await Promise.resolve();
+    weblinks().click();
+    await Promise.resolve();
+    expect(weblinks().getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByText('Taufbuch 1820')).toBeNull();
+
+    // „Alle" ist kein dritter Wert, sondern das Leeren — danach ist KEIN Art-Chip gedrückt.
+    screen.getAllByRole('button', { name: /^Alle/ })[0].click();
+    await Promise.resolve();
+    expect(screen.getByRole('button', { name: /Dateien/ }).getAttribute('aria-pressed')).toBe('false');
+    expect(weblinks().getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByText('Taufbuch 1820')).toBeTruthy();
+    expect(screen.getByText('Anna')).toBeTruthy();
+  });
 });

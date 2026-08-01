@@ -1,5 +1,5 @@
 // tests/ui/media/media-gallery-model.test.ts — Spec 20 §1.4 [S] "① Kachelgalerie":
-// Filter Alle/Personen/Familien/Quellen, Suche über Dateiname/Titel/Notiz. Reine
+// Bezugs- und Art-Facette ADDITIV (ADR-v9-192), Suche über Dateiname/Titel/Notiz. Reine
 // Modell-Logik (kein DOM) — TST-5 Testpyramide.
 import { describe, it, expect } from 'vitest';
 import {
@@ -9,8 +9,11 @@ import {
   buildOwnerFilterOptions,
   displayTitle,
   buildKindFilterOptions,
-  initialKindFilter,
+  hasBothMediaKinds,
+  initialKindSelection,
   matchesKindFilter,
+  toggleFacet,
+  type MediaKindFacet,
   type MediaOwnerKind,
 } from '../../../ui/views/media/media-gallery-model';
 import {
@@ -118,24 +121,57 @@ describe('buildMediaTiles — Owner-Zuordnung über ALLE MediaCitation-Fundstell
 });
 
 describe('matchesOwnerFilter / buildOwnerFilterOptions', () => {
-  it('"all" trifft jede Kachel; die übrigen Filter grenzen auf die Owner-Art ein', () => {
-    const row = { id: 'x', title: 'X', file: 'x.jpg', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'file' as const, isImage: true };
-    expect(matchesOwnerFilter(row, 'all')).toBe(true);
-    expect(matchesOwnerFilter(row, 'person')).toBe(true);
-    expect(matchesOwnerFilter(row, 'family')).toBe(false);
-    expect(matchesOwnerFilter(row, 'source')).toBe(false);
+  const personRow = { id: 'x', title: 'X', file: 'x.jpg', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'file' as const, isImage: true };
+
+  it('leere Auswahl trifft jede Kachel; eine gewählte Art grenzt ein', () => {
+    expect(matchesOwnerFilter(personRow, new Set())).toBe(true);
+    expect(matchesOwnerFilter(personRow, new Set(['person']))).toBe(true);
+    expect(matchesOwnerFilter(personRow, new Set(['family']))).toBe(false);
+    expect(matchesOwnerFilter(personRow, new Set(['source']))).toBe(false);
   });
 
-  it('liefert Zähler je Filter-Option', () => {
+  it('mehrere Bezüge wirken ADDITIV (ODER), nicht ersetzend (ADR-v9-192)', () => {
+    // Der Fall, der vorher gar nicht ausdrückbar war: „Personen ODER Familien".
+    expect(matchesOwnerFilter(personRow, new Set(['person', 'family']))).toBe(true);
+    expect(matchesOwnerFilter(personRow, new Set(['family', 'source']))).toBe(false);
+
+    const bothRow = { ...personRow, ownerKinds: new Set<MediaOwnerKind>(['family', 'source']) };
+    expect(matchesOwnerFilter(bothRow, new Set(['person', 'family']))).toBe(true);
+  });
+
+  it('liefert Zähler je Bezug — ohne „Alle"-Eintrag (das ist die leere Auswahl)', () => {
     const rows = [
       { id: 'a', title: 'A', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'empty' as const, isImage: false },
       { id: 'b', title: 'B', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['source']), refCount: 1, notes: '', fileKind: 'empty' as const, isImage: false },
     ];
     const options = buildOwnerFilterOptions(rows);
-    expect(options.find((o) => o.id === 'all')!.count).toBe(2);
+    expect(options.map((o) => o.id)).toEqual(['person', 'family', 'source']);
     expect(options.find((o) => o.id === 'person')!.count).toBe(1);
     expect(options.find((o) => o.id === 'family')!.count).toBe(0);
     expect(options.find((o) => o.id === 'source')!.count).toBe(1);
+  });
+
+  it('zählt über die ÜBERGEBENE Menge — die Zähler folgen damit der anderen Reihe', () => {
+    // Die View reicht die bereits nach Art + Suche gefilterten Kacheln herein; die Zahl am
+    // Chip sagt dadurch, wie viele Kacheln er HINZUFÜGT, statt eine Gesamtzahl zu
+    // versprechen, die die andere Reihe längst beschnitten hat.
+    const rows = [
+      { id: 'a', title: 'A', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'file' as const, isImage: false },
+      { id: 'b', title: 'B', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'weblink' as const, isImage: false },
+    ];
+    const onlyFiles = rows.filter((r) => matchesKindFilter(r, new Set<MediaKindFacet>(['files'])));
+    expect(buildOwnerFilterOptions(rows).find((o) => o.id === 'person')!.count).toBe(2);
+    expect(buildOwnerFilterOptions(onlyFiles).find((o) => o.id === 'person')!.count).toBe(1);
+  });
+});
+
+describe('toggleFacet — die eine Stelle, an der aus einer Auswahl die nächste wird', () => {
+  it('fügt hinzu und nimmt wieder heraus, ohne die Vorlage zu verändern', () => {
+    const start: ReadonlySet<string> = new Set(['a']);
+    const withB = toggleFacet(start, 'b');
+    expect([...withB].sort()).toEqual(['a', 'b']);
+    expect([...start]).toEqual(['a']); // unverändert — Svelte-Reaktivität braucht eine NEUE Menge
+    expect([...toggleFacet(withB, 'a')]).toEqual(['b']);
   });
 });
 
@@ -200,14 +236,13 @@ describe('Art-Facette (Dateien ⇄ Weblinks)', () => {
     expect(opts.map((o) => [o.id, o.count])).toEqual([
       ['files', 2],
       ['weblinks', 2],
-      ['all', 4],
     ]);
   });
 
   it('wählt „Dateien" vor, sobald beide Arten vorkommen', () => {
     const rows = buildMediaTiles(mixed());
-    expect(initialKindFilter(rows)).toBe('files');
-    expect(rows.filter((r) => matchesKindFilter(r, 'files')).map((r) => r.title)).toEqual([
+    expect([...initialKindSelection(rows)]).toEqual(['files']);
+    expect(rows.filter((r) => matchesKindFilter(r, new Set<MediaKindFacet>(['files']))).map((r) => r.title)).toEqual([
       'A Foto',
       'B Urkunde',
     ]);
@@ -215,21 +250,33 @@ describe('Art-Facette (Dateien ⇄ Weblinks)', () => {
 
   it('blendet Weblinks nicht weg, sondern nur aus der Vorauswahl — der Chip trägt die Zahl', () => {
     const rows = buildMediaTiles(mixed());
-    expect(rows.filter((r) => matchesKindFilter(r, 'weblinks'))).toHaveLength(2);
-    expect(rows.filter((r) => matchesKindFilter(r, 'all'))).toHaveLength(4);
+    expect(rows.filter((r) => matchesKindFilter(r, new Set<MediaKindFacet>(['weblinks'])))).toHaveLength(2);
+    expect(rows.filter((r) => matchesKindFilter(r, new Set()))).toHaveLength(4);
+  });
+
+  it('beide Arten gewählt = beide sichtbar (additiv, ADR-v9-192)', () => {
+    // Vorher war „Dateien und Weblinks nebeneinander" nur über den separaten „Alle"-Wert
+    // erreichbar; jetzt ist es das Ergebnis zweier gedrückter Chips — und deckungsgleich
+    // mit der leeren Auswahl, weil es keine dritte Art gibt.
+    const rows = buildMediaTiles(mixed());
+    const both = new Set<MediaKindFacet>(['files', 'weblinks']);
+    expect(rows.filter((r) => matchesKindFilter(r, both))).toHaveLength(4);
   });
 
   it('zeigt KEINE Chip-Reihe, wenn nur eine Art vorkommt — und startet dann auf „Alle"', () => {
     const onlyFiles = makeDatabase();
     onlyFiles.media.set('Pictures/a.jpg', makeMedia('Pictures/a.jpg'));
-    expect(buildKindFilterOptions(buildMediaTiles(onlyFiles))).toEqual([]);
-    expect(initialKindFilter(buildMediaTiles(onlyFiles))).toBe('all');
+    expect(hasBothMediaKinds(buildMediaTiles(onlyFiles))).toBe(false);
+    expect(initialKindSelection(buildMediaTiles(onlyFiles)).size).toBe(0);
 
     // Der umgekehrte Fall ist der gefährlichere: ein Bestand aus lauter Zitat-Fundorten
     // dürfte nicht in eine leere Galerie starten.
     const onlyLinks = makeDatabase();
     onlyLinks.media.set('https://a.de/x', makeMedia('https://a.de/x'));
-    expect(initialKindFilter(buildMediaTiles(onlyLinks))).toBe('all');
+    expect(hasBothMediaKinds(buildMediaTiles(onlyLinks))).toBe(false);
+    expect(initialKindSelection(buildMediaTiles(onlyLinks)).size).toBe(0);
+
+    expect(hasBothMediaKinds(buildMediaTiles(mixed()))).toBe(true);
   });
 
   it('eingebettete Medien zählen als Datei, nicht als Weblink', () => {
@@ -238,6 +285,6 @@ describe('Art-Facette (Dateien ⇄ Weblinks)', () => {
     db.media.set('https://a.de/x', makeMedia('https://a.de/x', { title: 'F' }));
     const rows = buildMediaTiles(db);
     expect(rows.find((r) => r.title === 'E')?.fileKind).toBe('embedded');
-    expect(rows.filter((r) => matchesKindFilter(r, 'files')).map((r) => r.title)).toEqual(['E']);
+    expect(rows.filter((r) => matchesKindFilter(r, new Set<MediaKindFacet>(['files']))).map((r) => r.title)).toEqual(['E']);
   });
 });

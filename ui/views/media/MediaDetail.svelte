@@ -213,7 +213,10 @@
   {:else if !detail}
     <p class="media-detail__empty">Medium nicht gefunden (evtl. gelöscht oder Datei gewechselt).</p>
   {:else}
-    <DetailHeader title={detail.displayTitle} onBack={onBack ?? (() => {})}>
+    <!-- `backAlways`: die Galerie belegt in beiden Formfaktoren die volle Fläche und wird
+         von diesem Detail ERSETZT (ADR-v9-192) — der Rückweg darf hier auch auf Desktop
+         nicht fehlen, anders als bei den Multi-Pane-Segmenten. -->
+    <DetailHeader title={detail.displayTitle} onBack={onBack ?? (() => {})} backAlways>
       {#snippet actions()}
         {#if !editingGlobal}
           <button type="button" class="media-detail__edit-btn" onclick={startEditGlobal}>✎ Bearbeiten</button>

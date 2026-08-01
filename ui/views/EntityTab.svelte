@@ -18,6 +18,8 @@
   import type { NavHistory } from '../shell/nav-history.svelte';
   import { swipeNav } from '../shell/swipe-nav';
   import { createEntityTabOverlays } from './entity-tab-overlays.svelte';
+  import { createEntityTabNavigation } from './entity-tab-navigation.svelte';
+  import { createMediaGalleryFilters } from './media/media-gallery-filters.svelte';
   import type { EventClipboard } from '../shell/event-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
@@ -107,9 +109,6 @@
   // wenn dort gar nichts ausgewählt war (was die alte Ableitung nicht konnte, s.
   // route.svelte.ts). Der Startwert nach App-Resume wird einmalig in App.svelte gesetzt.
   const activeSegment = $derived<EntityTargetId>(route.entityTarget);
-  let sourceSubView = $state<'sources' | 'repositories'>(
-    untrack(() => (viewState.getCurrent('repository') ? 'repositories' : 'sources')),
-  );
   // Welches WERKZEUG-Overlay offen ist (Massen-Dedup, Orts-/Hof-Review, Personen-
   // Dubletten, Verwandtschaft), lebt seit BL-07 in einer eigenen Datei — sechs Zustände
   // mit einer Regel, die sich sauber herauslöst (`entity-tab-overlays.svelte.ts`, dort
@@ -118,6 +117,19 @@
   // EntityTab bleibt die Stelle, die entscheidet, WELCHE Komponente rendert (Liste vs.
   // Overlay) — sonst müsste jede Liste ihre eigene View-Swap-Logik kennen.
   const overlays = createEntityTabOverlays();
+
+  // Die Sprünge selbst (Familie → Person, Quelle → Archiv, …) liegen aus demselben Grund
+  // daneben in `entity-tab-navigation.svelte.ts`: jeder wechselt Segment UND Auswahl UND
+  // räumt ggf. ein Overlay — zusammen mit den „gerade angelegt"-Merkern und der
+  // Quellen/Archive-Unteransicht eine eigene kohäsive Einheit.
+  const nav = untrack(() => createEntityTabNavigation({ route, viewState, overlays }));
+  const sourceSubView = $derived(nav.sourceSubView);
+
+  // Facetten-/Suchzustand der Kachelgalerie (ADR-v9-192): liegt HIER, weil die Galerie
+  // beim Öffnen eines Mediums abbaut (sie belegt die ganze Fläche) — eine eingegrenzte
+  // Auswahl soll den Blick ins Medium überleben (Spec 21 §5). Derselbe Besitz-Gedanke wie
+  // bei `overlays`/`nav`: der Zustand gehört dem Tab, nicht der Fläche darin.
+  const mediaFilters = untrack(() => createMediaGalleryFilters());
 
   /**
    * Ein Werkzeug zu öffnen GIBT die Einzelauswahl des Segments auf (ADR-v9-184).
@@ -156,7 +168,7 @@
    */
   function goBack() {
     if (navHistory?.back()) return;
-    backToList();
+    nav.backToList();
   }
 
   /** Gegenrichtung der Wisch-Geste (BL-07) — ohne Verlauf passiert nichts. */
@@ -164,90 +176,14 @@
     navHistory?.forward();
   }
 
-  function backToList() {
-    if (activeSegment === 'person') viewState.setCurrent('person', null);
-    else if (activeSegment === 'family') viewState.setCurrent('family', null);
-    else if (activeSegment === 'source') {
-      if (viewState.getCurrent('repository')) viewState.setCurrent('repository', null);
-      else viewState.setCurrent('source', null);
-    } else if (activeSegment === 'place') viewState.setCurrent('place', null);
-    else if (activeSegment === 'hof') viewState.setCurrent('hof', null);
-    else if (activeSegment === 'media') viewState.setCurrent('media', null);
-  }
-
-  function navigateToPerson(id: string) {
-    route.setTarget('person');
-    overlays.closeForPerson();
-    viewState.setCurrent('person', id);
-  }
-
-  /** "＋ Neue Person" (Spec 20 §2): PersonList hat die Person bereits per appState.savePerson
-   *  angelegt — hier nur Auswahl + Editor-Sofort-Öffnung (createdPersonId markiert, welche
-   *  id das ist, damit PersonDetail beim Mount direkt in den Editor startet). */
-  let createdPersonId = $state<string | null>(null);
-
-  function createPerson(id: string) {
-    createdPersonId = id;
-    navigateToPerson(id);
-  }
-
-  function navigateToFamily(id: string) {
-    route.setTarget('family');
-    overlays.closeForPerson();
-    viewState.setCurrent('family', id);
-  }
-
-  /** "＋ Neue Familie" (Spec 20 §2): FamilyList hat die Familie bereits per
-   *  appState.saveFamily angelegt — hier nur Auswahl. Kein Editor-Sofort-Öffnen mehr
-   *  nötig (ADR-v9-63): `FamilyDetail` hat kein Toggle-Formular mehr, ein frisches
-   *  Familien-Gerüst ist direkt auf der Detail-Ansicht editierbar (Eltern-/Kind-Slots,
-   *  Ereignis-Pills). */
-  function createFamily(id: string) {
-    navigateToFamily(id);
-  }
-
-  function navigateToSource(id: string) {
-    route.setTarget('source');
-    sourceSubView = 'sources';
-    viewState.setCurrent('repository', null);
-    viewState.setCurrent('source', id);
-  }
-
-  /** "＋ Neue Quelle" (Spec 20 §2): SourceList hat die Quelle bereits per
-   *  appState.saveSource angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
-  let createdSourceId = $state<string | null>(null);
-
-  function createSource(id: string) {
-    createdSourceId = id;
-    navigateToSource(id);
-  }
-
-  function navigateToRepository(id: string) {
-    route.setTarget('source');
-    sourceSubView = 'repositories';
-    viewState.setCurrent('repository', id);
-  }
-
-  /** "＋ Neues Archiv" (Spec 20 §2): RepositoryList hat das Archiv bereits per
-   *  appState.saveRepository angelegt — hier nur Auswahl + Editor-Sofort-Öffnung. */
-  let createdRepositoryId = $state<string | null>(null);
-
-  function createRepository(id: string) {
-    createdRepositoryId = id;
-    navigateToRepository(id);
-  }
-
-  function navigateToPlace(id: string) {
-    route.setTarget('place');
-    overlays.closeForPlace();
-    viewState.setCurrent('place', id);
-  }
-
-  function navigateToHof(id: string) {
-    route.setTarget('hof');
-    overlays.closeForHof();
-    viewState.setCurrent('hof', id);
-  }
+  // Die Sprung-Ziele kommen aus `nav` (s. o.); hier stehen nur noch die Kurznamen, unter
+  // denen die Kind-Komponenten sie als Callback bekommen.
+  const navigateToPerson = (id: string) => nav.toPerson(id);
+  const navigateToFamily = (id: string) => nav.toFamily(id);
+  const navigateToSource = (id: string) => nav.toSource(id);
+  const navigateToRepository = (id: string) => nav.toRepository(id);
+  const navigateToPlace = (id: string) => nav.toPlace(id);
+  const navigateToHof = (id: string) => nav.toHof(id);
 
 
   const selectedPersonId = $derived(viewState.getCurrent('person'));
@@ -279,6 +215,25 @@
     if (activeSegment === 'hof') return (overlays.hofReview || overlays.hofDedup) && !selectedHofId;
     return false;
   });
+
+  /**
+   * Segmente, deren ÜBERSICHT eine Fläche ist statt einer Spalte (ADR-v9-192) — heute
+   * genau die Medien-Kachelgalerie. Sie folgen dem Entweder-oder-Modell in BEIDEN
+   * Formfaktoren: Übersicht über die ganze Fläche, Auswahl schaltet auf das Detail um.
+   *
+   * Warum das Multi-Pane hier nicht trägt: die Listenspalte ist 22rem breit und für einen
+   * Index zum Überfliegen ausgelegt (INV-UI-14-Kurznamen). Ein Kachelraster (`auto-fill`,
+   * 11rem-Kacheln) bekommt darin genau EINE Spalte — am Realbestand standen 641 Kacheln
+   * untereinander in einem Drittel des Fensters, während zwei Drittel den Leerzustand
+   * „Kein Eintrag ausgewählt" trugen. Das ist derselbe Gedanke, aus dem `overlayActive`
+   * die Review-/Dedup-Werkzeuge ganzflächig zeigt (Spec 21 §10n): eine Arbeitsfläche ist
+   * keine zweite Detailansicht neben einer Liste — nur hier gilt er für die Übersicht
+   * selbst, nicht für ein Werkzeug daneben.
+   *
+   * Folge, die mitgezogen werden MUSS: ohne dauerhaft sichtbare Übersicht braucht das
+   * Detail auch auf Desktop den Rückweg (`DetailHeader backAlways`, dort begründet).
+   */
+  const areaOverview = $derived(activeSegment === 'media');
 
 </script>
 
@@ -323,7 +278,7 @@
         class="stb-segment-btn"
         class:stb-segment-btn--active={sourceSubView === 'sources'}
         onclick={() => {
-          sourceSubView = 'sources';
+          nav.setSourceSubView('sources');
         }}
       >
         Quellen
@@ -335,7 +290,7 @@
         class="stb-segment-btn"
         class:stb-segment-btn--active={sourceSubView === 'repositories'}
         onclick={() => {
-          sourceSubView = 'repositories';
+          nav.setSourceSubView('repositories');
         }}
       >
         Archive
@@ -349,7 +304,7 @@
        entweder-oder — dieselbe Fläche, dieselbe Reihenfolge wie bisher.
 
        Bewusst zwei Snippets statt zweier Komponenten: die Auswahl-/Navigations-Callbacks
-       (navigateToPerson, createPerson, die Overlay-Schalter …) gehören weiterhin dieser
+       (navigateToPerson, nav.createPerson, die Overlay-Schalter …) gehören weiterhin dieser
        Komponente, und sie durch eine neue Zwischenschicht durchzureichen wäre Aufwand
        ohne Gewinn. -->
   {#snippet listPane()}
@@ -357,17 +312,17 @@
       <PersonList
         {appState}
         {viewState}
-        onCreate={createPerson}
+        onCreate={(id) => nav.createPerson(id)}
         onOpenDedup={() => openTool('person', overlays.openPersonDedup)}
         onOpenRelationship={() => openTool('person', overlays.openRelationshipTool)}
       />
     {:else if activeSegment === 'family'}
-      <FamilyList {appState} {viewState} onCreate={createFamily} />
+      <FamilyList {appState} {viewState} onCreate={(id) => nav.createFamily(id)} />
     {:else if activeSegment === 'source'}
       {#if sourceSubView === 'repositories'}
-        <RepositoryList {appState} {viewState} onCreate={createRepository} />
+        <RepositoryList {appState} {viewState} onCreate={(id) => nav.createRepository(id)} />
       {:else}
-        <SourceList {appState} {viewState} onCreate={createSource} />
+        <SourceList {appState} {viewState} onCreate={(id) => nav.createSource(id)} />
       {/if}
     {:else if activeSegment === 'place'}
       <PlaceList
@@ -386,7 +341,7 @@
         {onNavigateLens}
       />
     {:else if activeSegment === 'media'}
-      <MediaGallery {appState} {viewState} {mediaResolver} />
+      <MediaGallery {appState} {viewState} {mediaResolver} filters={mediaFilters} />
     {/if}
   {/snippet}
 
@@ -404,7 +359,7 @@
         onBack={goBack}
         {clipboard}
         {mediaResolver}
-        startInEdit={selectedPersonId === createdPersonId}
+        startInEdit={selectedPersonId === nav.createdPersonId}
       />
     {:else if activeSegment === 'family' && selectedFamilyId}
       <FamilyDetail
@@ -425,7 +380,7 @@
         {viewState}
         onNavigateToSource={navigateToSource}
         onBack={goBack}
-        startInEdit={selectedRepositoryId === createdRepositoryId}
+        startInEdit={selectedRepositoryId === nav.createdRepositoryId}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'sources' && selectedSourceId}
       <SourceDetail
@@ -435,7 +390,7 @@
         onNavigateToFamily={navigateToFamily}
         onNavigateToRepository={navigateToRepository}
         onBack={goBack}
-        startInEdit={selectedSourceId === createdSourceId}
+        startInEdit={selectedSourceId === nav.createdSourceId}
       />
     {:else if activeSegment === 'place' && selectedPlaceId}
       <PlaceDetail
@@ -492,6 +447,16 @@
     {:else if activeSegment === 'hof' && overlays.hofDedup}
       <HofDedupView {appState} onClose={overlays.closeHofDedup} />
     {/if}
+  {:else if layout.isDesktopLayout && areaOverview}
+    <!-- Flächen-Übersicht auf Desktop (`areaOverview`, ADR-v9-192): Entweder-oder auf der
+         GANZEN Fläche statt Liste-neben-Detail. Die Pane-Hülle stellt Höhe und
+         Scroll-Container (geteilt mit dem Multi-Pane), aber eine EIGENE Modifier-Klasse:
+         `--detail` steht für „die rechte Hälfte", und diese Fläche ist keine Hälfte —
+         Tests wie `multi-pane.test.ts` prüfen genau daran. Keine Wisch-Geste: die ist
+         ausdrücklich mobil (s. u.), hier tragen Zurück-Knopf und Tastenkürzel. -->
+    <div class="entity-tab__pane entity-tab__pane--area">
+      {#if hasSelection}{@render detailPane()}{:else}{@render listPane()}{/if}
+    </div>
   {:else if layout.isDesktopLayout}
     <div class="entity-tab__panes">
       <div class="entity-tab__pane entity-tab__pane--list">{@render listPane()}</div>
@@ -559,6 +524,12 @@
   }
 
   .entity-tab__pane--detail {
+    flex: 1;
+  }
+
+  /* Ganzflächige Übersicht statt Listenspalte (ADR-v9-192, `areaOverview`) — dieselbe
+     Pane-Mechanik, nur ohne Nachbarn. */
+  .entity-tab__pane--area {
     flex: 1;
   }
 
