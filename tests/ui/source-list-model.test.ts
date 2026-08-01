@@ -8,13 +8,13 @@ import { buildSourceRows, countReferencesBySource } from '../../ui/views/source/
 describe('buildSourceRows — Kurzname/Autor/Datum/Referenzzähler, alphabetisch sortiert', () => {
   it('baut eine Zeile mit Kurzname bevorzugt vor Titel', () => {
     const db = makeDatabase();
-    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Ochtrup', title: 'Kirchenbuch Ochtrup', author: 'Pfarramt', date: '1850' }));
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Ochtrup', title: 'Kirchenbuch Ochtrup', author: 'Pfarramt', createdDate: '1850' }));
 
     const rows = buildSourceRows(db);
 
     expect(rows[0].label).toBe('KB Ochtrup');
     expect(rows[0].author).toBe('Pfarramt');
-    expect(rows[0].date).toBe('1850');
+    expect(rows[0].createdDate).toBe('1850');
   });
 
   it('fällt auf den Titel zurück, wenn kein Kurzname gesetzt ist', () => {

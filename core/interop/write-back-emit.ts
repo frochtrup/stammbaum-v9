@@ -307,7 +307,10 @@ export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): 
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];
     kids.push(N('REFN', ex.value, ekids));
   }
-  if (p.createdDate) kids.push(N('CREA', '', [N('DATE', p.createdDate)]));
+  // 5.5.1-BASIS: `1 _DATE`. `CREA` gibt es in 5.5.1 gar nicht (0 Vorkommen im ganzen
+  // Dokument) — es unbedingt zu schreiben hieße, einen 7.0-Tag in eine 5.5.1-Datei zu
+  // setzen. `ged7-adapter` macht daraus `1 CREA / 2 DATE` (BL-243).
+  if (p.createdDate) kids.push(N('_DATE', p.createdDate));
   if (p.lastChanged) kids.push(chanNode(p.lastChanged));
 
   for (const t of p.tasks) kids.push(taskNode(t));
@@ -359,7 +362,11 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
   if (s.abbr) kids.push(textNode('ABBR', s.abbr));
   if (s.title) kids.push(textNode('TITL', s.title));
   if (s.author) kids.push(textNode('AUTH', s.author));
-  if (s.date) kids.push(N('DATE', s.date));
+  // Erfassungsdatum (BL-243): im 5.5.1-BASIS-Baum als `1 _DATE` — der einzige legale Weg,
+  // den Kontext zu erweitern (5.5.1 Kap. 1: standardisierte Tags nur im gezeigten
+  // Kontext, Erweiterung ausschließlich über `_`-Tags). Für 7.0 macht `ged7-adapter`
+  // daraus `1 CREA / 2 DATE`; ein `1 DATE` unter SOUR entsteht nie mehr.
+  if (s.createdDate) kids.push(N('_DATE', s.createdDate));
   if (s.publisher) kids.push(textNode('PUBL', s.publisher));
   if (s.text) kids.push(textNode('TEXT', s.text));
   if (s.repo) {
@@ -370,6 +377,20 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
     }
     const repoVal = typeof s.repo === 'string' && s.repo.startsWith('@') ? s.repo : s.repo;
     kids.push(N('REPO', repoVal, rkids));
+  }
+  // `SOUR.DATA` (BL-217) — Grammatik-Reihenfolge: EVEN*, AGNC, dann der Passthrough-Rest.
+  // `eventTypes` ist die Enum-LISTE (`BIRT, MARR, DEAT`) und steht als Wert am EVEN selbst.
+  if (s.dataEvents.length || s.agnc || s.dataExtra.length) {
+    const dkids: GedNode[] = [];
+    for (const de of s.dataEvents) {
+      const ekids: GedNode[] = [];
+      if (de.date) ekids.push(N('DATE', de.date));
+      if (de.place) ekids.push(N('PLAC', de.place));
+      dkids.push(N('EVEN', de.eventTypes, ekids));
+    }
+    if (s.agnc) dkids.push(N('AGNC', s.agnc));
+    dkids.push(...s.dataExtra);
+    kids.push(N('DATA', '', dkids));
   }
   for (const ex of s.externalRefs) {
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];

@@ -139,7 +139,7 @@ export function applyImportPatch(
       d.setSource(
         makeSource(sourceId, {
           title: sourceConfig.title,
-          date: sourceConfig.date,
+          createdDate: sourceConfig.date,
           abbr: 'Import',
           text: sourceConfig.note ?? '',
         }),

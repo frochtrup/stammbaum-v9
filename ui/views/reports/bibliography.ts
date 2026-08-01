@@ -77,7 +77,7 @@ export function buildBibliography(db: Database, generatedOn: string): string {
     const detailParts: string[] = [];
     if (s.author) detailParts.unshift(esc(s.author));
     if (s.publisher) detailParts.push(esc(s.publisher));
-    if (s.date) detailParts.push(esc(s.date));
+    if (s.createdDate) detailParts.push(esc(s.createdDate));
     const detail = detailParts.length ? `<span class="bib-detail"> — ${detailParts.join('. ')}</span>` : '';
 
     const refBadge = rc.total

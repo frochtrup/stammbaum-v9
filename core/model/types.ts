@@ -254,6 +254,10 @@ export interface Family {
   lastChanged: string;
 }
 
+/** `SOUR.DATA.EVEN` — welche Ereignisarten diese Quelle abdeckt, in welchem Zeitraum, wo.
+ *  `eventTypes` ist eine ENUMERATION, kein Freitext: kommaseparierte
+ *  `EVENT_ATTRIBUTE_TYPE` (5.5.1) bzw. `List#Enum` über `enumset-EVENATTR` (7.0),
+ *  z. B. `BIRT, MARR, DEAT`. `date` ist ein `DATE_PERIOD` (`FROM 1874 TO 1938`). */
 export interface SourceDataEvent {
   eventTypes: string;
   date: string;
@@ -265,13 +269,23 @@ export interface Source {
   abbr: string;
   title: string;
   author: string;
-  date: string;
+  /** Erfassungsdatum des DATENSATZES (`CREA` in 7.0, `1 _DATE` in 5.5.1), Anzeige
+   *  „Erfasst am" — ADR-v9-179. NICHT das Datum des Dokuments: dessen Entstehung führt
+   *  `PUBL` (`publisher`), der abgedeckte Zeitraum `dataEvents[].date`. Ein `1 DATE`
+   *  direkt unter `SOUR` ist in beiden GEDCOM-Versionen unzulässig und wird nie
+   *  geschrieben (es überlebt als Passthrough, falls eine Fremddatei eines trägt). */
+  createdDate: string;
   publisher: string;
   text: string;
   repo: RepoId | string;
   callNumber: string;
   callMedia: string;
+  /** `SOUR.DATA.AGNC` — verantwortliche Stelle („Behörde"). */
+  agnc: string;
   dataEvents: SourceDataEvent[];
+  /** Übrige `DATA`-Kinder (NOTE/SNOTE …) verbatim — `DATA` ist als Ganzes erkannt, ohne
+   *  diesen Rest fiele alles Un-modellierte darunter aus dem Passthrough (INV-PT). */
+  dataExtra: GedNode[];
   externalRefs: { value: string; type: string }[];
   media: MediaCitation[];
   lastChanged: string;

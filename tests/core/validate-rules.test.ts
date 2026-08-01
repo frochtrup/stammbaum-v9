@@ -282,8 +282,8 @@ describe('Quellen', () => {
     const p = personWith('@I1@', { topLevelCitations: [cite('@S1@')] });
     const db = dbWith([p]);
     db.sources.set('@S1@', {
-      id: '@S1@', abbr: '', title: 'Kirchenbuch', author: '', date: '', publisher: '',
-      text: '', repo: '', callNumber: '', callMedia: '', dataEvents: [], externalRefs: [],
+      id: '@S1@', abbr: '', title: 'Kirchenbuch', author: '', createdDate: '', publisher: '',
+      text: '', repo: '', callNumber: '', callMedia: '', agnc: '', dataEvents: [], dataExtra: [], externalRefs: [],
       media: [], lastChanged: '',
     });
     expect(texts(db, 'ORPHAN_CITATION')).toEqual([]);

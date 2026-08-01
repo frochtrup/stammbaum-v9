@@ -365,6 +365,13 @@ function sourceRecord(id: string, s: Source, refs: Refs): XmlNode {
   for (const ref of s.externalRefs) {
     if (ref.value) children.push(el('srcattribute', [['type', 'REFN'], ['value', ref.value]]));
   }
+  // Behörde (BL-217) und Erfassungsdatum (BL-243) — beide einwertig, also je ein
+  // `<srcattribute>`. `dataEvents` reist hier BEWUSST NICHT mit: ein Eintrag trägt drei
+  // Felder (Arten, Zeitraum, Ort), `<srcattribute>` nur ein `value` — eine zusammengesetzte
+  // Zeichenkette wäre eine erfundene Kodierung in einem nutzersichtbaren Feld. Der Verlust
+  // ist als Repräsentationsgrenze in [13 §1] benannt, nicht stillschweigend.
+  if (s.agnc) children.push(el('srcattribute', [['type', 'AGNC'], ['value', s.agnc]]));
+  if (s.createdDate) children.push(el('srcattribute', [['type', '_DATE'], ['value', s.createdDate]]));
   const repo = refs.repoHandle(typeof s.repo === 'string' ? s.repo : '');
   if (repo) {
     // Signatur (BL-245): native `<reporef>`-Attribute. `medium` wird auf GRAMPS'

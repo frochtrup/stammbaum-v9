@@ -146,8 +146,13 @@ export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   // ab (`libgedcom.py::__source_attr` setzt `type` auf den Tag-Namen) — im Realbestand
   // belegt. Ein `2 TYPE` unter dem REFN kennt GRAMPS nicht; es verwirft untergeordnete
   // Zeilen, deshalb kommt der Untertyp hier leer zurück (dokumentierte Grenze, 13 §1).
+  // GRAMPS' `<source>` hat für diese Felder kein Element; sie reisen als `<srcattribute>`
+  // (ADR-v9-180), Schlüssel = der GEDCOM-Tagname — die Konvention, die GRAMPS selbst nutzt.
   for (const a of childrenByTag(source, 'srcattribute')) {
-    if (attr(a, 'type') === 'REFN') s.externalRefs.push({ value: attr(a, 'value'), type: '' });
+    const typ = attr(a, 'type');
+    if (typ === 'REFN') s.externalRefs.push({ value: attr(a, 'value'), type: '' });
+    else if (typ === 'AGNC') s.agnc = attr(a, 'value');          // SOUR.DATA.AGNC (BL-217)
+    else if (typ === '_DATE') s.createdDate = attr(a, 'value');  // Erfassung (BL-243)
   }
   s.media = grampsMediaRefs(source, index.handleToId);
   return s;

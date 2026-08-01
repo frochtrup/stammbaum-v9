@@ -90,7 +90,7 @@ function neutralize(db: Database): void {
     f.noteText = ''; // F
     for (const e of [f.marriage, f.engagement, ...f.events]) neutralizeEvent(e);
   }
-  for (const s of db.sources.values()) { s.date = ''; s.text = ''; } // G
+  for (const s of db.sources.values()) { s.createdDate = ''; s.text = ''; } // G
   for (const r of db.repositories.values()) { r.address = ''; r.email = ''; } // H
 }
 

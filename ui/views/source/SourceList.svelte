@@ -62,7 +62,7 @@
             <span class="source-list__meta">
               {#if row.repoName}<span class="stb-pill source-list__repo-badge" use:tooltip={`Archiv: ${row.repoName}`}>🏛 {row.repoName}</span>{/if}
               {#if row.author}<span>{row.author}</span>{/if}
-              {#if row.date}<span>{row.date}</span>{/if}
+              {#if row.createdDate}<span>{row.createdDate}</span>{/if}
               <span class="stb-list-stat">{row.refCount}× zitiert</span>
               {#if row.hasNotes}<span class="stb-pill">Notizen</span>{/if}
               {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}

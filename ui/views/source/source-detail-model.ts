@@ -8,7 +8,9 @@
 // aggregiert). Nutzt DIE EINE Gruppierungs-Funktion (`groupByKey`, INV-UI-4, bereits
 // von PlaceDetail/HofDetail für ihre "Ereignisse nach Typ"-Abschnitte verwendet) statt
 // eine zweite, source-eigene Gruppierungslogik zu erfinden.
-import type { Database, Repository, Source } from '../../../core/model/types';
+import type { Database, Repository, Source, SourceDataEvent } from '../../../core/model/types';
+import { formatDateForDisplay } from '../../../core/model/gedcom-date';
+import { eventTypeLabel } from '../../shell/event-labels';
 import { displayName } from '../../shell/person-display';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 import { collectCitationRefs } from './citation-refs';
@@ -47,6 +49,28 @@ export interface SourceDetailModel {
  * dann gerendert, wenn sie überhaupt etwas Bezeichnendes trägt — mindestens einen
  * Buchstaben oder eine Ziffer (reine Satzzeichen/Whitespace sind keine Fundstelle).
  */
+/**
+ * Eine Abdeckungs-Angabe (`SOUR.DATA.EVEN`, BL-217) als eine deutsche Zeile:
+ * `Heirat 1874–1938, Ochtrup`.
+ *
+ * `eventTypes` ist eine ENUM-LISTE, kein Freitext (`BIRT, MARR, DEAT`) — jede Art läuft
+ * durch `eventTypeLabel`, damit kein roher Tag in der Oberfläche steht (dieselbe Quelle
+ * wie überall sonst, INV-UI-4). Der Zeitraum ist ein `DATE_PERIOD`; `formatDateForDisplay`
+ * kann `FROM … TO …` bereits (→ `1874–1938`), es braucht keinen zweiten Datums-Formatter.
+ * Ein unbekannter Tag bleibt stehen, wie er ist — verlustfrei statt still verworfen.
+ */
+export function formatSourceCoverage(de: SourceDataEvent): string {
+  const arten = de.eventTypes
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((tag) => eventTypeLabel(tag) || tag)
+    .join(', ');
+  const zeitraum = formatDateForDisplay(de.date);
+  const kopf = [arten, zeitraum].filter(Boolean).join(' ');
+  return de.place ? [kopf, de.place].filter(Boolean).join(', ') : kopf;
+}
+
 export function hasPageContent(page: string): boolean {
   return /[\p{L}\p{N}]/u.test(page);
 }

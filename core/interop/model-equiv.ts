@@ -403,7 +403,10 @@ function compareSource(sa: Source, sb: Source, diffs: Diff[]): void {
   pushScalar(diffs, 'source', key, 'author', norm(sa.author), norm(sb.author));
   pushScalar(diffs, 'source', key, 'abbr', norm(sa.abbr), norm(sb.abbr));
   pushScalar(diffs, 'source', key, 'publisher', norm(sa.publisher), norm(sb.publisher));
-  pushScalar(diffs, 'source', key, 'date', norm(sa.date), norm(sb.date));
+  // `createdDate` ist Metadaten ÜBER den Datensatz, nicht über die Quelle — es steht in
+  // [13 §1] ausdrücklich unter „darf abweichen" (wie `lastChanged`) und wird deshalb
+  // NICHT verglichen; es hier zu prüfen brächte cross-family lauter Schein-Diffs.
+  pushScalar(diffs, 'source', key, 'agnc', norm(sa.agnc), norm(sb.agnc));
   pushScalar(diffs, 'source', key, 'text', norm(sa.text), norm(sb.text));
   pushScalar(diffs, 'source', key, 'callNumber', norm(sa.callNumber), norm(sb.callNumber));
 }

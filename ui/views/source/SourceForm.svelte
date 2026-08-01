@@ -1,6 +1,9 @@
 <script lang="ts">
   // ui/views/source/SourceForm.svelte — Quellen-Editor (Spec 20 §2 Formular-Feldtabelle
-  // "Quelle": Titel, Kurzname, Autor, Datum, Verlag, Archiv, Signatur, Notiz).
+  // "Quelle": Titel, Kurzname, Autor, "Erfasst am", Verlag, Archiv, Signatur, Notiz).
+  // "Erfasst am" (ADR-v9-179) heisst bewusst nicht mehr "Datum": das Feld traegt eine
+  // Eigenschaft des DATENSATZES (CREA/_DATE), nicht des Dokuments. Dessen Entstehung
+  // fuehrt PUBL, den abgedeckten Zeitraum SOUR.DATA.EVEN.
   //
   // BL-128 (Spec 20 §1.6 [S] "Quellen-Vorlagen") ergänzt zwei Dinge: ① einen optionalen
   // Vorlagen-Picker, NUR beim Anlegen einer frischen Quelle sichtbar, der Kurzname/Titel/
@@ -11,7 +14,7 @@
   // ADR-v9-151 nur read-only im Steckbrief sichtbar; ohne ein editierbares Feld hätte die
   // Vorlage nichts, das "danach frei editierbar" bleibt (Spec-Vorgabe).
   //
-  // Source ist ein FLACHES Modell (Spec 10 §4): date/text/… sind PLAIN STRINGS, keine
+  // Source ist ein FLACHES Modell (Spec 10 §4): createdDate/text/… sind PLAIN STRINGS, keine
   // Event-Objekte — anders als PersonForm.svelte braucht es KEIN Dirty-Tracking/Tristate
   // fuer Datum/Ort. Einfache bind:value-Textfelder reichen (analog den Identitaetsfeldern
   // in PersonForm.svelte).
@@ -47,7 +50,7 @@
   let abbr = $state(untrack(() => source.abbr));
   let title = $state(untrack(() => source.title));
   let author = $state(untrack(() => source.author));
-  let date = $state(untrack(() => source.date));
+  let createdDate = $state(untrack(() => source.createdDate));
   let publisher = $state(untrack(() => source.publisher));
   let callNumber = $state(untrack(() => source.callNumber));
   let callMedia = $state(untrack(() => source.callMedia));
@@ -92,7 +95,7 @@
       abbr: abbr.trim(),
       title: title.trim(),
       author: author.trim(),
-      date: date.trim(),
+      createdDate: createdDate.trim(),
       publisher: publisher.trim(),
       repo,
       callNumber: callNumber.trim(),
@@ -148,8 +151,8 @@
       <input type="text" bind:value={author} />
     </label>
     <label>
-      Datum
-      <input type="text" bind:value={date} />
+      Erfasst am
+      <input type="text" bind:value={createdDate} />
     </label>
     <label>
       Verlag

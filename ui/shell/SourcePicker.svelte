@@ -53,7 +53,7 @@
   }
 
   function getSubLabel(s: Source): string {
-    return [s.author, s.date].filter(Boolean).join(' · ');
+    return [s.author, s.createdDate].filter(Boolean).join(' · ');
   }
 
   /** Frisches Quellen-Gerüst mit kollisionsfreier id — exakt das SourceList.svelte-Muster. */

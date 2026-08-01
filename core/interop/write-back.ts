@@ -40,6 +40,7 @@ import type {
   Person,
   Repository,
   Source,
+  SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import {
@@ -72,7 +73,7 @@ import {
 const RECOGNIZED_PERSON = new Set([
   'NAME', 'SEX', 'TITL', 'RELI', 'RESN', 'EMAIL', 'WWW', '_UID',
   'BIRT', 'CHR', 'DEAT', 'BURI', 'FAMC', 'FAMS', 'ALIA', 'ASSO', 'OBJE',
-  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_TASK', '_RLOG', '_HYPO',
+  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_DATE', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
 ]);
@@ -81,8 +82,15 @@ const RECOGNIZED_FAMILY = new Set([
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'DIV',
 ]);
+// `DATE` ist BEWUSST NICHT dabei (BL-243): ein `1 DATE` direkt unter `SOUR` kennt weder
+// 5.5.1 noch 7.0 — es wird nie geschrieben und bleibt als Passthrough erhalten, falls eine
+// Fremddatei eines trägt. Das Erfassungsdatum reist als `_DATE`/`CREA`.
+// `DATA` als Ganzes erkannt (BL-217): der Container wird beim Neu-Emittieren komplett aus
+// dem Modell gebaut — deshalb hält `Source.dataExtra` jedes nicht modellierte DATA-Kind
+// (NOTE/SNOTE …), das sonst still verschwände.
 const RECOGNIZED_SOURCE = new Set([
-  'ABBR', 'TITL', 'AUTH', 'DATE', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
+  'ABBR', 'TITL', 'AUTH', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
+  'CREA', '_DATE', 'DATA',
 ]);
 const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL']);
 // Medien-Record `0 @M@ OBJE` (ADR-v9-125): FILE (+FORM/MEDI darunter) + globaler TITL.
@@ -505,11 +513,19 @@ function familyEqual(a: Family, b: Family, ctx: PlaceContext): boolean {
   );
 }
 
+/** Abdeckungs-Einträge feldweise (BL-217). `dataExtra` zählt NICHT mit: reiner Passthrough,
+ *  von niemandem editierbar — ein Unterschied ist dort nicht möglich. */
+function dataEventsEqual(a: SourceDataEvent[], b: SourceDataEvent[]): boolean {
+  return a.length === b.length && a.every((x, i) =>
+    x.eventTypes === b[i].eventTypes && x.date === b[i].date && x.place === b[i].place);
+}
+
 function sourceEqual(a: Source, b: Source): boolean {
   return (
     a.abbr === b.abbr && a.title === b.title && a.author === b.author &&
-    a.date === b.date && a.publisher === b.publisher && a.text === b.text &&
+    a.createdDate === b.createdDate && a.publisher === b.publisher && a.text === b.text &&
     a.repo === b.repo && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
+    a.agnc === b.agnc && dataEventsEqual(a.dataEvents, b.dataEvents) &&
     exidsEqual(a.externalRefs, b.externalRefs) &&
     mediaEqual(a.media, b.media) && a.lastChanged === b.lastChanged
   );

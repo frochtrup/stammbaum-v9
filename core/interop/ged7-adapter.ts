@@ -79,9 +79,25 @@ export function transformGed7(rec: GedNode): GedNode {
   return out;
 }
 
+/** Records, an denen GEDCOM 7 `CREA` erlaubt (`gedcom.io` Registry: `CREA`-Superstrukturen). */
+const CREA_RECORDS = new Set(['INDI', 'FAM', 'OBJE', 'REPO', 'SNOTE', 'SOUR', 'SUBM']);
+
 function transformSubtree(node: GedNode, isHead: boolean): void {
   const kept: GedNode[] = [];
   for (const c of node.children) {
+    // Erfassungsdatum: `1 _DATE` → `1 CREA / 2 DATE` (BL-243, ADR-v9-179). Nur an den
+    // Records, an denen 7.0 `CREA` überhaupt zulässt, und nur auf Record-Ebene — ein
+    // `2 _DATE` unter OBJE ist das Medien-Aufnahmedatum und bleibt, was es ist.
+    if (c.tag === '_DATE' && node.level === 0 && CREA_RECORDS.has(node.tag)) {
+      kept.push({
+        level: c.level,
+        xref: null,
+        tag: 'CREA',
+        value: '',
+        children: [{ level: c.level + 1, xref: null, tag: 'DATE', value: c.value, children: [] }],
+      });
+      continue;
+    }
     // 1 NOTE "Kein bekanntes Ereignis: BIRT" → 1 NO BIRT
     if (!isHead && c.tag === 'NOTE') {
       const m = NO_EVENT_RE.exec(c.value);

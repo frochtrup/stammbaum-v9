@@ -479,8 +479,11 @@ function parsePerson(rec: GedNode): Person {
       case 'EXID':
         p.exids.push({ value: c.value, type: childValue(c, 'TYPE') });
         break;
-      case 'CREA':
+      case 'CREA': // 7.0
         p.createdDate = childValue(c, 'DATE');
+        break;
+      case '_DATE': // 5.5.1 kennt kein CREA (BL-243) — gleiche Bedeutung, anderer Tag
+        p.createdDate = c.value;
         break;
       case '_TASK':
         p.tasks.push(parseTask(c));
@@ -562,7 +565,11 @@ function parseSource(rec: GedNode): Source {
   if (titl) s.title = collectText(titl);
   const auth = child(rec, 'AUTH');
   if (auth) s.author = collectText(auth);
-  s.date = childValue(rec, 'DATE');
+  // Erfassungsdatum (BL-243, ADR-v9-179): `1 CREA / 2 DATE` (7.0) ODER `1 _DATE` (5.5.1,
+  // Legacy/v8). Ein `1 DATE` direkt unter SOUR wird NICHT gelesen — den Tag kennt weder
+  // 5.5.1 noch 7.0 im `SOURCE_RECORD`, er bleibt Passthrough (LP-1).
+  const crea = child(rec, 'CREA');
+  s.createdDate = (crea ? childValue(crea, 'DATE') : '') || childValue(rec, '_DATE');
   const publ = child(rec, 'PUBL');
   if (publ) s.publisher = collectText(publ);
   const text = child(rec, 'TEXT');
@@ -573,6 +580,22 @@ function parseSource(rec: GedNode): Source {
     s.callNumber = childValue(repo, 'CALN');
     const caln = child(repo, 'CALN');
     if (caln) s.callMedia = childValue(caln, 'MEDI');
+  }
+  // `SOUR.DATA` (BL-217): Abdeckung + verantwortliche Stelle. Der Container wird als Ganzes
+  // erkannt (RECOGNIZED_SOURCE) — deshalb MUSS jedes nicht modellierte Kind (NOTE/SNOTE …)
+  // in `dataExtra` mitgenommen werden, sonst fällt es beim Neu-Emittieren eines geänderten
+  // Records still aus dem Passthrough (INV-PT). Reihenfolge im Grammatik-Sinn: EVEN*, AGNC.
+  const data = child(rec, 'DATA');
+  if (data) {
+    s.agnc = childValue(data, 'AGNC');
+    for (const ev of children(data, 'EVEN')) {
+      s.dataEvents.push({
+        eventTypes: ev.value,
+        date: childValue(ev, 'DATE'),
+        place: childValue(ev, 'PLAC'),
+      });
+    }
+    s.dataExtra = data.children.filter((c) => c.tag !== 'AGNC' && c.tag !== 'EVEN');
   }
   for (const refn of [...children(rec, 'REFN'), ...children(rec, 'EXID')]) {
     s.externalRefs.push({ value: refn.value, type: childValue(refn, 'TYPE') });

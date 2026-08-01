@@ -84,7 +84,7 @@
   }
 
   function sourceSubLabel(s: Source): string {
-    return [s.author, s.date].filter(Boolean).join(' · ');
+    return [s.author, s.createdDate].filter(Boolean).join(' · ');
   }
 
   /** Wie Picker.svelte's Fallback (Zeile "value referenziert keinen Kandidaten..."): eine
