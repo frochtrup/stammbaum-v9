@@ -22,6 +22,32 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.10] — 2026-08-01
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`e246e0a`…HEAD) erzeugt._
+
+- feat(ui): BL-271 + BL-272 — Wisch-Geste hält sich aus Editoren heraus, Trefferflächen-Wächter fängt die fehlende Größe (`52a24db`)
+- feat(ui): BL-270 — Transaktionsgrenze sichtbar, „Verwerfen" ≠ Modus verlassen (ADR-v9-193) (`89ace61`)
+- feat(places): BL-268 — Ortstyp am Kandidaten der Review-Klasse P (`f676929`)
+- feat(ui): BL-269 — Medien-Galerie ganzflächig, Facetten additiv (ADR-v9-192) (`45b7322`)
+- feat(places): BL-267 — Anreicherungs-Grad dreistufig, sichtbar wo entschieden wird (ADR-v9-191) (`2d291ae`)
+- feat(places): BL-266 — Prüf-Marker `reviewedAt` + „geprüft"-Knopf (ADR-v9-191) (`b1defbb`)
+- fix(ui): BL-265 — geerbte Verwaltungshistorie gehört dem Elternort (ADR-v9-191) (`4dade2a`)
+- feat(ui): Erstnutzer-Rundgang aus dem Nav-Register (BL-213, ADR-v9-190) (`8055b39`)
+- fix(ui): Geräte-Sicherheitsabstände an allen Rändern (BL-264, ADR-v9-189) (`7fd6747`)
+- feat(media): BL-259 + BL-260 + BL-261 — Import-Weg, Bilder im Steckbrief, Fotos in Ausgaben (`11956a7`)
+- fix(media): Dateinamen mit Umlaut wurden nie gefunden — NFC-Normalisierung (`dbe8006`)
+- feat(media): BL-258 — Thumbnails aus dem verbundenen Ordner, vier sichtbare Zustände (`ea6cd34`)
+- feat(settings): BL-257 — Einstellungen als echte Fläche, Medien-Ordner anbindbar (`94cd51c`)
+- feat(media): BL-256 — Medien-Klassifikation als Chokepoint, Weblinks werden aufgelöst (`23398a9`)
+- fix(ui): BL-255 — Adressfeld auch bei Non-Hof-Ereignissen mit ADDR (`6fd8410`)
+- fix(ui): BL-253 + BL-254 — Werkzeuge bei bestehender Auswahl, Fokus-Schutz am Panel (`71112f3`)
+- fix(places): BL-249 + BL-250 + BL-251 + BL-252 — vorne offene Zeiträume, Picker-Auswahl in Safari (`b802a31`)
+- feat(interop): BL-217 + BL-243 — SOUR.DATA projiziert, Quellen-Datum am richtigen Tag (`d09f635`)
+- fix(interop): BL-244 + BL-245 — GRAMPS-Export verlor Quellen-Felder mit nativem Ziel (`a39bbc3`)
+
+---
+
 ## [9.9] — 2026-08-01
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`81b743e`…HEAD) erzeugt._

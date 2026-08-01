@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.9 · Stand 2026-08-01</div>
+  <div class="version">Benutzerhandbuch · Version 9.10 · Stand 2026-08-01</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -263,6 +263,11 @@
       <a href="#k16">Kapitel 18</a>).</li>
   <li><strong>Sechs Kern-Datenarten:</strong> Personen, Familien, Quellen, Orte, Höfe und
       Medien — dazu Diagramme, Statistik und ein Forschungs-Arbeitsbereich.</li>
+  <li><strong>Ihre Bilder bleiben Ihre Dateien.</strong> Stammbaum legt keine eigene
+      Fotosammlung an und lädt nichts hoch: Sie geben einmal den Ordner frei, in dem Ihre
+      Scans ohnehin liegen, und die App zeigt sie als Vorschau — in der
+      <a href="#k9">Galerie</a>, im Steckbrief, in Story und Ausgaben (siehe
+      <a href="#k9">Kapitel 9</a>).</li>
   <li><strong>Erzählte Biografien.</strong> Die <a href="#kStory">Story-Ansicht</a> macht
       aus nüchternen Daten eine lesbare Lebensgeschichte — mit Karte, Diagramm und Fotos,
       als Dokument herunterladbar.</li>
@@ -325,6 +330,28 @@
   Datei nicht jedes Mal neu wählen.
 </div>
 
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/00-rundgang.png" alt="Erstnutzer-Rundgang: freigestellte Personenliste mit Erklärkarte und Schrittzähler">
+    <figcaption>Der Rundgang hebt hervor, wovon er gerade spricht</figcaption>
+  </figure>
+  <div class="prose">
+<h2>Der Rundgang beim ersten Mal</h2>
+<p>
+  Ist der Demo-Stammbaum geladen, legt sich auf dem <strong>Handy</strong> einmalig ein
+  <strong>Rundgang in vier Schritten</strong> über die Oberfläche. Er hebt nacheinander
+  die Stelle hervor, um die es gerade geht — die Liste, die Segmentreihe, die Ansichten
+  und den Weg zu den eigenen Daten — und benennt sie so, wie sie in der App gerade
+  heißen. Sie können ihn durchklicken oder jederzeit abbrechen; danach kommt er nicht
+  wieder.
+</p>
+<p class="muted">
+  Auf dem Computer entfällt er bewusst: Dort beschriftet die Seitenleiste dieselben
+  Ziele ohnehin dauerhaft — ein Rundgang würde nur erklären, was schon dasteht.
+</p>
+  </div>
+</div>
+
 <div class="workflow">
   <h3>Der übliche Weg — von der Datei zur belegten Forschung</h3>
   <p>
@@ -371,12 +398,13 @@
       Unten liegen fünf Tasten: <strong>Ansichten</strong>, <strong>Daten</strong>,
       <strong>Suche</strong>, <strong>Forschung</strong> und <strong>Mehr</strong>.
       Die Reihe direkt darunter wechselt je nach Bereich — unter <strong>Daten</strong>
-      sind das die Segmente <em>Personen · Familien · Quellen · Orte · Höfe</em>.
+      sind das die Segmente <em>Personen · Familien · Quellen · Orte · Höfe ·
+      Medien</em>.
     </p>
     <p>
       Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik,
-      <a href="#kStory">Story</a>, <a href="#kReports">Ausgaben</a> und das Datei-Menü;
-      nur die Einstellungen sind noch in Arbeit.
+      <a href="#kStory">Story</a>, <a href="#kReports">Ausgaben</a>, das Datei-Menü und
+      die <a href="#einstellungen">Einstellungen</a>.
     </p>
     <p>
       <strong>Zurück und vorwärts.</strong> Stammbaum merkt sich Ihren Weg. In einer
@@ -385,6 +413,8 @@
       Dasselbe erreichen Sie mit einem <strong>Wischen nach rechts</strong>; ein Wischen
       nach links geht wieder vorwärts. Am Computer tun das
       <kbd>Alt</kbd>&nbsp;+&nbsp;<kbd>←</kbd> und <kbd>Alt</kbd>&nbsp;+&nbsp;<kbd>→</kbd>.
+      In einem <em>offenen Formular oder Dialog</em> ist das Wischen abgeschaltet — eine
+      halb ausgefüllte Eingabe soll nicht durch eine Handbewegung verschwinden.
     </p>
   </div>
 </div>
@@ -502,6 +532,13 @@
       Oben führen <strong>✎ Bearbeiten</strong> und <strong>⧖ Im Baum anzeigen</strong>
       weiter; <strong>+ Wohnort</strong> und <strong>+ Ereignis</strong> ergänzen neue
       Einträge.
+    </p>
+    <p>
+      Ist ein <a href="#k9">Medium</a> als <strong>Primärbild</strong> gekennzeichnet und
+      der Medien-Ordner verbunden, steht es als <strong>Porträt</strong> im Steckbrief;
+      Ereignisse mit eigenem Medium tragen eine kleine <strong>Miniatur</strong> in ihrer
+      Zeile. Beides ist reine Anzeige — verwaltet werden die Dateien im Segment
+      <a href="#k9">Medien</a>.
     </p>
   </div>
   <figure class="phone">
@@ -746,7 +783,15 @@
       <li><strong>Referenzen</strong> — welche Personen und Ereignisse diese Quelle
           zitieren,</li>
       <li>je Zitat die Beweiskraft als <span class="badge g">QUAY 3</span>-Marke mit
-          einem kleinen Punkte-Balken (0–3 gefüllte Punkte).</li>
+          einem kleinen Punkte-Balken (0–3 gefüllte Punkte),</li>
+      <li><strong>Abdeckung</strong> und <strong>Behörde</strong> — was ein
+          Registerband überhaupt umfasst („Taufen 1803–1875") und wer ihn geführt hat.
+          Beides steht in vielen Dateien längst drin und blieb bisher unsichtbar;
+          gerade bei Kirchenbüchern ist es die Angabe, an der man erkennt, ob ein
+          fehlender Eintrag etwas bedeutet oder nur außerhalb des Bandes liegt,</li>
+      <li><strong>Erfasst am</strong> — wann <em>Sie</em> (oder Ihr voriges Programm)
+          diese Quelle angelegt haben. Nicht zu verwechseln mit dem Alter der Quelle
+          selbst.</li>
     </ul>
     <h3>Evidenzbewertung</h3>
     <p>
@@ -924,6 +969,11 @@
           trennen genutzte von nicht referenzierten Orten.</li>
       <li>Badges wie <em>Hierarchie</em> und <em>ohne Zusatzangaben</em> sowie ein
           kleiner Ring zeigen den <strong>Anreicherungsgrad</strong> an.</li>
+      <li>Unter <strong>Filter → Anreicherung</strong> lässt er sich als Arbeitsvorrat
+          eingrenzen: <em>ohne Zusatzangaben</em> · <em>wenig ergänzt</em> ·
+          <em>ausführlich</em>. Die drei Stufen beschreiben den Datenstand, nicht Ihre
+          Arbeit — und „wenig ergänzt" ist die Stufe, an der sich Nachpflegen am meisten
+          lohnt.</li>
     </ul>
   </div>
 </div>
@@ -941,7 +991,14 @@
       <li><strong>Zugehörigkeit nach Jahr</strong> — die <em>volle Kette je Epoche</em>:
           1269 Amt Horstmar, 1803 Grafschaft Salm-Horstmar, 1811 französisches
           Kaiserreich, 1815 Königreich Preußen … Genau diese Zeitachse kann eine
-          GEDCOM-Datei nicht speichern; sie lebt in <code>orte.json</code>.</li>
+          GEDCOM-Datei nicht speichern; sie lebt in <code>orte.json</code>.
+          <br>Die Ansicht trennt dabei sauber, <em>wessen</em> Geschichte sie erzählt:
+          Jahreszeilen erscheinen nur, wo dieser Ort eine eigene datierte Zugehörigkeit
+          hat. Ist sie undatiert, steht genau eine Zeile <em>„(undatiert)"</em> mit der
+          Kette — und was die übergeordneten Ebenen an Wechseln erlebt haben, steht
+          darunter als eigener, so beschrifteter Block. Ein Dorf, über das nur bekannt
+          ist, dass es zum Kreis Steinfurt gehört, behauptet damit keine zehn eigenen
+          Zugehörigkeitswechsel.</li>
       <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
           heirateten, starben — mit Quellen-Badges.</li>
       <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
@@ -951,9 +1008,38 @@
           hinterlegt sind.</li>
     </ul>
     <p>
-      Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar. „Ort löschen" setzt
-      die betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die
-      Ereignisse selbst gehen nie verloren.
+      Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar — auch <em>bestehende</em>
+      Einträge: Ein Namens-Eintrag mit falsch getipptem Jahr und ein Zugehörigkeits-Zeitraum
+      lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
+      dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
+      der Geschichte, nur weil kein Anfangsjahr bekannt ist. „Ort löschen" setzt die
+      betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die Ereignisse
+      selbst gehen nie verloren.
+    </p>
+    <h3>Was „Verwerfen" verwirft</h3>
+    <p>
+      Im Bearbeiten-Modus gibt es <em>zwei</em> Arten von Änderung, und der Steckbrief
+      macht die Grenze sichtbar, statt sie zu verwischen: Der Block
+      <strong>Grunddaten</strong> (Name, Anzeigename, Typ, Koordinaten, GOV-Angaben)
+      sammelt Ihre Eingaben und schreibt sie erst bei <strong>Speichern</strong>;
+      <strong>Verwerfen</strong> stellt genau diese Felder wieder her — und lässt den
+      Bearbeiten-Modus offen. Alles andere — Namensvarianten, Zugehörigkeits-Zeiträume,
+      bei <a href="#k8">Höfen</a> Adressen und Dorfwechsel — wirkt <strong>sofort</strong>,
+      weil daran Folgeänderungen hängen (eine Hof-Umbenennung zieht durch alle
+      referenzierenden Ereignisse). Ein „Abbrechen", das diese Wirkung zurückzunehmen
+      verspräche, wäre eine Unwahrheit. Wollen Sie so etwas zurücknehmen, ist
+      <strong>↶ Rückgängig</strong> das richtige Werkzeug.
+    </p>
+    <h3>„Als geprüft markieren"</h3>
+    <p>
+      Im Kopf des Steckbriefs — neben <strong>✎ Bearbeiten</strong>, nicht darin — sitzt
+      ein Schalter, der eine Frage beantwortet, die die Daten selbst nicht beantworten
+      können: <em>Hat hier schon einmal ein Mensch hingesehen?</em> Ein Ort, an dem nichts zu ergänzen war, sieht sonst genauso
+      unbearbeitet aus wie einer, den nie jemand angefasst hat. Ein Tipp macht daraus
+      <strong>„✓ Geprüft &lt;Datum&gt;"</strong>; ein weiterer nimmt die Markierung
+      zurück. Sie wird <em>nie</em> automatisch gesetzt — Bearbeiten allein genügt nicht
+      — und bedeutet „angesehen und für richtig befunden", nicht „vollständig".
+      Denselben Schalter tragen die <a href="#k8">Höfe</a>.
     </p>
   </div>
   <figure class="phone">
@@ -1017,7 +1103,18 @@
 <ul>
   <li><strong>Text → Ort verknüpfen:</strong> Ein reiner Orts-String im Ereignis wird
       einem Ortsobjekt zugeordnet — die Anzeige aktualisiert sich sofort.</li>
-  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab.</li>
+  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab. Stehen mehrere
+      gleichnamige Orte zur Wahl, zeigt jede Kandidatenzeile, was die Entscheidung
+      tatsächlich trägt: die volle Kette, die <strong>Verwaltungsebene</strong>
+      (<em>Stadt</em> ⇄ <em>Kreis</em> — bei zwei „Münster" genau der Unterschied), den
+      <strong>Anreicherungsgrad</strong> und ein <em>✓ geprüft</em>, wo schon jemand
+      hingesehen hat. Passt keiner der Kandidaten, führt <strong>„Quelle schärfen"</strong>
+      zurück ans Ereignis, um Ortstext oder Adresse zu präzisieren.
+      <figure class="phone phone--narrow">
+        <img src="handbuch-assets/10b-orte-review.png" alt="Orts-Review mit Kandidatenzeilen, Verwaltungsebene und Anreicherungsgrad">
+        <figcaption>Orts-Review, Klasse P: jede Kandidatenzeile nennt Verwaltungsebene
+          und Anreicherungsgrad</figcaption>
+      </figure></li>
   <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
       Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
 </ul>
@@ -1041,6 +1138,10 @@
         Anzeige aktualisiert sich sofort.</li>
     <li><strong>Prüfen:</strong> die Orts-Review-Liste abarbeiten und den Filter
         <em>„Ohne Bezug"</em> nutzen, um verwaiste Orte aufzuräumen.</li>
+    <li><strong>Abhaken:</strong> jeden angesehenen Ort <strong>als geprüft
+        markieren</strong> — auch den, an dem nichts zu tun war. Erst dadurch wird aus
+        „unbearbeitet" die Auskunft „schon angesehen", und der nächste Durchgang kann
+        dort ansetzen, wo wirklich noch niemand war.</li>
   </ol>
 </div>
 
@@ -1131,14 +1232,92 @@
       Kacheln — eine globale Arbeitsfläche, nicht in einer einzelnen Person versteckt.
     </p>
     <ul>
-      <li>Die Filterreihe <strong>Alle · Personen · Familien · Quellen</strong> (jeweils
-          mit Zähler) blendet ein, welche Medien an welcher Datenart hängen.</li>
+      <li>Die Chip-Reihe <strong>Alle · Personen · Familien · Quellen</strong> (jeweils
+          mit Zähler) grenzt auf den <em>Bezug</em> ein — sie ist
+          <strong>Mehrfachauswahl</strong>: „Personen" und „Quellen" gleichzeitig ist eine
+          zulässige Frage, <strong>Alle</strong> setzt zurück.</li>
+      <li>Enthält Ihr Bestand <em>beides</em> — echte Dateien und Weblinks auf
+          Online-Register —, erscheint darüber eine zweite Reihe für die <em>Art</em>
+          (<strong>Dateien · Weblinks</strong>), mit <strong>Dateien</strong> als
+          Vorauswahl. Der Grund ist Erfahrung mit großen Beständen: Wo Hunderte Weblinks
+          stehen, schöben sie die wenigen echten Scans sonst aus dem Bild. Versteckt ist
+          nichts — der Weblink-Chip trägt seine Zahl offen daneben. Gibt es nur eine Art,
+          bleibt die Reihe weg, statt einen Chip ohne Alternative zu zeigen.</li>
       <li>Die Suche greift über <strong>Dateiname, Titel und Notiz</strong>.</li>
-      <li>Ein <strong>⚠-Zeichen</strong> markiert eine Kachel, deren Datei-Referenz fehlt
-          — so finden Sie fehlende Pfade, bevor sie im Export auffallen.</li>
+      <li>Die Zähler beider Reihen richten sich nach der jeweils anderen Auswahl — ein
+          Chip verspricht also nie mehr Treffer, als er einlöst.</li>
     </ul>
+    <p>
+      Am Computer nimmt die Galerie die <strong>ganze Fläche</strong> ein und legt die
+      Kacheln über mehrere Spalten; die Auswahl einer Kachel schaltet auf das Detail um,
+      <strong>„← Zurück"</strong> führt in die Galerie zurück.
+    </p>
   </div>
 </div>
+
+<figure class="wide">
+  <img src="handbuch-assets/13d-medien-desktop.png" alt="Medien-Galerie am Computer: mehrspaltiges Kachelraster über die volle Fensterbreite">
+  <figcaption>Am Computer bekommt die Galerie die ganze Fläche — ein Bildraster ist
+    breit, keine Liste</figcaption>
+</figure>
+
+<h2>Der Medien-Ordner: einmal freigeben, überall sehen</h2>
+<p>
+  Eine GEDCOM- oder GRAMPS-Datei speichert keine Bilder, sondern <em>Dateipfade</em>.
+  Damit aus einem Pfad eine sichtbare Vorschau wird, muss die App den Ordner kennen, in
+  dem Ihre Scans liegen. Genau das — und nicht mehr — richten Sie einmalig unter
+  <strong>Mehr → <a href="#einstellungen">Einstellungen</a> → Medien-Ordner</strong> ein:
+  Sie wählen den Ordner, der Browser fragt nach der Freigabe, und die App liest ihn
+  (auch die Unterordner) ein.
+</p>
+<p>
+  Von da an zeigt jede Kachel, jeder Steckbrief und jede Ereigniszeile die Vorschau.
+  Kopiert wird dabei nichts: Es bleibt <em>Ihr</em> Ordner mit <em>Ihren</em> Dateien,
+  und die Freigabe gilt nur für dieses Gerät. Nach dem Ergänzen neuer Scans holt
+  <strong>„Neu einlesen"</strong> sie herein, <strong>„Trennen"</strong> nimmt die
+  Freigabe zurück.
+</p>
+<p>
+  Eine Kachel sagt Ihnen dabei immer, woran sie ist:
+</p>
+<table class="ref">
+  <tr><th>Anzeige</th><th>Bedeutung</th></tr>
+  <tr><td>Vorschaubild</td><td>Die Datei wurde gefunden und ist ein Bild. Für die
+      Kacheln wird eine verkleinerte Fassung berechnet — auch ein Ordner voller großer
+      Scans bringt die Galerie so nicht ins Stocken.</td></tr>
+  <tr><td>📄</td><td>Gefunden, aber kein Bild (etwa ein PDF) — mit Link zum Öffnen.</td></tr>
+  <tr><td>↗ <em>Domain</em></td><td>Kein Dateiverweis, sondern ein Weblink. Er wird
+      verlinkt, aber nicht abgerufen — die App holt von sich aus nichts aus dem Netz.</td></tr>
+  <tr><td>⚠</td><td>Ordner verbunden, Datei <em>darin</em> nicht gefunden — ein echter
+      Befund, dem Sie nachgehen können.</td></tr>
+  <tr><td>≈</td><td>Nur über den <em>Dateinamen</em> zugeordnet, weil der Ordner im
+      Verweis abweicht. Der Treffer stimmt fast immer, aber die Unschärfe wird angezeigt
+      statt verschwiegen.</td></tr>
+  <tr><td>(leere Fläche)</td><td>Es ist kein Ordner verbunden. Das ist keine Aussage über
+      die Datei — deshalb steht hier bewusst kein Warnzeichen.</td></tr>
+</table>
+
+<div class="info">
+  <strong>Auf iPhone und iPad</strong> gibt Safari keine Ordner frei. Dort bieten die
+  Einstellungen stattdessen <strong>„Medien importieren"</strong> an: Sie wählen die
+  Bilder einzeln aus, sie bleiben auf dem Gerät gespeichert und werden über ihren
+  Dateinamen zugeordnet — dieselbe Anzeige, derselbe Speicher, nur der zweite Zugangsweg.
+  Weil dabei nur der Dateiname bekannt ist, tragen solche Treffer das <strong>≈</strong>.
+</div>
+
+<h2>Bilder dort, wo sie gebraucht werden</h2>
+<p>
+  Die Galerie ist die Verwaltung — gesehen werden die Bilder anderswo:
+</p>
+<ul>
+  <li>Im <strong>Personen-Steckbrief</strong> steht das als <em>Primärbild</em>
+      markierte Foto als Porträt.</li>
+  <li>In der <strong>Ereigniszeile</strong> erscheint eine Miniatur, wenn an diesem
+      Ereignis ein eigenes Medium hängt — der Taufeintrag zeigt also seinen Scan.</li>
+  <li><a href="#kStory">Story</a> und die <a href="#kReports">Ausgaben</a> betten die
+      Bilder in das fertige Dokument ein, sodass ein weitergegebenes Familienbuch die
+      Fotos mitbringt, ohne dass die Empfängerin Ihren Ordner braucht.</li>
+</ul>
 
 <h2>Ein Medium, zwei Ebenen</h2>
 <p>
@@ -1147,7 +1326,9 @@
 </p>
 <ul>
   <li><strong>Global</strong> (Dateipfad, Format, Medientyp, Titel): gilt für
-      <em>alle</em> Verknüpfungen der Datei. Ein Klick auf <em>„Speichern (alle Ref.)"</em>
+      <em>alle</em> Verknüpfungen der Datei. Die Zeile <em>Datei</em> sagt dabei zuerst,
+      <em>welcher Art</em> der Wert ist — ein Pfad, ein Weblink oder ein direkt in der
+      Datei eingebettetes Bild. Ein Klick auf <em>„Speichern (alle Ref.)"</em>
       ändert die Beschreibung überall zugleich — eine Datei, eine Wahrheit.</li>
   <li><strong>Referenz-spezifisch</strong> (Titel-Override, Aufnahmedatum, Notiz,
       Primärbild): gilt nur für <em>diese eine</em> Verknüpfung. So kann dasselbe
@@ -1173,22 +1354,36 @@
 <div class="practice">
   Ihre Bilddateien bleiben bei Ihnen: Stammbaum führt <strong>keinen</strong> eigenen
   Cloud-Foto-Ordner und lädt nichts hoch — die Medien liegen wie die Stammbaum-Datei
-  selbst in Ihrem gewohnten Ordner. Und beim Speichern werden die Medien-Einträge
-  <strong>verlustfrei</strong> in GEDCOM bzw. GRAMPS zurückgeschrieben (siehe
-  <a href="#k16">Kapitel 18</a>) — auch Felder, die die App gar nicht anzeigt, bleiben
-  unangetastet.
+  selbst in Ihrem gewohnten Ordner, die App schaut nur hinein. Ebenso wichtig: Sie
+  <em>schreibt keinen Pfad zurück</em>. Was in Ihrer Datei als Dateiverweis steht, bleibt
+  Zeichen für Zeichen stehen, auch wenn die App die Datei über einen Umweg gefunden hat.
+  Und beim Speichern werden die Medien-Einträge <strong>verlustfrei</strong> in GEDCOM
+  bzw. GRAMPS zurückgeschrieben (siehe <a href="#k16">Kapitel 18</a>) — auch Felder, die
+  die App gar nicht anzeigt, bleiben unangetastet.
 </div>
 
 <div class="workflow">
   <h3>So hängen Sie ein Foto an</h3>
   <ol class="steps">
+    <li>Einmalig unter <strong>Mehr → Einstellungen → Medien-Ordner</strong> den Ordner
+        freigeben, in dem Ihre Scans liegen (auf iPhone/iPad: <strong>Medien
+        importieren</strong>).</li>
     <li>Beim Ereignis auf den <strong>📷-Knopf</strong> tippen und die Datei wählen — sie
         ist sofort mit dem Ereignis verknüpft.</li>
     <li>Im Segment <strong>Medien</strong> die Kachel öffnen und den <strong>globalen
         Titel</strong> ergänzen, damit die Datei überall benannt ist.</li>
     <li>Bei Bedarf pro Verknüpfung einen eigenen <strong>Titel, ein Aufnahmedatum</strong>
-        oder das <strong>Primärbild</strong>-Kennzeichen setzen.</li>
+        oder das <strong>Primärbild</strong>-Kennzeichen setzen — das Primärbild ist es,
+        das später im Steckbrief steht.</li>
   </ol>
+</div>
+
+<div class="tip">
+  Bleibt eine Vorschau leer, obwohl der Ordner verbunden ist, hilft der Blick auf die
+  Kachel: <strong>⚠</strong> heißt „diesen Namen gibt es im Ordner nicht" (Tippfehler,
+  umbenannt, anderes Laufwerk), eine <em>leere</em> Fläche dagegen „kein Ordner
+  verbunden". Umlaute im Dateinamen sind kein Hindernis — die App gleicht sie in beiden
+  Schreibformen ab, die Mac und Windows dafür verwenden.
 </div>
 
 <!-- ============================================================= -->
@@ -1752,6 +1947,37 @@
   automatisch geladen. Sie verlieren also nichts, wenn Sie den Tab schließen.
 </p>
 
+<h2 id="einstellungen">Die Einstellungen</h2>
+
+<div class="shot-row">
+  <div class="prose">
+<p>
+  <strong>Mehr → Einstellungen</strong> ist bewusst keine Sammelkiste, sondern beantwortet
+  bei jeder Gruppe zuerst die Frage, die im Alltag wirklich zählt: <em>Gilt das überall
+  oder nur hier?</em>
+</p>
+<ul>
+  <li><strong>Medien-Ordner</strong> — <em>nur auf diesem Gerät, reist nicht mit.</em>
+      Die Freigabe eines Ordners kann ein Browser naturgemäß nicht auf ein anderes Gerät
+      übertragen; mitgenommen wird nur sein <em>Name</em>, damit Sie am zweiten Gerät
+      wissen, wonach Sie suchen (siehe <a href="#k9">Kapitel 9</a>).</li>
+  <li><strong>Wird woanders bedient</strong> — ein ehrlicher Verweis statt einer zweiten
+      Bedienstelle: Die <strong>Prüfregeln</strong> stehen im
+      <a href="#k13">Dashboard</a> neben ihren Befunden, die
+      <strong>Export-Vorwahl</strong> im Export-Dialog. Ein Link führt jeweils dorthin.
+      Eine Einstellung zweimal bedienbar zu machen, schafft nur die Frage, welche der
+      beiden gilt.</li>
+  <li><strong>Mitnehmen (<code>app-data.json</code>)</strong> — <em>gilt für alle
+      Stammbäume und reist mit</em>: Export und Import dieser kleinen Datei, die keine
+      Personendaten enthält (gleich unten mehr).</li>
+</ul>
+  </div>
+  <figure class="phone">
+    <img src="handbuch-assets/31-einstellungen.png" alt="Einstellungen mit den Gruppen Medien-Ordner, App-Daten und Wird woanders bedient">
+    <figcaption>Einstellungen: jede Gruppe sagt, ob sie mitreist</figcaption>
+  </figure>
+</div>
+
 <h2 id="appdata">Einstellungen auf ein zweites Gerät mitnehmen</h2>
 <p>
   Manches gehört nicht in die Genealogie-Datei, soll aber trotzdem nicht an einem Gerät
@@ -1759,7 +1985,8 @@
   <strong>Export-Vorwahl</strong> und Ihre <strong>Forschungsprojekte</strong>. Diese
   App-Einstellungen liegen in einer eigenen kleinen Datei <code>app-data.json</code>,
   die Sie — genau wie die <a href="#k7"><code>orte.json</code></a> — bewusst exportieren
-  und auf dem anderen Gerät importieren. Ihre GEDCOM-/GRAMPS-Datei bleibt davon
+  und auf dem anderen Gerät importieren; die Knöpfe dafür stehen unter
+  <strong>Mehr → Einstellungen</strong>. Ihre GEDCOM-/GRAMPS-Datei bleibt davon
   unberührt.
 </p>
 <p>
@@ -1841,7 +2068,6 @@
       Grundkarte.</li>
   <li><strong>Frei konfigurierbare Eingabe-Vorlagen</strong> für wiederkehrende
       Erfassungsmuster.</li>
-  <li><strong>Einstellungen</strong>.</li>
 </ul>
 
 <!-- ============================================================= -->
@@ -1880,6 +2106,13 @@
   <dt>Ich habe aus Versehen etwas geändert — was nun?</dt>
   <dd>Nutzen Sie <strong>↶ Rückgängig</strong> oder verwerfen Sie alle Änderungen seit
       dem Laden mit <strong>Zum geladenen Stand</strong>.</dd>
+
+  <dt>Meine Fotos werden nicht angezeigt.</dt>
+  <dd>Eine Genealogie-Datei enthält nur <em>Pfade</em>, keine Bilder. Geben Sie unter
+      <strong>Mehr → <a href="#einstellungen">Einstellungen</a> → Medien-Ordner</strong>
+      einmalig den Ordner frei, in dem Ihre Scans liegen — auf iPhone/iPad stattdessen
+      <strong>Medien importieren</strong>. Danach sagt Ihnen jede Kachel, woran sie ist
+      (<a href="#k9">Kapitel 9</a>).</dd>
 
   <dt>Die Karte bleibt leer.</dt>
   <dd>Es fehlen Koordinaten. Importieren Sie zuerst einen Orts-Bestand
@@ -1950,16 +2183,25 @@
   <tr><td>↶ / ↷</td><td>Rückgängig / Wiederholen (Änderungen an den Daten — nicht zu
       verwechseln mit „← Zurück", das in der Ansicht zurückführt).</td></tr>
   <tr><td>braune Kreise / blaue Rauten</td><td>Auf der Karte: Dörfer bzw. Höfe.</td></tr>
+  <tr><td>✓ Geprüft <em>Datum</em></td><td>Ort oder Hof wurde von Hand angesehen und für
+      richtig befunden (<a href="#k7">Kapitel 7</a>). Wird nie automatisch gesetzt.</td></tr>
+  <tr><td>📎</td><td>An diesem Eintrag hängen <a href="#k9">Medien</a> (Personen- und
+      Quellenliste). Dasselbe Zeichen trägt das Segment <em>Medien</em>.</td></tr>
+  <tr><td>📄</td><td><a href="#k9">Medium</a>: gefundene Datei, die kein Bild ist (z.&nbsp;B. PDF).</td></tr>
+  <tr><td>≈</td><td>Medium nur über den <em>Dateinamen</em> zugeordnet — der Ordner im
+      Verweis weicht ab.</td></tr>
+  <tr><td>⚠ (an einer Medien-Kachel)</td><td>Der Medien-Ordner ist verbunden, diese Datei
+      liegt aber nicht darin.</td></tr>
 </table>
 
 <h2>Untere Navigation (Handy)</h2>
 <table class="ref">
   <tr><th>Tab</th><th>Führt zu</th></tr>
   <tr><td>⧖ Ansichten</td><td>Grafische Ansichten (Baum, Karte, Zeitleiste).</td></tr>
-  <tr><td>👤 Daten</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe).</td></tr>
+  <tr><td>👤 Daten</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe, Medien).</td></tr>
   <tr><td>🔍 Suche</td><td>Globale Suche über alle Datenarten.</td></tr>
   <tr><td>☑ Forschung</td><td>Forschung: Aufgaben, Protokoll, Hypothesen, Dashboard.</td></tr>
-  <tr><td>⋯ Mehr</td><td>Statistik, Datei-Menü, weitere Werkzeuge.</td></tr>
+  <tr><td>⋯ Mehr</td><td>Statistik, Story, Ausgaben, Datei-Menü, Einstellungen.</td></tr>
 </table>
 
 <h2>Tastaturkürzel (Computer)</h2>
@@ -2033,6 +2275,10 @@
   <tr><td>_HYPO</td><td>Hypothese samt Konfidenz und Belegen</td></tr>
   <tr><td>_EVAL</td><td>Evidenzbewertung eines Quellenbezugs (in GRAMPS als
       <code>srcattribute</code> am Zitat)</td></tr>
+  <tr><td>_DATE</td><td>„Erfasst am" einer Quelle — das Datum, an dem der Eintrag
+      <em>angelegt</em> wurde. GEDCOM 5.5.1 sieht am Quellsatz kein Erfassungsdatum vor;
+      im GEDCOM-7-Export wird daraus das dort vorgesehene
+      <code>CREA</code>/<code>DATE</code>. Gelesen werden beide Schreibweisen.</td></tr>
 </table>
 <p>
   Im <strong>GEDCOM-7</strong>-Export bleiben diese Tags nicht unangemeldet: die App
@@ -2135,6 +2381,12 @@
       GEDCOM; Straße/Hausnummer stehen bei Wohn-/Besitz-Ereignissen im
       <em>Beschreibungsfeld</em>. Stammbaum bildet das sauber aufeinander ab — beim Wechsel
       zwischen den Formaten geht die Hofadresse nicht verloren.</li>
+  <li><strong>Auch die Nebenfelder der Quellen reisen mit.</strong> Die
+      <em>externe Referenznummer</em> einer Quelle (etwa eine Digitalisat-Adresse) wandert
+      als <code>srcattribute</code>, <em>Signatur</em> und <em>Signatur-Medium</em> stehen
+      als native Attribute am Archiv-Verweis. GRAMPS selbst führt diese Felder — sie beim
+      Export fallen zu lassen hieße, dem Nutzer beim Formatwechsel etwas wegzunehmen, das
+      auf beiden Seiten existiert.</li>
   <li><strong>Idempotenz.</strong> Unverändertes Speichern erzeugt bit-gleiches XML;
       geänderte Objekte werden an ihrer korrekten Stelle im Baum aktualisiert, alles Übrige
       bleibt unangetastet.</li>
@@ -2260,7 +2512,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.9 · Stand 2026-08-01<br>
+  Stammbaum · Benutzerhandbuch Version 9.10 · Stand 2026-08-01<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 

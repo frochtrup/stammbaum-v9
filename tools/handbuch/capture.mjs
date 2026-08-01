@@ -37,6 +37,17 @@ const ONLY = arg('--only', '').split(',').map((s) => s.trim()).filter(Boolean);
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const WRAPPER = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'orte.json'), 'utf8'));
 
+// Bild-Dateinamen der Fixture — Grundlage des Medien-Seeds (s. u. „Medien-Bytes seeden").
+// Nur Bildendungen: PDFs sollen bewusst als Dokument-Symbol erscheinen, nicht als Kachel.
+const MEDIA_IMAGE_NAMES = [
+  ...new Set(
+    readFileSync(join(__dirname, 'fixtures', 'demo-rich.anon.ged'), 'utf8')
+      .split('\n')
+      .map((l) => /^\d FILE (.+)$/.exec(l.trim())?.[1])
+      .filter((f) => f && /\.(bmp|jpe?g|png|gif|tiff?)$/i.test(f)),
+  ),
+];
+
 // Ziel-Personen — Pseudonyme aus fixtures/demo-rich.anon.ged (deterministisch stabil).
 // Bei Wechsel der Quell-Fixture neu ableiten (reichste Person mit vielen Beruf-Events).
 // BEWUSST eine VERSTORBENE Person (†1997) für alle Personen-zentrierten Screenshots —
@@ -169,8 +180,74 @@ await page.evaluate(async (wrapper) => {
   });
 }, WRAPPER);
 
+// ---- Medien-Bytes seeden ----
+// WARUM: Die anonymisierte Fixture trägt Dateinamen (`foto_28328.bmp`), aber keine
+// Dateien — die Pfade zeigen bewusst ins Leere. Ohne Bytes zeigt die Galerie lauter
+// leere Kacheln und der Steckbrief kein Porträt; die seit BL-258/259/260 gebauten
+// Medien-Funktionen wären im Handbuch unsichtbar. Einen ECHTEN Ordner kann headless
+// niemand freigeben (der Verzeichnis-Picker braucht eine Nutzergeste), also nimmt der
+// Seed den ZWEITEN, gleichwertigen Zugangsweg: den Import-Speicher (`media-bytes`,
+// Schlüssel `img:<pfad>`), den der Resolver genauso auflöst.
+//
+// Die Bilder werden im Browser gezeichnet (Canvas → PNG-Blob), nicht im Repo abgelegt:
+// keine Binärdateien im git, und sie sind als NEUTRALE PLATZHALTER erkennbar — ein
+// Handbuch soll keine erfundenen Familienfotos zeigen. Die Farbe leitet sich aus dem
+// Dateinamen ab, damit das Kachelraster nicht monoton wirkt.
+//
+// Folge fürs Handbuch: die Kacheln tragen das „≈" (Zuordnung nur über den Dateinamen) —
+// genau der Zustand, den Kapitel 9 beschreibt.
+console.log(`Medien-Bytes seeden (${MEDIA_IMAGE_NAMES.length} Bilder) …`);
+await page.evaluate(async (names) => {
+  const zeichne = (name) => {
+    let h = 0;
+    for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360;
+    const cv = document.createElement('canvas');
+    cv.width = 400; cv.height = 300;
+    const g = cv.getContext('2d');
+    g.fillStyle = `hsl(${h} 22% 82%)`; g.fillRect(0, 0, 400, 300);
+    g.fillStyle = `hsl(${h} 18% 62%)`;
+    g.fillRect(24, 24, 352, 252);
+    g.fillStyle = `hsl(${h} 20% 88%)`;
+    g.beginPath(); g.arc(200, 118, 52, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(110, 276); g.bezierCurveTo(110, 200, 290, 200, 290, 276); g.fill();
+    g.fillStyle = `hsl(${h} 25% 30%)`;
+    g.font = '600 20px -apple-system, Helvetica, sans-serif';
+    g.textAlign = 'center';
+    g.fillText('Beispielbild', 200, 60);
+    return new Promise((res) => cv.toBlob(res, 'image/png'));
+  };
+  const db = await new Promise((res, rej) => {
+    const rq = indexedDB.open('stammbaum-v9');
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  });
+  if (!db.objectStoreNames.contains('media-bytes')) { db.close(); throw new Error('Store media-bytes fehlt'); }
+  for (const name of names) {
+    const blob = await zeichne(name);
+    await new Promise((res, rej) => {
+      const tx = db.transaction('media-bytes', 'readwrite');
+      // Schlüsselform = `bytesKey()`/`normalizePath()` aus services/media (Präfix,
+      // Backslash→Slash, führendes ./ weg, NFC, klein).
+      const key = 'img:' + name.trim().replace(/\\/g, '/').replace(/^\.?\//, '').normalize('NFC').toLowerCase();
+      tx.objectStore('media-bytes').put(blob, key);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  }
+  db.close();
+}, MEDIA_IMAGE_NAMES);
+
+// Der Import-Index wird EINMAL beim App-Start gelesen (media-resolver `restore()`) —
+// ohne Neuladen bliebe der Seed unsichtbar. Noch ist nichts geladen, der Reload ist billig.
+await page.reload({ waitUntil: 'networkidle2' }); await sleep(1500);
+
 console.log('Demo laden …');
 await bottomNav('more'); await click('Datei'); await click('Demo laden'); await sleep(5500);
+
+// ---- Erstnutzer-Rundgang (BL-213) ----
+// Er erscheint GENAU HIER von selbst: frisches Profil (Merker ungesetzt), mobiler
+// Viewport, demo.ged geladen. Erst abbilden, dann wegklicken — sonst läge der Spotlight
+// über den nächsten 30 Screenshots.
+await scrollTop(); await shot('00-rundgang');
+await click('Überspringen'); await sleep(400);
 
 // ---- Forschungsdaten seeden ----
 console.log('Forschungsdaten seeden …');
@@ -228,6 +305,27 @@ await bottomNav('person'); await click('Quellen'); await scrollTop(); await shot
 await bottomNav('person'); await click('Quellen'); await scrollTop(); await click('KB', { contains: true }); await shot('09-quelle-detail');
 await bottomNav('person'); await click('Orte'); await scrollTop(); await shot('10-ortsliste');
 await bottomNav('person'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
+// Orts-Review (BL-267/268): die Kandidatenzeilen tragen Verwaltungsebene, Anreicherungs-
+// Grad und ggf. „✓ geprüft" — die Angaben, an denen sich die Zuordnung entscheidet. Der
+// Steckbrief von eben ist noch offen; erst zurück auf die Liste, sonst rendert die
+// Werkzeuge-Disclosure nicht (mobiles Entweder-oder).
+await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(500);
+// Den Trigger über SEINE KLASSE treffen, nicht über Text. Grund (beim Lauf gelernt): der
+// Werkzeuge-Trigger trägt bei offenen Fällen einen Achtungs-Punkt samt Vorlese-Text
+// („Werkzeuge — Handlungsbedarf"), also scheitert der Exakt-Treffer; und bei `contains`
+// hat der umschließende `.stb-filterbar`-<div> denselben Text bei gleicher Länge und
+// gewinnt in DOM-Reihenfolge — sein Klick löst den Button-onclick nicht aus (Klicks
+// propagieren nach oben, nicht nach unten; s. Kommentar in click()). Beides zusammen:
+// „gefunden" gemeldet, Panel zu, Shot auf der Ortsliste.
+await scrollTop();
+await page.evaluate(() => {
+  const t = [...document.querySelectorAll('.stb-filterbar__trigger')]
+    .find((b) => /Werkzeuge/.test(b.textContent || '') && b.offsetParent);
+  if (t) t.click();
+}); await sleep(500);
+await click('Orts-Zuweisungen prüfen', { contains: true }); await sleep(900);
+await scrollTop(); await shot('10b-orte-review');
+await page.evaluate(() => { const b = document.querySelector('.place-review__close-btn'); if (b) b.click(); }); await sleep(400);
 await bottomNav('person'); await click('Höfe'); await scrollTop(); await shot('12-hoefeliste');
 await bottomNav('person'); await click('Höfe'); await scrollTop(); await click('Oster 141', { nth: 0 }); await shot('13-hof-detail');
 // Medien-Galerie + Medium-Detail (BL-126). „Medien" ist das 6. Entitäten-Segment; die
@@ -264,6 +362,11 @@ await bottomNav('tasks'); await click('Dashboard'); await sleep(900); await scro
 await bottomNav('more'); await click('Datei'); await shot('24-datei');
 await bottomNav('more'); await click('Datei'); await click('In anderes Format exportieren', { contains: true }); await shot('25-export');
 await bottomNav('more'); await shot('26-mehr');
+// Einstellungen (BL-257): eigene Fläche seit ADR-v9-188 — Medien-Ordner (gerätelokal),
+// App-Daten (reist mit) und die ehrlichen Verweise auf anderswo bediente Einstellungen.
+// Headless ist KEIN Ordner verbunden; die Statuszeile zeigt darum die importierten
+// Dateien aus dem Medien-Seed — genau der iOS-Zugangsweg, den Kapitel 9 beschreibt.
+await bottomNav('more'); await click('Einstellungen'); await sleep(600); await scrollTop(); await shot('31-einstellungen');
 
 // Ausgaben-Hub (BL-169…179): der Druck-Report-Katalog. Bezugsperson ist mit dem oben
 // gesetzten Proband (Kaspar) vorbelegt → die personen-bezogenen Reports sind sofort erzeugbar.
@@ -303,6 +406,11 @@ await click(RICH_PERSON, { contains: true }); await sleep(600); await shot('30-d
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
 await page.keyboard.press('Escape'); await sleep(300);
+
+// Medien-Galerie im DESKTOP-Layout (BL-269, ADR-v9-192): das eigentliche Argument dieses
+// Shots ist die Fläche — die Galerie belegt das ganze Fenster (mehrspaltiges Raster)
+// statt der 22rem-Listenspalte. Mobil zeigt 13b dieselbe Galerie einspaltig.
+await click('Medien'); await sleep(1200); await scrollTop(); await shot('13d-medien-desktop');
 
 // Baum-Modi (Desktop, breit): Nachkommen-Baum und Fächer brauchen die Breite (mobil zu
 // eng); die Sanduhr-Ringe zeigt der Handy-Shot 14. lensFocus (@I3@) ist gesetzt.

@@ -186,7 +186,7 @@
 <header class="cover">
   <h1>Orte-Editor — Handbuch</h1>
   <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
-  <p class="stamp">Version 9.9 · Stand 2026-08-01</p>
+  <p class="stamp">Version 9.10 · Stand 2026-08-01</p>
 </header>
 
 <nav id="toc">
@@ -402,6 +402,11 @@
           trennen genutzte von nicht referenzierten Orten.</li>
       <li>Badges wie <em>Hierarchie</em> und <em>ohne Zusatzangaben</em> sowie ein
           kleiner Ring zeigen den <strong>Anreicherungsgrad</strong> an.</li>
+      <li>Unter <strong>Filter → Anreicherung</strong> lässt er sich als Arbeitsvorrat
+          eingrenzen: <em>ohne Zusatzangaben</em> · <em>wenig ergänzt</em> ·
+          <em>ausführlich</em>. Die drei Stufen beschreiben den Datenstand, nicht Ihre
+          Arbeit — und „wenig ergänzt" ist die Stufe, an der sich Nachpflegen am meisten
+          lohnt.</li>
     </ul>
   </div>
 </div>
@@ -419,7 +424,14 @@
       <li><strong>Zugehörigkeit nach Jahr</strong> — die <em>volle Kette je Epoche</em>:
           1269 Amt Horstmar, 1803 Grafschaft Salm-Horstmar, 1811 französisches
           Kaiserreich, 1815 Königreich Preußen … Genau diese Zeitachse kann eine
-          GEDCOM-Datei nicht speichern; sie lebt in <code>orte.json</code>.</li>
+          GEDCOM-Datei nicht speichern; sie lebt in <code>orte.json</code>.
+          <br>Die Ansicht trennt dabei sauber, <em>wessen</em> Geschichte sie erzählt:
+          Jahreszeilen erscheinen nur, wo dieser Ort eine eigene datierte Zugehörigkeit
+          hat. Ist sie undatiert, steht genau eine Zeile <em>„(undatiert)"</em> mit der
+          Kette — und was die übergeordneten Ebenen an Wechseln erlebt haben, steht
+          darunter als eigener, so beschrifteter Block. Ein Dorf, über das nur bekannt
+          ist, dass es zum Kreis Steinfurt gehört, behauptet damit keine zehn eigenen
+          Zugehörigkeitswechsel.</li>
       <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
           heirateten, starben — mit Quellen-Badges.</li>
       <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
@@ -429,9 +441,38 @@
           hinterlegt sind.</li>
     </ul>
     <p>
-      Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar. „Ort löschen" setzt
-      die betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die
-      Ereignisse selbst gehen nie verloren.
+      Über <strong>✎ Bearbeiten</strong> sind alle Felder pflegbar — auch <em>bestehende</em>
+      Einträge: Ein Namens-Eintrag mit falsch getipptem Jahr und ein Zugehörigkeits-Zeitraum
+      lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
+      dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
+      der Geschichte, nur weil kein Anfangsjahr bekannt ist. „Ort löschen" setzt die
+      betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die Ereignisse
+      selbst gehen nie verloren.
+    </p>
+    <h3>Was „Verwerfen" verwirft</h3>
+    <p>
+      Im Bearbeiten-Modus gibt es <em>zwei</em> Arten von Änderung, und der Steckbrief
+      macht die Grenze sichtbar, statt sie zu verwischen: Der Block
+      <strong>Grunddaten</strong> (Name, Anzeigename, Typ, Koordinaten, GOV-Angaben)
+      sammelt Ihre Eingaben und schreibt sie erst bei <strong>Speichern</strong>;
+      <strong>Verwerfen</strong> stellt genau diese Felder wieder her — und lässt den
+      Bearbeiten-Modus offen. Alles andere — Namensvarianten, Zugehörigkeits-Zeiträume,
+      bei <a href="#k8">Höfen</a> Adressen und Dorfwechsel — wirkt <strong>sofort</strong>,
+      weil daran Folgeänderungen hängen (eine Hof-Umbenennung zieht durch alle
+      referenzierenden Ereignisse). Ein „Abbrechen", das diese Wirkung zurückzunehmen
+      verspräche, wäre eine Unwahrheit. Wollen Sie so etwas zurücknehmen, ist
+      <strong>↶ Rückgängig</strong> das richtige Werkzeug.
+    </p>
+    <h3>„Als geprüft markieren"</h3>
+    <p>
+      Im Kopf des Steckbriefs — neben <strong>✎ Bearbeiten</strong>, nicht darin — sitzt
+      ein Schalter, der eine Frage beantwortet, die die Daten selbst nicht beantworten
+      können: <em>Hat hier schon einmal ein Mensch hingesehen?</em> Ein Ort, an dem nichts zu ergänzen war, sieht sonst genauso
+      unbearbeitet aus wie einer, den nie jemand angefasst hat. Ein Tipp macht daraus
+      <strong>„✓ Geprüft &lt;Datum&gt;"</strong>; ein weiterer nimmt die Markierung
+      zurück. Sie wird <em>nie</em> automatisch gesetzt — Bearbeiten allein genügt nicht
+      — und bedeutet „angesehen und für richtig befunden", nicht „vollständig".
+      Denselben Schalter tragen die <a href="#k8">Höfe</a>.
     </p>
   </div>
   <figure class="phone">
@@ -494,7 +535,18 @@
 <ul>
   <li><strong>Text → Ort verknüpfen:</strong> Ein reiner Orts-String im Ereignis wird
       einem Ortsobjekt zugeordnet — die Anzeige aktualisiert sich sofort.</li>
-  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab.</li>
+  <li><strong>Orts-Review</strong> arbeitet unklare Zuordnungen ab. Stehen mehrere
+      gleichnamige Orte zur Wahl, zeigt jede Kandidatenzeile, was die Entscheidung
+      tatsächlich trägt: die volle Kette, die <strong>Verwaltungsebene</strong>
+      (<em>Stadt</em> ⇄ <em>Kreis</em> — bei zwei „Münster" genau der Unterschied), den
+      <strong>Anreicherungsgrad</strong> und ein <em>✓ geprüft</em>, wo schon jemand
+      hingesehen hat. Passt keiner der Kandidaten, führt <strong>„Quelle schärfen"</strong>
+      zurück ans Ereignis, um Ortstext oder Adresse zu präzisieren.
+      <figure class="phone phone--narrow">
+        <img src="handbuch-assets/10b-orte-review.png" alt="Orts-Review mit Kandidatenzeilen, Verwaltungsebene und Anreicherungsgrad">
+        <figcaption>Orts-Review, Klasse P: jede Kandidatenzeile nennt Verwaltungsebene
+          und Anreicherungsgrad</figcaption>
+      </figure></li>
   <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
       Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
 </ul>
@@ -513,6 +565,10 @@
         Anzeige aktualisiert sich sofort.</li>
     <li><strong>Prüfen:</strong> die Orts-Review-Liste abarbeiten und den Filter
         <em>„Ohne Bezug"</em> nutzen, um verwaiste Orte aufzuräumen.</li>
+    <li><strong>Abhaken:</strong> jeden angesehenen Ort <strong>als geprüft
+        markieren</strong> — auch den, an dem nichts zu tun war. Erst dadurch wird aus
+        „unbearbeitet" die Auskunft „schon angesehen", und der nächste Durchgang kann
+        dort ansetzen, wo wirklich noch niemand war.</li>
   </ol>
 </div>
 
