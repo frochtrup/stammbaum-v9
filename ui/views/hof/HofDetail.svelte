@@ -40,11 +40,9 @@
     editing = true;
   }
 
-  function cancelEdit() {
-    editing = false;
-  }
-
-  /** HofEditForm reicht das fertige HofObject zurück → speichern + Bearbeiten-Modus verlassen. */
+  /** HofEditForm reicht das fertige HofObject zurück → speichern + Bearbeiten-Modus verlassen.
+   *  Speichern DARF den Modus schließen (die Transaktion ist abgeschlossen, INV-UI-16) —
+   *  „Verwerfen" darf es nicht, weil es sonst eine Rücknahme verspricht, die es nicht leistet. */
   function handleSaveEdit(updated: HofObject) {
     appState.saveHof(updated);
     editing = false;
@@ -183,6 +181,14 @@
             onToggle={(at) => appState.saveHof(markHofReviewed(detail.hof, at))}
           />
           <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
+        {:else}
+          <!-- Geschwister-Stelle zu PlaceDetail (INV-UI-16, ADR-v9-193): den Modus schließt
+               der Schalter, der ihn geöffnet hat — nicht das „Verwerfen" der Grunddaten.
+               Hier wiegt es schwerer als beim Ort: `editing` gibt daneben die Adress-
+               varianten und den Dorf-Picker frei, die beide SOFORT committen und deren
+               Nachläufe (Umbenennung über alle Ereignisse, Konsolidierung im Zieldorf)
+               längst geschrieben sind (ADR-v9-81/-172). -->
+          <button type="button" class="hof-detail__edit-btn" onclick={() => (editing = false)}>Fertig</button>
         {/if}
       {/snippet}
     </DetailHeader>
@@ -264,7 +270,6 @@
         hof={detail.hof}
         {otherHofs}
         onSave={handleSaveEdit}
-        onCancel={cancelEdit}
         onDelete={handleDelete}
         onCreateHof={createHofForForm}
       />

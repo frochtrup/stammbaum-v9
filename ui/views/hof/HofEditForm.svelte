@@ -11,6 +11,13 @@
   // (der Aufrufer kennt Dorf-Kontext + appState) — die Form bleibt frei von PlacesHost/Plattform.
   // Name & Adressvarianten bleiben BEWUSST im HofDetail: sie committen sofort (eigenes Timing),
   // nicht über den „Speichern"-Button dieser Form.
+  //
+  // DIESE FLÄCHE IST DIE TRANSAKTIONSGRENZE (Spec 21 §6m, INV-UI-16, ADR-v9-193) — und genau
+  // deshalb steht der Satz darüber nicht mehr nur als Kommentar da: „Verwerfen" setzt die
+  // FELDWERTE zurück und schließt die Fläche NICHT (kein `onCancel` mehr). Vorher schloss
+  // derselbe Knopf den Modus und wirkte damit wie eine Rücknahme auch der Adressvarianten
+  // und des Dorf-Wechsels daneben — die er nie war (`updateHofAddr` zieht die Umbenennung
+  // längst über alle referenzierenden Ereignisse, ADR-v9-81).
   import { untrack } from 'svelte';
   import Picker from '../../shell/Picker.svelte';
   import CoordFields from '../../shell/CoordFields.svelte';
@@ -22,13 +29,12 @@
     /** Alle übrigen Höfe (für die Vorgänger-/Nachfolger-Picker) — ohne diesen Hof selbst. */
     otherHofs: HofObject[];
     onSave: (updated: HofObject) => void;
-    onCancel: () => void;
     onDelete: () => void;
     /** Legt einen neuen Hof mit dieser Adresse (im Dorf-Kontext des Aufrufers) an und liefert
      *  dessen id zurück (oder null bei leerer/ungültiger Adresse). */
     onCreateHof: (addr: string) => string | null;
   }
-  const { hof, otherHofs, onSave, onCancel, onDelete, onCreateHof }: Props = $props();
+  const { hof, otherHofs, onSave, onDelete, onCreateHof }: Props = $props();
 
   // Startwerte EINMAL aus `hof` lesen (Arbeitskopie, mountet frisch je Bearbeiten-Sitzung) —
   // aus plain-Const initialisieren, nicht direkt aus dem Prop (svelte-check state_referenced_locally).
@@ -59,6 +65,24 @@
   let formGovId = $state(init.govId);
   /** GOV-Typen (`govTypes: string[] | null`) als komma-getrennter Freitext (analog PlaceEditForm). */
   let formGovTypes = $state(init.govTypes);
+
+  /**
+   * Setzt die Feldwerte auf den GESPEICHERTEN Stand zurück (INV-UI-16). Liest `hof` frisch
+   * statt `init`: die sofort committenden Abschnitte daneben (Adressvarianten, Dorf-Picker)
+   * können den Hof seit dem Öffnen geändert haben — auf `init` zurückzusetzen nähme deren
+   * Ergebnis beim nächsten „Speichern" mit.
+   */
+  function discard() {
+    formLatText = hof.lat != null ? String(hof.lat) : '';
+    formLongText = hof.long != null ? String(hof.long) : '';
+    formNote = hof.note ?? '';
+    formExistsFrom = hof.existsFrom;
+    formExistsTo = hof.existsTo;
+    formPredecessor = hof.predecessor ?? '';
+    formSuccessor = hof.successor ?? '';
+    formGovId = hof.govId ?? '';
+    formGovTypes = hof.govTypes?.join(', ') ?? '';
+  }
 
   /** Inline-Neuanlage eines Vorgänger-/Nachfolger-Hofes (ADR-v9-42 Punkt 5): Hof-Identität
    *  braucht Adresse+Dorf-Kontext — ein simples Adress-Textfeld statt eines eigenen HofForm. */
@@ -193,7 +217,8 @@
   </label>
   <div class="hof-detail__form-actions">
     <button type="button" class="hof-detail__save-btn" onclick={save}>Speichern</button>
-    <button type="button" class="hof-detail__cancel-btn" onclick={onCancel}>Abbrechen</button>
+    <!-- „Verwerfen", nicht „Abbrechen" — Feldwerte dieser Fläche, nicht die Sitzung (INV-UI-16). -->
+    <button type="button" class="hof-detail__cancel-btn" onclick={discard}>Verwerfen</button>
     <button type="button" class="hof-detail__delete-btn" onclick={onDelete}>Hof löschen</button>
   </div>
 </section>

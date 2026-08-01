@@ -477,7 +477,11 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
     // keine Pillen — die gefaltete Variante steht dort als Feldwert.
     expect((screen.getByLabelText('Namensvariante 1') as HTMLInputElement).value).toBe('Ochtrup');
     // Auf der LESEFLÄCHE bleibt sie die Herkunfts-Pille (Verlustfreiheit sichtbar).
-    await fireEvent.click(screen.getByText('Abbrechen'));
+    // „Fertig" statt vormals „Abbrechen" (INV-UI-16, ADR-v9-193): der Modus wird von dem
+    // Schalter geschlossen, der ihn geöffnet hat. Dieser Test ist selbst ein Beleg für den
+    // behobenen Defekt — der Merge oben ist längst geschrieben, und trotzdem stand hier
+    // „Abbrechen".
+    await fireEvent.click(screen.getByText('Fertig'));
     const pill = screen.getByText('Ochtrup', { selector: '.stb-pill' });
     expect(pill.closest('.stb-pill')).toBeTruthy();
   });
@@ -1416,5 +1420,51 @@ describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
     // nötig macht, ist der, in dem niemand den Editor öffnet.
     expect(screen.getByText('Als geprüft markieren')).toBeTruthy();
     expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
+  });
+});
+
+// --- INV-UI-16: „Verwerfen" betrifft die Feldwerte, nicht die Sitzung ----------------
+// (Spec 21 §6m, ADR-v9-193, BL-270). Die zweite Zusicherung ist die eigentliche: sie
+// unterscheidet ein ehrliches „Verwerfen" vom alten „Abbrechen", das eine Rücknahme
+// suggerierte, die es nie leistete — die Namensvariante daneben ist längst geschrieben.
+describe('PlaceDetail — Transaktionsgrenze (INV-UI-16)', () => {
+  it('„Verwerfen" setzt das Feld zurück, hält den Modus offen und lässt die sofort committete Namensvariante stehen', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+
+    await fireEvent.input(screen.getByLabelText('Neue Namensvariante'), { target: { value: 'Ochtorp' } });
+    await fireEvent.click(screen.getByText('+ Hinzufügen'));
+    expect(appState.db.placeObjects.get('@P1@')?.pnames.some((p) => p.value === 'Ochtorp')).toBe(true);
+
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'FALSCH' } });
+    await fireEvent.click(screen.getByText('Verwerfen'));
+
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Ochtrup');
+    expect(screen.getByText('Fertig')).toBeTruthy();
+    expect(screen.queryByText('✎ Bearbeiten')).toBeNull();
+    expect(appState.db.placeObjects.get('@P1@')?.pnames.some((p) => p.value === 'Ochtorp')).toBe(true);
+  });
+
+  it('„Fertig" schließt den Bearbeiten-Modus', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    render(PlaceDetail, { props: { appState, viewState } });
+    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
+    await fireEvent.click(screen.getByText('Fertig'));
+
+    expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
+    expect(screen.queryByText('Speichern')).toBeNull();
   });
 });
