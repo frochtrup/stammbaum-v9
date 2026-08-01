@@ -24,8 +24,8 @@ import {
   seedPlacesFromEvents,
   makePlaceRegistry,
   makeHofRegistry,
-  isEnrichedPlace,
-  isEnrichedHof,
+  isCuratedPlace,
+  isCuratedHof,
   buildPlacForGedcom,
   eventYear,
   type ResolveResult,
@@ -77,7 +77,8 @@ export interface ApplyResolutionOptions {
   /**
    * ADR-v9-74: setzt vor der Auflösung `placeId`/`hofId` auf Events zurück, deren
    * AKTUELLES Ziel (in `db.placeObjects`/`hofObjects`, wie zu Beginn dieses Aufrufs)
-   * nicht kuratiert ist (`isEnrichedPlace`/`isEnrichedHof` = false). Der reguläre
+   * nicht kuratiert ist (`isCuratedPlace`/`isCuratedHof` = false, also weder geprüft
+   * noch angereichert — ADR-v9-191). Der reguläre
    * „bereits gelinkt"-Kurzschluss in `resolveEvents` (Pfad REPROJECT, Spec 11 §4.1)
    * überspringt sonst jede Neu-Zuordnung für Events, die schon irgendeine — und sei es
    * nur eine automatisch geratene — `placeId` tragen: ein reiner Re-Resolve-Aufruf
@@ -109,6 +110,11 @@ export interface ApplyResolutionOptions {
 /**
  * Setzt `placeId`/`hofId` auf Events zurück, deren aktuelles Ziel (in `db`, VOR jeder
  * Mutation durch diesen Aufruf) nicht kuratiert ist — s. `ApplyResolutionOptions`.
+ *
+ * „Kuratiert" heißt seit ADR-v9-191 **geprüft ODER angereichert** (`isCuratedPlace`/
+ * `isCuratedHof`, Spec 11 §9.1). Der Marker allein genügte nicht: weil ihn nur der
+ * ausdrückliche Knopf setzt, verlöre ein von Hand gepflegter, aber nie geklickter Ort
+ * sonst seine Zuordnungen.
  * Mutiert `db.individuals`/`db.families` in-place (gleiche Mutations-Disziplin wie
  * `applyPlaceResolution` selbst).
  */
@@ -116,11 +122,11 @@ function resetUncuratedLinks(db: Database): void {
   const shouldReset = (ev: Event): boolean => {
     if (ev.hofId != null) {
       const hof = db.hofObjects.get(ev.hofId);
-      return !hof || !isEnrichedHof(hof);
+      return !hof || !isCuratedHof(hof);
     }
     if (ev.placeId != null) {
       const place = db.placeObjects.get(ev.placeId);
-      return !place || !isEnrichedPlace(place);
+      return !place || !isCuratedPlace(place);
     }
     return false;
   };

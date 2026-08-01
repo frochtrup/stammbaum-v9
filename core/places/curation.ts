@@ -63,6 +63,41 @@ export function isEnrichedHof(hof: HofObject): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// §9.1 zweite Achse: Prüf-Marker (ADR-v9-191)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hat ein Mensch über dieses Objekt ausdrücklich entschieden? (Spec 11 §9.1.)
+ *
+ * Der EINE erlaubte Leseweg auf `reviewedAt` — das Feld ist optional (eine `orte.json`
+ * ohne es ist gültig), und `undefined` bedeutet dasselbe wie `null`: nie geprüft. Ein
+ * roher `!== null`-Vergleich läse `undefined` fälschlich als „geprüft".
+ */
+export function isReviewed(obj: { reviewedAt?: number | null }): boolean {
+  return obj.reviewedAt != null;
+}
+
+/**
+ * „Kuratiert" im Sinne des Reset-Schutzes (Spec 11 §3/§9.1, ADR-v9-191): geprüft ODER
+ * angereichert.
+ *
+ * **Warum beide Signale.** Der Marker ERWEITERT den Schutz, er ersetzt ihn nicht. Weil ihn
+ * ausschließlich der ausdrückliche Knopf setzt, wäre ein von Hand gepflegter, aber nie
+ * geklickter Ort sonst „unkuratiert" — und `resetUncuratedLinks` würfe beim nächsten
+ * `orte.json`-Import genau die Zuordnungen weg, die heute schon geschützt sind. Die neue
+ * Achse dient der Anzeige und der menschlichen Entscheidung; der Reset-Schutz ist eine
+ * Sicherheitsfrage und nimmt, was er kriegen kann.
+ */
+export function isCuratedPlace(po: PlaceObject): boolean {
+  return isReviewed(po) || isEnrichedPlace(po);
+}
+
+/** Geschwister von `isCuratedPlace` für Höfe (Spec 11 §9.1). */
+export function isCuratedHof(hof: HofObject): boolean {
+  return isReviewed(hof) || isEnrichedHof(hof);
+}
+
+// ---------------------------------------------------------------------------
 // §9.3 Referenz-Sichtbarkeit (ADR-v9-46)
 // ---------------------------------------------------------------------------
 

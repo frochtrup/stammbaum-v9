@@ -86,6 +86,8 @@ export {
   deletePlaceObject,
   saveHofObject,
   deleteHofObject,
+  markPlaceReviewed,
+  markHofReviewed,
   withAddedPname,
   withRemovedPname,
   withUpdatedPname,
@@ -112,6 +114,9 @@ export {
 export {
   isEnrichedPlace,
   isEnrichedHof,
+  isReviewed,
+  isCuratedPlace,
+  isCuratedHof,
   hasReference,
   findPlaceDuplicates,
   type DedupKind,

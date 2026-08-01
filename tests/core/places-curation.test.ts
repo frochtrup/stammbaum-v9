@@ -12,8 +12,14 @@ import {
   makeHofRegistry,
   seedPlacesFromEvents,
   findOrCreateHof,
+  isReviewed,
+  isCuratedPlace,
+  isCuratedHof,
+  markPlaceReviewed,
+  markHofReviewed,
+  resolveEvents,
 } from '../../core/places/index';
-import type { PlaceContext } from '../../core/places/index';
+import type { PlaceContext, PlaceObjects, HofObjects } from '../../core/places/index';
 import { place, hof, placeMap, hofMap, ev } from './places-fixtures';
 
 function ctxOf(places = placeMap(), hofs = hofMap()): PlaceContext {
@@ -358,5 +364,79 @@ describe('findPlaceDuplicates — Determinismus (TST-3, Property)', () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+// ADR-v9-191 / BL-266 — die zweite Achse: „geprüft" ist eine Entscheidung, kein Inhalt.
+describe('isReviewed / isCuratedPlace / isCuratedHof (§9.1, ADR-v9-191)', () => {
+  it('liest ein fehlendes Feld als „nie geprüft" (eine alte orte.json ohne das Feld ist gültig)', () => {
+    const pl = place('@P1@', { title: 'Ochtrup' });
+    expect(pl.reviewedAt).toBeUndefined();
+    expect(isReviewed(pl)).toBe(false);
+    expect(isReviewed({ reviewedAt: null })).toBe(false);
+    expect(isReviewed({ reviewedAt: 0 })).toBe(true);
+    expect(isReviewed({ reviewedAt: Date.now() })).toBe(true);
+  });
+
+  it('ist unabhängig vom Anreicherungs-Grad — der ganze Zweck der zweiten Achse', () => {
+    // Der Fall, den es ohne Marker nicht gibt: angesehen, für richtig befunden, nichts
+    // ergänzt. Inhaltlich bleibt der Ort blank.
+    const geprueftAberBlank = place('@P1@', { title: 'Ochtrup', reviewedAt: 1_700_000_000_000 });
+    expect(isEnrichedPlace(geprueftAberBlank)).toBe(false);
+    expect(isReviewed(geprueftAberBlank)).toBe(true);
+
+    // Und die Gegenrichtung: ein GOV-Platzhalter (Titel IST die GOV-Kennung) trägt Inhalt,
+    // aber niemand hat ihn je gesehen.
+    const govPlatzhalter = place('@P2@', { title: 'object_190142', govId: 'object_190142' });
+    expect(isEnrichedPlace(govPlatzhalter)).toBe(true);
+    expect(isReviewed(govPlatzhalter)).toBe(false);
+  });
+
+  it('„kuratiert" ist geprüft ODER angereichert — beide Signale, nicht nur der Marker', () => {
+    expect(isCuratedPlace(place('@P1@', { title: 'Ochtrup' }))).toBe(false);
+    // Nur geprüft (inhaltlich blank) → geschützt. Ohne diesen Fall wäre der Marker wirkungslos.
+    expect(isCuratedPlace(place('@P2@', { title: 'Ochtrup', reviewedAt: 1 }))).toBe(true);
+    // Nur angereichert (nie geklickt) → weiterhin geschützt. Ohne diesen Fall hätte der
+    // Marker bestehenden Schutz WEGGENOMMEN.
+    expect(isCuratedPlace(place('@P3@', { title: 'Ochtrup', type: 'Town' }))).toBe(true);
+
+    expect(isCuratedHof(hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }))).toBe(false);
+    expect(
+      isCuratedHof(hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], reviewedAt: 1 })),
+    ).toBe(true);
+    expect(isCuratedHof(hof('@H3@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'x' }))).toBe(
+      true,
+    );
+  });
+
+  it('markPlaceReviewed/markHofReviewed setzen und entfernen den Marker, ohne die Eingabe zu mutieren', () => {
+    const pl = place('@P1@', { title: 'Ochtrup' });
+    const gesetzt = markPlaceReviewed(pl, 1_700_000_000_000);
+    expect(gesetzt.reviewedAt).toBe(1_700_000_000_000);
+    expect(pl.reviewedAt).toBeUndefined(); // rein — die Eingabe bleibt unberührt
+    expect(markPlaceReviewed(gesetzt, null).reviewedAt).toBeNull();
+
+    const h = hof('@H1@', '@P1@');
+    expect(markHofReviewed(h, 42).reviewedAt).toBe(42);
+    expect(h.reviewedAt).toBeUndefined();
+    expect(markHofReviewed(markHofReviewed(h, 42), null).reviewedAt).toBeNull();
+  });
+
+  it('kein automatischer Pfad setzt den Marker (Seed + Hof-Bootstrap)', () => {
+    // Die Herkunftsregel ist der Grund, warum der Marker überhaupt etwas aussagt — sie
+    // gehört deshalb bewacht, nicht nur dokumentiert.
+    const events = [
+      ev('BIRT', { place: 'Ochtrup, Kreis Steinfurt, Deutschland' }),
+      ev('RESI', { place: 'Ochtrup, Kreis Steinfurt, Deutschland', addr: 'Wall 33' }),
+    ];
+    const places: PlaceObjects = placeMap(...seedPlacesFromEvents(events, ctxOf()));
+    // resolveEvents ist rein: die gebootstrappten Höfe kommen im Ergebnis zurück,
+    // nicht in der Eingabe-Map.
+    const hofs: HofObjects = resolveEvents(events, places, hofMap()).hofObjects;
+
+    expect(places.size).toBeGreaterThan(0);
+    expect(hofs.size).toBeGreaterThan(0); // der Hof-Bootstrap ist wirklich gelaufen
+    for (const po of places.values()) expect(isReviewed(po)).toBe(false);
+    for (const h of hofs.values()) expect(isReviewed(h)).toBe(false);
   });
 });

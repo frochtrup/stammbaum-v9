@@ -6,7 +6,8 @@
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
   import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
-  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof } from '../../../core/places';
+  import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
+  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof, markHofReviewed } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
   import HofEditForm from './HofEditForm.svelte';
   import Picker from '../../shell/Picker.svelte';
@@ -174,6 +175,13 @@
       {#snippet actions()}
         <span class="hof-detail__village">{detail.villageTitle}</span>
         {#if !editing}
+          <!-- Geschwister-Stelle zu PlaceDetail (ADR-v9-191, INV-UI-4): dieselbe Frage,
+               derselbe Schalter, dieselbe Komponente. -->
+          <ReviewedToggle
+            reviewedAt={detail.hof.reviewedAt}
+            kind="Hof"
+            onToggle={(at) => appState.saveHof(markHofReviewed(detail.hof, at))}
+          />
           <button type="button" class="hof-detail__edit-btn" onclick={startEdit}>✎ Bearbeiten</button>
         {/if}
       {/snippet}

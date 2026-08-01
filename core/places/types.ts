@@ -75,6 +75,25 @@ export interface PlaceObject {
   existsTo: Year;
   govId: string | null;
   govTypes: string[] | null;
+  /**
+   * Prüf-Marker (Spec 11 §9.1, ADR-v9-191) — Zeitstempel der ausdrücklichen Nutzer-
+   * Entscheidung „ich habe diesen Ort angesehen". Er behauptet NICHT „fertig recherchiert"
+   * (das ist bei einem Ort keine haltbare Aussage), sondern nur, dass ein Mensch entschieden
+   * hat.
+   *
+   * **Die zweite Achse neben dem Anreicherungs-Grad** (`isEnrichedPlace`, §9.1): der Grad
+   * misst den INHALT und kann über die Herkunft nichts sagen — ein GOV-Platzhalter trägt
+   * `govId` und gilt inhaltlich als angereichert, obwohl ihn nie jemand gesehen hat; ein
+   * geprüfter, für richtig befundener Ort ändert dagegen kein einziges Feld. Genau diese
+   * Lücke schließt der Marker; ableitbar ist er deshalb prinzipiell nicht.
+   *
+   * **Nur der „geprüft"-Knopf setzt ihn.** Kein automatischer Pfad (Seed, GOV-Platzhalter,
+   * Hof-Bootstrap, Merge-Nachlauf), und Bearbeiten allein ebenfalls nicht. Umkehrbar.
+   * Optional: eine `orte.json` ohne das Feld ist gültig (`undefined` = nie geprüft) —
+   * additiv und beidseitig abwärtskompatibel wie `shortName`, also KEIN
+   * `PLACES_SCHEMA_VERSION`-Bump. Einziger Leseweg: `isReviewed()` (§9.1).
+   */
+  reviewedAt?: number | null;
 }
 
 /**
@@ -94,6 +113,9 @@ export interface HofObject {
   successor: HofId | null;
   govId: string | null;
   govTypes: string[] | null;
+  /** Prüf-Marker wie beim PlaceObject (Spec 11 §9.1, ADR-v9-191) — dieselbe Semantik,
+   *  dieselbe Herkunftsregel, derselbe Leseweg (`isReviewed`). */
+  reviewedAt?: number | null;
   schemaVersion: number;
   /**
    * Roundtrip-Fidelity: die GRAMPS-`id` (P0000) des `<placeobj type="Building">`, aus dem

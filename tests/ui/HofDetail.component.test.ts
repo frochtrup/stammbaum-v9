@@ -534,3 +534,39 @@ describe('HofDetail — Name & Adressvarianten steht am Anfang (Nutzer-Wunsch)',
     expect(headings[0]).toBe('Name & Adressvarianten');
   });
 });
+
+// ADR-v9-191 / BL-266 — Geschwister-Stelle zu PlaceDetail: derselbe Schalter, dieselbe
+// Komponente (INV-UI-4). Ein Fix an einer Regel ist erst fertig, wenn beide Stellen ihn tragen.
+describe('HofDetail — Prüf-Marker (ADR-v9-191)', () => {
+  function setup(reviewedAt?: number | null) {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set(
+      '@H1@',
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], reviewedAt }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('hof', '@H1@');
+    render(HofDetail, { props: { appState, viewState } });
+    return appState;
+  }
+
+  it('setzt den Marker per Klick', async () => {
+    const appState = setup();
+
+    await fireEvent.click(screen.getByText('Als geprüft markieren'));
+
+    expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeTypeOf('number');
+  });
+
+  it('nimmt ihn beim zweiten Klick zurück', async () => {
+    const appState = setup(1_700_000_000_000);
+
+    const datum = new Date(1_700_000_000_000).toLocaleDateString('de-DE');
+    await fireEvent.click(screen.getByText(`✓ Geprüft ${datum}`));
+
+    expect(appState.db.hofObjects.get('@H1@')!.reviewedAt).toBeNull();
+  });
+});

@@ -1369,3 +1369,52 @@ describe('PlaceDetail — geerbte Verwaltungshistorie gehört dem Elternort (ADR
     expect(screen.getByText('Keine übergeordnete Zugehörigkeit erfasst.')).toBeTruthy();
   });
 });
+
+// ADR-v9-191 / BL-266 — der „geprüft"-Schalter ist der EINZIGE Weg zum Marker.
+describe('PlaceDetail — Prüf-Marker (ADR-v9-191)', () => {
+  function setup(reviewedAt?: number | null) {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', reviewedAt }));
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    render(PlaceDetail, { props: { appState, viewState } });
+    return appState;
+  }
+
+  it('setzt den Marker per Klick und beschriftet beide Zustände mit eigenem TEXT (nicht nur Farbe)', async () => {
+    const appState = setup();
+
+    const knopf = screen.getByText('Als geprüft markieren');
+    expect(knopf.getAttribute('aria-pressed')).toBe('false');
+    await fireEvent.click(knopf);
+
+    const pl = appState.db.placeObjects.get('@P1@')!;
+    expect(pl.reviewedAt).toBeTypeOf('number');
+    // Zweiter Zustand trägt sein eigenes Wort samt Datum — auf dem Telefon ist eine
+    // Füllung allein kein Kanal (Spec 21 §2).
+    const heute = new Date(pl.reviewedAt as number).toLocaleDateString('de-DE');
+    expect(screen.getByText(`✓ Geprüft ${heute}`)).toBeTruthy();
+    expect(screen.queryByText('Als geprüft markieren')).toBeNull();
+  });
+
+  it('nimmt den Marker beim zweiten Klick zurück (INV-UI-10: ebenso leichte Rücknahme)', async () => {
+    const appState = setup(1_700_000_000_000);
+
+    const heute = new Date(1_700_000_000_000).toLocaleDateString('de-DE');
+    await fireEvent.click(screen.getByText(`✓ Geprüft ${heute}`));
+
+    expect(appState.db.placeObjects.get('@P1@')!.reviewedAt).toBeNull();
+    expect(screen.getByText('Als geprüft markieren')).toBeTruthy();
+  });
+
+  it('ist ohne den Editor erreichbar — „angesehen, nichts zu ergänzen" öffnet kein Formular', () => {
+    setup();
+
+    // Der Knopf steht neben „✎ Bearbeiten", nicht darin: genau der Fall, der den Marker
+    // nötig macht, ist der, in dem niemand den Editor öffnet.
+    expect(screen.getByText('Als geprüft markieren')).toBeTruthy();
+    expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
+  });
+});

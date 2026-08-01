@@ -21,6 +21,8 @@
   import type { LensId } from '../../shell/lens-model';
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
+  import { markPlaceReviewed } from '../../../core/places';
   import { placeTypeLabel, placeHeading } from '../../shell/place-labels';
   import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
@@ -175,6 +177,14 @@
              im Steckbrief-Kopf. -->
         {#if placeTypeLabel(detail.place.type)}<span class="place-detail__type-badge">{placeTypeLabel(detail.place.type)}</span>{/if}
         {#if !editing}
+          <!-- ADR-v9-191: der EINZIGE Weg zum Prüf-Marker. Bewusst neben „Bearbeiten" und
+               nicht darin: „angesehen, nichts zu ergänzen" ist gerade der Fall, in dem
+               niemand den Editor öffnet. -->
+          <ReviewedToggle
+            reviewedAt={detail.place.reviewedAt}
+            kind="Ort"
+            onToggle={(at) => appState.savePlace(markPlaceReviewed(detail.place, at))}
+          />
           <button type="button" class="place-detail__edit-btn" onclick={() => (editing = true)}>✎ Bearbeiten</button>
         {/if}
       {/snippet}
