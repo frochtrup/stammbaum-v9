@@ -78,13 +78,15 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     }
   });
 
-  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)" — Statistik/Karte/Zeitleiste/Story NICHT mehr', () => {
+  it('markiert die noch nicht gebauten Einträge sichtbar als "(folgt)"', () => {
     const route = createRoute({ target: 'more' });
     renderMore(route);
 
-    for (const label of ['Einstellungen']) {
-      expect(screen.getByText(new RegExp(`${label} \\(folgt\\)`))).toBeTruthy();
-    }
+    // Derzeit trägt KEIN Hub-Eintrag mehr die "(folgt)"-Markierung: Statistik, Karte,
+    // Zeitleiste, Story, Ausgaben und — seit BL-257 — Einstellungen sind echt. Der Test
+    // bleibt trotzdem stehen: er hält die Mechanik fest, mit der ein künftiger, noch
+    // ungebauter Eintrag sichtbar gemacht wird.
+    expect(screen.queryByText(/Einstellungen \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Statistik \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Karte \(folgt\)/)).toBeNull();
     expect(screen.queryByText(/Zeitleiste \(folgt\)/)).toBeNull();
@@ -129,13 +131,14 @@ describe('MoreView — Hub für Lenses + Ausgaben + Einstellungen', () => {
     expect(screen.queryByRole('button', { name: /Statistik/ })).toBeNull();
   });
 
-  it('Klick auf "Einstellungen" zeigt ComingSoonPanel mit Label "Einstellungen"', async () => {
+  it('Klick auf "Einstellungen" zeigt die echte SettingsView (BL-257, kein ComingSoonPanel mehr)', async () => {
     const route = createRoute({ target: 'more' });
     renderMore(route);
 
     await fireEvent.click(screen.getByRole('button', { name: /Einstellungen/ }));
 
-    expect(screen.getByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeTruthy();
+    expect(screen.queryByText('Dieser Bereich folgt in einem späteren Bau-Durchgang.')).toBeNull();
+    expect(screen.getByText('Medien-Ordner')).toBeTruthy();
   });
 
   it('Klick auf "Statistik" zeigt die echte StatisticsView (kein ComingSoonPanel mehr)', async () => {
@@ -212,6 +215,21 @@ describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung
     picker: createMockPicker(null),
   });
 
+  // Wird nur gebraucht, um zu belegen, dass die App-Daten-Gruppe hier AUCH DANN nicht
+  // erscheint, wenn der IO vorhanden wäre (BL-257) — sonst bewiese der Test nur, dass
+  // ein fehlender Prop nichts rendert.
+  const mockAppDataIO = () =>
+    ({
+      store: { load: async () => null, save: async () => {} },
+      // ExportView liest beim Mount die Export-Vorwahl aus dem Bündel — die Attrappe
+      // muss also einen leeren Stand liefern, nicht bloß existieren.
+      sync: {
+        load: async () => ({ sections: {}, rev: 0, ts: 0, isEmpty: true }),
+        reconcileAndSave: async () => ({ sections: {}, warning: null, saved: true, rev: 1 }),
+      },
+      picker: createMockPicker(null),
+    }) as unknown as import('../../services/app-data').AppDataIO;
+
   it('ohne geladene Datei: genau EINE Primäraktion, und das ist „Datei öffnen"', () => {
     const { container } = renderMore(createRoute({ target: 'file' }));
 
@@ -242,6 +260,21 @@ describe('MoreView — Datei-Seite: eine Primäraktion + funktionale Gruppierung
     expect(within(region).getByRole('button', { name: /Orte importieren/ })).toBeTruthy();
     // Die Orte-Aktionen sind NICHT primär (andere Datei, Nebensache).
     expect(region.querySelector('[data-variant="primary"]')).toBeNull();
+  });
+
+  it('trägt KEINE App-Daten-Gruppe mehr — der Transport ist in die Einstellungen umgezogen (BL-257)', () => {
+    // Der Umzug ist nur dann einer, wenn der alte Platz LEER ist. Eine Kopie an beiden
+    // Orten wäre ein zweiter Weg zum selben Ziel (INV-UI-2) — und genau die Sorte
+    // Rückfall, die man beim nächsten Feature nicht bemerkt. `orte.json` bleibt hier:
+    // das ist genealogisches Fachwissen (LP-4), keine Einstellung.
+    renderMore(createRoute({ target: 'file' }), {
+      placesFileIO: mockPlacesFileIO(),
+      appDataIO: mockAppDataIO(),
+    });
+
+    expect(screen.queryByRole('group', { name: /App-Daten/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /App-Daten exportieren/ })).toBeNull();
+    expect(screen.getByRole('group', { name: /Orts-Bestand/ })).toBeTruthy();
   });
 
   it('gruppiert nach Funktion: Überschriften Laden/Sichern/Orts-Bestand/Austausch', () => {

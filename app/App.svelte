@@ -47,6 +47,12 @@
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
   import { createAppDataIO, createProjectsStore, type AppDataIO } from '../services/app-data';
+  import {
+    createMediaResolver,
+    FsMediaFolderAdapter,
+    IdbMediaFolderHandleStore,
+    type MediaResolver,
+  } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import type { LensId } from '../ui/shell/lens-model';
   import { focusPersonInLens } from '../ui/shell/lens-jump';
@@ -79,6 +85,9 @@
     /** Injizierbar für Tests (analog placesFileIO) — B1-Bündel `app-data.json` (BL-180):
      * dateiübergreifender app-privater Zustand, eigener Picker, eigener IDB-Spiegel. */
     appDataIO?: AppDataIO;
+    /** Injizierbar für Tests (analog appDataIO) — Medien-Auflösung (BL-257): hält den
+     * Verzeichnis-Handle des Medien-Ordners (Kategorie A) und löst relative Pfade auf. */
+    mediaResolver?: MediaResolver;
     /** Injizierbar für Tests — Formfaktor-Quelle (BL-91). Default ist window.matchMedia.
      *
      * Nötig, weil `layout` ein Modul-Singleton ist und `start()` hier im onMount läuft:
@@ -92,6 +101,10 @@
     persister = createPlacesPersister(createPlacesSyncService()),
     placesFileIO = createPlacesFileIO(),
     appDataIO = createAppDataIO(),
+    mediaResolver = createMediaResolver({
+      adapter: new FsMediaFolderAdapter(),
+      store: new IdbMediaFolderHandleStore(),
+    }),
     layoutEnv,
   }: Props = $props();
 
@@ -154,6 +167,12 @@
 
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
     void projectsState.load();
+
+    // Medien-Ordner wiederherstellen (BL-257): gespeicherter Verzeichnis-Handle +
+    // Leserecht-Nachfrage, genau wie beim Arbeitskopie-Handle. Kein Ordner oder kein
+    // erneut erteiltes Recht ist KEIN Fehler — die App läuft vollständig weiter, nur
+    // ohne Medien-Vorschauen.
+    void mediaResolver.restore().catch(() => {});
 
     // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
     // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
@@ -477,6 +496,7 @@
         {persister}
         {placesFileIO}
         {appDataIO}
+        {mediaResolver}
         {fileHandle}
         {route}
         {viewState}

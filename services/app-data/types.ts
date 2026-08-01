@@ -53,8 +53,25 @@ export interface AppDataSections {
    * `app-data-sync-service.ts`.
    */
   projects?: Project[];
+  /**
+   * Medien-Zuordnung (BL-257, ADR-v9-188). Bewusst DÜNN: hier reist die REGEL, nicht der
+   * Zugang. Der Verzeichnis-Handle selbst ist Kategorie A (nicht serialisierbar, auf einem
+   * zweiten Gerät bedeutungslos) und bleibt im IDB-Store `media-folder-handle`.
+   *
+   * Was übrig bleibt, ist ehrlicherweise wenig — der Ordnername als Wiederfindungs-Hinweis
+   * („auf dem anderen Gerät hieß der Ordner *Genealogie*"). Weitere Felder (zusätzliche
+   * Suchordner) erst, wenn der Index sie nachweislich braucht; erfundene Konfiguration,
+   * damit die Datei etwas zu tragen hat, wäre der falsche Weg.
+   */
+  media?: MediaPrefs;
   // Später (eigene Backlog-Zeilen, kein Platzhalter-Code):
   //   quickTemplates (BL-232) · mapLayer (BL-230)
+}
+
+/** B1-Anteil der Medien-Anbindung (Spec 30 §2.2). */
+export interface MediaPrefs {
+  /** Anzeigename des zuletzt verbundenen Ordners — reiner Hinweis, kein Zugang. */
+  folderName: string;
 }
 
 /** Der gespeicherte/exportierte Wrapper — Feldnamen wie bei `orte.json`. */

@@ -46,7 +46,7 @@ export interface AppDataBase {
   sections: AppDataSections;
 }
 
-const SECTION_KEYS = ['valConfig', 'exportPrefs', 'projects'] as const;
+const SECTION_KEYS = ['valConfig', 'exportPrefs', 'projects', 'media'] as const;
 type SectionKey = (typeof SECTION_KEYS)[number];
 
 /**
