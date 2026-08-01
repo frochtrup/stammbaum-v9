@@ -63,7 +63,10 @@ export function tourSteps(): TourStep[] {
     {
       anchor: 'more',
       title: 'Eigene Daten',
-      text: `Unter „${MORE_SLOT.label} → ${navTargetById('file').label}" lädst du deine eigene GEDCOM- oder GRAMPS-Datei. Die Demo-Daten bleiben unberührt.`,
+      // SIE-Form wie überall sonst in der App (Einstellungen, Formulare, Handbuch). Der
+      // Rundgang war die einzige Fläche, die duzte — der erste Text, den ein Erstnutzer
+      // liest, wäre damit ausgerechnet der einzige im falschen Ton gewesen.
+      text: `Unter „${MORE_SLOT.label} → ${navTargetById('file').label}" laden Sie Ihre eigene GEDCOM- oder GRAMPS-Datei. Die Demo-Daten bleiben unberührt.`,
     },
   ];
 }
