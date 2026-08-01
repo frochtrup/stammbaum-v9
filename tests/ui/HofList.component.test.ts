@@ -77,7 +77,7 @@ describe('HofList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', 
     expect(screen.queryByText('ohne Zusatzangaben')).toBeNull();
   });
 
-  it('der Filter "nur unvollständige" blendet kuratierte Höfe aus', async () => {
+  it('die Anreicherungs-Stufe blendet die anderen Stufen aus (ADR-v9-191)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -97,10 +97,19 @@ describe('HofList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', 
     expect(screen.getByText('Bachweg 7')).toBeTruthy();
 
     await fireEvent.click(screen.getByText('Filter'));
-    await fireEvent.click(screen.getByLabelText('nur unvollständige'));
+    const wahl = screen.getByLabelText('Anreicherung') as HTMLSelectElement;
+    await fireEvent.change(wahl, { target: { value: 'none' } });
 
     expect(screen.getByText('Wall 33')).toBeTruthy();
     expect(screen.queryByText('Bachweg 7')).toBeNull();
+
+    // „Bachweg 7" trägt genau EINE Angabe (Notiz) → „wenig ergänzt". Erst ab zwei
+    // Facetten gilt ein Hof als ausführlich (gemessene Hof-Schwelle, ADR-v9-191) — die
+    // Stufe hängt an der Zahl der Angaben, nicht daran, dass überhaupt eine da ist.
+    await fireEvent.change(wahl, { target: { value: 'sparse' } });
+
+    expect(screen.getByText('Bachweg 7')).toBeTruthy();
+    expect(screen.queryByText('Wall 33')).toBeNull();
   });
 });
 

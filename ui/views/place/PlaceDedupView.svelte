@@ -16,7 +16,15 @@
   import { placeDisplayName } from '../../../core/places';
   import { collectAllEvents } from '../../shell/all-events';
   import { tooltip } from '../../shell/tooltip';
-  import { placeTypeLabel } from '../../shell/place-labels';
+  import { placeTypeLabel, enrichmentLabel } from '../../shell/place-labels';
+
+  /** Erklärt, was die Stufe MISST — die Schwelle ist am Realbestand gemessen (ADR-v9-191),
+   *  der Nutzer sieht davon nur das Wort. */
+  const ANREICHERUNG_HILFE = {
+    none: 'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — keine weiteren Angaben erfasst.',
+    sparse: 'Einzelne Angaben (z. B. nur Koordinaten oder nur der Typ) — kaum mehr als der Rohzustand.',
+    rich: 'Mehrere Angaben erfasst (Typ, Namensvarianten, datierte Zugehörigkeit, Koordinaten …).',
+  } as const;
   import { buildPlaceDedupGroups } from './place-dedup-model';
 
   interface Props {
@@ -125,8 +133,12 @@
                          ohne ausgelöstes `typeMismatch` prüfbar) — nur eben übersetzt. -->
                     <span class="stb-pill">{placeTypeLabel(m.type)}</span>
                   {/if}
-                  {#if !m.enriched}
-                    <span class="stb-pill" use:tooltip={'Nur der automatische Orts-Seed bzw. eine leere Neuanlage — noch keine weiteren Angaben erfasst.'}>ohne Zusatzangaben</span>
+                  <!-- ADR-v9-191: Grad bei JEDEM Mitglied (nicht nur beim leeren) — hier
+                       ist „ausführlich gegen wenig ergänzt" die eigentliche Frage. -->
+                  <span class="stb-pill" use:tooltip={ANREICHERUNG_HILFE[m.level]}>{enrichmentLabel(m.level)}</span>
+                  {#if m.reviewed}
+                    <!-- Zweite, unabhängige Achse: aus dem Inhalt nicht ableitbar. -->
+                    <span class="stb-pill" use:tooltip={'Ein Mensch hat diesen Eintrag ausdrücklich als geprüft markiert.'}>✓ geprüft</span>
                   {/if}
                 </label>
                 <label class="place-dedup__include" use:tooltip={isWinner ? 'Der Gewinner ist immer Ziel des Merges.' : 'In diese Zusammenführung einbeziehen.'}>

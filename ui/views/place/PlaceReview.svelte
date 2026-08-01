@@ -15,6 +15,7 @@
   import type { PlacesHost } from '../../shell/places-host';
   import { buildPlaceReview, type PlaceReviewRow } from './place-review-model';
   import { applyPlaceChoice } from './place-review-actions';
+  import { enrichmentLabel } from '../../shell/place-labels';
 
   interface Props {
     appState: PlacesHost;
@@ -90,8 +91,13 @@
                  Klasse P sind ALLE Kandidaten gleichnamig, der Titel allein wäre als
                  Auswahlhilfe wertlos ("Oldenburg" vs. "Oldenburg"). -->
             {#each row.candidates as c (c.placeId)}
+              <!-- ADR-v9-191: Grad + Prüf-Marker AM Kandidaten. Wo die Verwaltungskette
+                   nicht unterscheidet, ist das oft das einzige, was noch unterscheidet —
+                   und die Zeile stellt genau diese Frage. -->
               <button type="button" onclick={() => choosePlace(row, c.placeId)}>
                 Ort wählen: {c.label}
+                <span class="place-review__cand-level">· {enrichmentLabel(c.level)}</span>
+                {#if c.reviewed}<span class="place-review__cand-level">· ✓ geprüft</span>{/if}
               </button>
             {/each}
             <button type="button" class="place-review__sharpen-btn" onclick={() => sharpenSource(row)}>
@@ -209,5 +215,12 @@
 
   .place-review__sharpen-btn {
     margin-left: auto;
+  }
+
+  /* Der Kandidaten-Zusatz ordnet sich dem Namen unter: die Kette entscheidet zuerst,
+     der Kurationsstand erst, wenn sie nicht unterscheidet (ADR-v9-191). */
+  .place-review__cand-level {
+    color: var(--stb-text-dim);
+    font-size: 0.8em;
   }
 </style>

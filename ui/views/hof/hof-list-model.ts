@@ -2,8 +2,8 @@
 // [K]: "Hof-Liste (aus Events aufgelöst, numerisch sortiert), Detail mit Bewohnern
 // chronologisch"). Liest AUSSCHLIESSLICH db.hofObjects + db.placeObjects (id-basiert).
 import type { Database, Event, Person, PlaceId, HofId } from '../../../core/model/types';
-import type { HofObject, PlaceContext } from '../../../core/places';
-import { isEnrichedHof, hasReference, placeDisplayName, eventHofId, eventYear } from '../../../core/places';
+import type { EnrichmentLevel, HofObject, PlaceContext } from '../../../core/places';
+import { hofEnrichmentLevel, hasReference, placeDisplayName, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 import { hofRole } from './hof-detail-model';
@@ -22,7 +22,8 @@ export interface HofRow {
   hasCoords: boolean;
   coords: { lat: number; long: number } | null;
   /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille). */
-  enriched: boolean;
+  /** Anreicherungs-Stufe (ADR-v9-191, eigene Hof-Schwelle) — steuert den Filter, kein Label. */
+  level: EnrichmentLevel;
   /** Distinkte Bewohner (RESI/CENS/Lebensereignis) an diesem Hof (BL-205) — `0`, wenn keine
    *  Belegung übergeben wurde. Über den `eventHofId`-Chokepoint, wie der Steckbrief. */
   residents: number;
@@ -104,12 +105,12 @@ export interface HofListSections {
  * für Höfe sinnlosen Feldern wäre die schlechtere Kopplung.
  */
 export interface HofFilters {
-  /** Nur unvollständige (nicht angereicherte) Höfe zeigen — s. `PlaceFilters.onlyIncomplete`. */
-  onlyIncomplete: boolean;
+  /** Anreicherungs-STUFE als Abfrage (`''` = alle) — s. `PlaceFilters.level`. */
+  level: '' | EnrichmentLevel;
 }
 
 export function defaultHofFilters(): HofFilters {
-  return { onlyIncomplete: false };
+  return { level: '' };
 }
 
 /**
@@ -147,7 +148,7 @@ export function toRow(h: HofObject, db: Database, occupancy?: Map<HofId, HofOccu
     villageTitle: village ? placeDisplayName(village) : h.villageId,
     hasCoords,
     coords: hasCoords ? { lat: h.lat as number, long: h.long as number } : null,
-    enriched: isEnrichedHof(h),
+    level: hofEnrichmentLevel(h),
     residents: o?.residents.size ?? 0,
     owners: o?.owners.size ?? 0,
     yearSpan: formatYearSpan(o),
@@ -180,9 +181,9 @@ export function buildHofRows(
   return Array.from(db.hofObjects.values())
     .map((h) => toRow(h, db, occupancy))
     .filter((row) => matchesSearch(row, query))
-    // `enriched` stammt aus `isEnrichedHof` (Kern) — dasselbe Prädikat wie die frühere
+    // `level` stammt aus `hofEnrichmentLevel` (Kern) — dasselbe Merkmal wie die frühere
     // Pille, jetzt als Abfrage (ADR-v9-149).
-    .filter((row) => !filters.onlyIncomplete || !row.enriched)
+    .filter((row) => !filters.level || row.level === filters.level)
     .sort((a, b) => {
       const streetCmp = streetNameOf(a.addr).localeCompare(streetNameOf(b.addr), 'de');
       if (streetCmp !== 0) return streetCmp;

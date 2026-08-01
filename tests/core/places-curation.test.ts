@@ -13,6 +13,8 @@ import {
   seedPlacesFromEvents,
   findOrCreateHof,
   isReviewed,
+  placeEnrichmentLevel,
+  hofEnrichmentLevel,
   isCuratedPlace,
   isCuratedHof,
   markPlaceReviewed,
@@ -438,5 +440,73 @@ describe('isReviewed / isCuratedPlace / isCuratedHof (§9.1, ADR-v9-191)', () =>
     expect(hofs.size).toBeGreaterThan(0); // der Hof-Bootstrap ist wirklich gelaufen
     for (const po of places.values()) expect(isReviewed(po)).toBe(false);
     for (const h of hofs.values()) expect(isReviewed(h)).toBe(false);
+  });
+});
+
+// ADR-v9-191 / BL-267 — Anreicherungs-GRAD statt Ja/Nein. Die Schwellen sind am
+// Realbestand gemessen (Histogramme im Kopf von `placeEnrichmentLevel`/`hofEnrichmentLevel`);
+// diese Tests halten fest, WAS sie unterscheiden sollen, nicht bloß die Zahl.
+describe('placeEnrichmentLevel / hofEnrichmentLevel (§9.1, ADR-v9-191)', () => {
+  it('bleibt deckungsgleich mit isEnrichedPlace/isEnrichedHof — EINE Definition, zwei Auflösungen', () => {
+    const faelle = [
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }),
+      place('@C@', { title: 'Ochtrup', type: 'Town' }),
+      place('@D@', { title: 'Ochtrup', lat: 52.2, long: 7.2, note: 'x', type: 'Town', pnames: [{ value: 'O', from: null, to: null }] }),
+    ];
+    for (const pl of faelle) expect(isEnrichedPlace(pl)).toBe(placeEnrichmentLevel(pl) !== 'none');
+
+    const hofFaelle = [
+      hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }),
+      hof('@H2@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 1, long: 2 }),
+      hof('@H3@', '@V@', { addrs: [{ value: 'Wall 33', from: 1800, to: null }], note: 'x' }),
+    ];
+    for (const h of hofFaelle) expect(isEnrichedHof(h)).toBe(hofEnrichmentLevel(h) !== 'none');
+  });
+
+  it('trennt den Massen-Geocoding-Fall von echter Pflege — der Grund für die dritte Stufe', () => {
+    // Nur eine Koordinate: am Realbestand der häufigste Einzelfall (5 Orte, 163 Höfe).
+    // Binär stand er in derselben Klasse wie ein voll recherchierter Ort.
+    expect(placeEnrichmentLevel(place('@A@', { title: 'Ochtrup', lat: 52.2, long: 7.2 }))).toBe('sparse');
+    expect(hofEnrichmentLevel(hof('@H@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 1, long: 2 }))).toBe('sparse');
+
+    const gepflegt = place('@B@', {
+      title: 'Ochtrup',
+      type: 'Town',
+      pnames: [{ value: 'Ochtorpe', from: 1200, to: 1500 }],
+      enclosedBy: [{ placeId: '@KR@', from: 1816, to: null }],
+      lat: 52.2,
+      long: 7.2,
+    });
+    expect(placeEnrichmentLevel(gepflegt)).toBe('rich');
+  });
+
+  it('zählt je MERKMAL, nicht je Eintrag — zwölf Namensvarianten sind eine Facette', () => {
+    // Sonst gewänne ein Ort mit vielen Schreibvarianten gegen einen mit Typ, Koordinaten,
+    // Notiz und Historie — und die Stufe misste Datenmenge statt Pflegetiefe.
+    const vieleNamen = place('@A@', {
+      title: 'Ochtrup',
+      pnames: Array.from({ length: 12 }, (_, i) => ({ value: `Variante ${i}`, from: null, to: null })),
+    });
+    expect(placeEnrichmentLevel(vieleNamen)).toBe('sparse');
+  });
+
+  it('wertet die automatisch geseedete Zugehörigkeit NICHT als Anreicherung', () => {
+    // Ein einzelner undatierter enclosedBy-Eintrag entsteht im Seed (Spec 11 §4.2 Schritt 0).
+    const geseedet = place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] });
+    expect(placeEnrichmentLevel(geseedet)).toBe('none');
+    // Eine ZWEITE oder eine datierte Zeile ist dagegen Handarbeit.
+    expect(
+      placeEnrichmentLevel(place('@B@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: 1816, to: null }] })),
+    ).toBe('sparse');
+  });
+
+  it('hält für Höfe eine EIGENE Schwelle — sie haben weniger Felder als Orte', () => {
+    // Dieselben zwei Facetten ergeben verschiedene Stufen: beim Ort reicht das nicht,
+    // beim Hof schon. Die Orts-Schwelle (≥ 4) ergäbe am Realbestand NULL reiche Höfe.
+    const ortZweiFacetten = place('@A@', { title: 'Ochtrup', type: 'Town', lat: 1, long: 2 });
+    const hofZweiFacetten = hof('@H@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 1, long: 2, note: 'Hofchronik' });
+    expect(placeEnrichmentLevel(ortZweiFacetten)).toBe('sparse');
+    expect(hofEnrichmentLevel(hofZweiFacetten)).toBe('rich');
   });
 });

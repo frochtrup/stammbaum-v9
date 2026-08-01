@@ -97,3 +97,20 @@ export function placeHeading(po: { shortName?: string; title?: string } | null |
 export function hofHeading(hof: { addrs?: readonly { value: string }[] } | null | undefined): string {
   return hof?.addrs?.[0]?.value || OHNE_ADRESSE;
 }
+
+/**
+ * Deutsches Label des Anreicherungs-Grads (ADR-v9-191) — DIE EINE Quelle, analog
+ * `placeTypeLabel` (INV-UI-4): Dedup-Dialog, Orts-Review und Listen-Filter greifen alle
+ * hierher, damit dieselbe Stufe überall dasselbe Wort trägt.
+ *
+ * `none` liefert bewusst einen Text (nicht `''` wie beim Typ): dort, wo der Grad überhaupt
+ * gezeigt wird, ist er Entscheidungsgrundlage, und „hier steht nichts" ist genau die
+ * Auskunft, die gebraucht wird. Auf Listenzeilen erscheint er deshalb NICHT (ADR-v9-149).
+ *
+ * Die Wörter beschreiben den Datenstand, nicht die Arbeit des Nutzers — „dürftig" oder
+ * „ungepflegt" wären ein Urteil über den Forschenden, nicht über den Eintrag.
+ */
+export function enrichmentLabel(level: 'none' | 'sparse' | 'rich'): string {
+  if (level === 'none') return 'ohne Zusatzangaben';
+  return level === 'sparse' ? 'wenig ergänzt' : 'ausführlich';
+}

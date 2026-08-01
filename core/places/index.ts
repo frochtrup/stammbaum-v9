@@ -114,6 +114,8 @@ export {
 export {
   isEnrichedPlace,
   isEnrichedHof,
+  placeEnrichmentLevel,
+  hofEnrichmentLevel,
   isReviewed,
   isCuratedPlace,
   isCuratedHof,
@@ -121,6 +123,7 @@ export {
   findPlaceDuplicates,
   type DedupKind,
   type DuplicateGroup,
+  type EnrichmentLevel,
 } from './curation';
 
 // GOV-Import (BL-131, Spec 20 §1.7): Textzusammenfassung von gov.genealogy.net → Namen/

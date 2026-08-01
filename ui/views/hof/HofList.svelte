@@ -14,6 +14,7 @@
     type HofFilters,
   } from './hof-list-model';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { enrichmentLabel } from '../../shell/place-labels';
   import { buildHofDedupGroups } from './hof-dedup-model';
   import { buildHofReview } from './hof-review-model';
   import EventsByType from '../../shell/EventsByType.svelte';
@@ -130,9 +131,22 @@
            EINER Toolbar-Zeile, weil der Filter hinter der Disclosure liegt. -->
       <FilterBar activeCount={activeFilterCount}>
         <div class="hof-list__filters">
+          <!-- Kurations-Arbeitsliste statt Zeilen-Pille (ADR-v9-149), dreistufig seit
+               ADR-v9-191: „leer" allein beantwortet nicht die Frage „was habe ich nur
+               angefasst?". Liegt hier in der FilterBar-Disclosure, nicht als Dauer-Element
+               (INV-UI-11 „Filter → immer hinter FilterBar"). `onchange` statt `bind:value`
+               — TST-12/ESLint-Regel (happy-dom-Falle). -->
           <label class="stb-filter-opt stb-filter-opt--compact">
-            <input type="checkbox" bind:checked={filters.onlyIncomplete} />
-            nur unvollständige
+            Anreicherung
+            <select
+              value={filters.level}
+              onchange={(e) => (filters = { ...filters, level: (e.currentTarget as HTMLSelectElement).value as HofFilters['level'] })}
+            >
+              <option value="">alle</option>
+              <option value="none">{enrichmentLabel('none')}</option>
+              <option value="sparse">{enrichmentLabel('sparse')}</option>
+              <option value="rich">{enrichmentLabel('rich')}</option>
+            </select>
           </label>
           <button type="button" class="hof-list__review-btn" onclick={() => (filters = defaultHofFilters())}>
             Filter zurücksetzen

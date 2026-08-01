@@ -5,10 +5,10 @@
 // id-basiert, nicht string-basiert") — KEIN eigenes String-Aggregat über ev.place, das
 // wäre eine Parallel-Implementierung der Kern-Identitätsauflösung (ADR-v9-18-Lehre).
 import type { Database, Event, PlaceId } from '../../../core/model/types';
-import type { PlaceContext, PlaceObject } from '../../../core/places';
+import type { EnrichmentLevel, PlaceContext, PlaceObject } from '../../../core/places';
 import {
   placeTypeRank,
-  isEnrichedPlace,
+  placeEnrichmentLevel,
   isUnresolvedGovPlaceholder,
   hasReference,
   placeDisplayName,
@@ -24,11 +24,11 @@ export interface PlaceRow {
   coords: { lat: number; long: number } | null;
   /** String-Varianten (pnames) für den Gruppen-Modus — leer, wenn keine erfasst sind. */
   variants: string[];
-  /** ADR-v9-44/Spec 11 §9.1: `false` heißt "ohne Zusatzangaben" (Pille) — reines
-   *  Inhalts-Prädikat, KEINE Herkunfts-Aussage (s. Modul-Kommentar der Kern-Funktion). */
-  enriched: boolean;
+  /** Anreicherungs-Stufe (Spec 11 §9.1, ADR-v9-191) — reines Inhalts-Merkmal, KEINE
+   *  Herkunfts-Aussage (die trägt `reviewedAt`) — steuert den Filter; KEIN Zeilen-Label (ADR-v9-149). */
+  level: EnrichmentLevel;
   /** Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — `true`, wenn mind. eine
-   *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `enriched` (ein Ort kann
+   *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `level` (ein Ort kann
    *  eine Kette haben, ohne sonst angereichert zu sein, oder umgekehrt). */
   hasHierarchy: boolean;
   /** Zahl der DISTINKTEN Personen mit mind. einem Ereignis an diesem Ort (BL-204,
@@ -57,15 +57,18 @@ export interface PlaceFilters {
   /** Reine Verwaltungseinheiten (Rang ≥ Schwelle, s. ADMIN_RANK_THRESHOLD) ausblenden. */
   hideAdmin: boolean;
   /**
-   * Nur unvollständige (nicht angereicherte) Orte zeigen — die Kurations-Arbeitsliste
-   * (ADR-v9-149). Ersetzt die frühere „ohne Zusatzangaben"-Pille je Zeile: Abwesenheit von
-   * Daten ist eine ABFRAGE, kein Zeilen-Label. Grund: `enriched === false` ist direkt nach
-   * dem Import der REGELFALL (ADR-v9-44 — plain POs bleiben dauerhaft erhalten), und die
+   * Anreicherungs-STUFE als Abfrage (`''` = alle) — die Kurations-Arbeitsliste
+   * (ADR-v9-149, dreistufig per ADR-v9-191). Sie ersetzt die frühere „ohne
+   * Zusatzangaben"-Pille je Zeile: Abwesenheit von Daten ist eine ABFRAGE, kein
+   * Zeilen-Label. Grund: der leere Zustand ist direkt nach dem Import der REGELFALL
+   * (ADR-v9-44 — plain POs bleiben dauerhaft erhalten, am Realbestand 171 von 310), und die
    * Polaritäts-Begründung aus ADR-v9-79 („kein Gegenstück ‚ohne Medien'/‚ohne Notizen',
    * das wäre der Regelfall auf den meisten Zeilen, keine Info wert") trifft damit auf die
-   * Pille selbst zu. Als Filter wirkt dieselbe Information gezielt statt als Dauer-Rauschen.
+   * Pille selbst zu. Als Filter wirkt dieselbe Information gezielt statt als Dauer-Rauschen
+   * — und dreistufig beantwortet sie zusätzlich „welche habe ich nur angefasst?"
+   * (`sparse`), nicht mehr nur „welche sind leer?".
    */
-  onlyIncomplete: boolean;
+  level: '' | EnrichmentLevel;
   /**
    * Nur unaufgelöste GOV-Platzhalter zeigen (BL-131, v8-Orakel `_placeGovFilter`) — Orte,
    * die der GOV-Import als Elternteil anlegen MUSSTE, deren eigene Zusammenfassung aber
@@ -81,7 +84,7 @@ export interface PlaceFilters {
 }
 
 export function defaultPlaceFilters(): PlaceFilters {
-  return { type: '', hideAdmin: false, onlyIncomplete: false, onlyGovPlaceholders: false };
+  return { type: '', hideAdmin: false, level: '', onlyGovPlaceholders: false };
 }
 
 // Verwaltungs-Schwelle: Rang ab "District"/"County" (7) aufwärts gilt als reine
@@ -103,7 +106,7 @@ function toRow(pl: PlaceObject, personCounts?: Map<PlaceId, number>): PlaceRow {
     hasCoords,
     coords: hasCoords ? { lat: pl.lat as number, long: pl.long as number } : null,
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
-    enriched: isEnrichedPlace(pl),
+    level: placeEnrichmentLevel(pl),
     hasHierarchy: pl.enclosedBy.length > 0,
     personCount: personCounts?.get(pl.id) ?? 0,
   };
@@ -147,10 +150,10 @@ export function knownPlaceTypes(db: Database): string[] {
 function matchesFilters(pl: PlaceObject, filters: PlaceFilters): boolean {
   if (filters.type && placeTypeCategory(pl.type) !== filters.type) return false;
   if (filters.hideAdmin && isAdminType(pl.type)) return false;
-  // Dasselbe Prädikat wie die frühere Pille (`isEnrichedPlace`, §9.1) — nur als Abfrage
-  // statt als Zeilen-Label (ADR-v9-149). EINE Anreicherungs-Definition, kein zweites
-  // Kriterium neben dem Kern (INV-UI-4).
-  if (filters.onlyIncomplete && isEnrichedPlace(pl)) return false;
+  // Dieselbe Definition wie die frühere Pille (§9.1) — nur als Abfrage statt als
+  // Zeilen-Label (ADR-v9-149) und dreistufig (ADR-v9-191). EINE Anreicherungs-Definition,
+  // kein zweites Kriterium neben dem Kern (INV-UI-4).
+  if (filters.level && placeEnrichmentLevel(pl) !== filters.level) return false;
   if (filters.onlyGovPlaceholders && !isUnresolvedGovPlaceholder(pl)) return false;
   return true;
 }

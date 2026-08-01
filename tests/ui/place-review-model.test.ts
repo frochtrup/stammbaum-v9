@@ -7,7 +7,7 @@
 // fälschlich in die HOF-Review (mit leerem Klassen-Label und unpassenden Hof-Aktionen)
 // und war nach deren Filterung unsichtbar. Diese Datei deckt die neue, eigene Ansicht ab.
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model';
+import { makeDatabase, makeEvent, makePerson, makeFamily } from '../../core/model';
 import { place, placeMap } from '../core/places-fixtures';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { buildPlaceReview } from '../../ui/views/place/place-review-model';
@@ -177,5 +177,41 @@ describe('buildPlaceReview — nicht unterscheidbare Kandidaten (Dubletten-Fall)
     const review = buildPlaceReviewFor(db);
 
     expect(review.rows[0].candidatesIndistinguishable).toBe(false);
+  });
+});
+
+// ADR-v9-191 / BL-267 — die Zuordnungs-Fläche trug bis dahin GAR KEIN Kurations-Signal.
+describe('buildPlaceReview — Kurationsstand am Kandidaten (ADR-v9-191)', () => {
+  it('liefert Grad und Prüf-Marker je Kandidat — dort, wo die Kette nicht unterscheidet', () => {
+    const db = makeDatabase();
+    // Zwei gleichnamige Orte OHNE Elternkette: `candidatesIndistinguishable` schlägt an,
+    // das Label ist bei beiden identisch. Genau hier ist der Kurationsstand das Einzige,
+    // was noch unterscheidet.
+    db.placeObjects.set('@A@', place('@A@', { title: 'Bremen' }));
+    db.placeObjects.set(
+      '@B@',
+      place('@B@', {
+        title: 'Bremen',
+        type: 'Town',
+        pnames: [{ value: 'Freie Hansestadt Bremen', from: 1806, to: null }],
+        lat: 53.07,
+        long: 8.8,
+        note: 'Hansestadt',
+        reviewedAt: 1_700_000_000_000,
+      }),
+    );
+    const p = makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Bremen' }) });
+    db.individuals.set(p.id, p);
+
+    const result = buildPlaceReview(db, ctxFor(db));
+
+    expect(result.rows).toHaveLength(1);
+    const byId = new Map(result.rows[0].candidates.map((c) => [c.placeId, c]));
+    expect(byId.get('@A@')!.level).toBe('none');
+    expect(byId.get('@A@')!.reviewed).toBe(false);
+    expect(byId.get('@B@')!.level).toBe('rich');
+    expect(byId.get('@B@')!.reviewed).toBe(true);
+    // Die Labels selbst unterscheiden nicht — der Grund, warum der Stand hier hingehört.
+    expect(byId.get('@A@')!.label).toBe(byId.get('@B@')!.label);
   });
 });

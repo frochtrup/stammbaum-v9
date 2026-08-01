@@ -31,18 +31,57 @@ import { parentsCompatible } from './seed';
  * ebenfalls plain sein, sonst würde jedes geseedete Land fälschlich als „angereichert" gelten.
  */
 export function isEnrichedPlace(po: PlaceObject): boolean {
-  if (po.type !== '') return true;
-  if (po.pnames.length !== 0) return true;
-  if (po.enclosedBy.length > 1) return true;
-  if (po.enclosedBy.length === 1) {
-    const e = po.enclosedBy[0];
-    if (e.from !== null || e.to !== null) return true;
-  }
-  if (po.lat !== null || po.long !== null) return true;
-  if (po.note !== '') return true;
-  if (po.existsFrom !== null || po.existsTo !== null) return true;
-  if (po.govId !== null || po.govTypes !== null) return true;
-  return false;
+  return placeEnrichmentLevel(po) !== 'none';
+}
+
+/**
+ * Anreicherungs-Grad (Spec 11 §9.1, ADR-v9-191): wie viel steht an diesem Objekt?
+ *
+ * Drei Stufen statt eines Ja/Nein, weil die Entscheidung, für die das Prädikat existiert
+ * (welcher von zwei gleichnamigen Orten ist der gepflegte?), graduell ist: ein Ort, an dem
+ * nur der Typ steht, ist etwas anderes als ein vollständig recherchierter, und binär
+ * stehen beide in derselben Klasse.
+ */
+export type EnrichmentLevel = 'none' | 'sparse' | 'rich';
+
+/**
+ * Die sieben Facetten eines PlaceObject — je einmal gezählt, nicht je Eintrag: „hat
+ * Namensvarianten" ist EIN Merkmal, egal ob eine oder zwölf. Zählt man Einträge, gewinnt
+ * ein Ort mit acht Schreibvarianten gegen einen mit Typ, Koordinaten, Notiz und Historie.
+ */
+function placeFacetCount(po: PlaceObject): number {
+  let n = 0;
+  if (po.type !== '') n += 1;
+  if (po.pnames.length !== 0) n += 1;
+  // Zugehörigkeit zählt erst als Anreicherung, wenn sie ÜBER den Seed-Rohzustand hinausgeht:
+  // ein einzelner undatierter Eintrag entsteht automatisch (Spec 11 §4.2 Schritt 0).
+  if (po.enclosedBy.length > 1 || po.enclosedBy.some((e) => e.from !== null || e.to !== null)) n += 1;
+  if (po.lat !== null || po.long !== null) n += 1;
+  if (po.note !== '') n += 1;
+  if (po.existsFrom !== null || po.existsTo !== null) n += 1;
+  if (po.govId !== null || po.govTypes !== null) n += 1;
+  return n;
+}
+
+/**
+ * **Die Schwelle ist gemessen, nicht gewählt.** Facetten-Histogramm des Realbestands
+ * (`Unsere Familie 2026.ged` + `orte.v9.json`, 310 Orte nach dem Laden):
+ *
+ * ```
+ * Facetten  0    1   2   3    4    5    6    7
+ * Orte    171   16  11   7   38   25   41    1
+ * ```
+ *
+ * Die Verteilung ist zweigipflig mit einer klaren Senke bei **3** (nur 7 Orte). Unterhalb
+ * davon stehen typische Einzelspuren (nur `coord` aus dem Massen-Geocoding, nur `type`),
+ * oberhalb beginnt bei 4 das Muster `type+pnames+enc+coord` — ein Ort, an dem jemand
+ * gearbeitet hat. Die Grenze liegt also im Tal der eigenen Verteilung, nicht bei einer
+ * runden Zahl.
+ */
+export function placeEnrichmentLevel(po: PlaceObject): EnrichmentLevel {
+  const n = placeFacetCount(po);
+  if (n === 0) return 'none';
+  return n >= 4 ? 'rich' : 'sparse';
 }
 
 /**
@@ -51,15 +90,43 @@ export function isEnrichedPlace(po: PlaceObject): boolean {
  * Koordinaten/Notiz/Existenz-Spanne/Lebenszyklus-Verweise/GOV. Jede Abweichung → angereichert.
  */
 export function isEnrichedHof(hof: HofObject): boolean {
-  if (hof.addrs.length !== 1) return true;
-  const a = hof.addrs[0];
-  if (a.from !== null || a.to !== null) return true;
-  if (hof.lat !== null || hof.long !== null) return true;
-  if (hof.note !== '') return true;
-  if (hof.existsFrom !== null || hof.existsTo !== null) return true;
-  if (hof.predecessor !== null || hof.successor !== null) return true;
-  if (hof.govId !== null || hof.govTypes !== null) return true;
-  return false;
+  return hofEnrichmentLevel(hof) !== 'none';
+}
+
+/** Die sechs Facetten eines HofObject — dieselbe Zählweise wie bei `placeFacetCount`. */
+function hofFacetCount(hof: HofObject): number {
+  let n = 0;
+  if (hof.addrs.length !== 1 || hof.addrs[0].from !== null || hof.addrs[0].to !== null) n += 1;
+  if (hof.lat !== null || hof.long !== null) n += 1;
+  if (hof.note !== '') n += 1;
+  if (hof.existsFrom !== null || hof.existsTo !== null) n += 1;
+  if (hof.predecessor !== null || hof.successor !== null) n += 1;
+  if (hof.govId !== null || hof.govTypes !== null) n += 1;
+  return n;
+}
+
+/**
+ * **Höfe brauchen eine eigene Schwelle — auch das ist gemessen, nicht gewählt.** Dieselbe
+ * Zählung am selben Bestand (183 Höfe):
+ *
+ * ```
+ * Facetten   0     1    2
+ * Höfe       2   163   18        Kombinationen: coord 163× · coord+note 14× · addrs+coord 4×
+ * ```
+ *
+ * Eine völlig andere Form als bei den Orten: praktisch jeder Hof trägt genau eine Facette,
+ * und zwar dieselbe — die Koordinate aus dem Massen-Geocoding. Die Orts-Schwelle (≥ 4)
+ * ergäbe hier NULL reiche Höfe und machte die Stufe wertlos; das liegt nicht am Bestand,
+ * sondern daran, dass ein Hof weniger Felder HAT (sechs statt sieben, davon `type`/`pnames`
+ * gar nicht). Die Senke der Hof-Verteilung liegt bei **2**, und sie trennt fachlich genau
+ * das Richtige: „automatisch verortet" von „jemand hat eine Notiz oder eine Adress-Historie
+ * hinterlassen". Eine gemeinsame Zahl für zwei verschieden große Feldmengen wäre die
+ * elegantere Regel und die falsche Aussage.
+ */
+export function hofEnrichmentLevel(hof: HofObject): EnrichmentLevel {
+  const n = hofFacetCount(hof);
+  if (n === 0) return 'none';
+  return n >= 2 ? 'rich' : 'sparse';
 }
 
 // ---------------------------------------------------------------------------

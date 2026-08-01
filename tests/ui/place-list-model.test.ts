@@ -195,17 +195,17 @@ describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben
   // Die Abwesenheit von Daten ist eine ABFRAGE, kein Zeilen-Label: `enriched === false` ist
   // direkt nach dem Import der Regelfall (ADR-v9-44), eine Pille darauf stand damit auf der
   // Mehrheit der Zeilen. Als Filter wirkt dieselbe Information gezielt.
-  it('onlyIncomplete=true zeigt NUR nicht angereicherte Orte', () => {
+  it("level='none' zeigt NUR Orte ohne Zusatzangaben", () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
 
-    const filters: PlaceFilters = { ...defaultPlaceFilters(), onlyIncomplete: true };
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), level: 'none' as const };
 
     expect(buildPlaceRows(db, '', filters).map((r) => r.id)).toEqual(['@P1@']);
   });
 
-  it('Default (onlyIncomplete=false) zeigt beide — der Filter ist opt-in', () => {
+  it("Default (level='') zeigt beide — der Filter ist opt-in", () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
@@ -213,13 +213,13 @@ describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben
     expect(buildPlaceRows(db, '', defaultPlaceFilters()).map((r) => r.id)).toEqual(['@P2@', '@P1@']);
   });
 
-  it('nutzt DASSELBE Prädikat wie das enriched-Feld der Zeile (keine zweite Definition)', () => {
+  it('nutzt DASSELBE Merkmal wie das level-Feld der Zeile (keine zweite Definition)', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Plain' }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Kuriert', type: 'Village' }));
 
-    const filtered = buildPlaceRows(db, '', { ...defaultPlaceFilters(), onlyIncomplete: true });
-    const allUnenriched = buildPlaceRows(db).filter((r) => !r.enriched);
+    const filtered = buildPlaceRows(db, '', { ...defaultPlaceFilters(), level: 'none' as const });
+    const allUnenriched = buildPlaceRows(db).filter((r) => r.level === 'none');
 
     expect(filtered.map((r) => r.id)).toEqual(allUnenriched.map((r) => r.id));
   });
@@ -229,25 +229,42 @@ describe('Unvollständig-Filter (ADR-v9-149) — ersetzt die "ohne Zusatzangaben
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Ahaus' }));
 
-    const filters: PlaceFilters = { ...defaultPlaceFilters(), onlyIncomplete: true };
+    const filters: PlaceFilters = { ...defaultPlaceFilters(), level: 'none' as const };
 
     expect(buildPlaceRows(db, 'Ahaus', filters).map((r) => r.id)).toEqual(['@P2@']);
   });
 });
 
-describe('Anreicherungs-Prädikat (§9.1, ADR-v9-44) — enriched-Feld je Zeile', () => {
-  it('plain (Seed-Rohzustand) → enriched=false', () => {
+describe('Anreicherungs-Stufe (§9.1, ADR-v9-44/-191) — level-Feld je Zeile', () => {
+  it("plain (Seed-Rohzustand) → level='none'", () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@DE@', from: null, to: null }] }));
 
-    expect(buildPlaceRows(db)[0].enriched).toBe(false);
+    expect(buildPlaceRows(db)[0].level).toBe('none');
   });
 
-  it('angereichert (z. B. gesetzter Typ) → enriched=true', () => {
+  it("eine einzelne Angabe (nur Typ) → level='sparse', NICHT schon 'rich'", () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
 
-    expect(buildPlaceRows(db)[0].enriched).toBe(true);
+    expect(buildPlaceRows(db)[0].level).toBe('sparse');
+  });
+
+  it("vier Facetten → level='rich' (die am Realbestand gemessene Senke liegt bei 3)", () => {
+    const db = makeDatabase();
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        type: 'Village',
+        pnames: [{ value: 'Ochtorpe', from: 1200, to: 1500 }],
+        lat: 52.2,
+        long: 7.2,
+        note: 'Kirchspiel',
+      }),
+    );
+
+    expect(buildPlaceRows(db)[0].level).toBe('rich');
   });
 });
 
@@ -269,12 +286,12 @@ describe('Hierarchie-Badge (Spec 20 §1.7 [K], ADR-v9-79 Punkt 3) — hasHierarc
     expect(buildPlaceRows(db)[0].hasHierarchy).toBe(false);
   });
 
-  it('hasHierarchy ist UNABHÄNGIG von enriched — angereichert (Typ gesetzt), aber keine Kette', () => {
+  it('hasHierarchy ist UNABHÄNGIG von der Anreicherungs-Stufe — Typ gesetzt, aber keine Kette', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', type: 'Village' }));
 
     const row = buildPlaceRows(db)[0];
-    expect(row.enriched).toBe(true);
+    expect(row.level).not.toBe('none');
     expect(row.hasHierarchy).toBe(false);
   });
 });

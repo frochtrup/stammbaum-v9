@@ -6,7 +6,8 @@
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
-import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName, isEnrichedPlace } from '../../../core/places';
+import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed } from '../../../core/places';
+import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
 export interface PlaceDedupMember {
@@ -15,10 +16,13 @@ export interface PlaceDedupMember {
   /** Volle Verwaltungskette (ADR-v9-50) — bei `conflict`-Gruppen der einzige Weg, gleichnamige
    * Orte für den Nutzer unterscheidbar zu machen (z. B. „Arpke, Burgdorf, …" vs. „Arpke, Uetze, …"). */
   fullName: string;
-  /** ADR-v9-44/Spec 11 §9.1: `true` = kuratiert/angereichert (weicht vom Seed-Rohzustand ab);
-   * `false` → „ohne Zusatzangaben"-Pille, damit der Nutzer im Dedup-Dialog erkennt, welches
-   * Mitglied kuratiert ist (Kennzeichnung, kein Einfluss auf die Gewinner-Heuristik, A1). */
-  enriched: boolean;
+  /** Anreicherungs-GRAD (Spec 11 §9.1, ADR-v9-191) — hier bei JEDEM Mitglied sichtbar, nicht
+   * nur beim leeren: „ausführlich" gegen „wenig ergänzt" ist genau die Frage, die der Nutzer
+   * beim Zusammenführen stellt. Kein Einfluss auf die Gewinner-Heuristik. */
+  level: EnrichmentLevel;
+  /** Prüf-Marker (ADR-v9-191) — die zweite, unabhängige Achse: hat ein Mensch über dieses
+   * Mitglied entschieden? Aus dem Inhalt nicht ableitbar, deshalb eigene Angabe. */
+  reviewed: boolean;
   /** ADR-v9-77: `PlaceObject.type` roh (z. B. „Town"/„District"), leer wenn unklassifiziert.
    * Zeigt dem Nutzer die Kategorisierung jedes Mitglieds direkt im Dedup-Dialog — der häufige
    * Fall „Stadt X" + „Kreis X" wird sonst nur über den vollen Namen sichtbar, wenn überhaupt. */
@@ -78,13 +82,24 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
           ];
         }),
       );
-      const enrichedOf = (id: PlaceId): boolean => {
+      const levelOf = (id: PlaceId): EnrichmentLevel => {
         const po = db.placeObjects.get(id);
-        return po ? isEnrichedPlace(po) : false;
+        return po ? placeEnrichmentLevel(po) : 'none';
+      };
+      const reviewedOf = (id: PlaceId): boolean => {
+        const po = db.placeObjects.get(id);
+        return po ? isReviewed(po) : false;
       };
       const typeOf = (id: PlaceId): string => db.placeObjects.get(id)?.type ?? '';
       const members: PlaceDedupMember[] = ids
-        .map((id) => ({ id, title: titleOf(id), fullName: fullNameOf(id), enriched: enrichedOf(id), type: typeOf(id) }))
+        .map((id) => ({
+          id,
+          title: titleOf(id),
+          fullName: fullNameOf(id),
+          level: levelOf(id),
+          reviewed: reviewedOf(id),
+          type: typeOf(id),
+        }))
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));
       return {
         key: ids.slice().sort()[0],
