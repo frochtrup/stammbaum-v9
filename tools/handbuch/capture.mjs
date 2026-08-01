@@ -139,14 +139,33 @@ await page.goto(URL, { waitUntil: 'networkidle2' }); await sleep(1200);
 
 // Orts-Spiegel VOR dem Laden seeden
 await page.evaluate(async (wrapper) => {
+  // OHNE Versionsnummer öffnen — die Seite hat die DB beim Laden bereits angelegt, und
+  // `open(name)` nimmt genau die vorhandene Version. Bis 2026-08-01 stand hier eine
+  // kopierte Version + Store-Liste aus services/idb-schema.ts, mit dem Kommentar „bei
+  // jedem Schema-Bump mitziehen": genau das wurde vergessen (DB stand auf 8, hier 6), und
+  // der Lauf brach mit „VersionError" ab. Eine zweite Fassung des Schemas, die per
+  // Erinnerung gepflegt wird, ist die Drift — sie entfällt hier ersatzlos.
   await new Promise((res, rej) => {
-    // Version + Store-Liste MÜSSEN mit services/idb-schema.ts übereinstimmen (DB_VERSION,
-    // STORE_*). Eine ältere Version hier bricht mit „VersionError" ab, sobald die App die
-    // DB inzwischen höher gezogen hat — bei jedem Schema-Bump mitziehen.
-    const rq = indexedDB.open('stammbaum-v9', 6);
-    rq.onupgradeneeded = () => { const db = rq.result; for (const s of ['working-copy', 'places-mirror', 'places-file-handle', 'val-config', 'dedup-ignored', 'research-projects']) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s); };
-    rq.onsuccess = () => { const db = rq.result; const tx = db.transaction('places-mirror', 'readwrite'); tx.objectStore('places-mirror').put(wrapper, 'current'); tx.oncomplete = () => { db.close(); res(); }; tx.onerror = () => rej(tx.error); };
-    rq.onerror = () => rej(rq.error);
+    let versuche = 0;
+    const seed = () => {
+      const rq = indexedDB.open('stammbaum-v9');
+      rq.onerror = () => rej(rq.error);
+      rq.onsuccess = () => {
+        const db = rq.result;
+        if (!db.objectStoreNames.contains('places-mirror')) {
+          // Die App hat die DB noch nicht fertig angelegt — kurz warten statt selbst
+          // anzulegen (sonst entstünde eine leere DB in falscher Version).
+          db.close();
+          if (++versuche > 20) return rej(new Error('places-mirror-Store nach 10s nicht da'));
+          return setTimeout(seed, 500);
+        }
+        const tx = db.transaction('places-mirror', 'readwrite');
+        tx.objectStore('places-mirror').put(wrapper, 'current');
+        tx.oncomplete = () => { db.close(); res(); };
+        tx.onerror = () => rej(tx.error);
+      };
+    };
+    seed();
   });
 }, WRAPPER);
 
@@ -256,10 +275,21 @@ await bottomNav('more'); await click('Ausgaben'); await sleep(500); await scroll
 // gemeinsamer Vorfahre + Pfad. „🖨 Verwandtschaftsnachweis drucken" erzeugt Report #9.
 // bottomNav('person') öffnet nur die DATEN-Gruppe und zeigt das ZULETZT aktive Segment
 // (hier: Medien, von 13c) — deshalb explizit auf das Personen-Segment schalten.
+// FRISCHER VERLAUF durch Neuladen (BL-07). Die Werkzeuge-Disclosure gehört der LISTE, an
+// dieser Stelle steht aber noch ein Steckbrief offen. Seit BL-07 ist „← Zurück"
+// herkunftsbewusst — es führt dorthin, wo der Nutzer HERKAM, und das ist nach dem
+// Quer-durch-die-App-Lauf dieses Skripts die Medien-Detailseite (13c), nicht die Liste.
+// Dagegen hilft kein wiederholtes Zurück (jeder erzwungene Segmentwechsel legt selbst
+// wieder einen Verlaufspunkt an, das pendelt). Ein Neuladen ist der ehrliche Weg: Verlauf
+// UND Auswahl sind Sitzungszustand, danach steht die Liste wie bei einem echten Neustart.
+// Die Arbeitskopie lädt automatisch nach; der Proband ist ebenfalls transient und wird
+// deshalb gleich neu gesetzt — er füllt „Person A" im Rechner vor.
+await page.goto(URL, { waitUntil: 'networkidle2' }); await sleep(4000);
 await bottomNav('person'); await click('Personen'); await scrollTop();
-// Kaspar-Steckbrief wurde oben geöffnet → das Personen-Segment zeigt noch das Detail.
-// „← Zurück" schließen, damit die Werkzeuge-Disclosure der LISTE erscheint.
-await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(450);
+await click(RICH_PERSON, { contains: true }); await sleep(700);
+await click('☆ Als Proband'); await sleep(400);
+// Jetzt IST die Liste die Herkunft — ein Klick genügt.
+await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(500);
 await scrollTop(); await click('Werkzeuge'); await click('Verwandtschaft berechnen'); await sleep(600);
 await pickInField('Person B', 'Styna Hörstmann'); await sleep(400);
 await scrollTop(); await shot('28-beziehung');

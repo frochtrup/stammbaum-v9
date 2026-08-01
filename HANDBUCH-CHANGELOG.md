@@ -22,6 +22,26 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.8] — 2026-08-01
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`5d8abf7`…HEAD) erzeugt._
+
+- feat(app): BL-07 + BL-238 + BL-239 — Verlauf, geprüfte Projekt-Bezüge, Mitnahme (`f0e753d`)
+- feat(interop): BL-242 — GED7 deklariert seine Extension-Tags im SCHMA-Block (`83c2d61`)
+- feat(validate): BL-229 — Regel EVIDENCE_CONFLICT (`71a6fbb`)
+- feat(research): BL-228 — Forschungsschritt-Vorschlag am Uebernehmen-Knopf (`40f8ba7`)
+- fix(quality): BL-231 Restzeile + BL-128 Medientyp-Hinweis (`e2b7f85`)
+- feat(quality): BL-231 — Ast-Reifegrad im Qualitäts-Dashboard (`c71fca4`)
+- feat(source): BL-128 — Quellen-Vorlagen beim Anlegen (`87eaf43`)
+- feat(ui): BL-57 — Evidenz-Bewertung als Aufklapper an der Zitat-Zeile (`1127448`)
+- feat(interop): BL-83 — `_EVAL`-Wire-Format für GEDCOM und GRAMPS (`377d850`)
+- feat(app-data): BL-180 — B1-Buendel app-data.json (dateiuebergreifender Zustand) (`f8ac62a`)
+- fix(interop): BL-241 — GED7 ASSO/ROLE ist eine Enumeration, kein Freitext (`28317ff`)
+- feat(dedup): BL-240 — Dublettenausschluss als abgelehnte Identitaets-Hypothese (`5771125`)
+- feat(places): BL-236 — Dorf eines Hofes aenderbar (Ortspicker, ADR-v9-172) (`585e0e5`)
+
+---
+
 ## [9.7] — 2026-07-28
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`c5bc025`…HEAD) erzeugt._
