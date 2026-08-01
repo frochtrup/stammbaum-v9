@@ -62,6 +62,17 @@ export interface EvidenceRef {
   page: string;
 }
 
+/**
+ * Art der Behauptung (ADR-v9-174). `identity` = „die referenzierten Datensätze
+ * bezeichnen dieselbe Person"; zusammen mit `status` trägt sie das Dubletten-Urteil
+ * (`rejected` = Ausschluss, `confirmed` = Merge-Begründung, `open` = in Prüfung).
+ *
+ * Warum das nicht am Freitext hängen darf: ohne maschinenlesbare Art läse der
+ * Dubletten-Filter eine abgelehnte Hypothese „A ist der Vater von B", die A und B
+ * referenziert, als Dublettenausschluss — ein stiller Fehlschluss.
+ */
+export type HypothesisKind = 'free' | 'identity';
+
 export interface Hypothesis {
   id: string;
   /** injizierter Zeitstempel (TST-3). */
@@ -72,15 +83,44 @@ export interface Hypothesis {
   evidence: EvidenceRef[];
   rationale: string;
   conclusion: string;
+  /** Art der Behauptung (ADR-v9-174). Vorgabe `free` = die bisherige freie Hypothese. */
+  kind: HypothesisKind;
+  /**
+   * Weitere betroffene Datensätze (`@I…@`/`@F…@`) — eine Hypothese hängt an EINEM
+   * Datensatz, spricht aber oft über zwei. Wiederholbar; deckt Person↔Person,
+   * Person↔Familie und Familie↔Familie ab (beide Träger führen `hypotheses[]`).
+   */
+  refs: string[];
 }
 
 // --- §5 Forschungsprojekt (app-privat) --------------------------------------
+/**
+ * Ein ausdrücklicher Personenbezug im Projekt-Scope — Id PLUS Fingerabdruck der
+ * gemeinten Person (BL-238, ADR-v9-176).
+ *
+ * Die blanke Id reicht NICHT: sie ist datei-lokal, der Projekt-Speicher dagegen global
+ * (der Dateiwechsel zieht ihn nicht mit), und `@I1@` existiert in fast jeder Datei —
+ * ein Scope zeigte in einer zweiten Datei auf eine FREMDE Person. Der Fingerabdruck
+ * macht daraus einen prüfbaren Bezug: beim Auswerten wird am Referenten verglichen und
+ * Nicht-Passendes ignoriert (`resolveScopePersonRef`). Er fängt zusätzlich die
+ * Id-Neuvergabe im selben Baum (Fremdwerkzeug, GRAMPS→GEDCOM), an der eine
+ * Baum-Identität still gescheitert wäre.
+ */
+export interface ScopePersonRef {
+  /** Datei-lokale GEDCOM-Id (`@I…@`) zum Zeitpunkt der Aufnahme. */
+  id: string;
+  /** `given surname` der gemeinten Person. '' = Altbestand ohne Fingerabdruck (unprüfbar). */
+  name: string;
+  /** Geburtsjahr, sofern bekannt — entscheidet nur, wenn beide Seiten es kennen. */
+  year: number | null;
+}
+
 export interface ProjectScope {
   surnames: string[];
   places: string[];
   yearFrom: number | null;
   yearTo: number | null;
-  personIds: string[];
+  personRefs: ScopePersonRef[];
 }
 
 export interface Project {

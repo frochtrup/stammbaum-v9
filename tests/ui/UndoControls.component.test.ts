@@ -32,11 +32,14 @@ function seeded(): AppState {
   return appState;
 }
 
-/** `queryByText` mit Teilstring-Matcher: der sichtbare Text ist „↶ Zurück" (Glyph +
+/** `queryByText` mit Teilstring-Matcher: der sichtbare Text ist „↶ Rückgängig" (Glyph +
  *  Wort), und genau das IST der zugängliche Name — kein `aria-label` mehr nötig
  *  (WCAG 2.5.3 „Label in Name", §6j). */
-const undoBtn = () => screen.queryByRole('button', { name: /Zurück/ }) as HTMLButtonElement | null;
-const redoBtn = () => screen.queryByRole('button', { name: /Vor/ }) as HTMLButtonElement | null;
+// „Rückgängig"/„Wiederholen" seit BL-07 — vormals „Zurück"/„Vor", was mit dem
+// herkunftsbewussten Navigations-Knopf „← Zurück" auf derselben Fläche kollidierte
+// (ADR-v9-177): zwei gleich beschriftete Knöpfe, verschiedene Wirkung.
+const undoBtn = () => screen.queryByRole('button', { name: /Rückgängig/ }) as HTMLButtonElement | null;
+const redoBtn = () => screen.queryByRole('button', { name: /Wiederholen/ }) as HTMLButtonElement | null;
 
 describe('UndoControls', () => {
   it('anfangs ist keine der beiden Schaltflächen da (kein dauerhaft blasser Knopf)', () => {
@@ -65,7 +68,7 @@ describe('UndoControls', () => {
     appState.savePerson({ ...appState.db.individuals.get('@I1@')!, given: 'Geändert' });
     await Promise.resolve();
 
-    expect(undoBtn()!.textContent).toMatch(/Zurück/);
+    expect(undoBtn()!.textContent).toMatch(/Rückgängig/);
     // Der Glyph ist Dekoration neben dem Wort — er darf den Namen nicht verdoppeln.
     expect(undoBtn()!.querySelector('[aria-hidden="true"]')!.textContent).toBe('↶');
   });

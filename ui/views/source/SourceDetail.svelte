@@ -9,7 +9,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
-  import { buildSourceDetail, hasPageContent, type SourceReferenceRow } from './source-detail-model';
+  import { buildSourceDetail, hasPageContent, type SourceReferenceRow, formatSourceCoverage } from './source-detail-model';
   import QuayMeter from '../../shell/QuayMeter.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
@@ -119,13 +119,29 @@
         <dt>Autor</dt>
         <dd>{detail.source.author}</dd>
       {/if}
-      {#if detail.source.date}
-        <dt>Datum</dt>
-        <dd>{detail.source.date}</dd>
+      {#if detail.source.createdDate}
+        <dt>Erfasst am</dt>
+        <dd>{detail.source.createdDate}</dd>
       {/if}
       {#if detail.source.publisher}
         <dt>Verlag</dt>
         <dd>{detail.source.publisher}</dd>
+      {/if}
+      <!-- BL-217: Abdeckung (`SOUR.DATA.EVEN`) und verantwortliche Stelle (`SOUR.DATA.AGNC`).
+           Beide sind read-only — sie kommen aus der Datei, werden in der App nicht erfasst
+           (Spec 20 §1.6). Mehrere Abdeckungs-Angaben sind laut Grammatik erlaubt ({0:M}),
+           deshalb je eine Zeile statt einer zusammengezogenen. -->
+      {#if detail.source.dataEvents.length}
+        <dt>Abdeckung</dt>
+        <dd>
+          {#each detail.source.dataEvents as de, i (i)}
+            <div>{formatSourceCoverage(de)}</div>
+          {/each}
+        </dd>
+      {/if}
+      {#if detail.source.agnc}
+        <dt>Behörde</dt>
+        <dd>{detail.source.agnc}</dd>
       {/if}
       <!-- BL-201: das Signatur-MEDIUM (GEDCOM `SOUR.REPO.CALN.MEDI`, `source.callMedia`)
            hängt an der Signatur selbst, statt eine eigene Zeile für einen Zusatz zur

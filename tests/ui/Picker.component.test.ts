@@ -342,3 +342,181 @@ describe('Picker — Freitext-Modus (Ereignis-Ort/-Adresse, ADR-v9-42 + ADR-v9-1
     expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Banane']);
   });
 });
+
+describe('Picker — die Trefferliste hängt nicht am Fokus (ADR-v9-182, BL-250)', () => {
+  // Nutzerbefund „Ortspicker wählt nicht aus" (Safari). Chromium fokussiert einen
+  // <button> beim mousedown, Safari und Firefox nicht — dort ist `relatedTarget` null,
+  // die Zugehörigkeitsprüfung sagt „außen", und die Liste ist abgeräumt, BEVOR das click
+  // seinen Treffer erreicht. Ein Test, der nur klickt, prüft die Chromium-Reihenfolge und
+  // bestätigt sich selbst: `fireEvent.click` in happy-dom erzeugt gar keinen focusout.
+  /**
+   * Ein Safari-/Firefox-Klick auf eine Listenzeile, Schritt für Schritt: `mousedown` →
+   * der Browser verschiebt den Fokus vom Feld ins Nirgendwo, ABER NUR, wenn die
+   * Vorgabe-Handlung nicht unterbunden wurde → `click`. Genau diese Kopplung ist der
+   * Wächter: fällt `haltFokusImFeld` weg, feuert der `focusout`, die Liste wird abgeräumt,
+   * und der Klick trifft niemanden mehr.
+   */
+  async function klickWieSafari(feld: HTMLElement, zeile: HTMLElement) {
+    const runter = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    zeile.dispatchEvent(runter);
+    if (!runter.defaultPrevented) await fireEvent.focusOut(feld, { relatedTarget: null });
+    await fireEvent.click(zeile);
+  }
+
+  it('behält die Trefferliste, wenn der Fokus beim Anklicken nirgendwohin wandern würde', async () => {
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+      },
+    });
+    const feld = screen.getByLabelText('Frucht');
+    await fireEvent.click(feld);
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+
+    const treffer = screen.getByText('Banane').closest('button') as HTMLButtonElement;
+    const runter = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    treffer.dispatchEvent(runter);
+    if (!runter.defaultPrevented) await fireEvent.focusOut(feld, { relatedTarget: null });
+
+    // Ohne den Schutz stünde hier 0 — die Liste wäre vor dem Klick verschwunden.
+    expect(screen.queryAllByRole('option')).toHaveLength(3);
+  });
+
+  it('wählt den Treffer aus, obwohl der Browser den Fokus nicht auf den Knopf setzt', async () => {
+    const onChange = vi.fn();
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange, label: 'Frucht',
+      },
+    });
+    const feld = screen.getByLabelText('Frucht');
+    await fireEvent.click(feld);
+
+    await klickWieSafari(feld, screen.getByText('Banane').closest('button') as HTMLButtonElement);
+
+    expect(onChange).toHaveBeenCalledWith('f2');
+  });
+
+  it('unterbindet die Vorgabe-Handlung des mousedown — sonst verschiebt der Browser den Fokus', async () => {
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+        allowNone: true, createLabel: '+ neu anlegen …', onCreateRequested: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByLabelText('Frucht'));
+
+    // JEDE Zeile, nicht nur die Treffer: „keine Auswahl" und „+ neu anlegen" zählen mit —
+    // eine Zeile ohne den Schutz wäre die Stelle, an der der Defekt zurückkommt.
+    for (const zeile of screen.getAllByRole('option')) {
+      const ereignis = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      zeile.dispatchEvent(ereignis);
+      expect(ereignis.defaultPrevented).toBe(true);
+    }
+  });
+
+  it('schließt weiterhin, wenn der Fokus in ein FREMDES Feld wandert (kein zweiter Schließweg verloren)', async () => {
+    render(Picker, {
+      props: {
+        items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht',
+      },
+    });
+    const feld = screen.getByLabelText('Frucht');
+    await fireEvent.click(feld);
+    const fremd = document.createElement('input');
+    // Beschriftet, weil der a11y-Scanner (BL-66) JEDEN Testzustand scannt — ein nacktes
+    // <input> im Dokument wäre ein echter axe-Verstoß, auch wenn es nur Kulisse ist.
+    fremd.setAttribute('aria-label', 'Nächstes Feld');
+    document.body.appendChild(fremd);
+
+    await fireEvent.focusOut(feld, { relatedTarget: fremd });
+
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    fremd.remove();
+  });
+});
+
+describe('Picker — auch die Nicht-Zeilen des Panels halten den Fokus (BL-254, ADR-v9-185)', () => {
+  // Nachtrag zu ADR-v9-182: der Schutz saß an den ZEILEN, und der Kommentar dort sagte
+  // „muss an JEDER Zeile hängen". Der Panel-Hintergrund ist keine Zeile — und trägt genau
+  // die Flächen, die ein Nutzer mit der Maus anfasst, ohne einen Treffer zu meinen: den
+  // SCROLLBALKEN der Ergebnisliste (ab 25 Treffern der Regelfall), die Polsterung des
+  // Panels, die Leermeldung und den „… N weitere"-Hinweis. Am laufenden System gemessen
+  // (Zugehörigkeits-Picker, scrollHeight 993 / clientHeight 256): ein Klick auf die
+  // Panel-Polsterung liess `activeElement` auf BODY zurück und räumte die Liste ab — in
+  // CHROMIUM, nicht nur in Safari. Wer die Liste scrollen wollte, klappte sie zu.
+  function offenerPicker(anzahl = 3) {
+    const items = Array.from({ length: anzahl }, (_, i) => ({
+      id: `f${i}`,
+      name: `Frucht ${String(i).padStart(2, '0')}`,
+      color: 'rot',
+    }));
+    render(Picker, {
+      props: { items, getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches,
+        value: null, onChange: vi.fn(), label: 'Frucht' },
+    });
+    return screen.getByLabelText('Frucht');
+  }
+
+  function mousedownAuf(el: Element): MouseEvent {
+    const ereignis = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    el.dispatchEvent(ereignis);
+    return ereignis;
+  }
+
+  it('der Panel-Hintergrund unterbindet die Vorgabe-Handlung wie eine Zeile', async () => {
+    const feld = offenerPicker();
+    await fireEvent.click(feld);
+
+    const panel = document.querySelector('.stb-picker__panel') as HTMLElement;
+    expect(mousedownAuf(panel).defaultPrevented).toBe(true);
+  });
+
+  it('die scrollende Ergebnisliste ebenfalls — sonst schliesst der Scrollbalken die Liste', async () => {
+    // Über der Kappungsgrenze (MAX_VISIBLE_RESULTS = 25): erst hier bekommt die Liste
+    // überhaupt einen Scrollbalken, und genau dann greift der Nutzer danach.
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+
+    const liste = document.querySelector('.stb-picker__results') as HTMLElement;
+    expect(mousedownAuf(liste).defaultPrevented).toBe(true);
+  });
+
+  it('der „… N weitere"-Hinweis ebenfalls (keine Zeile, aber im Panel)', async () => {
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+
+    const hinweis = document.querySelector('.stb-picker__more-hint') as HTMLElement;
+    expect(hinweis).toBeTruthy();
+    expect(mousedownAuf(hinweis).defaultPrevented).toBe(true);
+  });
+
+  it('die Leermeldung ebenfalls', async () => {
+    const feld = offenerPicker();
+    await fireEvent.click(feld);
+    await fireEvent.input(feld, { target: { value: 'GibtEsNicht' } });
+
+    const leer = document.querySelector('.stb-picker__empty') as HTMLElement;
+    expect(leer).toBeTruthy();
+    expect(mousedownAuf(leer).defaultPrevented).toBe(true);
+  });
+
+  it('die Liste überlebt einen Griff an den Scrollbalken (fremde Browser-Reihenfolge)', async () => {
+    const feld = offenerPicker(30);
+    await fireEvent.click(feld);
+    expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+
+    const liste = document.querySelector('.stb-picker__results') as HTMLElement;
+    const runter = mousedownAuf(liste);
+    // Dieselbe Kopplung wie in `klickWieSafari`: der Browser verschiebt den Fokus NUR,
+    // wenn die Vorgabe-Handlung nicht unterbunden wurde.
+    if (!runter.defaultPrevented) await fireEvent.focusOut(feld, { relatedTarget: null });
+
+    // Ohne den Schutz stünde hier 0 — die Liste wäre unter der Hand verschwunden.
+    expect(screen.queryAllByRole('option').length).toBeGreaterThan(0);
+  });
+});

@@ -6,21 +6,48 @@
 //   - `sourceId`: aus `<sourceref hlink>`, Datei-Handle → Modell-`id` (BL-136-Muster).
 //   - `page`:     aus `<page>`.
 //   - `quay`:     aus `<confidence>` (GRAMPS 0–4) → GEDCOM QUAY 0–3 via `min(·,3)` (D4).
-// Datum/Notizen/Medien/`srcattribute` des GRAMPS-Zitats bleiben vorerst Passthrough im Baum
-// (nicht ins Modell projiziert) — der Datenerhalt ist über INV-PT gesichert.
+//   - `eval`:     aus den vier Evidenz-`<srcattribute>` (BL-83, s. projectGrampsEval).
+// Datum/Notizen/Medien und die ÜBRIGEN `srcattribute` des GRAMPS-Zitats bleiben Passthrough
+// im Baum (nicht ins Modell projiziert) — der Datenerhalt ist über INV-PT gesichert.
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
 import { makeCitation } from '../model/factory';
-import type { Citation } from '../model/types';
+import { makeEvidenceEval } from '../research/eval';
+import type { Citation, EvidenceEval } from '../model/types';
 import type { XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 import { grampsMediaRefs } from './gramps-media';
 
 // QUAY↔<confidence> lebt seit BL-156 kanonisch in enum-maps.ts (gebündelt); hier importiert
 // (interner Gebrauch) + re-exportiert, damit bestehende Importe unverändert bleiben.
-import { confidenceToQuay } from './enum-maps';
+import { applyEvalAxis, confidenceToQuay, isEvalTag } from './enum-maps';
 export { confidenceToQuay };
+
+/**
+ * Evidenz-Bewertung eines `<citation>` (Spec 12 §3, BL-83). Die vier Achsen werden
+ * MODELLIERT herausgelöst (Spec 13 §2.3) — alle übrigen Zitat-Attribute (`EVEN`, fremde)
+ * bleiben Passthrough im Baum (INV-PT).
+ *
+ * ZWEI Lese-Formen, eine Schreib-Form (Register DEV-07):
+ *  - `<srcattribute type="_STYP" value="…"/>` — DTD-konform (grampsxml.dtd 1.7.2:
+ *    `citation (… srcattribute*, sourceref, tagref*)`; `<attribute>` ist dort NICHT
+ *    erlaubt). So schreibt auch das echte GRAMPS 6.x (`<srcattribute type="EVEN" …>`).
+ *  - `<attribute type="_STYP" value="…"/>` — die v8-Altform, DTD-widrig. Wird GELESEN,
+ *    damit von v8 geschriebene Dateien ihre Bewertung nicht verlieren; geschrieben wird
+ *    ausschließlich die konforme Form.
+ */
+function projectGrampsEval(citationNode: XmlNode): EvidenceEval | null {
+  let ev: EvidenceEval | null = null;
+  for (const a of citationNode.children) {
+    if (a.tag !== 'srcattribute' && a.tag !== 'attribute') continue;
+    const type = attr(a, 'type');
+    if (!isEvalTag(type)) continue;
+    if (!ev) ev = makeEvidenceEval();
+    applyEvalAxis(ev, type, attr(a, 'value'));
+  }
+  return ev;
+}
 
 /**
  * Ein GRAMPS-`<citation>`-Knoten → Modell-`Citation`. `resolveSourceId` übersetzt das
@@ -39,6 +66,7 @@ export function projectGrampsCitation(
   return makeCitation(sourceId, {
     page: firstChild(citationNode, 'page')?.text ?? '',
     quay: confidenceToQuay(firstChild(citationNode, 'confidence')?.text ?? ''),
+    eval: projectGrampsEval(citationNode),
     media: handleToId ? grampsMediaRefs(citationNode, handleToId) : [],
     // Fidelity-id des geteilten <citation>-Records (C0000, ersatzweise Handle): ordnet das
     // Zitat beim Write-Back über seine stabile id wieder seinem Record zu (BL-142/144,

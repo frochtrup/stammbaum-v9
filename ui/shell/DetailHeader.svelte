@@ -43,14 +43,21 @@
 <div class="detail-header">
   <div class="detail-header__row">
     <div class="detail-header__left">
-      <!-- "← Zur Liste" ist eine MOBILE Navigation: dort ersetzt die Detailansicht die
+      <!-- "← Zurück" ist eine MOBILE Navigation: dort ersetzt die Detailansicht die
            Liste, also braucht es einen Rückweg. Im Desktop-Multi-Pane (Spec 21 §3,
            BL-92) steht die Liste dauerhaft daneben — ein Zurück-Knopf führte auf eine
            Fläche, die bereits sichtbar ist. Die Auswahl aufzuheben bleibt möglich, ist
            aber kein Navigations-, sondern ein Auswahl-Vorgang (Liste selbst).
-           Diese EINE Stelle deckt Person/Familie/Quelle/Archiv/Ort/Hof ab (INV-UI-4). -->
+           Diese EINE Stelle deckt Person/Familie/Quelle/Archiv/Ort/Hof ab (INV-UI-4).
+
+           Beschriftung seit BL-07 "Zurück" statt "Zur Liste": das Ziel ist jetzt die
+           HERKUNFT (Spec 20 §1.1) und nicht mehr fest die Liste — wer von Person A über
+           einen Ort zu Person C kam, landet bei Person A. Ein Knopf, der "Zur Liste"
+           verspricht und woanders hinführt, wäre schlimmer als die alte Enge. KEIN
+           zweiter Knopf für Vorwärts: das trägt die Gegenrichtung der Wisch-Geste bzw.
+           Alt+→ (INV-UI-11, ADR-v9-177). -->
       {#if !layout.isDesktopLayout}
-        <button type="button" class="detail-header__back" onclick={onBack}>← Zur Liste</button>
+        <button type="button" class="detail-header__back" onclick={onBack}>← Zurück</button>
       {/if}
       {#if compact}
         <span class="detail-header__compact-title">{title}</span>

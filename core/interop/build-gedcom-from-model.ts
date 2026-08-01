@@ -111,6 +111,14 @@ function recordMapFor(tag: string, r: IdRemap): Map<string, string> | null {
 /** Remappt rekursiv jeden Referenz-Wert (pointer-tragende Tags) auf die Ziel-id. In-place auf
  *  dem frisch emittierten Teilbaum (jede N()-Instanz ist neu, Mutation ist lokal). */
 function remapRefs(node: GedNode, r: IdRemap): void {
+  // `_HREF` (ADR-v9-174) ist der einzige Zeiger, dessen Zielklasse nicht am Tag ablesbar
+  // ist — eine Identitäts-Hypothese verweist auf eine Person ODER eine Familie. Deshalb
+  // erst die Personen-, dann die Familien-Abbildung; mappedOr lässt Nicht-Treffer stehen.
+  if (node.tag === '_HREF' && node.value) {
+    const viaPerson = r.person.get(node.value);
+    node.value = viaPerson ?? mappedOr(r.family, node.value);
+    return;
+  }
   const m = pointerMapFor(node.tag, r);
   if (m && node.value) node.value = mappedOr(m, node.value);
   for (const c of node.children) remapRefs(c, r);

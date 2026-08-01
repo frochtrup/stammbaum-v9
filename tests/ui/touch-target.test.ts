@@ -6,8 +6,9 @@
 // jemand setzt an einem Bedienelement eine EXPLIZITE Mindestgröße UNTER der Schwelle
 // (`UndoControls` hatte `min-width: 2.2rem` → 35×27px, die kleinsten interaktiven
 // Flächen der App, gefunden erst durch eine Design-Kritik des Nutzers). Er fängt NICHT
-// „jemand setzt gar keine Größe" — dafür braucht es gerenderte Pixel, also den
-// a11y-Scanner aus [32 TST-15] (BL-66, axe-core, noch offen). Das ist bewusst so
+// „jemand setzt gar keine Größe" — dafür braucht es gerenderte Pixel MIT Layout. Der
+// a11y-Scanner (tests/a11y/axe-setup.ts, ADR-v9-170) schließt die Lücke NICHT: er läuft
+// unter happy-dom, das keine Geometrie rechnet. Sie bleibt manuell. Das ist bewusst so
 // benannt statt als Voll-Abdeckung ausgegeben: ein Wächter, dessen Reichweite man
 // überschätzt, ist schlimmer als einer, dessen Grenze man kennt.
 //

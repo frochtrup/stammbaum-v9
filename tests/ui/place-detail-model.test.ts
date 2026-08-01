@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { makeDatabase, makeCitation, makeFamily, makePerson } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { place } from '../core/places-fixtures';
-import { buildPlaceDetail } from '../../ui/views/place/place-detail-model';
+import { buildPlaceDetail, hierarchySpanLabel } from '../../ui/views/place/place-detail-model';
 
 function ctxFor(db: ReturnType<typeof makeDatabase>): PlaceContext {
   return { places: makePlaceRegistry(db.placeObjects), hofs: makeHofRegistry(db.hofObjects) };
@@ -204,6 +204,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     expect(detail!.hierarchyTimeline).toEqual([
       {
         year: 1816,
+        label: 'ab 1816',
         chain: [
           { id: '@KREIS@', label: 'Kreis Steinfurt' },
           { id: '@LAND@', label: 'Preußen' },
@@ -241,6 +242,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     expect(detail!.hierarchyTimeline).toEqual([
       {
         year: 1816,
+        label: 'ab 1816',
         chain: [
           { id: '@KREIS@', label: 'Kreis Steinfurt' },
           { id: '@PREUSSEN@', label: 'Preußen' },
@@ -249,6 +251,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
       },
       {
         year: 1946,
+        label: 'ab 1946',
         chain: [
           { id: '@KREIS@', label: 'Kreis Steinfurt' },
           { id: '@NRW@', label: 'Nordrhein-Westfalen' },
@@ -288,10 +291,142 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     // 1813 liegt noch INNERHALB der GRAF-Periode (inklusiv) -> identische Kette wie 1300,
     // wird zusammengefasst. 1814 liegt in der echten Lücke -> "unbekannt". 1816 -> AMT.
     expect(detail!.hierarchyTimeline).toEqual([
-      { year: 1300, chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false },
-      { year: 1814, chain: null, truncated: false },
-      { year: 1816, chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false },
+      { year: 1300, label: 'ab 1300', chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false },
+      { year: 1814, label: 'ab 1814', chain: null, truncated: false },
+      { year: 1816, label: 'ab 1816', chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false },
     ]);
+  });
+});
+
+// ADR-v9-181 / BL-249 — Nutzerbefund „eine vorne offene Gültigkeit einer Zuordnung wird
+// nicht aufgelöst FROM     TO 1806 XXX". `from == null` bei GESETZTEM `to` heißt „seit
+// jeher bis to" und ist damit ein Zeitraum, kein fehlender Anfang; im Bestand des Nutzers
+// (`orte.v9.json`) tragen 12 Zuordnungen diese Form.
+describe('buildPlaceDetail — nach unten offene Zugehörigkeit (ADR-v9-181)', () => {
+  function ochtrupMitOffenemAnfang() {
+    const db = makeDatabase();
+    db.placeObjects.set('@FUERST@', place('@FUERST@', { title: 'Fürstbistum Münster' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@FUERST@', from: null, to: 1806 },
+          { placeId: '@KREIS@', from: 1816, to: null },
+        ],
+      }),
+    );
+    return db;
+  }
+
+  it('zeigt die vorne offene Periode ÜBERHAUPT — vorher fiel sie ganz aus der Ansicht', () => {
+    const db = ochtrupMitOffenemAnfang();
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // Der Defekt: `docStart` entstand nur aus Einträgen MIT `from`, wurde damit 1816 und
+    // klemmte das Schlüsseljahr 1806 weg — übrig blieb EINE Zeile.
+    expect(detail!.hierarchyTimeline).toHaveLength(2);
+    expect(detail!.hierarchyTimeline[0].chain).toEqual([
+      { id: '@FUERST@', label: 'Fürstbistum Münster' },
+    ]);
+  });
+
+  it('beschriftet die erste Zeile mit dem Zeitraum „bis …", nicht mit einem Punktjahr', () => {
+    const db = ochtrupMitOffenemAnfang();
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // „1806" allein läse sich, als hätte die Zugehörigkeit in genau diesem Jahr gegolten.
+    expect(detail!.hierarchyTimeline.map((r) => r.label)).toEqual(['bis 1806', 'ab 1816']);
+  });
+
+  it('klemmt weiterhin, wo es einen dokumentierten Anfang gibt (die Klemme fällt nicht ersatzlos)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@LAND@', place('@LAND@', { title: 'Preußen', enclosedBy: [] }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis Steinfurt',
+        // Der Kreis hängt seit 1500 an Preußen — ein Schlüsseljahr weit VOR Ochtrups
+        // eigener, dokumentierter Zugehörigkeit.
+        enclosedBy: [{ placeId: '@LAND@', from: 1500, to: null }],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // 1500 darf keine Zeile erzeugen: über Ochtrup ist zu diesem Jahr nichts bekannt.
+    expect(detail!.hierarchyTimeline.map((r) => r.year)).toEqual([1816]);
+  });
+
+  it('lässt einen wirklich UNDATIERTEN Eintrag unverändert (from und to fehlen beide)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // Undatiert heißt „jederzeit gültig" und liefert kein Schlüsseljahr — die Zeitleiste
+    // bleibt leer (unverändertes Verhalten, nur die Lesefläche „Aktuell:" zeigt die Kette).
+    expect(detail!.hierarchyTimeline).toEqual([]);
+  });
+
+  it('endet die Aussage der ersten Zeile schon früher, wenn eine ÜBERGEORDNETE Ebene innerhalb der offenen Periode wechselt', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@REICH@', place('@REICH@', { title: 'Heiliges Römisches Reich' }));
+    db.placeObjects.set('@WESTF@', place('@WESTF@', { title: 'Königreich Westphalen' }));
+    db.placeObjects.set(
+      '@FUERST@',
+      place('@FUERST@', {
+        title: 'Fürstbistum Münster',
+        enclosedBy: [
+          { placeId: '@REICH@', from: null, to: 1802 },
+          { placeId: '@WESTF@', from: 1803, to: null },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@FUERST@', from: null, to: 1806 }] }),
+    );
+
+    const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
+
+    // Die erste Zeile gilt nur bis zum Jahr VOR der nächsten — „bis 1806" wäre dort
+    // falsch, weil die gezeigte Kette 1803 endet.
+    expect(detail!.hierarchyTimeline[0].label).toBe('bis 1802');
+    expect(detail!.hierarchyTimeline[1].label).toBe('ab 1803');
+  });
+});
+
+describe('hierarchySpanLabel — offen ist richtungsabhängig (Spec 11 §1)', () => {
+  it('nennt einen nach unten offenen Zeitraum „bis X"', () => {
+    expect(hierarchySpanLabel(null, 1806)).toBe('bis 1806');
+  });
+
+  it('nennt einen nach oben offenen Zeitraum „ab X"', () => {
+    expect(hierarchySpanLabel(1816, null)).toBe('ab 1816');
+  });
+
+  it('nennt einen beidseitig begrenzten Zeitraum mit Bis-Strich', () => {
+    expect(hierarchySpanLabel(1816, 1974)).toBe('1816–1974');
+  });
+
+  it('zieht ein einjähriges Intervall zur Jahreszahl zusammen', () => {
+    expect(hierarchySpanLabel(1806, 1806)).toBe('1806');
+  });
+
+  it('liefert für den undatierten Fall leeren Text, nicht „bis null"', () => {
+    expect(hierarchySpanLabel(null, null)).toBe('');
   });
 });
 

@@ -29,7 +29,11 @@
 //   E. person.suffix — vom GRAMPS-Parser nicht in die Projektion gelesen.
 //   F. person.noteText / family.noteText — GRAMPS hält Notizen als eigene Records (noteref),
 //      nicht als Inline-Text; der Parser projiziert sie nicht zurück in den Owner-Text.
-//   G. source.date / source.text / source.callNumber — kein direktes `<source>`-Gegenstück.
+//   G. source.date / source.text — kein direktes `<source>`-Gegenstück.
+//      `callNumber`/`callMedia` standen bis BL-245 hier — falsch: `<reporef>` trägt sie
+//      als native Attribute `callno`/`medium` (grampsxml.dtd). Das Gegenstück lag nicht
+//      im `<source>`, sondern eine Ebene tiefer; sie round-trippen jetzt (ADR-v9-180).
+//      Ebenso `externalRefs`: als `<srcattribute type="REFN">` (BL-244).
 //   H. repository.address / repository.email — das komplexe GRAMPS-`<address>`-Element wird
 //      nicht projiziert (da repoSig die Adresse einschliesst, kann ein Repo als Ganzes
 //      unpaarbar werden — dieselbe Ursache).
@@ -86,7 +90,7 @@ function neutralize(db: Database): void {
     f.noteText = ''; // F
     for (const e of [f.marriage, f.engagement, ...f.events]) neutralizeEvent(e);
   }
-  for (const s of db.sources.values()) { s.date = ''; s.text = ''; s.callNumber = ''; } // G
+  for (const s of db.sources.values()) { s.createdDate = ''; s.text = ''; } // G
   for (const r of db.repositories.values()) { r.address = ''; r.email = ''; } // H
 }
 

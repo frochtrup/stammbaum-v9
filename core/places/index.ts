@@ -88,10 +88,12 @@ export {
   deleteHofObject,
   withAddedPname,
   withRemovedPname,
+  withUpdatedPname,
   withAddedTranslation,
   withRemovedTranslation,
   withAddedEnclosedBy,
   withRemovedEnclosedBy,
+  withUpdatedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
   withUpdatedHofAddr,
@@ -99,7 +101,9 @@ export {
   linkEventToHof,
   mergePlaceObjects,
   mergeHofObjects,
+  moveHofToVillage,
   type MergeResult,
+  type MoveHofResult,
 } from './commands';
 
 // Kurations-Layer (Spec 11 §9, ADR-v9-44/45/46): reine Anzeige-/Dedup-Prädikate über

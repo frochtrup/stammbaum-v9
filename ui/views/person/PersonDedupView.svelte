@@ -20,17 +20,18 @@
   // ergaben 1.267 Paare eine 90.212 px lange Scrollstrecke und 11.542 DOM-Knoten.
   // Bewusst dieselbe Primitive wie EventsByType, kein zweiter Mechanismus (INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
-  import { DEFAULT_DUPLICATE_THRESHOLD, pairKey } from '../../../core/dedup';
+  import { DEFAULT_DUPLICATE_THRESHOLD, collectIdentityExclusions } from '../../../core/dedup';
   import { pageSlice, DEFAULT_PAGE_SIZE } from '../../shell/pagination';
   import { IdbDedupIgnoreStore, loadIgnoredPairs, type DedupIgnoreStore } from '../../../services/dedup';
+  import { newHypothesisId } from '../hypotheses/hypothesis-commands';
   import { buildPersonDedupRows, type DedupPairRow } from './person-dedup-model';
   import PersonMergeModal from './PersonMergeModal.svelte';
 
   interface Props {
     appState: AppState;
     onClose?: () => void;
-    /** Speicher der „kein Duplikat"-Paare (BL-105). Injizierbar, damit der
-     *  Komponententest den Weg ohne IndexedDB prüfen kann; produktiv der IDB-Store. */
+    /** NUR für die einmalige Übernahme der früheren, gerätelokalen Ignorierliste
+     *  (ADR-v9-174): der Store wird nicht mehr geschrieben. Injizierbar für den Test. */
     ignoreStore?: DedupIgnoreStore;
   }
   const { appState, onClose, ignoreStore = new IdbDedupIgnoreStore() }: Props = $props();
@@ -42,43 +43,94 @@
   let scannedThreshold = $state(DEFAULT_DUPLICATE_THRESHOLD);
   let statusMessage = $state('');
   let openPair = $state<DedupPairRow | null>(null);
-  /** Vom Nutzer abgehakte Paare (BL-105) — app-lokal, reist nicht mit der Datei (LP-1). */
-  let ignored = $state<Set<string>>(new Set());
+  /** Paar, für das gerade die Pflicht-Begründung erfasst wird (INV-H3). */
+  let excluding = $state<DedupPairRow | null>(null);
+  let exclusionReason = $state('');
+  /** Altbestand der früheren, gerätelokalen Ignorierliste — nur zum Übernehmen-Angebot. */
+  let legacyPairs = $state<string[]>([]);
 
-  // Einmal je Mount nachladen. Schlägt der app-lokale Speicher fehl, bleibt die Liste
-  // leer: der Nutzer sieht dann wieder abgehakte Paare (ärgerlich), statt gar keine
-  // Suche zu bekommen (kaputt) — dieselbe Haltung wie bei der Regel-Konfiguration.
+  const graph = $derived({ individuals: appState.db.individuals, families: appState.db.families });
+  /**
+   * Ausgeschlossene Paare kommen seit ADR-v9-174 AUS DEM BESTAND (abgelehnte
+   * Identitäts-Hypothesen), nicht mehr aus einem app-privaten Store — deshalb ein
+   * `$derived` statt eines nachgeladenen Zustands: legt der Nutzer einen Ausschluss an,
+   * verschwindet das Paar im selben Zug, ohne zweite Wahrheit daneben.
+   */
+  const ignored = $derived(collectIdentityExclusions(graph));
+
+  // Einmaliges Übernahme-Angebot für die frühere Liste. Bewusst KEIN stiller Schreib-
+  // vorgang in die geteilte Datei (ADR-024-Familie): der Nutzer entscheidet.
   $effect(() => {
     let cancelled = false;
     loadIgnoredPairs(ignoreStore)
       .then((set) => {
-        if (!cancelled) ignored = set;
+        if (!cancelled) legacyPairs = [...set];
       })
       .catch(() => {
-        /* leere Liste behalten */
+        /* kein Angebot — der Altbestand ist entbehrlich, nicht kritisch */
       });
     return () => {
       cancelled = true;
     };
   });
 
-  function ignorePair(row: DedupPairRow) {
-    // Die Menge wird ERSETZT, nicht mutiert — deshalb braucht es kein SvelteSet:
-    // die Reaktivität hängt an der Zuweisung an `ignored`, nicht am Set-Inneren.
-    // Gleiche Ausnahme und gleiche Begründung wie `new Map(db.placeObjects)` in
-    // ui/shell/app-state.svelte.ts.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
-    const next = new Set(ignored);
-    next.add(pairKey(row.a, row.b));
-    ignored = next;
-    void ignoreStore.save([...next]).catch(() => {
-      /* Anzeige bleibt gefiltert; beim nächsten Öffnen ist das Paar wieder da. */
-    });
-    statusMessage = `Als „kein Duplikat" gemerkt: ${row.labelA} ↔ ${row.labelB}.`;
+  /** Legt den Ausschluss als abgelehnte Identitäts-Hypothese an (ADR-v9-174). */
+  function recordExclusion(a: string, b: string, labelA: string, labelB: string, reason: string) {
+    appState.addHypothesis(
+      'person',
+      a,
+      newHypothesisId(),
+      {
+        text: `${labelA} (${a}) und ${labelB} (${b}) sind dieselbe Person`,
+        status: 'rejected',
+        kind: 'identity',
+        refs: [b],
+        rationale: reason,
+      },
+      new Date().toISOString().slice(0, 10),
+    );
+  }
+
+  function startExclusion(row: DedupPairRow) {
+    excluding = row;
+    exclusionReason = '';
     openPair = null;
   }
 
-  const graph = $derived({ individuals: appState.db.individuals, families: appState.db.families });
+  function confirmExclusion() {
+    const row = excluding;
+    if (!row || exclusionReason.trim() === '') return;
+    recordExclusion(row.a, row.b, row.labelA, row.labelB, exclusionReason.trim());
+    statusMessage = `Als „kein Duplikat" festgehalten: ${row.labelA} ↔ ${row.labelB}.`;
+    excluding = null;
+    exclusionReason = '';
+  }
+
+  /**
+   * Übernimmt die frühere Ignorierliste in den Bestand. Die Begründung ist gekennzeichnet,
+   * statt erfunden: die alten Einträge trugen keine, und ein Befund ohne Herkunft wäre
+   * schlimmer als einer, der seine Herkunft nennt.
+   */
+  function adoptLegacy() {
+    for (const key of legacyPairs) {
+      const [a, b] = key.split('|');
+      const pa = appState.db.individuals.get(a);
+      const pb = appState.db.individuals.get(b);
+      if (!pa || !pb) continue; // Eintrag eines anderen Bestands — genau der alte Defekt.
+      recordExclusion(
+        a,
+        b,
+        pa.name || a,
+        pb.name || b,
+        'Übernommen aus der früheren, gerätelokalen Ignorierliste (dort ohne Begründung erfasst).',
+      );
+    }
+    statusMessage = `${legacyPairs.length} frühere Ausschlüsse übernommen.`;
+    legacyPairs = [];
+    void ignoreStore.save([]).catch(() => {
+      /* Übernahme steht im Bestand; das Angebot kehrt beim nächsten Öffnen zurück. */
+    });
+  }
   const rows = $derived<DedupPairRow[]>(
     scanned ? buildPersonDedupRows(graph, appState.placeContext, scannedThreshold, query, ignored) : [],
   );
@@ -137,6 +189,44 @@
 
   {#if statusMessage}
     <p class="person-dedup__status">{statusMessage}</p>
+  {/if}
+
+  {#if legacyPairs.length}
+    <p class="person-dedup__legacy">
+      {legacyPairs.length} frühere „kein Duplikat"-Entscheidungen liegen noch im gerätelokalen
+      Speicher. Sie gehören in die Datei, damit sie mitreisen.
+      <button type="button" class="person-dedup__legacy-btn" onclick={adoptLegacy}>Übernehmen</button>
+    </p>
+  {/if}
+
+  {#if excluding}
+    <div class="person-dedup__exclude">
+      <p class="person-dedup__exclude-head">
+        Kein Duplikat: <strong>{excluding.labelA}</strong> ↔ <strong>{excluding.labelB}</strong>
+      </p>
+      <label class="person-dedup__exclude-label" for="dedup-exclusion-reason">
+        Begründung (Pflicht) — warum sind das zwei verschiedene Personen?
+      </label>
+      <textarea
+        id="dedup-exclusion-reason"
+        class="person-dedup__exclude-input"
+        rows="3"
+        bind:value={exclusionReason}
+      ></textarea>
+      <div class="person-dedup__exclude-actions">
+        <button type="button" class="person-dedup__btn" onclick={() => (excluding = null)}>
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          class="person-dedup__btn person-dedup__btn--primary"
+          disabled={exclusionReason.trim() === ''}
+          onclick={confirmExclusion}
+        >
+          Ausschluss festhalten
+        </button>
+      </div>
+    </div>
   {/if}
 
   {#if !scanned}
@@ -204,7 +294,7 @@
       suggestedWinner={openPair.suggestedWinner}
       onClose={() => (openPair = null)}
       onDone={(message) => (statusMessage = message)}
-      onIgnore={() => ignorePair(openPair!)}
+      onIgnore={() => startExclusion(openPair!)}
     />
   {/key}
 {/if}
@@ -267,6 +357,73 @@
     padding: 0.35rem 0.8rem;
     font-weight: 600;
     cursor: pointer;
+  }
+
+  /* Übernahme-Angebot + Begründungs-Panel (ADR-v9-174). Beide nutzen die vorhandenen
+     Flächen-Tokens; kein neuer Dialog-Mechanismus (INV-UI-4). */
+  .person-dedup__legacy,
+  .person-dedup__exclude {
+    margin-top: 0.7rem;
+    padding: 0.6rem 0.7rem;
+    background: var(--stb-surface-2);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    font-size: 0.85rem;
+  }
+
+  .person-dedup__exclude-head {
+    margin: 0 0 0.5rem;
+  }
+
+  .person-dedup__exclude-label {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: var(--stb-text-dim);
+  }
+
+  .person-dedup__exclude-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.4rem 0.5rem;
+    background: var(--stb-surface-1);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-border);
+    border-radius: var(--stb-radius-control);
+    font: inherit;
+    resize: vertical;
+  }
+
+  .person-dedup__exclude-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+
+  .person-dedup__btn,
+  .person-dedup__legacy-btn {
+    min-height: 44px;
+    padding: 0 0.9rem;
+    background: var(--stb-surface-1);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-border);
+    border-radius: var(--stb-radius-control);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .person-dedup__btn--primary {
+    background: var(--stb-gold-dim);
+    border-color: var(--stb-gold);
+  }
+
+  .person-dedup__btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .person-dedup__legacy-btn {
+    margin-left: 0.5rem;
   }
 
   .person-dedup__status {

@@ -26,7 +26,8 @@
   // Vollständigkeits-Ring (BL-121): dieselbe Befundschwere wie das Qualitäts-Dashboard
   // (computePersonSeverity, INV-UI-4) — die Insel bekommt sie vorberechnet, wertet nichts aus.
   import { configFromStored, defaultConfig, type ValidationConfig } from '../../../core/validate/index';
-  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
+  import { loadValConfig } from '../../../services/validate/index';
+  import { createValConfigStore } from '../../../services/app-data';
   import { buildTreeRings } from './tree-ring-model';
   // Diagramm-Export (BL-124): reiner Renderer + Sink über das vorhandene Export-Rohr.
   import { finalizeSvg, svgToPngBlob } from '../../islands/tree/diagram-export';
@@ -62,7 +63,9 @@
   // ── Vollständigkeits-Ring (BL-121, Spec 21 §8) ──
   // Regel-Konfiguration wie im Dashboard nachladen (dieselbe Quelle → gleiche Ringe/Ampel).
   let valConfig = $state<ValidationConfig>(defaultConfig());
-  const valStore = new IdbValConfigStore();
+  // Die Regel-Konfiguration wohnt im B1-Bündel (app-data.json, BL-180) und reist
+  // damit zwischen Geräten; der Vertrag bleibt derselbe (ValConfigStore).
+  const valStore = createValConfigStore();
   $effect(() => {
     let cancelled = false;
     loadValConfig(valStore)
@@ -185,7 +188,6 @@
         <button
           type="button"
           class="tree-view__export-btn"
-          aria-haspopup="menu"
           aria-expanded={exportMenuOpen}
           disabled={exporting || !focusId}
           onclick={() => (exportMenuOpen = !exportMenuOpen)}
@@ -193,9 +195,13 @@
           {exporting ? '…' : '↓ Export'}
         </button>
         {#if exportMenuOpen}
-          <div class="tree-view__export-menu" role="menu">
-            <button type="button" role="menuitem" onclick={exportPng}>PNG-Bild</button>
-            <button type="button" role="menuitem" onclick={exportA1Svg}>A1-Poster (SVG)</button>
+          <!-- `role="group"` statt `menu`/`menuitem` — dieselbe Begründung wie in
+               `EventTypeMenu.svelte` (BL-66): ohne wandernden Fokus und Escape-Behandlung
+               wäre `menu` ein Versprechen, das die Komponente nicht einlöst. Ein
+               Aufklapp-Muster für die ganze App (INV-UI-4), nicht zwei. -->
+          <div class="tree-view__export-menu" role="group" aria-label="Export">
+            <button type="button" onclick={exportPng}>PNG-Bild</button>
+            <button type="button" onclick={exportA1Svg}>A1-Poster (SVG)</button>
           </div>
         {/if}
       </div>

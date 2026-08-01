@@ -13,9 +13,12 @@
   // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): [Filter · N] [✓ Bericht] [⚙] — drei
   // Elemente in EINER Zeile.
   import type { AppState } from '../../shell/app-state.svelte';
+  import type { ViewState } from '../../shell/view-state.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
   import ValidationPanel from '../validation/ValidationPanel.svelte';
   import GeoFindingsTile from './GeoFindingsTile.svelte';
+  import BranchMaturitySection from './BranchMaturitySection.svelte';
+  import FocusPersonList from './FocusPersonList.svelte';
   import ValConfigSheet from '../validation/ValConfigSheet.svelte';
   import { newTaskId } from '../tasks/tasks-commands';
   import {
@@ -29,16 +32,19 @@
     withoutAlreadyTasked,
     type Finding,
     type FocusFilter,
-    type Severity,
     type ValidationConfig,
   } from '../../../core/validate/index';
-  import { IdbValConfigStore, loadValConfig } from '../../../services/validate/index';
-  import { matchesScope } from '../../../core/research/index';
+  import { loadValConfig } from '../../../services/validate/index';
+  import { createValConfigStore } from '../../../services/app-data';
+  import { matchesScope, suggestResearchStep } from '../../../core/research/index';
   import type { ProjectScope } from '../../../core/research/types';
-  import { SEVERITY_ICON } from '../validation/validation-model';
+  import type { PersonId } from '../../../core/model/types';
 
   interface Props {
     appState: AppState;
+    /** Für die Ast-Reifegrad-Sektion: `resolveProband(db, viewState)` ist die EINE
+     *  Proband-Auflösung (ADR-v9-140) — kein zweiter „kleinste Id"-Rückfall hier. */
+    viewState: ViewState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -48,6 +54,7 @@
   }
   const {
     appState,
+    viewState,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -72,15 +79,6 @@
   ];
   const DEFAULT_FOCUS: FocusFilter = 'attention';
 
-  /** Höchstzahl gerenderter Brennpunkt-Personen (v8-Parität) — der Rest wird gezählt. */
-  const FOCUS_CAP = 40;
-
-  const SEVERITY_CLASS: Record<Severity, string> = {
-    error: 'error',
-    warn: 'warn',
-    info: 'info',
-  };
-
   let focusFilter = $state<FocusFilter>(DEFAULT_FOCUS);
   let valConfig = $state<ValidationConfig>(defaultConfig());
   let showValConfig = $state(false);
@@ -103,7 +101,9 @@
     }
   }
 
-  const valStore = new IdbValConfigStore();
+  // Die Regel-Konfiguration wohnt im B1-Bündel (app-data.json, BL-180) und reist
+  // damit zwischen Geräten; der Vertrag bleibt derselbe (ValConfigStore).
+  const valStore = createValConfigStore();
 
   /**
    * Befunde der aktuellen Konfiguration. `$derived` statt eines Knopfdrucks: das
@@ -118,6 +118,18 @@
 
   const dashboard = $derived(buildQualityDashboard(appState.db, findings, { scope: scopeSet }));
 
+  // Ast-Reifegrad (ADR-v9-167): Klick auf einen Ast scoped NUR die Brennpunkte-Liste
+  // unten, nicht Score/Ampel/Radar oben (die bleiben die Gesamt-/Projektsicht). Eigener
+  // `buildQualityDashboard`-Lauf über die vom Ast bereits mit dem Projekt-Scope
+  // UND-verknüpfte Personenmenge (`BranchMaturitySection` liefert sie fertig) —
+  // dieselbe Engine, andere Menge, kein zweiter Bewertungsmechanismus.
+  let branchSelection = $state<{ label: string; personIds: ReadonlySet<PersonId> } | null>(null);
+  const branchFocusDashboard = $derived(
+    branchSelection
+      ? buildQualityDashboard(appState.db, findings, { scope: branchSelection.personIds })
+      : null,
+  );
+
   // Orts-/Hof-Befunde tragen keine Person und bleiben deshalb aus der personbezogenen
   // Dashboard-Auswertung heraus (dashboard.ts) — die einzige Fläche, die sie zeigt, ist
   // der „✓ Bericht". Damit das Dashboard nicht komplett dazu schweigt (Nutzer-Fund
@@ -128,7 +140,7 @@
   const geoCounts = $derived(countBySeverity(geoFindings));
   /** Was der offene Bericht zeigt — je nach Umfang alle oder nur die Geo-Befunde. */
   const reportFindings = $derived(reportScope === 'geo' ? geoFindings : findings);
-  const rows = $derived(filterFocus(dashboard.focus, focusFilter));
+  const rows = $derived(filterFocus((branchFocusDashboard ?? dashboard).focus, focusFilter));
   const activeFilterCount = $derived(focusFilter === DEFAULT_FOCUS ? 0 : 1);
 
   const scoreClass = $derived(
@@ -167,9 +179,24 @@
     return pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low';
   }
 
+  // Der vorhandene Knopf wird schlauer, statt einen zweiten zu bekommen (ADR-v9-165,
+  // INV-UI-11): `suggestResearchStep` belegt Gattung und — wo eindeutig — Quellenbezug
+  // vor. Angelegt wird weiter erst auf Klick, jedes Feld bleibt danach editierbar (LP-6).
   function promote(personId: string, f: Finding) {
     const today = new Date().toISOString().slice(0, 10);
-    appState.addTask('person', personId, newTaskId(), f.text, f.category, today, '');
+    const vorschlag = suggestResearchStep(f, {
+      db: appState.db,
+      staStAera: valConfig.thresholds.staStAera,
+    });
+    appState.addTask(
+      'person',
+      personId,
+      newTaskId(),
+      f.text,
+      vorschlag.category,
+      today,
+      vorschlag.sourceRef,
+    );
   }
 
   /**
@@ -186,6 +213,10 @@
   function countOf(personId: string): number {
     const p = dashboard.focus.find((x) => x.personId === personId);
     return p ? p.error.length + p.warn.length + p.info.length : 0;
+  }
+
+  function handleSelectBranch(selection: { label: string; personIds: ReadonlySet<PersonId> } | null) {
+    branchSelection = selection;
   }
 </script>
 
@@ -236,6 +267,7 @@
       <!-- Prüfbericht — Umfang je nach Öffner: „✓ Bericht" zeigt alles, die „Orte &
            Höfe"-Kachel nur die Geo-Befunde. Dieselbe Komponente, gefilterte Befundmenge. -->
       <ValidationPanel
+        staStAera={valConfig.thresholds.staStAera}
         {appState}
         findings={reportFindings}
         scopeLabel={reportScope === 'geo' ? 'Orte & Höfe' : null}
@@ -311,56 +343,25 @@
       {/each}
     </div>
 
-    <h3 class="quality__section">
-      Brennpunkte
-      {#if rows.length}<span class="quality__section-count">({rows.length})</span>{/if}
-    </h3>
+    <!-- Ast-Reifegrad (ADR-v9-167, BL-231): zweiter Scope-Erzeuger, kein zweites
+         Dashboard — je Ast Score/Ampel aus derselben Engine, Klick scoped die
+         Brennpunkte unten. Ebenen-Umschalter sitzt HIER, nicht in der Toolbar. -->
+    <BranchMaturitySection
+      {appState}
+      {viewState}
+      {findings}
+      projectScope={scopeSet}
+      onSelectBranch={handleSelectBranch}
+    />
 
-    {#if rows.length === 0}
-      <p class="quality__empty">
-        Keine Personen mit {focusFilter === 'red' ? 'Fehlern' : 'Befunden'} in dieser Auswahl 🎉
-      </p>
-    {:else}
-      {#each rows.slice(0, FOCUS_CAP) as row (row.personId)}
-        <div class="quality__person">
-          <span class="quality__dot quality__dot--{SEVERITY_CLASS[row.dot]}"></span>
-          <button
-            type="button"
-            class="quality__person-name"
-            onclick={() => onNavigateToPerson?.(row.personId)}
-          >
-            {row.label}
-          </button>
-          {#if row.life}<span class="quality__person-life">{row.life}</span>{/if}
-          <button
-            type="button"
-            class="quality__promote-all"
-            onclick={() => promoteAll(row.personId)}
-            title="Alle {countOf(row.personId)} Befunde als Aufgaben anlegen"
-          >
-            + alle
-          </button>
-        </div>
-        {#each row.findings as f (f.rule + f.text)}
-          <div class="quality__finding quality__finding--{SEVERITY_CLASS[f.severity]}">
-            <span class="quality__finding-icon" aria-hidden="true">{SEVERITY_ICON[f.severity]}</span>
-            <span class="quality__finding-text">{f.text}</span>
-            <button
-              type="button"
-              class="quality__promote"
-              onclick={() => promote(row.personId, f)}
-              aria-label="Als Aufgabe anlegen"
-              title="Als Aufgabe anlegen"
-            >
-              +
-            </button>
-          </div>
-        {/each}
-      {/each}
-      {#if rows.length > FOCUS_CAP}
-        <p class="quality__more">… und {rows.length - FOCUS_CAP} weitere Personen</p>
-      {/if}
-    {/if}
+    <FocusPersonList
+      {rows}
+      {focusFilter}
+      {onNavigateToPerson}
+      onPromote={promote}
+      onPromoteAll={promoteAll}
+      {countOf}
+    />
   {/if}
 </div>
 
@@ -406,10 +407,8 @@
     font-weight: 700;
   }
 
-  .quality__empty {
-    padding: 1.5rem;
-    color: var(--stb-text-dim);
-  }
+  /* .quality__empty lebt in design-system.css (INV-UI-4) — FocusPersonList.svelte
+     braucht dieselbe Klasse für ihren eigenen Leerzustand. */
 
   /* Score-Kachel — die eine Zahl, die den Zustand zusammenfasst. */
   .quality__score {
@@ -462,35 +461,13 @@
 
   .quality__chip-lbl { color: var(--stb-text-dim); }
 
-  .quality__dot {
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 50%;
-    display: inline-block;
-    flex: none;
-  }
-  .quality__dot--error { background: var(--stb-danger, #e06c6c); }
-  .quality__dot--warn { background: var(--stb-warn, #d9a441); }
-  .quality__dot--info { background: var(--stb-text-dim); }
-  .quality__dot--clean { background: var(--stb-ok); }
+  /* .quality__dot* / .quality__section* leben in design-system.css (INV-UI-4) —
+     FocusPersonList.svelte teilt sich dieselben Klassen für die Brennpunkte-Liste. */
 
   .quality__counts {
     margin: 0.4rem 0.75rem 0;
     font-size: 0.75rem;
     color: var(--stb-text-dim);
-  }
-
-
-  .quality__section {
-    margin: 1rem 0.75rem 0.4rem;
-    font-family: var(--stb-font-title);
-    font-size: 0.9rem;
-    color: var(--stb-gold-light);
-  }
-
-  .quality__section-count {
-    color: var(--stb-text-dim);
-    font-weight: 400;
   }
 
   .quality__radar {
@@ -529,68 +506,7 @@
     color: var(--stb-text-dim);
   }
 
-  .quality__person {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.75rem 0.2rem;
-    border-top: 1px solid var(--stb-surface-2);
-  }
-
-  .quality__person-name {
-    background: transparent;
-    border: none;
-    padding: 0;
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    font-size: 0.88rem;
-    text-align: left;
-  }
-
-  .quality__person-life {
-    color: var(--stb-text-dim);
-    font-size: 0.72rem;
-  }
-
-  .quality__promote-all {
-    margin-left: auto;
-    background: transparent;
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    font-size: 0.72rem;
-    padding: 0.1rem 0.4rem;
-  }
-
-  .quality__finding {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: baseline;
-    gap: 0.4rem;
-    padding: 0.15rem 0.75rem 0.15rem 1.5rem;
-    font-size: 0.78rem;
-  }
-
-  .quality__finding-icon { color: var(--stb-text-dim); }
-  .quality__finding--error .quality__finding-icon { color: var(--stb-danger, #e06c6c); }
-  .quality__finding--warn .quality__finding-icon { color: var(--stb-warn, #d9a441); }
-
-  .quality__finding-text { color: var(--stb-text); }
-
-  .quality__promote {
-    background: transparent;
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-card);
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    line-height: 1;
-    padding: 0.1rem 0.4rem;
-  }
-
-  .quality__more {
-    margin: 0.5rem 0.75rem;
-    color: var(--stb-text-dim);
-    font-size: 0.78rem;
-  }
+  /* Die Brennpunkte-eigenen Klassen (Person-/Befund-/Promote-Zeilen) sind mit der Liste
+     nach FocusPersonList.svelte ausgelagert (BL-231, Datei-Teilung großzügig statt
+     knapp — kohäsive Rendering-Einheit statt Trimmen). */
 </style>

@@ -144,7 +144,16 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       }
       if (dateMatches(ef, et, y)) {
         const f = ef ?? -Infinity;
-        if (f > bestFrom) {
+        // `bestId == null` MUSS mitgeprüft werden: eine nach unten offene Zuordnung
+        // (`from` fehlt, `to` gesetzt — „seit jeher bis X", Spec 11 §1) trägt
+        // `f = -Infinity` und wäre gegen den Startwert `bestFrom = -Infinity` nie „größer".
+        // Sie konnte deshalb NIE gewinnen: `enclosureWinnerAsOf` gab für jedes Jahr
+        // innerhalb dieser Periode `null` zurück und meldete `truncated` — der Ort galt
+        // dort als ohne Zugehörigkeit. Das traf die periodengerechte PLAC-Projektion
+        // ebenso wie die Verwaltungsgeschichte (ADR-v9-181, BL-249). Die Vorrangregel
+        // „spätestes `from` gewinnt" bleibt unverändert: ein datierter Eintrag überschreibt
+        // den offenen, sobald seine Periode ebenfalls trifft.
+        if (bestId == null || f > bestFrom) {
           bestFrom = f;
           bestId = e.placeId;
         }
@@ -172,7 +181,11 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
         for (const pn of pl.pnames) {
           if (!dateMatches(placeYear(pn.from), placeYear(pn.to), y)) continue;
           const f = placeYear(pn.from) ?? -Infinity;
-          if (f > bestFrom) {
+          // Gleicher Grund wie in `enclosureWinnerAsOf` (ADR-v9-181): eine nach unten
+          // offene Namensvariante („hieß bis 1400 Ochtorpe") trägt `-Infinity` und hätte
+          // den Startwert nie überboten — sie fiel durch und der Ort hieß auch 1350 noch
+          // nach seinem heutigen `title`.
+          if (bestVal == null || f > bestFrom) {
             bestFrom = f;
             bestVal = pn.value;
           }

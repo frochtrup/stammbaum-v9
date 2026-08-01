@@ -94,12 +94,19 @@
   >{triggerLabel}</button>
   {#if open}
     <button type="button" class="stb-event-menu__backdrop" aria-label="Menü schließen" onclick={close} use:portal></button>
-    <div class="stb-event-menu__panel" role="menu" aria-label={triggerLabel} use:anchoredTo={triggerEl}>
+    <!-- `role="group"`, NICHT `role="menu"` (BL-66/axe). Zwei Gründe, beide gemessen:
+         (a) ARIA erlaubt einem `menu` nur `menuitem`s als Kinder — die „anderer Typ"-
+         Sektion unten enthält ein `<select>` und einen gewöhnlichen Button und machte
+         das Menü damit ungültig. (b) `menu` verspricht Menü-Tastatursemantik (Pfeiltasten
+         mit wanderndem Fokus, Escape, Fokusfalle); diese Komponente hat davon nichts —
+         sie ist eine Aufklapp-Fläche mit tab-baren Buttons. Ein falsches Versprechen ist
+         für Screenreader-Nutzer schlechter als gar keins. Dieselbe Form trägt das
+         Export-Menü in `TreeView.svelte` (INV-UI-4: EIN Aufklapp-Muster). -->
+    <div class="stb-event-menu__panel" role="group" aria-label={triggerLabel} use:anchoredTo={triggerEl}>
       {#if pasteItem}
         <button
           type="button"
           class="stb-event-menu__item stb-event-menu__item--paste"
-          role="menuitem"
           onclick={() => { close(); pasteItem.onSelect(); }}
         >
           {pasteItem.label}
@@ -108,7 +115,6 @@
           <button
             type="button"
             class="stb-event-menu__item stb-event-menu__item--clear"
-            role="menuitem"
             onclick={() => { close(); clearItem.onSelect(); }}
           >
             {clearItem.label}
@@ -119,7 +125,7 @@
       {#each groups as group, gi (gi)}
         {#if gi > 0 && group.length > 0}<div class="stb-event-menu__divider"></div>{/if}
         {#each group as item (item.tag)}
-          <button type="button" class="stb-event-menu__item" role="menuitem" onclick={() => pick(item.tag)}>
+          <button type="button" class="stb-event-menu__item" onclick={() => pick(item.tag)}>
             {item.label}
           </button>
         {/each}

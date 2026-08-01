@@ -18,6 +18,7 @@ import type { XmlDocument, XmlNode } from './xml-tree';
 import { applyDatabaseToXml } from './gramps-write-back';
 import { buildEnrichContext, enrichPerson, enrichFamily } from './gramps-enrich';
 import { collectGrampsMedia, grampsMediaRefs } from './gramps-media';
+import { grampsMediumToMedi } from './enum-maps';
 import { projectPlaces } from './gramps-places';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
@@ -132,7 +133,27 @@ export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   s.abbr = firstChild(source, 'sabbrev')?.text ?? '';
   s.publisher = firstChild(source, 'spubinfo')?.text ?? '';
   const reporef = firstChild(source, 'reporef');
-  if (reporef) s.repo = resolveRef(attr(reporef, 'hlink'), index);
+  if (reporef) {
+    s.repo = resolveRef(attr(reporef, 'hlink'), index);
+    // Signatur (BL-245, ADR-v9-180): `callno`/`medium` sind native `<reporef>`-Attribute
+    // (grampsxml.dtd), nicht Kinder von `<source>`. Sie hier NICHT zu lesen hieß bisher:
+    // ein GRAMPS-Bestand zeigt keine Signatur, und ein Nutzer-Edit daran wird beim
+    // Speichern still verworfen, weil das Write-Back gegen ein leeres Feld vergleicht.
+    s.callNumber = attr(reporef, 'callno');
+    s.callMedia = grampsMediumToMedi(attr(reporef, 'medium'));
+  }
+  // Externe Referenzen (BL-244): GRAMPS legt GEDCOM-`REFN` als `<srcattribute type="REFN">`
+  // ab (`libgedcom.py::__source_attr` setzt `type` auf den Tag-Namen) — im Realbestand
+  // belegt. Ein `2 TYPE` unter dem REFN kennt GRAMPS nicht; es verwirft untergeordnete
+  // Zeilen, deshalb kommt der Untertyp hier leer zurück (dokumentierte Grenze, 13 §1).
+  // GRAMPS' `<source>` hat für diese Felder kein Element; sie reisen als `<srcattribute>`
+  // (ADR-v9-180), Schlüssel = der GEDCOM-Tagname — die Konvention, die GRAMPS selbst nutzt.
+  for (const a of childrenByTag(source, 'srcattribute')) {
+    const typ = attr(a, 'type');
+    if (typ === 'REFN') s.externalRefs.push({ value: attr(a, 'value'), type: '' });
+    else if (typ === 'AGNC') s.agnc = attr(a, 'value');          // SOUR.DATA.AGNC (BL-217)
+    else if (typ === '_DATE') s.createdDate = attr(a, 'value');  // Erfassung (BL-243)
+  }
   s.media = grampsMediaRefs(source, index.handleToId);
   return s;
 }

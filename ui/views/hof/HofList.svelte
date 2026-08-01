@@ -74,11 +74,14 @@
 </script>
 
 {#snippet hofRow(row: HofRow)}
+<!-- Zeile und Koordinaten-Indikator sind Geschwister, nicht ineinander verschachtelt
+     (BL-66/axe `nested-interactive`) — Begründung wörtlich wie in `PlaceList.svelte`;
+     beide Listen ziehen mit, die Regel gilt nicht nur dort, wo sie auffiel. -->
+<div class="hof-list__item">
   <button type="button" class="hof-list__row" onclick={() => selectHof(row.id)}>
     <span class="hof-list__title-line">
       <span class="hof-list__addr">{row.addr || row.id}</span>
       {#if row.hasNote}<span class="stb-pill" use:tooltip={'Notiz erfasst'}>📝</span>{/if}
-      <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
       <!-- „ohne Zusatzangaben"-Pille entfallen (ADR-v9-149) — identische Begründung wie in
            PlaceList: Regelfall-Zustand, höchste Wortlast, jetzt Filter statt Zeilen-Label.
            Beide Geschwister-Listen ziehen mit (die Regel gilt nicht nur dort, wo sie
@@ -93,6 +96,8 @@
       </span>
     {/if}
   </button>
+  <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
+</div>
 {/snippet}
 
 <div class="hof-list">
@@ -306,8 +311,27 @@
      "immer noch groß") — vertikales Padding kam bisher DOPPELT zustande (dieses
      0.55rem PLUS EventsByType's <li> 0.3rem, macht zusammen ~27px), jetzt EINE
      Quelle (das <li>). */
-  .hof-list__row {
+  /* Geschwister-Anordnung wie in `PlaceList.svelte` (BL-66). */
+  .hof-list__item {
+    display: flex;
+    align-items: center;
+    /* Der Rahmen übernimmt die `width: 100%`, die vorher am Button stand — sonst
+       schrumpft er im flex-`<li>` von EventsByType auf die Textbreite, und der Indikator
+       klebte am Text statt am rechten Rand (im Browser gesehen). */
     width: 100%;
+    min-width: 0;
+    /* Abstand am Rahmen, nicht am Chip — sonst wächst der Chip statt der Abstand
+       (Begründung wörtlich in `PlaceList.svelte`). */
+    padding-right: 1rem;
+  }
+
+  .hof-list__item :global(.stb-coord-indicator) {
+    flex-shrink: 0; /* eine Trefferfläche gibt nie nach (Spec 21 §6i) */
+  }
+
+  .hof-list__row {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;

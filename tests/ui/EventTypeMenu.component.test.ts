@@ -13,7 +13,7 @@ describe('EventTypeMenu — Trigger + Panel', () => {
     render(EventTypeMenu, { props: { groups: [[{ tag: 'EVEN', label: 'Ereignis' }]], onSelect: vi.fn() } });
 
     expect(screen.getByText('+ Ereignis')).toBeTruthy();
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('group', { name: '+ Ereignis' })).toBeNull();
   });
 
   it('Klick auf den Trigger öffnet das Panel mit den Items', async () => {
@@ -23,7 +23,7 @@ describe('EventTypeMenu — Trigger + Panel', () => {
 
     await fireEvent.click(screen.getByText('+ Ereignis'));
 
-    expect(screen.getByRole('menu')).toBeTruthy();
+    expect(screen.getByRole('group', { name: '+ Ereignis' })).toBeTruthy();
     expect(screen.getByText('Ereignis', { selector: '.stb-event-menu__item' })).toBeTruthy();
     expect(screen.getByText('Eigentum', { selector: '.stb-event-menu__item' })).toBeTruthy();
   });
@@ -36,7 +36,7 @@ describe('EventTypeMenu — Trigger + Panel', () => {
     await fireEvent.click(screen.getByText('Ereignis', { selector: '.stb-event-menu__item' }));
 
     expect(onSelect).toHaveBeenCalledWith('EVEN');
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('group', { name: '+ Ereignis' })).toBeNull();
   });
 
   it('zeigt einen Trenner zwischen mehreren Gruppen, keinen vor der ersten', async () => {
@@ -66,10 +66,10 @@ describe('EventTypeMenu — Trigger + Panel', () => {
     render(EventTypeMenu, { props: { groups: [[{ tag: 'EVEN', label: 'Ereignis' }]], onSelect: vi.fn() } });
 
     await fireEvent.click(screen.getByText('+ Ereignis'));
-    expect(screen.getByRole('menu')).toBeTruthy();
+    expect(screen.getByRole('group', { name: '+ Ereignis' })).toBeTruthy();
 
     await fireEvent.click(screen.getByLabelText('Menü schließen'));
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('group', { name: '+ Ereignis' })).toBeNull();
   });
 });
 

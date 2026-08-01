@@ -15,6 +15,7 @@
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import type { TaskEntityKind } from './tasks-model';
+  import { SOURCE_TEMPLATES } from '../../../core/model';
 
   export interface TaskFormValues {
     text: string;
@@ -38,6 +39,14 @@
   // v8-Presets als Vorschläge: KEIN geschlossenes Enum — Freitext bleibt immer möglich,
   // die drei Labels sind nur eine <datalist>-Hilfe (Spec 12 §1 hält `category` frei).
   const CATEGORY_PRESETS = ['Kirchenbuch', 'Urkunde/Standesamt', 'Online-Recherche'];
+
+  // Die <datalist> führt zusätzlich die Quellen-Vorlagen-Gattungen (BL-128), weil der
+  // Forschungsschritt-Vorschlag (BL-228, ADR-v9-165) GENAU dieses Vokabular in
+  // `category` schreibt. Ohne sie böte der Editor beim Nachbearbeiten einer so
+  // angelegten Aufgabe lauter Werte an, die neben dem tatsächlich gesetzten stehen —
+  // zwei Listen für dieselbe Frage (INV-UI-4 auf Datenebene). Die drei breiten Presets
+  // bleiben als Chips, weil sie auch Nicht-Quellen-Arbeit abdecken („Online-Recherche").
+  const CATEGORY_OPTIONS = [...CATEGORY_PRESETS, ...SOURCE_TEMPLATES.map((t) => t.label)];
 
   // Arbeitskopie: das Formular wird bei jedem Öffnen neu montiert, der Startwert wird
   // deshalb bewusst nur einmal gelesen (analog ValConfigSheet.svelte).
@@ -73,7 +82,7 @@
     Kategorie
     <input type="text" bind:value={category} list="tasks-category-presets" placeholder="frei wählbar…" />
     <datalist id="tasks-category-presets">
-      {#each CATEGORY_PRESETS as preset (preset)}
+      {#each CATEGORY_OPTIONS as preset (preset)}
         <option value={preset}></option>
       {/each}
     </datalist>

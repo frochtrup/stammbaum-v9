@@ -177,7 +177,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(viewState.getCurrent('repository')).toBeNull();
   });
 
-  it('"Zur Liste" im Quellen-Segment räumt zuerst die Archiv-Auswahl, dann die Quellen-Auswahl ab', async () => {
+  it('"Zurück" im Quellen-Segment räumt zuerst die Archiv-Auswahl, dann die Quellen-Auswahl ab', async () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');
     const viewState = createViewState();
@@ -186,7 +186,7 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
 
     render(EntityTab, { props: { appState, viewState, route: createRoute({ target: 'source' }) } });
 
-    await fireEvent.click(screen.getByText('← Zur Liste'));
+    await fireEvent.click(screen.getByText('← Zurück'));
 
     expect(viewState.getCurrent('repository')).toBeNull();
   });

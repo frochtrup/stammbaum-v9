@@ -9,7 +9,7 @@
 // die Schale bleibt für das Verdrahten zuständig (App.svelte, `<svelte:window>`).
 
 /** Die von der Schale ausführbaren Kürzel-Aktionen. */
-export type Shortcut = 'undo' | 'redo' | 'save' | 'palette' | 'escape';
+export type Shortcut = 'undo' | 'redo' | 'save' | 'palette' | 'escape' | 'back' | 'forward';
 
 /**
  * True, wenn der Tastendruck in einem Texteingabe-Kontext landet.
@@ -43,6 +43,16 @@ export function matchShortcut(e: KeyboardEvent): Shortcut | null {
   // Modifier-Schranke unten.
   if (e.key === 'Escape') return 'escape';
 
+  // Alt+←/→ = Zurück/Vorwärts im Verlauf (BL-07). Ebenfalls VOR der Modifier-Schranke,
+  // denn die schließt `altKey` gerade aus. Alt ist bewusst die Wahl: ⌘←/⌘→ gehören auf
+  // macOS dem Zeilenanfang/-ende, und v8 nutzte Alt+← schon (HANDBUCH, „Zurück in der
+  // Navigationshistorie") — dieselbe Taste, dieselbe Bedeutung.
+  if (e.altKey && !e.metaKey && !e.ctrlKey) {
+    if (e.key === 'ArrowLeft') return 'back';
+    if (e.key === 'ArrowRight') return 'forward';
+    return null;
+  }
+
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return null;
   const key = e.key.toLowerCase();
   if (key === 'z') return e.shiftKey ? 'redo' : 'undo';
@@ -65,5 +75,8 @@ export function matchShortcut(e: KeyboardEvent): Shortcut | null {
  * wäre daraus genau der beschriebene Keyboard-Trap geworden.
  */
 export function belongsToField(shortcut: Shortcut): boolean {
-  return shortcut === 'undo' || shortcut === 'redo';
+  // Zurück/Vorwärts (BL-07) gehören zur selben Klasse wie Undo/Redo: Option+←/→ springt
+  // im Textfeld wortweise. Eine Navigation, die beim Korrigieren eines Namens die ganze
+  // Ansicht wegzieht, wäre dieselbe Falle wie ein ⌘Z, das die Datenbank zurücknimmt.
+  return shortcut === 'undo' || shortcut === 'redo' || shortcut === 'back' || shortcut === 'forward';
 }

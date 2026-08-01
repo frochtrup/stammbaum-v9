@@ -12,11 +12,12 @@
   // Schreibt über `onSave(next)` nach oben, statt `appState` selbst anzufassen: dieselbe
   // Rolle wie `PlaceEditForm` daneben — die Sektion baut das neue PlaceObject, das
   // Kommando setzt der Steckbrief ab.
-  import { tooltip } from '../../shell/tooltip';
   import type { PlaceObject } from '../../../core/places/types';
+  import { hierarchySpanLabel } from './place-detail-model';
   import {
     withAddedPname,
     withRemovedPname,
+    withUpdatedPname,
     withAddedTranslation,
     withRemovedTranslation
   } from '../../../core/places';
@@ -51,6 +52,22 @@
     onSave(withRemovedPname(place, index));
   }
 
+  /** Änderung an einer BESTEHENDEN Variante (ADR-v9-183). Committet sofort — gleiches
+   *  Timing wie Add/Remove daneben, nicht am globalen „Speichern"-Knopf der Grunddaten
+   *  (Vorbild: `updateHofAddr` in der Hof-Sektion, ADR-v9-81). */
+  function updatePname(index: number, value: string, from: number | null, to: number | null) {
+    onSave(withUpdatedPname(place, index, value, from, to));
+  }
+
+  /** `<input type="number">` liefert '' für ein geleertes Feld — das ist „offen" (null),
+   *  nicht 0. Ohne diese Umwandlung würde ein geleertes „bis" als Jahr 0 gespeichert. */
+  function jahrAusEingabe(v: string): number | null {
+    const t = v.trim();
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  }
+
   /** Übersetzung anhängen (Sprachachse, BL-59) — gleicher Sofort-Speichern-Pfad wie addPname. */
   function addTranslation() {
     if (!newTransValue.trim()) return;
@@ -67,17 +84,55 @@
 {#if variants.length > 0 || translations.length > 0 || editing}
   <section class="place-detail__section">
     <h3>Namens-Varianten</h3>
-    {#if variants.length > 0}
+    <!-- Lesefläche: die Gültigkeit steht im sichtbaren Text der Pille, nicht (mehr) allein
+         in einem `use:tooltip` (ADR-v9-183) — ein Kanal, den es auf einem Touchgerät nicht
+         gibt, ist keine Anzeige. Wortlaut über `hierarchySpanLabel`, dieselbe Funktion, die
+         auch die Verwaltungsgeschichte beschriftet (INV-UI-4: ein Zeitraum heißt überall
+         gleich). -->
+    {#if variants.length > 0 && !editing}
       <div class="stb-pill-row" aria-label="Namensvarianten">
         {#each variants as v, i (i)}
-          <span class="stb-pill" use:tooltip={v.from || v.to ? `${v.from ?? '…'}–${v.to ?? '…'}` : undefined}>
+          <span class="stb-pill">
             {v.value}
-            {#if editing}
-              <button type="button" class="stb-pill__remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+            {#if v.from != null || v.to != null}
+              <span class="place-detail__pname-span">{hierarchySpanLabel(v.from, v.to)}</span>
             {/if}
           </span>
         {/each}
       </div>
+    {/if}
+    <!-- Bearbeiten-Modus: bestehende Einträge sind ZEILEN, keine Pillen — Wert und
+         Zeitraum direkt änderbar (ADR-v9-183). Vorher waren sie nur entfernbar; ein
+         Tippfehler kostete Löschen + Neuanlegen. Jede Änderung committet sofort, gleiches
+         Timing wie die Add-Zeile darunter. -->
+    {#if editing && variants.length > 0}
+      <ul class="place-detail__edit-list" aria-label="Namensvarianten bearbeiten">
+        {#each variants as v, i (i)}
+          <li class="place-detail__edit-row">
+            <input
+              type="text"
+              value={v.value}
+              aria-label={`Namensvariante ${i + 1}`}
+              onchange={(e) => updatePname(i, e.currentTarget.value, v.from, v.to)}
+            />
+            <input
+              type="number"
+              value={v.from ?? ''}
+              placeholder="von"
+              aria-label={`Namensvariante ${i + 1} — gültig von (Jahr)`}
+              onchange={(e) => updatePname(i, v.value, jahrAusEingabe(e.currentTarget.value), v.to)}
+            />
+            <input
+              type="number"
+              value={v.to ?? ''}
+              placeholder="bis"
+              aria-label={`Namensvariante ${i + 1} — gültig bis (Jahr)`}
+              onchange={(e) => updatePname(i, v.value, v.from, jahrAusEingabe(e.currentTarget.value))}
+            />
+            <button type="button" class="place-detail__edit-remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+          </li>
+        {/each}
+      </ul>
     {/if}
     {#if editing}
       <div class="place-detail__add-row">
@@ -176,5 +231,53 @@
 
   .place-detail__trans-lang-input {
     width: 6rem;
+  }
+
+  /* Gültigkeit IN der Pille (ADR-v9-183) — gedämpft, aber sichtbar: sie erklärt die
+     Variante, ohne den Namen zu überstimmen. */
+  .place-detail__pname-span {
+    color: var(--stb-text-dim);
+    font-size: 0.72rem;
+    margin-left: 0.35rem;
+  }
+
+  /* Bearbeitbare Zeilen bestehender Einträge — gleicher Feld-Stil wie die Add-Zeile
+     darunter (INV-UI-4), nur als Liste statt als Pillenreihe. */
+  .place-detail__edit-list {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+  }
+
+  .place-detail__edit-row {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--stb-surface-2);
+  }
+
+  .place-detail__edit-row input {
+    background: var(--stb-surface-1);
+    border: 1px solid var(--stb-surface-3);
+    border-radius: var(--stb-radius-control);
+    color: var(--stb-text);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.4rem;
+    min-width: 0;
+  }
+
+  .place-detail__edit-row input[type='number'] {
+    width: 5rem;
+  }
+
+  .place-detail__edit-remove {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
   }
 </style>

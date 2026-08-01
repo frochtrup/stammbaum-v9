@@ -102,7 +102,7 @@ describe('buildFamilyGroupSheet (BL-171, Familienbogen)', () => {
 describe('buildBibliography (BL-172, Quellenverzeichnis)', () => {
   function withSources(): Database {
     const db = makeTree();
-    db.sources.set('@S1@', makeSource('@S1@', { title: 'Kirchenbuch Detmold', author: 'Meyer, Karl', date: '1901' }));
+    db.sources.set('@S1@', makeSource('@S1@', { title: 'Kirchenbuch Detmold', author: 'Meyer, Karl', createdDate: '1901' }));
     db.sources.set('@S2@', makeSource('@S2@', { title: 'Ungenutzte Quelle' }));
     const p = db.individuals.get('I1')!;
     p.topLevelCitations = [makeCitation('@S1@', { page: '12' })];

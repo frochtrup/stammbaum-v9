@@ -13,7 +13,7 @@ import { place } from '../core/places-fixtures';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
-// Formfaktor explizit auf MOBIL: „← Zur Liste" ist eine mobile Navigation und entfällt
+// Formfaktor explizit auf MOBIL: „← Zurück" ist eine mobile Navigation und entfällt
 // im Desktop-Multi-Pane, wo die Liste daneben stehen bleibt (Spec 21 §3, BL-92). Ohne
 // Festlegung liefe die Datei im happy-dom-Standard von 1024px. S. layout-harness.ts.
 let unpin: () => void;
@@ -282,7 +282,7 @@ describe('FamilyDetail — leere optionale Abschnitte verschwinden vollständig 
 });
 
 describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', () => {
-  it('"← Zur Liste" steht in der Kopfzeile; der Titel läuft kompakt in DERSELBEN Zeile statt als große zweite Zeile (Spec 21 §10e — redundant zu den Eltern-Boxen darunter). KEIN "✎ Bearbeiten"-Button mehr (ADR-v9-63 — FamilyForm entfällt)', async () => {
+  it('"← Zurück" steht in der Kopfzeile; der Titel läuft kompakt in DERSELBEN Zeile statt als große zweite Zeile (Spec 21 §10e — redundant zu den Eltern-Boxen darunter). KEIN "✎ Bearbeiten"-Button mehr (ADR-v9-63 — FamilyForm entfällt)', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -302,10 +302,10 @@ describe('FamilyDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)'
     const compactTitle = container.querySelector('.detail-header__compact-title');
     expect(compactTitle?.textContent).toBe('Otto Bauer ⚭ Anna Klein');
     expect(row?.contains(compactTitle)).toBe(true);
-    expect(row?.contains(screen.getByText('← Zur Liste'))).toBe(true);
+    expect(row?.contains(screen.getByText('← Zurück'))).toBe(true);
     expect(screen.queryByText('✎ Bearbeiten')).toBeNull();
 
-    await fireEvent.click(screen.getByText('← Zur Liste'));
+    await fireEvent.click(screen.getByText('← Zurück'));
     expect(onBack).toHaveBeenCalledOnce();
   });
 });

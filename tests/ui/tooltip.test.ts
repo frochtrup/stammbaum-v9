@@ -16,6 +16,7 @@ describe('tooltip-Action — Hover/Fokus zeigt und verbirgt die Blase', () => {
 
   it('zeigt bei mouseenter eine Blase mit dem Text und verbirgt sie bei mouseleave', () => {
     const node = document.createElement('button');
+    node.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(node);
     const handle = tooltip(node, 'Quelle X · S. 12');
 
@@ -31,6 +32,7 @@ describe('tooltip-Action — Hover/Fokus zeigt und verbirgt die Blase', () => {
 
   it('zeigt auch bei Tastatur-Fokus (focus) — A11y', () => {
     const node = document.createElement('button');
+    node.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(node);
     const handle = tooltip(node, 'Fokus-Text');
 
@@ -46,6 +48,7 @@ describe('tooltip-Action — Hover/Fokus zeigt und verbirgt die Blase', () => {
 
   it('zeigt NICHTS bei leerem Text', () => {
     const node = document.createElement('button');
+    node.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(node);
     const handle = tooltip(node, '');
 
@@ -58,6 +61,7 @@ describe('tooltip-Action — Hover/Fokus zeigt und verbirgt die Blase', () => {
 
   it('update() ändert den Text, während die Blase sichtbar ist', () => {
     const node = document.createElement('button');
+    node.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(node);
     const handle = tooltip(node, 'alt');
 
@@ -72,6 +76,7 @@ describe('tooltip-Action — Hover/Fokus zeigt und verbirgt die Blase', () => {
 
   it('destroy() verbirgt die Blase und entfernt die Listener', () => {
     const node = document.createElement('button');
+    node.textContent = 'Bezug'; // zugänglicher Name — sonst schlägt der a11y-Scanner an (BL-66)
     document.body.appendChild(node);
     const handle = tooltip(node, 'weg gleich');
 

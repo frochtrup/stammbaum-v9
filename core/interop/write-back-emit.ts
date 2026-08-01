@@ -15,6 +15,7 @@
 import type {
   Citation,
   Event,
+  EvidenceEval,
   Family,
   Media,
   MediaCitation,
@@ -24,8 +25,10 @@ import type {
   Source,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
+import { isEvidenceEvalEmpty } from '../research/eval';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { EVAL_TAGS, evalAxisValue } from './enum-maps';
 import { mimeToGedForm } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
@@ -102,11 +105,35 @@ export function emitMediaRecord(m: Media): GedNode {
   return N('OBJE', '', kids, m.id);
 }
 
-/** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/NOTE/OBJE (parseCitation ist die Umkehr). */
+/**
+ * Evidenz-Bewertung → `_EVAL`-Subtree (Spec 12 §3, Wire-Format 13 §2.3); `parseEvidenceEval`
+ * ist die Umkehr. Struktur/Reihenfolge nach v8-Oracle (`gedcom-writer.js` `_writeSourCits`):
+ * die `_EVAL`-Zeile trägt KEINEN Wert, darunter `_STYP`,`_INFO`,`_EVID`,`_INFM` — jede Achse
+ * nur, wenn gesetzt.
+ *
+ * `null` liefert eine LEERE Bewertung zurück: ohne dieses Gate (v8: `!evalIsEmpty(c.eval)`)
+ * erzeugte jedes `eval`-Objekt ohne Inhalt bei jedem Speichern eine nackte `_EVAL`-Zeile und
+ * bräche `out1===out2`. `isEvidenceEvalEmpty` ist die EINE Fundstelle dieser Frage
+ * (core/research/eval.ts) — dieselbe, die die Zitat-Zeile für ihr Bewertungs-Signal nutzt.
+ */
+function evidenceEvalNode(ev: EvidenceEval | null): GedNode | null {
+  if (isEvidenceEvalEmpty(ev)) return null;
+  const kids: GedNode[] = [];
+  for (const tag of EVAL_TAGS) {
+    const v = evalAxisValue(ev!, tag);
+    if (v) kids.push(N(tag, v));
+  }
+  return N('_EVAL', '', kids);
+}
+
+/** Zitat `1/2 SOUR @Sx@` + PAGE/QUAY/_EVAL/NOTE/OBJE (parseCitation ist die Umkehr). */
 function citationNode(c: Citation, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (c.page) kids.push(N('PAGE', c.page));
   if (c.quay !== 0) kids.push(N('QUAY', String(c.quay)));
+  // v8-Orakel-Position: direkt nach QUAY, vor NOTE (`_writeSourCits`).
+  const evalKid = evidenceEvalNode(c.eval);
+  if (evalKid) kids.push(evalKid);
   if (c.note) kids.push(textNode('NOTE', c.note));
   for (const m of c.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N('SOUR', c.sourceId, kids);
@@ -192,8 +219,9 @@ function logEntryNode(l: LogEntry): GedNode {
 /**
  * Hypothese (Hypothesis) → `1 _HYPO`-Block (Spec 12 §4, Wire-Format 13 §2.3).
  * parseHypothesis ist die Umkehr. Reihenfolge nach v8-Oracle: `_ID`, `_HSTAT`, `_HWGT`,
- * `_DATE` (eigener Tag, wie bei _TASK), dann je evidence[]-Item ein `2 SOUR` (+ optional
- * `3 PAGE`), zuletzt `_RATIO`/`_CONCL` (beide CONT-fähig).
+ * `_DATE` (eigener Tag, wie bei _TASK), `_HKIND`/`_HREF` (v9-Erweiterung, ADR-v9-174 —
+ * nur bei kind='identity' bzw. vorhandenen refs), dann je evidence[]-Item ein `2 SOUR`
+ * (+ optional `3 PAGE`), zuletzt `_RATIO`/`_CONCL` (beide CONT-fähig).
  */
 function hypothesisNode(h: Hypothesis): GedNode {
   const kids: GedNode[] = [];
@@ -201,6 +229,8 @@ function hypothesisNode(h: Hypothesis): GedNode {
   kids.push(N('_HSTAT', h.status));
   kids.push(N('_HWGT', h.weight));
   if (h.created) kids.push(N('_DATE', h.created));
+  if (h.kind === 'identity') kids.push(N('_HKIND', 'IDENT'));
+  for (const r of h.refs) kids.push(N('_HREF', r));
   for (const e of h.evidence) {
     const ekids = e.page ? [N('PAGE', e.page)] : [];
     kids.push(N('SOUR', e.sourceId, ekids));
@@ -277,7 +307,10 @@ export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): 
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];
     kids.push(N('REFN', ex.value, ekids));
   }
-  if (p.createdDate) kids.push(N('CREA', '', [N('DATE', p.createdDate)]));
+  // 5.5.1-BASIS: `1 _DATE`. `CREA` gibt es in 5.5.1 gar nicht (0 Vorkommen im ganzen
+  // Dokument) — es unbedingt zu schreiben hieße, einen 7.0-Tag in eine 5.5.1-Datei zu
+  // setzen. `ged7-adapter` macht daraus `1 CREA / 2 DATE` (BL-243).
+  if (p.createdDate) kids.push(N('_DATE', p.createdDate));
   if (p.lastChanged) kids.push(chanNode(p.lastChanged));
 
   for (const t of p.tasks) kids.push(taskNode(t));
@@ -329,7 +362,11 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
   if (s.abbr) kids.push(textNode('ABBR', s.abbr));
   if (s.title) kids.push(textNode('TITL', s.title));
   if (s.author) kids.push(textNode('AUTH', s.author));
-  if (s.date) kids.push(N('DATE', s.date));
+  // Erfassungsdatum (BL-243): im 5.5.1-BASIS-Baum als `1 _DATE` — der einzige legale Weg,
+  // den Kontext zu erweitern (5.5.1 Kap. 1: standardisierte Tags nur im gezeigten
+  // Kontext, Erweiterung ausschließlich über `_`-Tags). Für 7.0 macht `ged7-adapter`
+  // daraus `1 CREA / 2 DATE`; ein `1 DATE` unter SOUR entsteht nie mehr.
+  if (s.createdDate) kids.push(N('_DATE', s.createdDate));
   if (s.publisher) kids.push(textNode('PUBL', s.publisher));
   if (s.text) kids.push(textNode('TEXT', s.text));
   if (s.repo) {
@@ -340,6 +377,20 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
     }
     const repoVal = typeof s.repo === 'string' && s.repo.startsWith('@') ? s.repo : s.repo;
     kids.push(N('REPO', repoVal, rkids));
+  }
+  // `SOUR.DATA` (BL-217) — Grammatik-Reihenfolge: EVEN*, AGNC, dann der Passthrough-Rest.
+  // `eventTypes` ist die Enum-LISTE (`BIRT, MARR, DEAT`) und steht als Wert am EVEN selbst.
+  if (s.dataEvents.length || s.agnc || s.dataExtra.length) {
+    const dkids: GedNode[] = [];
+    for (const de of s.dataEvents) {
+      const ekids: GedNode[] = [];
+      if (de.date) ekids.push(N('DATE', de.date));
+      if (de.place) ekids.push(N('PLAC', de.place));
+      dkids.push(N('EVEN', de.eventTypes, ekids));
+    }
+    if (s.agnc) dkids.push(N('AGNC', s.agnc));
+    dkids.push(...s.dataExtra);
+    kids.push(N('DATA', '', dkids));
   }
   for (const ex of s.externalRefs) {
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];

@@ -12,7 +12,8 @@
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1), build-frei testbar (INV-ARCH-2).
 
-import type { Quay } from '../model/types';
+import type { EvidenceEval, Quay } from '../model/types';
+import { isEvidenceEvalEmpty } from '../research/eval';
 
 // ── 1. Ereignistyp: GEDCOM-Tag ↔ GRAMPS-<type> ────────────────────────────────
 // Nur Built-ins, deren Tag das Modell kennt (SPECIAL_EVENT_TAGS ∪ EVENT_TAGS in
@@ -131,4 +132,131 @@ export function normalizeMedi(value: string): string {
   const v = value.trim();
   const lower = v.toLowerCase();
   return MEDI_TYPES.has(lower) ? lower : v;
+}
+
+// ── 5. Evidenz-Bewertung `_EVAL` (Spec 12 §3, BL-83) ──────────────────────────
+// Die drei Achsen + der Informant reisen in BEIDEN Formaten unter DENSELBEN vier Namen:
+// GEDCOM als `_`-Subtags unter `SOUR`→`_EVAL`, GRAMPS als `type` eines Zitat-Attributs.
+// Deshalb EINE Tabelle statt zwei (v8 hielt sie doppelt: `_writeSourCits` + `_GR_EVAL_ATTR`).
+// Wire-Namen sind aus dem v8-Orakel übernommen; die MODELL-Feldnamen weichen bewusst ab
+// (`source`/`information`/`evidence` statt `srcType`/`infoQual`/`evidence`).
+
+/** Die vier Wire-Tags in der v8-Schreibreihenfolge — sie IST die kanonische Ausgabefolge. */
+export const EVAL_TAGS = ['_STYP', '_INFO', '_EVID', '_INFM'] as const;
+export type EvalTag = (typeof EVAL_TAGS)[number];
+
+/** Zulässige Enum-Werte je Achse; `_INFM` ist Freitext (oder Person-Xref) → keine Menge. */
+const EVAL_VALUES: Record<EvalTag, ReadonlySet<string> | null> = {
+  _STYP: new Set(['original', 'derivative', 'authored']),
+  _INFO: new Set(['primary', 'secondary', 'undetermined']),
+  _EVID: new Set(['direct', 'indirect', 'negative']),
+  _INFM: null,
+};
+
+export function isEvalTag(tag: string): tag is EvalTag {
+  return tag === '_STYP' || tag === '_INFO' || tag === '_EVID' || tag === '_INFM';
+}
+
+/**
+ * Setzt eine Achse aus ihrem Wire-Wert. Ein unbekannter Enum-Wert fällt auf `''` zurück
+ * (dieselbe Vorsicht wie bei `_HSTAT`/`_HWGT` in gedcom-parse.ts): ein fremder oder künftiger
+ * Wert darf nicht dazu führen, dass eine Auswertung ihn als gültige Aussage liest. Parser und
+ * Dirty-Check gehen durch DIESELBE Normalisierung — ein exotischer Wert kippt einen Record
+ * daher nicht in „geändert", er bleibt über den Passthrough-Backbone byte-treu erhalten.
+ */
+export function applyEvalAxis(ev: EvidenceEval, tag: EvalTag, raw: string): void {
+  const v = raw.trim();
+  if (tag === '_INFM') {
+    ev.informant = v;
+    return;
+  }
+  const val = EVAL_VALUES[tag]!.has(v) ? v : '';
+  if (tag === '_STYP') ev.source = val as EvidenceEval['source'];
+  else if (tag === '_INFO') ev.information = val as EvidenceEval['information'];
+  else ev.evidence = val as EvidenceEval['evidence'];
+}
+
+/** Modellfeld → Wire-Wert. `''` heißt: der Tag wird NICHT geschrieben (v8-Gate-Parität). */
+export function evalAxisValue(ev: EvidenceEval, tag: EvalTag): string {
+  if (tag === '_STYP') return ev.source;
+  if (tag === '_INFO') return ev.information;
+  if (tag === '_EVID') return ev.evidence;
+  return ev.informant ?? '';
+}
+
+/**
+ * Bewertungs-Gleichheit für den Dirty-Check beider Write-Back-Pfade. `null` und ein leeres
+ * Gerüst sind ÄQUIVALENT — beide schreiben nichts, ein Unterschied zwischen ihnen darf einen
+ * Record nicht als „geändert" markieren (sonst würde ein unberührter Record neu synthetisiert
+ * und verlöre seinen Byte-Stand, RT-2).
+ */
+export function evidenceEvalEqual(a: EvidenceEval | null, b: EvidenceEval | null): boolean {
+  const la = isEvidenceEvalEmpty(a);
+  const lb = isEvidenceEvalEmpty(b);
+  if (la || lb) return la && lb;
+  return EVAL_TAGS.every((t) => evalAxisValue(a!, t) === evalAxisValue(b!, t));
+}
+
+// ── 5. Signatur-Medium: GEDCOM `SOUR.REPO.CALN.MEDI` ↔ GRAMPS `<reporef medium=…>` ──────
+// (BL-245, ADR-v9-180.) Abgeleitet aus den GRAMPS-Quellen SELBST, nicht aus einer
+// Bestandsdatei: `plugins/lib/libgedcom.py::MEDIA_MAP` (GEDCOM-Wert, kleingeschrieben →
+// Enum) und `gen/lib/srcmediatype.py::_DATAMAP` (Enum → der `xml_str`, den GRAMPS in die
+// Datei schreibt). Beleg im Realbestand: `<reporef … medium="Book"/>` an 9 Stellen.
+//
+// NICHT UMKEHRBAR, und zwar von GRAMPS aus so gebaut: `microfiche` und `microfilm` fallen
+// mit `fiche` auf denselben Enum-Wert, `grave` mit `tombstone`. Der Rückweg wählt den
+// kanonischen GEDCOM-Wert (`fiche`/`tombstone`); ein `microfilm` kehrt daher als `fiche`
+// zurück. Das ist eine Repräsentationsgrenze des Zielformats, kein Fehler unserer Abbildung
+// — sie steht als solche in [13 §1] und tritt im Realbestand 0× auf (dort nur `manuscript`).
+//
+// Unbekannte Werte reisen WÖRTLICH in beide Richtungen: GRAMPS legt sie als CUSTOM-Typ mit
+// genau diesem Text ab (`MEDIA_MAP.get(name.lower(), (CUSTOM, name))`), verliert sie also
+// nicht — und wir dürfen sie deshalb ebenfalls nicht normalisieren (LP-1).
+
+const MEDIUM_BY_MEDI: Record<string, string> = {
+  audio: 'Audio',
+  book: 'Book',
+  card: 'Card',
+  electronic: 'Electronic',
+  fiche: 'Fiche',
+  microfiche: 'Fiche',
+  microfilm: 'Fiche',
+  film: 'Film',
+  magazine: 'Magazine',
+  manuscript: 'Manuscript',
+  map: 'Map',
+  newspaper: 'Newspaper',
+  photo: 'Photo',
+  tombstone: 'Tombstone',
+  grave: 'Tombstone',
+  video: 'Video',
+};
+
+/** Kanonischer GEDCOM-Wert je GRAMPS-`medium` (Rückweg; die Mehrdeutigen s. o.). */
+const MEDI_BY_MEDIUM: Record<string, string> = {
+  Audio: 'audio',
+  Book: 'book',
+  Card: 'card',
+  Electronic: 'electronic',
+  Fiche: 'fiche',
+  Film: 'film',
+  Magazine: 'magazine',
+  Manuscript: 'manuscript',
+  Map: 'map',
+  Newspaper: 'newspaper',
+  Photo: 'photo',
+  Tombstone: 'tombstone',
+  Video: 'video',
+};
+
+/** `MEDI`-Wert → `<reporef medium>`. Unbekanntes bleibt wörtlich (GRAMPS-CUSTOM). */
+export function mediToGrampsMedium(medi: string): string {
+  if (!medi) return '';
+  return MEDIUM_BY_MEDI[medi.toLowerCase()] ?? medi;
+}
+
+/** `<reporef medium>` → `MEDI`-Wert. Unbekanntes bleibt wörtlich. */
+export function grampsMediumToMedi(medium: string): string {
+  if (!medium) return '';
+  return MEDI_BY_MEDIUM[medium] ?? medium;
 }

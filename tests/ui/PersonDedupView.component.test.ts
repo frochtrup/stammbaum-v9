@@ -8,6 +8,7 @@ import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import PersonDedupView from '../../ui/views/person/PersonDedupView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makePerson, makeEvent } from '../../core/model';
+import { makeHypothesis } from '../../core/research';
 import type { Database } from '../../core/model/types';
 import type { DedupIgnoreStore } from '../../services/dedup';
 import { pairKey } from '../../core/dedup';
@@ -240,35 +241,96 @@ describe('PersonDedupView — Merge-Modal', () => {
   });
 });
 
-describe('PersonDedupView — „Kein Duplikat" (BL-105)', () => {
-  it('nimmt das Paar aus der Liste und schreibt es in den Speicher', async () => {
-    const store = new MemoryIgnoreStore();
-    await openModal(store);
-
+describe('PersonDedupView — „Kein Duplikat" ist ein belegter Befund (ADR-v9-174, BL-240)', () => {
+  it('verlangt eine Begründung, bevor der Ausschluss festgehalten werden kann (INV-H3)', async () => {
+    await openModal();
     await fireEvent.click(screen.getByRole('button', { name: 'Kein Duplikat' }));
 
-    expect(screen.getByText(/Als „kein Duplikat" gemerkt/)).toBeTruthy();
-    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
-    expect(store.keys).toHaveLength(1);
+    const festhalten = screen.getByRole('button', { name: 'Ausschluss festhalten' });
+    expect((festhalten as HTMLButtonElement).disabled).toBe(true);
+
+    // Leerraum zählt nicht als Begründung.
+    await fireEvent.input(screen.getByLabelText(/Begründung/), { target: { value: '   ' } });
+    expect((festhalten as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('führt NICHT zusammen — beide Personen bleiben erhalten', async () => {
+  it('legt eine abgelehnte Identitäts-Hypothese an und nimmt das Paar aus der Liste', async () => {
     const appState = await openModal();
     await fireEvent.click(screen.getByRole('button', { name: 'Kein Duplikat' }));
+    await fireEvent.input(screen.getByLabelText(/Begründung/), {
+      target: { value: 'Verschiedene Eltern laut Taufbuch.' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ausschluss festhalten' }));
+
+    expect(screen.getByText(/festgehalten:/)).toBeTruthy();
+    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+
+    // Der Befund liegt IM BESTAND, nicht in einem app-privaten Store.
+    const a = appState.db.individuals.get('@I1@')!;
+    expect(a.hypotheses).toHaveLength(1);
+    expect(a.hypotheses[0].kind).toBe('identity');
+    expect(a.hypotheses[0].status).toBe('rejected');
+    expect(a.hypotheses[0].refs).toEqual(['@I2@']);
+    expect(a.hypotheses[0].rationale).toBe('Verschiedene Eltern laut Taufbuch.');
+    // Führt NICHT zusammen.
     expect(appState.db.individuals.size).toBe(2);
   });
 
-  it('ein bereits gespeichertes Paar erscheint gar nicht erst', async () => {
-    // Die eigentliche Zusicherung von BL-105: „dauerhaft", nicht „bis zum Neuladen".
-    // Ein frischer Mount mit vorbefülltem Speicher steht für den nächsten App-Start.
+  it('ist rückgängig zu machen wie jede andere Bearbeitung — das Paar kehrt zurück', async () => {
+    // Der eigentliche Gewinn gegenüber dem app-privaten Store (ADR-v9-174): der
+    // Ausschluss läuft über denselben commit()-Chokepoint und hängt am Undo-Stack.
+    const appState = await openModal();
+    await fireEvent.click(screen.getByRole('button', { name: 'Kein Duplikat' }));
+    await fireEvent.input(screen.getByLabelText(/Begründung/), { target: { value: 'weil' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Ausschluss festhalten' }));
+    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+
+    appState.undo();
+    await scan();
+    expect(appState.db.individuals.get('@I1@')!.hypotheses).toHaveLength(0);
+    expect(screen.queryByText(/Keine verdächtigen Paare/)).toBeNull();
+  });
+
+  it('ein bereits ausgeschlossenes Paar erscheint gar nicht erst — auch von der ANDEREN Seite', async () => {
+    // Dauerhaft, nicht bis zum Neuladen: der Befund kommt aus der geladenen Datei.
+    // Geschrieben wird einseitig — hier bewusst je einmal an beiden Seiten, gelesen
+    // wird beidseitig.
+    for (const owner of ['@I1@', '@I2@'] as const) {
+      const other = owner === '@I1@' ? '@I2@' : '@I1@';
+      const db = zwillingsDb();
+      db.individuals.get(owner)!.hypotheses.push(
+        makeHypothesis('h1', {
+          text: 'dieselbe Person?',
+          status: 'rejected',
+          kind: 'identity',
+          refs: [other],
+          rationale: 'geprüft',
+        }),
+      );
+      const appState = createAppState();
+      appState.loadDatabase(db, 'test.ged');
+      const { unmount } = render(PersonDedupView, { props: { appState } });
+      await scan();
+      expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it('bietet die frühere gerätelokale Liste zur Übernahme an, statt sie still zu schreiben', async () => {
     const appState = createAppState();
     appState.loadDatabase(zwillingsDb(), 'test.ged');
-    render(PersonDedupView, {
-      props: { appState, ignoreStore: new MemoryIgnoreStore([pairKey('@I1@', '@I2@')]) },
-    });
-    await scan();
+    const store = new MemoryIgnoreStore([pairKey('@I1@', '@I2@')]);
+    render(PersonDedupView, { props: { appState, ignoreStore: store } });
+    await screen.findByRole('button', { name: 'Übernehmen' });
+    // Vor der Übernahme ist NICHTS in die Datei geschrieben.
+    expect(appState.db.individuals.get('@I1@')!.hypotheses).toHaveLength(0);
 
-    expect(screen.getByText(/Keine verdächtigen Paare/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
+    const h = appState.db.individuals.get('@I1@')!.hypotheses;
+    expect(h).toHaveLength(1);
+    expect(h[0].kind).toBe('identity');
+    expect(h[0].rationale).toContain('Übernommen');
+    expect(store.keys).toHaveLength(0);
   });
 });
 

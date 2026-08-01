@@ -77,9 +77,11 @@ describe('isDesktopLayout — reine Entscheidung an der Grenze', () => {
 describe('layout — reaktiver Formfaktor der Schale', () => {
   beforeEach(() => layout.reset());
 
-  it('fragt die Plattform direkt, solange start() nicht gelaufen ist', () => {
-    // Mount-Reihenfolge Kind vor Wurzel: ohne diesen Direktabruf zeigte ein
-    // Desktop-Fenster einen Frame lang das Mobile-Layout (Lehre aus onlineStatus).
+  it('liefert auch ohne start() einen Wert aus der Plattform-Umgebung', () => {
+    // Mount-Reihenfolge Kind vor Wurzel: ein Kind darf auf einem Desktop-Fenster nicht
+    // einen Frame lang das Mobile-Layout zeigen (Lehre aus onlineStatus). Seit
+    // ADR-v9-171 kommt dieser Wert aber aus einer ANGEMELDETEN Verbindung, nicht aus
+    // einem un-reaktiven Direktabruf — s. den Wechsel-Test darunter.
     const { env } = makeEnv(true);
     layout.start(env);
     layout.reset();

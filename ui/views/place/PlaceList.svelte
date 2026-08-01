@@ -264,9 +264,22 @@
         {#each rows as row, i (row.id)}
           <!-- Alphabetischer Trenner (BL-204): beim ersten Buchstabenwechsel des Titels. -->
           {#if i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)}
-            <li class="place-list__letter" role="separator">{placeInitial(row.title)}</li>
+            <!-- `role="separator"` sitzt am inneren `<span>`, nicht am `<li>` (BL-66/axe):
+                 ein `<ul>` darf nur Listeneinträge besitzen — ein `<li>`, dessen Rolle auf
+                 `separator` umgestellt ist, ist keiner mehr und macht die ganze Liste
+                 ungültig. Zugänglicher Name wie in `PersonList` (INV-UI-4). -->
+            <li class="place-list__letter">
+              <span role="separator" aria-label="Buchstabe {placeInitial(row.title)}">{placeInitial(row.title)}</span>
+            </li>
           {/if}
-          <li>
+          <!-- Der Koordinaten-Indikator steht NEBEN der Zeile, nicht darin (BL-66/axe
+               `nested-interactive`): er trägt selbst einen Button (Sprung zur Karte) und
+               einen Link (OpenStreetMap) — beides in der Zeilen-Schaltfläche verschachtelt
+               war ungültiges HTML und fachlich doppeldeutig: ein Klick auf ◎ löste den
+               Karten-Sprung UND die Zeilenauswahl aus, weil das Ereignis nach oben stieg.
+               Dieselbe Regel, aus der `PlaceMiniMap` schon `role="button"` statt `<button>`
+               ableitete — dort war nur die HTML-Hälfte gesehen, nicht die ARIA-Hälfte. -->
+          <li class="place-list__item">
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
@@ -274,13 +287,6 @@
                      liefert '' → kein Chip, statt „Unbekannt" auf der Mehrheit der Zeilen. -->
                 {#if placeTypeLabel(row.type)}<span class="stb-pill">{placeTypeLabel(row.type)}</span>{/if}
                 {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
-                <!-- Die frühere „ohne Zusatzangaben"-Pille ist entfallen (ADR-v9-149):
-                     `enriched === false` ist nach dem Import der Regelfall, die Pille stand
-                     also auf der Mehrheit der Zeilen und trug die höchste Wortlast für den
-                     informationsärmsten Zustand. Dieselbe Information liegt jetzt im Filter
-                     „nur unvollständige" (Kurations-Abfrage statt Zeilen-Label) —
-                     Zeilen tragen nur noch POSITIVE Fakten. -->
-                <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
               </span>
               <!-- D4: die Personenzahl ist eine Ereignis-Auskunft — ohne Kontext wäre sie
                    überall 0 und damit reines Rauschen. -->
@@ -291,6 +297,13 @@
                 <span class="place-list__variants">{row.variants.join(' · ')}</span>
               {/if}
             </button>
+            <!-- Die frühere „ohne Zusatzangaben"-Pille ist entfallen (ADR-v9-149):
+                 `enriched === false` ist nach dem Import der Regelfall, die Pille stand
+                 also auf der Mehrheit der Zeilen und trug die höchste Wortlast für den
+                 informationsärmsten Zustand. Dieselbe Information liegt jetzt im Filter
+                 „nur unvollständige" (Kurations-Abfrage statt Zeilen-Label) —
+                 Zeilen tragen nur noch POSITIVE Fakten. -->
+            <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
           </li>
         {/each}
       </ul>
@@ -430,15 +443,35 @@
     color: var(--stb-text-dim);
   }
 
+  /* Zeile + Koordinaten-Indikator sind Geschwister (BL-66, s. Markup): der Indikator
+     sitzt rechtsbündig am Zeilenende, die Zeile nimmt den Rest. `align-items: stretch`,
+     damit die Trennlinie der Zeile über die volle Breite läuft. */
+  .place-list__item {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--stb-surface-2);
+    /* Der Abstand zum rechten Rand gehört an DIESEN Rahmen, nicht an den Indikator: der
+       Chip zeichnet seinen eigenen Rahmen um sein Padding — dort gesetzt wüchse der Chip
+       statt der Abstand (im Browser gesehen: der Chip lief über die rechte Kante). */
+    padding-right: 1rem;
+  }
+
+  .place-list__item :global(.stb-coord-indicator) {
+    /* `center` statt der geerbten Streckung: sonst zöge der Chip-Rahmen sich über die
+       ganze zweizeilige Zeilenhöhe. */
+    align-self: center;
+    flex-shrink: 0; /* eine Trefferfläche gibt nie nach (Spec 21 §6i) */
+  }
+
   .place-list__row {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--stb-surface-2);
     padding: 0.55rem 1rem;
     text-align: left;
     cursor: pointer;

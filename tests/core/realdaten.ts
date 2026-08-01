@@ -1,0 +1,72 @@
+// tests/core/realdaten.ts — die EINE Stelle, die benennt, was „der Realbestand" ist
+// (BL-246, ADR-v9-178, Spec 32 TST-21).
+//
+// WARUM ES DIESE DATEI GIBT. Eine Aussage der Form „am Realbestand kommt X N× vor"
+// entscheidet über Umfang, Klasse und Reihenfolge einer Backlog-Zeile. Sie hängt
+// vollständig daran, WELCHE Datei ausgezählt wurde — und die naheliegendste ist nicht
+// die richtige:
+//
+//   tests/fixtures/MeineDaten_ancestris.ged   7 MAR 2026, 2795 Personen  ← Orakel-Snapshot
+//   tests/fixtures/Unsere Familie 2026.ged   25 JUN 2026, 3180 Personen  ← der Bestand
+//
+// Der Snapshot liegt IM Repo und sieht dadurch kanonisch aus (die Roundtrip-Tests laufen
+// gegen ihn); die maßgebliche Datei liegt gitignored im Spec-Repo. ADR-v9-151 hat sechs
+// Quellen-Zahlen am Snapshot gemessen — alle sechs waren falsch (DATA.EVEN „0×" statt
+// tatsächlich 7×), was BL-217 in die falsche Klasse und Welle sortierte. Zweiter Fall
+// dieser Art nach ADR-v9-62/65; die erste Konsequenz war ein Merksatz in CLAUDE.md, der
+// nicht gegriffen hat — deshalb diesmal ein Wächter.
+//
+// WAS DAS NICHT HEISST. `MeineDaten_ancestris.ged` bleibt als **Orakel** völlig gültig:
+// Roundtrip-Treue, Parser-Kanten und Skalenverhalten prüft man an einer eingefrorenen
+// Datei, und dass sie sich nicht bewegt, ist dort ein Vorzug. Falsch ist nur, sie für
+// eine Aussage über den AKTUELLEN Bestand zu benutzen. Die 15 bestehenden skipIf-Tests
+// bleiben deshalb unverändert.
+
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** Der maßgebliche Bestand — Ancestris-Export, Stand 25 JUN 2026. */
+export const REALBESTAND = {
+  datei: 'Unsere Familie 2026.ged',
+  exportiert: '25 JUN 2026',
+  /** Erwartete Satzzahlen. Weicht die vorhandene Datei ab, ist sie eine andere (oder eine
+   *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch. */
+  erwartet: { individuals: 3180, families: 987, sources: 152, repositories: 7 },
+} as const;
+
+/** Der eingefrorene Orakel-Snapshot. Gültig für Roundtrip/Parser — NICHT für Bestandszahlen. */
+export const ORAKEL_SNAPSHOT = {
+  datei: 'MeineDaten_ancestris.ged',
+  exportiert: '7 MAR 2026',
+  individuals: 2795,
+} as const;
+
+export const realbestandPfad = (): string => join(__dirname, '../fixtures', REALBESTAND.datei);
+
+export const realbestandVorhanden = (): boolean => existsSync(realbestandPfad());
+
+export const realbestandText = (): string => readFileSync(realbestandPfad(), 'utf8');
+
+/**
+ * Zählt Top-Level-Records (`0 @X@ TAG`) roh aus dem Dateitext — bewusst OHNE den Parser:
+ * der Wächter soll die DATEI prüfen, nicht das Zusammenspiel mit dem Modell. Ein
+ * Parser-Bug, der Records schluckt, darf hier nicht als „falsche Datei" erscheinen.
+ */
+export function zaehleRecords(text: string): Record<string, number> {
+  const n: Record<string, number> = {};
+  for (const zeile of text.split('\n')) {
+    const m = /^0 @[^@]+@ ([A-Z_]+)\s*$/.exec(zeile.replace(/\r$/, ''));
+    if (m) n[m[1]] = (n[m[1]] ?? 0) + 1;
+  }
+  return n;
+}
+
+/**
+ * Der Satz, den ein übersprungener Lauf hinterlassen muss. TST-21: ein Skip darf die
+ * Frage, WELCHE Datei gemessen wurde, nicht verdecken — der Dateiname gehört deshalb in
+ * den Testnamen (Vitest zeigt Namen immer, `console.log` aus grünen Tests dagegen
+ * verschluckt der Standard-Reporter restlos; s. ADR-v9-91).
+ */
+export const fehlendHinweis = (): string =>
+  `${REALBESTAND.datei} nicht in tests/fixtures/ — Symlink auf den aktuellen Export anlegen ` +
+  `(gitignored). Ohne sie ist KEINE „am Realbestand"-Aussage belegt.`;

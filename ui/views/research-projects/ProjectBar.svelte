@@ -80,7 +80,9 @@
       places: splitList(fPlaces),
       yearFrom: toYear(fFrom),
       yearTo: toYear(fTo),
-      personIds: editing ? editing.scope.personIds : [],
+      // Ausdrückliche Personenbezüge bleiben beim Bearbeiten der Achsen unangetastet
+      // (dieses Formular führt nur die drei Achsen, BL-58).
+      personRefs: editing ? editing.scope.personRefs : [],
     };
     if (editing) {
       projects.update({ ...editing, name: fName.trim(), scope, color: fColor, note: fNote });
@@ -107,7 +109,8 @@
 </script>
 
 <div class="project-bar">
-  <div class="project-bar__chips stb-segment-row" role="tablist" aria-label="Forschungsprojekt wählen">
+  <div class="project-bar__row">
+    <div class="project-bar__chips stb-segment-row" role="tablist" aria-label="Forschungsprojekt wählen">
     <button
       type="button"
       role="tab"
@@ -139,6 +142,11 @@
         {p.name}
       </button>
     {/each}
+    </div>
+    <!-- „Neu" steht NEBEN der Reiterleiste, nicht darin (BL-66/axe): ein `tablist` darf
+         nur Reiter besitzen — ein gewöhnlicher Button darin lässt Screenreader einen
+         Reiter ansagen, der beim Aktivieren kein Ziel wählt, sondern ein Formular öffnet.
+         Die Reihe bleibt optisch dieselbe, der Rahmen trägt jetzt nur das Layout. -->
     <button type="button" class="project-bar__add" onclick={openNew} aria-label="Neues Forschungsprojekt">＋</button>
   </div>
 
@@ -228,6 +236,14 @@
     gap: 0.4rem;
     padding: 0.4rem 1rem;
     border-bottom: 1px solid var(--stb-surface-3);
+  }
+
+  /* Trägt das Layout, das vorher der `tablist` trug (s. Markup, BL-66). */
+  .project-bar__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .project-bar__chips {

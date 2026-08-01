@@ -9,6 +9,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import SourceCitationRow from '../../ui/shell/SourceCitationRow.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makeSource, makeCitation, makeMediaCitation } from '../../core/model';
+import { evalToQuay, makeEvidenceEval } from '../../core/research';
 
 function seedTwoSources() {
   const appState = createAppState();
@@ -35,6 +36,7 @@ describe('SourceCitationRow — kompakte EIN-Zeilen-Struktur', () => {
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -71,6 +73,7 @@ describe('SourceCitationRow — kompakte EIN-Zeilen-Struktur', () => {
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -98,6 +101,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
         onQuayChange,
         onNoteChange,
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -130,6 +134,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange,
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -158,6 +163,7 @@ describe('SourceCitationRow — Bearbeiten der Felder', () => {
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove,
       },
     });
@@ -184,6 +190,7 @@ describe('SourceCitationRow — Quelle wechseln/neu anlegen über den Namens-Lin
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -211,6 +218,7 @@ describe('SourceCitationRow — Quelle wechseln/neu anlegen über den Namens-Lin
         onQuayChange: vi.fn(),
         onNoteChange: vi.fn(),
         onUrlChange: vi.fn(),
+        onEvalChange: vi.fn(),
         onRemove: vi.fn(),
       },
     });
@@ -255,6 +263,7 @@ describe('SourceCitationRow — TST-7 Kapazitäts-Fall (mehrere Zitationen bleib
           onQuayChange: vi.fn(),
           onNoteChange: vi.fn(),
           onUrlChange: vi.fn(),
+          onEvalChange: vi.fn(),
           onRemove: vi.fn(),
         },
       });
@@ -264,5 +273,165 @@ describe('SourceCitationRow — TST-7 Kapazitäts-Fall (mehrere Zitationen bleib
     for (let i = 0; i < 8; i += 1) {
       expect(screen.getByLabelText(`Geburt (BIRT) Seite ${i + 1}`)).toBeTruthy();
     }
+  });
+});
+
+describe('SourceCitationRow — BL-57 Evidenz-Bewertung als Aufklapper (⚖)', () => {
+  /** Simuliert den echten Aufrufer (EventEditModal): `onEvalChange` liefert das VOLLE
+   *  Ergebnis, das der Aufrufer per `applyEvalToCitation`/`{ ...c, eval: null }` in die
+   *  Zitation zurückschreibt und den Row neu rendert (`rerender`) — sonst würde jede
+   *  Achsen-Änderung in diesem isolierten Test immer wieder vom URSPRÜNGLICHEN
+   *  `citation`-Prop ausgehen statt kumulativ auf der vorherigen Änderung aufzubauen. */
+  async function renderRow(
+    overrides: Partial<Parameters<typeof makeCitation>[1]> = {},
+    extraProps: Record<string, unknown> = {},
+  ) {
+    const appState = seedTwoSources();
+    let citation = makeCitation('@S1@', overrides);
+    const onEvalChange = vi.fn();
+    const onQuayChange = vi.fn();
+    const baseProps = {
+      appState,
+      index: 0,
+      labelPrefix: 'Geburt (BIRT)',
+      onSourceChange: vi.fn(),
+      onPageChange: vi.fn(),
+      onQuayChange,
+      onNoteChange: vi.fn(),
+      onUrlChange: vi.fn(),
+      onRemove: vi.fn(),
+      ...extraProps,
+    };
+    const rendered = render(SourceCitationRow, {
+      props: { ...baseProps, citation, onEvalChange: (ev: unknown) => onEvalChange(ev) },
+    });
+    /** Nach einer Achsen-Änderung aufrufen: liest den letzten `onEvalChange`-Aufruf,
+     *  schreibt ihn in `citation.eval` und rendert mit dem aktualisierten Prop neu. */
+    async function commitLastEval() {
+      const lastCall = onEvalChange.mock.calls.at(-1);
+      citation = { ...citation, eval: lastCall ? (lastCall[0] as typeof citation.eval) : null };
+      await rendered.rerender({ ...baseProps, citation, onEvalChange: (ev: unknown) => onEvalChange(ev) });
+    }
+    return { onEvalChange, onQuayChange, commitLastEval };
+  }
+
+  it('der ⚖-Auslöser öffnet/schließt den Aufklapper (aria-expanded) — keine Achsen-Felder ohne Klick sichtbar', async () => {
+    await renderRow();
+    const toggle = screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung hinzufügen');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByLabelText('Geburt (BIRT) Quelle 1 Quellentyp')).toBeNull();
+
+    await fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 Quellentyp')).toBeTruthy();
+    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 Information')).toBeTruthy();
+    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 Evidenz')).toBeTruthy();
+    expect(screen.getByLabelText('Geburt (BIRT) Quelle 1 Informant')).toBeTruthy();
+
+    await fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByLabelText('Geburt (BIRT) Quelle 1 Quellentyp')).toBeNull();
+  });
+
+  it('Achsen-Auswahl ruft onEvalChange mit dem VOLLEN EvidenceEval-Objekt auf (nicht nur der geänderten Achse)', async () => {
+    const { onEvalChange, commitLastEval } = await renderRow();
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung hinzufügen'));
+
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Quellentyp'), {
+      target: { value: 'original' },
+    });
+    expect(onEvalChange).toHaveBeenLastCalledWith(
+      makeEvidenceEval({ source: 'original' }),
+    );
+    await commitLastEval();
+
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Information'), {
+      target: { value: 'primary' },
+    });
+    expect(onEvalChange).toHaveBeenLastCalledWith(
+      makeEvidenceEval({ source: 'original', information: 'primary' }),
+    );
+    await commitLastEval();
+
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Evidenz'), {
+      target: { value: 'direct' },
+    });
+    expect(onEvalChange).toHaveBeenLastCalledWith(
+      makeEvidenceEval({ source: 'original', information: 'primary', evidence: 'direct' }),
+    );
+    await commitLastEval();
+
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Informant'), {
+      target: { value: 'Pfarrer Schmidt' },
+    });
+    expect(onEvalChange).toHaveBeenLastCalledWith(
+      makeEvidenceEval({
+        source: 'original',
+        information: 'primary',
+        evidence: 'direct',
+        informant: 'Pfarrer Schmidt',
+      }),
+    );
+  });
+
+  it('Optionen tragen deutsche Labels, keine Wire-Werte (kein "original"/"primary"/"direct" im Text)', async () => {
+    await renderRow();
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung hinzufügen'));
+    expect(screen.getByText('Original')).toBeTruthy();
+    expect(screen.getByText('Abschrift')).toBeTruthy();
+    expect(screen.getByText('Autorenwerk')).toBeTruthy();
+    expect(screen.getByText('primär')).toBeTruthy();
+    expect(screen.getByText('sekundär')).toBeTruthy();
+    expect(screen.getByText('unbestimmt')).toBeTruthy();
+    expect(screen.getByText('direkt')).toBeTruthy();
+    expect(screen.getByText('indirekt')).toBeTruthy();
+    expect(screen.getByText('negativ')).toBeTruthy();
+  });
+
+  it('zeigt den QUAY-Vorschlag nur bei vorhandener Bewertung; Ein-Klick-Übernahme ruft onQuayChange mit genau evalToQuay(...); OHNE Klick bleibt QUAY unverändert', async () => {
+    const ev = makeEvidenceEval({ source: 'original', information: 'primary', evidence: 'direct' });
+    const { onQuayChange } = await renderRow({ eval: ev, quay: 0 });
+
+    // Vor dem Öffnen: kein Vorschlag sichtbar (keine zweite Dauer-Fläche).
+    expect(screen.queryByText(/Vorschlag: QUAY/)).toBeNull();
+
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung bearbeiten'));
+    const expectedQuay = evalToQuay(ev);
+    expect(screen.getByText(new RegExp(`Vorschlag: QUAY ${expectedQuay}`))).toBeTruthy();
+    // Reine Anzeige verändert QUAY NICHT (INV-C2) — kein automatischer onQuayChange-Aufruf.
+    expect(onQuayChange).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByText('Übernehmen'));
+    expect(onQuayChange).toHaveBeenCalledTimes(1);
+    expect(onQuayChange).toHaveBeenCalledWith(expectedQuay);
+  });
+
+  it('rendert ohne Bewertung keinen QUAY-Vorschlag im Aufklapper', async () => {
+    await renderRow();
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung hinzufügen'));
+    expect(screen.queryByText(/Vorschlag: QUAY/)).toBeNull();
+  });
+
+  it('Zurücksetzen aller Achsen (inkl. Informant) auf "—"/leer ergibt eval=null, nicht ein leeres Gerüst-Objekt', async () => {
+    const ev = makeEvidenceEval({ source: 'original', information: 'primary', evidence: 'direct', informant: 'X' });
+    const { onEvalChange, commitLastEval } = await renderRow({ eval: ev });
+    await fireEvent.click(screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung bearbeiten'));
+
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Quellentyp'), { target: { value: '' } });
+    await commitLastEval();
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Information'), { target: { value: '' } });
+    await commitLastEval();
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Evidenz'), { target: { value: '' } });
+    await commitLastEval();
+    await fireEvent.change(screen.getByLabelText('Geburt (BIRT) Quelle 1 Informant'), { target: { value: '' } });
+
+    expect(onEvalChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('der ⚖-Auslöser zeigt den bewerteten Zustand an (aktives Erscheinungsbild), sobald eine Bewertung existiert', async () => {
+    const ev = makeEvidenceEval({ source: 'original' });
+    await renderRow({ eval: ev });
+    const toggle = screen.getByLabelText('Geburt (BIRT) Quelle 1 Bewertung bearbeiten');
+    expect(toggle.className).toContain('source-citation-row__eval-toggle--active');
   });
 });

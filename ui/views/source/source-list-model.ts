@@ -10,7 +10,8 @@ export interface SourceRow {
   id: string;
   label: string;
   author: string;
-  date: string;
+  /** Erfassungsdatum („Erfasst am", ADR-v9-179) — NICHT das Datum des Dokuments. */
+  createdDate: string;
   refCount: number;
   /** "Notizen"-Badge (Spec 20 §1.6 [K], ADR-v9-79 Punkt 3/4) — `true` wenn `text`
    *  (GEDCOM SOUR.TEXT) nicht leer ist. FELD-UNSCHÄRFE (bewusst nicht abschließend
@@ -52,7 +53,7 @@ function toRow(s: Source, refCount: number, db: Database): SourceRow {
     id: s.id,
     label: s.abbr || s.title || s.id,
     author: s.author,
-    date: s.date,
+    createdDate: s.createdDate,
     refCount,
     hasNotes: s.text.trim() !== '',
     hasMedia: s.media.length > 0,
@@ -80,7 +81,7 @@ export function buildSourceRows(db: Database): SourceRow[] {
 export function matchesSearch(s: Source, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const haystack = [s.abbr, s.title, s.author, s.date, s.publisher, s.text, s.callNumber]
+  const haystack = [s.abbr, s.title, s.author, s.createdDate, s.publisher, s.text, s.callNumber, s.agnc]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();

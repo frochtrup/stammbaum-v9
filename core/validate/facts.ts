@@ -40,6 +40,54 @@ export function personCitations(p: Person): Citation[] {
   return out;
 }
 
+/**
+ * Ein „Faktum" im Sinne von EVIDENCE_CONFLICT: EINE Zitat-Trägerstelle samt Beschriftung.
+ *
+ * Geschwister von `personCitations`/`familyCitations` (direkt darüber/darunter), aber mit
+ * der Gruppierung, die jene bewusst wegwerfen: dort ist die Frage „hat die Person
+ * überhaupt Quellen", hier „welche Quellen sprechen über DIESELBE Aussage". Zwei Zitate
+ * an verschiedenen Fakten können sich nicht widersprechen — die flache Liste könnte das
+ * nicht auseinanderhalten. Beide Listen müssen dieselben Trägerstellen abdecken; wer eine
+ * neue Zitatstelle am Modell ergänzt, zieht beide nach.
+ */
+export interface CitationFact {
+  /** Menschenlesbare Herkunft, erscheint im Befundtext („Geburt", „Ereignis OCCU"). */
+  label: string;
+  citations: readonly Citation[];
+}
+
+/** Fest benannte Ereignis-Slots; alles andere wird über seinen GEDCOM-Tag benannt
+ *  (dieselbe Konvention wie EVENT_AFTER_DEATH: „Ereignis OCCU"). */
+function eventFact(ev: Event, label: string): CitationFact {
+  return { label, citations: ev.citations };
+}
+
+export function personCitationFacts(p: Person): CitationFact[] {
+  const out: CitationFact[] = [
+    { label: 'Person', citations: p.topLevelCitations },
+    { label: 'Name', citations: p.nameCitations },
+    eventFact(p.birth, 'Geburt'),
+    eventFact(p.chr, 'Taufe'),
+    eventFact(p.death, 'Tod'),
+    eventFact(p.buri, 'Bestattung'),
+  ];
+  for (const ev of p.events) out.push(eventFact(ev, `Ereignis ${ev.type || '?'}`));
+  for (const n of p.extraNames) out.push({ label: 'Namensvariante', citations: n.citations });
+  for (const a of p.associations) out.push({ label: 'Personenbezug', citations: a.citations });
+  for (const c of p.childOf) out.push({ label: 'Herkunftsfamilie', citations: c.citations });
+  return out;
+}
+
+export function familyCitationFacts(f: Family): CitationFact[] {
+  const out: CitationFact[] = [
+    { label: 'Familie', citations: f.citations },
+    eventFact(f.marriage, 'Heirat'),
+    eventFact(f.engagement, 'Verlobung'),
+  ];
+  for (const ev of f.events) out.push(eventFact(ev, `Ereignis ${ev.type || '?'}`));
+  return out;
+}
+
 export function familyCitations(f: Family): Citation[] {
   const out: Citation[] = [...f.citations];
   for (const ev of familyEvents(f)) out.push(...ev.citations);

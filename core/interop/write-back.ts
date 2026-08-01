@@ -40,6 +40,7 @@ import type {
   Person,
   Repository,
   Source,
+  SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import {
@@ -50,6 +51,7 @@ import {
   type PlaceContext,
 } from '../places';
 import type { GedNode } from './gedcom-tree';
+import { evidenceEvalEqual } from './enum-maps';
 import {
   parsePersonPublic,
   parseFamilyPublic,
@@ -71,7 +73,7 @@ import {
 const RECOGNIZED_PERSON = new Set([
   'NAME', 'SEX', 'TITL', 'RELI', 'RESN', 'EMAIL', 'WWW', '_UID',
   'BIRT', 'CHR', 'DEAT', 'BURI', 'FAMC', 'FAMS', 'ALIA', 'ASSO', 'OBJE',
-  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_TASK', '_RLOG', '_HYPO',
+  'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_DATE', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
 ]);
@@ -80,8 +82,15 @@ const RECOGNIZED_FAMILY = new Set([
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'DIV',
 ]);
+// `DATE` ist BEWUSST NICHT dabei (BL-243): ein `1 DATE` direkt unter `SOUR` kennt weder
+// 5.5.1 noch 7.0 — es wird nie geschrieben und bleibt als Passthrough erhalten, falls eine
+// Fremddatei eines trägt. Das Erfassungsdatum reist als `_DATE`/`CREA`.
+// `DATA` als Ganzes erkannt (BL-217): der Container wird beim Neu-Emittieren komplett aus
+// dem Modell gebaut — deshalb hält `Source.dataExtra` jedes nicht modellierte DATA-Kind
+// (NOTE/SNOTE …), das sonst still verschwände.
 const RECOGNIZED_SOURCE = new Set([
-  'ABBR', 'TITL', 'AUTH', 'DATE', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
+  'ABBR', 'TITL', 'AUTH', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
+  'CREA', '_DATE', 'DATA',
 ]);
 const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL']);
 // Medien-Record `0 @M@ OBJE` (ADR-v9-125): FILE (+FORM/MEDI darunter) + globaler TITL.
@@ -327,7 +336,11 @@ function citationsEqual(a: Citation[], b: Citation[]): boolean {
     const x = a[i], y = b[i];
     if (
       x.sourceId !== y.sourceId || x.page !== y.page || x.quay !== y.quay ||
-      x.note !== y.note || !mediaEqual(x.media, y.media)
+      x.note !== y.note || !mediaEqual(x.media, y.media) ||
+      // Die Evidenz-Bewertung (BL-83) gehört in DENSELBEN Vergleich: ohne sie gälte ein
+      // Record, an dem NUR die Bewertung geändert wurde, als „unverändert" — der Writer
+      // gäbe den Original-Knoten zurück und der Edit verschwände still.
+      !evidenceEvalEqual(x.eval, y.eval)
     ) return false;
   }
   return true;
@@ -406,7 +419,12 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
     if (
       x.id !== y.id || x.text !== y.text || x.status !== y.status ||
       x.weight !== y.weight || x.created !== y.created ||
-      x.rationale !== y.rationale || x.conclusion !== y.conclusion
+      x.rationale !== y.rationale || x.conclusion !== y.conclusion ||
+      // kind/refs (ADR-v9-174) gehören in DENSELBEN Vergleich: ohne sie gälte ein
+      // Dublettenausschluss, der nur diese beiden Felder setzt, als „unverändert" und
+      // würde nie geschrieben.
+      x.kind !== y.kind || x.refs.length !== y.refs.length ||
+      x.refs.some((r, k) => r !== y.refs[k])
     ) return false;
     if (x.evidence.length !== y.evidence.length) return false;
     for (let j = 0; j < x.evidence.length; j++) {
@@ -495,11 +513,19 @@ function familyEqual(a: Family, b: Family, ctx: PlaceContext): boolean {
   );
 }
 
+/** Abdeckungs-Einträge feldweise (BL-217). `dataExtra` zählt NICHT mit: reiner Passthrough,
+ *  von niemandem editierbar — ein Unterschied ist dort nicht möglich. */
+function dataEventsEqual(a: SourceDataEvent[], b: SourceDataEvent[]): boolean {
+  return a.length === b.length && a.every((x, i) =>
+    x.eventTypes === b[i].eventTypes && x.date === b[i].date && x.place === b[i].place);
+}
+
 function sourceEqual(a: Source, b: Source): boolean {
   return (
     a.abbr === b.abbr && a.title === b.title && a.author === b.author &&
-    a.date === b.date && a.publisher === b.publisher && a.text === b.text &&
+    a.createdDate === b.createdDate && a.publisher === b.publisher && a.text === b.text &&
     a.repo === b.repo && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
+    a.agnc === b.agnc && dataEventsEqual(a.dataEvents, b.dataEvents) &&
     exidsEqual(a.externalRefs, b.externalRefs) &&
     mediaEqual(a.media, b.media) && a.lastChanged === b.lastChanged
   );

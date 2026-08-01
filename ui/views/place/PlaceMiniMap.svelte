@@ -60,17 +60,17 @@
   /** Klickbar nur mit vollständigem Navigations-Kontext (s. Props). */
   const canFocus = $derived(!!viewState && !!onNavigateLens && hasCoords);
 
-  function openLens(ev: Event): void {
-    // Die Leaflet-Attribution („Leaflet | © OpenStreetMap") liegt IM Kartenrahmen und
-    // muss ihr eigenes Ziel behalten — ein Klick darauf ist kein Sprung zur Lens.
-    if ((ev.target as HTMLElement | null)?.closest('a')) return;
+  function openLens(): void {
+    // Kein Klick-Wächter mehr für die Attribution: sie liegt seit BL-66 außerhalb des
+    // Rahmens (s. Kommentar am Markup) — es gibt im Rahmen kein Bedienelement, dessen
+    // Ziel gekapert werden könnte.
     focusOnMap(viewState!, lat != null && long != null ? { lat, long } : null, focusId, onNavigateLens);
   }
 
   function onFrameKey(ev: KeyboardEvent): void {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
     ev.preventDefault();
-    openLens(ev);
+    openLens();
   }
 
   /** Gedämpfte Kontext-Punkte (Dorf + Geschwisterhöfe) — nur im Hof-Kontext. */
@@ -195,10 +195,28 @@
            Klick-Signal ohne Ziel, gleiche Regel wie `CoordIndicator`s Fehlend-Zustand. -->
       <div class="mini-map__frame">{@render mapBody()}</div>
     {/if}
+    <!-- Attribution UNTER dem Rahmen statt darin (BL-66, s. `mini-leaflet.ts`): im
+         Rahmen wäre sie ein Link innerhalb einer Schaltfläche. Nur im Kachel-Zweig —
+         der Offline-Vektor-Renderer zeigt keine OSM-Kacheln. -->
+    {#if !usingFallback}
+      <p class="mini-map__attribution">
+        © <a href="https://openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+      </p>
+    {/if}
   </section>
 {/if}
 
 <style>
+  /* Dezent wie zuvor Leaflets eigene Attributionsleiste (9px), nur außerhalb des
+     Rahmens — die Namensnennung bleibt sichtbar direkt an der Karte. */
+  .mini-map__attribution {
+    max-width: 420px;
+    margin: 2px 0 0;
+    font-size: 9px;
+    color: var(--stb-text-dim);
+    text-align: right;
+  }
+
   .mini-map__frame {
     max-width: 420px;
     border-radius: var(--stb-radius-card);

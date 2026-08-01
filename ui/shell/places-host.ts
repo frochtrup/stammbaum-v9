@@ -23,7 +23,7 @@
 // Schale zurück — das ist der eigentliche Wert dieser Datei, nicht ihr Typ.
 
 import type { Database, Event, HofId, PlaceId } from '../../core/model/types';
-import type { GovApplyResult, HofObject, MergeResult, PlaceContext, PlaceObject } from '../../core/places';
+import type { GovApplyResult, HofObject, MergeResult, MoveHofResult, PlaceContext, PlaceObject } from '../../core/places';
 
 /**
  * Was das Wirtsprogramm über die geteilten Views hinaus kann. JEDE Verhaltensabweichung
@@ -94,6 +94,17 @@ export interface PlacesHost {
   deleteHof(id: HofId): void;
   mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
   updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
+  /**
+   * Hängt einen Hof an ein anderes Dorf (Spec 11 §1: `villageId` ist Teil der Hof-Identität).
+   * Eigenes Kommando statt eines Feldes in `saveHof`, weil zwei Nachläufe daran hängen —
+   * Konsolidierung bei Adress-Kollision im Zieldorf und der `event.placeId`-Dorfanker der
+   * referenzierenden Ereignisse (ADR-v9-172). Dieselbe Begründung wie bei `updateHofAddr`.
+   *
+   * Liefert das Ergebnis zurück, weil die View es BRAUCHT: bei einer Adress-Kollision im
+   * Zieldorf wird konsolidiert, und dann muss die Ansicht (a) darauf hinweisen und (b) ggf.
+   * auf die Gewinner-Id umschalten — der bearbeitete Hof kann der Verlierer gewesen sein.
+   */
+  moveHof(hofId: HofId, villageId: PlaceId): MoveHofResult;
 
   /** Nur sinnvoll bei `caps.hasEventContext` — ohne Ereignisse gibt es nichts zu verknüpfen. */
   linkEventToPlace(event: Event, placeId: PlaceId): boolean;

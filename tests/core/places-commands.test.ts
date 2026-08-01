@@ -13,6 +13,8 @@ import {
   withRemovedTranslation,
   withAddedEnclosedBy,
   withRemovedEnclosedBy,
+  withUpdatedPname,
+  withUpdatedEnclosedBy,
   withAddedHofAddr,
   withRemovedHofAddr,
   withUpdatedHofAddr,
@@ -389,5 +391,122 @@ describe('mergePlaceObjects — Dubletten-Merge (verlustfrei, Spec 20 §1.7 [K])
     expect(places.size).toBe(1);
     expect(places.get('@A@')!.title).toBe('Ochtrup');
     expect(places.get('@A@')!.pnames).toHaveLength(0);
+  });
+});
+
+// ADR-v9-183 / BL-251 — Nutzerbefund „die zeitliche Gültigkeit von Ortsnamen wird weder
+// angezeigt noch ist sie editierbar". Bis dahin gab es nur Anhängen und Entfernen; ein
+// Tippfehler kostete Löschen + Neuanlegen und damit die Position im Array. Gleiche
+// Bauform wie `withUpdatedHofAddr` (ADR-v9-81), nicht ein zweites Muster daneben.
+describe('withUpdatedPname — bestehende Namensvariante bearbeiten (ADR-v9-183)', () => {
+  const ochtrup = () =>
+    place('@P1@', {
+      title: 'Ochtrup',
+      pnames: [
+        { value: 'Ochtorpe', from: null, to: 1400 },
+        { value: 'Ochtrup', from: 1400, to: null },
+      ],
+    });
+
+  it('ersetzt Wert und Zeitraum am angegebenen Index', () => {
+    const next = withUpdatedPname(ochtrup(), 0, 'Ochtorp', null, 1380);
+
+    expect(next.pnames[0]).toEqual({ value: 'Ochtorp', from: null, to: 1380 });
+  });
+
+  it('behält die Position im Array — genau der Grund für dieses Kommando', () => {
+    const next = withUpdatedPname(ochtrup(), 0, 'Ochtorp', null, 1400);
+
+    expect(next.pnames.map((p) => p.value)).toEqual(['Ochtorp', 'Ochtrup']);
+  });
+
+  it('lässt eine nach unten offene Datierung offen (null bleibt null, wird nicht zu 0)', () => {
+    const next = withUpdatedPname(ochtrup(), 1, 'Ochtrup', null, null);
+
+    expect(next.pnames[1].from).toBeNull();
+    expect(next.pnames[1].to).toBeNull();
+  });
+
+  it('trimmt den Wert wie withAddedPname', () => {
+    expect(withUpdatedPname(ochtrup(), 0, '  Ochtorp  ', null, 1400).pnames[0].value).toBe('Ochtorp');
+  });
+
+  it('ist No-Op bei leerem Wert — kein stillschweigendes Löschen', () => {
+    const vorher = ochtrup();
+
+    expect(withUpdatedPname(vorher, 0, '   ', null, 1400)).toBe(vorher);
+  });
+
+  it('ist No-Op bei einem Index außerhalb des Arrays', () => {
+    const vorher = ochtrup();
+
+    expect(withUpdatedPname(vorher, 5, 'Egal', null, null)).toBe(vorher);
+    expect(withUpdatedPname(vorher, -1, 'Egal', null, null)).toBe(vorher);
+  });
+
+  it('mutiert das Original nicht (reine Kopie)', () => {
+    const vorher = ochtrup();
+    withUpdatedPname(vorher, 0, 'Ochtorp', null, 1380);
+
+    expect(vorher.pnames[0]).toEqual({ value: 'Ochtorpe', from: null, to: 1400 });
+  });
+
+  it('übernimmt `dateRaw` des ersetzten Eintrags NICHT — der Roh-String belegt die Datei, nicht die Eingabe', () => {
+    const mitRaw = place('@P1@', {
+      pnames: [{ value: 'Ochtorpe', from: null, to: 1400, dateRaw: 'TO 1400' }],
+    });
+
+    expect(withUpdatedPname(mitRaw, 0, 'Ochtorp', null, 1380).pnames[0].dateRaw).toBeUndefined();
+  });
+});
+
+// ADR-v9-183 / BL-252 — Geschwister von withUpdatedPname. Der Zeitraum ist hier
+// Auswertungsgrundlage (enclosureWinnerAsOf → PLAC-Projektion), nicht bloß Beschriftung.
+describe('withUpdatedEnclosedBy — bestehenden Zuordnungs-Zeitraum bearbeiten (ADR-v9-183)', () => {
+  const ochtrup = () =>
+    place('@P1@', {
+      title: 'Ochtrup',
+      enclosedBy: [
+        { placeId: '@FUERST@', from: null, to: 1806 },
+        { placeId: '@KREIS@', from: 1861, to: null },
+      ],
+    });
+
+  it('korrigiert ein falsch getipptes Jahr, ohne die Position zu verlieren', () => {
+    const next = withUpdatedEnclosedBy(ochtrup(), 1, '@KREIS@', 1816, null);
+
+    expect(next.enclosedBy).toEqual([
+      { placeId: '@FUERST@', from: null, to: 1806 },
+      { placeId: '@KREIS@', from: 1816, to: null },
+    ]);
+  });
+
+  it('macht eine Zuordnung nach unten offen, wenn `from` geleert wird (Spec 11 §1)', () => {
+    const next = withUpdatedEnclosedBy(ochtrup(), 1, '@KREIS@', null, 1974);
+
+    expect(next.enclosedBy[1]).toEqual({ placeId: '@KREIS@', from: null, to: 1974 });
+  });
+
+  it('kann auch den Elternort wechseln', () => {
+    expect(withUpdatedEnclosedBy(ochtrup(), 0, '@ANDERER@', null, 1806).enclosedBy[0].placeId).toBe('@ANDERER@');
+  });
+
+  it('ist No-Op ohne Elternort — Leeren ist kein Löschweg (dafür gibt es withRemovedEnclosedBy)', () => {
+    const vorher = ochtrup();
+
+    expect(withUpdatedEnclosedBy(vorher, 0, '', 1700, 1806)).toBe(vorher);
+  });
+
+  it('ist No-Op bei einem Index außerhalb des Arrays', () => {
+    const vorher = ochtrup();
+
+    expect(withUpdatedEnclosedBy(vorher, 9, '@KREIS@', 1816, null)).toBe(vorher);
+  });
+
+  it('mutiert das Original nicht (reine Kopie)', () => {
+    const vorher = ochtrup();
+    withUpdatedEnclosedBy(vorher, 1, '@KREIS@', 1816, null);
+
+    expect(vorher.enclosedBy[1].from).toBe(1861);
   });
 });

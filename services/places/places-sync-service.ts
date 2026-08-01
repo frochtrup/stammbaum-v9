@@ -11,13 +11,9 @@
 //   - speichern (`savePlaces`): packt Maps → Arrays, bumpt rev, schreibt über den Store.
 //
 // UNION-MERGE-POLICY:
-//   PlaceObjects/HofObjects sind id-gekeyte Maps. „Union" heißt: alle IDs aus beiden
-//   Seiten bleiben erhalten (keine Seite verliert einen Eintrag, den die andere nicht
-//   hat). Existiert dieselbe ID auf beiden Seiten mit UNTERSCHIEDLICHEM Inhalt, entscheidet
-//   der GEMEINSAME VORFAHRE (`base`): die Seite, die sich gegenüber der Basis nicht
-//   verändert hat, hat nichts zu sagen und verliert. Haben beide sich verändert (oder gibt
-//   es keine Basis für diese ID), ist es ein echter Konflikt — lokal gewinnt deterministisch
-//   und die ID wird als Konflikt gemeldet. Kein Feld-Level-Merge.
+//   PlaceObjects/HofObjects sind id-gekeyte Maps; die Politik dafür lebt seit BL-239
+//   EINMAL in `services/union-merge.ts` (dort der vollständige Wortlaut) — sie gilt seither
+//   auch für die Forschungsprojekte im B1-Bündel.
 //
 //   BIS BL-82 entschied hier ein Zeitvergleich: `clock.now()` gegen `remote.ts`. Das ist
 //   kein Vergleich zweier Inhalts-Alter, sondern „jetzt" gegen „irgendwann früher" —
@@ -31,6 +27,10 @@
 
 import type { PlaceObject, HofObject } from '../../core/places/types';
 import type { Clock, DeviceIdProvider, PlacesFileWrapper, PlacesStore } from './types';
+// Der Union-Merge lebt seit BL-239 EINMAL für alle id-gekeyten Sammlungen (services/union-merge.ts):
+// die Forschungsprojekte im B1-Bündel brauchen dieselbe Konfliktpolitik. Die Policy-Beschreibung
+// steht dort im Kopfkommentar.
+import { toList, toMap, unionMerge } from '../union-merge';
 import { PLACES_SCHEMA_VERSION } from './types';
 
 export interface LoadedPlaces {
@@ -90,63 +90,6 @@ const emptyWrapper = (): PlacesFileWrapper => ({
   hofObjects: []
 });
 
-function toMap<T extends { id: string }>(list: T[]): Map<string, T> {
-  return new Map(list.map((item) => [item.id, item]));
-}
-
-function toList<T>(map: Map<string, T>): T[] {
-  return Array.from(map.values());
-}
-
-/** Strukturelle Gleichheit über die Wire-Form (JSON) — genügt für Konflikt-Erkennung. */
-function sameContent<T>(a: T, b: T): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-/**
- * Union-Merge zweier id-gekeyter Maps gegen ihren gemeinsamen Vorfahren (Spec 30 §4 LP-9):
- * alle IDs beider Seiten bleiben; bei abweichendem Inhalt derselben ID entscheidet, WER
- * sich gegenüber `base` verändert hat. Liefert das Ergebnis, die kollidierten IDs (für die
- * Warnung) und die Teilmenge davon, in der beide Seiten sich geändert haben.
- */
-function unionMerge<T extends { id: string }>(
-  local: Map<string, T>,
-  remote: Map<string, T>,
-  base: Map<string, T>
-): { merged: Map<string, T>; collidedIds: string[]; conflictIds: string[] } {
-  const merged = new Map<string, T>();
-  const collidedIds: string[] = [];
-  const conflictIds: string[] = [];
-
-  for (const [id, remoteItem] of remote) merged.set(id, remoteItem);
-  for (const [id, localItem] of local) {
-    const remoteItem = remote.get(id);
-    if (remoteItem === undefined) {
-      merged.set(id, localItem);
-      continue;
-    }
-    if (sameContent(localItem, remoteItem)) continue; // kein Konflikt, identischer Inhalt.
-    collidedIds.push(id);
-
-    const baseItem = base.get(id);
-    const lokalUnveraendert = baseItem !== undefined && sameContent(localItem, baseItem);
-    const remoteUnveraendert = baseItem !== undefined && sameContent(remoteItem, baseItem);
-
-    if (lokalUnveraendert) {
-      merged.set(id, remoteItem); // nur die Gegenseite hat etwas zu sagen
-    } else if (remoteUnveraendert) {
-      merged.set(id, localItem);
-    } else {
-      // Beide geändert oder kein Vorfahre vorhanden: nicht entscheidbar. Lokal gewinnt
-      // deterministisch — es ist die Fassung, die der Nutzer gerade vor Augen hat — und
-      // die ID wird gemeldet, damit die Meldung nicht Datenerhalt behauptet.
-      conflictIds.push(id);
-      merged.set(id, localItem);
-    }
-  }
-
-  return { merged, collidedIds, conflictIds };
-}
 
 export class PlacesSyncService {
   constructor(

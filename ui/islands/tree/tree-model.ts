@@ -4,19 +4,12 @@
 // (INV-ARCH-1: die Insel enthält keine Kern-Logik, sie konsumiert core/model-Typen).
 import type { Database, FamilyId, PersonId } from '../../../core/model/types';
 
-export interface ParentIds {
-  father: PersonId | null;
-  mother: PersonId | null;
-}
-
-/** Erste Herkunftsfamilie einer Person (Spec/Orakel: `famc[0]` in v8) → Eltern-Paar. */
-export function getParentIds(db: Database, personId: PersonId | null | undefined): ParentIds {
-  if (!personId) return { father: null, mother: null };
-  const person = db.individuals.get(personId);
-  if (!person || person.childOf.length === 0) return { father: null, mother: null };
-  const fam = db.families.get(person.childOf[0].familyId);
-  return { father: fam?.husband ?? null, mother: fam?.wife ?? null };
-}
+// `getParentIds`/`ParentIds` leben seit BL-231 im Kern (`core/model/queries.ts`) — der
+// Ast-Reifegrad braucht dieselbe Aufwärts-Kante, und der Kern darf nicht in die UI greifen
+// (INV-ARCH-1). Hier nur re-exportiert, damit die bestehenden Insel-/View-Aufrufer
+// unverändert bleiben; EINE Implementierung, zwei Importwege.
+export { getParentIds, type ParentIds } from '../../../core/model/queries';
+import { getParentIds } from '../../../core/model/queries';
 
 export interface SpouseFamily {
   familyId: FamilyId;

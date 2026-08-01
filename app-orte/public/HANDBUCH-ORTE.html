@@ -186,7 +186,7 @@
 <header class="cover">
   <h1>Orte-Editor — Handbuch</h1>
   <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
-  <p class="stamp">Version 9.7 · Stand 2026-07-28</p>
+  <p class="stamp">Version 9.9 · Stand 2026-08-01</p>
 </header>
 
 <nav id="toc">
@@ -261,6 +261,19 @@
     <figcaption>Der Steckbrief ist derselbe wie im Hauptprogramm</figcaption>
   </figure>
 </div>
+
+<h2>Am großen Bildschirm: Liste und Steckbrief nebeneinander</h2>
+<p>
+  Ist das Fenster breit genug, steht die Orts- bzw. Höfeliste dauerhaft links neben dem
+  Steckbrief. Sie können damit einen Eintrag bearbeiten und im selben Blick sehen, welche
+  ähnlichen Einträge daneben stehen — genau die Arbeit, um die es beim Aufräumen von Orten
+  geht: Schreibvarianten erkennen, Dubletten vergleichen, Verwaltungsketten abgleichen.
+</p>
+<p>
+  Auf einem schmalen Fenster oder am Telefon tritt der Steckbrief an die Stelle der Liste;
+  <strong>„← Zurück"</strong> führt zurück (zur Liste oder dorthin, wo Sie hergekommen sind). Der Massen-Dedup nimmt in beiden Fällen die
+  ganze Fläche — er ist eine eigene Arbeitsfläche.
+</p>
 
 <h2>Kontextdatei: mit Stammbaum arbeiten, ohne ihn zu ändern</h2>
 <p>
@@ -428,6 +441,24 @@
   </figure>
 </div>
 
+<h2>GOV-Eintrag übernehmen</h2>
+<p>
+  Das <a href="https://gov.genealogy.net">Geschichtliche Ortsverzeichnis (GOV)</a> hält für
+  viele deutsche Orte genau das, was eine GEDCOM-Datei nicht speichern kann: die
+  Verwaltungszugehörigkeit Epoche für Epoche. Im <strong>Bearbeiten-Modus</strong> eines
+  Ortes nimmt die Sektion <strong>„GOV-Eintrag übernehmen"</strong> die Textzusammenfassung
+  einer GOV-Seite entgegen — kopieren, einfügen, übernehmen. Die App liest daraus
+  Ortstyp, fremdsprachige Namen und die datierte Zugehörigkeitskette heraus.
+</p>
+<ul>
+  <li>Bewusst <strong>ohne Netzabruf</strong>: der Einfüge-Weg funktioniert auch offline
+      im Archiv.</li>
+  <li><strong>Fill-if-empty</strong> — Übernommenes füllt nur Lücken und überschreibt
+      nichts, was Sie selbst recherchiert haben.</li>
+  <li>Unbekannte Elternorte der Kette legt die App als Platzhalter an; der Schritt ist
+      ein normaler Vorgang und mit <strong>↶ Rückgängig</strong> zurücknehmbar.</li>
+</ul>
+
 <h2>Koordinaten, Kartenvorschau und Geocoding</h2>
 <p>
   <strong>Koordinaten</strong> sind die Grundlage jeder Karten-Darstellung. Liegen sie
@@ -513,6 +544,10 @@
     <ul>
       <li>Alle Hof-Felder sind editierbar; eine <strong>Umbenennung wirkt durchgängig</strong>
           — auf allen referenzierenden Ereigniszeilen.</li>
+      <li>Auch das <strong>Dorf</strong> eines Hofes lässt sich ändern: über denselben
+          Ortspicker wie am Ereignis. Nützlich nach einer Eingemeindung oder wenn ein
+          Hof beim Import unter dem falschen Dorf gelandet ist — die Bewohner und ihre
+          Ereignisse ziehen mit.</li>
       <li><strong>Hof-Review</strong> und <strong>Massen-Zusammenführung</strong>
           bereinigen den Bestand analog zu den Orten.</li>
       <li>Wie der Ort trägt auch der Hof <strong>Koordinaten</strong> und eine
@@ -521,6 +556,26 @@
       <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
     </ul>
   </div>
+</div>
+
+<h2>Warum Höfe eine eigene Ebene sind</h2>
+<p>
+  In ländlichen Regionen ist der <strong>Hof</strong> die eigentliche Konstante der
+  Familiengeschichte — nicht die Person und nicht das Dorf. Höfe überdauern Generationen,
+  ihr Name geht auf den ein, der einheiratet, und Kirchenbücher notieren jahrhundertelang
+  „Anna, Tochter des Colon Brüning zu Langenhorst" statt einer Adresse. Wer nur das Dorf
+  erfasst, wirft genau die Ebene weg, auf der sich diese Quellen unterscheiden lassen.
+</p>
+<p>
+  Deshalb ist ein Hof in Stammbaum eine <strong>eigene Entität</strong> und kein Textfeld:
+  Er trägt Adressvarianten (jede Schreibweise, die in Quellen auftaucht), eigene
+  Koordinaten, seine Bewohner und Eigentümer über die Zeit — und lässt sich zusammenführen,
+  wenn zwei Schreibweisen sich als derselbe Hof herausstellen.
+</p>
+<div class="practice">
+  Der Ort beantwortet „wo auf der Karte", der Hof „welches Haus". Beides zusammen macht
+  aus einer Ansammlung gleichnamiger Personen eine nachvollziehbare Ortsgeschichte — die
+  Grundlage für Hofchronik und Ortssippenbuch (Kapitel „Ausgaben").
 </div>
 
 <!-- ============================================================= -->

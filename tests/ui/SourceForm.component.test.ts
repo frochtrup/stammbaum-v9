@@ -68,3 +68,129 @@ describe('SourceForm — Speichern/Vorbefüllung', () => {
     expect(appState.db.sources.get('@S1@')?.repo).toBe('@R1@');
   });
 });
+
+describe('SourceForm — Quellen-Vorlagen (BL-128, Spec 20 §1.6 [S])', () => {
+  it('zeigt den Vorlagen-Picker nur beim Anlegen einer frischen Quelle (Kurzname+Titel leer)', () => {
+    const appState = createAppState();
+    const { unmount } = render(SourceForm, { props: { appState, source: makeSource('@S1@') } });
+    expect(screen.getByText('Kirchenbuch Taufen')).toBeTruthy();
+    unmount();
+
+    render(SourceForm, { props: { appState, source: makeSource('@S2@', { title: 'Bestehende Quelle' }) } });
+    expect(screen.queryByText('Kirchenbuch Taufen')).toBeNull();
+  });
+
+  it('Chip-Klick füllt Kurzname/Titel/Medientyp vor, Autor bleibt leer (kein erfundener Wert)', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@');
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.click(screen.getByText('Grabstein'));
+
+    expect((screen.getByLabelText('Kurzname') as HTMLInputElement).value).toBe('Grabstein');
+    expect((screen.getByLabelText('Titel') as HTMLInputElement).value).toBe('Grabstein, [Friedhof/Ort]');
+    expect((screen.getByLabelText('Autor') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Medientyp (zur Signatur)') as HTMLInputElement).value).toBe('tombstone');
+  });
+
+  it('vorbefüllte Felder bleiben danach frei editierbar und werden beim Speichern übernommen', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@');
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.click(screen.getByText('Totenzettel'));
+    await fireEvent.input(screen.getByLabelText('Titel'), { target: { value: 'Totenzettel Anna Schmidt, 1932' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.sources.get('@S1@');
+    expect(saved?.abbr).toBe('Totenzettel');
+    expect(saved?.title).toBe('Totenzettel Anna Schmidt, 1932');
+    expect(saved?.callMedia).toBe('card');
+  });
+
+  it('überschreibt einen bereits getippten Wert NICHT stillschweigend, wenn danach eine Vorlage gewählt wird', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@');
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.input(screen.getByLabelText('Autor'), { target: { value: 'Eigene Angabe' } });
+    await fireEvent.click(screen.getByText('Kirchenbuch Taufen'));
+
+    expect((screen.getByLabelText('Autor') as HTMLInputElement).value).toBe('Eigene Angabe');
+    // die übrigen, noch leeren Felder werden trotzdem vorbefüllt
+    expect((screen.getByLabelText('Kurzname') as HTMLInputElement).value).toBe('KB Taufen');
+  });
+
+  it('Freitext-Eingabe im Vorlagen-Feld, die exakt einem Preset-Label entspricht, füllt ebenfalls vor', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@');
+    render(SourceForm, { props: { appState, source } });
+
+    const input = screen.getByPlaceholderText('Vorlage wählen…');
+    await fireEvent.input(input, { target: { value: 'Volkszählung' } });
+    await fireEvent.change(input, { target: { value: 'Volkszählung' } });
+
+    expect((screen.getByLabelText('Kurzname') as HTMLInputElement).value).toBe('Volkszählung');
+    expect((screen.getByLabelText('Medientyp (zur Signatur)') as HTMLInputElement).value).toBe('manuscript');
+  });
+});
+
+// Der Medientyp (`callMedia`) reist im GEDCOM als `SOUR.REPO.CALN.MEDI` — der Writer
+// (`write-back-emit.ts`) schreibt ihn deshalb NUR, wenn zugleich Archiv UND Signatur
+// gesetzt sind. Ohne Hinweis verschluckt das Formular die Eingabe still: der Nutzer
+// tippt einen Wert, speichert, und er ist nach dem Neuladen weg. Die Vorlagen aus
+// BL-128 belegen das Feld sogar von sich aus vor, machen den Fall also zum Regelfall.
+describe('SourceForm — Medientyp hängt an Archiv + Signatur', () => {
+  const HINWEIS = /Medientyp wird erst mit Archiv und Signatur gespeichert/i;
+
+  it('warnt, wenn ein Medientyp ohne Archiv und Signatur dasteht', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@', { title: 'Grabstein Meier' });
+    render(SourceForm, { props: { appState, source } });
+
+    expect(screen.queryByText(HINWEIS)).toBeNull();
+    await fireEvent.input(screen.getByLabelText('Medientyp (zur Signatur)'), {
+      target: { value: 'tombstone' },
+    });
+    expect(screen.getByText(HINWEIS)).toBeTruthy();
+  });
+
+  it('schweigt, sobald Archiv und Signatur den Medientyp tragen', async () => {
+    const appState = createAppState();
+    appState.db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Bistumsarchiv' }));
+    const source = makeSource('@S1@', {
+      title: 'Kirchenbuch Ochtrup',
+      repo: '@R1@',
+      callNumber: 'KB 12',
+    });
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.input(screen.getByLabelText('Medientyp (zur Signatur)'), {
+      target: { value: 'manuscript' },
+    });
+    expect(screen.queryByText(HINWEIS)).toBeNull();
+  });
+
+  it('warnt auch, wenn nur das Archiv fehlt (Signatur allein genügt nicht)', async () => {
+    const appState = createAppState();
+    const source = makeSource('@S1@', { title: 'Kirchenbuch Ochtrup', callNumber: 'KB 12' });
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.input(screen.getByLabelText('Medientyp (zur Signatur)'), {
+      target: { value: 'manuscript' },
+    });
+    expect(screen.getByText(HINWEIS)).toBeTruthy();
+  });
+
+  it('warnt auch, wenn nur die Signatur fehlt (Archiv allein genügt nicht)', async () => {
+    const appState = createAppState();
+    appState.db.repositories.set('@R1@', makeRepository('@R1@', { name: 'Bistumsarchiv' }));
+    const source = makeSource('@S1@', { title: 'Kirchenbuch Ochtrup', repo: '@R1@' });
+    render(SourceForm, { props: { appState, source } });
+
+    await fireEvent.input(screen.getByLabelText('Medientyp (zur Signatur)'), {
+      target: { value: 'manuscript' },
+    });
+    expect(screen.getByText(HINWEIS)).toBeTruthy();
+  });
+});

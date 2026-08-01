@@ -48,7 +48,8 @@ import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { remapIdsForFormat, type IdRemap } from './id-remap';
-import { quayToConfidence, tagToGrampsType } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, mediToGrampsMedium, quayToConfidence, tagToGrampsType } from './enum-maps';
+import { isEvidenceEvalEmpty } from '../research/eval';
 import { descriptionIsAddress } from './gramps-events';
 import { gedcomToGramps } from './gramps-date';
 
@@ -278,6 +279,13 @@ function citationRecord(id: string, c: Citation, refs: Refs): XmlNode {
     const h = refs.mediaHandle(m.mediaId);
     if (h) children.push(el('objref', [['hlink', h]]));
   }
+  // Evidenz-Bewertung (BL-83) als `<srcattribute>` — DTD-Position: nach objref, vor sourceref.
+  if (!isEvidenceEvalEmpty(c.eval)) {
+    for (const tag of EVAL_TAGS) {
+      const v = evalAxisValue(c.eval!, tag);
+      if (v) children.push(el('srcattribute', [['type', tag], ['value', v]]));
+    }
+  }
   const src = refs.sourceHandle(c.sourceId);
   if (src) children.push(el('sourceref', [['hlink', src]]));
   return el('citation', recordAttrs(handle, id), children);
@@ -350,8 +358,31 @@ function sourceRecord(id: string, s: Source, refs: Refs): XmlNode {
     const h = refs.mediaHandle(m.mediaId);
     if (h) children.push(el('objref', [['hlink', h]]));
   }
+  // Externe Referenzen (BL-244, ADR-v9-180) — DTD-Position: nach objref, VOR reporef
+  // (`source (…, noteref*, objref*, srcattribute*, reporef*, tagref*)`). `type="REFN"` ist
+  // die Form, die GRAMPS selbst schreibt und liest; ohne sie ging der Wert beim Export
+  // verloren, obwohl das Zielprogramm ihn erhält.
+  for (const ref of s.externalRefs) {
+    if (ref.value) children.push(el('srcattribute', [['type', 'REFN'], ['value', ref.value]]));
+  }
+  // Behörde (BL-217) und Erfassungsdatum (BL-243) — beide einwertig, also je ein
+  // `<srcattribute>`. `dataEvents` reist hier BEWUSST NICHT mit: ein Eintrag trägt drei
+  // Felder (Arten, Zeitraum, Ort), `<srcattribute>` nur ein `value` — eine zusammengesetzte
+  // Zeichenkette wäre eine erfundene Kodierung in einem nutzersichtbaren Feld. Der Verlust
+  // ist als Repräsentationsgrenze in [13 §1] benannt, nicht stillschweigend.
+  if (s.agnc) children.push(el('srcattribute', [['type', 'AGNC'], ['value', s.agnc]]));
+  if (s.createdDate) children.push(el('srcattribute', [['type', '_DATE'], ['value', s.createdDate]]));
   const repo = refs.repoHandle(typeof s.repo === 'string' ? s.repo : '');
-  if (repo) children.push(el('reporef', [['hlink', repo]]));
+  if (repo) {
+    // Signatur (BL-245): native `<reporef>`-Attribute. `medium` wird auf GRAMPS'
+    // Vokabular abgebildet (`manuscript` → `Manuscript`), sonst liest GRAMPS es als
+    // Custom-Typ statt als das Medium, das gemeint war.
+    const a: [string, string][] = [['hlink', repo]];
+    if (s.callNumber) a.push(['callno', s.callNumber]);
+    const medium = mediToGrampsMedium(s.callMedia);
+    if (medium) a.push(['medium', medium]);
+    children.push(el('reporef', a));
+  }
   return el('source', recordAttrs(handle, id), children);
 }
 

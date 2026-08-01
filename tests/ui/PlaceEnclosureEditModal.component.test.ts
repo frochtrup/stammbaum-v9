@@ -25,13 +25,16 @@ function setup() {
 }
 
 describe('PlaceEnclosureEditModal — Rendering bestehender Zugehörigkeiten', () => {
-  it('zeigt die bestehenden enclosedBy-Einträge mit Zeitraum', () => {
+  it('zeigt die bestehenden enclosedBy-Einträge mit Zeitraum — als Eingabefelder (ADR-v9-183)', () => {
     const appState = setup();
 
     render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
 
     expect(screen.getByText('Kreis Steinfurt')).toBeTruthy();
-    expect(screen.getByText('(1816–1974)')).toBeTruthy();
+    // Der Zeitraum steht nicht mehr als Text in Klammern da, sondern editierbar: er ist
+    // Auswertungsgrundlage (enclosureWinnerAsOf), nicht bloß Beschriftung.
+    expect((screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr)') as HTMLInputElement).value).toBe('1816');
+    expect((screen.getByLabelText('Kreis Steinfurt — gültig bis (Jahr)') as HTMLInputElement).value).toBe('1974');
   });
 
   it('sortiert die Liste nach Beginn-Jahr, undatierte Einträge ans Ende (v8-Vorbild)', () => {
@@ -199,5 +202,124 @@ describe('PlaceEnclosureEditModal — Modal-Schale (Backdrop/Escape, INV-UI-4)',
     await fireEvent.click(screen.getByText('Fertig'));
 
     expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+// ADR-v9-181 / BL-249 — die dritte Fundstelle desselben Befunds: das v8-Vorbild sortierte
+// mit `from ?? 9999` und warf „nach unten offen" mit „undatiert" in einen Topf.
+describe('PlaceEnclosureEditModal — drei Datierungs-Zustände in der Sortierung (ADR-v9-181)', () => {
+  function ochtrup() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@FUERST@', place('@FUERST@', { title: 'Fürstbistum Münster' }));
+    db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set('@EGAL@', place('@EGAL@', { title: 'Ohne Datum' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@KREIS@', from: 1816, to: null },
+          { placeId: '@EGAL@', from: null, to: null },
+          { placeId: '@FUERST@', from: null, to: 1806 },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    return appState;
+  }
+
+  it('stellt die nach unten offene Zuordnung an den ANFANG, die undatierte ans Ende', () => {
+    const appState = ochtrup();
+
+    const { container } = render(PlaceEnclosureEditModal, {
+      props: { appState, placeId: '@P1@', onClose: vi.fn() },
+    });
+
+    const labels = Array.from(container.querySelectorAll('.place-enclosure-modal__parent')).map(
+      (el) => el.textContent,
+    );
+    // Vorher stand „Fürstbistum Münster (…–1806)" UNTER „Kreis Steinfurt (1816–…)".
+    expect(labels).toEqual(['Fürstbistum Münster', 'Kreis Steinfurt', 'Ohne Datum']);
+  });
+});
+
+// ADR-v9-183 / BL-252 — der Zeitraum ist Auswertungsgrundlage, nicht Beschriftung.
+describe('PlaceEnclosureEditModal — bestehende Zeiträume änderbar (ADR-v9-183)', () => {
+  it('schreibt ein korrigiertes Von-Jahr über appState.savePlace, ohne die Position zu verlieren', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Kreis Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@A@', from: 1700, to: 1815 },
+          { placeId: '@B@', from: 1861, to: null }, // Zahlendreher: soll 1816 heißen
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
+    await fireEvent.change(screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr)'), {
+      target: { value: '1816' },
+    });
+
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
+      { placeId: '@A@', from: 1700, to: 1815 },
+      { placeId: '@B@', from: 1816, to: null },
+    ]);
+  });
+
+  it('macht die Zuordnung nach unten offen, wenn das Von-Feld GELEERT wird (nicht Jahr 0)', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@FUERST@', place('@FUERST@', { title: 'Fürstbistum Münster' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@FUERST@', from: 1500, to: 1806 }] }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
+    await fireEvent.change(screen.getByLabelText('Fürstbistum Münster — gültig von (Jahr)'), {
+      target: { value: '' },
+    });
+
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
+      { placeId: '@FUERST@', from: null, to: 1806 },
+    ]);
+  });
+
+  it('trifft trotz sortierter Anzeige die RICHTIGE (rohe Array-Index-)Zugehörigkeit', async () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Amt Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Grafschaft Steinfurt' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        // @A@ (1816) steht im ROHEN Array vor @B@ (…–1300), angezeigt wird @B@ zuerst.
+        enclosedBy: [
+          { placeId: '@A@', from: 1816, to: null },
+          { placeId: '@B@', from: null, to: 1300 },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
+    await fireEvent.change(screen.getByLabelText('Grafschaft Steinfurt — gültig bis (Jahr)'), {
+      target: { value: '1350' },
+    });
+
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
+      { placeId: '@A@', from: 1816, to: null },
+      { placeId: '@B@', from: null, to: 1350 },
+    ]);
   });
 });

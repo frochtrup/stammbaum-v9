@@ -61,10 +61,11 @@ describe('interop hypothesis — Parse', () => {
         created: '2026-07-01',
         evidence: [{ sourceId: '@S5@', page: 'S. 12' }, { sourceId: '@S6@', page: 'Bl. 3r' }],
         rationale: 'Namensgleichheit und Ort\nplus Taufpate', conclusion: 'noch offen',
+        kind: 'free', refs: [],
       },
       {
         id: 'h_bbb', text: 'Zweite Hypothese ohne Evidenz', status: 'rejected', weight: 'low',
-        created: '', evidence: [], rationale: '', conclusion: '',
+        created: '', evidence: [], rationale: '', conclusion: '', kind: 'free', refs: [],
       },
     ]);
     const f = db.families.get('@F1@')!;
@@ -72,7 +73,7 @@ describe('interop hypothesis — Parse', () => {
       {
         id: 'h_ccc', text: 'Ehe war 1845 in Ochtrup', status: 'confirmed', weight: 'medium',
         created: '2026-07-03', evidence: [{ sourceId: '@S7@', page: 'fol. 8' }],
-        rationale: '', conclusion: '',
+        rationale: '', conclusion: '', kind: 'free', refs: [],
       },
     ]);
   });
@@ -131,6 +132,7 @@ describe('interop hypothesis — Mutationen überleben Roundtrip', () => {
     expect(hyp[2]).toEqual({
       id: 'h_new', text: 'Neue Vermutung', status: 'open', weight: 'medium', created: '2026-07-05',
       evidence: [{ sourceId: '@S8@', page: 'S. 1' }], rationale: 'weil', conclusion: '',
+      kind: 'free', refs: [],
     });
     expect(serializeAfterWriteBack(doc)).toContain('_FOO unbekannt bleibt Passthrough');
   });
@@ -169,5 +171,62 @@ describe('interop hypothesis — Mutationen überleben Roundtrip', () => {
     expect(hyp.length).toBe(1);
     expect(hyp[0].id).toBe('h_bbb');
     expect(out).toContain('_FOO unbekannt bleibt Passthrough');
+  });
+});
+
+// --- _HKIND/_HREF (ADR-v9-174, BL-240) --------------------------------------------------
+// Der Dublettenausschluss reist als abgelehnte Identitäts-Hypothese IN der Datei. Verriegelt
+// wird das Wire-Format samt Roundtrip — und die Rückfall-Regel für fremde `_HKIND`-Werte.
+describe('_HKIND/_HREF — Identitäts-Hypothese im Wire-Format', () => {
+  const IDENT = [
+    '0 HEAD',
+    '1 GEDC',
+    '2 VERS 5.5.1',
+    '0 @I1@ INDI',
+    '1 NAME Johann /Meyer/',
+    '1 _HYPO Johann Meyer (@I1@) und Johann Meyer (@I7@) sind dieselbe Person',
+    '2 _ID h_x',
+    '2 _HSTAT rejected',
+    '2 _HWGT high',
+    '2 _DATE 2026-07-31',
+    '2 _HKIND IDENT',
+    '2 _HREF @I7@',
+    '2 _HREF @F3@',
+    '2 _RATIO Geburtsjahre 1750 vs. 1762.',
+    '0 @I7@ INDI',
+    '1 NAME Johann /Meyer/',
+    '0 TRLR',
+    // Der Serializer schreibt CRLF (GEDCOM-Konvention) und KEIN abschließendes Zeilenende —
+    // die Fixture muss beides genauso halten, sonst vergleicht der Byte-Test Formalien.
+  ].join('\r\n');
+
+  it('parst kind + refs und schreibt sie byte-gleich zurück', () => {
+    const doc = parseGedcom(IDENT);
+    const h = doc.db.individuals.get('@I1@')!.hypotheses[0];
+    expect(h.kind).toBe('identity');
+    expect(h.refs).toEqual(['@I7@', '@F3@']);
+    expect(serializeAfterWriteBack(doc)).toBe(IDENT);
+  });
+
+  it('eine freie Hypothese schreibt WEDER _HKIND NOCH _HREF', () => {
+    const doc = parseGedcom(IDENT);
+    const p = doc.db.individuals.get('@I1@')!;
+    p.hypotheses = [{ ...p.hypotheses[0], kind: 'free', refs: [] }];
+    const out = serializeAfterWriteBack(doc);
+    expect(out).not.toContain('_HKIND');
+    expect(out).not.toContain('_HREF');
+  });
+
+  it('ein unbekannter _HKIND-Wert fällt auf `free` zurück, statt als Identität zu gelten', () => {
+    const doc = parseGedcom(IDENT.replace('2 _HKIND IDENT', '2 _HKIND MERGEDWITH'));
+    expect(doc.db.individuals.get('@I1@')!.hypotheses[0].kind).toBe('free');
+  });
+
+  it('eine NUR an kind/refs geänderte Hypothese gilt als geändert (Dirty-Check)', () => {
+    // Ohne kind/refs in hypothesesEqual bliebe ein frisch gesetzter Ausschluss ungeschrieben.
+    const doc = parseGedcom(IDENT);
+    const p = doc.db.individuals.get('@I1@')!;
+    p.hypotheses = [{ ...p.hypotheses[0], refs: ['@I7@'] }];
+    expect(serializeAfterWriteBack(doc)).not.toContain('_HREF @F3@');
   });
 });

@@ -140,3 +140,80 @@ describe('chainCompatibleAnyPath — Mehrpfad-Eltern-Verträglichkeit (ADR-v9-72
     expect(chainCompatibleAnyPath(byId2, '@X@', norm(['Deutsches Reich']))).toBe(true);
   });
 });
+
+// ADR-v9-181 / BL-249 — Nutzerbefund „eine vorne offene Gültigkeit einer Zuordnung wird
+// nicht aufgelöst FROM     TO 1806 XXX". `from == null` bei GESETZTEM `to` heißt „seit
+// jeher bis to" (Spec 11 §1). `dateMatches` liest das korrekt, die AUSWAHL des Gewinners
+// tat es nicht: sie verglich `from ?? -Infinity > bestFrom` gegen den Startwert
+// `-Infinity` — ein nach unten offener Eintrag konnte damit NIE gewinnen und der Ort galt
+// für seine ganze frühe Periode als ohne Zugehörigkeit bzw. ohne historischen Namen.
+describe('PlaceRegistry — nach unten offene Perioden (ADR-v9-181)', () => {
+  function ochtrup() {
+    return makePlaceRegistry(
+      placeMap(
+        place('@FUERST@', { title: 'Fürstbistum Münster' }),
+        place('@KREIS@', { title: 'Kreis Steinfurt' }),
+        place('@P1@', {
+          title: 'Ochtrup',
+          pnames: [
+            { value: 'Ochtorpe', from: null, to: 1400 },
+            { value: 'Ochtrup', from: 1400, to: null },
+          ],
+          enclosedBy: [
+            { placeId: '@FUERST@', from: null, to: 1806 },
+            { placeId: '@KREIS@', from: 1816, to: null },
+          ],
+        }),
+      ),
+    );
+  }
+
+  it('wählt die vorne offene Zugehörigkeit für ein Jahr innerhalb ihrer Periode', () => {
+    expect(ochtrup().enclosureIdsAsOf('@P1@', 1750)).toEqual(['@P1@', '@FUERST@']);
+  });
+
+  it('gilt bis EINSCHLIESSLICH des `to`-Jahres', () => {
+    expect(ochtrup().enclosureIdsAsOf('@P1@', 1806)).toEqual(['@P1@', '@FUERST@']);
+  });
+
+  it('meldet für ein solches Jahr KEIN `truncated` — die Kette ist bekannt, nicht abgeschnitten', () => {
+    const meta = { truncated: false };
+    ochtrup().enclosureIdsAsOf('@P1@', 1750, meta);
+    expect(meta.truncated).toBe(false);
+  });
+
+  it('lässt den datierten Nachfolger nach seinem Beginn gewinnen (Vorrangregel unverändert)', () => {
+    expect(ochtrup().enclosureIdsAsOf('@P1@', 1900)).toEqual(['@P1@', '@KREIS@']);
+  });
+
+  it('löst auch den nach unten offenen NAMEN periodengerecht auf, statt auf `title` zurückzufallen', () => {
+    expect(ochtrup().resolveAsOf('@P1@', 1350)).toBe('Ochtorpe');
+    expect(ochtrup().resolveAsOf('@P1@', 1900)).toBe('Ochtrup');
+  });
+
+  it('baut daraus die periodengerechte volle Kette', () => {
+    // 1350: beide Achsen nach unten offen — der historische Name UND die frühe Zugehörigkeit.
+    expect(ochtrup().enclosureChainAsOf('@P1@', 1350)).toEqual(['Ochtorpe', 'Fürstbistum Münster']);
+    // 1750: der Name ist längst „Ochtrup" (ab 1400), die Zugehörigkeit noch die offene —
+    // die beiden Achsen werden unabhängig voneinander aufgelöst.
+    expect(ochtrup().enclosureChainAsOf('@P1@', 1750)).toEqual(['Ochtrup', 'Fürstbistum Münster']);
+  });
+
+  it('bevorzugt bei ÜBERLAPPUNG weiterhin das spätere `from` — der offene Eintrag verdrängt nichts', () => {
+    const reg = makePlaceRegistry(
+      placeMap(
+        place('@ALT@', { title: 'Altes Amt' }),
+        place('@NEU@', { title: 'Neues Amt' }),
+        place('@P1@', {
+          title: 'Ochtrup',
+          enclosedBy: [
+            { placeId: '@ALT@', from: null, to: 1900 },
+            { placeId: '@NEU@', from: 1800, to: 1900 },
+          ],
+        }),
+      ),
+    );
+    expect(reg.enclosureIdsAsOf('@P1@', 1850)).toEqual(['@P1@', '@NEU@']);
+    expect(reg.enclosureIdsAsOf('@P1@', 1700)).toEqual(['@P1@', '@ALT@']);
+  });
+});

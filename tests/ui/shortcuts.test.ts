@@ -79,10 +79,39 @@ describe('matchShortcut — Speichern, Palette, Escape (BL-08/BL-93)', () => {
   });
 });
 
+describe('matchShortcut — Zurück/Vorwärts im Verlauf (BL-07)', () => {
+  const key = (init: Partial<KeyboardEvent> & { key: string }) =>
+    new KeyboardEvent('keydown', init as KeyboardEventInit);
+
+  it('Alt+← / Alt+→ steuern den Verlauf (dieselbe Taste wie in v8)', () => {
+    expect(matchShortcut(key({ key: 'ArrowLeft', altKey: true }))).toBe('back');
+    expect(matchShortcut(key({ key: 'ArrowRight', altKey: true }))).toBe('forward');
+  });
+
+  it('Pfeiltasten OHNE Alt bleiben frei — die Inseln navigieren damit im Baum', () => {
+    expect(matchShortcut(key({ key: 'ArrowLeft' }))).toBeNull();
+    expect(matchShortcut(key({ key: 'ArrowRight' }))).toBeNull();
+  });
+
+  it('Alt zusammen mit ⌘/Strg zählt nicht (fremde Fensterkürzel)', () => {
+    expect(matchShortcut(key({ key: 'ArrowLeft', altKey: true, metaKey: true }))).toBeNull();
+    expect(matchShortcut(key({ key: 'ArrowLeft', altKey: true, ctrlKey: true }))).toBeNull();
+  });
+
+  it('Alt mit einer unbelegten Taste bleibt still', () => {
+    expect(matchShortcut(key({ key: 'ArrowUp', altKey: true }))).toBeNull();
+    expect(matchShortcut(key({ key: 'a', altKey: true }))).toBeNull();
+  });
+});
+
 describe('belongsToField — welches Kürzel dem Eingabefeld gehört', () => {
-  it('überlässt dem Feld nur Undo/Redo', () => {
+  it('überlässt dem Feld nur Undo/Redo und Zurück/Vorwärts', () => {
     expect(belongsToField('undo')).toBe(true);
     expect(belongsToField('redo')).toBe(true);
+    // Option+←/→ springt im Textfeld wortweise — eine Navigation, die dabei die ganze
+    // Ansicht wegzieht, wäre dieselbe Falle wie ein ⌘Z auf die Datenbank (BL-07).
+    expect(belongsToField('back')).toBe(true);
+    expect(belongsToField('forward')).toBe(true);
   });
 
   it('lässt Escape, Speichern und Palette AUCH im Feld greifen', () => {

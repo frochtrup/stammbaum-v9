@@ -20,6 +20,8 @@ import {
 import { makeTask } from '../research/task';
 import { makeLogEntry } from '../research/log';
 import { makeHypothesis } from '../research/hypothesis';
+import { makeEvidenceEval } from '../research/eval';
+import { applyEvalAxis, isEvalTag } from './enum-maps';
 import type {
   ResearchTask,
   TaskStatus,
@@ -28,6 +30,7 @@ import type {
   Hypothesis,
   HypothesisStatus,
   HypothesisWeight,
+  HypothesisKind,
   EvidenceRef,
 } from '../research/types';
 import { normalizeSex } from '../model/sex';
@@ -40,6 +43,7 @@ import type {
   Note,
   Event,
   Citation,
+  EvidenceEval,
   Media,
   MediaCitation,
   MediaId,
@@ -85,6 +89,29 @@ function findMap(node: GedNode): GedNode | null {
   return null;
 }
 
+/**
+ * Parst einen `3 _EVAL`-Subtree unter einem Zitat in eine EvidenceEval (Spec 12 §3,
+ * Wire-Format 13 §2.3). Struktur (v8-Oracle, `gedcom-writer.js` `_writeSourCits` +
+ * `gedcom-parser.js` `_parseSourCitSub`):
+ *   3 _EVAL                    (Zeile OHNE Wert)
+ *   4 _STYP original|derivative|authored
+ *   4 _INFO primary|secondary|undetermined
+ *   4 _EVID direct|indirect|negative
+ *   4 _INFM <Freitext oder @I…@>
+ * Die vier Achsen werden MODELLIERT herausgelöst (Spec 13 §2.3, `_REPO_MODELLED`-Lehre) —
+ * sonst schriebe der Writer sie neben den vom Baum getragenen Original-Subtree.
+ * Ein UNBEKANNTES `_EVAL`-Kind (`4 _FOO …`) bleibt hier unangetastet und überlebt über den
+ * Passthrough-Backbone (INV-PT) — wie jedes andere nicht modellierte Zitat-Kind auch.
+ * Ein leeres `3 _EVAL` ergibt das leere Gerüst; der Writer schreibt daraus NICHTS
+ * (isEvidenceEvalEmpty — v8-Gate `!evalIsEmpty(c.eval)`), die Zeile fällt also erst dann
+ * weg, wenn der Record ohnehin aus dem Modell neu erzeugt wird.
+ */
+function parseEvidenceEval(node: GedNode): EvidenceEval {
+  const ev = makeEvidenceEval();
+  for (const c of node.children) if (isEvalTag(c.tag)) applyEvalAxis(ev, c.tag, c.value);
+  return ev;
+}
+
 function parseCitation(sourNode: GedNode): Citation {
   const sid = unescapeAt(sourNode.value);
   const cit = makeCitation(sid);
@@ -94,6 +121,8 @@ function parseCitation(sourNode: GedNode): Citation {
     const q = parseInt(quayRaw, 10);
     if (q >= 0 && q <= 3) cit.quay = q as Quay;
   }
+  const evalNode = child(sourNode, '_EVAL');
+  if (evalNode) cit.eval = parseEvidenceEval(evalNode);
   const noteNode = child(sourNode, 'NOTE');
   if (noteNode) cit.note = collectText(noteNode);
   for (const obje of children(sourNode, 'OBJE')) {
@@ -286,6 +315,9 @@ function parseLogEntry(node: GedNode): LogEntry {
  *   2 _HSTAT <open|confirmed|rejected>
  *   2 _HWGT <low|medium|high>
  *   2 _DATE <created>        (EIGENER Tag `_DATE`, wie bei _TASK)
+ *   2 _HKIND IDENT           (v9-Erweiterung, ADR-v9-174 — nur dieser eine Wert; fehlt bei
+ *                             einer freien Hypothese. Kein Oracle-Vorbild, wie _TASKID)
+ *   2 _HREF <@I…@|@F…@>      (v9-Erweiterung, WIEDERHOLBAR — weitere betroffene Datensätze)
  *   2 SOUR <sourceId>        (WIEDERHOLBAR — ein evidence[]-Item pro Block)
  *   3 PAGE <page>            (gehört zum vorangehenden SOUR-Block)
  *   2 _RATIO <rationale>     (CONT-fähig)
@@ -308,7 +340,13 @@ function parseHypothesis(node: GedNode): Hypothesis {
   }
   const ratio = child(node, '_RATIO');
   const concl = child(node, '_CONCL');
+  // Unbekannte _HKIND-Werte fallen bewusst auf 'free' zurück (wie _HSTAT/_HWGT): ein
+  // fremder oder künftiger Wert darf nicht dazu führen, dass ein Filter ihn als
+  // Identitäts-Aussage liest.
+  const kind: HypothesisKind = childValue(node, '_HKIND') === 'IDENT' ? 'identity' : 'free';
   return makeHypothesis(childValue(node, '_ID'), {
+    kind,
+    refs: children(node, '_HREF').map((r) => unescapeAt(r.value)),
     text: collectText(node),
     status,
     weight,
@@ -317,6 +355,13 @@ function parseHypothesis(node: GedNode): Hypothesis {
     rationale: ratio ? collectText(ratio) : '',
     conclusion: concl ? collectText(concl) : '',
   });
+}
+
+/** GED7-`ROLE`: die `PHRASE` (Wortlaut) schlägt den Enum-Wert; sonst der Enum-Wert selbst. */
+function roleFromGed7(asso: GedNode): string {
+  const role = child(asso, 'ROLE');
+  if (!role) return '';
+  return childValue(role, 'PHRASE') || role.value;
 }
 
 function parsePerson(rec: GedNode): Person {
@@ -406,7 +451,11 @@ function parsePerson(rec: GedNode): Person {
         p.associations.push({
           personRef: c.value.startsWith('@') ? unescapeAt(c.value) : null,
           grampsHandle: null,
-          role: childValue(c, 'RELA') || childValue(c, 'ROLE'),
+          // GED7 trägt die Rolle als Enum in `ROLE`, den Wortlaut in dessen `PHRASE`
+          // (BL-241). Der Wortlaut gewinnt: „Taufpate" ist die Aussage, `GODP` ihre
+          // Kodierung — läse man das Enum, ginge beim Rückschreiben nach 5.5.1 die
+          // Formulierung des Bearbeiters verloren.
+          role: childValue(c, 'RELA') || roleFromGed7(c),
           note: childValue(c, 'NOTE'),
           citations: children(c, 'SOUR').map(parseCitation),
         });
@@ -430,8 +479,11 @@ function parsePerson(rec: GedNode): Person {
       case 'EXID':
         p.exids.push({ value: c.value, type: childValue(c, 'TYPE') });
         break;
-      case 'CREA':
+      case 'CREA': // 7.0
         p.createdDate = childValue(c, 'DATE');
+        break;
+      case '_DATE': // 5.5.1 kennt kein CREA (BL-243) — gleiche Bedeutung, anderer Tag
+        p.createdDate = c.value;
         break;
       case '_TASK':
         p.tasks.push(parseTask(c));
@@ -513,7 +565,11 @@ function parseSource(rec: GedNode): Source {
   if (titl) s.title = collectText(titl);
   const auth = child(rec, 'AUTH');
   if (auth) s.author = collectText(auth);
-  s.date = childValue(rec, 'DATE');
+  // Erfassungsdatum (BL-243, ADR-v9-179): `1 CREA / 2 DATE` (7.0) ODER `1 _DATE` (5.5.1,
+  // Legacy/v8). Ein `1 DATE` direkt unter SOUR wird NICHT gelesen — den Tag kennt weder
+  // 5.5.1 noch 7.0 im `SOURCE_RECORD`, er bleibt Passthrough (LP-1).
+  const crea = child(rec, 'CREA');
+  s.createdDate = (crea ? childValue(crea, 'DATE') : '') || childValue(rec, '_DATE');
   const publ = child(rec, 'PUBL');
   if (publ) s.publisher = collectText(publ);
   const text = child(rec, 'TEXT');
@@ -524,6 +580,22 @@ function parseSource(rec: GedNode): Source {
     s.callNumber = childValue(repo, 'CALN');
     const caln = child(repo, 'CALN');
     if (caln) s.callMedia = childValue(caln, 'MEDI');
+  }
+  // `SOUR.DATA` (BL-217): Abdeckung + verantwortliche Stelle. Der Container wird als Ganzes
+  // erkannt (RECOGNIZED_SOURCE) — deshalb MUSS jedes nicht modellierte Kind (NOTE/SNOTE …)
+  // in `dataExtra` mitgenommen werden, sonst fällt es beim Neu-Emittieren eines geänderten
+  // Records still aus dem Passthrough (INV-PT). Reihenfolge im Grammatik-Sinn: EVEN*, AGNC.
+  const data = child(rec, 'DATA');
+  if (data) {
+    s.agnc = childValue(data, 'AGNC');
+    for (const ev of children(data, 'EVEN')) {
+      s.dataEvents.push({
+        eventTypes: ev.value,
+        date: childValue(ev, 'DATE'),
+        place: childValue(ev, 'PLAC'),
+      });
+    }
+    s.dataExtra = data.children.filter((c) => c.tag !== 'AGNC' && c.tag !== 'EVEN');
   }
   for (const refn of [...children(rec, 'REFN'), ...children(rec, 'EXID')]) {
     s.externalRefs.push({ value: refn.value, type: childValue(refn, 'TYPE') });

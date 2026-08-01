@@ -187,3 +187,65 @@ describe('App — Formfaktor schaltet Navigation UND Layout um (Spec 21 §3, BL-
     expect(screen.getByRole('button', { name: /＋ Neue Person/ })).toBeTruthy();
   });
 });
+
+describe('App — History-Navigation (Spec 20 §1.1 [K], BL-07)', () => {
+  // Die Modell-Logik prüft tests/ui/nav-history.test.ts. HIER geht es um die VERDRAHTUNG:
+  // dass der beobachtende Effekt in der Schale den Verlauf überhaupt füllt und dass das
+  // Tastenkürzel ihn bedient. Ein grünes Modell ohne diesen Nachweis wäre genau die halb
+  // gebaute Funktion, die niemand merkt.
+  async function appMitPerson() {
+    const { adapters } = createMockAdapterSet({
+      initialWorkingCopy: { text: MINI_GED, name: 'arbeitskopie.ged' },
+    });
+    const fileService = new FileService(adapters);
+    render(App, { props: { fileService, persister: mockPersister(), layoutEnv: layoutEnvFor(false) } });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Muster/ })).toBeTruthy());
+  }
+
+  const altPfeil = (key: 'ArrowLeft' | 'ArrowRight') =>
+    fireEvent.keyDown(window, { key, altKey: true });
+
+  it('Alt+← kehrt aus einer anderen Fläche auf die zuvor offene Detailseite zurück', async () => {
+    await appMitPerson();
+    await fireEvent.click(screen.getByRole('button', { name: /Muster/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '← Zurück' })).toBeTruthy());
+
+    await fireEvent.click(screen.getByRole('button', { name: /Mehr/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
+
+    await altPfeil('ArrowLeft');
+    // Zurück auf der Detailseite — nicht bloß im Personen-Segment: die Auswahl gehört
+    // zum Verlaufspunkt.
+    await waitFor(() => expect(screen.getByRole('button', { name: '← Zurück' })).toBeTruthy());
+  });
+
+  it('Alt+→ führt den zurückgenommenen Schritt wieder aus', async () => {
+    await appMitPerson();
+    await fireEvent.click(screen.getByRole('button', { name: /Muster/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Mehr/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
+
+    await altPfeil('ArrowLeft');
+    await waitFor(() => expect(screen.getByRole('button', { name: '← Zurück' })).toBeTruthy());
+
+    await altPfeil('ArrowRight');
+    await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
+  });
+
+  it('„← Zurück" im Detail-Kopf führt zur HERKUNFT, nicht stur zur Liste', async () => {
+    await appMitPerson();
+    // Dieselbe Detailseite, ZWEIMAL auf verschiedenen Wegen erreicht — der Rückweg ist
+    // jedes Mal ein anderer. Genau das konnte „← Zur Liste" nicht (Spec 20 §1.1).
+    await fireEvent.click(screen.getByRole('button', { name: /Muster/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /Mehr/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
+
+    // Über den Daten-Slot zurück auf die Fläche: die Auswahl lebt noch, also steht wieder
+    // die Detailseite da — diesmal aber mit dem Hub als Herkunft.
+    await fireEvent.click(screen.getByRole('button', { name: /Daten/ }));
+    const zurueck = await waitFor(() => screen.getByRole('button', { name: '← Zurück' }));
+
+    await fireEvent.click(zurueck);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
+  });
+});

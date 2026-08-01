@@ -282,8 +282,8 @@ describe('Quellen', () => {
     const p = personWith('@I1@', { topLevelCitations: [cite('@S1@')] });
     const db = dbWith([p]);
     db.sources.set('@S1@', {
-      id: '@S1@', abbr: '', title: 'Kirchenbuch', author: '', date: '', publisher: '',
-      text: '', repo: '', callNumber: '', callMedia: '', dataEvents: [], externalRefs: [],
+      id: '@S1@', abbr: '', title: 'Kirchenbuch', author: '', createdDate: '', publisher: '',
+      text: '', repo: '', callNumber: '', callMedia: '', agnc: '', dataEvents: [], dataExtra: [], externalRefs: [],
       media: [], lastChanged: '',
     });
     expect(texts(db, 'ORPHAN_CITATION')).toEqual([]);
@@ -547,5 +547,83 @@ describe('withoutAlreadyTasked', () => {
 
     p.tasks = [makeTask('t1', { text: findings[0].text, created: '2026-01-01' })];
     expect(withoutAlreadyTasked(findings, db)).toHaveLength(0);
+  });
+});
+
+// EVIDENCE_CONFLICT (ADR-v9-165 Pkt 4, BL-229): ein Faktum, das ≥2 Zitate mit
+// gegenläufiger Evidenz-Achse trägt (`direct` gegen `negative`). Ab Werk AN — anders als
+// MISSING_EVAL, das über Abwesenheit klagt, schlägt diese Regel ausschließlich dort an,
+// wo jemand ZWEI Bewertungen bewusst gesetzt hat.
+describe('EVIDENCE_CONFLICT (Widersprüchliche Evidenz)', () => {
+  const direkt = (sid: string) =>
+    cite(sid, { eval: { source: 'original', information: 'primary', evidence: 'direct' } });
+  const negativ = (sid: string) =>
+    cite(sid, { eval: { source: 'original', information: 'primary', evidence: 'negative' } });
+
+  it('schlägt an, wenn EIN Faktum ein direktes und ein negatives Zitat trägt', () => {
+    const p = personWith('@I1@', { topLevelCitations: [direkt('@S1@'), negativ('@S2@')] });
+    expect(texts(dbWith([p]), 'EVIDENCE_CONFLICT')).toHaveLength(1);
+  });
+
+  it('nennt das betroffene Faktum, damit der Befund auffindbar ist', () => {
+    const p = personWith('@I1@');
+    p.birth.citations = [direkt('@S1@'), negativ('@S2@')];
+    expect(texts(dbWith([p]), 'EVIDENCE_CONFLICT')[0]).toMatch(/Geburt/);
+  });
+
+  it('schweigt, wenn die gegenläufigen Zitate an VERSCHIEDENEN Fakten hängen', () => {
+    // Der Kern der Regel: „an einem Faktum". Eine Geburt direkt zu belegen und einen
+    // Tod negativ ist kein Widerspruch, sondern der Normalfall sauberer Arbeit.
+    const p = personWith('@I1@');
+    p.birth.citations = [direkt('@S1@')];
+    p.death.citations = [negativ('@S2@')];
+    expect(texts(dbWith([p]), 'EVIDENCE_CONFLICT')).toEqual([]);
+  });
+
+  it('schweigt bei gleichgerichteten Achsen und bei indirekt gegen direkt', () => {
+    const gleich = personWith('@I1@', { topLevelCitations: [direkt('@S1@'), direkt('@S2@')] });
+    expect(texts(dbWith([gleich]), 'EVIDENCE_CONFLICT')).toEqual([]);
+
+    const indirekt = personWith('@I2@', {
+      topLevelCitations: [
+        direkt('@S1@'),
+        cite('@S2@', { eval: { source: 'original', information: 'primary', evidence: 'indirect' } }),
+      ],
+    });
+    expect(texts(dbWith([indirekt]), 'EVIDENCE_CONFLICT')).toEqual([]);
+  });
+
+  it('schweigt, wenn eines der beiden Zitate gar keine Bewertung trägt', () => {
+    // Genau die Abgrenzung zu MISSING_EVAL: über eine FEHLENDE Bewertung klagt diese
+    // Regel nicht — sonst wäre sie ab Werk an und würde über Abwesenheit reden.
+    const p = personWith('@I1@', { topLevelCitations: [negativ('@S1@'), cite('@S2@')] });
+    expect(texts(dbWith([p]), 'EVIDENCE_CONFLICT')).toEqual([]);
+  });
+
+  it('findet den Widerspruch auch an einer Familie (Heirat)', () => {
+    // Mit Gatten: ein Familien-Befund braucht eine Ankerperson, sonst unterdrückt die
+    // Engine ihn bewusst (dieselbe Konvention wie NO_FAM_SOURCES) — „→ Als Aufgabe
+    // übernehmen" hätte sonst keinen Träger.
+    const f = familyWith('@F1@', { husband: '@I1@' });
+    f.marriage.citations = [direkt('@S1@'), negativ('@S2@')];
+    const db = dbWith([personWith('@I1@')], [f]);
+    const findings = runValidation(db, only('EVIDENCE_CONFLICT'));
+    expect(findings).toHaveLength(1);
+    expect(findings[0].personId).toBe('@I1@');
+    expect(findings[0].text).toMatch(/Heirat/);
+  });
+
+  it('meldet je Faktum EINEN Befund, nicht je Zitatpaar', () => {
+    const p = personWith('@I1@', {
+      topLevelCitations: [direkt('@S1@'), direkt('@S2@'), negativ('@S3@'), negativ('@S4@')],
+    });
+    expect(texts(dbWith([p]), 'EVIDENCE_CONFLICT')).toHaveLength(1);
+  });
+
+  it('ist ab Werk EINGESCHALTET (anders als MISSING_EVAL)', () => {
+    const p = personWith('@I1@', { topLevelCitations: [direkt('@S1@'), negativ('@S2@')] });
+    const findings = runValidation(dbWith([p]), defaultConfig());
+    expect(findings.map((f) => f.rule)).toContain('EVIDENCE_CONFLICT');
+    expect(findings.find((f) => f.rule === 'EVIDENCE_CONFLICT')!.severity).toBe('warn');
   });
 });

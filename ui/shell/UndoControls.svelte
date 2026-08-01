@@ -51,7 +51,17 @@
          Breitenbudget — „Zum geladenen Stand" unten erscheint komplementär bei `!canUndo`,
          die beiden konkurrieren also nie um dieselbe Zeile (gemessen 375px: beschriftet
          118px gegen 230px Budget; mit dauerhaften Knöpfen wären es 230px am Anschlag
-         gewesen, was „Zum geladenen Stand" von 138 auf 106px gestaucht hätte). -->
+         gewesen, was „Zum geladenen Stand" von 138 auf 106px gestaucht hätte).
+
+         WORTWAHL „Rückgängig"/„Wiederholen" statt vormals „Zurück"/„Vor" (BL-07): seit die
+         Navigation ihren herkunftsbewussten „← Zurück"-Knopf hat (ADR-v9-177), standen auf
+         dem Personen-Steckbrief ZWEI Knöpfe mit derselben Beschriftung und verschiedener
+         Wirkung — Daten zurücknehmen gegen Ansicht zurück. Dieselbe Sorte Namenskollision,
+         die ADR-v9-122 zwischen Nav-Slot und Segment aufgelöst hat. Das Handbuch schrieb
+         ohnehin schon „Rückgängig"; die UI zog jetzt nach. „Wiederholen" statt
+         „Wiederherstellen" ist zweifach begründet: gemessen 206px gegen 228px im 230er
+         Budget, und „wiederherstellen" ist genau das, was der Nachbarknopf „Zum geladenen
+         Stand" tut — ein zweites Wort für zwei Dinge wäre die Kollision von vorn. -->
     {#if appState.canUndo}
       <button
         type="button"
@@ -59,7 +69,7 @@
         onclick={onUndo}
         use:tooltip={'Tastenkürzel: ⌘Z'}
       >
-        <span aria-hidden="true">↶</span> Zurück
+        <span aria-hidden="true">↶</span> Rückgängig
       </button>
     {/if}
     {#if appState.canRedo}
@@ -69,7 +79,7 @@
         onclick={onRedo}
         use:tooltip={'Tastenkürzel: ⇧⌘Z'}
       >
-        <span aria-hidden="true">↷</span> Vor
+        <span aria-hidden="true">↷</span> Wiederholen
       </button>
     {/if}
 

@@ -290,7 +290,10 @@
    *  Knotens: der Fokus wandert beim Klick auf einen Treffer aus dem Feld-Teilbaum in den
    *  Panel-Teilbaum. Ohne diese zweite Hälfte schlösse `focusout` die Liste noch vor dem
    *  `click` — der Treffer wäre nicht mehr auswählbar, also genau der Defekt, der hier
-   *  behoben wird, nur eine Stufe später. */
+   *  behoben wird, nur eine Stufe später.
+   *
+   *  DIESE Prüfung reicht allein NICHT: sie setzt voraus, dass `relatedTarget` gesetzt
+   *  ist, was nur in Chromium gilt (s. `haltFokusImFeld`, ADR-v9-182). */
   function istInnen(next: FocusEvent['relatedTarget']): boolean {
     if (!(next instanceof Node)) return false;
     return !!rootEl?.contains(next) || !!panelEl?.contains(next);
@@ -300,6 +303,34 @@
     if (istInnen(e.relatedTarget)) return;
     if (!open) return;
     closeList();
+  }
+
+  /**
+   * Hält den Fokus im Eingabefeld, während ein Listeneintrag angeklickt wird (ADR-v9-182,
+   * BL-250). `istInnen` oben deckt nur den Fall ab, dass `relatedTarget` überhaupt GESETZT
+   * ist — Chromium fokussiert einen `<button>` beim `mousedown`, **Safari und Firefox
+   * nicht**. Dort ist `relatedTarget` `null`, `istInnen` sagt „außen", und `closeList()`
+   * räumt das Panel ab, BEVOR das `click` seinen Treffer erreicht: der Nutzer klickt an,
+   * und nichts geschieht (Nutzerbefund „Ortspicker wählt nicht aus", Safari).
+   *
+   * `preventDefault` am `mousedown` unterbindet genau die Fokus-Verschiebung, die diese
+   * Kette auslöst — der Fokus bleibt im Feld, `focusout` feuert gar nicht, und die
+   * Reihenfolge ist in jedem Browser dieselbe. Kein Browser-Sniffing, kein `setTimeout`,
+   * kein zweiter Schließweg.
+   *
+   * Der Schutz sitzt am PANEL, nicht an den Zeilen (BL-254, ADR-v9-185). Er saß zuerst je
+   * Zeile, mit dem Vorsatz „muss an JEDER Zeile hängen" — und übersah damit alles, was
+   * keine Zeile ist: den **Scrollbalken** der Ergebnisliste (ab 25 Treffern der Regelfall),
+   * die Polsterung des Panels, die Leermeldung, den „… N weitere"-Hinweis. Am laufenden
+   * System gemessen (`scrollHeight` 993 / `clientHeight` 256): ein Klick auf die Polsterung
+   * ließ `activeElement` auf `BODY` zurück und räumte die Liste ab — in Chromium, nicht nur
+   * in Safari; wer scrollen wollte, klappte zu. Am Panel greift die Regel für den ganzen
+   * Teilbaum (das `mousedown` blubbert von jeder Zeile dorthin), und eine künftig neu
+   * hinzugefügte Zeilenart kann sie nicht mehr vergessen — das ist der Unterschied zwischen
+   * einer Erinnerung und einer Stelle.
+   */
+  function haltFokusImFeld(e: MouseEvent) {
+    e.preventDefault();
   }
 </script>
 
@@ -347,6 +378,7 @@
       class="stb-picker__panel"
       bind:this={panelEl}
       use:anchoredTo={fieldEl}
+      onmousedown={haltFokusImFeld}
       onfocusout={onFocusOut}
       onkeydown={onKeydown}
     >
@@ -354,7 +386,12 @@
            zugänglichen Namen sind für Screenreader-Nutzer nicht unterscheidbar. -->
       <ul class="stb-picker__results" role="listbox" id={listId} aria-label={`${label} — Treffer`}>
         {#each rows as row, i (row.kind === 'item' ? row.id : row.kind)}
-          <li>
+          <!-- `role="presentation"` ist hier Pflicht, nicht Kosmetik (BL-66/axe): ein
+               `listbox` MUSS `option`s besitzen, und ein dazwischenliegendes `<li>`
+               (implizit `listitem`) unterbricht diese Eltern-Kind-Kette — Screenreader
+               finden die Treffer dann nicht als Optionen der Liste. Das `<li>` bleibt
+               trotzdem stehen: es trägt das Zeilen-Layout und hält das `<ul>` gültig. -->
+          <li role="presentation">
             {#if row.kind === 'none'}
               <button
                 type="button"
@@ -400,13 +437,18 @@
             {/if}
           </li>
         {/each}
-        {#if candidates.length === 0}
-          <li class="stb-picker__empty">Keine Treffer gefunden.</li>
-        {/if}
-        {#if hiddenCount > 0}
-          <li class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</li>
-        {/if}
       </ul>
+      <!-- Leermeldung und Kapazitäts-Hinweis stehen NEBEN der Liste, nicht darin (BL-254/
+           axe `aria-required-children`): ein `listbox` darf nur `option`s besitzen. Als
+           `<li role="presentation">` INNERHALB des `<ul>` waren sie die einzigen Kinder,
+           sobald die Suche nichts traf — genau der Zustand, den bis dahin kein Testzustand
+           erreicht hatte, weil kein Test je auf null Treffer filterte. -->
+      {#if candidates.length === 0}
+        <p class="stb-picker__empty">Keine Treffer gefunden.</p>
+      {/if}
+      {#if hiddenCount > 0}
+        <p class="stb-picker__more-hint">… {hiddenCount} weitere — enger tippen, um einzugrenzen.</p>
+      {/if}
       {#if footer}
         <div class="stb-picker__footer">{@render footer()}</div>
       {/if}
@@ -542,6 +584,7 @@
 
   .stb-picker__empty,
   .stb-picker__more-hint {
+    margin: 0;
     padding: 0.4rem 0.5rem;
     color: var(--stb-text-dim);
     font-size: 0.8rem;
