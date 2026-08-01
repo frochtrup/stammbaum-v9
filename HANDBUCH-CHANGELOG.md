@@ -22,6 +22,17 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.9] — 2026-08-01
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`81b743e`…HEAD) erzeugt._
+
+- Inhaltliche Revision nach einer Abdeckungs- und Balance-Prüfung gegen das Backlog: Kapitel „Was noch folgt" nannte GOV-Import und Personenbezüge als fehlend, obwohl beide gebaut sind — korrigiert und beide beschrieben
+- Acht gebaute, bisher unbeschriebene Funktionen ergänzt: Soundex-Suche, Typ-Chips der Suchtreffer, Marker-Klick auf der Karte, Mini-Karte als Sprung, Geo-Regeln der Datenprüfung, Datumsphrase, Prozente in der Statistik, Kekulé-Marker der Personenliste
+- Familien, Höfe, Suche und Statistik waren gegenüber ihrem Gewicht in der App zu dünn beschrieben und wurden ausgebaut
+- Die verlustfreie Datei-Treue steht jetzt in Kapitel 1 statt nur im Anhang
+
+---
+
 ## [9.8] — 2026-08-01
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`5d8abf7`…HEAD) erzeugt._

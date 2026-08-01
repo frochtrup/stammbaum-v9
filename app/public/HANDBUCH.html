@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.8 · Stand 2026-08-01</div>
+  <div class="version">Benutzerhandbuch · Version 9.9 · Stand 2026-08-01</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -248,9 +248,19 @@
       Es gibt keine Anmeldung und keine Cloud, in die etwas hochgeladen wird.</li>
   <li><strong>Offline nutzbar.</strong> Einmal geladen, funktioniert die App auch ohne
       Internet. Eine Anzeige in der Schale signalisiert, wenn Sie offline sind.</li>
-  <li><strong>Standardformate.</strong> Sie öffnet <strong>GEDCOM 5.5.1</strong> und
-      <strong>GRAMPS</strong>-Dateien und schreibt sie wieder — ohne Ihre Daten zu
-      verstümmeln (siehe <a href="#k16">Kapitel 18</a>).</li>
+  <li><strong>Ihre Datei kommt heil wieder heraus.</strong> Das ist der Grund, warum es
+      diese App gibt. Öffnen und Speichern gibt Ihnen dieselbe Datei zurück — <em>alles</em>,
+      was Ihr voriges Programm hineingeschrieben hat, auch was Stammbaum selbst gar nicht
+      anzeigen kann, steht unverändert wieder drin. Nachgewiesen wird das nicht behauptet,
+      sondern gemessen: Jede Änderung am Programm muss einen automatischen Test bestehen,
+      der eine echte Datei liest, schreibt, wieder liest und auf <strong>null Abweichung</strong>
+      prüft. Wer schon einmal beim Programmwechsel Notizen, Patenschaften oder
+      Quellenangaben verloren hat, weiß, warum das keine Selbstverständlichkeit ist
+      (Einzelheiten: <a href="#anhangB">Anhang B</a>).</li>
+  <li><strong>Zwei Standardformate, gleichrangig.</strong> <strong>GEDCOM 5.5.1</strong> und
+      <strong>GRAMPS XML</strong> — beide werden gelesen <em>und</em> geschrieben, Sie
+      können zwischen ihnen wechseln, ohne etwas zu verlieren (siehe
+      <a href="#k16">Kapitel 18</a>).</li>
   <li><strong>Sechs Kern-Datenarten:</strong> Personen, Familien, Quellen, Orte, Höfe und
       Medien — dazu Diagramme, Statistik und ein Forschungs-Arbeitsbereich.</li>
   <li><strong>Erzählte Biografien.</strong> Die <a href="#kStory">Story-Ansicht</a> macht
@@ -510,6 +520,30 @@
   müssen.
 </p>
 
+<h2>Was die Liste schon verrät</h2>
+<p>
+  Jede Zeile der Personenliste trägt drei stille Hinweise: das
+  <strong>Geschlechts-Zeichen</strong> (♂/♀/◇), die Lebensdaten mit Geburtsort — und, sobald
+  ein <a href="#proband">Proband</a> gesetzt ist, dessen <strong>Kekulé-Nummer
+  <code>#N</code></strong> bei allen Vorfahren. So sehen Sie beim Blättern, wer in der
+  direkten Ahnenlinie steht, ohne den Baum zu öffnen. Alphabetische Trenner gliedern die
+  Liste nach Anfangsbuchstaben.
+</p>
+
+<h2>Personenbezüge: Paten, Zeugen, Informanten</h2>
+<p>
+  Nicht jede Verbindung zwischen zwei Menschen ist eine Verwandtschaft. Unter
+  <strong>Personenbezüge</strong> hält der Steckbrief fest, wer bei einer Taufe Pate war,
+  wer als Zeuge unterschrieb oder wer eine Angabe berichtet hat — mit
+  <strong>Rolle</strong> (Vorschläge von Taufpate bis Informant, freier Text erlaubt),
+  Notiz und eigenen Quellenbelegen.
+</p>
+<div class="practice">
+  Gerade Paten und Trauzeugen sind in der Praxis oft der entscheidende Hinweis auf die
+  nächste Generation: Sie sind fast immer Verwandte oder Nachbarn. Wer sie miterfasst,
+  hat den Faden schon in der Hand, bevor die Urkunde ihn bestätigt.
+</div>
+
 <h2 id="proband">Der Proband — die Referenzperson der Sitzung</h2>
 <p>
   Viele Ansichten drehen sich um <em>eine</em> Person: der <a href="#k10">Baum</a> stellt
@@ -549,6 +583,13 @@
   volle Daten, nur Jahre, sowie Näherungen mit <code>um</code>, <code>vor</code>,
   <code>nach</code> und Zeiträume (<code>zwischen … und …</code>). Erfundene
   Genauigkeit hilft niemandem — tragen Sie ein, was die Quelle hergibt.
+</p>
+<p>
+  Wo die Quelle etwas sagt, das kein Datumsformat fasst — „am Sonntag nach Ostern",
+  „im Jahr der großen Flut" —, trägt das Ereignis zusätzlich eine
+  <strong>Datumsphrase</strong>. Sie erscheint <em>kursiv</em> in der Ereigniszeile,
+  auch dann, wenn gar kein gerechnetes Datum daneben steht: Der Wortlaut der Quelle geht
+  nicht verloren, nur weil er sich nicht in Zahlen übersetzen lässt.
 </p>
 
 <h3>Der Ort</h3>
@@ -653,12 +694,40 @@
           (mit Ort, Koordinaten und Quellen wie bei Personen).</li>
       <li><strong>Kinder</strong> — die Liste ist anklickbar; über
           „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder.</li>
+      <li>Ein <strong>Kind neu anlegen</strong> geht direkt aus der Familie heraus: die
+          neue Person ist sofort zugeordnet, Sie füllen nur noch den Steckbrief.</li>
+      <li>Auch <strong>ohne Trauung</strong> ist eine Familie gültig — eine Verbindung mit
+          gemeinsamen Kindern und ohne Heiratseintrag ist genealogischer Alltag, kein
+          Sonderfall.</li>
     </ul>
     <p>
       Ereignisse, die zu Personen <em>und</em> Familien gehören (etwa eine Heirat),
       teilen sich dieselbe Ereigniszeile — Sie pflegen sie nur an einer Stelle.
     </p>
   </div>
+</div>
+
+<!-- ============================================================= -->
+<div class="workflow">
+  <h3>So verbinden Sie zwei Menschen zu einer Familie</h3>
+  <ol class="steps">
+    <li>Im Steckbrief einer Person die <strong>Herkunftsfamilie</strong> oder eine
+        <strong>eigene Familie</strong> öffnen bzw. neu anlegen.</li>
+    <li>Den fehlenden Partner über den Personen-Picker zuordnen — oder direkt neu
+        anlegen, wenn es ihn noch nicht gibt.</li>
+    <li>Die <strong>Heirat</strong> als Familien-Ereignis erfassen (Datum, Ort, Quelle) —
+        sie erscheint danach bei beiden Partnern.</li>
+    <li>Die <strong>Kinder</strong> zuordnen. Wer beide Elternteile hat, taucht im
+        Sanduhr-Baum automatisch an der richtigen Stelle auf.</li>
+  </ol>
+</div>
+
+<div class="practice">
+  Eine Familie ist in GEDCOM der Träger der <em>Verbindung</em>, nicht der Personen: Wer
+  ein Kind einer Familie zuordnet, verknüpft es damit in einem Zug mit Vater und Mutter.
+  Das ist der Grund, warum Sie Eltern nicht einzeln an einer Person eintragen — und warum
+  eine Person in mehreren Familien stehen kann, als Kind in der einen, als Partner in der
+  nächsten.
 </div>
 
 <!-- ============================================================= -->
@@ -894,6 +963,24 @@
   </figure>
 </div>
 
+<h2>GOV-Eintrag übernehmen</h2>
+<p>
+  Das <a href="https://gov.genealogy.net">Geschichtliche Ortsverzeichnis (GOV)</a> hält für
+  viele deutsche Orte genau das, was eine GEDCOM-Datei nicht speichern kann: die
+  Verwaltungszugehörigkeit Epoche für Epoche. Im <strong>Bearbeiten-Modus</strong> eines
+  Ortes nimmt die Sektion <strong>„GOV-Eintrag übernehmen"</strong> die Textzusammenfassung
+  einer GOV-Seite entgegen — kopieren, einfügen, übernehmen. Die App liest daraus
+  Ortstyp, fremdsprachige Namen und die datierte Zugehörigkeitskette heraus.
+</p>
+<ul>
+  <li>Bewusst <strong>ohne Netzabruf</strong>: der Einfüge-Weg funktioniert auch offline
+      im Archiv.</li>
+  <li><strong>Fill-if-empty</strong> — Übernommenes füllt nur Lücken und überschreibt
+      nichts, was Sie selbst recherchiert haben.</li>
+  <li>Unbekannte Elternorte der Kette legt die App als Platzhalter an; der Schritt ist
+      ein normaler Vorgang und mit <strong>↶ Rückgängig</strong> zurücknehmbar.</li>
+</ul>
+
 <h2>Koordinaten, Kartenvorschau und Geocoding</h2>
 <p>
   <strong>Koordinaten</strong> sind die Grundlage jeder Karten-Darstellung. Liegen sie
@@ -996,6 +1083,26 @@
       <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
     </ul>
   </div>
+</div>
+
+<h2>Warum Höfe eine eigene Ebene sind</h2>
+<p>
+  In ländlichen Regionen ist der <strong>Hof</strong> die eigentliche Konstante der
+  Familiengeschichte — nicht die Person und nicht das Dorf. Höfe überdauern Generationen,
+  ihr Name geht auf den ein, der einheiratet, und Kirchenbücher notieren jahrhundertelang
+  „Anna, Tochter des Colon Brüning zu Langenhorst" statt einer Adresse. Wer nur das Dorf
+  erfasst, wirft genau die Ebene weg, auf der sich diese Quellen unterscheiden lassen.
+</p>
+<p>
+  Deshalb ist ein Hof in Stammbaum eine <strong>eigene Entität</strong> und kein Textfeld:
+  Er trägt Adressvarianten (jede Schreibweise, die in Quellen auftaucht), eigene
+  Koordinaten, seine Bewohner und Eigentümer über die Zeit — und lässt sich zusammenführen,
+  wenn zwei Schreibweisen sich als derselbe Hof herausstellen.
+</p>
+<div class="practice">
+  Der Ort beantwortet „wo auf der Karte", der Hof „welches Haus". Beides zusammen macht
+  aus einer Ansammlung gleichnamiger Personen eine nachvollziehbare Ortsgeschichte — die
+  Grundlage für Hofchronik und Ortssippenbuch (Kapitel „Ausgaben").
 </div>
 
 <!-- ============================================================= -->
@@ -1207,6 +1314,19 @@
   </div>
 </div>
 
+<h3>Einen Marker antippen</h3>
+<p>
+  Ein Tipp auf einen Marker öffnet <strong>unter</strong> der Karte ein Panel zu diesem
+  Ort — bewusst unter statt über der Karte, damit der angetippte Marker sichtbar bleibt.
+  Es listet, wer dort gelebt hat: bei einem Ort die <em>Ortszeitgenossen</em>, bei einem
+  Hof dessen Bewohner und Eigentümer. Jede Zeile führt zur Person, und
+  <strong>„→ Steckbrief"</strong> führt zum Ort selbst.
+</p>
+<p>
+  Den Weg in die Gegenrichtung gibt es auch: Die <strong>Mini-Karte</strong> im Ort- und
+  Hof-Steckbrief ist selbst anklickbar und springt in die große Karte.
+</p>
+
 <h2>Die Zeitleiste</h2>
 <p>
   Die Zeitleiste stellt das Leben einer Person (oder mehrerer im Vergleich) in
@@ -1230,6 +1350,17 @@
 
 <!-- ============================================================= -->
 <h1 class="chapter" id="k11">11. Statistik</h1>
+
+<p class="lead">
+  Wie sieht der Bestand als Ganzes aus? Die Statistik zeigt Verteilungen —
+  Geburtsjahrzehnte, Kinderzahl je Familie, Lebensalter, häufigste Nachnamen und Orte.
+</p>
+<p>
+  Jeder Balken <strong>beziffert sich selbst</strong>: Er nennt die absolute Zahl, und
+  ein Antippen bzw. Zeigen blendet zusätzlich den <strong>Prozentanteil</strong> ein.
+  Unter jeder Verteilung steht ihre Grundgesamtheit („N&nbsp;Familien gesamt") — ohne sie
+  ist ein Anteil nicht lesbar, und genau daran scheitern die meisten Statistik-Ansichten.
+</p>
 
 <div class="shot-row">
   <figure class="phone">
@@ -1519,6 +1650,14 @@
       Über <strong>Filter</strong>, <strong>✓ Bericht</strong> und das Zahnrad steuern
       Sie Umfang und Regel-Konfiguration.
     </p>
+    <h3>Auch die Orte werden geprüft</h3>
+    <p>
+      Eine eigene Regelklasse nimmt sich die <strong>Geografie</strong> vor — erreichbar
+      über die Kachel <strong>„🗺 Orte &amp; Höfe"</strong> im Dashboard: Koordinaten
+      außerhalb des erwarteten Gebiets, Höfe ohne Koordinate oder unplausibel weit von
+      ihrem Dorf entfernt, ringförmige Zugehörigkeitsketten (A liegt in B liegt in A) und
+      Zeiträume historischer Ortsnamen, die sich überlappen oder ohne Datum dastehen.
+    </p>
   </div>
   <figure class="phone">
     <img src="handbuch-assets/23-dashboard.png" alt="Qualitäts-Dashboard mit Ampel, Lückenradar und Brennpunkten">
@@ -1570,6 +1709,23 @@
       direkt zum Eintrag. Im Beispiel filtert „Ochtr" bereits alle in Ochtrup geborenen
       Personen heraus. Innerhalb einer Liste filtert zusätzlich das jeweilige lokale
       Suchfeld sofort mit.
+    </p>
+    <h3>≈ Soundex — ähnlich klingende Namen</h3>
+    <p>
+      Der Schalter <strong>≈ Soundex</strong> neben dem Suchfeld weitet die Personensuche
+      auf <strong>gleich klingende</strong> Namen aus: <em>Meyer</em> findet dann auch
+      <em>Maier</em>, <em>Mayer</em> und <em>Meier</em>. Das ist keine Bequemlichkeit,
+      sondern der Normalfall älterer Quellen — vor der Rechtschreibnormierung schrieb jeder
+      Pfarrer denselben Namen, wie er ihn hörte. Ausgeschaltet sucht die App wieder
+      buchstabengetreu.
+    </p>
+    <h3>Treffer auf eine Datenart eingrenzen</h3>
+    <p>
+      Über den Ergebnissen steht eine Chip-Reihe <strong>„Alle · Personen · Familien ·
+      Quellen · Orte · Höfe"</strong>, jeder Chip mit seiner Trefferzahl. Ein Tipp
+      beschränkt die Ausgabe auf diese Datenart. Die Chips erscheinen nur, wenn eine
+      Anfrage überhaupt mehrere Arten trifft — bei einem eindeutigen Namen bleibt die
+      Fläche ruhig.
     </p>
   </div>
   <figure class="phone">
@@ -1680,10 +1836,11 @@
   aufgeführt, damit Sie wissen, was heute fehlt.
 </p>
 <ul>
-  <li><strong>GOV-Import</strong> für historische Ortszugehörigkeiten (die Felder
-      existieren, der importierende Weg fehlt noch).</li>
-  <li><strong>Assoziationen</strong> (Zeugen, Paten, Informanten) in der Oberfläche —
-      im Datenkern bereits vorhanden.</li>
+  <li><strong>Historische Kartenebenen</strong> (z.&nbsp;B. Messtischblätter als
+      Hintergrund, eigene Kachel-Adresse) — die Karte nutzt heute eine feste
+      Grundkarte.</li>
+  <li><strong>Frei konfigurierbare Eingabe-Vorlagen</strong> für wiederkehrende
+      Erfassungsmuster.</li>
   <li><strong>Einstellungen</strong>.</li>
 </ul>
 
@@ -2103,7 +2260,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.8 · Stand 2026-08-01<br>
+  Stammbaum · Benutzerhandbuch Version 9.9 · Stand 2026-08-01<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
