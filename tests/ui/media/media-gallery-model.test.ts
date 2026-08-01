@@ -8,6 +8,9 @@ import {
   matchesMediaSearch,
   buildOwnerFilterOptions,
   displayTitle,
+  buildKindFilterOptions,
+  initialKindFilter,
+  matchesKindFilter,
   type MediaOwnerKind,
 } from '../../../ui/views/media/media-gallery-model';
 import {
@@ -116,7 +119,7 @@ describe('buildMediaTiles — Owner-Zuordnung über ALLE MediaCitation-Fundstell
 
 describe('matchesOwnerFilter / buildOwnerFilterOptions', () => {
   it('"all" trifft jede Kachel; die übrigen Filter grenzen auf die Owner-Art ein', () => {
-    const row = { id: 'x', title: 'X', file: 'x.jpg', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '' };
+    const row = { id: 'x', title: 'X', file: 'x.jpg', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'file' as const, isImage: true };
     expect(matchesOwnerFilter(row, 'all')).toBe(true);
     expect(matchesOwnerFilter(row, 'person')).toBe(true);
     expect(matchesOwnerFilter(row, 'family')).toBe(false);
@@ -125,8 +128,8 @@ describe('matchesOwnerFilter / buildOwnerFilterOptions', () => {
 
   it('liefert Zähler je Filter-Option', () => {
     const rows = [
-      { id: 'a', title: 'A', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '' },
-      { id: 'b', title: 'B', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['source']), refCount: 1, notes: '' },
+      { id: 'a', title: 'A', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['person']), refCount: 1, notes: '', fileKind: 'empty' as const, isImage: false },
+      { id: 'b', title: 'B', file: '', form: '', type: '', ownerKinds: new Set<MediaOwnerKind>(['source']), refCount: 1, notes: '', fileKind: 'empty' as const, isImage: false },
     ];
     const options = buildOwnerFilterOptions(rows);
     expect(options.find((o) => o.id === 'all')!.count).toBe(2);
@@ -146,6 +149,8 @@ describe('matchesMediaSearch — Dateiname/Titel/Notiz (Spec 20 §1.4 [S])', () 
     ownerKinds: new Set<MediaOwnerKind>(),
     refCount: 1,
     notes: 'Aufnahme im Garten',
+    fileKind: 'file' as const,
+    isImage: true,
   };
 
   it('leere Suche trifft immer', () => {
@@ -166,5 +171,73 @@ describe('matchesMediaSearch — Dateiname/Titel/Notiz (Spec 20 §1.4 [S])', () 
 
   it('trifft nicht bei fehlender Übereinstimmung', () => {
     expect(matchesMediaSearch(row, 'nirgendwo')).toBe(false);
+  });
+});
+
+// --- BL-256 / ADR-v9-187: Art-Facette ---------------------------------------
+//
+// Der Anlass ist gemessen: am Realbestand sind 452 der 642 Medien Weblinks. Ohne
+// Vorauswahl stehen sie vor den 189 Dateien und machen die Galerie unbrauchbar.
+
+describe('Art-Facette (Dateien ⇄ Weblinks)', () => {
+  function mixed(): Database {
+    const db = makeDatabase();
+    db.media.set('Pictures/a.jpg', makeMedia('Pictures/a.jpg', { title: 'A Foto' }));
+    db.media.set('Documents/u.pdf', makeMedia('Documents/u.pdf', { title: 'B Urkunde' }));
+    db.media.set('https://data.matricula-online.eu/x/', makeMedia('https://data.matricula-online.eu/x/', { title: 'C Kirchenbuch' }));
+    db.media.set('https://www.archion.de/y', makeMedia('https://www.archion.de/y', { title: 'D Archion' }));
+    return db;
+  }
+
+  it('klassifiziert jede Kachel über den Kern-Chokepoint', () => {
+    const rows = buildMediaTiles(mixed());
+    expect(rows.map((r) => r.fileKind)).toEqual(['file', 'file', 'weblink', 'weblink']);
+    expect(rows.map((r) => r.isImage)).toEqual([true, false, false, false]);
+  });
+
+  it('zählt beide Arten und stellt „Dateien" voran', () => {
+    const opts = buildKindFilterOptions(buildMediaTiles(mixed()));
+    expect(opts.map((o) => [o.id, o.count])).toEqual([
+      ['files', 2],
+      ['weblinks', 2],
+      ['all', 4],
+    ]);
+  });
+
+  it('wählt „Dateien" vor, sobald beide Arten vorkommen', () => {
+    const rows = buildMediaTiles(mixed());
+    expect(initialKindFilter(rows)).toBe('files');
+    expect(rows.filter((r) => matchesKindFilter(r, 'files')).map((r) => r.title)).toEqual([
+      'A Foto',
+      'B Urkunde',
+    ]);
+  });
+
+  it('blendet Weblinks nicht weg, sondern nur aus der Vorauswahl — der Chip trägt die Zahl', () => {
+    const rows = buildMediaTiles(mixed());
+    expect(rows.filter((r) => matchesKindFilter(r, 'weblinks'))).toHaveLength(2);
+    expect(rows.filter((r) => matchesKindFilter(r, 'all'))).toHaveLength(4);
+  });
+
+  it('zeigt KEINE Chip-Reihe, wenn nur eine Art vorkommt — und startet dann auf „Alle"', () => {
+    const onlyFiles = makeDatabase();
+    onlyFiles.media.set('Pictures/a.jpg', makeMedia('Pictures/a.jpg'));
+    expect(buildKindFilterOptions(buildMediaTiles(onlyFiles))).toEqual([]);
+    expect(initialKindFilter(buildMediaTiles(onlyFiles))).toBe('all');
+
+    // Der umgekehrte Fall ist der gefährlichere: ein Bestand aus lauter Zitat-Fundorten
+    // dürfte nicht in eine leere Galerie starten.
+    const onlyLinks = makeDatabase();
+    onlyLinks.media.set('https://a.de/x', makeMedia('https://a.de/x'));
+    expect(initialKindFilter(buildMediaTiles(onlyLinks))).toBe('all');
+  });
+
+  it('eingebettete Medien zählen als Datei, nicht als Weblink', () => {
+    const db = makeDatabase();
+    db.media.set('data:image/png;base64,AA', makeMedia('data:image/png;base64,AA', { title: 'E' }));
+    db.media.set('https://a.de/x', makeMedia('https://a.de/x', { title: 'F' }));
+    const rows = buildMediaTiles(db);
+    expect(rows.find((r) => r.title === 'E')?.fileKind).toBe('embedded');
+    expect(rows.filter((r) => matchesKindFilter(r, 'files')).map((r) => r.title)).toEqual(['E']);
   });
 });

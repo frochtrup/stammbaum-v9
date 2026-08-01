@@ -13,7 +13,7 @@ import { personBiographyPoints, type BiographyPoint } from '../../islands/map/ma
 import { EVENT_LABELS } from '../../islands/timeline/timeline-model';
 import { getParentIds, getSpouseFamilies } from '../../islands/tree/tree-model';
 import { displayName } from '../../shell/person-display';
-import { isDisplayableImage } from '../media/media-gallery-model';
+import { isEmbeddedImage } from '../../../core/model/media-kind';
 import { epochContext } from './story-epochs';
 import { buildPlaceContextSentence } from './place-context';
 import {
@@ -75,9 +75,13 @@ export interface StoryDoc {
 
 /**
  * Direkt darstellbare Fotos einer Person (BL-189): löst `person.media` über `db.media` auf
- * und behält nur `data:image/…`-URIs (isDisplayableImage — EIN Kriterium wie die Medien-
- * Vorschau BL-181). Primärfoto (`_PRIM`) zuerst. Ein bloßer Dateipfad trägt im
- * serverlosen Browser keine Bytes und wird bewusst weggelassen (kein totes `<img>`).
+ * und behält nur eingebettete Bilder (`isEmbeddedImage` — dasselbe Kern-Kriterium wie
+ * Galerie und Detail, ADR-v9-187). Primärfoto (`_PRIM`) zuerst.
+ *
+ * OFFENE GRENZE (BL-261): am Realbestand kommt `data:` 0× vor, diese Funktion liefert dort
+ * also KEIN Foto — Story und Familienbuch-Cover bleiben leer, obwohl 76 Personen ein
+ * Bild tragen. Die Auflösung von Pfad-Medien ist asynchron und braucht deshalb einen
+ * Vorlauf VOR den synchronen Buildern; das ist BL-261, nicht hier.
  */
 export function collectStoryMedia(db: Database, personId: PersonId): StoryPhoto[] {
   const p = db.individuals.get(personId);
@@ -86,7 +90,7 @@ export function collectStoryMedia(db: Database, personId: PersonId): StoryPhoto[
   const out: StoryPhoto[] = [];
   for (const mc of cits) {
     const m = db.media.get(mc.mediaId);
-    if (!m || !isDisplayableImage(m.file)) continue;
+    if (!m || !isEmbeddedImage(m.file)) continue;
     out.push({ src: m.file, title: mc.title || m.title || '' });
   }
   return out;

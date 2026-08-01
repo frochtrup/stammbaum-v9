@@ -1,8 +1,14 @@
 <script lang="ts">
   // ui/views/media/MediaGallery.svelte — Medien-Tab-Liste (Spec 20 §1.4 [S] "① Kachel-
-  // galerie"): globale Arbeitsfläche über db.media, nicht Personen-Tab-lokal. Filter
-  // Alle/Personen/Familien/Quellen + Suche über Dateiname/Titel/Notiz, kaputte Datei-
-  // Referenz zeigt ⚠, INV-UI-5-kompakte Kacheln.
+  // galerie"): globale Arbeitsfläche über db.media, nicht Personen-Tab-lokal. Besitzer-
+  // Filter Alle/Personen/Familien/Quellen + Art-Facette (Dateien/Weblinks, ADR-v9-187)
+  // + Suche über Dateiname/Titel/Notiz, kaputte Datei-Referenz zeigt ⚠, INV-UI-5-
+  // kompakte Kacheln.
+  //
+  // Die Art-Facette ist kein Kosmetik-Filter: am Realbestand sind 452 der 642 Medien
+  // Weblinks (Online-Fundorte von Zitaten) und würden die 189 echten Dateien überdecken.
+  // Welcher Art ein Wert ist, entscheidet der Kern (`core/model/media-kind.ts`), nicht
+  // diese View — dieselbe Quelle speist Detail, Steckbrief und Berichte.
   //
   // Bewusst KEIN "＋ Neues Medium" (anders als SourceList): ein leeres Medium ohne Datei-
   // pfad ist bedeutungslos (Media.file ist die einzige Wahrheitsquelle, Spec 10 §4/14 §7).
@@ -15,12 +21,16 @@
   import {
     buildMediaTiles,
     buildOwnerFilterOptions,
+    buildKindFilterOptions,
+    initialKindFilter,
     matchesOwnerFilter,
+    matchesKindFilter,
     matchesMediaSearch,
-    isDisplayableImage,
     type MediaOwnerFilter,
+    type MediaKindFilter,
     type MediaTileRow,
   } from './media-gallery-model';
+  import { isEmbeddedImage, webLinkHost } from '../../../core/model/media-kind';
 
   interface Props {
     appState: AppState;
@@ -35,15 +45,35 @@
   let query = $state('');
 
   const filterOptions = $derived(buildOwnerFilterOptions(allRows));
+  const kindOptions = $derived(buildKindFilterOptions(allRows));
+
+  // Die Art-Vorauswahl hängt vom Bestand ab (ADR-v9-187) und steht deshalb erst fest,
+  // wenn die Kacheln gebaut sind. `$state` + Nachziehen per Schlüssel statt `$derived`:
+  // der Nutzer soll den Chip wechseln können, ohne dass die Ableitung ihn zurücksetzt.
+  let kindFilter = $state<MediaKindFilter>('all');
+  let kindFilterKey = $state('');
+  $effect(() => {
+    const key = `${allRows.length}:${kindOptions.length}`;
+    if (key !== kindFilterKey) {
+      kindFilterKey = key;
+      kindFilter = initialKindFilter(allRows);
+    }
+  });
+
   const rows = $derived(
-    allRows.filter((r) => matchesOwnerFilter(r, filter) && matchesMediaSearch(r, query)),
+    allRows.filter(
+      (r) =>
+        matchesOwnerFilter(r, filter) &&
+        matchesKindFilter(r, kindFilter) &&
+        matchesMediaSearch(r, query),
+    ),
   );
 
-  // "kaputte Datei-Referenz zeigt ⚠": im Browser (kein Dateisystem-Zugriff) ist nur der
-  // leere/fehlende Pfad zuverlässig als kaputt erkennbar — das echte "Datei existiert nicht"
-  // bräuchte den FileService (Spec 14). Bewusst auf diese erkennbare Teilmenge beschränkt.
+  // "kaputte Datei-Referenz zeigt ⚠": ohne verbundenen Medien-Ordner (BL-257/BL-258) ist
+  // nur der leere Pfad zuverlässig als kaputt erkennbar. Das echte "Datei existiert nicht"
+  // kommt mit dem Auflösungsdienst; bis dahin bewusst diese erkennbare Teilmenge.
   function isBroken(row: MediaTileRow): boolean {
-    return !row.file.trim();
+    return row.fileKind === 'empty';
   }
 
   const OWNER_ICONS: Record<'person' | 'family' | 'source', string> = {
@@ -69,6 +99,21 @@
         aria-label="Medien durchsuchen"
         bind:value={query}
       />
+      {#if kindOptions.length > 0}
+        <div class="stb-segment-row media-gallery__filters" aria-label="Medien nach Art filtern">
+          {#each kindOptions as opt (opt.id)}
+            <button
+              type="button"
+              class="stb-segment-btn"
+              class:stb-segment-btn--active={kindFilter === opt.id}
+              aria-pressed={kindFilter === opt.id}
+              onclick={() => (kindFilter = opt.id)}
+            >
+              {opt.label} <span class="media-gallery__filter-count">{opt.count}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="stb-segment-row media-gallery__filters" aria-label="Medien nach Bezug filtern">
         {#each filterOptions as opt (opt.id)}
           <button
@@ -91,7 +136,7 @@
         {#each rows as row (row.id)}
           <li>
             <button type="button" class="media-gallery__tile" onclick={() => selectMedia(row.id)}>
-              {#if isDisplayableImage(row.file)}
+              {#if isEmbeddedImage(row.file)}
                 <span class="media-gallery__thumb">
                   <img src={row.file} alt="" loading="lazy" />
                 </span>
@@ -101,6 +146,11 @@
                 {row.title}
               </span>
               <span class="media-gallery__tile-meta">
+                {#if row.fileKind === 'weblink'}
+                  <span class="media-gallery__host" title={row.file}>↗ {webLinkHost(row.file) || 'Weblink'}</span>
+                {:else if !row.isImage && row.fileKind !== 'empty'}
+                  <span class="media-gallery__doc" title="Dokument">📄</span>
+                {/if}
                 {#if row.form}<span class="media-gallery__form">{row.form}</span>{/if}
                 {#each [...row.ownerKinds] as kind (kind)}
                   <span class="media-gallery__owner" title={kind}>{OWNER_ICONS[kind]}</span>
@@ -215,6 +265,10 @@
     gap: 0.5rem;
     font-size: 0.75rem;
     color: var(--stb-text-dim);
+  }
+
+  .media-gallery__host {
+    overflow-wrap: anywhere;
   }
 
   .media-gallery__form {

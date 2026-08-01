@@ -12,9 +12,22 @@
 // Lösch-Kaskade nicht auseinanderdriften (INV-UI-4-Geist: eine Traversierung, zwei
 // Konsumenten).
 import type { Citation, Database, Media, MediaCitation, MediaId } from '../../../core/model/types';
+import { classifyMediaFile, isImageMedia, type MediaFileKind } from '../../../core/model/media-kind';
 
 export type MediaOwnerKind = 'person' | 'family' | 'source';
 export type MediaOwnerFilter = 'all' | MediaOwnerKind;
+
+/**
+ * Art-Facette der Galerie (ADR-v9-187): am Realbestand sind 452 der 642 Medien Weblinks —
+ * ohne diese Trennung überdecken sie die 189 echten Dateien vollständig. Bewusst DREI
+ * Chips statt einer Aufteilung nach Bild/Dokument: der Unterschied Bild ⇄ Dokument ist
+ * eine Frage der KACHEL-Darstellung (Thumbnail vs. Dokumentsymbol), keine, nach der man
+ * sucht — und jeder weitere Chip kostet Fläche (INV-UI-11).
+ *
+ * `files` bündelt alles, was Inhalt IST (Pfad-Datei + eingebettet + die seltene leere
+ * Hülle), `weblinks` alles, was auf einen Fundort ZEIGT.
+ */
+export type MediaKindFilter = 'files' | 'weblinks' | 'all';
 
 const PERSON_EVENT_FIELDS = ['birth', 'chr', 'death', 'buri'] as const;
 const FAMILY_EVENT_FIELDS = ['marriage', 'engagement'] as const;
@@ -33,6 +46,11 @@ export interface MediaTileRow {
    *  Dateiname/Titel/Notiz") — Media selbst hat kein eigenes Notiz-Feld (nur
    *  MediaCitation.note, je Referenz). */
   notes: string;
+  /** Form des `file`-Werts (ADR-v9-187) — aus dem EINEN Kern-Chokepoint, nicht hier
+   *  nochmal entschieden. */
+  fileKind: MediaFileKind;
+  /** Wird als Bild dargestellt (sobald die Bytes vorliegen) oder als Dokument. */
+  isImage: boolean;
 }
 
 function basename(path: string): string {
@@ -44,16 +62,10 @@ export function displayTitle(m: Media): string {
   return m.title || basename(m.file) || m.id;
 }
 
-/**
- * Ist die Datei-Referenz direkt im Browser als Bild darstellbar? Nur `data:image/…`-URIs
- * (self-enthalten, per CSP `img-src … data:` erlaubt, [app/csp-policy.ts]). Ein bloßer
- * Dateipfad (`foto_1.jpg`) ist es NICHT — die App hat ohne Dateizugriff nicht die Bytes;
- * solche Medien zeigen den Metadaten-Kachelinhalt statt eines toten `<img>` (ehrlich statt
- * kaputtes Bildsymbol). Bewusst eng: `blob:`/entfernte Hosts sind hier (noch) nicht dabei.
- */
-export function isDisplayableImage(file: string): boolean {
-  return /^data:image\//i.test(file.trim());
-}
+// `isDisplayableImage` lebte hier bis ADR-v9-187 und entschied für die ganze UI, ob ein
+// Medium anzeigbar ist. Diese Entscheidung liegt jetzt im Kern (`core/model/media-kind.ts`,
+// `isEmbeddedImage`/`isImageMedia`) — sie wird an fünf Stellen gebraucht (Kachel, Detail,
+// Steckbrief, Ereigniszeile, Berichts-Vorlauf), und eine davon darf sie nicht besitzen.
 
 interface OwnerAcc {
   kinds: Set<MediaOwnerKind>;
@@ -134,6 +146,8 @@ export function buildMediaTiles(db: Database): MediaTileRow[] {
       ownerKinds: info?.kinds ?? new Set(),
       refCount: info?.count ?? 0,
       notes: info ? Array.from(info.notes).join(' ') : '',
+      fileKind: classifyMediaFile(m.file),
+      isImage: isImageMedia(m.file, m.form),
     });
   }
   return rows.sort((a, b) => a.title.localeCompare(b.title, 'de'));
@@ -167,4 +181,45 @@ export function buildOwnerFilterOptions(rows: readonly MediaTileRow[]): MediaOwn
     { id: 'family', label: 'Familien', count: rows.filter((r) => r.ownerKinds.has('family')).length },
     { id: 'source', label: 'Quellen', count: rows.filter((r) => r.ownerKinds.has('source')).length },
   ];
+}
+
+export interface MediaKindFilterOption {
+  id: MediaKindFilter;
+  label: string;
+  count: number;
+}
+
+export function matchesKindFilter(row: MediaTileRow, filter: MediaKindFilter): boolean {
+  if (filter === 'all') return true;
+  const isLink = row.fileKind === 'weblink';
+  return filter === 'weblinks' ? isLink : !isLink;
+}
+
+/**
+ * Art-Chips MIT Zähler. „Dateien" steht vorn UND ist die Vorauswahl (ADR-v9-187): am
+ * Realbestand stünden sonst 452 Weblink-Kacheln vor den 189 Dateien. Ausgeblendet ist
+ * nicht versteckt — der Weblink-Chip trägt seine Zahl offen.
+ *
+ * Die Chips erscheinen NUR, wenn beide Arten vorkommen; bei einem Bestand aus lauter
+ * Dateien (oder lauter Weblinks) wäre eine Reihe mit einem sinnvollen Chip reine Fläche
+ * (dieselbe Regel wie die Such-Typ-Chips, ADR-v9-130: erst ab ≥2 getroffenen Arten).
+ */
+export function buildKindFilterOptions(rows: readonly MediaTileRow[]): MediaKindFilterOption[] {
+  const links = rows.filter((r) => r.fileKind === 'weblink').length;
+  const files = rows.length - links;
+  if (links === 0 || files === 0) return [];
+  return [
+    { id: 'files', label: 'Dateien', count: files },
+    { id: 'weblinks', label: 'Weblinks', count: links },
+    { id: 'all', label: 'Alle', count: rows.length },
+  ];
+}
+
+/**
+ * Startwert der Art-Facette: „Dateien", sobald es beide Arten gibt — sonst „Alle", damit
+ * ein reiner Weblink-Bestand nicht in eine leere Galerie startet (der Fall existiert:
+ * ein Bestand kann ausschließlich Zitat-Fundorte tragen).
+ */
+export function initialKindFilter(rows: readonly MediaTileRow[]): MediaKindFilter {
+  return buildKindFilterOptions(rows).length > 0 ? 'files' : 'all';
 }

@@ -45,6 +45,18 @@ export function formToMime(form: string, file: string): string {
 }
 
 /**
+ * MIME allein aus dem Dateinamen (Endung), '' wenn endungslos oder unbekannt. Für
+ * ANZEIGE-Entscheidungen gedacht, wenn `Media.form` leer ist — bei der 5.5.1-Inline-
+ * Altform der Regelfall (ADR-v9-187). Bewusst getrennt von `formToMime`, das für den
+ * Parse-Pfad bei leerem FORM absichtlich leer bleibt (kein Erfinden eines Formats,
+ * TST-6) und bei unbekannter Endung auf `application/octet-stream` fällt.
+ */
+export function mimeFromFileName(file: string): string {
+  const ext = extOf(file).toLowerCase();
+  return EXT_TO_MIME[ext] ?? '';
+}
+
+/**
  * Kanonisches MIME (Modell) → GEDCOM-5.5.1-FORM-Wert (Output). Bevorzugt die **echte
  * Datei-Endung** (verlustfrei, erhält die Original-Schreibweise), sonst die MIME→Endung-
  * Tabelle, sonst der MIME-Subtyp. Leeres MIME bleibt leer.

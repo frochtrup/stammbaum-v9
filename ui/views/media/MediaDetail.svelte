@@ -26,7 +26,7 @@
   } from '../../../core/model';
   import type { MediaCitation } from '../../../core/model/types';
   import { buildMediaDetail, type MediaReferenceRow } from './media-detail-model';
-  import { isDisplayableImage } from './media-gallery-model';
+  import { classifyMediaFile, isEmbeddedImage, webLinkHost } from '../../../core/model/media-kind';
 
   interface Props {
     appState: AppState;
@@ -161,6 +161,13 @@
     const m = /^data:([^;,]+)[;,]/i.exec(file.trim());
     return m ? `eingebettet (${m[1]})` : file || '—';
   }
+
+  // Art des Werts aus dem EINEN Kern-Chokepoint (ADR-v9-187). Vorher entschied diese
+  // View selbst — und kannte nur `data:`; ein Weblink (der häufigste Fall im Bestand)
+  // stand hier als toter Text, obwohl derselbe Wert an der Quellen-Pille längst ein
+  // klickbares ↗ trägt.
+  const fileKind = $derived(detail ? classifyMediaFile(detail.media.file) : 'empty');
+  const linkHost = $derived(detail ? webLinkHost(detail.media.file) : '');
 </script>
 
 {#snippet refRow(row: MediaReferenceRow)}
@@ -215,14 +222,28 @@
         </div>
       </div>
     {:else}
-      {#if isDisplayableImage(detail.media.file)}
+      {#if isEmbeddedImage(detail.media.file)}
         <figure class="media-detail__preview">
           <img src={detail.media.file} alt={detail.displayTitle} />
         </figure>
       {/if}
       <dl class="media-detail__meta">
-        <dt>Datei</dt>
-        <dd>{fileLabel(detail.media.file)}</dd>
+        <dt>{fileKind === 'weblink' ? 'Fundort' : 'Datei'}</dt>
+        <dd>
+          {#if fileKind === 'weblink'}
+            <!-- Verlinkt, NIE geladen (ADR-v9-187): kein Fetch für Vorschau oder Ausgabe.
+                 `rel` wie bei jedem anderen Fremdlink der App. -->
+            <a
+              class="media-detail__link"
+              href={detail.media.file}
+              target="_blank"
+              rel="noopener noreferrer"
+            >{linkHost || detail.media.file} ↗</a>
+            <span class="media-detail__link-full">{detail.media.file}</span>
+          {:else}
+            {fileLabel(detail.media.file)}
+          {/if}
+        </dd>
         {#if detail.media.form}<dt>Format</dt><dd>{detail.media.form}</dd>{/if}
         {#if detail.media.type}<dt>Typ</dt><dd>{detail.media.type}</dd>{/if}
       </dl>
@@ -282,6 +303,20 @@
     padding: 0.3rem 0.7rem;
     cursor: pointer;
     font-size: 0.82rem;
+  }
+
+  .media-detail__link {
+    color: var(--stb-gold);
+    overflow-wrap: anywhere;
+  }
+
+  /* Die volle Adresse bleibt lesbar (kopierbar), tritt aber optisch zurück — der Host
+     allein trägt die Orientierung, die volle URL ist bei matricula & Co. sehr lang. */
+  .media-detail__link-full {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--stb-text-dim);
+    overflow-wrap: anywhere;
   }
 
   .media-detail__preview {

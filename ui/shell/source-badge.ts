@@ -5,6 +5,7 @@
 // belegte Angabe sah aus wie ein Fehler; die Skala rot→orange→blau→grün war zudem nicht
 // monoton lesbar), sondern über den `QuayMeter` (gefüllte Pips 0..3, Position statt Farbe).
 import type { Citation, Source } from '../../core/model/types';
+import { isWebLink } from '../../core/model/media-kind';
 
 /** Numerischer Teil einer GEDCOM-ID (`@S042@` → `42`, `S7` → `7`, sonst roh). */
 export function badgeNumber(sourceId: string): string {
@@ -50,15 +51,18 @@ export function badgeTitle(citation: Citation, source: Source | undefined): stri
   return citation.page ? `${name} · ${citation.page}` : name;
 }
 
-const HTTP_RE = /^https?:\/\//i;
-
 /** Klickbarer Weblink der Quellen-Pille (↗): erst eine Zitat-Medien-URL
  *  (`deepLinkUrl`/OBJE-FILE), dann PAGE-als-URL als Altdaten-Fallback (analog v8
- *  `citTagsHtml`). '' = kein Link, dann wird kein ↗ gerendert. */
+ *  `citTagsHtml`). '' = kein Link, dann wird kein ↗ gerendert.
+ *
+ *  „Ist das ein Weblink?" beantwortet seit ADR-v9-187 der Kern (`isWebLink`), nicht mehr
+ *  eine lokale Regex hier: dieselbe Frage stellt die Medien-Galerie und das Medium-Detail,
+ *  und genau die Doppelung war der Grund, warum derselbe Wert dort tote Zeichenkette war
+ *  und hier ein Link (INV-UI-4). */
 export function badgeLinkHref(citation: Citation): string {
-  const mediaUrl = citation.media.find((m) => HTTP_RE.test(m.mediaId))?.mediaId;
+  const mediaUrl = citation.media.find((m) => isWebLink(m.mediaId))?.mediaId;
   if (mediaUrl) return mediaUrl;
-  if (HTTP_RE.test(citation.deepLinkUrl)) return citation.deepLinkUrl;
-  if (HTTP_RE.test(citation.page)) return citation.page;
+  if (isWebLink(citation.deepLinkUrl)) return citation.deepLinkUrl;
+  if (isWebLink(citation.page)) return citation.page;
   return '';
 }
