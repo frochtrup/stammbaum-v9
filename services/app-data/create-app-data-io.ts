@@ -15,6 +15,7 @@ import { IdbAppDataStore } from './idb-app-data-store';
 import { AppDataSyncService } from './app-data-sync-service';
 import { AppDataProjectsStore } from './app-data-projects-store';
 import { AppDataValConfigStore } from './app-data-val-config-store';
+import { AppDataTourStore, type TourStore } from './app-data-tour-store';
 import type { AppDataStore } from './types';
 
 export interface AppDataIO {
@@ -52,4 +53,13 @@ export function createValConfigStore(io: AppDataIO = createAppDataIO()): ValConf
  */
 export function createProjectsStore(io: AppDataIO = createAppDataIO()): ProjectsStore {
   return new AppDataProjectsStore(io.sync, new IdbProjectsStore());
+}
+
+/**
+ * Der „Rundgang gesehen"-Merker aus dem B1-Bündel (BL-213) — dieselbe Bauart wie die
+ * beiden Fabriken darüber, nur ohne Altspeicher: die Information entsteht in v9 zum
+ * ersten Mal.
+ */
+export function createTourStore(io: AppDataIO = createAppDataIO()): TourStore {
+  return new AppDataTourStore(io.sync);
 }

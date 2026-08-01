@@ -8,10 +8,12 @@ export {
   createAppDataIO,
   createProjectsStore,
   createValConfigStore,
+  createTourStore,
   type AppDataIO,
 } from './create-app-data-io';
 export { AppDataValConfigStore } from './app-data-val-config-store';
 export { AppDataProjectsStore } from './app-data-projects-store';
+export { AppDataTourStore, type TourStore } from './app-data-tour-store';
 export {
   exportAppDataFile,
   importAppDataFile,

@@ -10,6 +10,9 @@
   // Der Datei-Picker öffnet GEDCOM ODER GRAMPS (BL-139): der Picker gunzip-t und erkennt das
   // Format, `loadDocText` verzweigt in den passenden Ladepfad. Demo bleibt GEDCOM.
   import { loadGedcomText } from './load-gedcom-text';
+  // Dateiname des Demo-Bestands aus EINER Quelle: der Erstnutzer-Rundgang (BL-213)
+  // erkennt an genau diesem Namen, dass Demo-Material geladen ist.
+  import { DEMO_FILE_NAME } from './onboarding-state.svelte';
   import { loadDocText } from './load-doc-text';
   import type { AppState } from './app-state.svelte';
   import type { PlacesPersister } from './places-persister';
@@ -69,10 +72,10 @@
     errorMessage = '';
     placesNotice = '';
     try {
-      const res = await fetch('./demo.ged');
+      const res = await fetch(`./${DEMO_FILE_NAME}`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
-      const result = await loadGedcomText(text, 'demo.ged', appState, persister);
+      const result = await loadGedcomText(text, DEMO_FILE_NAME, appState, persister);
       placesNotice = result.placesNotice;
       onImported?.(undefined);
       status = 'idle';

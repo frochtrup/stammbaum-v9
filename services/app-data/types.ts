@@ -64,8 +64,23 @@ export interface AppDataSections {
    * damit die Datei etwas zu tragen hat, wäre der falsche Weg.
    */
   media?: MediaPrefs;
+  /**
+   * Erstnutzer-Rundgang gesehen (BL-213, ADR-v9-190). Ein Flag, das in keinen Bestand
+   * zeigt — B1 nach dem Kriterium aus ADR-v9-173, und es reist sinnvoll mit: wer den
+   * Rundgang auf dem iPad gesehen hat, braucht ihn auf dem Mac nicht noch einmal.
+   *
+   * v8 legte dieselbe Information in `localStorage` („stammbaum_onboarding_done") —
+   * dieselbe Bauform wie das Hof-Sidecar aus Altlast §7, und gerätelokal ohne Not.
+   */
+  tour?: TourPrefs;
   // Später (eigene Backlog-Zeilen, kein Platzhalter-Code):
   //   quickTemplates (BL-232) · mapLayer (BL-230)
+}
+
+/** B1-Anteil des Erstnutzer-Rundgangs — bewusst ein Feld, kein Fortschritts-Zustand:
+ *  ein abgebrochener Rundgang ist beendet, nicht halb gesehen. */
+export interface TourPrefs {
+  done: boolean;
 }
 
 /** B1-Anteil der Medien-Anbindung (Spec 30 §2.2). */

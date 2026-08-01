@@ -46,7 +46,7 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
-  import { createAppDataIO, createProjectsStore, type AppDataIO } from '../services/app-data';
+  import { createAppDataIO, createProjectsStore, createTourStore, type AppDataIO, type TourStore } from '../services/app-data';
   import {
     createMediaResolver,
     FsMediaFolderAdapter,
@@ -70,6 +70,8 @@
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from './sw-register';
   import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
+  import OnboardingTour from '../ui/shell/OnboardingTour.svelte';
+  import { createTourState } from '../ui/shell/onboarding-state.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
   import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
 
@@ -92,6 +94,9 @@
     /** Injizierbar für Tests (analog appDataIO) — Medien-Auflösung (BL-257): hält den
      * Verzeichnis-Handle des Medien-Ordners (Kategorie A) und löst relative Pfade auf. */
     mediaResolver?: MediaResolver;
+    /** Injizierbar für Tests (analog appDataIO) — Merker „Erstnutzer-Rundgang gesehen"
+     * im B1-Bündel (BL-213). Default ist die echte Instanz auf demselben Bündel. */
+    tourStore?: TourStore;
     /** Injizierbar für Tests — Formfaktor-Quelle (BL-91). Default ist window.matchMedia.
      *
      * Nötig, weil `layout` ein Modul-Singleton ist und `start()` hier im onMount läuft:
@@ -116,6 +121,7 @@
       bytes: new IdbMediaBytesStore(),
       picker: new InputMediaFilePicker(),
     }),
+    tourStore = createTourStore(appDataIO),
     layoutEnv,
   }: Props = $props();
 
@@ -179,6 +185,10 @@
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
     void projectsState.load();
 
+    // Merker des Erstnutzer-Rundgangs (BL-213) — bis er gelesen ist, zeigt der Rundgang
+    // nichts; ein Speicherfehler gilt als „schon gesehen".
+    void tour.load();
+
     // Medien-Ordner wiederherstellen (BL-257): gespeicherter Verzeichnis-Handle +
     // Leserecht-Nachfrage, genau wie beim Arbeitskopie-Handle. Kein Ordner oder kein
     // erneut erteiltes Recht ist KEIN Fehler — die App läuft vollständig weiter, nur
@@ -202,6 +212,12 @@
       stopLayout();
     };
   });
+
+  // Erstnutzer-Rundgang (BL-213): die Bedingung lebt in `onboarding-state.svelte.ts`,
+  // hier bleibt die Verdrahtung.
+  // `untrack` wie bei `projectsState` darüber: der Merker-Store wird genau einmal beim
+  // Start gebunden (eine Instanz, kein Wert, der sich ändert).
+  const tour = createTourState(untrack(() => tourStore), () => appState.fileName);
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
   // $derived liest appState.db über den Chokepoint neu, sobald ein Aufgaben-Kommando
@@ -383,6 +399,12 @@
     onClose={() => (paletteOpen = false)}
     onRun={runCommand}
   />
+{/if}
+
+{#if tour.visible}
+  <!-- `onStart` führt auf die Datenfläche: gestartet wird der Rundgang dort, wo
+       „Demo laden" steht (Mehr → Datei) — seine Ziele stehen woanders. -->
+  <OnboardingTour onStart={() => route.openEntities()} onDone={() => tour.finish()} />
 {/if}
 
 <div class="app-shell" class:app-shell--desktop={layout.isDesktopLayout}>

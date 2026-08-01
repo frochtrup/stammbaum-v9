@@ -292,7 +292,7 @@
        Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
        Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
   {#if !layout.isDesktopLayout}
-    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen">
+    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen" data-tour="segments">
     {#each segments as segment (segment.id)}
       <button
         type="button"

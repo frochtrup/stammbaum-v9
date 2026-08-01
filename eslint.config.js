@@ -103,6 +103,10 @@ export default tseslint.config(
         // Safari/Firefox fokussieren einen <button> beim mousedown sonst gar nicht und
         // die Liste wäre vor dem Klick abgeräumt.
         MouseEvent: 'readonly',
+        // `HTMLButtonElement` für den Erstnutzer-Rundgang (BL-213): die Karte fokussiert
+        // beim Öffnen ihren „Weiter"-Knopf, damit Tastatur und Screenreader dort landen
+        // statt am Seitenanfang (LP-8/§6i).
+        HTMLButtonElement: 'readonly',
         // Standalone-Orte-Editor (Spec 22): `confirm` ist im Projekt das etablierte
         // Bestaetigungs-Muster (Loeschen von Ort/Hof), `localStorage` traegt die
         // Geraetekennung der gespeicherten Datei, `BeforeUnloadEvent` die Warnung vor
