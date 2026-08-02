@@ -154,11 +154,18 @@ function parseMedia(objeNode: GedNode): MediaCitation {
   const noteNode = child(objeNode, 'NOTE');
   // Pointer-Form: der Wert (`@M1@`) IST die Identität; inline: der FILE-Pfad.
   const mediaId = objeNode.value || (fileNode ? fileNode.value : '');
+  // Was DIESE Fundstelle an globalen Datenzeilen trug (BL-306) — am Knoten gefragt, nicht am
+  // Wert, und strikt an der Position, die `mediaNode` auch emittiert (`FILE`→`FORM`→`MEDI`).
+  // Ein `MEDI` direkt unter `OBJE` ist un-modelliert und reist als `extra` durch; es hier
+  // mitzuzählen erzeugte beim Neubau eine zweite MEDI-Zeile daneben.
+  const formNode = fileNode ? child(fileNode, 'FORM') : null;
   return makeMediaCitation(mediaId, {
     title: childValue(objeNode, 'TITL'),
     date: childValue(objeNode, '_DATE'),
     note: noteNode ? collectText(noteNode) : '',
     primary: childValue(objeNode, '_PRIM') === 'Y',
+    formSeen: formNode !== null,
+    typeSeen: formNode !== null && child(formNode, 'MEDI') !== null,
     extra: objeNode.children.filter((c) => !RECOGNIZED_OBJE_SUB.has(c.tag)),
   });
 }
@@ -203,6 +210,9 @@ export function projectMediaRecord(node: GedNode): Media | null {
     form,
     formWire,
     type,
+    // Der Vergleichswert für „hat jemand den Typ angefasst?" (BL-306) — beim Laden gleich
+    // `type`, danach der eingefrorene Dateistand.
+    typeWire: type,
     title: titleNode ? collectText(titleNode) : '',
     wireOrigin: isRecord ? 'record' : 'inline',
   });

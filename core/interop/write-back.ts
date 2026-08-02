@@ -833,7 +833,7 @@ function repoEqual(a: Repository, b: Repository): boolean {
 // Datei/Format/Typ/Titel erkannt (die natürliche Stelle, EIN Record statt jeder Referenz).
 function mediaRecordEqual(a: Media, b: Media): boolean {
   return a.file === b.file && a.form === b.form && a.formWire === b.formWire
-    && a.type === b.type && a.title === b.title;
+    && a.type === b.type && a.typeWire === b.typeWire && a.title === b.title;
 }
 
 /**

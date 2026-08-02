@@ -176,7 +176,10 @@ export function makeNote(id: NoteId, patch: Partial<Note> = {}): Note {
 
 /** Top-Level-Medium (ADR-v9-125). `id` content-adressiert (Xref/Pfad/GRAMPS-id). */
 export function makeMedia(id: MediaId, patch: Partial<Media> = {}): Media {
-  return { id, file: id, form: '', formWire: '', type: '', title: '', wireOrigin: 'inline', lastChanged: '', ...patch };
+  return {
+    id, file: id, form: '', formWire: '', type: '', typeWire: '',
+    title: '', wireOrigin: 'inline', lastChanged: '', ...patch,
+  };
 }
 
 /** Referenz-spezifische Medienverknüpfung. */
@@ -184,7 +187,12 @@ export function makeMediaCitation(
   mediaId: MediaId,
   patch: Partial<Omit<MediaCitation, 'mediaId'>> = {},
 ): MediaCitation {
-  return { mediaId, title: '', date: '', note: '', primary: false, extra: [], ...patch };
+  // `formSeen`/`typeSeen` sind bewusst `true` per Default (BL-306): eine neu angelegte
+  // Fundstelle ist die volle Form. Nur eine aus der Datei gelesene weiß es besser.
+  return {
+    mediaId, title: '', date: '', note: '', primary: false,
+    formSeen: true, typeSeen: true, extra: [], ...patch,
+  };
 }
 
 /** Assoziation (ASSO/RELA bzw. ROLE) — Zeuge/Pate/Informant ohne Familienbindung.

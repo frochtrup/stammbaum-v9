@@ -71,6 +71,20 @@ export interface Media {
   formWire: string;
   /** MEDI — Medientyp (Standard-Enum unter FORM); GRAMPS/Import oft leer. */
   type: string;
+  /**
+   * `type`, wie er beim Laden in der Datei stand — der Vergleichswert, an dem der Writer
+   * einen NUTZER-Edit erkennt (BL-306). Anders als `formWire` trägt er keine eigene
+   * Schreibweise (`MEDI` ist nicht kanonisiert): sein Zweck ist allein die Frage
+   * „hat jemand den Typ angefasst?".
+   *
+   * WOZU. Die `MEDI`-Zeile eines inline-Mediums steht referenz-spezifisch da, der Wert ist
+   * global. Wo eine Fundstelle sie nie trug (`MediaCitation.typeSeen`), darf der Writer sie
+   * nicht ergänzen — es sei denn, der Nutzer hat den Typ geändert, dann käme sein Edit
+   * sonst nirgends an. Dieselbe Zwei-Gründe-Form wie bei den Namens-Untertags
+   * ([ADR-v9-210](../../specs/v9/04-Entscheidungslog.md)): die Quelle hatte es, oder es
+   * sagt etwas Neues.
+   */
+  typeWire: string;
   /** GLOBALE Beschriftung: GED7-Record-`TITL` / GRAMPS `<file description>`; leer bei 5.5.1-Inline. */
   title: string;
   /** Wire-Herkunft — der Writer erhält sie unverändert (LP-1): `record`→Record+Zeiger, `inline`→inline. */
@@ -93,6 +107,22 @@ export interface MediaCitation {
   note: string;
   /** _PRIM — Hauptfoto/-dokument für DIESEN Datensatz. */
   primary: boolean;
+  /**
+   * Trug DIESE Fundstelle die globalen Datenzeilen `FORM` bzw. `FORM`→`MEDI`? (BL-304-Klasse,
+   * BL-306) — die Frage ist REFERENZ-spezifisch, obwohl die Werte selbst global sind.
+   *
+   * Ein inline-Medium hat keinen eigenen Record: seine globalen Felder stehen physisch am
+   * `OBJE` JEDER verweisenden Stelle, und die Stellen dürfen einander widersprechen. `db.media`
+   * ist nach Dateipfad geschlüsselt und hält deshalb EINEN Wert (erstes Vorkommen gewinnt,
+   * `definingMediaNodes`) — ohne diese Auskunft schriebe der Emitter ihn an ALLE Fundstellen
+   * zurück, auch an die, die ihn nie hatten. Am Realbestand sind 396 von 641 inline-Medien
+   * mehrfach referenziert; 6 davon sind sich uneinig.
+   *
+   * Default `true`: eine Fundstelle, die das Modell NEU anlegt, ist die volle Form. Nur wer
+   * aus der Datei kommt, weiß es besser — `parseMedia` setzt beide aus dem Knoten.
+   */
+  formSeen: boolean;
+  typeSeen: boolean;
   /** Unbekannte OBJE-Kinder (z. B. `_SCBK`) verbatim erhalten (INV-PT, edit-sicher). */
   extra: GedNode[];
 }

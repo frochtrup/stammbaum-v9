@@ -80,8 +80,16 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
   if (!isPointer) {
     const file = media ? media.file : mc.mediaId;
     // FORM-Wert: erhaltener Wire-Wert, sonst Rückübersetzung aus dem MIME (`gedFormValue`).
-    const form = media ? gedFormValue(media.form, file, media.formWire) : '';
-    const type = media ? media.type : '';
+    // Aber NUR an einer Fundstelle, die ihn auch trug (BL-306) — ODER wenn der Nutzer den
+    // globalen Wert geändert hat und sein Edit sonst nirgends ankäme. Dieselbe
+    // Zwei-Gründe-Form wie bei den Namens-Untertags (ADR-v9-210): die Quelle hatte es, oder
+    // es sagt etwas, das die Datei noch nicht sagt. Die Werte sind global, ihre ZEILEN
+    // stehen referenz-spezifisch da, und `db.media` hält nur EINE Fassung — sie bedingungslos
+    // an jede Fundstelle zurückzuschreiben, ergänzt Zeilen, die die Quelle nie hatte.
+    const formWert = media ? gedFormValue(media.form, file, media.formWire) : '';
+    const form = formWert && (mc.formSeen || formWert !== media!.formWire) ? formWert : '';
+    const type = media && media.type && (mc.typeSeen || media.type !== media.typeWire)
+      ? media.type : '';
     const fileKids: GedNode[] = [];
     if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
     kids.push(N('FILE', file, fileKids));
