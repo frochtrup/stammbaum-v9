@@ -1,0 +1,163 @@
+0 HEAD
+1 SOUR PassthroughMatrix
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Muster/
+2 GIVN Anna
+2 SURN Muster
+2 _ZZ unter NAME
+1 SEX F
+1 FAMC @F1@
+2 PEDI birth
+2 _ZZ unter FAMC
+1 ASSO @I2@
+2 RELA Patin
+2 _ZZ unter ASSO
+1 REFN R-1
+2 TYPE intern
+2 _ZZ unter REFN
+1 CHAN
+2 DATE 1 JAN 2026
+3 TIME 12:00:00
+3 _ZZ unter DATE
+2 _ZZ unter CHAN
+1 BIRT
+2 DATE 1 JAN 1900
+2 PLAC Ochtrup
+3 MAP
+4 LATI N52.2
+4 LONG E7.2
+4 _ZZ unter MAP
+3 _ZZ unter PLAC
+2 ADDR Hof 1
+2 NOTE Geburtsnotiz
+2 SOUR @S1@
+3 PAGE 12
+3 QUAY 3
+3 _EVAL
+4 _STYP original
+4 _INFO primary
+4 _EVID direct
+4 _INFM Hebamme
+4 _ZZ unter _EVAL
+3 OBJE
+4 TITL Bild zum Zitat
+4 FILE zitat.jpg
+5 FORM jpg
+6 MEDI photo
+6 _ZZ unter FORM
+5 _ZZ unter FILE
+4 _ZZ unter OBJE
+3 _ZZ unter SOUR
+2 _ZZ unter BIRT
+1 CHR
+2 DATE 2 JAN 1900
+2 _ZZ unter CHR
+1 DEAT
+2 DATE 3 JAN 1980
+2 CAUS Alter
+2 _ZZ unter DEAT
+1 BURI
+2 DATE 5 JAN 1980
+2 _ZZ unter BURI
+1 OCCU Landwirt
+2 _ZZ unter OCCU
+1 RESI
+2 ADDR Hof 2
+2 _ZZ unter RESI
+1 EDUC Volksschule
+2 _ZZ unter EDUC
+1 EMIG
+2 DATE 1920
+2 _ZZ unter EMIG
+1 IMMI
+2 DATE 1925
+2 _ZZ unter IMMI
+1 NATU
+2 DATE 1930
+2 _ZZ unter NATU
+1 EVEN Sonstiges
+2 TYPE Notiz
+2 _ZZ unter EVEN
+1 GRAD Abschluss
+2 _ZZ unter GRAD
+1 ADOP
+2 DATE 1905
+2 _ZZ unter ADOP
+1 MILI Wehrdienst
+2 _ZZ unter MILI
+1 FACT Merkmal
+2 _ZZ unter FACT
+1 CENS
+2 DATE 1910
+2 _ZZ unter CENS
+1 PROP Hof
+2 ADDR Hof 3
+2 _ZZ unter PROP
+1 BAPM
+2 DATE 4 JAN 1900
+2 _ZZ unter BAPM
+1 CONF
+2 DATE 1914
+2 _ZZ unter CONF
+1 _TASK Kirchenbuch prüfen
+2 _CAT quelle
+2 _DONE 0
+2 _TSTAT todo
+2 _DATE 1 JAN 2026
+2 _ID T1
+2 SOUR @S1@
+2 _ZZ unter _TASK
+1 _RLOG Suche im Archiv
+2 DATE 2 JAN 2026
+2 REPO @R1@
+2 _QUERY Taufregister 1900
+2 _RESULT gefunden
+2 _TASKID T1
+2 _ID L1
+2 _ZZ unter _RLOG
+1 _HYPO Vermutlich dieselbe Person
+2 _ID H1
+2 _HSTAT open
+2 _HWGT 3
+2 _DATE 3 JAN 2026
+2 _HKIND IDENT
+2 _HREF @I2@
+2 _ZZ unter _HYPO
+1 OBJE
+2 TITL Portrait
+2 FILE portrait.jpg
+3 FORM jpg
+2 _ZZ unter OBJE-Person
+0 @I2@ INDI
+1 NAME Berta /Muster/
+0 @F1@ FAM
+1 HUSB @I2@
+1 CHIL @I1@
+1 MARR
+2 DATE 1 JUN 1899
+2 PLAC Ochtrup
+2 _ZZ unter MARR
+1 ENGA
+2 DATE 1 MAY 1899
+2 _ZZ unter ENGA
+1 DIV
+2 DATE 1 JUL 1910
+2 _ZZ unter DIV
+0 @S1@ SOUR
+1 TITL Kirchenbuch Ochtrup
+1 DATA
+2 EVEN BIRT
+2 AGNC Pfarramt
+2 _ZZ unter DATA
+1 REPO @R1@
+2 CALN Sig. 42
+3 MEDI book
+3 _ZZ unter CALN
+2 _ZZ unter REPO
+0 @R1@ REPO
+1 NAME Bistumsarchiv
+0 TRLR

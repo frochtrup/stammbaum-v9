@@ -1,0 +1,37 @@
+name: Absicherung messen (Mutations-Stichprobe)
+
+# BL-287 / ADR-v9-196: misst, ob die benannten Invarianten TATSÄCHLICH von Tests getragen
+# werden — je Stelle wird die Regel sabotiert und gezählt, wie viele Testfälle es merken.
+#
+# WARUM EIN EIGENER, SELTENER LAUF und kein Schritt im Push-Workflow: ein voller Suitenlauf
+# je Stelle. Gemessen auf diesem Runner: `npm test` 76 s — bei 15 Stellen also gut 20 min,
+# gegen ~4 min für den heutigen kompletten CI-Lauf. Jeden Push damit zu belasten stünde in
+# keinem Verhältnis zur Änderungsrate der Zusicherungen (sie ändern sich in Wochen, nicht
+# in Commits). Wöchentlich + auf Knopfdruck ist die passende Frequenz.
+#
+# Der Lauf sieht die privaten Fixturen NICHT (sie sind gitignored) — genau so ist die
+# Kalibrierung gedacht: die Schwellen in `tools/mutation/mutationen.mjs` sind die Zahlen
+# OHNE Realdaten. Lokal liegen sie höher; das ist erlaubt, der Lauf schlägt nur nach unten an.
+
+on:
+  schedule:
+    # Montags 04:17 UTC. Krumme Minute bewusst: zur vollen Stunde ist die Runner-Warteschlange
+    # von GitHub am längsten.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    # Reserve über die gemessenen ~20 min; ein hängender Mutationslauf soll abbrechen,
+    # nicht eine Stunde Runner-Zeit verbrauchen.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run test:mutation
