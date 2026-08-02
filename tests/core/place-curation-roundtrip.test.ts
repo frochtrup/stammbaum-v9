@@ -3,65 +3,101 @@
 //
 // Geprüft wird die Zusage aus [01 USP]: „Historisch datierte Ortsdarstellung —
 // periodengerechte Auflösung von Ortsnamen, Verwaltungszugehörigkeit und Hofadressen."
-// Und zwar so, wie der Nutzer sie erlebt: **kuratieren → speichern → neu laden → ist es
-// noch da?** Nicht, ob eine bestimmte Funktion ein bestimmtes Feld setzt.
+// Und zwar als vollständige SEQUENZ, wie der Nutzer sie erlebt:
+//
+//     laden → Ortskette korrigieren → speichern → neu laden → ist es noch da?
 //
 // WARUM DIESE EBENE. In derselben Sitzung wurden fünf Tests umgeschrieben, die INV-PLACE
 // festhielten — alle prüften den MECHANISMUS („`ev.place` wird überschrieben"). Ein
 // Mechanismus-Test überlebt einen Mechanismuswechsel nicht: er wird angepasst, und die
-// Eigenschaft, die er schützen sollte, verschwindet unbemerkt. Ein Versprechen-Test
-// überlebt ihn — er kennt den Weg nicht, nur das Ziel. Genau das ist hier passiert
-// (ADR-v9-196: die Suite prüft Funktionen, nicht Sequenzen).
+// Eigenschaft, die er schützen sollte, verschwindet unbemerkt. Ein Versprechen-Test kennt
+// den Weg nicht, nur das Ziel — er wird rot (ADR-v9-196: die Suite prüft Funktionen,
+// nicht Sequenzen).
+//
+// DIE ERSTE FASSUNG WAR FALSCH KONSTRUIERT, und das ist der Grund für diesen Absatz: sie
+// stellte einen kuratierten Bestand neben einen alten Dateitext, ohne dass je ein
+// Kurations-Kommando gelaufen wäre — ein Zustand, den der echte Ablauf gar nicht erzeugt.
+// Sie war rot und hätte den Fix nie bestätigen können. Ein Versprechen-Test muss die
+// Sequenz wirklich durchlaufen, sonst prüft er eine Fiktion.
 import { describe, expect, it } from 'vitest';
-import { resolveEvents, makePlaceRegistry } from '../../core/places/index';
-import { seedPlacesFromEvents } from '../../core/places/seed';
-import { makeHofRegistry } from '../../core/places/hof-registry';
-import { place, placeMap, hofMap, ev } from './places-fixtures';
+import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/interop';
+import { applyPlaceResolution, reprojectEventsOfPlace } from '../../services/places';
+import { savePlaceObject } from '../../core/places/index';
+import type { Database } from '../../core/model/types';
+import type { GedNode } from '../../core/interop';
 
-/** Ein voller Ladepass auf einem gegebenen Orts-Bestand (Seed + Auflösung, wie beim Öffnen). */
-function ladepass(events: ReturnType<typeof ev>[], bestand: ReturnType<typeof placeMap>) {
-  const seeded = seedPlacesFromEvents(events, {
-    places: makePlaceRegistry(bestand),
-    hofs: makeHofRegistry(hofMap()),
-  });
-  const nachSeed = new Map(bestand);
-  for (const po of seeded) nachSeed.set(po.id, po);
-  return { res: resolveEvents(events, nachSeed, hofMap()), neuAngelegt: seeded, bestand: nachSeed };
+const SRC = [
+  '0 HEAD',
+  '1 GEDC',
+  '2 VERS 5.5.1',
+  '1 CHAR UTF-8',
+  '0 @I1@ INDI',
+  '1 NAME Franz /Ohle/',
+  '1 BIRT',
+  '2 DATE 10 NOV 1700',
+  '2 PLAC Arpke, Amt Meinersen',
+  '0 TRLR',
+  '',
+].join('\n');
+
+/** Öffnen: parsen + voller Auflösungs-Pass — plus optional der geräteweite Orts-Bestand. */
+function oeffnen(text: string, bestand?: Database['placeObjects']) {
+  const doc = parseGedcom(text);
+  if (bestand) doc.db.placeObjects = new Map(bestand);
+  applyPlaceResolution(doc.db);
+  return doc;
 }
 
-describe('Kuratierte Ortszuordnung überlebt den nächsten Ladepass (USP, LP-5)', () => {
-  const amt = place('@AMT@', { title: 'Amt Meinersen' });
-  const vogtei = place('@VOGTEI@', { title: 'Vogtei Meinersen' });
-  const plac = 'Arpke, Amt Meinersen';
+/** Speichern: Modell zurück in den Baum + serialisieren. */
+const speichern = (db: Database, roots: GedNode[]): string =>
+  serializeGedcom({ db, roots: applyDatabaseToRoots(db, roots) });
 
-  it('ERGÄNZTE Kette: der kuratierte Ort wird wiedererkannt', () => {
-    const kuriert = placeMap(
-      place('@ARPKE@', { title: 'Arpke', enclosedBy: [
-        { placeId: '@AMT@', from: null, to: null },
-        { placeId: '@VOGTEI@', from: null, to: null },
-      ] }),
-      amt, vogtei,
-    );
-    const { res, neuAngelegt } = ladepass([ev('BIRT', { place: plac, date: '1700' })], kuriert);
-    expect(neuAngelegt).toEqual([]);
-    expect(res.events[0].event.placeId).toBe('@ARPKE@');
+const geburt = (db: Database) => db.individuals.get('@I1@')!.birth;
+
+describe('Kuratierte Ortszuordnung überlebt den nächsten Ladepass (USP, LP-5)', () => {
+  it('Kette KORRIGIEREN → speichern → neu laden: derselbe Ort, keine Dublette', () => {
+    // 1. Öffnen — der Seed legt „Arpke" unter „Amt Meinersen" an.
+    const erst = oeffnen(SRC);
+    const arpkeId = geburt(erst.db).placeId!;
+    expect(arpkeId).toBeTruthy();
+    const orteVorher = erst.db.placeObjects.size;
+
+    // 2. Der Nutzer korrigiert: es war nicht das Amt, sondern die Vogtei Meinersen.
+    const amt = [...erst.db.placeObjects.values()].find((p) => p.title === 'Amt Meinersen')!;
+    const nextPlaces = new Map(erst.db.placeObjects);
+    savePlaceObject(nextPlaces, { ...amt, title: 'Vogtei Meinersen' });
+    // … und das Kommando zieht die Ereignisse dieses Ortes mit (BL-291).
+    const nachKuration = reprojectEventsOfPlace({ ...erst.db, placeObjects: nextPlaces }, amt.id);
+
+    // 3. Speichern — die Korrektur steht jetzt auch in der Datei.
+    const datei = speichern(nachKuration, erst.roots);
+    expect(datei).toContain('Vogtei Meinersen');
+
+    // 4. Neu laden: neue Datei + kuratierter Orts-Bestand (orte.json).
+    const zweit = oeffnen(datei, nachKuration.placeObjects);
+
+    // Das Versprechen: derselbe Ort, kein neuer daneben.
+    expect(geburt(zweit.db).placeId).toBe(arpkeId);
+    expect(zweit.db.placeObjects.size).toBe(orteVorher);
   });
 
-  // Die eigentliche Zusage — heute NICHT eingelöst (BL-291). Der Nutzer korrigiert die
-  // Kette (es war nicht das Amt, sondern die Vogtei); die Datei behält ihren PLAC-Text,
-  // weil BL-288 den Ladepass-Reproject abgeschaltet hat und kein Kurations-Kommando ihn
-  // ersetzt. Ergebnis: ein NEUER Ort, das Ereignis bindet dorthin, der kuratierte bleibt
-  // referenzlos — die Korrektur erzeugt die Dublette, die sie auflösen sollte.
-  //
-  // Rot-Probe für BL-291: dort `skip` entfernen.
-  it.skip('KORRIGIERTE Kette: der kuratierte Ort wird wiedererkannt (BL-291)', () => {
-    const kuriert = placeMap(
-      place('@ARPKE@', { title: 'Arpke', enclosedBy: [{ placeId: '@VOGTEI@', from: null, to: null }] }),
-      amt, vogtei,
-    );
-    const { res, neuAngelegt, bestand } = ladepass([ev('BIRT', { place: plac, date: '1700' })], kuriert);
-    expect(neuAngelegt).toEqual([]);
-    expect(res.events[0].event.placeId).toBe('@ARPKE@');
-    expect(bestand.size).toBe(3); // kein vierter Ort
+  it('Kette ERGÄNZEN (datierter zweiter Elter): ebenfalls wiedererkannt', () => {
+    const erst = oeffnen(SRC);
+    const arpkeId = geburt(erst.db).placeId!;
+    const arpke = erst.db.placeObjects.get(arpkeId)!;
+    const orteVorher = erst.db.placeObjects.size;
+
+    const nextPlaces = new Map(erst.db.placeObjects);
+    savePlaceObject(nextPlaces, {
+      ...arpke,
+      pnames: [...arpke.pnames, { value: 'Arpke im Amt', from: 1650, to: 1750 }],
+    });
+    const nachKuration = reprojectEventsOfPlace({ ...erst.db, placeObjects: nextPlaces }, arpkeId);
+
+    const zweit = oeffnen(speichern(nachKuration, erst.roots), nachKuration.placeObjects);
+    expect(geburt(zweit.db).placeId).toBe(arpkeId);
+    expect(zweit.db.placeObjects.size).toBe(orteVorher);
+    // Die periodengerechte Namensvariante ist in der Datei angekommen — das ist das USP.
+    expect(geburt(zweit.db).place).toContain('Arpke im Amt');
   });
 });

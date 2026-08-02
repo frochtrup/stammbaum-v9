@@ -82,6 +82,7 @@ import {
   deleteHofCascade,
   relinkHofVillageInEvents,
   renameHofAddrInEvents,
+  reprojectEventsOfPlace,
 } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -559,6 +560,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     });
   };
   /**
+   * Hat ein Nachlauf tatsächlich Ereignisse angefasst? `editDatabase` lässt die
+   * Entitäts-Maps referenzgleich, wenn nichts geändert wurde (draft.ts) — daran erkennbar.
+   *
+   * Wozu: eine Ortsbearbeitung OHNE Auswirkung auf ein Ereignis (Notiz, Koordinaten, ein
+   * Ort ganz ohne Ereignisse) darf die Genealogie-Arbeitskopie nicht anfassen. Sonst
+   * serialisierte jeder Klick im Orts-Editor den kompletten Bestand — und die Zusicherung
+   * „eine Ortsbearbeitung berührt die Genealogie nicht" gälte nur noch dem Namen nach.
+   */
+  const ereignisseGeaendert = (vorher: Database, nachher: Database): boolean =>
+    vorher.individuals !== nachher.individuals || vorher.families !== nachher.families;
+
+  /**
    * Dasselbe für die vom Orts-Merge gemeldete Umhängung (`placeRemap`, ADR-v9-195). Ohne
    * sie zeigte `event.placeId` nach dem Merge auf den gelöschten Verlierer — sichtbar als
    * „Ort nicht gefunden" hinter dem Ereignis-Link und als Ereignisse, die im Steckbrief des
@@ -665,7 +678,14 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextPlaces = new Map(db.placeObjects);
       savePlaceObject(nextPlaces, model);
-      commit({ ...db, placeObjects: nextPlaces }, { places: true });
+      // Nachlauf (BL-291, ADR-v9-198): die Ereignisse DIESES Ortes ziehen ihre
+      // PLAC-Projektion mit. Ohne ihn zeigt der Dateitext nach einer Ketten-KORREKTUR auf
+      // eine Zugehörigkeit, die es nicht mehr gibt — und der nächste Ladepass legt eine
+      // Dublette an, statt den kuratierten Ort wiederzuerkennen (LP-5: „Re-Derivation ist
+      // die Persistenz", der PLAC-Text ist ihre Eingabe). `workingCopy` deshalb Pflicht.
+      const basis = { ...db, placeObjects: nextPlaces };
+      const next = reprojectEventsOfPlace(basis, model.id);
+      commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) });
     },
     importGovEntry(placeId, rawText): GovApplyResult | null {
       const entry = parseGovText(rawText);
@@ -691,7 +711,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       });
       const result = applyGovEntry(nextPlaces, placeId, entry);
       if (!result || result.changes === 0) return result;
-      commit({ ...db, placeObjects: nextPlaces }, { places: true });
+      // Nachlauf wie bei `savePlace` (BL-291): ein GOV-Import bringt typischerweise genau
+      // das mit, was die Projektion ändert — Namensvarianten und datierte Zugehörigkeiten.
+      const basis = { ...db, placeObjects: nextPlaces };
+      const nextDb = reprojectEventsOfPlace(basis, placeId);
+      commit(nextDb, { places: true, workingCopy: ereignisseGeaendert(basis, nextDb) });
       return result;
     },
     deletePlace(id) {
@@ -722,7 +746,13 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
         applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap),
         result.placeRemap,
       );
-      commit(next, { places: true, workingCopy: true });
+      // Nachlauf wie bei `savePlace` (BL-291): der Überlebende trägt jetzt die vereinigten
+      // Namen und Ketten — die Ereignisse, die nach dem Remap an ihm hängen, bekommen die
+      // Projektion dieses Standes. Sonst zeigt ihr Dateitext weiter auf den Verlierer, und
+      // der nächste Ladepass legt ihn neu an.
+      // Anders als bei `savePlace`: der Remap oben hat die Ereignis-Referenzen bereits
+      // angefasst, die Arbeitskopie muss also in jedem Fall mit.
+      commit(reprojectEventsOfPlace(next, survivorId), { places: true, workingCopy: true });
       return result;
     },
     saveHof(model) {
