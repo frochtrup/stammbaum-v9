@@ -29,6 +29,7 @@ import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import type { GedNode } from './gedcom-tree';
 import { EVAL_TAGS, evalAxisValue, logResultToWire } from './enum-maps';
+import { splitGedcomName } from '../model/name-parts';
 import { gedFormValue } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
@@ -261,15 +262,47 @@ function extraNameNode(n: PersonName, media?: MediaLookup): GedNode {
   return N('NAME', n.nameRaw, kids);
 }
 
+/**
+ * Ein Namens-Untertag am HAUPTNAMEN — geschrieben nur dort, wo er etwas sagt (BL-304,
+ * ADR-v9-210). Zwei Gründe, und nur diese zwei:
+ *
+ *  (a) **Die Quelle hatte ihn** (`gesehen`). Dann steht er in der Datei, und ihn beim
+ *      Neubau wegzulassen wäre ein Verlust — auch wenn sein Wert redundant ist.
+ *  (b) **Er lässt sich aus dem `NAME`-Wert NICHT ableiten.** Dann trägt er Information,
+ *      die sonst niemand hält: ein `NAME` ohne wohlgeformtes Schrägstrichpaar
+ *      (`splitGedcomName` → `null`), oder ein `GIVN`, das enger gesetzt ist als der
+ *      Namenswert (`GIVN Anna` bei `NAME Anna Maria /Decker/`).
+ *
+ * Sonst nicht. Der `NAME`-Wert sagt bereits alles, was der Untertag sagen würde, und
+ * `splitGedcomName` holt ihn beim nächsten Laden identisch zurück — die Zeile wäre reine
+ * Wiederholung, und zwar eine, die die Quelle nicht hatte (ADR-v9-197).
+ *
+ * Der Nutzer-Edit fällt damit von selbst auf die richtige Seite: wer den Vornamen ändert,
+ * ändert über `composeGedcomName` auch den `NAME`-Wert — die Änderung landet in der Zeile,
+ * die sie tragen soll, und erzeugt keine zweite daneben. Wo die Quelle den Untertag hatte,
+ * wird er mitgezogen statt zurückgelassen.
+ */
+function nameSubtag(tag: string, wert: string, gesehen: boolean, abgeleitet: string): GedNode | null {
+  if (!wert) return null;
+  return gesehen || wert !== abgeleitet ? N(tag, wert) : null;
+}
+
 export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
 
   if (p.name || p.given || p.surname || p.prefix || p.suffix || p.nick || p.nameCitations.length) {
     const nameKids: GedNode[] = [];
-    if (p.given) nameKids.push(N('GIVN', p.given));
-    if (p.surname) nameKids.push(N('SURN', p.surname));
+    // Was der `NAME`-Wert von sich aus hergibt — die Messlatte für (b) oben.
+    const ausName = splitGedcomName(p.name);
+    const givn = nameSubtag('GIVN', p.given, p.givenSeen, ausName?.given ?? '');
+    const surn = nameSubtag('SURN', p.surname, p.surnameSeen, ausName?.surname ?? '');
+    const nsfx = nameSubtag('NSFX', p.suffix, p.suffixSeen, ausName?.suffix ?? '');
+    if (givn) nameKids.push(givn);
+    if (surn) nameKids.push(surn);
+    // `NPFX` bleibt bedingungslos: `splitGedcomName` leitet kein Präfix ab, der Parser
+    // ergänzt es folglich nie — es kann hier gar nicht erfunden werden.
     if (p.prefix) nameKids.push(N('NPFX', p.prefix));
-    if (p.suffix) nameKids.push(N('NSFX', p.suffix));
+    if (nsfx) nameKids.push(nsfx);
     if (p.nick) nameKids.push(N('NICK', p.nick));
     if (p.nameType) nameKids.push(N('TYPE', p.nameType));
     for (const c of p.nameCitations) nameKids.push(citationNode(c, media));

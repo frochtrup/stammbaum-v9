@@ -1,0 +1,30 @@
+0 HEAD
+1 SOUR STAMMBAUM-TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Lang /Text/
+1 NOTE Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat o
+2 CONC ffenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir 
+1 SEX M
+0 @I2@ INDI
+1 NAME Mehrzeilig /Text/
+1 NOTE Erste Zeile der Notiz.
+2 CONT äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcke
+2 CONC r äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcke
+2 CONC r äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker 
+1 SEX F
+0 @I3@ INDI
+1 NAME Uebergross /Quelle/
+1 NOTE Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschienen und hat offenbaret Anno 1729 den 24 September ist Johann Brinkmann bei mir erschi
+1 SEX U
+0 @S1@ SOUR
+1 ABBR Q1
+1 TITL Eine Quelle
+1 TEXT äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ St
+2 CONC raße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höf
+2 CONC e Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcker äöüßÄÖÜ Straße Höfe Grünäcke
+2 CONC r 
+0 TRLR

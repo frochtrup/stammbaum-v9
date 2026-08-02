@@ -1,0 +1,26 @@
+0 HEAD
+1 SOUR STAMMBAUM-TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna Maria /Decker/
+1 SEX F
+0 @I2@ INDI
+1 NAME Theodor Hermann /Zurloh/
+2 GIVN Theodor Hermann
+2 SURN Zurloh
+1 SEX M
+0 @I3@ INDI
+1 NAME Anna /Decker/ Jr.
+2 GIVN Anna
+1 SEX F
+0 @I4@ INDI
+1 NAME Johann Wilhelm /von der Heide/
+2 GIVN Johann
+1 SEX M
+0 @I5@ INDI
+1 NAME Namenlos ohne Schraegstriche
+1 SEX U
+0 TRLR

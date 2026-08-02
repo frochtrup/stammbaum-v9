@@ -11,7 +11,7 @@
 //
 // Reine Funktion (serialize(model, format) → string), DOM-/Plattform-frei (INV-ARCH-1).
 
-import { writeNode } from './gedcom-tree';
+import { writeNode, ZEILEN_MAX_BYTES } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
 import type { ParsedGedcom, GedFormat, Clock } from './types';
 import { transformGed7, g7Schma } from './ged7-adapter';
@@ -50,12 +50,19 @@ export function serializeGedcom(doc: ParsedGedcom, opts: SerializeOptions = {}):
     roots = roots.map(stripStrict).filter((n): n is GedNode => n != null);
   }
 
+  // Zeilenlänge ist eine FORMAT-Frage (BL-305, ADR-v9-211): 5.5.1 (und der daraus
+  // abgeleitete Strict-Modus) begrenzt eine Zeile auf 255 Bytes und setzt den Rest per
+  // `CONC` fort; GEDCOM 7 hat weder Grenze noch `CONC` (dort faltet `transformGed7` ein
+  // vorhandenes `CONC` in seinen Elternwert). Deshalb steht die Politik hier und nicht im
+  // format-agnostischen Baum-Writer.
+  const maxBytes = format === '7.0' ? Infinity : ZEILEN_MAX_BYTES;
+
   const lines: string[] = [];
   for (const rec of roots) {
     if (rec.tag === 'HEAD') {
       writeHead(rec, lines, format, opts);
     } else {
-      writeNode(rec, 0, lines);
+      writeNode(rec, 0, lines, maxBytes);
     }
   }
   return lines.join(EOL);

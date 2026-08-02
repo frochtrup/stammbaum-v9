@@ -437,6 +437,13 @@ function parsePerson(rec: GedNode): Person {
           p.surname = childValue(c, 'SURN');
           p.prefix = childValue(c, 'NPFX');
           p.suffix = childValue(c, 'NSFX');
+          // Stand der Untertag in der DATEI? (BL-304) Nach der Ergänzung unten ist das nicht
+          // mehr ablesbar — und genau diese Auskunft braucht der Writer, um nicht 200 Zeilen
+          // zu schreiben, die die Quelle nie hatte. Am KNOTEN gefragt, nicht am Wert: ein
+          // `2 GIVN` OHNE Wert ist vorhanden, sein `childValue` aber ''.
+          p.givenSeen = child(c, 'GIVN') !== null;
+          p.surnameSeen = child(c, 'SURN') !== null;
+          p.suffixSeen = child(c, 'NSFX') !== null;
           // Untertags sind optional (ADR-v9-112): fehlende Teile aus dem NAME-Wert
           // ergänzen, sofern er eindeutig zerlegbar ist. FELDWEISE, nicht als Block —
           // eine Quelle darf `GIVN Anna` bewusst enger setzen als der NAME-Wert

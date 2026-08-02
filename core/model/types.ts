@@ -218,6 +218,25 @@ export interface Person {
   surname: string;
   prefix: string;
   suffix: string;
+  /**
+   * Standen `GIVN`/`SURN`/`NSFX` als Untertags in der Quelle? (BL-304) — dieselbe Rolle wie
+   * `sexSeen`, und aus demselben Grund nötig: die drei Felder sind ab Import IMMER gefüllt,
+   * weil `splitGedcomName` sie aus dem `NAME`-Wert ergänzt, wo die Quelle sie weglässt
+   * (ADR-v9-112). Das ist eine ANZEIGE-Bequemlichkeit — ohne sie müsste jeder Leser den
+   * Schrägstrich-Rückfall selbst kennen, ein Vertrag, der dreimal gerissen ist.
+   *
+   * Dem Writer fehlt damit die Auskunft, ob ein Wert aus der DATEI kam oder aus der
+   * Zerlegung: er schrieb beide gleich, und jeder neu gebaute Record bekam Untertags, die
+   * seine Quelle nie hatte (+100 `GIVN` und +100 `SURN` in `Unsere Familie 2026.ged`) —
+   * „Speichern schreibt um" im Sinne von ADR-v9-197.
+   *
+   * BEWUSST kein Tristate an `given`/`surname` selbst: die Zusage „ab Import gefüllt" ist
+   * genau der Zweck von ADR-v9-112 und darf nicht zurückgenommen werden, um eine Frage zu
+   * beantworten, die nur den Writer betrifft (dieselbe Abwägung wie bei `sexSeen`/INV-P1).
+   */
+  givenSeen: boolean;
+  surnameSeen: boolean;
+  suffixSeen: boolean;
   nick: string;
   /** `NAME.TYPE` des HAUPTNAMENS (`birth`/`married`/`aka`, GEDCOM `NAME_TYPE`). Gegenstück
    *  zu `PersonName.type` der weiteren Namensformen — ohne dieses Feld wäre der Untertag

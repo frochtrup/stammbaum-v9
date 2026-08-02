@@ -723,6 +723,11 @@ function personEqual(a: Person, b: Person): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
+    // Die Herkunfts-Flags (BL-304) gehören in DENSELBEN Vergleich wie `sexSeen`: sie
+    // entscheiden mit, welche Zeilen der Writer erzeugt — ein Unterschied darin ist ein
+    // Unterschied in der Ausgabe.
+    a.givenSeen === b.givenSeen && a.surnameSeen === b.surnameSeen &&
+    a.suffixSeen === b.suffixSeen &&
     a.nameType === b.nameType && extraNamesEqual(a.extraNames, b.extraNames) &&
     a.sex === b.sex && a.sexSeen === b.sexSeen && a.title === b.title &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&

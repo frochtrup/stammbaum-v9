@@ -7,8 +7,7 @@
 //   1 NOTE Kein bekanntes Ereignis: X → 1 NO X   (bestätigtes Fehlen)
 //   _TRAN → TRAN                       (Übersetzung)
 //   ASSO/RELA → ASSO/ROLE (+PHRASE)    (Rolle — Enum, s. ged7Role)
-// CONC-Auflösung (GED7 verbietet CONC) ist bei unserem Passthrough-Writer nicht nötig,
-// solange die Quelle keine CONC enthält; enthält sie welche, faltet foldConc sie in CONT.
+//   CONC → in den fortgesetzten Wert gefaltet  (GED7 kennt kein CONC, s. foldConc)
 
 import type { GedNode } from './gedcom-tree';
 
@@ -82,7 +81,36 @@ export function transformGed7(rec: GedNode): GedNode {
 /** Records, an denen GEDCOM 7 `CREA` erlaubt (`gedcom.io` Registry: `CREA`-Superstrukturen). */
 const CREA_RECORDS = new Set(['INDI', 'FAM', 'OBJE', 'REPO', 'SNOTE', 'SOUR', 'SUBM']);
 
+/**
+ * `CONC` in den fortgesetzten Wert falten (BL-305, ADR-v9-211).
+ *
+ * GEDCOM 7 hat `CONC` ERSATZLOS abgeschafft — es gab es nur, weil 5.5.1 die Zeile auf 255
+ * Bytes begrenzt, und diese Grenze ist in 7.0 weggefallen. Ein durchgereichtes `CONC`
+ * erzeugt also ungültiges 7.0. Die Auflösung ist verlustfrei: `CONC` hängt seinen Wert ohne
+ * Trennzeichen an — genau das tut diese Faltung.
+ *
+ * Angehängt wird an den zuletzt gesehenen TEXTTRÄGER, nicht blind an den Elternknoten: in
+ * `NOTE`/`CONT a`/`CONC b` setzt das `CONC` das `CONT` fort, nicht die `NOTE`. Beide liegen
+ * als Geschwister unter demselben Elternknoten, die Reihenfolge entscheidet.
+ *
+ * Der Kopfkommentar dieser Datei kündigte die Funktion seit ADR-v9-14 an („enthält sie
+ * welche, faltet foldConc sie in CONT") — gebaut war sie nie; `Unsere Familie 2026.ged`
+ * trägt 46 `CONC`-Zeilen.
+ */
+function foldConc(node: GedNode): void {
+  if (!node.children.some((c) => c.tag === 'CONC')) return; // der Normalfall, unangetastet
+  const kept: GedNode[] = [];
+  let traeger: GedNode = node;
+  for (const c of node.children) {
+    if (c.tag === 'CONC') { traeger.value += c.value; continue; }
+    if (c.tag === 'CONT') traeger = c;
+    kept.push(c);
+  }
+  node.children = kept;
+}
+
 function transformSubtree(node: GedNode, isHead: boolean): void {
+  foldConc(node);
   const kept: GedNode[] = [];
   for (const c of node.children) {
     // Erfassungsdatum: `1 _DATE` → `1 CREA / 2 DATE` (BL-243, ADR-v9-179). Nur an den
