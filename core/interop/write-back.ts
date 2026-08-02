@@ -51,7 +51,7 @@ import {
   type PlaceContext,
 } from '../places';
 import type { GedNode } from './gedcom-tree';
-import { evidenceEvalEqual } from './enum-maps';
+import { evidenceEvalEqual, EVAL_TAGS } from './enum-maps';
 import {
   parsePersonPublic,
   parseFamilyPublic,
@@ -241,6 +241,158 @@ function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
  * wieder eingesetzt (kanonische Position bleibt lokal stabil); ist keins vorhanden (neuer
  * Feldwert), landen sie vor dem ersten Passthrough-Kind bzw. am Ende.
  */
+/**
+ * Welche KIND-Tags bildet das Modell unterhalb eines Tags ab (BL-285, ADR-v9-197)?
+ *
+ * WOZU. Ein erkannter Knoten wird beim Write-Back aus dem Modell neu gebaut. Um seine
+ * un-modellierten Enkel zu retten, muss unterschieden werden, ob ein Kind des ALTEN
+ * Knotens fehlt, weil das Modell es gar nicht kennt (→ Passthrough, muss bleiben), oder
+ * weil der Nutzer es GELÖSCHT hat (→ muss weg). Diese Menge ist deshalb bewusst
+ * **statisch** und NICHT aus der frischen Emission abgeleitet: aus ihr abgeleitet wäre
+ * jedes gelöschte Feld ununterscheidbar von einem un-modellierten und käme zurück — der
+ * Fix hätte einen Datenverlust gegen einen anderen getauscht.
+ *
+ * Nach dem LETZTEN Tag geschlüsselt, nicht nach dem vollen Pfad: `SOUR`/`OBJE`/`PLAC`
+ * tragen überall dieselbe Struktur (Zitat, Medien-Link, Ort), und ein Pfad-Schlüssel
+ * hätte dieselbe Liste ein Dutzend Mal wiederholt.
+ *
+ * Ein Tag, der hier FEHLT, gilt als „hat keine modellierten Kinder" — seine Kinder
+ * überleben also. Das ist die riskante Richtung (ein gelöschtes Feld käme zurück), und
+ * genau deshalb prüft `tests/roundtrip/dirty-record-passthrough.test.ts` per Drift-Guard,
+ * dass jedes Eltern-Kind-Paar, das der Emitter erzeugen kann, hier verzeichnet ist.
+ */
+/** Die Ereignis-Tags aus `RECOGNIZED_PERSON`/`RECOGNIZED_FAMILY`, die `eventNode` baut. */
+const EREIGNIS_TAGS = [
+  'BIRT', 'CHR', 'DEAT', 'BURI', 'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU',
+  'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF',
+  'MARR', 'ENGA', 'DIV',
+] as const;
+
+/** Was `eventNode` unter einem Ereignis schreibt (`CAUS` nur bei DEAT, schadet sonst nicht). */
+const EREIGNIS_KINDER = ['TYPE', 'DATE', 'PLAC', 'ADDR', 'NOTE', 'SOUR', 'OBJE', 'CAUS'] as const;
+
+const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
+  // Person/Familie
+  NAME: ['GIVN', 'SURN', 'NPFX', 'NSFX', 'NICK', 'SOUR'],
+  FAMC: ['PEDI', '_FREL', '_MREL'],
+  ASSO: ['RELA', 'NOTE', 'SOUR'],
+  REFN: ['TYPE'],
+  CHAN: ['DATE'],
+  // Ereignisse (eventNode) — dieselbe Struktur für BIRT/CHR/DEAT/BURI/OCCU/RESI/…
+  ...Object.fromEntries(EREIGNIS_TAGS.map((t) => [t, EREIGNIS_KINDER])),
+  PLAC: ['MAP'],
+  MAP: ['LATI', 'LONG'],
+  DATE: ['TIME'], // nur unter CHAN belegt; anderswo schadet der Eintrag nicht
+  // Zitat (citationNode) und Medien-Link (mediaNode)
+  SOUR: ['PAGE', 'QUAY', '_EVAL', 'NOTE', 'OBJE'],
+  _EVAL: [...EVAL_TAGS],
+  OBJE: ['TITL', 'FILE', 'NOTE', '_DATE', '_PRIM'],
+  FILE: ['FORM'],
+  FORM: ['MEDI'],
+  // Quelle (emitSource) — `DATA` führt seinen Rest in `Source.dataExtra`, s.
+  // SELBSTVERWALTETER_PASSTHROUGH; die Tabelle beschreibt trotzdem, was das Modell kennt.
+  DATA: ['EVEN', 'AGNC'],
+  // KEIN eigener `EVEN`-Eintrag: der Tag ist zugleich Ereignis (unter INDI/FAM) und
+  // DATA-Kind. Die flache Schlüsselung nach dem letzten Tag verlangt hier die VEREINIGUNG —
+  // und `EREIGNIS_KINDER` enthält `DATE`/`PLAC` bereits. Ein zweiter Eintrag überschrieb
+  // den Ereignis-Eintrag und ließ `EVEN>TYPE`/`NOTE`/`SOUR`/`OBJE` als un-modelliert gelten
+  // (vom Drift-Guard gefangen).
+  REPO: ['CALN'],
+  CALN: ['MEDI'],
+  // Forschungsdaten (taskNode/logEntryNode/hypothesisNode)
+  _TASK: ['_CAT', '_DONE', '_TSTAT', '_DATE', '_ID', 'SOUR'],
+  _RLOG: ['DATE', 'REPO', 'SOUR', '_QUERY', '_RESULT', '_TASKID', '_ID', 'NOTE'],
+  _HYPO: ['_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR'],
+};
+
+/** Die Kind-Tags, die das Modell unter `tag` abbildet (leer = alles darunter ist Passthrough). */
+export function modellierteKinder(tag: string): readonly string[] {
+  return MODELLIERTE_KINDER[tag] ?? [];
+}
+
+/**
+ * Paart alte und frische Knoten desselben Tags (BL-285).
+ *
+ * Bei GLEICHER Anzahl der Reihe nach — der Emitter erhält die Modell-Reihenfolge, die
+ * ihrerseits aus der Datei stammt. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
+ * oder gelöscht) verschiebt eine Paarung nach Position die Zuordnung und übernähme
+ * Passthrough vom FALSCHEN Knoten; dann wird nur noch über den exakten Wert gepaart, und
+ * was übrig bleibt, bleibt ungepaart. Lieber ein Knoten ohne Passthrough-Rettung als einer
+ * mit fremden Zeilen.
+ */
+function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
+  if (alte.length === frische.length) return alte.map((a, i) => [a, frische[i]]);
+  const paare: [GedNode, GedNode][] = [];
+  const offen = [...frische];
+  for (const a of alte) {
+    const i = offen.findIndex((f) => f.value === a.value);
+    if (i >= 0) paare.push([a, offen.splice(i, 1)[0]]);
+  }
+  return paare;
+}
+
+/**
+ * Überträgt die un-modellierten Kinder der alten erkannten Knoten in die frischen — rekursiv,
+ * denn der Verlust sitzt beliebig tief (gemessen u. a. `INDI>OBJE>FILE>TITL`, BL-285).
+ *
+ * Mutiert die frischen Knoten in place; sie sind frisch emittiert, gehören also niemandem
+ * sonst. Angehängt wird HINTEN und nur, was nicht schon (strukturgleich) vorhanden ist —
+ * dieselbe Regel wie beim absorbierten Verlierer-Passthrough (BL-164).
+ */
+function uebernimmTiefenPassthrough(
+  alteKinder: readonly GedNode[],
+  frischeKinder: GedNode[],
+  recognized: Set<string>,
+): GedNode[] {
+  const nachTag = (xs: readonly GedNode[]) => {
+    const m = new Map<string, GedNode[]>();
+    for (const x of xs) (m.get(x.tag) ?? m.set(x.tag, []).get(x.tag)!).push(x);
+    return m;
+  };
+  const alt = nachTag(alteKinder.filter((c) => recognized.has(c.tag)));
+  const frisch = nachTag(frischeKinder);
+  for (const [tag, alteGruppe] of alt) {
+    const frischeGruppe = frisch.get(tag);
+    if (!frischeGruppe) continue; // im Modell nicht mehr vorhanden → bewusst gelöscht
+    for (const [a, f] of paare(alteGruppe, frischeGruppe)) uebernimmIn(a, f);
+  }
+  return frischeKinder;
+}
+
+/**
+ * `CONC`/`CONT` sind FORTSETZUNGEN des Elternwerts, keine eigenen Zeilen — sie als
+ * un-modellierten Passthrough zu übernehmen, hängte die alten Textfragmente an den neuen
+ * Wert an und verdoppelte damit jede geänderte Notiz/Adresse. (Vom Drift-Guard am
+ * Realbestand aufgedeckt: `NOTE>CONT`, `ADDR>CONT`, `OBJE>CONT`.)
+ */
+const FORTSETZUNG = new Set(['CONC', 'CONT']);
+
+/**
+ * Knoten, die ihren un-modellierten Inhalt SELBST im Modell mitführen: `DATA` über
+ * `Source.dataExtra` (BL-217), `OBJE` über `MediaCitation.extra` (ADR-v9-124). Für ihre
+ * DIREKTEN Kinder darf der Tiefen-Passthrough nicht greifen — was dort fehlt, hat der
+ * Nutzer gelöscht, und es zurückzuholen machte die Löschung wirkungslos.
+ *
+ * Genau das ist passiert: der erste Bau holte ein entferntes `2 EVEN MARR` unter `DATA`
+ * zurück; `tests/roundtrip/source-data-roundtrip.test.ts` („eine ÄNDERUNG am Modell landet
+ * in der Datei — nicht nur der Passthrough") wurde rot. Die Rekursion läuft trotzdem
+ * weiter: unter `OBJE` hängt `FILE>TITL`, das `extra` NICHT abdeckt.
+ */
+const SELBSTVERWALTETER_PASSTHROUGH = new Set(['DATA', 'OBJE']);
+
+/** Ein Paar: un-modellierte Kinder von `alt` nach `frisch`, dann eine Ebene tiefer. */
+function uebernimmIn(alt: GedNode, frisch: GedNode): void {
+  const modelliert = new Set(modellierteKinder(alt.tag));
+  if (!SELBSTVERWALTETER_PASSTHROUGH.has(alt.tag)) {
+    for (const kind of alt.children) {
+      if (modelliert.has(kind.tag) || FORTSETZUNG.has(kind.tag)) continue; // modelliert → fehlt es, ist es gelöscht
+      if (frisch.children.some((x) => nodeEqual(x, kind))) continue;
+      frisch.children.push(kind);
+    }
+  }
+  uebernimmTiefenPassthrough(alt.children, frisch.children, modelliert);
+}
+
 function mergeRecord<T>(
   orig: GedNode,
   cur: T,
@@ -249,7 +401,10 @@ function mergeRecord<T>(
   carried: GedNode[] = [], // absorbierter Verlierer-Passthrough (BL-164), dedupliziert angehängt
 ): GedNode {
   const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
-  const recognizedChildren = fresh.children; // alle erkannten Feldgruppen, kanonische Reihenfolge
+  // Un-modellierte ENKEL aus den alten erkannten Kindern in die frischen übernehmen
+  // (BL-285): ohne diesen Schritt nimmt jeder neu gebaute Knoten alles mit, was das Modell
+  // unterhalb von ihm nicht abbildet.
+  const recognizedChildren = uebernimmTiefenPassthrough(orig.children, fresh.children, recognized);
 
   const children: GedNode[] = [];
   let inserted = false;
@@ -259,7 +414,8 @@ function mergeRecord<T>(
         children.push(...recognizedChildren);
         inserted = true;
       }
-      // altes erkanntes Kind fällt weg (durch fresh ersetzt)
+      // altes erkanntes Kind fällt weg (durch fresh ersetzt — seine un-modellierten Enkel
+      // sind oben in den frischen Knoten gewandert)
     } else {
       children.push(c); // Passthrough: verbatim, an Ort und Stelle
     }

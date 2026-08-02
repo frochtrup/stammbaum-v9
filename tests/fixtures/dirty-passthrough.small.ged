@@ -1,0 +1,30 @@
+0 HEAD
+1 SOUR Test
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Muster/
+2 GIVN Anna
+2 SURN Muster
+1 SEX F
+1 RELI röm.-kath.
+2 DATE 19 MAR 1967
+2 PLAC Ochtrup
+2 SOUR @S1@
+3 PAGE 12
+3 QUAY 3
+1 FAMC @F1@
+2 SOUR @S1@
+3 PAGE 7
+3 QUAY 2
+1 OBJE
+2 FILE Pictures/anna.jpg
+3 FORM jpg
+3 TITL Anna im Garten
+0 @F1@ FAM
+1 CHIL @I1@
+0 @S1@ SOUR
+1 TITL Kirchenbuch
+0 TRLR
