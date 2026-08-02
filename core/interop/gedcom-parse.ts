@@ -291,14 +291,19 @@ function parseEvent(node: GedNode): Event {
  * Struktur (v8-Oracle-Format, `gedcom-writer.js` `_writeINDIExt`):
  *   1 _TASK <text>
  *   2 _CAT <category>
- *   2 _DONE <0|1>            (redundant zu _TSTAT — `done` wird IMMER aus status abgeleitet)
+ *   2 _DONE <0|1>            (eigener v8-Tag; `done` wird aus status abgeleitet, s. u.)
  *   2 _TSTAT <todo|doing|done>
  *   2 _DATE <created>         (EIGENER Tag `_DATE`, NICHT Standard-`DATE`)
  *   2 _ID <id>
  *   2 SOUR <sourceRef>        (Standard-Tag, roher @Sxx@-Xref — v9-Ergänzung ADR-v9-36)
  * `_TASK` MUSS modelliert (aus dem Passthrough herausgelöst) werden — sonst Doppelschreibung
- * pro Roundtrip (`_REPO_MODELLED`-Lehre, Spec 13 §2.3). `_DONE` wird NICHT gelesen (aus
- * status abgeleitet, INV Spec 12 §1), aber vom Writer mitgeschrieben (Spec nennt den Tag).
+ * pro Roundtrip (`_REPO_MODELLED`-Lehre, Spec 13 §2.3).
+ *
+ * `_DONE` und `_TSTAT` sind ZWEI Tags nebeneinander, keine Ablösung: `_DONE` ist v8s
+ * Erledigt-Haken, `_TSTAT` der später dazugekommene Kanban-Status (v8 `RES-PROJ 3a`).
+ * v8s Parser liest beide unabhängig. `_DONE` galt hier ursprünglich als NICHT gelesen
+ * (aus status abgeleitet, INV Spec 12 §1) — seit BL-302 ist es der Rückfall, wenn
+ * `_TSTAT` fehlt, s. den Kommentar in der Funktion. Der Writer schreibt beide.
  */
 function parseTask(node: GedNode): ResearchTask {
   const raw = childValue(node, '_TSTAT');
