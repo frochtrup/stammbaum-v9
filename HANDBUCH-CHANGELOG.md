@@ -22,6 +22,14 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.12] — 2026-08-02
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`17b776b`…HEAD) erzeugt._
+
+- feat(ui): BL-274 — der Editor ersetzt nie die Kopfzeile (INV-UI-16, ADR-v9-193) (`98d3eb6`)
+
+---
+
 ## [9.11] — 2026-08-01
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`ebde29c`…HEAD) erzeugt._

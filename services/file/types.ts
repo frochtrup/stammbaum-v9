@@ -30,12 +30,20 @@ export interface ImportResult {
   handle?: unknown;
 }
 
-export type SaveTier = 'fs-handle' | 'share' | 'download';
+export type SaveTier = 'fs-handle' | 'fs-picker' | 'share' | 'download';
 
 export interface SaveResult {
   tier: SaveTier;
   /** true, wenn tatsächlich geschrieben/angeboten wurde (kein Nutzerabbruch). */
   ok: boolean;
+  /**
+   * Bei Tier 1b („Speichern unter") das NEU erworbene FS-Handle. Der FileService merkt es
+   * sich NICHT selbst: dasselbe Export-Rohr bedient Genealogie-Datei, `orte.json` und den
+   * App-Daten-Export, die je einen EIGENEN Handle-Speicher haben (Spec 14 §6) — welcher
+   * davon gemeint ist, weiß nur der Aufrufer. Er reicht es an `rememberHandle()` bzw.
+   * seinen eigenen Store weiter, damit der nächste Save still über Tier 1a läuft.
+   */
+  handle?: unknown;
 }
 
 /**
@@ -65,8 +73,9 @@ export interface PickerAdapter {
 }
 
 /**
- * Tier 1: stilles In-place-Speichern über ein zuvor erworbenes FS-Handle
- * (FileSystemFileHandle.createWritable() — Desktop Chrome/Edge, Android).
+ * Tier 1a/1b: File System Access API (Desktop Chrome/Edge).
+ *   1a — stilles In-place-Speichern über ein zuvor erworbenes Handle (`createWritable()`).
+ *   1b — „Speichern unter"-Dialog, wenn (noch) kein Handle vorliegt.
  * `isSupported()` prüft NUR Plattform-Fähigkeit, nicht ob gerade ein Handle vorliegt.
  */
 export interface FsHandleAdapter {
@@ -75,9 +84,24 @@ export interface FsHandleAdapter {
   write(handle: unknown, bytes: Uint8Array | string): Promise<void>;
   /** Erneut nach Schreibrecht fragen (Reload-Fall, Spec 14 §4). */
   requestPermission(handle: unknown): Promise<boolean>;
+  /**
+   * Tier 1b: Kann die Plattform einen „Speichern unter"-Dialog zeigen? Getrennt von
+   * `isSupported()`, weil das Öffnen (`showOpenFilePicker`) und das Speichern
+   * (`showSaveFilePicker`) zwei Fähigkeiten sind — die Trennung erlaubt es, den
+   * Nutzerabbruch (`null`) vom „kann die Plattform gar nicht" zu unterscheiden, ohne
+   * dass `pickSaveTarget` einen dritten Rückgabewert bräuchte.
+   */
+  canPickSaveTarget(): boolean;
+  /** Öffnet den „Speichern unter"-Dialog. `null` = Nutzerabbruch (KEIN Ausweich-Tier). */
+  pickSaveTarget(filename: string, mimeType: string): Promise<unknown | null>;
 }
 
-/** Tier 2a: natives Share-Sheet (iOS/Safari u. a.). */
+/**
+ * Tier 2a: natives Share-Sheet. `isSupported()` beantwortet bewusst „ist das Share-Sheet
+ * auf DIESER Plattform ein tauglicher Speicherweg", NICHT „existiert `navigator.share`" —
+ * auf macOS existiert die API, aber das Sheet bietet kein „In Dateien sichern"
+ * (Spec 14 §4, ADR-v9-194).
+ */
 export interface ShareAdapter {
   isSupported(): boolean;
   share(bytes: Uint8Array | string, filename: string, mimeType: string): Promise<boolean>;

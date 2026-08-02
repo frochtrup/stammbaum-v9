@@ -15,10 +15,12 @@
   interface Props {
     appState: AppState;
     fileService: FileService;
-    /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
+    /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1a), falls vorhanden. */
     handle?: unknown;
+    /** Meldet ein bei „Speichern unter" (Tier 1b) NEU erworbenes Handle an die Schale. */
+    onHandleAcquired?: (handle: unknown) => void;
   }
-  const { appState, fileService, handle }: Props = $props();
+  const { appState, fileService, handle, onHandleAcquired }: Props = $props();
 
   let status = $state<'idle' | 'saving'>('idle');
   /** Kurzer Status-Hinweis nach dem Speichern (analog placesEditNotice-Muster in App.svelte). */
@@ -29,7 +31,11 @@
   async function handleClick() {
     status = 'saving';
     notice = '';
-    notice = await saveCurrentDoc(appState, fileService, handle);
+    const outcome = await saveCurrentDoc(appState, fileService, handle);
+    notice = outcome.notice;
+    // Der FileService hat es bereits in der Arbeitskopie gemerkt; hier geht es um den
+    // laufenden Sitzungszustand, damit schon der NÄCHSTE Klick still speichert.
+    if (outcome.handle !== undefined) onHandleAcquired?.(outcome.handle);
     status = 'idle';
   }
 </script>

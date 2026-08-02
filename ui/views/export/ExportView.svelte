@@ -32,11 +32,14 @@
     handle?: unknown;
     /** Bezugsjahr der Lebend-Klassifikation; injizierbar für Tests (TST-3). */
     referenceYear?: number;
+    /** Meldet ein bei „Speichern unter" (Tier 1b) NEU erworbenes Handle an die Schale —
+     *  ein Export im nativen Format kann denselben Weg nehmen wie der Speichern-Knopf. */
+    onHandleAcquired?: (handle: unknown) => void;
     /** B1-Bündel (BL-180): merkt Format + Schwärzung geräteübergreifend. Fehlt es
      *  (Tests, eingebettete Nutzung), verhält sich die Fläche wie bisher sitzungslokal. */
     appDataIO?: AppDataIO;
   }
-  const { appState, fileService, handle, referenceYear, appDataIO }: Props = $props();
+  const { appState, fileService, handle, referenceYear, appDataIO, onHandleAcquired }: Props = $props();
 
   // Alle Formate stehen zur Wahl (BL-160) — ob ein Format den nativen Passthrough-Baum
   // projiziert oder als Cross-Family-Vollbaum direkt aus dem Modell synthetisiert wird
@@ -113,11 +116,13 @@
   async function handleExport() {
     status = 'busy';
     notice = '';
-    notice = await exportGedcom(appState, fileService, {
+    const outcome = await exportGedcom(appState, fileService, {
       format,
       anonymizeReferenceYear: anonAktiv ? jahr : undefined,
       handle,
     });
+    notice = outcome.notice;
+    if (outcome.handle !== undefined) onHandleAcquired?.(outcome.handle);
     status = 'idle';
   }
 </script>
