@@ -13,7 +13,9 @@
 //       `SEX U` mit dem Default U
 //   (3) Enum-Wert, den das Modell nicht kennt — `_RESULT not-found` (v8s Schreibweise)
 //       wurde still zu `pending`, aus „Nicht gefunden" wurde „offen"
-//   (4) ein Tag, den niemand liest — `_DONE 1` ohne `_TSTAT` (v8-Aufgaben von vor sw v307)
+//   (4) ein Tag, den niemand liest — `_DONE 1` ohne `_TSTAT` (v8-Aufgaben von vor sw v307).
+//       Seit BL-307 wird `_DONE` gelesen, aber nicht mehr geschrieben: die Aussage steht
+//       danach in `_TSTAT`, und zwar nur noch dort.
 //
 // GEMESSEN WIRD DER NEUBAU: ein unveränderter Record gibt den Original-Knoten zurück und
 // beweist über den Writer nichts.
@@ -41,7 +43,16 @@ const gebaut = (): string[] => {
   return assembleLines(speichern(p.db, p.roots));
 };
 
-/** Zeilen, die die Eingabe hatte und die Ausgabe nicht (ohne die vom Test geänderten). */
+/**
+ * Zeilen, die die Eingabe hatte und die Ausgabe nicht (ohne die vom Test geänderten).
+ *
+ * `_DONE` ist seit BL-307/ADR-v9-213 ausgenommen, und zwar als EINZIGER Tag: v9 schreibt
+ * ihn bewusst nicht mehr, weil er dieselbe Aussage trägt wie `_TSTAT` und zwei Zeilen für
+ * eine Aussage widersprüchlich werden können. Das ist kein Verlust — die Aussage steht
+ * danach in `_TSTAT`, und der Test darunter belegt es. Die Ausnahme steht hier NAMENTLICH
+ * statt als weiche Regel: sie ist die einzige Stelle, an der dieser Wächter etwas
+ * durchgehen lässt.
+ */
 function fehlend(): string[] {
   const zaehl = (zs: string[]): Map<string, number> => {
     const m = new Map<string, number>();
@@ -52,7 +63,7 @@ function fehlend(): string[] {
   const out: string[] = [];
   for (const [z, n] of ma) {
     const d = n - (mb.get(z) ?? 0);
-    if (d > 0 && !/^1 (_UID|ABBR) /.test(z)) out.push(`${d}x ${z}`);
+    if (d > 0 && !/^1 (_UID|ABBR) /.test(z) && !/^\d+ _DONE /.test(z)) out.push(`${d}x ${z}`);
   }
   return out;
 }
@@ -103,12 +114,20 @@ describe('BL-302 — der Record-Neubau verliert keine Zeile mehr', () => {
     expect(gebaut()).toContain('2 _RESULT not-found');
   });
 
-  it('(4) `_DONE 1` ohne `_TSTAT` bleibt erledigt', () => {
+  // PRÄZISIERT MIT BL-307 (ADR-v9-213). Die Zusicherung war und bleibt „der Status geht
+  // nicht verloren" — geprüft wurde sie daran, dass BEIDE Zeilen dastehen. Genau diese
+  // Doppelung ist jetzt abgeschafft: `_DONE` wird gelesen, aber nicht mehr geschrieben.
+  // Geprüft wird deshalb, was die Zusicherung meint — die Aussage überlebt, und zwar
+  // genau einmal.
+  it('(4) `_DONE 1` ohne `_TSTAT` bleibt erledigt — jetzt allein in `_TSTAT`', () => {
     const p = parseGedcom(src);
     expect(p.db.individuals.get('@I1@')!.tasks[0].status).toBe('done');
     const z = gebaut();
-    expect(z).toContain('2 _DONE 1');
     expect(z).toContain('2 _TSTAT done');
+    expect(z.some((x) => /^\d+ _DONE /.test(x))).toBe(false);
+    // Und die Probe darauf, dass „genau einmal" auch „vollständig" heißt.
+    const wieder = parseGedcom(speichern(parseGedcom(src).db, parseGedcom(src).roots));
+    expect(wieder.db.individuals.get('@I1@')!.tasks[0].status).toBe('done');
   });
 
   it('zweimal speichern ändert nichts mehr (out1===out2)', () => {

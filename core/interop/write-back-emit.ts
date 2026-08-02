@@ -195,14 +195,21 @@ function eventNode(ev: Event, media?: MediaLookup): GedNode {
 /**
  * Forschungsaufgabe (ResearchTask) → `1 _TASK`-Block (Spec 12 §1, Wire-Format 13 §2.3).
  * parseTask (gedcom-parse.ts) ist die Umkehr. Reihenfolge/Tags nach v8-Oracle
- * (`gedcom-writer.js` `_writeINDIExt`): `_CAT`, `_DONE` (IMMER, 0/1), `_TSTAT`, `_DATE`,
- * `_ID`, `SOUR`. `_DONE` wird mitgeschrieben (Spec nennt den Tag), obwohl es beim Lesen
- * aus `_TSTAT` abgeleitet wird — reine Redundanz für fremde Leser.
+ * (`gedcom-writer.js` `_writeINDIExt`): `_CAT`, `_TSTAT`, `_DATE`, `_ID`, `SOUR`.
+ *
+ * **`_DONE` wird NICHT MEHR geschrieben** (BL-307, ADR-v9-213). v8 führte zwei Tags für
+ * denselben Sachverhalt: `_DONE 0|1` (Erledigt-Haken) und, später dazugekommen, `_TSTAT`
+ * (Kanban-Status). Zwei Zeilen für eine Aussage sind eine Einladung zum Widerspruch —
+ * das Modell schließt ihn zwar aus (`done === (status === 'done')`, Spec 12 §1), eine
+ * FREMDE Datei kann ihn aber mitbringen, und dann konservierte ihn der Wert-Halt aus
+ * ADR-v9-209 sogar. `_TSTAT` trägt die Aussage vollständig; `_DONE` bleibt LESBAR
+ * (Rückfall in `parseTask`, für Aufgaben aus der Zeit vor v8 sw v307) und verschwindet
+ * beim Neubau eines Records — deshalb steht es in `ABGESCHAFFT` (write-back.ts), sonst
+ * zöge der Überschuss die alte Zeile als eingefrorenen Widerspruch wieder ein.
  */
 function taskNode(t: ResearchTask): GedNode {
   const kids: GedNode[] = [];
   if (t.category) kids.push(N('_CAT', t.category));
-  kids.push(N('_DONE', t.done ? '1' : '0'));
   kids.push(N('_TSTAT', t.status));
   if (t.created) kids.push(N('_DATE', t.created));
   if (t.id) kids.push(N('_ID', t.id));

@@ -452,7 +452,7 @@ function ueberschuss(
   const gesehen = new Map<string, number>();
   const out: GedNode[] = [];
   for (const c of alteKinder) {
-    if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag)) continue;
+    if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag) || ABGESCHAFFT.has(c.tag)) continue;
     const n = (gesehen.get(c.tag) ?? 0) + 1;
     gesehen.set(c.tag, n);
     if (n > (gelesen.get(c.tag)?.length ?? 0)) out.push(c);
@@ -467,6 +467,27 @@ function ueberschuss(
  * Realbestand aufgedeckt: `NOTE>CONT`, `ADDR>CONT`, `OBJE>CONT`.)
  */
 const FORTSETZUNG = new Set(['CONC', 'CONT']);
+
+/**
+ * Tags, die v9 bewusst NICHT MEHR schreibt und die beim Neubau eines Records deshalb
+ * VERSCHWINDEN sollen (BL-307, ADR-v9-213).
+ *
+ * WOZU EINE EIGENE MENGE. Jeder andere Mechanismus hier arbeitet erhaltend — der
+ * Passthrough rettet Un-modelliertes, der `ueberschuss` rettet, was das Modell nicht halten
+ * kann. Für einen Tag, den v9 abschafft, greift ausgerechnet der Überschuss falsch: der
+ * Emitter erzeugt ihn nicht mehr, also erzeugt ihn auch die Probe nicht, also sieht der
+ * Überschuss „das Modell kann ihn nicht halten" und zieht die ALTE Zeile verbatim wieder
+ * ein. Das Ergebnis wäre eine eingefrorene Zeile neben ihrer lebenden Nachfolgerin — genau
+ * der Widerspruch, dessentwegen der Tag abgeschafft wurde.
+ *
+ * Das ist die EINZIGE Stelle im Write-Back, die Daten aktiv entfernt; deshalb ist sie
+ * benannt, eng und begründet, statt als Sonderfall im Überschuss zu stehen.
+ *
+ * **Abgeschafft heißt nicht ungelesen:** `parseTask` liest `_DONE` weiterhin als Rückfall
+ * (Aufgaben aus der Zeit vor v8 sw v307 tragen nur ihn, BL-302). Verloren geht keine
+ * Aussage — sie steht danach in `_TSTAT`.
+ */
+const ABGESCHAFFT = new Set(['_DONE']);
 
 /**
  * Knoten, die ihren un-modellierten Inhalt SELBST im Modell mitführen: `DATA` über
