@@ -21,7 +21,7 @@ import { makeTask } from '../research/task';
 import { makeLogEntry } from '../research/log';
 import { makeHypothesis } from '../research/hypothesis';
 import { makeEvidenceEval } from '../research/eval';
-import { applyEvalAxis, isEvalTag } from './enum-maps';
+import { applyEvalAxis, isEvalTag, logResultFromWire } from './enum-maps';
 import type {
   ResearchTask,
   TaskStatus,
@@ -117,6 +117,8 @@ function parseCitation(sourNode: GedNode): Citation {
   const sid = unescapeAt(sourNode.value);
   const cit = makeCitation(sid);
   cit.page = childValue(sourNode, 'PAGE');
+  // Tristate (BL-302): ohne `QUAY`-Zeile bleibt `quay` null — vorher fiel „keine
+  // Bewertung" mit der ausdrücklichen `QUAY 0` („unzuverlässig") zusammen.
   const quayRaw = childValue(sourNode, 'QUAY');
   if (quayRaw !== '') {
     const q = parseInt(quayRaw, 10);
@@ -290,8 +292,14 @@ function parseEvent(node: GedNode): Event {
  */
 function parseTask(node: GedNode): ResearchTask {
   const raw = childValue(node, '_TSTAT');
+  // `_DONE` als Rueckfall, wenn `_TSTAT` fehlt (BL-302). v8s eigener Parser liest ihn
+  // (`gedcom-parser.js`: `x._curTask.done = val === '1'`), und Aufgaben aus der Zeit VOR
+  // v8 sw v307 tragen nur `_DONE`. Ohne den Rueckfall wurde eine erledigte Aufgabe beim
+  // naechsten Speichern wieder offen — der Tag stand da, nur las ihn niemand.
   const status: TaskStatus =
-    raw === 'doing' || raw === 'done' || raw === 'todo' ? raw : 'todo';
+    raw === 'doing' || raw === 'done' || raw === 'todo'
+      ? raw
+      : childValue(node, '_DONE') === '1' ? 'done' : 'todo';
   const t = makeTask(childValue(node, '_ID'), {
     text: collectText(node),
     category: childValue(node, '_CAT'),
@@ -318,11 +326,8 @@ function parseTask(node: GedNode): ResearchTask {
  * herausgelöst (INV-PT/§2.3, `_REPO_MODELLED`-Lehre).
  */
 function parseLogEntry(node: GedNode): LogEntry {
-  const raw = childValue(node, '_RESULT');
-  const result: LogResult =
-    raw === 'found' || raw === 'partial' || raw === 'notfound' || raw === 'pending'
-      ? raw
-      : 'pending';
+  // Beide Schreibweisen (BL-302): die DATEI traegt v8s `not-found`, das Modell `notfound`.
+  const result = (logResultFromWire(childValue(node, '_RESULT')) || 'pending') as LogResult;
   const repo = child(node, 'REPO');
   const sour = child(node, 'SOUR');
   const noteNode = child(node, 'NOTE');
@@ -451,6 +456,10 @@ function parsePerson(rec: GedNode): Person {
       }
       case 'SEX':
         p.sex = normalizeSex(c.value);
+        // Nur bei einem der drei GUELTIGEN Werte (BL-302). Ein fremder Wert (`1 SEX X`)
+        // normalisiert zu `U`; ihn als "gesehen" zu fuehren, schriebe `SEX U` zurueck —
+        // eine erfundene Aussage. Er faellt weiter weg, wie bisher.
+        p.sexSeen = ['M', 'F', 'U'].includes(c.value.trim().toUpperCase());
         break;
       case 'TITL':
         p.title = c.value;

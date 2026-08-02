@@ -274,7 +274,8 @@ function citationRecord(id: string, c: Citation, refs: Refs): XmlNode {
   const handle = refs.remap.handle.get(id)!;
   const children: XmlNode[] = [];
   if (c.page) children.push(textEl('page', c.page));
-  children.push(textEl('confidence', quayToConfidence(c.quay)));
+  // GRAMPS kennt kein Ohne-Bewertung: <confidence> ist Pflicht, null wird zu 0.
+  children.push(textEl('confidence', quayToConfidence(c.quay ?? 0)));
   for (const m of c.media) {
     const h = refs.mediaHandle(m.mediaId);
     if (h) children.push(el('objref', [['hlink', h]]));

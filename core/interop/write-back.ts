@@ -205,27 +205,27 @@ function personNode(
   // `inlineMediaChanged`: ein inline-Medium hat keinen eigenen Record, sein Edit muss hier
   // durch (BL-301) — dieselbe Frage in allen drei Record-Typen, die ein OBJE tragen können.
   if (carried.length === 0 && personEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried);
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried, projected);
 }
 function familyNode(orig: GedNode, cur: Family, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
   const projected = parseFamilyPublic(orig);
   if (familyEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media));
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media), [], projected);
 }
 function sourceNode(orig: GedNode, cur: Source, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
   const projected = parseSourcePublic(orig);
   if (sourceEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media));
+  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media), [], projected);
 }
 function repoNode(orig: GedNode, cur: Repository): GedNode {
   const projected = parseRepositoryPublic(orig);
   if (repoEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository);
+  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository, [], projected);
 }
 function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
   const projected = projectMediaRecord(orig);
   if (projected && mediaRecordEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord);
+  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord, [], projected ?? undefined);
 }
 
 /**
@@ -337,21 +337,65 @@ function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
 function uebernimmTiefenPassthrough(
   alteKinder: readonly GedNode[],
   frischeKinder: GedNode[],
+  wieGelesenKinder: readonly GedNode[],
   recognized: Set<string>,
 ): GedNode[] {
-  const nachTag = (xs: readonly GedNode[]) => {
-    const m = new Map<string, GedNode[]>();
-    for (const x of xs) (m.get(x.tag) ?? m.set(x.tag, []).get(x.tag)!).push(x);
-    return m;
-  };
   const alt = nachTag(alteKinder.filter((c) => recognized.has(c.tag)));
   const frisch = nachTag(frischeKinder);
+  const gelesen = nachTag(wieGelesenKinder);
   for (const [tag, alteGruppe] of alt) {
     const frischeGruppe = frisch.get(tag);
     if (!frischeGruppe) continue; // im Modell nicht mehr vorhanden → bewusst gelöscht
-    for (const [a, f] of paare(alteGruppe, frischeGruppe)) uebernimmIn(a, f);
+    const gelesenGruppe = gelesen.get(tag) ?? [];
+    const pos = new Map(alteGruppe.map((a, i) => [a, i]));
+    for (const [a, f] of paare(alteGruppe, frischeGruppe)) {
+      uebernimmIn(a, f, gelesenGruppe[pos.get(a)!] ?? null);
+    }
   }
   return frischeKinder;
+}
+
+function nachTag(xs: readonly GedNode[]): Map<string, GedNode[]> {
+  const m = new Map<string, GedNode[]>();
+  for (const x of xs) (m.get(x.tag) ?? m.set(x.tag, []).get(x.tag)!).push(x);
+  return m;
+}
+
+/**
+ * Der ÜBERSCHUSS (BL-302): erkannte Kinder, die das Modell strukturell nicht HALTEN kann.
+ *
+ * Der Passthrough rettet per Konstruktion nur Tags, die das Modell NICHT beansprucht
+ * (`mergeRecord` unten). Für beanspruchte Tags galt bisher ausnahmslos „fehlt im Modell =
+ * vom Nutzer gelöscht" — richtig für alles, was das Modell abbilden KANN, falsch für den
+ * Rest: ein Ereignis mit ZWEI `NOTE`-Zeilen, eine Quelle mit zwei `TEXT`, ein `1 NAME` ohne
+ * Wert. Das Modell hat je einen Slot, die zweite Zeile fiel still weg (22 Zeilen in
+ * `Unsere Familie 2026.ged`, nachdem BL-290/292 die anderen Klassen geschlossen hatten).
+ *
+ * `wieGelesen` ist die Probe, die beide Fälle trennt, OHNE ein Feld je Tag zu erfinden:
+ * derselbe Emitter, angewandt auf die Projektion des UNVERÄNDERTEN Originals. Erzeugt er
+ * für einen Tag weniger Knoten, als das Original trägt, liegt das am Modell — nicht am
+ * Nutzer. Löscht der Nutzer dagegen einen Wert, steht er in `wieGelesen` weiterhin, und der
+ * Überschuss bleibt leer: die Löschung wirkt.
+ *
+ * **Verglichen wird NUR die ANZAHL je Tag, nie die Struktur.** Der Emitter ordnet Kinder
+ * kanonisch um (`NAME`→GIVN/SURN/…); ein Tiefenvergleich hielte jeden umsortierten Knoten
+ * für unabbildbar und schriebe ihn ein zweites Mal daneben.
+ */
+function ueberschuss(
+  alteKinder: readonly GedNode[],
+  wieGelesenKinder: readonly GedNode[],
+  recognized: Set<string>,
+): GedNode[] {
+  const gelesen = nachTag(wieGelesenKinder);
+  const gesehen = new Map<string, number>();
+  const out: GedNode[] = [];
+  for (const c of alteKinder) {
+    if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag)) continue;
+    const n = (gesehen.get(c.tag) ?? 0) + 1;
+    gesehen.set(c.tag, n);
+    if (n > (gelesen.get(c.tag)?.length ?? 0)) out.push(c);
+  }
+  return out;
 }
 
 /**
@@ -375,8 +419,10 @@ const FORTSETZUNG = new Set(['CONC', 'CONT']);
  */
 const SELBSTVERWALTETER_PASSTHROUGH = new Set(['DATA', 'OBJE']);
 
-/** Ein Paar: un-modellierte Kinder von `alt` nach `frisch`, dann eine Ebene tiefer. */
-function uebernimmIn(alt: GedNode, frisch: GedNode): void {
+/** Ein Paar: un-modellierte Kinder von `alt` nach `frisch`, dann eine Ebene tiefer.
+ *  `wieGelesen` ist derselbe Knoten, wie ihn der Emitter aus dem UNVERÄNDERTEN Original
+ *  baut — er trennt „vom Nutzer gelöscht" von „vom Modell nicht abbildbar" (s. `ueberschuss`). */
+function uebernimmIn(alt: GedNode, frisch: GedNode, wieGelesen: GedNode | null): void {
   const modelliert = new Set(modellierteKinder(alt.tag));
   if (!SELBSTVERWALTETER_PASSTHROUGH.has(alt.tag)) {
     for (const kind of alt.children) {
@@ -384,8 +430,16 @@ function uebernimmIn(alt: GedNode, frisch: GedNode): void {
       if (frisch.children.some((x) => nodeEqual(x, kind))) continue;
       frisch.children.push(kind);
     }
+    // Überschuss an DIESER Ebene (BL-302): das zweite `NOTE` unter einem Ereignis, das
+    // zweite `_RESULT` unter einem `_RLOG`. Ohne `wieGelesen` ist die Frage nicht
+    // entscheidbar — dann bleibt es beim alten Verhalten (nichts nachtragen).
+    if (wieGelesen) {
+      for (const k of ueberschuss(alt.children, wieGelesen.children, modelliert)) {
+        if (!frisch.children.some((x) => nodeEqual(x, k))) frisch.children.push(k);
+      }
+    }
   }
-  uebernimmTiefenPassthrough(alt.children, frisch.children, modelliert);
+  uebernimmTiefenPassthrough(alt.children, frisch.children, wieGelesen?.children ?? [], modelliert);
 }
 
 function mergeRecord<T>(
@@ -394,12 +448,24 @@ function mergeRecord<T>(
   recognized: Set<string>,
   emit: (m: T) => GedNode,
   carried: GedNode[] = [], // absorbierter Verlierer-Passthrough (BL-164), dedupliziert angehängt
+  projected?: T,           // die Projektion des UNVERÄNDERTEN Originals (BL-302, s. ueberschuss)
 ): GedNode {
   const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
+  // Dieselbe Synthese aus dem UNVERÄNDERTEN Original — die Probe, die „gelöscht" von
+  // „nicht abbildbar" trennt (BL-302). Ohne `projected` bleibt es beim alten Verhalten.
+  const wieGelesen = projected === undefined ? null : emit(projected);
   // Un-modellierte ENKEL aus den alten erkannten Kindern in die frischen übernehmen
   // (BL-285): ohne diesen Schritt nimmt jeder neu gebaute Knoten alles mit, was das Modell
   // unterhalb von ihm nicht abbildet.
-  const recognizedChildren = uebernimmTiefenPassthrough(orig.children, fresh.children, recognized);
+  const recognizedChildren = uebernimmTiefenPassthrough(
+    orig.children, fresh.children, wieGelesen?.children ?? [], recognized,
+  );
+  // Überschuss der OBERSTEN Ebene: ein `1 NAME` ohne Wert, ein zweites `1 TEXT`.
+  if (wieGelesen) {
+    for (const k of ueberschuss(orig.children, wieGelesen.children, recognized)) {
+      if (!recognizedChildren.some((x) => nodeEqual(x, k))) recognizedChildren.push(k);
+    }
+  }
 
   const children: GedNode[] = [];
   let inserted = false;
@@ -593,7 +659,7 @@ function personEqual(a: Person, b: Person): boolean {
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
     a.nameType === b.nameType && extraNamesEqual(a.extraNames, b.extraNames) &&
-    a.sex === b.sex && a.title === b.title &&
+    a.sex === b.sex && a.sexSeen === b.sexSeen && a.title === b.title &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
     a.uid === b.uid && a.cause === b.cause &&
     eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&

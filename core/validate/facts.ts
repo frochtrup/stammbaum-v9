@@ -108,7 +108,7 @@ export function hasSources(p: Person): boolean {
  * Fälle sind dort nicht mehr unterscheidbar. „Bewertet" heißt deshalb `quay > 0`.
  */
 export function hasAnyQuay(p: Person): boolean {
-  return personCitations(p).some((c) => c.quay > 0);
+  return personCitations(p).some((c) => (c.quay ?? 0) > 0);
 }
 
 /** Trägt mindestens ein Zitat eine Evidenzbewertung (Spec 12 §3, 3-Achsen-Modell)? */

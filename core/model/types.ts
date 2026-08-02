@@ -103,7 +103,16 @@ export type Quay = 0 | 1 | 2 | 3;
 export interface Citation {
   sourceId: SourceId;
   page: string;
-  quay: Quay;
+  /**
+   * `QUAY` — TRISTATE: `null` = kein QUAY-Tag, `0`–`3` = ausdrückliche Bewertung
+   * (BL-302, [ADR-v9-208]). `0` heißt in GEDCOM „unzuverlässig" und ist damit eine
+   * AUSSAGE — solange es zugleich der Default war, fiel es mit „gar keine Bewertung"
+   * zusammen und der Writer ließ die Zeile weg (30× in `Unsere Familie 2026.ged`).
+   *
+   * Der Editor braucht dafür KEINEN vierten Zustand: „nicht bewertet" ist schlicht
+   * „nie angefasst". Anzeigende Leser nehmen `quay ?? 0` — für sie ändert sich nichts.
+   */
+  quay: Quay | null;
   note: string;
   media: MediaCitation[];
   eval: EvidenceEval | null;
@@ -215,6 +224,20 @@ export interface Person {
    *  am Hauptnamen modelliert-aber-heimatlos und ginge beim Neubau verloren (BL-292). */
   nameType: string;
   sex: Sex;
+  /**
+   * Stand `1 SEX` in der Quelle? (BL-302) — dieselbe Rolle wie `Event.seen` (INV-P5):
+   * bewahrt einen vorhandenen Tag, dessen Wert mit dem Default zusammenfaellt.
+   *
+   * `U` IST modelliert und editierbar; verloren ging es nicht am Modell, sondern am
+   * WRITER, der `U` unterdrueckte — weil `U` zugleich der Default jedes Records OHNE
+   * SEX-Zeile ist (INV-P1) und ein bedingungsloses Schreiben jedem solchen Record eine
+   * Zeile hinzugefuegt haette, die er nie hatte (ADR-v9-197).
+   *
+   * BEWUSST kein `sex: Sex | null`: INV-P1 sagt zu, dass jeder Leser einen gueltigen Wert
+   * bekommt. Ein Tristate haette die Zusage gebrochen, um eine Frage zu beantworten, die
+   * nur den Writer betrifft.
+   */
+  sexSeen: boolean;
   title: string;
   restriction: string;
   email: string;

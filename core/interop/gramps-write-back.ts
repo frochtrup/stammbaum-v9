@@ -528,7 +528,7 @@ function eventKinder(orig: XmlNode, cur: Event, wb: Wb): XmlNode[] {
 function citationKinder(orig: XmlNode, cur: Citation, index: GrampsRefIndex): XmlNode[] {
   let children = setzeText(orig.children, DTD_ORDER.citation, 'page', cur.page);
   const origConf = firstChild(orig, 'confidence')?.text ?? '';
-  const conf = confidenceToQuay(origConf) === cur.quay ? origConf : String(cur.quay);
+  const conf = confidenceToQuay(origConf) === (cur.quay ?? 0) ? origConf : String(cur.quay ?? 0);
   children = setzeText(children, DTD_ORDER.citation, 'confidence', conf);
   children = setzeEvidenzAchsen(children, cur.eval);
   children = reconcileRefs(children, DTD_ORDER.citation, 'objref', () => true,

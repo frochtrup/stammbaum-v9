@@ -109,39 +109,3 @@ describe('BL-292/BL-289 — der Record-Neubau verliert keine Zeile', () => {
     expect(speichern(p2.db, p2.roots)).toBe(out1);
   });
 });
-
-// Was BEWUSST offen bleibt (BL-292 Fertig-Zustand: „Modell-Erweiterung ODER ausdrücklich
-// dokumentierte Grenze"). Am Realbestand nach dem Bau von BL-289/290/291/292 gemessen:
-// 68 verlorene Zeilen in ~110.000, in vier benennbaren Gruppen. Der Test hält sie fest,
-// damit die Grenze nicht still WÄCHST — er beschreibt kein Wunschverhalten, sondern das
-// bekannte Ist. Fällt eine dieser Zusicherungen, hat sich etwas geändert und will
-// entschieden werden.
-describe('BL-292 — die dokumentierte Grenze', () => {
-  it('`QUAY 0` wird nicht geschrieben: das Modell kennt keinen Unterschied zu „kein QUAY"', () => {
-    // 30× im Bestand. `Citation.quay` ist `0|1|2|3`; 0 ist zugleich der Default. Ein
-    // Tristate dafür ist keine reine Fidelity-Frage — der Zitat-Editor müsste „keine
-    // Bewertung" als vierten Zustand anbieten; das ist eine eigene Entscheidung.
-    const p = parseGedcom('0 HEAD\n0 @I1@ INDI\n1 BIRT\n2 SOUR @S1@\n3 QUAY 0\n0 TRLR\n');
-    const roh = p.db.individuals.get('@I1@')!;
-    p.db.individuals.set(roh.id, { ...roh, uid: 'ZZ' });
-    expect(assembleLines(speichern(p.db, p.roots)).some((z) => z === '3 QUAY 0')).toBe(false);
-  });
-
-  it('`SEX U` wird nicht geschrieben: INV-P1 macht U zum Default, nicht zum Wert', () => {
-    // 1× im Bestand.
-    const p = parseGedcom('0 HEAD\n0 @I1@ INDI\n1 SEX U\n0 TRLR\n');
-    const roh = p.db.individuals.get('@I1@')!;
-    p.db.individuals.set(roh.id, { ...roh, uid: 'ZZ' });
-    expect(assembleLines(speichern(p.db, p.roots)).some((z) => z === '1 SEX U')).toBe(false);
-  });
-
-  it('ein ZWEITES `NOTE`/`TEXT` am selben Träger hat keinen Platz (ein Slot, ein String)', () => {
-    // 8× NOTE, 4× TEXT im Bestand. Anders als bei NAME/RELI ist hier nicht klar, ob eine
-    // Liste die richtige Form ist oder ob die Quelle schlicht doppelt trägt.
-    const p = parseGedcom('0 HEAD\n0 @I1@ INDI\n1 BIRT\n2 NOTE eins\n2 NOTE zwei\n0 TRLR\n');
-    const roh = p.db.individuals.get('@I1@')!;
-    p.db.individuals.set(roh.id, { ...roh, uid: 'ZZ' });
-    const zeilen = assembleLines(speichern(p.db, p.roots));
-    expect(zeilen.filter((z) => z.startsWith('2 NOTE '))).toHaveLength(1);
-  });
-});

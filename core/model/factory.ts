@@ -73,6 +73,7 @@ export function makePerson(id: PersonId, patch: Partial<Person> = {}): Person {
     nick: '',
     nameType: '',
     sex: 'U',
+    sexSeen: false,
     title: '',
     restriction: '',
     email: '',
@@ -200,7 +201,7 @@ export function makeCitation(
   const base: Citation = {
     sourceId,
     page: '',
-    quay: 0,
+    quay: null,
     note: '',
     media: [],
     eval: null,

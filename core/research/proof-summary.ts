@@ -13,7 +13,7 @@ import type { Hypothesis } from './types';
 /** „Bewertet" = QUAY > 0 (0 ist der Parser-Default für ein fehlendes Tag, nicht
  *  unterscheidbar von „ausdrücklich 0" — dieselbe Konvention wie facts.ts::hasAnyQuay). */
 function hasQuay(c: Citation): boolean {
-  return c.quay > 0;
+  return (c.quay ?? 0) > 0;
 }
 
 /** „Evidenzbewertet" = mindestens eine der drei Achsen (oder Informant) gesetzt —

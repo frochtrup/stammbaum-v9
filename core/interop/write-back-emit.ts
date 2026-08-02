@@ -28,7 +28,7 @@ import type {
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import type { GedNode } from './gedcom-tree';
-import { EVAL_TAGS, evalAxisValue } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, logResultToWire } from './enum-maps';
 import { gedFormValue } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
@@ -130,7 +130,7 @@ function evidenceEvalNode(ev: EvidenceEval | null): GedNode | null {
 function citationNode(c: Citation, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (c.page) kids.push(N('PAGE', c.page));
-  if (c.quay !== 0) kids.push(N('QUAY', String(c.quay)));
+  if (c.quay !== null) kids.push(N('QUAY', String(c.quay)));
   // v8-Orakel-Position: direkt nach QUAY, vor NOTE (`_writeSourCits`).
   const evalKid = evidenceEvalNode(c.eval);
   if (evalKid) kids.push(evalKid);
@@ -213,7 +213,7 @@ function logEntryNode(l: LogEntry): GedNode {
   if (l.repoRef) kids.push(N('REPO', l.repoRef));
   if (l.sourceRef) kids.push(N('SOUR', l.sourceRef));
   if (l.query) kids.push(N('_QUERY', l.query));
-  kids.push(N('_RESULT', l.result));
+  kids.push(N('_RESULT', logResultToWire(l.result)));
   if (l.note) kids.push(textNode('NOTE', l.note));
   if (l.taskId) kids.push(N('_TASKID', l.taskId));
   return N('_RLOG', '', kids);
@@ -278,7 +278,9 @@ export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   // Weitere Namensformen DIREKT hinter dem Hauptnamen (BL-292) — so, wie sie in der Datei
   // stehen. `parsePersonName` ist die Umkehr.
   for (const n of p.extraNames) kids.push(extraNameNode(n, media));
-  if (p.sex && p.sex !== 'U') kids.push(N('SEX', p.sex));
+  // `U` nur, wenn es in der Quelle stand (BL-302) — sonst bekaeme jeder Record ohne
+  // SEX-Zeile eine, weil `U` der Default ist.
+  if (p.sex !== 'U' || p.sexSeen) kids.push(N('SEX', p.sex));
   if (p.title) kids.push(N('TITL', p.title));
   if (p.restriction) kids.push(N('RESN', p.restriction));
   if (p.email) kids.push(N('EMAIL', p.email));

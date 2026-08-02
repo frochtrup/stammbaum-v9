@@ -288,3 +288,28 @@ export function nameTypeFromGramps(value: string): string {
   const v = value.trim();
   return GRAMPS_ZU_NAME_TYPE[v.toLowerCase()] ?? v;
 }
+
+
+// ── 8. `_RESULT` (Forschungsprotokoll) ↔ Wire-Wert (BL-302) ───────────────────
+// Das MODELL schreibt `notfound`, die DATEI `not-found` — v8s Schreibweise
+// (`ui-views-rlog.js`, `index.html` <option value="not-found">). v9 hatte den Bindestrich
+// beim Bau nicht uebernommen; sein Parser kannte den echten Wert deshalb nicht und schrieb
+// `pending` zurueck: aus "Nicht gefunden" wurde "offen", eine stille Umdeutung eines
+// Forschungsergebnisses (3x in `Unsere Familie 2026.ged`).
+//
+// Genau die Falle aus TST-6: das Spec-Bullet nannte nur die Tag-NAMEN, die Kodierung stand
+// im Quelltext. Gelesen werden beide Schreibweisen (v8-Dateien und bereits von v9
+// geschriebene), ausgegeben wird die etablierte.
+
+const RESULT_WIRE: Record<string, string> = { notfound: 'not-found' };
+
+/** Modell-`LogResult` → Wire-Wert. */
+export function logResultToWire(result: string): string {
+  return RESULT_WIRE[result] ?? result;
+}
+
+/** Wire-Wert → Modell-`LogResult`; unbekannt → '' (der Aufrufer entscheidet den Default). */
+export function logResultFromWire(raw: string): string {
+  const v = raw.trim().toLowerCase().replace(/[-_]/g, '');
+  return ['found', 'partial', 'notfound', 'pending'].includes(v) ? v : '';
+}
