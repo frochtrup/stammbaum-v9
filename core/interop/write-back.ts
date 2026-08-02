@@ -43,13 +43,6 @@ import type {
   SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
-import {
-  buildPlacForGedcom,
-  eventYear,
-  makePlaceRegistry,
-  makeHofRegistry,
-  type PlaceContext,
-} from '../places';
 import type { GedNode } from './gedcom-tree';
 import { evidenceEvalEqual, EVAL_TAGS } from './enum-maps';
 import {
@@ -106,14 +99,9 @@ const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL']);
  */
 export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] {
   const out: GedNode[] = [];
-  // PlaceContext INTERN aus db.placeObjects/db.hofObjects gebaut (ADR-v9-47): der Writer
-  // UND der Dirty-Check leiten den PLAC-String bei gesetzter placeId/hofId LIVE ab, statt
-  // dem möglicherweise veralteten ev.place-Cache zu vertrauen (INV-PLACE Mechanismus 2).
-  // Kein neuer externer Parameter nötig — `db` enthält alles (Vereinfachen vor Erfinden).
-  const ctx: PlaceContext = {
-    places: makePlaceRegistry(db.placeObjects),
-    hofs: makeHofRegistry(db.hofObjects),
-  };
+  // KEIN PlaceContext mehr (ADR-v9-197, BL-288): weder der Writer noch der Dirty-Check
+  // projizieren PLAC — beide lesen `ev.place` als Wire-Wahrheit. Damit entfällt auch der
+  // Aufbau zweier Registries über den GESAMTEN Orts-/Hof-Bestand bei JEDEM Speichern.
   // Medien-Auflösung (ADR-v9-124) ebenfalls INTERN aus db (kein neuer Parameter, wie ctx).
   const media: MediaLookup = db.media;
   // Record-Lookup nach xref (BL-164): der Passthrough absorbierter Verlierer-Records wird von
@@ -131,7 +119,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, ctx, media, recById));
+        out.push(personNode(rec, cur, media, recById));
         break;
       }
       case 'FAM': {
@@ -139,7 +127,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur, ctx, media));
+        out.push(familyNode(rec, cur, media));
         break;
       }
       case 'SOUR': {
@@ -182,8 +170,8 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
   // Neue Records (im Modell, nicht im Baum) vor TRLR (bzw. am Ende) einfügen.
   const additions: GedNode[] = [];
-  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, ctx, media));
-  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, ctx, media));
+  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, media));
+  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, media));
   for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s, media));
   for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
   // Neue record-basierte Medien (ADR-v9-125): nur `wireOrigin==='record'` sind Top-Level-Records;
@@ -202,20 +190,19 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 function personNode(
   orig: GedNode,
   cur: Person,
-  ctx: PlaceContext,
   media: MediaLookup,
   recById: Map<string, GedNode>,
 ): GedNode {
   const carried = collectMergedPassthrough(cur.mergedRecordIds, recById, RECOGNIZED_PERSON);
   const projected = parsePersonPublic(orig);
   // Bei absorbiertem Passthrough NICHT kurzschließen — der Verlierer-Passthrough muss ran.
-  if (carried.length === 0 && personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx, media), carried);
+  if (carried.length === 0 && personEqual(projected, cur)) return orig; // byte-identisch bewahren
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried);
 }
-function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext, media: MediaLookup): GedNode {
+function familyNode(orig: GedNode, cur: Family, media: MediaLookup): GedNode {
   const projected = parseFamilyPublic(orig);
-  if (familyEqual(projected, cur, ctx)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, ctx, media));
+  if (familyEqual(projected, cur)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media));
 }
 function sourceNode(orig: GedNode, cur: Source, media: MediaLookup): GedNode {
   const projected = parseSourcePublic(orig);
@@ -451,32 +438,21 @@ function collectMergedPassthrough(
 // Nicht modellierte Passthrough-Zeilen sind an der Original-Projektion nicht beteiligt und
 // überleben ohnehin — sie dürfen den Gleichheits-Vergleich nicht beeinflussen.
 
-/**
- * Live-PLAC eines Events für den Dirty-Check (ADR-v9-47): ist `placeId`/`hofId` gesetzt,
- * ist der PLAC-String der LIVE berechnete Wert, nicht der `ev.place`-Cache — sonst hielte
- * der Vergleich einen Datensatz für „unverändert", obwohl sich die Projektion (z. B. eine
- * neue datierte `enclosedBy`-Periode) geändert hat, und der Writer synthetisierte ihn nie
- * neu. GUARD-Fallback (Live == null) → letzter bekannter `ev.place` (siehe placValue).
- */
-function livePlace(ev: Event, ctx: PlaceContext): string | null {
-  if (ev.placeId !== null || ev.hofId !== null) {
-    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
-    if (live !== null) return live;
-  }
-  return ev.place;
-}
-
 // `a` = Original aus der Datei re-geparst (`a.place` = was buchstäblich in der Datei stand),
-// `b` = aktuelle db-Entität. Verglichen wird `a.place` gegen den LIVE-Wert von `b` — nicht
-// mehr `a.place === b.place` roh (ADR-v9-47). ADDR bleibt roh (bewusst asymmetrisch, §7).
-function eventEqual(a: Event, b: Event, ctx: PlaceContext): boolean {
+// `b` = aktuelle db-Entität. Verglichen wird wieder ROH, `a.place === b.place`
+// (ADR-v9-197, BL-288): seit der Writer nicht mehr live projiziert, sind BEIDE Seiten
+// Wire-Werte. Der frühere Vergleich gegen die Live-Projektion (`livePlace`, ADR-v9-47)
+// meldete sonst jeden Record als geändert, dessen Projektion vom Dateiwert abweicht — er
+// würde neu gebaut, obwohl sich nichts geändert hat, und die RT-1/RT-2-Zusicherung
+// „unveränderter Record bleibt dieselbe Referenz" verlöre ihren Sinn.
+function eventEqual(a: Event, b: Event): boolean {
   return (
     a.seen === b.seen &&
     a.type === b.type &&
     a.value === b.value &&
     a.eventType === b.eventType &&
     a.date === b.date &&
-    a.place === livePlace(b, ctx) &&
+    a.place === b.place &&
     a.addr === b.addr &&
     a.note === b.note &&
     a.lati === b.lati &&
@@ -591,16 +567,16 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
   return true;
 }
 
-function personEqual(a: Person, b: Person, ctx: PlaceContext): boolean {
+function personEqual(a: Person, b: Person): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
     a.sex === b.sex && a.title === b.title && a.religion === b.religion &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
     a.uid === b.uid && a.cause === b.cause &&
-    eventEqual(a.birth, b.birth, ctx) && eventEqual(a.chr, b.chr, ctx) &&
-    eventEqual(a.death, b.death, ctx) && eventEqual(a.buri, b.buri, ctx) &&
-    eventsEqual(a.events, b.events, ctx) &&
+    eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&
+    eventEqual(a.death, b.death) && eventEqual(a.buri, b.buri) &&
+    eventsEqual(a.events, b.events) &&
     childOfEqual(a.childOf, b.childOf) &&
     arrEqual(a.parentIn, b.parentIn) &&
     arrEqual(a.aliases, b.aliases) && arrEqual(a.aliaNames, b.aliaNames) &&
@@ -617,9 +593,9 @@ function personEqual(a: Person, b: Person, ctx: PlaceContext): boolean {
   );
 }
 
-function eventsEqual(a: Event[], b: Event[], ctx: PlaceContext): boolean {
+function eventsEqual(a: Event[], b: Event[]): boolean {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i], ctx)) return false;
+  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i])) return false;
   return true;
 }
 
@@ -654,12 +630,12 @@ function exidsEqual(a: { value: string; type: string }[], b: { value: string; ty
   return true;
 }
 
-function familyEqual(a: Family, b: Family, ctx: PlaceContext): boolean {
+function familyEqual(a: Family, b: Family): boolean {
   return (
     a.husband === b.husband && a.wife === b.wife &&
     arrEqual(a.children, b.children) &&
-    eventEqual(a.marriage, b.marriage, ctx) && eventEqual(a.engagement, b.engagement, ctx) &&
-    eventsEqual(a.events, b.events, ctx) &&
+    eventEqual(a.marriage, b.marriage) && eventEqual(a.engagement, b.engagement) &&
+    eventsEqual(a.events, b.events) &&
     a.noteText === b.noteText &&
     citationsEqual(a.citations, b.citations) &&
     tasksEqual(a.tasks, b.tasks) &&

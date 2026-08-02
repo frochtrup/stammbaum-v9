@@ -155,8 +155,8 @@ export function buildGedcomTreeFromModel(db: Database): GedNode[] {
   // Steinfurt) statt sie zu erhalten. Ergebnis: 0 `*.place`-Diffs im GRAMPS→GEDCOM-Gate.
   const roots: GedNode[] = [buildHead()];
 
-  for (const p of db.individuals.values()) roots.push(finalizeRecord(emitPerson(p, undefined, media), remap));
-  for (const f of db.families.values()) roots.push(finalizeRecord(emitFamily(f, undefined, media), remap));
+  for (const p of db.individuals.values()) roots.push(finalizeRecord(emitPerson(p, media), remap));
+  for (const f of db.families.values()) roots.push(finalizeRecord(emitFamily(f, media), remap));
   for (const s of db.sources.values()) roots.push(finalizeRecord(emitSource(s, media), remap));
   for (const rep of db.repositories.values()) roots.push(finalizeRecord(emitRepository(rep), remap));
   for (const n of db.notes.values()) roots.push(finalizeRecord(emitNote(n), remap));

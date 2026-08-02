@@ -26,7 +26,6 @@ import type {
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
-import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
 import { EVAL_TAGS, evalAxisValue } from './enum-maps';
 import { mimeToGedForm } from './media-mime';
@@ -140,23 +139,26 @@ function citationNode(c: Citation, media?: MediaLookup): GedNode {
 }
 
 /**
- * PLAC-Wert für ein Event (INV-PLACE Mechanismus 2, ADR-v9-47): ist `placeId`/`hofId`
- * gesetzt, ist `ev.place` nur Projektions-Cache — der Writer liest ihn NICHT roh, sondern
- * berechnet den periodengerechten String LIVE über `buildPlacForGedcom`. Nur wenn kein
- * `ctx` vorliegt oder die Live-Berechnung null liefert (z. B. `hofId` gesetzt, HofObject
- * fehlt/stale — GUARD in build-plac.ts), fällt er auf den letzten bekannten `ev.place`
- * zurück. Ohne gesetzte `placeId`/`hofId` ist `ev.place` die Wire-Wahrheit (unverändert).
+ * PLAC-Wert für ein Event: `ev.place`, immer (ADR-v9-197, BL-288).
+ *
+ * Bis dahin berechnete der Writer den periodengerechten String bei gesetzter
+ * `placeId`/`hofId` LIVE (INV-PLACE Mechanismus 2, ADR-v9-47) und behandelte `ev.place`
+ * als bloßen Cache. Das schrieb die Datei bei jedem Speichern um — an
+ * `Unsere Familie 2026.ged` 668 Werte, an Ereignissen, die der Nutzer nie angefasst hatte.
+ * Eine byte-verändernde Projektion braucht einen bewussten Anlass; Speichern ist keiner.
+ *
+ * `ev.place` ist damit wieder die Wire-Wahrheit. Aktuell gehalten wird sie von den
+ * Kurations-Kommandos (`linkEventToPlace`/`linkEventToHof`, `renameHofAddrInEvents`/
+ * `relinkHofVillageInEvents`) — dort ist die Projektion user-induziert und mit Undo
+ * versehen. Die periodengerechte Kette bleibt in der ANZEIGE (`eventPlaceLabel`), wo sie
+ * nichts überschreibt.
  */
-function placValue(ev: Event, ctx?: PlaceContext): string {
-  if (ctx && (ev.placeId !== null || ev.hofId !== null)) {
-    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
-    if (live !== null) return live;
-  }
+function placValue(ev: Event): string {
   return ev.place ?? '';
 }
 
 /** Ereignis-Knoten (BIRT/OCCU/…) — parseEvent ist die Umkehr; nur „seen" Ereignisse. */
-function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+function eventNode(ev: Event, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (ev.eventType) kids.push(N('TYPE', ev.eventType));
   if (ev.date !== null) kids.push(N('DATE', ev.date));
@@ -169,7 +171,7 @@ function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode 
       if (ev.long !== null) mapKids.push(N('LONG', coordValue(ev.long, 'LONG')));
       placKids.push(N('MAP', '', mapKids));
     }
-    kids.push(N('PLAC', placValue(ev, ctx), placKids));
+    kids.push(N('PLAC', placValue(ev), placKids));
   }
   // ADDR bleibt bewusst byte-identisch (Fill-if-empty-Regel, §7/§4.2 REPROJECT) — NICHT
   // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
@@ -245,7 +247,7 @@ function hypothesisNode(h: Hypothesis): GedNode {
 /** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI).
  *  `ctx` (optional): PlaceContext für die Live-PLAC-Berechnung (ADR-v9-47). Ohne ctx
  *  fällt die PLAC-Emission auf den `ev.place`-Cache zurück. */
-export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
 
   if (p.name || p.given || p.surname || p.prefix || p.suffix || p.nick || p.nameCitations.length) {
@@ -266,15 +268,15 @@ export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): 
   if (p.www) kids.push(N('WWW', p.www));
   if (p.uid) kids.push(N('_UID', p.uid));
 
-  if (p.birth.seen) kids.push(eventNode(p.birth, ctx, media));
-  if (p.chr.seen) kids.push(eventNode(p.chr, ctx, media));
+  if (p.birth.seen) kids.push(eventNode(p.birth, media));
+  if (p.chr.seen) kids.push(eventNode(p.chr, media));
   if (p.death.seen) {
-    const dn = eventNode(p.death, ctx, media);
+    const dn = eventNode(p.death, media);
     if (p.cause) dn.children.push(N('CAUS', p.cause));
     kids.push(dn);
   }
-  if (p.buri.seen) kids.push(eventNode(p.buri, ctx, media));
-  for (const ev of p.events) kids.push(eventNode(ev, ctx, media));
+  if (p.buri.seen) kids.push(eventNode(p.buri, media));
+  for (const ev of p.events) kids.push(eventNode(ev, media));
 
   for (const link of p.childOf) {
     const fkids: GedNode[] = [];
@@ -335,14 +337,14 @@ function chanNode(lastChanged: string): GedNode {
 
 // --- Family (FAM) -----------------------------------------------------------------------
 
-export function emitFamily(f: Family, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+export function emitFamily(f: Family, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (f.husband) kids.push(N('HUSB', f.husband));
   if (f.wife) kids.push(N('WIFE', f.wife));
   for (const cid of f.children) kids.push(N('CHIL', cid));
-  if (f.marriage.seen) kids.push(eventNode(f.marriage, ctx, media));
-  if (f.engagement.seen) kids.push(eventNode(f.engagement, ctx, media));
-  for (const ev of f.events) kids.push(eventNode(ev, ctx, media));
+  if (f.marriage.seen) kids.push(eventNode(f.marriage, media));
+  if (f.engagement.seen) kids.push(eventNode(f.engagement, media));
+  for (const ev of f.events) kids.push(eventNode(ev, media));
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
   for (const c of f.citations) kids.push(citationNode(c, media));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));

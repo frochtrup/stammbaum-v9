@@ -12,7 +12,7 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
 import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
-import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
+import { buildFormString, eventYear, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
 import { normPlaceName, extractHofAddr, normHofAddr } from './normalize';
 
@@ -157,14 +157,23 @@ function resolveOne(
   let review: ReviewItem | null = null;
 
   const reproject = (path: ResolvePath): ResolvedEvent => {
-    // INV-PLACE: am Ende jedes Pfads. Bei gesetztem placeId/hofId ist ev.place
-    // ausschließlich die periodengerechte Projektion. (Bis ADR-v9-88 wurde hier eine
-    // ZWEITE Hof-Registry gebaut, damit ein soeben gebootstrappter Hof sichtbar ist —
-    // `ctx.hofs` ist dank `indexHof()` an der Bootstrap-Stelle bereits aktuell.)
-    if (ev.hofId != null || ev.placeId != null) {
-      const proj = buildPlacForGedcom(ev, year, ctx);
-      if (proj != null) ev.place = proj;
-    }
+    // KEINE PLAC-Reprojektion mehr im Ladepass (ADR-v9-197, BL-288). Bis dahin schrieb
+    // dieser Schritt `ev.place` bei jedem Laden neu — und weil der Writer den Wert
+    // anschließend in die Datei schreibt, änderte ein reines Öffnen-und-Speichern an
+    // `Unsere Familie 2026.ged` **668 PLAC-Werte** an Ereignissen, die niemand angefasst
+    // hatte. Eine byte-verändernde Projektion braucht einen user-induzierten Anlass;
+    // Laden ist keiner.
+    //
+    // Die Reprojektion ist damit nicht abgeschafft, sondern VERLEGT (Lesart b): sie
+    // gehört an den Kurationszeitpunkt und steht dort bereits — `linkEventToPlace`/
+    // `linkEventToHof` (core/places/commands.ts), `renameHofAddrInEvents`/
+    // `relinkHofVillageInEvents` (services/places/apply-resolution.ts). Alle vier sind
+    // ausdrückliche Nutzerhandlungen mit Undo.
+    //
+    // Die ANZEIGE verliert dadurch nichts: sie projiziert ohnehin live aus `placeId`
+    // (`eventPlaceLabel` → `buildFormString`), `ev.place` ist dort nur der Fallback für
+    // ungebundene Ereignisse. Was der Nutzer sieht, bleibt periodengerecht; was in der
+    // Datei steht, bleibt seine Quelle.
     // ev.addr NUR füllen wenn leer — Wire-ADDR bleibt byte-identisch (ADDR-Roundtrip).
     if (ev.hofId != null && !ev.addr) {
       const a = ctx.hofs.resolveAddrAsOf(ev.hofId, year);

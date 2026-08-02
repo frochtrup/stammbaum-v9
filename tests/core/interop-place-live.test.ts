@@ -1,14 +1,17 @@
-// tests/core/interop-place-live.test.ts — INV-PLACE Mechanismus 2 (Spec 11 §3/§7, ADR-v9-47).
+// tests/core/interop-place-live.test.ts — UMGEKEHRTE Zusicherung seit ADR-v9-197/BL-288.
 //
-// Verriegelt die Lücke: `event.place`/`event.addr` sind Projektions-Cache, keine Wahrheit.
-// Ändert sich das PlaceObject NACH der ersten Auflösung (neue datierte enclosedBy-Periode),
-// OHNE dass ein Event-Kommando läuft (savePlaceObject reprojiziert nichts — kennt keine
-// Events), muss der Writer die NEUE periodengerechte Hierarchie live über buildPlacForGedcom
-// exportieren, UND der Dirty-Check (eventEqual) darf den Datensatz nicht fälschlich als
-// „unverändert" behandeln (sonst synthetisiert der Struktur-Vergleich-Writer aus ADR-v9-32
-// ihn gar nicht erst neu → stale PLAC im Export).
+// Diese Datei hielt ADR-v9-47 fest: `ev.place` sei bloßer Cache, und der Writer müsse die
+// periodengerechte Hierarchie LIVE berechnen — auch dann, wenn nur ein PlaceObject
+// bearbeitet wurde und kein Event-Kommando lief. Genau das schrieb die Datei bei jedem
+// Speichern um (an `Unsere Familie 2026.ged` 668 PLAC-Werte an unangetasteten Ereignissen).
 //
-// ADDR bleibt bewusst byte-identisch (Fill-if-empty, §7) — NICHT Teil dieses Fixes.
+// Jetzt gilt: eine byte-verändernde Projektion braucht einen user-induzierten Anlass.
+// Ein bearbeitetes PlaceObject ALLEIN ist keiner — die Datei bleibt, wie sie ist, bis ein
+// Kurations-Kommando (`linkEventToPlace`, `renameHofAddrInEvents`, …) die betroffenen
+// Ereignisse ausdrücklich mitzieht. Die periodengerechte Kette sieht der Nutzer trotzdem:
+// die Anzeige projiziert live aus `placeId`, ohne etwas zu überschreiben.
+//
+// ADDR war schon immer byte-identisch (Fill-if-empty, §7) — PLAC verhält sich jetzt ebenso.
 
 import { describe, it, expect } from 'vitest';
 import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/interop';
@@ -58,27 +61,28 @@ function makeEnrichedDoc(): ParsedGedcom {
   return doc;
 }
 
-describe('ADR-v9-47 — Writer liest PLAC live statt aus dem ev.place-Cache', () => {
-  it('exportiert die NEUE periodengerechte Hierarchie, obwohl ev.place noch stale ist', () => {
+describe('ADR-v9-197 — ein bearbeitetes PlaceObject schreibt die Datei NICHT um', () => {
+  it('exportiert den Dateiwert, nicht die neue Hierarchie', () => {
     const doc = makeEnrichedDoc();
     const out = serializeAfterWriteBack(doc);
-    // Live berechnet: enclosureChainAsOf(@OCHTRUP@, 1830) = [Ochtrup, Kreis Steinfurt].
-    expect(out).toContain('2 PLAC Ochtrup, Kreis Steinfurt');
-    // Der alte, hierarchielose Cache-Wert darf NICHT mehr allein als PLAC-Zeile erscheinen.
-    expect(out).not.toMatch(/^2 PLAC Ochtrup$/m);
+    // Der Ort trägt jetzt eine Kreis-Zugehörigkeit — die Datei sagt trotzdem, was sie sagte.
+    expect(out).toMatch(/^2 PLAC Ochtrup$/m);
+    expect(out).not.toContain('2 PLAC Ochtrup, Kreis Steinfurt');
   });
 
-  it('eventEqual erkennt die geänderte Projektion → Record wird neu synthetisiert (kein stale-Bewahren)', () => {
+  it('der Record bleibt die IDENTISCHE Referenz — es hat sich an ihm nichts geändert', () => {
     const doc = makeEnrichedDoc();
     const origIndi = doc.roots.find((r) => r.xref === '@I1@')!;
     const outRoots = applyDatabaseToRoots(doc.db, doc.roots);
     const newIndi = outRoots.find((r) => r.xref === '@I1@')!;
-    // Nicht die identische GedNode-Referenz → der Struktur-Vergleich hat „geändert" erkannt.
-    expect(newIndi).not.toBe(origIndi);
+    // Früher galt der Record hier als „geändert" (die Projektion wich vom Cache ab) und
+    // wurde neu synthetisiert. Das war der Mechanismus, über den die 668 Umschreibungen
+    // in die Datei kamen — RT-1/RT-2 gelten jetzt auch für kuratierte Orte.
+    expect(newIndi).toBe(origIndi);
   });
 });
 
-describe('ADR-v9-47 — kein falscher Rewrite, wenn die Live-Projektion dem Cache entspricht', () => {
+describe('ADR-v9-197 — der unauffällige Fall bleibt unauffällig', () => {
   it('plain PlaceObject (Projektion == Datei-Wert) → Record bleibt die IDENTISCHE Referenz', () => {
     const doc = parseGedcom(SRC);
     const person = doc.db.individuals.get('@I1@')!;
