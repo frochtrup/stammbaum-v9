@@ -63,6 +63,41 @@ describe('EntityTab — Segment-Umschalter + Cross-Entitäts-Navigation', () => 
     expect(screen.getByText('Otto Bauer')).toBeTruthy();
   });
 
+  it('Klick auf das AKTIVE Segment führt aus dem Detail zurück zur Liste (BL-298)', async () => {
+    // Der Rückweg aus einem Detail war seit BL-07 allein der herkunftsbewusste Verlauf:
+    // „← Zurück" geht EINEN Schritt zur Herkunft. Wer über mehrere Details gewandert
+    // ist, musste den ganzen Weg rückwärts ablaufen — eine Liste war von dort aus nicht
+    // mehr direkt erreichbar, auch nicht über die Segmentreihe oder die Bottom-Nav.
+    // Der Klick auf das bereits aktive Segment ist jetzt dieser Weg (iOS-Konvention
+    // „aktiver Tab → Wurzel"), ohne ein zusätzliches Bedienelement.
+    const appState = createAppState();
+    appState.loadDatabase(seedRichDb(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('person', '@I1@');
+
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
+    expect(screen.getByRole('heading', { name: /Otto Bauer/ })).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('tab', { name: /Personen/ }));
+
+    expect(viewState.getCurrent('person')).toBeNull();
+    expect(screen.queryByRole('heading', { name: /Otto Bauer/ })).toBeNull();
+  });
+
+  it('Klick auf ein ANDERES Segment räumt die Auswahl NICHT ab (nur der aktive Tab ist der Rückweg)', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(seedRichDb(), 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('person', '@I1@');
+
+    render(EntityTab, { props: { appState, viewState, route: createRoute() } });
+    await fireEvent.click(screen.getByRole('tab', { name: /Familien/ }));
+
+    // Die Personenauswahl bleibt erhalten — sie ist der Stand, zu dem das Segment
+    // zurückkehrt (INV-VS: je Ziel eine eigene Auswahl, kein gemeinsamer Topf).
+    expect(viewState.getCurrent('person')).toBe('@I1@');
+  });
+
   it('Segment-Klick auf "Familien" wechselt zur Familienliste', async () => {
     const appState = createAppState();
     appState.loadDatabase(seedRichDb(), 'test.ged');

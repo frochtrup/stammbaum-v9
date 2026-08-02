@@ -152,8 +152,27 @@
     open();
   }
 
+  /**
+   * Segment-Klick. Auf das BEREITS AKTIVE Segment ist er der Rückweg zur Liste (BL-298).
+   *
+   * Seit BL-07 ist „← Zurück" herkunftsbewusst und geht EINEN Schritt zur Herkunft. Das
+   * ist richtig — aber es war danach der einzige Rückweg: wer über mehrere Details
+   * gewandert war, musste den ganzen Weg rückwärts ablaufen, um wieder eine Liste zu
+   * sehen. Weder die Segmentreihe noch die Bottom-Nav führten dorthin (beide setzen nur
+   * das Ziel, und das Ziel war schon richtig — die AUSWAHL verdeckte die Liste).
+   *
+   * Der aktive Tab ist die Wurzel seines eigenen Stapels (iOS-Konvention) — kein neues
+   * Bedienelement, keine zweite Beschriftung, und `backToList()` gibt es bereits: es ist
+   * der Boden, auf den `goBack()` fällt, wenn der Verlauf leer ist. Ein ANDERES Segment
+   * räumt bewusst nichts ab: dessen Auswahl ist der Stand, zu dem es zurückkehrt
+   * (INV-VS — je Ziel eine eigene Auswahl).
+   */
   function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
+    if (segment.id === activeSegment) {
+      nav.backToList();
+      return;
+    }
     route.setTarget(segment.id);
   }
 
