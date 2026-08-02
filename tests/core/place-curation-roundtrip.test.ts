@@ -101,3 +101,43 @@ describe('Kuratierte Ortszuordnung überlebt den nächsten Ladepass (USP, LP-5)'
     expect(geburt(zweit.db).place).toContain('Arpke im Amt');
   });
 });
+
+describe('Reichweite einer Ketten-Änderung (BL-291)', () => {
+  const MIT_GROSSELTER = SRC.replace(
+    '2 PLAC Arpke, Amt Meinersen',
+    '2 PLAC Arpke, Amt Meinersen, Fuerstentum Lueneburg',
+  );
+
+  it('wirkt transitiv: ein GROSSELTER-Name erreicht das Ereignis drei Ebenen tiefer', () => {
+    const doc = oeffnen(MIT_GROSSELTER);
+    const gross = [...doc.db.placeObjects.values()].find((p) => p.title === 'Fuerstentum Lueneburg')!;
+    const next = new Map(doc.db.placeObjects);
+    savePlaceObject(next, { ...gross, title: 'Kurfuerstentum Hannover' });
+    const nach = reprojectEventsOfPlace({ ...doc.db, placeObjects: next }, gross.id);
+
+    expect(geburt(nach).place).toBe('Arpke, Amt Meinersen, Kurfuerstentum Hannover');
+    expect(speichern(nach, doc.roots)).toContain('2 PLAC Arpke, Amt Meinersen, Kurfuerstentum Hannover');
+  });
+
+  it('bleibt periodentreu: ein Elter für 1800–1900 lässt ein Ereignis von 1700 unberührt', () => {
+    const doc = oeffnen(SRC);
+    const arpkeId = geburt(doc.db).placeId!;
+    const arpke = doc.db.placeObjects.get(arpkeId)!;
+    const amt = [...doc.db.placeObjects.values()].find((p) => p.title === 'Amt Meinersen')!;
+
+    const next = new Map(doc.db.placeObjects);
+    savePlaceObject(next, {
+      ...arpke,
+      enclosedBy: [
+        { placeId: amt.id, from: null, to: null },
+        { placeId: amt.id, from: 1800, to: 1900 },
+      ],
+    });
+    const basis = { ...doc.db, placeObjects: next };
+    const nach = reprojectEventsOfPlace(basis, arpkeId);
+
+    expect(geburt(nach).place).toBe('Arpke, Amt Meinersen');
+    // Kein Ereignis angefasst → die Arbeitskopie wird gar nicht erst geschrieben.
+    expect(nach.individuals).toBe(basis.individuals);
+  });
+});
