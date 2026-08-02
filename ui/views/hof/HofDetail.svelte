@@ -225,7 +225,7 @@
                 aria-label={`Gültig bis Zeile ${i + 1}`}
                 placeholder="bis"
               />
-              <button type="button" class="hof-detail__remove-btn" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
+              <button type="button" class="stb-icon-btn hof-detail__remove-btn" data-variant="danger" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
             {:else}
               <span>{a.value}</span>
               {#if a.from || a.to}<span class="hof-detail__muted">({a.from ?? '…'}–{a.to ?? '…'})</span>{/if}
@@ -406,10 +406,6 @@
 
   .hof-detail__remove-btn {
     margin-left: auto;
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
   }
 
   .hof-detail__add-row {

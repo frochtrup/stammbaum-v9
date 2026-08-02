@@ -337,7 +337,8 @@
               </button>
               <button
                 type="button"
-                class="family-detail__child-remove-btn"
+                class="stb-icon-btn"
+                data-variant="danger"
                 onclick={() => removeChild(child.personId)}
                 aria-label={`Kind ${child.name} entfernen`}
               >
@@ -526,20 +527,6 @@
     color: var(--stb-gold-light);
     font-size: 0.78rem;
     text-decoration: none;
-  }
-
-  .family-detail__child-remove-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.82rem;
-    flex: 0 0 auto;
-  }
-
-  .family-detail__child-remove-btn:hover,
-  .family-detail__child-remove-btn:focus-visible {
-    color: var(--stb-danger);
   }
 
   .family-detail__add-child {

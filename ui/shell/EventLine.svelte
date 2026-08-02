@@ -159,7 +159,8 @@
       {#if ev.empty && onRetract}
         <button
           type="button"
-          class="stb-pill__remove"
+          class="stb-icon-btn"
+          data-variant="danger"
           onclick={() => onRetract(ev.key)}
           aria-label={`${ev.label} zurücknehmen`}
           use:tooltip={'Zurücknehmen'}
@@ -169,7 +170,7 @@
       {/if}
       <button
         type="button"
-        class="event-line__edit-btn"
+        class="stb-icon-btn"
         onclick={() => onEdit(ev.key)}
         aria-label={`${ev.label} bearbeiten`}
       >
@@ -270,22 +271,6 @@
     align-items: center;
     gap: 0.3rem;
     flex: 0 0 auto;
-  }
-
-  .event-line__edit-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    padding: 0;
-    font-size: 0.85rem;
-    line-height: 1;
-    flex: 0 0 auto;
-  }
-
-  .event-line__edit-btn:hover,
-  .event-line__edit-btn:focus-visible {
-    color: var(--stb-gold-light);
   }
 
   .event-line__note {

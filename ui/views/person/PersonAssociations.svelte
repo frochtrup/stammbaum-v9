@@ -83,7 +83,8 @@
           {#if row.note}<span class="person-assoc__note">{row.note}</span>{/if}
           <button
             type="button"
-            class="stb-pill__remove person-assoc__remove"
+            class="stb-icon-btn person-assoc__remove"
+            data-variant="danger"
             onclick={() => remove(row)}
             aria-label="Assoziation entfernen"
             use:tooltip={'Entfernen'}

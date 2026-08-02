@@ -189,8 +189,8 @@
   {#if row.citation.primary}<span class="stb-pill media-detail__prim">Primär</span>{/if}
   {#if row.editable}
     <span class="media-detail__ref-actions">
-      <button type="button" class="media-detail__ref-btn" onclick={() => startEditRef(row)} aria-label="Referenz bearbeiten">✎</button>
-      <button type="button" class="media-detail__ref-btn" onclick={() => removeRef(row)} aria-label="Referenz entfernen">✕</button>
+      <button type="button" class="stb-icon-btn" onclick={() => startEditRef(row)} aria-label="Referenz bearbeiten">✎</button>
+      <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => removeRef(row)} aria-label="Referenz entfernen">✕</button>
     </span>
   {/if}
   {#if editingKey === row.key}
@@ -459,19 +459,4 @@
     gap: 0.3rem;
   }
 
-  .media-detail__ref-btn {
-    background: transparent;
-    border: 1px solid var(--stb-gold-dim);
-    color: var(--stb-text-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.1rem 0.4rem;
-    cursor: pointer;
-    font-size: 0.75rem;
-  }
-
-  .media-detail__ref-btn:hover,
-  .media-detail__ref-btn:focus-visible {
-    color: var(--stb-gold);
-    border-color: var(--stb-gold);
-  }
 </style>

@@ -332,7 +332,8 @@
         </button>
         <button
           type="button"
-          class="stb-pill__remove person-detail__death-retract-btn"
+          class="stb-icon-btn person-detail__death-retract-btn"
+          data-variant="danger"
           onclick={retractDeath}
           aria-label="Verstorben-Markierung zurücknehmen"
           use:tooltip={'Zurücknehmen'}
