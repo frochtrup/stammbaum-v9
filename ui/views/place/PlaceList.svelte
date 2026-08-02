@@ -240,7 +240,7 @@
     </div>
 
     {#if appState.caps.hasEventContext}
-    <div class="stb-segment-row place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
+    <div class="stb-segment-row stb-segment-row--full place-list__sections" role="tablist" aria-label="Orte-Abschnitt wählen">
       <button
         type="button"
         role="tab"

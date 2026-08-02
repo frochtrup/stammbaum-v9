@@ -199,7 +199,7 @@
 <div class="timeline-lens-view">
   <LensViewHeader active="timeline" onNavigate={(lens) => onNavigateLens?.(lens)} />
 
-  <div class="timeline-lens-view__mode-row stb-segment-row" role="tablist" aria-label="Zeitleiste-Modus wählen">
+  <div class="timeline-lens-view__mode-row stb-segment-row stb-segment-row--full" role="tablist" aria-label="Zeitleiste-Modus wählen">
     <button
       type="button"
       role="tab"

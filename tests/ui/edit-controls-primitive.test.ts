@@ -64,7 +64,9 @@ function offeneKopien(): { file: string; selector: string }[] {
 describe('BL-273 — beschriftete Bearbeitungs-Knöpfe kommen aus `.stb-btn`', () => {
   it('die Primitive existiert und beantwortet die Größenfrage (sonst löst die Umstellung nichts)', () => {
     const css = readFileSync(join(UI_DIR, DESIGN_SYSTEM), 'utf8');
-    expect(css).toMatch(/\.stb-btn\s*\{[^}]*min-height:\s*var\(--stb-touch-target\)/);
+    // Seit BL-299 beantwortet die geteilte Trefferzone die Größenfrage (`::after`), nicht
+    // die gezeichnete Höhe des Knopfes — die drückt nur noch die Hierarchie aus.
+    expect(css).toMatch(/\.stb-btn::after[^{]*\{[^}]*height:\s*var\(--stb-touch-target\)/s);
     expect(css).toMatch(/\.stb-btn\[data-variant='primary'\]/);
     expect(css).toMatch(/\.stb-btn\[data-variant='secondary'\]/);
   });

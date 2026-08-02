@@ -63,9 +63,11 @@ describe('Aktions-Knopf — EIN Stil im Design-System', () => {
   it('`.stb-btn` existiert und holt die Trefferfläche aus dem Token, nicht als Literal', () => {
     const rule = /\.stb-btn\s*\{([^}]*)\}/.exec(css);
     expect(rule, '.stb-btn fehlt in design-system.css').not.toBeNull();
-    expect(rule![1]).toMatch(/min-height:\s*var\(--stb-touch-target\)/);
-    // Ein Literal hier wäre der Rückfall in genau die Doppelung, die diese Regel auflöst.
-    expect(rule![1]).not.toMatch(/min-height:\s*\d/);
+    // Seit BL-299 trägt die ZONE das Token, nicht die gezeichnete Höhe: der Knopf darf
+    // kleiner AUSSEHEN (Hierarchie), angefasst wird die volle Schwelle. Ein Literal in
+    // der Zone wäre der Rückfall in genau die Doppelung, die diese Regel auflöst.
+    expect(css).toMatch(/\.stb-btn::after[^{]*\{[^}]*height:\s*var\(--stb-touch-target\)/s);
+    expect(css).not.toMatch(/\.stb-btn::after[^{]*\{[^}]*height:\s*\d+px/s);
   });
 
   it('beide Varianten sind im Design-System definiert — das Attribut hält, was es verspricht', () => {

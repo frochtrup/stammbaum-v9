@@ -42,7 +42,7 @@
   }
 </script>
 
-<div class="lens-switcher stb-segment-row" role={isJump ? 'group' : 'tablist'} aria-label={ariaLabel}>
+<div class="lens-switcher stb-segment-row stb-segment-row--full" role={isJump ? 'group' : 'tablist'} aria-label={ariaLabel}>
   {#each LENSES as lens (lens.id)}
     <button
       type="button"

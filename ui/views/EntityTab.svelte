@@ -266,7 +266,7 @@
        Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
        Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
   {#if !layout.isDesktopLayout}
-    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen" data-tour="segments">
+    <div class="entity-tab__segments stb-segment-row stb-segment-row--full" role="tablist" aria-label="Entität wählen" data-tour="segments">
     {#each segments as segment (segment.id)}
       <button
         type="button"
@@ -286,7 +286,7 @@
 
   {#if activeSegment === 'source'}
     <div
-      class="entity-tab__subsegments stb-segment-row entity-tab__subsegments--dashed"
+      class="entity-tab__subsegments stb-segment-row stb-segment-row--full entity-tab__subsegments--dashed"
       role="tablist"
       aria-label="Quellen-Ansicht wählen"
     >
@@ -511,8 +511,13 @@
     border-bottom: 1px solid var(--stb-surface-3);
   }
 
+  /* KEIN `padding-top: 0` mehr (BL-299): die Trefferzone ist auf die PILLE zentriert, die
+     Mindesthöhe der Reihe hält sie deshalb nur dann in ihren Grenzen, wenn die Pille auch
+     mittig sitzt. Die asymmetrische Polsterung zog sie 2,8px nach oben — der Abstand zur
+     Segment-Reihe darüber fiel damit auf 41,3px, und die untere Zone deckte den unteren
+     Rand der oberen zu. Die Reihen bleiben trotzdem als Paar erkennbar: das leistet die
+     gestrichelte Trennlinie, nicht die fehlende Polsterung. */
   .entity-tab__subsegments--dashed {
-    padding-top: 0;
     border-bottom-style: dashed;
   }
 

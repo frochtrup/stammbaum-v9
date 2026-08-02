@@ -183,7 +183,13 @@ function* controlRules(): Generator<{ file: string; selector: string; body: stri
  */
 function findUndersizedControls(threshold: number, tokens: Map<string, string>): Finding[] {
   const findings: Finding[] = [];
+  const perZone = pseudoSizedSelectors();
   for (const { file, selector, body } of controlRules()) {
+    // SICHTBARE Größe unter der Schwelle ist erlaubt, WENN das Element die geteilte
+    // Trefferzone trägt (BL-299): sichtbare Größe drückt die Hierarchie aus, die Zone
+    // hält die Schwelle. Ohne Zone bleibt eine zu klein gesetzte Größe ein Verstoß —
+    // das ist der Fall, der diesen Wächter überhaupt ausgelöst hat.
+    if (perZone.has(selector)) continue;
     for (const decl of body.matchAll(/(min-width|min-height)\s*:\s*([^;]+);/g)) {
       const px = toPx(decl[2], tokens);
       if (px == null || px >= threshold) continue;
@@ -265,9 +271,14 @@ function findUndersizedSizeTokens(
  * misst ab hier die ganze Fläche; sie fällt wieder mit jedem Element, das eine Größe
  * bekommt — BL-281 ist der erste solche Schritt (177 → 176: EINE Regel, aber sie trägt
  * die Entitäten-Segmente, den Lens-Umschalter, `ViewModeToggle`, die Sub-Segmente und
- * die Listen-Abschnittsreihen).
+ * die Listen-Abschnittsreihen), BL-299 der zweite (176 → 175, `.stb-activation-pill`).
+ *
+ * Dass die Zahl trotz der geteilten Zone kaum fällt, ist KEIN Widerspruch: die Zone hängt
+ * an fünf Primitiven, die meisten der gezählten Regeln sind komponenten-lokal und tragen
+ * sie (noch) nicht. Die Ratsche misst genau das — wie viele Bedienelemente ihre Größe
+ * noch selbst erfinden, statt eine Primitive zu benutzen.
  */
-const OHNE_GROESSE_RATSCHE = 176; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297) → 176 (BL-281).
+const OHNE_GROESSE_RATSCHE = 175; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297) → 176 (BL-281) → 175 (BL-299).
 
 /**
  * Selektoren, deren Größe an einem PSEUDO-ELEMENT hängt (BL-280): `.stb-icon-btn` selbst
@@ -338,18 +349,34 @@ describe('Trefferflächen — Bedienelemente schreiben keine Größe unter der S
     expect(ohne.some((f) => f.file.startsWith('islands/'))).toBe(true);
   });
 
-  it('BL-281: die Segment-Primitive trägt die Trefferfläche, nicht ihr Padding', () => {
+  it('BL-281/299: die Segment-Primitive trägt die Trefferfläche — über die Zone, nicht über ihre Zeichnung', () => {
     // Vorher setzte `.stb-segment-btn` nur `padding`/`font-size`; die Höhe war ein
     // Nebenprodukt — und dass sie niemand kontrollierte, war an ihr selbst ablesbar:
     // DIESELBE Klasse maß 26,1px in den Entitäten-Segmenten und 27,6px im
     // Lens-Umschalter, weil dieser lokal `font-size: 1rem` fürs Icon setzt.
-    const css = readFileSync(DESIGN_SYSTEM, 'utf8');
-    const rule = /\.stb-segment-btn\s*\{([^}]*)\}/.exec(css);
-    expect(rule, '.stb-segment-btn fehlt in design-system.css').not.toBeNull();
-    expect(rule![1]).toMatch(/min-height:\s*var\(--stb-touch-target\)/);
-    // Aus dem Token, nicht als Literal — sonst driftet die Zahl an einer zweiten Stelle.
-    expect(rule![1]).not.toMatch(/min-height:\s*\d/);
+    // Seit BL-299 sind sichtbare Größe und Trefferfläche entkoppelt: die Pille wird
+    // 2rem hoch GEZEICHNET, angefasst wird die Zone.
+    expect(pseudoSizedSelectors().has('.stb-segment-btn')).toBe(true);
     expect(findControlsWithoutSize().some((f) => f.selector === '.stb-segment-btn')).toBe(false);
+
+    // Und die REIHE hält die Randbedingung, die die Zone erst sicher macht: sie ist
+    // mindestens so hoch wie die Zone, damit diese nie in die Nachbarzeile greift.
+    const css = readFileSync(DESIGN_SYSTEM, 'utf8');
+    const zeile = /\.stb-segment-row\s*\{([\s\S]*?)\}/.exec(css);
+    expect(zeile, '.stb-segment-row fehlt in design-system.css').not.toBeNull();
+    expect(zeile![1]).toMatch(/min-height:\s*var\(--stb-touch-target\)/);
+  });
+
+  it('BL-299: jede Knopf-Primitive trägt dieselbe Zone — aus dem Token, nicht als Literal', () => {
+    const css = readFileSync(DESIGN_SYSTEM, 'utf8');
+    const zone = /([^{}]*::after[^{}]*)\{([^}]*height:\s*var\(--stb-touch-target\)[^}]*)\}/.exec(css);
+    expect(zone, 'keine geteilte Trefferzone in design-system.css').not.toBeNull();
+    // EINE Regel für alle — nicht je Primitive eine eigene Kopie (INV-UI-4).
+    for (const prim of ['.stb-btn', '.stb-segment-btn', '.stb-activation-pill', '.stb-icon-btn', '.stb-hit']) {
+      expect(zone![1], `${prim} hängt nicht an der geteilten Zone`).toContain(`${prim}::after`);
+    }
+    // Die Zone ist außerhalb des Flusses — sonst verbreitert/erhöht sie die Zeile.
+    expect(zone![2]).toMatch(/position:\s*absolute/);
   });
 
   it('BL-280: die Icon-Primitive beantwortet die Größenfrage am Pseudo-Element', () => {

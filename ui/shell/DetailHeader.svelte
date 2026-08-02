@@ -69,7 +69,7 @@
            zweiter Knopf für Vorwärts: das trägt die Gegenrichtung der Wisch-Geste bzw.
            Alt+→ (INV-UI-11, ADR-v9-177). -->
       {#if !layout.isDesktopLayout || backAlways}
-        <button type="button" class="detail-header__back" onclick={onBack}>← Zurück</button>
+        <button type="button" class="stb-hit detail-header__back" onclick={onBack}>← Zurück</button>
       {/if}
       {#if compact}
         <span class="detail-header__compact-title">{title}</span>

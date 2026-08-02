@@ -281,7 +281,7 @@
 <div class="map-lens-view">
   <LensViewHeader active="map" onNavigate={(lens) => onNavigateLens?.(lens)} />
 
-  <div class="map-lens-view__mode-row stb-segment-row" role="tablist" aria-label="Karten-Modus wählen">
+  <div class="map-lens-view__mode-row stb-segment-row stb-segment-row--full" role="tablist" aria-label="Karten-Modus wählen">
     <button
       type="button"
       role="tab"

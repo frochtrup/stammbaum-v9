@@ -174,7 +174,7 @@
     </div>
 
     {#if appState.caps.hasEventContext}
-    <div class="stb-segment-row hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
+    <div class="stb-segment-row stb-segment-row--full hof-list__sections" role="tablist" aria-label="Höfe-Abschnitt wählen">
       <button
         type="button"
         role="tab"
