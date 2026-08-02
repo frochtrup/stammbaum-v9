@@ -1,0 +1,36 @@
+0 HEAD
+1 SOUR WireValueDrift
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Fremdwert/
+1 SEX F
+1 BIRT
+2 DATE 1 JAN 1900
+2 SOUR @S1@
+3 QUAY 2
+1 _TASK Kirchenbuch prüfen
+2 _CAT kirchenbuch
+2 _TSTAT erledigt
+2 _ID t-fremd
+1 _RLOG
+2 DATE 2 JAN 2026
+2 _QUERY Sterbeeintrag
+2 _RESULT Not_Found
+1 _HYPO Vermutlich dieselbe Person
+2 _ID h-fremd
+2 _HSTAT offen
+2 _HWGT 7
+2 _HKIND IDENT
+2 _HREF @I2@
+0 @I2@ INDI
+1 NAME Bo /Fremdwert/
+1 SEX M
+0 @S1@ SOUR
+1 TITL Kirchenbuch Ochtrup
+1 TEXT Erste Zeile des Quellentextes, die in der Quelle mit CONC fortgesetzt wird
+2 CONC  und hier ohne Zeilenumbruch weitergeht.
+2 CONT Zweite Zeile nach einem echten Umbruch.
+0 TRLR

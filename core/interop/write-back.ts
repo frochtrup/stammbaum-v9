@@ -109,6 +109,16 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
   // Welche OBJE-Knoten haben `db.media` definiert (BL-301)? Nur an ihnen darf ein globaler
   // Medien-Edit einen Record schmutzig machen — s. `inlineMediaChanged`.
   const defining = definingMediaNodes(roots);
+  // Die Medien, WIE SIE IN DER DATEI STEHEN — bewusst NICHT `db.media`, das bereits die
+  // Nutzer-Edits trägt (BL-303). Die Probe `wieGelesen` muss den unveränderten Ausgangs-
+  // zustand abbilden; speist man sie aus `db.media`, hält sie einen Medien-Edit für eine
+  // Modell-Normalisierung und schreibt ihn zurück. Genau daran sind beim ersten Bau vier
+  // Tests aus BL-290/301 gescheitert — die Probe war stiller Mitwisser der Änderung.
+  const medienWieGelesen = new Map<string, Media>();
+  for (const n of defining) {
+    const m = projectMediaRecord(n);
+    if (m) medienWieGelesen.set(m.id, m);
+  }
   // Record-Lookup nach xref (BL-164): der Passthrough absorbierter Verlierer-Records wird von
   // hier geholt, solange sie noch im Eingangs-Baum stehen (vor dem ersten Save).
   const recById = new Map<string, GedNode>();
@@ -124,7 +134,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, media, recById, defining));
+        out.push(personNode(rec, cur, media, recById, defining, medienWieGelesen));
         break;
       }
       case 'FAM': {
@@ -132,7 +142,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur, media, defining));
+        out.push(familyNode(rec, cur, media, defining, medienWieGelesen));
         break;
       }
       case 'SOUR': {
@@ -142,7 +152,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.SOUR.add(id);
         const cur = db.sources.get(id);
         if (!cur) break;
-        out.push(sourceNode(rec, cur, media, defining));
+        out.push(sourceNode(rec, cur, media, defining, medienWieGelesen));
         break;
       }
       case 'REPO': {
@@ -198,6 +208,7 @@ function personNode(
   media: MediaLookup,
   recById: Map<string, GedNode>,
   defining: ReadonlySet<GedNode>,
+  medienWieGelesen: MediaLookup,
 ): GedNode {
   const carried = collectMergedPassthrough(cur.mergedRecordIds, recById, RECOGNIZED_PERSON);
   const projected = parsePersonPublic(orig);
@@ -205,27 +216,31 @@ function personNode(
   // `inlineMediaChanged`: ein inline-Medium hat keinen eigenen Record, sein Edit muss hier
   // durch (BL-301) — dieselbe Frage in allen drei Record-Typen, die ein OBJE tragen können.
   if (carried.length === 0 && personEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried, projected);
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried,
+    () => emitPerson(projected, medienWieGelesen));
 }
-function familyNode(orig: GedNode, cur: Family, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
+function familyNode(orig: GedNode, cur: Family, media: MediaLookup, defining: ReadonlySet<GedNode>, medienWieGelesen: MediaLookup): GedNode {
   const projected = parseFamilyPublic(orig);
   if (familyEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media), [], projected);
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media), [],
+    () => emitFamily(projected, medienWieGelesen));
 }
-function sourceNode(orig: GedNode, cur: Source, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
+function sourceNode(orig: GedNode, cur: Source, media: MediaLookup, defining: ReadonlySet<GedNode>, medienWieGelesen: MediaLookup): GedNode {
   const projected = parseSourcePublic(orig);
   if (sourceEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media), [], projected);
+  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media), [],
+    () => emitSource(projected, medienWieGelesen));
 }
 function repoNode(orig: GedNode, cur: Repository): GedNode {
   const projected = parseRepositoryPublic(orig);
   if (repoEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository, [], projected);
+  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository, [], () => emitRepository(projected));
 }
 function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
   const projected = projectMediaRecord(orig);
   if (projected && mediaRecordEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord, [], projected ?? undefined);
+  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord, [],
+    projected ? () => emitMediaRecord(projected) : undefined);
 }
 
 /**
@@ -347,12 +362,59 @@ function uebernimmTiefenPassthrough(
     const frischeGruppe = frisch.get(tag);
     if (!frischeGruppe) continue; // im Modell nicht mehr vorhanden → bewusst gelöscht
     const gelesenGruppe = gelesen.get(tag) ?? [];
+    // Der Wert-Halt braucht eine VERLÄSSLICHE Zuordnung der drei Knoten. Nur bei gleicher
+    // Gruppengröße paart `paare` nach Position; sonst paart es nach Wert — und genau der
+    // Wert ist hier die Frage. Bei ungleicher Größe bleibt es deshalb beim alten Verhalten.
+    const gleichLang = alteGruppe.length === frischeGruppe.length
+      && frischeGruppe.length === gelesenGruppe.length;
     const pos = new Map(alteGruppe.map((a, i) => [a, i]));
     for (const [a, f] of paare(alteGruppe, frischeGruppe)) {
-      uebernimmIn(a, f, gelesenGruppe[pos.get(a)!] ?? null);
+      const g = gelesenGruppe[pos.get(a)!] ?? null;
+      if (gleichLang && g) haltWert(a, f, g);
+      uebernimmIn(a, f, g);
     }
   }
   return frischeKinder;
+}
+
+/**
+ * Die WERT-Hälfte derselben Probe (BL-303) — Gegenstück zu `ueberschuss`.
+ *
+ * `ueberschuss` ist zähl-basiert: er fängt „ein Knoten ist verschwunden". Eine
+ * WERT-Umschreibung sieht er nicht, denn dort stimmt die Anzahl. Genau dort saßen die
+ * stillen Umdeutungen, die bis BL-302 einzeln behoben werden mussten — `FORM` (`JPEG`→`jpg`),
+ * `QUAY 0`, `SEX U`, `_RESULT`. Gemessen an einer Probe-Datei schrieb das Modell außerdem
+ * `_TSTAT erledigt`→`todo` (Bedeutung invertiert), `_HSTAT offen`→`open` und
+ * `_HWGT 7`→`medium` (eine Zahl wird zur Kategorie) — ohne dass ein Test anschlug.
+ *
+ * Dieselbe Dreiecks-Frage wie beim Überschuss, nur auf den Wert statt die Anzahl:
+ *  - `alt.value !== wieGelesen.value` → das Modell kann den Wert nicht halten (es hat ihn
+ *    beim Lesen normalisiert oder auf einen Default zurückfallen lassen);
+ *  - `wieGelesen.value === frisch.value` → der Nutzer hat an dieser Stelle nichts geändert.
+ * Beides zusammen heißt: die Abweichung stammt allein vom Modell — also gilt der Wert der
+ * Quelle. Weicht `frisch` dagegen von `wieGelesen` ab, hat der Nutzer entschieden, und
+ * seine Entscheidung schlägt die Quelle.
+ *
+ * Das ist idempotent: der zurückgehaltene Wert wird beim nächsten Laden wieder gleich
+ * normalisiert, die Probe stellt dieselbe Frage und kommt zum selben Ergebnis.
+ *
+ * **Was das NICHT heilt:** die ANZEIGE bleibt bei der normalisierten Lesart — eine Aufgabe
+ * mit `_TSTAT erledigt` steht in der App weiter auf „offen". Das ist eine getrennte Frage
+ * (das Modell müsste den fremden Wert kennen); hier geht es allein darum, dass die Datei
+ * ihn nicht verliert, solange niemand ihn anfasst.
+ */
+function haltWert(alt: GedNode, frisch: GedNode, wieGelesen: GedNode): void {
+  // `CONC`/`CONT` machen den Wert zum FRAGMENT: der volle Text steht erst mit den
+  // Fortsetzungs-Kindern zusammen da, und die baut der Emitter neu (er kennt nur `CONT`,
+  // die Quelle nutzt auch `CONC`). Den Wert allein zurückzusetzen, schnitte den Rest ab —
+  // am Realbestand sofort gemessen: die `TEXT`-Bilanz fiel von −3 auf −4, weil die
+  // CONC-Fortsetzung eines langen Quellentextes verlorenging. Mehrzeiliges bleibt deshalb
+  // außen vor; sein Umbruch ist ohnehin eine eigene Frage (BL-305).
+  const traegtFortsetzung = (n: GedNode): boolean => n.children.some((c) => FORTSETZUNG.has(c.tag));
+  if (traegtFortsetzung(alt) || traegtFortsetzung(wieGelesen) || traegtFortsetzung(frisch)) return;
+  if (alt.value === wieGelesen.value) return;    // das Modell hält den Wert — nichts zu tun
+  if (wieGelesen.value !== frisch.value) return; // der Nutzer hat ihn geändert — er gewinnt
+  frisch.value = alt.value;
 }
 
 function nachTag(xs: readonly GedNode[]): Map<string, GedNode[]> {
@@ -448,12 +510,15 @@ function mergeRecord<T>(
   recognized: Set<string>,
   emit: (m: T) => GedNode,
   carried: GedNode[] = [], // absorbierter Verlierer-Passthrough (BL-164), dedupliziert angehängt
-  projected?: T,           // die Projektion des UNVERÄNDERTEN Originals (BL-302, s. ueberschuss)
+  // Die PROBE: derselbe Emitter auf der Projektion des UNVERÄNDERTEN Originals — und mit
+  // dem Medienstand der DATEI, nicht dem aktuellen (BL-302/303). Fertig übergeben statt
+  // hier gebaut, weil nur der Aufrufer weiß, welche Seiten-Daten dazugehören.
+  probe?: () => GedNode,
 ): GedNode {
   const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
-  // Dieselbe Synthese aus dem UNVERÄNDERTEN Original — die Probe, die „gelöscht" von
-  // „nicht abbildbar" trennt (BL-302). Ohne `projected` bleibt es beim alten Verhalten.
-  const wieGelesen = projected === undefined ? null : emit(projected);
+  // Sie trennt „vom Nutzer gelöscht/geändert" von „vom Modell nicht abbildbar". Ohne sie
+  // bleibt es beim alten Verhalten.
+  const wieGelesen = probe ? probe() : null;
   // Un-modellierte ENKEL aus den alten erkannten Kindern in die frischen übernehmen
   // (BL-285): ohne diesen Schritt nimmt jeder neu gebaute Knoten alles mit, was das Modell
   // unterhalb von ihm nicht abbildet.
