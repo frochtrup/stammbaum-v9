@@ -58,6 +58,77 @@ describe('mergePlaceObjects — Array von Verlierern (Massen-Merge, §9.2 Punkt 
   });
 });
 
+// ADR-v9-195: der Orts-Merge meldet seine Verlierer→Gewinner-Zuordnung genauso wie der
+// Hof-Nachlauf (`hofRemap`) — der Aufrufer zieht `event.placeId` copy-on-write nach.
+// Vorher hing jedes Ereignis eines Verlierers auf einer gelöschten ID („runtime-only, wird
+// beim nächsten resolveEvents() neu abgeleitet" — die Annahme trug nicht, s. B2 in
+// place-disambiguation.test.ts); sichtbar als „Ort nicht gefunden" am Ereignis-Link.
+describe('mergePlaceObjects — meldet placeRemap (ADR-v9-195)', () => {
+  it('bildet jeden Verlierer auf den Überlebenden ab', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtorp' }),
+      place('@C@', { title: 'Ochtrupe' }),
+    );
+    const result = mergePlaceObjects(places, hofMap(), '@A@', ['@B@', '@C@']);
+    expect(result.placeRemap.get('@B@')).toBe('@A@');
+    expect(result.placeRemap.get('@C@')).toBe('@A@');
+    expect(result.placeRemap.has('@A@')).toBe(false);
+  });
+
+  it('meldet nur tatsächlich zusammengeführte Orte (No-Op-Fälle bleiben draußen)', () => {
+    const places = placeMap(place('@A@', { title: 'Ochtrup' }));
+    const result = mergePlaceObjects(places, hofMap(), '@A@', ['@A@', '@MISSING@']);
+    expect(result.placeRemap.size).toBe(0);
+  });
+
+  it('mutiert die übergebenen Ereignisse NICHT (sie dienen nur der Hof-Heuristik)', () => {
+    const places = placeMap(place('@A@', { title: 'Ochtrup' }), place('@B@', { title: 'Ochtorp' }));
+    const e = ev('BIRT', { placeId: '@B@' });
+    mergePlaceObjects(places, hofMap(), '@A@', ['@B@'], [e]);
+    // ADR-v9-92: der Kern meldet, der Aufrufer schreibt — sonst landet die Änderung in
+    // gehaltenen Undo-Snapshots.
+    expect(e.placeId).toBe('@B@');
+  });
+});
+
+// ADR-v9-195: Schritt 4 des Merge hängt fremde `enclosedBy`-Verweise auf den Verlierer um.
+// Trifft das den Überlebenden selbst (Merge eines Ortes in sein eigenes Kind) oder einen
+// Verlierer derselben Gruppe, entstünde ein Selbstbezug — ein Ort, der sich selbst enthält.
+// Er überlebt in orte.json jeden Reload; `enclosureIdsAsOf` bricht dank `seen`-Guard zwar
+// nicht, die Kette endet aber still beim Ort selbst.
+describe('mergePlaceObjects — kein Selbstbezug in enclosedBy (ADR-v9-195)', () => {
+  it('Ort in sein eigenes Kind zusammengeführt: der Verweis fällt weg, statt auf sich zu zeigen', () => {
+    const places = placeMap(
+      place('@S@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@L@', from: null, to: null }] }),
+      place('@L@', { title: 'Kirchspiel Ochtrup' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
+    expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId)).toEqual([]);
+  });
+
+  it('Verlierer als Elter eines anderen Verlierers derselben Gruppe', () => {
+    const places = placeMap(
+      place('@S@', { title: 'Ochtrup' }),
+      place('@L1@', { title: 'Ochtorp', enclosedBy: [{ placeId: '@L2@', from: null, to: null }] }),
+      place('@L2@', { title: 'Ochtrupe' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@S@', ['@L1@', '@L2@']);
+    expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId)).toEqual([]);
+  });
+
+  it('echte Elternverweise bleiben unangetastet (keine Über-Bereinigung)', () => {
+    const places = placeMap(
+      place('@S@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@L@', { title: 'Ochtorp', enclosedBy: [{ placeId: '@LAND@', from: null, to: null }] }),
+      place('@KREIS@', { title: 'Kreis Steinfurt' }),
+      place('@LAND@', { title: 'Westfalen' }),
+    );
+    mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
+    expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId).sort()).toEqual(['@KREIS@', '@LAND@']);
+  });
+});
+
 describe('mergeHofObjects — verlustfreier Hof-Merge (§9.2)', () => {
   it('vereinigt addrs (dedupliziert über Norm), füllt Lücken, hängt event.hofId um, löscht Verlierer', () => {
     const hofs = hofMap(

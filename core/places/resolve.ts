@@ -117,30 +117,17 @@ function chainCompatible(
   // ist. Ein reiner Namensketten-Vergleich (title vs. pname) vetote hier fälschlich →
   // eindeutiges Ereignis kippte grundlos in Review-Klasse P (Bugfix 2026-07-12, ADR-v9-71).
   // Prefix-Semantik: nur die gemeinsame Länge zählt.
+  //
+  // EIN Pfad für datierte UND undatierte Ereignisse (ADR-v9-195). Bis dahin standen hier
+  // zwei Zweige: der undatierte durchsuchte seit ADR-v9-72 ALLE `enclosedBy`-Ketten (ein
+  // gemergter Ort trägt mehrere), der datierte lief weiter über die EINE Kette aus
+  // `enclosureWinnerAsOf` — und damit bei undatierten Einträgen über `enclosedBy[0]`, genau
+  // den Walk, den ADR-v9-72 abgeschafft hatte. Ergebnis: jeder Merge machte die datierten
+  // Ereignisse seiner Verlierer unauflösbar (Review-Klasse P). `chainCompatibleAnyPath`
+  // nimmt das Jahr jetzt selbst entgegen und bleibt periodentreu — die Zwei-Zweig-Struktur,
+  // in der eine Hälfte nachgezogen werden konnte und die andere stehen blieb, entfällt.
   const stated = placParents.map(normPlaceName);
-
-  // UNDATIERTES Event (year==null): ALLE undatierten `enclosedBy`-Pfade durchsuchen (nach
-  // einem Merge trägt der Kandidat mehrere gültige Ketten, ADR-v9-72). Deckt sich mit dem
-  // Seed-Dedup (`existingParentsCompatible`) — EINE gemeinsame Funktion, kein zweiter Walk.
-  if (year == null) {
-    return chainCompatibleAnyPath(reg.byId, candidateId, stated);
-  }
-
-  // DATIERTES Event: periodenkorrekte Einzelkette (`enclosureWinnerAsOf` wählt bereits unter
-  // mehreren DATIERTEN Kandidaten den im Jahr gültigen) — hier UNVERÄNDERT.
-  const modeledIds = reg.enclosureIdsAsOf(candidateId, year).slice(1);
-  const n = Math.min(modeledIds.length, stated.length);
-  for (let i = 0; i < n; i++) {
-    const node = reg.byId(modeledIds[i]);
-    if (!node) return false;
-    const names = new Set<string>();
-    for (const nm of [node.title, ...node.pnames.map((p) => p.value)]) {
-      const k = normPlaceName(nm);
-      if (k) names.add(k);
-    }
-    if (!names.has(stated[i])) return false;
-  }
-  return true;
+  return chainCompatibleAnyPath(reg.byId, candidateId, stated, year);
 }
 
 /**

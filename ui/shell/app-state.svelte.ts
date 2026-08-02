@@ -559,6 +559,21 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     });
   };
   /**
+   * Dasselbe für die vom Orts-Merge gemeldete Umhängung (`placeRemap`, ADR-v9-195). Ohne
+   * sie zeigte `event.placeId` nach dem Merge auf den gelöschten Verlierer — sichtbar als
+   * „Ort nicht gefunden" hinter dem Ereignis-Link und als Ereignisse, die im Steckbrief des
+   * Überlebenden fehlten. Bewusst KEINE Reprojektion von `ev.place`/`ev.addr`: der Text
+   * bleibt der eingefrorene Wire-Wert (LP-1), `PLAC` baut der Writer ohnehin live aus der
+   * jetzt korrekten `placeId` (`write-back-emit.ts`).
+   */
+  const applyPlaceRemap = (base: Database, remap: ReadonlyMap<PlaceId, PlaceId>): Database => {
+    if (remap.size === 0) return base;
+    return mapAllEvents(base, (ev) => {
+      const target = ev.placeId != null ? remap.get(ev.placeId) : undefined;
+      return target === undefined ? null : { ...ev, placeId: target };
+    });
+  };
+  /**
    * DER Chokepoint für jede Zustandsänderung durch ein Editier-Kommando (Spec 02 §3).
    *
    * WARUM ALLES HIER DURCHLÄUFT statt `pushUndoSnapshot()` an ~20 Kommandos daneben:
@@ -699,9 +714,15 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       const result = mergePlaceObjects(nextPlaces, nextHofs, survivorId, mergedIds, collectAllEvents(db));
-      commit(applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap), {
-        places: true,
-      });
+      // BEIDE gemeldeten Umhängungen nachziehen — Orte (ADR-v9-195) und die Höfe des
+      // automatischen Nachlaufs (ADR-v9-92). `workingCopy` ist jetzt nötig: mit der
+      // korrigierten `placeId` schreibt der Writer ein anderes `PLAC` (er baut es live aus
+      // dem Orts-Bestand), die Arbeitskopie muss also mitziehen.
+      const next = applyPlaceRemap(
+        applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap),
+        result.placeRemap,
+      );
+      commit(next, { places: true, workingCopy: true });
       return result;
     },
     saveHof(model) {

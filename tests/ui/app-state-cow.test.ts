@@ -154,6 +154,27 @@ describe('AppState — kein Kommando verändert einen gehaltenen Snapshot (ADR-v
     expect(person(before).death.hofId).toBe('_hof_b');
   });
 
+  // Das Geschwister zum `mergeHof`-Test darüber (ADR-v9-195). Es fehlte — und mit ihm der
+  // Nachlauf: `mergePlace` zog nur `hofRemap` nach, `event.placeId` blieb auf dem gelöschten
+  // Verlierer stehen. Am Realbestand sichtbar als „Ort nicht gefunden" beim Klick auf den
+  // Ereignis-Ort und als Ereignisse, die im Steckbrief des Überlebenden fehlen.
+  it('mergePlace — die gemeldete Umhängung wird nachgezogen, ohne den Vorzustand zu berühren', () => {
+    const appState = seeded();
+    appState.savePlace(place('@OCHTORP@', { title: 'Ochtorp', type: 'Town' }));
+    appState.linkEventToPlace(person(appState.db).death, '@OCHTORP@');
+    expect(person(appState.db).death.placeId).toBe('@OCHTORP@');
+    const before = snapshot(appState.db);
+
+    appState.mergePlace('@OCHTRUP@', ['@OCHTORP@']);
+
+    // Neuer Stand: Verlierer weg, Ereignis hängt am Überlebenden — keine tote Referenz.
+    expect(appState.db.placeObjects.has('@OCHTORP@')).toBe(false);
+    expect(person(appState.db).death.placeId).toBe('@OCHTRUP@');
+    // Vorzustand: unberührt — genau das macht den Merge umkehrbar (ADR-v9-92 Punkt 4).
+    expect(before.placeObjects.has('@OCHTORP@')).toBe(true);
+    expect(person(before).death.placeId).toBe('@OCHTORP@');
+  });
+
   it('deleteHof — Kaskade räumt Referenzen nur im neuen Stand auf', () => {
     const appState = seeded();
     appState.saveHof(hof('_hof_a', '@OCHTRUP@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));

@@ -157,4 +157,85 @@ describe('B1 — undatierter Konsistenz-Guard über mehrere gemergte enclosedBy-
     const res = resolveEvents([ev('BIRT', { place: 'Ochtrup, USA' })], places, hofMap());
     expect(res.events[0].event.placeId).toBeNull();
   });
+
+  // B2: derselbe Guard für DATIERTE Events. ADR-v9-72 baute `chainCompatibleAnyPath` nur
+  // in den `year==null`-Zweig ein, mit der Begründung, der datierte Zweig durchsuche über
+  // `enclosureWinnerAsOf` „bereits korrekt ALLE datierten Einträge". Das trifft nicht zu:
+  // `enclosureWinnerAsOf` liefert GENAU EINEN Gewinner und fällt bei ausschließlich
+  // undatierten Einträgen auf den ERSTEN zurück — also exakt der `enclosedBy[0]`-Walk, den
+  // ADR-v9-72 für die undatierte Seite abgeschafft hat. Da fast jedes Datum in einer
+  // Genealogie an einem Ereignis hängt, traf der Rest-Bug die Mehrheit der Fälle
+  // (ADR-v9-195, am Realbestand: ein Merge von 4 „Arpke" kostete 11 Ereignisse ihre
+  // Zuordnung — dauerhaft, auch über den nächsten Ladepass hinweg).
+  it('DATIERTES Event mit der ZWEITEN Kette → bindet den Überlebenden (kein Review-P)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Kreis Ahaus, Westfalen', date: '10 NOV 1680' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+    expect(res.events[0].path).toBe('hierarchy-lead');
+    expect(res.review).toHaveLength(0);
+  });
+
+  it('DATIERTES Event mit der ERSTEN Kette → bindet ebenfalls (Regression Index 0)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Kreis Steinfurt, Westfalen', date: '1900' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+  });
+
+  it('DATIERTES Event mit widersprüchlicher Kette → weiterhin Veto (kein Fehl-Match)', () => {
+    const res = resolveEvents([ev('BIRT', { place: 'Ochtrup, USA', date: '1900' })], places, hofMap());
+    expect(res.events[0].event.placeId).toBeNull();
+  });
+});
+
+// B2b: die Periodentreue, die der Mehrpfad-Guard NICHT aufweichen darf. Mehrere Ketten
+// gleichzeitig zu prüfen heißt nicht, das Jahr zu ignorieren — je Knoten zählen nur die im
+// Ereignisjahr GÜLTIGEN Einträge (datierter Treffer oder undatiert = „ohne bekannte
+// Datierung"). Ein datierter Eintrag, dessen Periode das Jahr nicht abdeckt, vetoet
+// weiterhin. Ohne diesen Test wäre der naheliegende Fix — einfach `chainCompatibleAnyPath`
+// ohne Jahr aufzurufen — grün und stillschweigend geschichtsblind.
+describe('B2b — Mehrpfad-Guard bleibt periodentreu (ADR-v9-195)', () => {
+  const ochtrup = place('@OCH@', {
+    title: 'Ochtrup',
+    type: 'Town',
+    enclosedBy: [
+      { placeId: '@PREUSSEN@', from: 1815, to: 1918 },
+      { placeId: '@NRW@', from: 1946, to: null },
+    ],
+  });
+  const preussen = place('@PREUSSEN@', { title: 'Königreich Preußen', type: 'State' });
+  const nrw = place('@NRW@', { title: 'Nordrhein-Westfalen', type: 'State' });
+  const places = placeMap(ochtrup, preussen, nrw);
+
+  it('Ereignis 1880 + „Königreich Preußen" → bindet (Periode deckt das Jahr)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1880' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+  });
+
+  it('Ereignis 1990 + „Königreich Preußen" → Veto (Periode deckt das Jahr NICHT)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1990' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBeNull();
+  });
+
+  it('Ereignis 1990 + „Nordrhein-Westfalen" → bindet (die im Jahr gültige Kette)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Nordrhein-Westfalen', date: '1990' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+  });
 });
