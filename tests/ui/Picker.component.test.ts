@@ -263,6 +263,48 @@ describe('Picker — EIN Feld: das sichtbare Feld IST das Suchfeld (ADR-v9-103)'
     expect(onChange).toHaveBeenCalledWith('f1');
   });
 
+  it('BL-300: ein Tipp DANEBEN schließt die Liste und meldet `onClose`', async () => {
+    // Der einzige Weg nach draußen war `focusout` — der setzt voraus, dass der Finger
+    // etwas FOKUSSIERBARES trifft. Auf Touch ist das der Ausnahmefall; ein Tipp auf eine
+    // Überschrift verschiebt keinen Fokus. Wo der Aufrufer den Picker über `{#if}`
+    // einblendet, war er damit ohne Ausweg (FamilyDetail, Nutzer-Fund).
+    const onClose = vi.fn();
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange: vi.fn(), label: 'Frucht', onClose },
+    });
+
+    const field = screen.getByRole('combobox');
+    await fireEvent.click(field);
+    expect(screen.queryByRole('listbox')).not.toBeNull();
+
+    // Ein nicht fokussierbarer Knoten außerhalb — genau der Fall, den `focusout` nicht sieht.
+    const daneben = document.createElement('h2');
+    daneben.textContent = 'Irgendeine Überschrift';
+    document.body.appendChild(daneben);
+    await fireEvent.pointerDown(daneben);
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(onClose).toHaveBeenCalled();
+    daneben.remove();
+  });
+
+  it('BL-300: ein Tipp INS Panel schließt NICHT — sonst verlöre der Treffer seinen Klick', async () => {
+    const onChange = vi.fn();
+    render(Picker, {
+      props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange, label: 'Frucht' },
+    });
+
+    const field = screen.getByRole('combobox');
+    await fireEvent.click(field);
+    const liste = screen.getByRole('listbox');
+    await fireEvent.pointerDown(liste);
+
+    // Die Liste steht noch — und der Treffer ist weiterhin wählbar.
+    expect(screen.queryByRole('listbox')).not.toBeNull();
+    await fireEvent.click(screen.getByText('Apfel'));
+    expect(onChange).toHaveBeenCalledWith('f1');
+  });
+
   it('Escape schließt die Liste und öffnet sie nicht sofort wieder', async () => {
     render(Picker, {
       props: { items: fruits(), getId: (f: Fruit) => f.id, getLabel: (f: Fruit) => f.name, matches, value: null, onChange: vi.fn(), label: 'Frucht' },

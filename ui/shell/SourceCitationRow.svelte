@@ -248,6 +248,7 @@
         createLabel="+ Neue Quelle anlegen …"
         onCreateRequested={beginCreate}
         startOpen={true}
+        onClose={() => (panelOpen = false)}
       />
     {/if}
   </div>

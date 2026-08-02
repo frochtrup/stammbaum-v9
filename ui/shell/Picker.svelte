@@ -51,6 +51,12 @@
   // (BL-85) und beim Ereignis-Menü; ein höherer z-index hilft dagegen nicht (ADR-v9-97).
   import { untrack } from 'svelte';
   import { anchoredTo } from './portal';
+  import {
+    haltFokusImFeld,
+    istInnen,
+    schliesseBeiKlickDaneben,
+    type PickerTeile,
+  } from './picker-dismiss';
 
   interface Props {
     items: T[];
@@ -217,6 +223,10 @@
     onClose?.();
   }
 
+  // Tipp/Klick daneben schließt die Liste (BL-300) — Begründung und Browser-Fallen
+  // in `picker-dismiss.ts`, zusammen mit den beiden anderen Schließ-Bedingungen.
+  $effect(() => (open ? schliesseBeiKlickDaneben(teile, closeList) : undefined));
+
   function onInput(e: Event) {
     const v = (e.currentTarget as HTMLInputElement).value;
     open = true;
@@ -283,54 +293,13 @@
     }
   }
 
-  /** Klick INNERHALB der Komponente (Feld, Zeile, Fußbereich) darf nicht als "nach außen
-   *  geklickt" gelten — sonst schlösse der eigene Mausklick die Liste vor dem Treffer.
-   *
-   *  Seit das Panel am <body> hängt, ist "innerhalb" NICHT mehr `contains` eines einzigen
-   *  Knotens: der Fokus wandert beim Klick auf einen Treffer aus dem Feld-Teilbaum in den
-   *  Panel-Teilbaum. Ohne diese zweite Hälfte schlösse `focusout` die Liste noch vor dem
-   *  `click` — der Treffer wäre nicht mehr auswählbar, also genau der Defekt, der hier
-   *  behoben wird, nur eine Stufe später.
-   *
-   *  DIESE Prüfung reicht allein NICHT: sie setzt voraus, dass `relatedTarget` gesetzt
-   *  ist, was nur in Chromium gilt (s. `haltFokusImFeld`, ADR-v9-182). */
-  function istInnen(next: FocusEvent['relatedTarget']): boolean {
-    if (!(next instanceof Node)) return false;
-    return !!rootEl?.contains(next) || !!panelEl?.contains(next);
-  }
+  /** Feld und portaliertes Panel als EIN Bedienelement — s. `picker-dismiss.ts`. */
+  const teile: PickerTeile = { root: () => rootEl, panel: () => panelEl };
 
   function onFocusOut(e: FocusEvent) {
-    if (istInnen(e.relatedTarget)) return;
+    if (istInnen(teile, e.relatedTarget)) return;
     if (!open) return;
     closeList();
-  }
-
-  /**
-   * Hält den Fokus im Eingabefeld, während ein Listeneintrag angeklickt wird (ADR-v9-182,
-   * BL-250). `istInnen` oben deckt nur den Fall ab, dass `relatedTarget` überhaupt GESETZT
-   * ist — Chromium fokussiert einen `<button>` beim `mousedown`, **Safari und Firefox
-   * nicht**. Dort ist `relatedTarget` `null`, `istInnen` sagt „außen", und `closeList()`
-   * räumt das Panel ab, BEVOR das `click` seinen Treffer erreicht: der Nutzer klickt an,
-   * und nichts geschieht (Nutzerbefund „Ortspicker wählt nicht aus", Safari).
-   *
-   * `preventDefault` am `mousedown` unterbindet genau die Fokus-Verschiebung, die diese
-   * Kette auslöst — der Fokus bleibt im Feld, `focusout` feuert gar nicht, und die
-   * Reihenfolge ist in jedem Browser dieselbe. Kein Browser-Sniffing, kein `setTimeout`,
-   * kein zweiter Schließweg.
-   *
-   * Der Schutz sitzt am PANEL, nicht an den Zeilen (BL-254, ADR-v9-185). Er saß zuerst je
-   * Zeile, mit dem Vorsatz „muss an JEDER Zeile hängen" — und übersah damit alles, was
-   * keine Zeile ist: den **Scrollbalken** der Ergebnisliste (ab 25 Treffern der Regelfall),
-   * die Polsterung des Panels, die Leermeldung, den „… N weitere"-Hinweis. Am laufenden
-   * System gemessen (`scrollHeight` 993 / `clientHeight` 256): ein Klick auf die Polsterung
-   * ließ `activeElement` auf `BODY` zurück und räumte die Liste ab — in Chromium, nicht nur
-   * in Safari; wer scrollen wollte, klappte zu. Am Panel greift die Regel für den ganzen
-   * Teilbaum (das `mousedown` blubbert von jeder Zeile dorthin), und eine künftig neu
-   * hinzugefügte Zeilenart kann sie nicht mehr vergessen — das ist der Unterschied zwischen
-   * einer Erinnerung und einer Stelle.
-   */
-  function haltFokusImFeld(e: MouseEvent) {
-    e.preventDefault();
   }
 </script>
 
