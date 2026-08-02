@@ -17,6 +17,7 @@ import { makeDatabase, makePerson, makeFamily, makeEvent, makeCitation, makeMedi
 import { findOrphanRefs, checkIndiFamConsistency } from '../../core/model/integrity';
 import { mergePersons, MERGEABLE_PERSON_FIELDS } from '../../core/dedup';
 import { savePerson, deletePerson } from '../../core/model/commands';
+import { makeHypothesis } from '../../core/research';
 import type { Database, Person, Family } from '../../core/model/types';
 
 function db(persons: Person[], families: Family[] = []): Database {
@@ -358,17 +359,18 @@ describe('mergePersons — Randfälle', () => {
 // selbst entfällt (`.filter((a) => a !== p.id)`), Duplikate fallen weg. Dieselbe Form wie
 // ADR-v9-195 Punkt 3 bei den Orten („kein Ort enthält sich selbst").
 describe('mergePersons — hypotheses.refs (BL-294)', () => {
-  const hypothese = (id: string, refs: string[]) => ({
-    id,
-    text: 'Vermutlich dieselbe Person',
-    kind: 'identity' as const,
-    status: 'open' as const,
-    weight: 3,
-    rationale: 'gleicher Hof, gleiche Paten',
-    refs,
-    evidence: [],
-    created: '',
-  });
+  // Über die Fabrik, nicht als Literal: ein handgebautes Objekt driftet vom Typ ab, sobald
+  // ein Feld dazukommt — genau das ist beim ersten Anlauf passiert (`conclusion` fehlte,
+  // Vitest lief grün, weil esbuild Typen entfernt, und erst `tsc --noEmit` schlug an).
+  const hypothese = (id: string, refs: string[]) =>
+    makeHypothesis(id, {
+      text: 'Vermutlich dieselbe Person',
+      kind: 'identity',
+      status: 'open',
+      weight: 'medium',
+      rationale: 'gleicher Hof, gleiche Paten',
+      refs,
+    });
 
   it('ein FREMDER Zeiger auf den Verlierer wird auf den Gewinner umgehängt', () => {
     const next = mergePersons(
