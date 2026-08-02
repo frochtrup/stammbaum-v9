@@ -49,21 +49,13 @@ describe('Naht Import → Merge → Export', () => {
     expect(zzWerte(out)).toEqual(vorher);
   });
 
-  // ROT-PROBE, ABSICHTLICH GEPARKT (BL-294). Dieser Test hat beim Bau von BL-287 einen
-  // echten Defekt gefunden und ist deshalb `skip`, nicht gelöscht: `mergePersons` hängt
-  // `Person.aliases` und `associations.personRef` auf den Gewinner um (Zeilen 242/243),
-  // aber NICHT `hypotheses.refs` — die kamen später dazu (ADR-v9-174). Ergebnis: nach dem
-  // Merge steht auf dem Gewinner ein `_HREF` auf den entfernten Verlierer, und INV-P2
-  // („jede referenzierte ID existiert") ist verletzt.
-  //
-  // Es ist die Geschwister-Stellen-Lehre aus CLAUDE.md in Reinform: `deletePersonCascade`
-  // räumt `hypotheses.refs` korrekt auf, `mergePersons` wurde beim selben Anlass nicht
-  // mitgezogen. Ob der Zeiger UMGEHÄNGT oder GESTRICHEN gehört, ist eine fachliche Frage
-  // (eine Identitäts-Hypothese „diese beiden sind dieselben" hat sich mit dem Merge
-  // erfüllt) — deshalb eine eigene Zeile und kein Schnellschuss hier.
-  //
-  // Scharfschalten: `it.skip` → `it`, sobald BL-294 gebaut ist.
-  it.skip('nach dem Merge zeigt kein Zeiger mehr ins Leere (INV-P2 über die ganze Sequenz)', () => {
+  // DIESER TEST HAT BL-294 GEFUNDEN und ist der Grund, warum diese Datei existiert:
+  // `mergePersons` hängte `Person.aliases` und `associations.personRef` auf den Gewinner
+  // um, aber nicht `hypotheses.refs` (die kamen mit ADR-v9-174 dazu, die Umhäng-Schleife
+  // wurde nicht mitgezogen) — nach dem Merge stand auf dem Gewinner ein `_HREF` auf den
+  // entfernten Record. Die 23 Tests des Kommandos selbst waren dabei grün; erst die
+  // Sequenz bis zum re-geparsten Ausgabetext machte es sichtbar (ADR-v9-200).
+  it('nach dem Merge zeigt kein Zeiger mehr ins Leere (INV-P2 über die ganze Sequenz)', () => {
     const p = parseGedcom(src);
     const nach = mergePersons(p.db, '@I1@', '@I2@');
 

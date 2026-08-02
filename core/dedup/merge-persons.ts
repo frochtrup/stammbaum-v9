@@ -229,18 +229,41 @@ export function mergePersons(
       ...new Set([...(winner.mergedRecordIds ?? []), loserId, ...(loser.mergedRecordIds ?? [])]),
     ];
 
-    // --- Verweise anderer Personen (aliases/associations) ---
+    // --- Verweise anderer Personen (aliases/associations/hypotheses.refs) ---
+    //
+    // `hypotheses.refs` fehlte hier bis BL-294: die refs kamen mit ADR-v9-174 dazu, diese
+    // Schleife wurde nicht mitgezogen — ein Merge ließ auf dem Gewinner ein `_HREF` auf
+    // den entfernten Verlierer stehen und verletzte INV-P2. Gefunden vom Naht-Test
+    // Import→Merge→Export (BL-287), nicht von den 23 Tests dieses Kommandos.
     for (const personId of d.personIds()) {
       if (personId === loserId) continue;
       const frozen = d.peekPerson(personId)!;
       const touchesAlias = frozen.aliases.includes(loserId);
       const touchesAssoc = frozen.associations.some((a) => a.personRef === loserId);
-      if (!touchesAlias && !touchesAssoc) continue;
+      // Die Hypothesen des Verlierers sind oben bereits in den Gewinner geflossen; sie
+      // können deshalb auf den GEWINNER zeigen („diese beiden sind dieselben", aus Sicht
+      // des Verlierers formuliert). Beide Richtungen werden hier zum Selbstbezug.
+      const touchesHypo = frozen.hypotheses.some(
+        (h) => h.refs.includes(loserId) || h.refs.includes(personId),
+      );
+      if (!touchesAlias && !touchesAssoc && !touchesHypo) continue;
 
       const p = d.person(personId)!;
       // Ein Alias auf sich selbst wäre nach dem Umhängen sinnlos — er entfällt.
       p.aliases = [...new Set(p.aliases.map((a) => (a === loserId ? winnerId : a)))].filter((a) => a !== p.id);
       p.associations = p.associations.map((a) => (a.personRef === loserId ? { ...a, personRef: winnerId } : a));
+      // Dieselbe Regel eine Zeile tiefer: umhängen, deduplizieren, Selbstbezug streichen.
+      // Ein Zeiger auf den eigenen Datensatz ist keine Aussage mehr — die Hypothese
+      // „diese beiden sind dieselben" hat sich mit dem Merge erfüllt. Ihr TEXT bleibt als
+      // Befund stehen; ohne Bezug ist sie nach INV-H3 kein Identitäts-Ausschluss mehr —
+      // genau die Entscheidung, die `deletePersonCascade` für den Löschfall schon trifft.
+      // Formgleich zu ADR-v9-195 Punkt 3 bei den Orten („kein Ort enthält sich selbst").
+      p.hypotheses = p.hypotheses.map((h) => {
+        const refs = [...new Set(h.refs.map((r) => (r === loserId ? winnerId : r)))].filter(
+          (r) => r !== p.id,
+        );
+        return refs.length === h.refs.length && refs.every((r, i) => r === h.refs[i]) ? h : { ...h, refs };
+      });
     }
 
     d.removePerson(loserId);

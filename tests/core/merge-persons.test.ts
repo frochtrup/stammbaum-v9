@@ -347,6 +347,89 @@ describe('mergePersons — Randfälle', () => {
   });
 });
 
+// --- Hypothesen-Zeiger (BL-294, ADR-v9-200) ---------------------------------------
+//
+// Gefunden vom Naht-Test Import→Merge→Export (BL-287): `mergePersons` hängte `aliases`
+// und `associations.personRef` auf den Gewinner um — `hypotheses.refs` nicht. Die refs
+// kamen mit ADR-v9-174 dazu, die Umhäng-Schleife wurde nicht mitgezogen. Geschwister-
+// Stelle: `deletePersonCascade` räumte sie von Anfang an korrekt auf.
+//
+// Die Regel ist NICHT neu erfunden, sondern die drei Zeilen darüber: ein Alias auf sich
+// selbst entfällt (`.filter((a) => a !== p.id)`), Duplikate fallen weg. Dieselbe Form wie
+// ADR-v9-195 Punkt 3 bei den Orten („kein Ort enthält sich selbst").
+describe('mergePersons — hypotheses.refs (BL-294)', () => {
+  const hypothese = (id: string, refs: string[]) => ({
+    id,
+    text: 'Vermutlich dieselbe Person',
+    kind: 'identity' as const,
+    status: 'open' as const,
+    weight: 3,
+    rationale: 'gleicher Hof, gleiche Paten',
+    refs,
+    evidence: [],
+    created: '',
+  });
+
+  it('ein FREMDER Zeiger auf den Verlierer wird auf den Gewinner umgehängt', () => {
+    const next = mergePersons(
+      db([
+        makePerson('@WIN@'),
+        makePerson('@LOSER@'),
+        makePerson('@X@', { hypotheses: [hypothese('H1', ['@LOSER@'])] }),
+      ]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    expect(next.individuals.get('@X@')!.hypotheses[0].refs).toEqual(['@WIN@']);
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('der EIGENE Zeiger des Gewinners auf den Verlierer entfällt, statt auf sich selbst zu zeigen', () => {
+    // Der Fall aus der Praxis: „@WIN@ und @LOSER@ sind dieselbe Person" — die Hypothese
+    // hat sich mit dem Merge erfüllt. Ein Zeiger auf den eigenen Datensatz wäre keine
+    // Aussage mehr; der Text bleibt als Befund stehen (INV-H3: ohne Bezug ist es kein
+    // Ausschluss mehr — genau die Entscheidung, die `deletePersonCascade` schon trifft).
+    const next = mergePersons(
+      db([makePerson('@WIN@', { hypotheses: [hypothese('H1', ['@LOSER@'])] }), makePerson('@LOSER@')]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    const h = next.individuals.get('@WIN@')!.hypotheses[0];
+    expect(h.refs).toEqual([]);
+    expect(h.text).toBe('Vermutlich dieselbe Person'); // der Befund bleibt
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('die Hypothese des VERLIERERS wandert mit und zeigt danach nicht auf den Gewinner selbst', () => {
+    const next = mergePersons(
+      db([makePerson('@WIN@'), makePerson('@LOSER@', { hypotheses: [hypothese('H1', ['@WIN@'])] })]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    const uebernommen = next.individuals.get('@WIN@')!.hypotheses;
+    expect(uebernommen).toHaveLength(1);
+    expect(uebernommen[0].refs).toEqual([]);
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('ein Zeiger auf einen DRITTEN bleibt unangetastet (Kontrollfall)', () => {
+    const next = mergePersons(
+      db([
+        makePerson('@WIN@', { hypotheses: [hypothese('H1', ['@LOSER@', '@X@'])] }),
+        makePerson('@LOSER@'),
+        makePerson('@X@'),
+      ]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    expect(next.individuals.get('@WIN@')!.hypotheses[0].refs).toEqual(['@X@']);
+  });
+});
+
 function link(familyId: string) {
   return {
     familyId,
