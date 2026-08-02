@@ -234,6 +234,16 @@
     color: var(--stb-text-dim);
   }
 
+  /* Die beiden Filterreihen sitzen IN dieser Toolbar, die bereits 1rem seitlich
+     polstert — die reihen-eigene Polsterung aus `.stb-segment-row` (0.75rem) käme
+     obendrauf. 56 der 375px gingen so an Ränder, und die Bezugs-Reihe („Alle ·
+     Personen · Familien · Quellen") brauchte 346,5px bei 343 verfügbaren: sie brach um,
+     drei Pixel zu knapp. Die Polsterung gehört hierher, wo alle Kinder der Toolbar
+     dieselbe Kante bekommen — nicht ein zweites Mal an jede Reihe. */
+  .media-gallery__filters {
+    padding-inline: 0;
+  }
+
   .media-gallery__toolbar {
     display: flex;
     flex-direction: column;

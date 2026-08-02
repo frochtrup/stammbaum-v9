@@ -263,9 +263,11 @@ function findUndersizedSizeTokens(
  * ob eine Regel als Bedienelement zählt; jetzt zusätzlich das Markup — 82 Regeln, die
  * ein `<button>` gestalten, ohne „btn" zu heißen, waren nie gezählt worden. Die Zahl
  * misst ab hier die ganze Fläche; sie fällt wieder mit jedem Element, das eine Größe
- * bekommt.
+ * bekommt — BL-281 ist der erste solche Schritt (177 → 176: EINE Regel, aber sie trägt
+ * die Entitäten-Segmente, den Lens-Umschalter, `ViewModeToggle`, die Sub-Segmente und
+ * die Listen-Abschnittsreihen).
  */
-const OHNE_GROESSE_RATSCHE = 177; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297, Markup-Ableitung).
+const OHNE_GROESSE_RATSCHE = 176; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297) → 176 (BL-281).
 
 /**
  * Selektoren, deren Größe an einem PSEUDO-ELEMENT hängt (BL-280): `.stb-icon-btn` selbst
@@ -323,14 +325,31 @@ describe('Trefferflächen — Bedienelemente schreiben keine Größe unter der S
     const quellen = styleSources();
     expect(quellen.length).toBeGreaterThan(0);
     expect(quellen.some((q) => GETEILTE_PRIMITIVEN.test(q.file))).toBe(true);
-    // Die namentlich benannte Fundstelle: `.stb-segment-btn` steht in
-    // `design-system.css`, in keiner Komponente — und ist über Entitäten-Segmente,
-    // Lens-Umschalter und `ViewModeToggle` das meistbenutzte Bedienelement der App.
-    // (Die zweite, `.stb-pill__remove`, ist mit BL-280 in `.stb-icon-btn` aufgegangen —
-    // sie war der Anlass, nicht die Grenze des Suchraums.)
+    // Die beiden namentlich benannten Fundstellen sind inzwischen beide GESCHLOSSEN —
+    // `.stb-pill__remove` ging mit BL-280 in `.stb-icon-btn` auf, `.stb-segment-btn` hat
+    // mit BL-281 ihre Mindesthöhe bekommen. Sie waren der Anlass, nicht die Grenze des
+    // Suchraums: geprüft wird deshalb, dass die freistehenden CSS-Dateien WEITER in der
+    // Zählung stehen (heute u. a. `.stb-activation-pill`, `.stb-coord-indicator__glyph`,
+    // `.tl-chip` in der Zeitleisten-Insel) — sonst hätte der Bau die Erweiterung im
+    // selben Zug wieder stillgelegt.
     const ohne = findControlsWithoutSize();
-    expect(ohne.some((f) => f.selector === '.stb-segment-btn')).toBe(true);
     expect(ohne.filter((f) => GETEILTE_PRIMITIVEN.test(f.file)).length).toBeGreaterThan(1);
+    expect(ohne.some((f) => f.file.endsWith('design-system.css'))).toBe(true);
+    expect(ohne.some((f) => f.file.startsWith('islands/'))).toBe(true);
+  });
+
+  it('BL-281: die Segment-Primitive trägt die Trefferfläche, nicht ihr Padding', () => {
+    // Vorher setzte `.stb-segment-btn` nur `padding`/`font-size`; die Höhe war ein
+    // Nebenprodukt — und dass sie niemand kontrollierte, war an ihr selbst ablesbar:
+    // DIESELBE Klasse maß 26,1px in den Entitäten-Segmenten und 27,6px im
+    // Lens-Umschalter, weil dieser lokal `font-size: 1rem` fürs Icon setzt.
+    const css = readFileSync(DESIGN_SYSTEM, 'utf8');
+    const rule = /\.stb-segment-btn\s*\{([^}]*)\}/.exec(css);
+    expect(rule, '.stb-segment-btn fehlt in design-system.css').not.toBeNull();
+    expect(rule![1]).toMatch(/min-height:\s*var\(--stb-touch-target\)/);
+    // Aus dem Token, nicht als Literal — sonst driftet die Zahl an einer zweiten Stelle.
+    expect(rule![1]).not.toMatch(/min-height:\s*\d/);
+    expect(findControlsWithoutSize().some((f) => f.selector === '.stb-segment-btn')).toBe(false);
   });
 
   it('BL-280: die Icon-Primitive beantwortet die Größenfrage am Pseudo-Element', () => {

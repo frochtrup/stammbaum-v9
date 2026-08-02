@@ -403,7 +403,16 @@ textarea::placeholder {
 .stb-segment-row {
   display: flex;
   gap: 0.3rem;
-  padding: 0.5rem 0.75rem;
+  /* SENKRECHT KEINE Polsterung (BL-281). Die Höhe war schon da, sie lag nur an der
+     falschen Stelle: bei 375px maß die Reihe 43,1px — davon 26,1px Knopf und 2×8px
+     Polsterung darum. Der Knopf trägt jetzt selbst 44px (s. `.stb-segment-btn`), und die
+     Polsterung entfällt: die Reihe wächst um 0,9px statt um 17,9px, die Trefferfläche um
+     18. Wer Luft um eine Reihe braucht, setzt sie an dem Container, der die Reihe
+     einbettet — dort steht sie einmal für alle seine Kinder, statt in jeder Reihe erneut
+     (dieselbe Doppelpolsterung hatte die Medien-Galerie waagerecht, s. dort).
+     Nutzbare Fläche ist selbst ein Bedienbarkeits-Kriterium: eine Trefferfläche, die den
+     Inhalt verdrängt, hat den Konflikt nur verschoben. */
+  padding: 0 0.75rem;
   /* UMBRUCH statt Horizontal-Scroll (Spec 21 §2 „Aktionsreihen brechen um statt
      horizontal aus dem Bild zu scrollen", §9 B7; BL-95).
 
@@ -444,6 +453,20 @@ textarea::placeholder {
   font-size: 0.78rem;
   white-space: nowrap;
   cursor: pointer;
+  /* Die Trefferfläche ist hier eine ENTSCHEIDUNG, kein Nebenprodukt (BL-281, §6i).
+     Vorher setzte diese Klasse nur `padding`/`font-size`; die Höhe ergab sich daraus —
+     mit dem Beleg, dass sie niemand kontrollierte, gleich mitgeliefert: DIESELBE Klasse
+     maß 26,1px in den Entitäten-Segmenten und 27,6px im Lens-Umschalter, weil dieser
+     lokal `font-size: 1rem; line-height: 1` fürs Icon setzt. Damit war die primäre
+     Navigation des Bildschirms sein KLEINSTES Bedienelement, während eine sekundäre
+     Kopf-Aktion mit 44px das größte war — visuelles Gewicht gegen Informationshierarchie
+     (Nutzer-Fund am Screenshot).
+
+     Nur die HÖHE: `min-height` wirkt nicht in der Breite, die Reihen bleiben also
+     umbruchfrei (nachgemessen, s. den Umbruch-Kommentar an `.stb-segment-row` oben).
+     Die Gegenrichtung — die Kopf-Aktionen wieder verkleinern — widerspräche §6i
+     „Eine Trefferfläche gibt nie nach" und damit BL-272/273. */
+  min-height: var(--stb-touch-target);
 }
 
 .stb-segment-btn:disabled {
