@@ -30,6 +30,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   CENS: 'Volkszählung',
   CHRA: 'Taufe (Erwachsene)',
   CONF: 'Konfirmation',
+  RELI: 'Konfession',
   CREM: 'Einäscherung',
   FCOM: 'Erstkommunion',
   GRAD: 'Abschluss',

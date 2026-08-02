@@ -102,7 +102,6 @@ function personSearchText(p: Person): string {
     p.suffix,
     p.nick,
     p.title,
-    p.religion,
     p.noteText,
     ...p.extraNames.map((en) => [en.nameRaw, en.given, en.surname].filter(Boolean).join(' ')),
     ...p.events.map((ev) => [ev.value, ev.place, ev.date, ev.eventType].join(' ')),

@@ -182,7 +182,6 @@ describe('diffPerson — drei Kategorien', () => {
     const b = person('@B1@');
     const n = person('@N1@', {
       title: 'X',
-      religion: 'Y',
       birth: makeEvent('BIRT', { date: '1850', place: 'Ochtrup' }),
     });
     const alle = [...diffPerson(b, n).additions, ...diffPerson(b, n).conflicts, ...diffPerson(b, n).identical];

@@ -107,9 +107,11 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3, unverändert)'
     // Titel ist befüllt -> inline sichtbar, kein Pill dafür.
     expect(screen.getByLabelText('Titel')).toBeTruthy();
     expect(screen.queryByText('+ Titel')).toBeNull();
-    // Religion ist leer -> Pill vorhanden, Feld nicht gerendert.
-    expect(screen.getByText('+ Religion')).toBeTruthy();
-    expect(screen.queryByLabelText('Religion')).toBeNull();
+    // Rufname ist leer -> Pill vorhanden, Feld nicht gerendert. (Frueher stand hier
+    // „Religion"; sie ist seit BL-289 ein EREIGNIS und wird ueber die Ereigniszeile
+    // gepflegt, nicht mehr als Identitaetsfeld — deshalb hat sie hier keinen Pill mehr.)
+    expect(screen.getByText('+ Rufname')).toBeTruthy();
+    expect(screen.queryByLabelText('Rufname')).toBeNull();
   });
 
   it('Klick auf einen Pill blendet das Feld ein und der Pill verschwindet aus der Reihe', async () => {
@@ -131,7 +133,7 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3, unverändert)'
 
     render(PersonForm, { props: { appState, person } });
 
-    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Religion', 'Zugriffsbeschränkung', 'E-Mail', 'Website']) {
+    for (const label of ['Präfix / Suffix', 'Rufname', 'Titel', 'Zugriffsbeschränkung', 'E-Mail', 'Website']) {
       await fireEvent.click(screen.getByText(`+ ${label}`));
     }
 
@@ -139,7 +141,6 @@ describe('PersonForm — Schnellauswahl-Pills (ADR-v9-30 Punkt 3, unverändert)'
     expect(screen.getByLabelText('Suffix')).toBeTruthy();
     expect(screen.getByLabelText('Rufname')).toBeTruthy();
     expect(screen.getByLabelText('Titel')).toBeTruthy();
-    expect(screen.getByLabelText('Religion')).toBeTruthy();
     expect(screen.getByLabelText('RESN (Zugriffsbeschränkung)')).toBeTruthy();
     expect(screen.getByLabelText('E-Mail')).toBeTruthy();
     expect(screen.getByLabelText('Website')).toBeTruthy();

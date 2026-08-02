@@ -627,7 +627,7 @@ const mediaGleich = (a: Media, b: Media): boolean =>
 
 // Der `<description>`-Wert eines Events: bei RESI/PROP die Adresse (event.addr), sonst der
 // Freitext-Wert (BL-143). Genau die Umkehrung von `projectGrampsEvent`.
-const eventDescription = (e: Event): string => (descriptionIsAddress(e.type) ? e.addr : e.value);
+const eventDescription = (e: Event): string => (descriptionIsAddress(e.type) ? (e.addr ?? '') : e.value);
 
 // Event: nur die SCHREIBBAREN projizierten Felder zählen. `place` ist absichtlich AUSGENOMMEN
 // (der Orts-String lässt sich ohne die volle placeobj-Projektion — BL-143 — nicht in ein

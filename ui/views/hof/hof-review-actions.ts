@@ -37,7 +37,7 @@ export function applyCreateHof(
 ): { ok: true } | { ok: false; reason: string } {
   if (!villageId) return { ok: false, reason: 'Kein Dorf für diese Zeile ermittelbar.' };
   const hofObjects: HofObjects = appState.db.hofObjects;
-  const res = findOrCreateHof(event.addr, villageId, hofObjects);
+  const res = findOrCreateHof(event.addr ?? '', villageId, hofObjects);
   if (!res) return { ok: false, reason: 'Adresse kann nicht als Hof angelegt werden (leer?).' };
   if (res.created) appState.saveHof(res.created);
   // Dorf-Anker + Hof-Verknüpfung laufen als EIN Kommando (Copy-on-Write, ADR-v9-92):
@@ -53,7 +53,7 @@ export function applyCreateHof(
 export function applyAddVariant(appState: PlacesHost, event: Event, targetHofId: string): { ok: true } | { ok: false; reason: string } {
   const hof = appState.db.hofObjects.get(targetHofId);
   if (!hof) return { ok: false, reason: 'Ziel-Hof nicht gefunden.' };
-  const next = addHofVariant(hof, event.addr);
+  const next = addHofVariant(hof, event.addr ?? '');
   appState.saveHof(next);
   // placeContext wird im Kommando NACH saveHof gelesen — enthält die neue Adressvariante.
   if (!appState.linkEventToHof(event, targetHofId)) return NOT_IN_DB;

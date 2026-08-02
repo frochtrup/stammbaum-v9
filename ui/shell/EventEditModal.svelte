@@ -114,7 +114,10 @@
    *  bewusst NICHT reaktiv: ein live abgeleiteter Ausdruck ließe das Feld beim Leeren unter
    *  dem Cursor verschwinden, und Leeren ist bei einem Non-Hof-Ereignis die häufigste
    *  Auflösung (s. showAddr). */
-  const hadAddrOnOpen = untrack(() => event.addr.trim() !== '');
+  const hadAddrOnOpen = untrack(() => (event.addr ?? '').trim() !== '');
+
+  /** Häufige Konfessionswerte — s. das Datalist am Wert-Feld unten. */
+  const RELIGION_PRESETS = ['röm.-kath.', 'evang.', 'katholisch'];
   /** Hof-Typen (RESI/PROP/CENS) haben das Adressfeld immer — dort entsteht Hof-Identität
    *  (`resolve.ts` Pfad B′). Ein Non-Hof-Typ bekommt es, wenn das Ereignis eine ADDR
    *  MITBRINGT: genau diese Kombination landet in der Hof-Review als Klasse A/D
@@ -331,7 +334,25 @@
 
     <label>
       Wert
-      <input type="text" bind:value={editable.value} placeholder="z. B. Beruf bei OCCU" />
+      <input
+        type="text"
+        bind:value={editable.value}
+        placeholder={editable.type === 'RELI' ? 'z. B. röm.-kath.' : 'z. B. Beruf bei OCCU'}
+        list={editable.type === 'RELI' ? 'event-value-presets' : undefined}
+      />
+      <!-- Konfessions-Vorschläge (BL-212/ADR-v9-156, mit BL-289 vom Personen-Formular hierher
+           gewandert, weil RELI jetzt ein Ereignis ist): Preset+Freitext wie bei den
+           Aufgaben-Kategorien (INV-UI-4), KEIN geschlossenes Enum — Bestandswerte bleiben
+           unverändert (LP-1). Am Realbestand stehen mehrere Schreibweisen derselben
+           Konfession nebeneinander („röm.-kath." 58×, „röm. kath." 11×, „röm.-kath" 1×);
+           genau diese Streuung sollen die Vorschläge eindämmen. -->
+      {#if editable.type === 'RELI'}
+        <datalist id="event-value-presets">
+          {#each RELIGION_PRESETS as preset (preset)}
+            <option value={preset}></option>
+          {/each}
+        </datalist>
+      {/if}
     </label>
 
     {#if cause != null}

@@ -73,7 +73,7 @@ describe.skipIf(!realbestandVorhanden())('BL-288 — am Realbestand', () => {
   //
   // Bewusst als `skip` statt gelöscht: die Zusicherung ist richtig, nur noch nicht
   // eingelöst. Sie ist die fertige Rot-Probe für BL-290 — dort wieder scharfschalten.
-  it.skip('FORM: kein einziger Wert wird umgeschrieben (BL-290)', () => {
+  it('FORM: kein einziger Wert wird umgeschrieben (BL-290)', () => {
     const src = realbestandText();
     expect(umgeschrieben(src, ladenUndSpeichern(src), 'FORM')).toEqual([]);
   });

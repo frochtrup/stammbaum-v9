@@ -106,6 +106,25 @@ describe('EventEditModal — Rendering + Vorbefüllung', () => {
     expect(screen.getByLabelText('Abschluss Adresse')).toBeTruthy();
 
     await fireEvent.click(screen.getByText('Speichern'));
+    // `null`, nicht `''` (BL-292): seit `Event.addr` ein Tristate ist, heißt `''` „ADDR-Zeile
+    // vorhanden, ohne Wert" — der Träger der strukturierten Adresse. Das Löschen eines
+    // vorhandenen Werts soll die Zeile ENTFERNEN, und das sagt genau `null`. Die Zusicherung
+    // selbst ist unverändert: nach der Auflösung steht keine Adresse mehr in der Datei.
+    expect(onSave.mock.calls[0][0].addr).toBeNull();
+  });
+
+  it('eine LEERE, aber vorhandene ADDR überlebt einen Ereignis-Edit (BL-292)', async () => {
+    // Der Gegenfall zum Test darüber, und der häufigere: im Bestand trägt eine `2 ADDR`
+    // OHNE Wert 83× die strukturierte Adresse (`ADR1`/`CITY`/`POST`) als Passthrough
+    // darunter. Käme sie beim Speichern als `null` zurück, risse jeder beliebige Edit an
+    // diesem Ereignis den ganzen Teilbaum mit — genau der Verlust, den BL-292 schließt.
+    const appState = createAppState();
+    const onSave = vi.fn();
+    const ev = makeEvent('RESI', { addr: '', seen: true });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Wohnort', onSave, onClose: vi.fn() } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
     expect(onSave.mock.calls[0][0].addr).toBe('');
   });
 

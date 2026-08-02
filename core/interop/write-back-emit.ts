@@ -21,6 +21,7 @@ import type {
   MediaCitation,
   MediaId,
   Person,
+  PersonName,
   Repository,
   Source,
 } from '../model/types';
@@ -28,7 +29,7 @@ import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import type { GedNode } from './gedcom-tree';
 import { EVAL_TAGS, evalAxisValue } from './enum-maps';
-import { mimeToGedForm } from './media-mime';
+import { gedFormValue } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
 export type MediaLookup = ReadonlyMap<MediaId, Media>;
@@ -77,8 +78,8 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
   if (mc.title) kids.push(N('TITL', mc.title));
   if (!isPointer) {
     const file = media ? media.file : mc.mediaId;
-    // Output-Rückübersetzung (ADR-v9-126): kanonisches MIME → GEDCOM-5.5.1-FORM-Endung.
-    const form = media ? mimeToGedForm(media.form, file) : '';
+    // FORM-Wert: erhaltener Wire-Wert, sonst Rückübersetzung aus dem MIME (`gedFormValue`).
+    const form = media ? gedFormValue(media.form, file, media.formWire) : '';
     const type = media ? media.type : '';
     const fileKids: GedNode[] = [];
     if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
@@ -96,7 +97,7 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
  * FILE(→FORM→MEDI) + globaler TITL. Nur für `wireOrigin==='record'`-Medien.
  */
 export function emitMediaRecord(m: Media): GedNode {
-  const form = mimeToGedForm(m.form, m.file);
+  const form = gedFormValue(m.form, m.file, m.formWire);
   const fileKids: GedNode[] = [];
   if (form) fileKids.push(N('FORM', form, m.type ? [N('MEDI', m.type)] : []));
   const kids: GedNode[] = [N('FILE', m.file, fileKids)];
@@ -175,7 +176,7 @@ function eventNode(ev: Event, media?: MediaLookup): GedNode {
   }
   // ADDR bleibt bewusst byte-identisch (Fill-if-empty-Regel, §7/§4.2 REPROJECT) — NICHT
   // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
-  if (ev.addr) kids.push(textNode('ADDR', ev.addr));
+  if (ev.addr !== null) kids.push(textNode('ADDR', ev.addr));
   if (ev.note) kids.push(textNode('NOTE', ev.note));
   for (const c of ev.citations) kids.push(citationNode(c, media));
   for (const m of ev.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
@@ -247,6 +248,19 @@ function hypothesisNode(h: Hypothesis): GedNode {
 /** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI).
  *  `ctx` (optional): PlaceContext für die Live-PLAC-Berechnung (ADR-v9-47). Ohne ctx
  *  fällt die PLAC-Emission auf den `ev.place`-Cache zurück. */
+/** Eine weitere Namensform → `1 NAME`-Block. Tag-Reihenfolge nach dem Bestand
+ *  (`TYPE`, `GIVN`, `SURN`, `NPFX`, `NSFX`, `SOUR`). */
+function extraNameNode(n: PersonName, media?: MediaLookup): GedNode {
+  const kids: GedNode[] = [];
+  if (n.type) kids.push(N('TYPE', n.type));
+  if (n.given) kids.push(N('GIVN', n.given));
+  if (n.surname) kids.push(N('SURN', n.surname));
+  if (n.prefix) kids.push(N('NPFX', n.prefix));
+  if (n.suffix) kids.push(N('NSFX', n.suffix));
+  for (const c of n.citations) kids.push(citationNode(c, media));
+  return N('NAME', n.nameRaw, kids);
+}
+
 export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
 
@@ -257,12 +271,15 @@ export function emitPerson(p: Person, media?: MediaLookup): GedNode {
     if (p.prefix) nameKids.push(N('NPFX', p.prefix));
     if (p.suffix) nameKids.push(N('NSFX', p.suffix));
     if (p.nick) nameKids.push(N('NICK', p.nick));
+    if (p.nameType) nameKids.push(N('TYPE', p.nameType));
     for (const c of p.nameCitations) nameKids.push(citationNode(c, media));
     kids.push(N('NAME', p.name, nameKids));
   }
+  // Weitere Namensformen DIREKT hinter dem Hauptnamen (BL-292) — so, wie sie in der Datei
+  // stehen. `parsePersonName` ist die Umkehr.
+  for (const n of p.extraNames) kids.push(extraNameNode(n, media));
   if (p.sex && p.sex !== 'U') kids.push(N('SEX', p.sex));
   if (p.title) kids.push(N('TITL', p.title));
-  if (p.religion) kids.push(N('RELI', p.religion));
   if (p.restriction) kids.push(N('RESN', p.restriction));
   if (p.email) kids.push(N('EMAIL', p.email));
   if (p.www) kids.push(N('WWW', p.www));
@@ -407,7 +424,7 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
 export function emitRepository(r: Repository): GedNode {
   const kids: GedNode[] = [];
   if (r.name) kids.push(N('NAME', r.name));
-  if (r.address) kids.push(textNode('ADDR', r.address));
+  if (r.address !== null) kids.push(textNode('ADDR', r.address));
   if (r.phone) kids.push(N('PHON', r.phone));
   if (r.www) kids.push(N('WWW', r.www));
   if (r.email) kids.push(N('EMAIL', r.email));

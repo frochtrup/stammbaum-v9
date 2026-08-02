@@ -32,7 +32,10 @@
   // PersonForm.svelte/SourceForm.svelte) — kein fortlaufendes Re-Sync.
   let name = $state(untrack(() => repository.name));
   let type = $state(untrack(() => repository.type));
-  let address = $state(untrack(() => repository.address));
+  // `address` ist Tristate (BL-292): `null` = kein ADDR-Tag, `''` = Tag ohne Wert (der
+  // Bestand trägt darunter `CITY`/`POST` als Passthrough). Das Feld kennt nur Text —
+  // `adresseZurueck` beim Speichern führt es wieder zurück.
+  let address = $state(untrack(() => repository.address ?? ''));
   let phone = $state(untrack(() => repository.phone));
   let www = $state(untrack(() => repository.www));
   let email = $state(untrack(() => repository.email));
@@ -48,11 +51,19 @@
   function discard() {
     name = repository.name;
     type = repository.type;
-    address = repository.address;
+    address = repository.address ?? '';
     phone = repository.phone;
     www = repository.www;
     email = repository.email;
     findingAid = repository.findingAid;
+  }
+
+  /** Ein leeres Feld heißt nicht „kein ADDR": war die Zeile schon vorher leer, bleibt sie —
+   *  sonst risse ein Namens-Edit die strukturierte Adresse darunter mit. Erst das Löschen
+   *  eines VORHANDENEN Werts entfernt die Zeile. Spiegel zu `addrZurueck` (event-edit.ts). */
+  function adresseZurueck(vorher: string | null, feld: string): string | null {
+    if (feld !== '') return feld;
+    return vorher === '' ? '' : null;
   }
 
   function save() {
@@ -60,7 +71,7 @@
       ...repository,
       name: name.trim(),
       type: type.trim(),
-      address: address.trim(),
+      address: adresseZurueck(repository.address, address.trim()),
       phone: phone.trim(),
       www: www.trim(),
       email: email.trim(),

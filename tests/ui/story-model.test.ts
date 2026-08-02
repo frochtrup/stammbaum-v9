@@ -24,11 +24,11 @@ function makeTree(): Database {
     events: [
       makeEvent('OCCU', { value: 'Schmied', date: '1875' }),
       makeEvent('RESI', { place: 'Lemgo', date: '1885' }),
+      makeEvent('RELI', { value: 'evangelisch', seen: true }),
     ],
-    // Konfession ist das Skalarfeld `Person.religion`, KEIN Ereignis (ADR-v9-156): der
-    // Parser legt `RELI` dort ab, `RELI` steht nicht in EVENT_TAGS. Vorher seedete dieser
-    // Test ein RELI-Ereignis und prüfte damit einen Pfad, den es in echten Daten nie gibt.
-    religion: 'evangelisch',
+    // Konfession ist seit BL-289 ein RELI-EREIGNIS (vorher das Skalarfeld
+    // `Person.religion`, ADR-v9-156): die Quelle haengt Datum, Ort und Zitate darunter,
+    // die ein String nicht halten konnte. `RELI` steht jetzt in EVENT_TAGS.
     childOf: [childLink('F1')], parentIn: ['F2'],
   }));
   db.individuals.set('I2', makePerson('I2', { given: 'Hans', surname: 'Meyer', sex: 'M', parentIn: ['F1'] }));

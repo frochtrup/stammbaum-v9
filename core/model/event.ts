@@ -5,7 +5,7 @@ import type { Event } from './types';
  * Ist das Ereignis „vorhanden"?
  * - seen=true  → ja (leerer, aber vorhandener Block `1 BIRT`, INV-P5).
  * - sonst: ja, sobald irgendein Feld belegt/vorhanden ist. Tristate beachtet:
- *   date/place === '' (Tag vorhanden, leer) zählt als vorhanden; null zählt nicht.
+ *   date/place/addr === '' (Tag vorhanden, leer) zählt als vorhanden; null zählt nicht.
  */
 export function isEventPresent(ev: Event): boolean {
   if (ev.seen) return true;
@@ -14,7 +14,7 @@ export function isEventPresent(ev: Event): boolean {
   if (ev.place !== null) return true;
   if (ev.placeId !== null) return true;
   if (ev.hofId !== null) return true;
-  if (ev.addr !== '') return true;
+  if (ev.addr !== null) return true;
   if (ev.note !== '') return true;
   if (ev.datePhrase !== '') return true;
   if (ev.eventType !== '') return true;
@@ -57,7 +57,7 @@ export function isEventEmpty(ev: Event): boolean {
   if (ev.hofId !== null) return false;
   if (ev.lati !== null) return false;
   if (ev.long !== null) return false;
-  if (ev.addr !== '') return false;
+  if (ev.addr !== null) return false;
   if (ev.note !== '') return false;
   if (ev.datePhrase !== '') return false;
   if (ev.eventType !== '') return false;

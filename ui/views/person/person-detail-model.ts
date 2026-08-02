@@ -184,7 +184,7 @@ function toEventRow(
     age: birth && key !== 'BIRT' ? ageAtEvent(birth, ev) : '',
     placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
-    addr: ev.addr,
+    addr: ev.addr ?? '',
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),

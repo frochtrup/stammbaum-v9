@@ -38,6 +38,7 @@ import type {
   Media,
   MediaCitation,
   Person,
+  PersonName,
   Repository,
   Source,
   SourceDataEvent,
@@ -51,6 +52,7 @@ import {
   parseSourcePublic,
   parseRepositoryPublic,
   projectMediaRecord,
+  definingMediaNodes,
 } from './gedcom-parse';
 import {
   emitPerson,
@@ -104,6 +106,9 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
   // Aufbau zweier Registries über den GESAMTEN Orts-/Hof-Bestand bei JEDEM Speichern.
   // Medien-Auflösung (ADR-v9-124) ebenfalls INTERN aus db (kein neuer Parameter, wie ctx).
   const media: MediaLookup = db.media;
+  // Welche OBJE-Knoten haben `db.media` definiert (BL-301)? Nur an ihnen darf ein globaler
+  // Medien-Edit einen Record schmutzig machen — s. `inlineMediaChanged`.
+  const defining = definingMediaNodes(roots);
   // Record-Lookup nach xref (BL-164): der Passthrough absorbierter Verlierer-Records wird von
   // hier geholt, solange sie noch im Eingangs-Baum stehen (vor dem ersten Save).
   const recById = new Map<string, GedNode>();
@@ -119,7 +124,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, media, recById));
+        out.push(personNode(rec, cur, media, recById, defining));
         break;
       }
       case 'FAM': {
@@ -127,7 +132,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur, media));
+        out.push(familyNode(rec, cur, media, defining));
         break;
       }
       case 'SOUR': {
@@ -137,7 +142,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.SOUR.add(id);
         const cur = db.sources.get(id);
         if (!cur) break;
-        out.push(sourceNode(rec, cur, media));
+        out.push(sourceNode(rec, cur, media, defining));
         break;
       }
       case 'REPO': {
@@ -192,21 +197,24 @@ function personNode(
   cur: Person,
   media: MediaLookup,
   recById: Map<string, GedNode>,
+  defining: ReadonlySet<GedNode>,
 ): GedNode {
   const carried = collectMergedPassthrough(cur.mergedRecordIds, recById, RECOGNIZED_PERSON);
   const projected = parsePersonPublic(orig);
   // Bei absorbiertem Passthrough NICHT kurzschließen — der Verlierer-Passthrough muss ran.
-  if (carried.length === 0 && personEqual(projected, cur)) return orig; // byte-identisch bewahren
+  // `inlineMediaChanged`: ein inline-Medium hat keinen eigenen Record, sein Edit muss hier
+  // durch (BL-301) — dieselbe Frage in allen drei Record-Typen, die ein OBJE tragen können.
+  if (carried.length === 0 && personEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig; // byte-identisch bewahren
   return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried);
 }
-function familyNode(orig: GedNode, cur: Family, media: MediaLookup): GedNode {
+function familyNode(orig: GedNode, cur: Family, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
   const projected = parseFamilyPublic(orig);
-  if (familyEqual(projected, cur)) return orig;
+  if (familyEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
   return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media));
 }
-function sourceNode(orig: GedNode, cur: Source, media: MediaLookup): GedNode {
+function sourceNode(orig: GedNode, cur: Source, media: MediaLookup, defining: ReadonlySet<GedNode>): GedNode {
   const projected = parseSourcePublic(orig);
-  if (sourceEqual(projected, cur)) return orig;
+  if (sourceEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
   return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media));
 }
 function repoNode(orig: GedNode, cur: Repository): GedNode {
@@ -251,7 +259,7 @@ function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
 /** Die Ereignis-Tags aus `RECOGNIZED_PERSON`/`RECOGNIZED_FAMILY`, die `eventNode` baut. */
 const EREIGNIS_TAGS = [
   'BIRT', 'CHR', 'DEAT', 'BURI', 'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU',
-  'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF',
+  'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI',
   'MARR', 'ENGA', 'DIV',
 ] as const;
 
@@ -260,7 +268,7 @@ const EREIGNIS_KINDER = ['TYPE', 'DATE', 'PLAC', 'ADDR', 'NOTE', 'SOUR', 'OBJE',
 
 const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
   // Person/Familie
-  NAME: ['GIVN', 'SURN', 'NPFX', 'NSFX', 'NICK', 'SOUR'],
+  NAME: ['GIVN', 'SURN', 'NPFX', 'NSFX', 'NICK', 'TYPE', 'SOUR'],
   FAMC: ['PEDI', '_FREL', '_MREL'],
   ASSO: ['RELA', 'NOTE', 'SOUR'],
   REFN: ['TYPE'],
@@ -567,11 +575,25 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
   return true;
 }
 
+/** Weitere Namensformen (BL-292) — ohne diesen Vergleich gälte ein Record, an dem NUR eine
+ *  Namensform geändert wurde, als unverändert, und der Edit erreichte die Datei nie. */
+function extraNamesEqual(a: PersonName[], b: PersonName[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.nameRaw !== y.nameRaw || x.given !== y.given || x.surname !== y.surname ||
+      x.prefix !== y.prefix || x.suffix !== y.suffix || x.type !== y.type ||
+      !citationsEqual(x.citations, y.citations)) return false;
+  }
+  return true;
+}
+
 function personEqual(a: Person, b: Person): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
-    a.sex === b.sex && a.title === b.title && a.religion === b.religion &&
+    a.nameType === b.nameType && extraNamesEqual(a.extraNames, b.extraNames) &&
+    a.sex === b.sex && a.title === b.title &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
     a.uid === b.uid && a.cause === b.cause &&
     eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&
@@ -674,5 +696,42 @@ function repoEqual(a: Repository, b: Repository): boolean {
 // Medien-Record-Vergleich (ADR-v9-125): die GLOBALEN Felder — hier wird eine Änderung an
 // Datei/Format/Typ/Titel erkannt (die natürliche Stelle, EIN Record statt jeder Referenz).
 function mediaRecordEqual(a: Media, b: Media): boolean {
-  return a.file === b.file && a.form === b.form && a.type === b.type && a.title === b.title;
+  return a.file === b.file && a.form === b.form && a.formWire === b.formWire
+    && a.type === b.type && a.title === b.title;
+}
+
+/**
+ * Dieselbe Frage für ein INLINE-Medium — und deshalb an einer anderen Stelle zu stellen
+ * (BL-301, ADR-v9-207): es hat keinen eigenen Record, seine globalen Felder stehen im
+ * `OBJE` des VERWEISENDEN Records. Die Dirty-Prüfung dort vergleicht bislang nur die
+ * `MediaCitation`s (die referenz-spezifische Hälfte); ein Edit an `db.media` ließ den
+ * Record damit als „unverändert" durchgehen und erreichte die Datei NIE — gemessen an
+ * `media-form-wire.small.ged`: Dateipfad und Format eines inline-Mediums geändert,
+ * Ausgabe byte-identisch zur Eingabe.
+ *
+ * Gefragt wird NUR an der Fundstelle, die das Medium definiert hat (`defining`, dieselbe
+ * Regel wie `collectMedia`). Der Realbestand hat gezeigt, warum: dieselbe Matricula-URL
+ * steht dort 3× ohne `FORM` und 1× mit `FORM URL`. Ohne diese Einschränkung meldete das
+ * abweichende Vierte eine Änderung, die niemand gemacht hat — und das Speichern löschte
+ * die `FORM URL`-Zeile. Genau der Umschreib-Fehler, gegen den ADR-v9-197 antritt.
+ *
+ * `title` ist bewusst NICHT dabei: in der 5.5.1-Inline-Form ist `TITL` unter `OBJE` der
+ * REFERENZ-Titel (`MediaCitation.title`) — für einen globalen Titel gibt es dort keinen
+ * Platz. Ihn hier zu vergleichen hieße, den Record dauerhaft als schmutzig zu führen für
+ * eine Änderung, die keine Zeile erzeugen kann. Diese Grenze gehört zur Klasse aus
+ * BL-292 („Modell-Erweiterung oder ausdrücklich dokumentierte Grenze"), nicht hierher.
+ */
+function inlineMediaChanged(orig: GedNode, media: MediaLookup, defining: ReadonlySet<GedNode>): boolean {
+  const abweichend = (n: GedNode): boolean => {
+    if (defining.has(n)) {
+      const projiziert = projectMediaRecord(n);
+      if (projiziert && projiziert.wireOrigin === 'inline') {
+        const cur = media.get(projiziert.id);
+        if (cur && !(projiziert.file === cur.file && projiziert.form === cur.form
+          && projiziert.formWire === cur.formWire && projiziert.type === cur.type)) return true;
+      }
+    }
+    return n.children.some(abweichend);
+  };
+  return abweichend(orig);
 }

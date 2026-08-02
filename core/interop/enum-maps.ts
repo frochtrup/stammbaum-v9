@@ -38,6 +38,7 @@ export const TAG_BY_GRAMPS: Record<string, string> = {
   Naturalization: 'NATU',
   Graduation: 'GRAD',
   Property: 'PROP',
+  Religion: 'RELI',
   'Military Service': 'MILI',
   Marriage: 'MARR',
   Engagement: 'ENGA',
@@ -259,4 +260,31 @@ export function mediToGrampsMedium(medi: string): string {
 export function grampsMediumToMedi(medium: string): string {
   if (!medium) return '';
   return MEDI_BY_MEDIUM[medium] ?? medium;
+}
+
+// ── 7. NAME.TYPE ↔ GRAMPS `<name type>` (BL-292) ──────────────────────────────
+// GEDCOM 5.5.1 `NAME_TYPE` kennt `aka`/`birth`/`immigrant`/`maiden`/`married` (+ Freitext),
+// GRAMPS die ausgeschriebenen Formen. EINE Tabelle für beide Richtungen — dieselbe Regel
+// wie bei `_EVAL` (BL-83): unbekannte Werte reisen VERLUSTFREI durch, statt auf einen
+// Default zu fallen (ein erfundener Typ wäre schlimmer als ein fremder).
+
+const NAME_TYPE_ZU_GRAMPS: Record<string, string> = {
+  aka: 'Also Known As', birth: 'Birth Name', immigrant: 'Unknown',
+  maiden: 'Birth Name', married: 'Married Name',
+};
+
+const GRAMPS_ZU_NAME_TYPE: Record<string, string> = {
+  'also known as': 'aka', 'birth name': 'birth', 'married name': 'married',
+};
+
+/** GEDCOM-`NAME.TYPE` → GRAMPS-`<name type>`; Unbekanntes bleibt, wie es ist. */
+export function nameTypeToGramps(value: string): string {
+  const v = value.trim();
+  return NAME_TYPE_ZU_GRAMPS[v.toLowerCase()] ?? v;
+}
+
+/** GRAMPS-`<name type>` → GEDCOM-`NAME.TYPE`; Unbekanntes bleibt, wie es ist. */
+export function nameTypeFromGramps(value: string): string {
+  const v = value.trim();
+  return GRAMPS_ZU_NAME_TYPE[v.toLowerCase()] ?? v;
 }

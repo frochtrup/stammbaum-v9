@@ -70,3 +70,22 @@ export function mimeToGedForm(mime: string, file: string): string {
   const slash = m.indexOf('/');
   return slash >= 0 ? m.slice(slash + 1) : m;
 }
+
+/**
+ * Die EINE Stelle, die entscheidet, welcher `FORM`-Wert ins GEDCOM geht (BL-290,
+ * ADR-v9-207) — Gegenstück zu `placValue` in `write-back-emit.ts`: der Wire-Wert ist die
+ * Wahrheit, solange ihn niemand angefasst hat.
+ *
+ * Der erhaltene Wert gilt nur, wenn er über `formToMime` NOCH DASSELBE Format bezeichnet
+ * wie das Modell. Damit fällt er von selbst weg, sobald der Nutzer `form` ändert — und
+ * auch dann, wenn er die Datei umbenennt und der Wire-Wert (`FILE`, `URL`) sein Format
+ * überhaupt erst aus der Endung bezog. Kein zusätzliches Invalidieren beim Editieren
+ * nötig: die Prüfung stellt die Frage bei jedem Schreiben neu.
+ *
+ * Ohne Wire-Wert (in der App angelegt, aus GRAMPS importiert) die bisherige
+ * Rückübersetzung — dort gab es nie eine Schreibweise, die zu erhalten wäre.
+ */
+export function gedFormValue(form: string, file: string, formWire: string): string {
+  if (formWire && formToMime(formWire, file) === form) return formWire;
+  return mimeToGedForm(form, file);
+}

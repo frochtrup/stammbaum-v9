@@ -284,11 +284,10 @@ function families(db: Database, personId: PersonId, pr: Pronoun): StorySection |
 /** Konfession — kurze Schlusszeile (Orakel `_sectionReli`). */
 function religion(personId: PersonId, db: Database, pr: Pronoun): StorySection | null {
   const p = db.individuals.get(personId)!;
-  // `RELI` ist in v9 das SKALARFELD `Person.religion` (gedcom-parse `case 'RELI'`), kein
-  // Ereignistyp — `RELI` steht nicht in `EVENT_TAGS`. Die frühere Suche in `p.events` war
-  // deshalb ein toter Zweig: sie konnte nie treffen, und die Konfession fehlte still in
-  // jeder Story (BL-212-Nebenbefund, ADR-v9-156).
-  const val = p.religion.trim();
+  // Seit BL-289 ist `RELI` ein ERREIGNIS (`EVENT_TAGS`), kein Skalarfeld mehr: die Quelle
+  // haengt Datum, Ort und Zitate darunter, die ein String nicht halten konnte. ADR-v9-156
+  // hatte die Suche in `p.events` als toten Zweig erkannt — sie ist jetzt der richtige Ort.
+  const val = (p.events.find((e) => e.type === 'RELI')?.value ?? '').trim();
   if (!val) return null;
   const dot = val.endsWith('.') ? '' : '.';
   return { id: 'reli', heading: null, paragraphs: [`${pr.Er} war ${val}${dot}`] };

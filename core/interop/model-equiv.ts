@@ -29,8 +29,9 @@
 //   Quellen, Repositories, Notizen, Orte/Höfe (Kernattribute).
 //
 // ── Was NICHT verglichen wird (DARF dokumentiert abweichen) ───────────────────
-//   - `id` (remapped), GRAMPS-`grampsId`/`handle`, `wireOrigin`, `lastChanged`/`createdDate`
-//     (format-native Fidelity-/Zeitstempel-Felder).
+//   - `id` (remapped), GRAMPS-`grampsId`/`handle`, `wireOrigin`, `formWire` (der rohe
+//     GEDCOM-FORM-Wert — existiert in GRAMPS gar nicht, s. BL-290),
+//     `lastChanged`/`createdDate` (format-native Fidelity-/Zeitstempel-Felder).
 //   - Passthrough-Rohbäume (`GedNode`, `MediaCitation.extra`) — reiner Format-Backbone.
 //   - `shortName` (app-privat, erreicht den Export nie, Spec 11).
 //   Datum/Ort werden nach LEICHTER Normalisierung verglichen (trim/collapse). Volle

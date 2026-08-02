@@ -48,7 +48,7 @@ import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { remapIdsForFormat, type IdRemap } from './id-remap';
-import { EVAL_TAGS, evalAxisValue, mediToGrampsMedium, quayToConfidence, tagToGrampsType } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, mediToGrampsMedium, nameTypeToGramps, quayToConfidence, tagToGrampsType } from './enum-maps';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import { descriptionIsAddress } from './gramps-events';
 import { gedcomToGramps } from './gramps-date';
@@ -308,7 +308,22 @@ function personRecord(id: string, p: Person, refs: Refs): XmlNode {
     const h = refs.citationHandle(c);
     if (h) nameChildren.push(el('citationref', [['hlink', h]]));
   }
-  children.push(el('name', [['type', 'Birth Name']], nameChildren));
+  children.push(el('name', [['type', nameTypeToGramps(p.nameType) || 'Birth Name']], nameChildren));
+  // Weitere Namensformen (BL-292): GRAMPS fuehrt sie als zusaetzliche `<name alt="1">`.
+  // Ohne sie erreichten die aus GEDCOM gelesenen `extraNames` das GRAMPS-Format nie — und
+  // `buildCitationMap` schriebe ihre Zitate als verwaiste `<citation>`-Records mit.
+  for (const n of p.extraNames) {
+    const k: XmlNode[] = [];
+    if (n.given) k.push(textEl('first', n.given));
+    if (n.surname) k.push(textEl('surname', n.surname));
+    if (n.suffix) k.push(textEl('suffix', n.suffix));
+    if (n.prefix) k.push(textEl('title', n.prefix));
+    for (const c of n.citations) {
+      const h = refs.citationHandle(c);
+      if (h) k.push(el('citationref', [['hlink', h]]));
+    }
+    children.push(el('name', [['alt', '1'], ['type', nameTypeToGramps(n.type)]], k));
+  }
 
   for (const e of personEvents(p)) {
     const h = refs.eventHandle(e);

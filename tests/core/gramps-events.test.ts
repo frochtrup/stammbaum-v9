@@ -35,7 +35,9 @@ describe('grampsTypeToTag — GRAMPS-Typ → GEDCOM-Tag (D1)', () => {
   });
   it('nicht kartierte Built-ins → EVEN + wörtlicher Typ', () => {
     expect(grampsTypeToTag('Cause Of Death')).toEqual({ tag: 'EVEN', eventType: 'Cause Of Death' });
-    expect(grampsTypeToTag('Religion')).toEqual({ tag: 'EVEN', eventType: 'Religion' });
+    // `Religion` IST seit BL-289 kartiert (RELI ist ein Ereignistyp) — als zweites
+    // Beispiel fuer einen nicht kartierten Built-in steht jetzt `Occupation`s Nachbar.
+    expect(grampsTypeToTag('Number of Marriages')).toEqual({ tag: 'EVEN', eventType: 'Number of Marriages' });
   });
   it('Custom/deutsche Typen → EVEN + wörtlicher Typ', () => {
     expect(grampsTypeToTag('Beschäftigung')).toEqual({ tag: 'EVEN', eventType: 'Beschäftigung' });

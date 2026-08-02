@@ -91,7 +91,7 @@ export function toEditable(key: string, ev: Event, ctx: PlaceContext): EditableE
     placeDirty: false,
     placeId: ev.placeId,
     hofId: ev.hofId,
-    addr: ev.addr,
+    addr: ev.addr ?? '',
     note: ev.note,
     citations: ev.citations.map((c) => ({ ...c })),
   };
@@ -174,9 +174,25 @@ export function pickHofFor(appState: AppState, target: EditableEvent, hofId: str
   const live = liveEventFrom(target);
   linkEventToHof(live, hofId, appState.placeContext);
   target.place = live.place ?? '';
-  target.addr = live.addr;
+  target.addr = live.addr ?? '';
   target.hofId = live.hofId;
   target.placeDirty = true;
+}
+
+/**
+ * Der Tristate-Rückweg für `addr` (BL-292) — das Formularfeld kennt nur `string`, das
+ * Modell drei Zustände.
+ *
+ * Ein leeres Feld heißt NICHT automatisch „kein ADDR": eine `ADDR`-Zeile ohne Wert ist im
+ * Bestand der Träger der strukturierten Adresse (`ADR1`/`CITY`/`POST`), die als
+ * Passthrough unter ihr hängt. War sie schon vorher leer, bleibt sie bestehen — sonst
+ * risse ein beliebiger Ereignis-Edit den ganzen Teilbaum mit. Hat der Nutzer dagegen einen
+ * VORHANDENEN Wert gelöscht, ist das eine Aussage: die Zeile fällt weg (`null`), wie beim
+ * Ort auch.
+ */
+function addrZurueck(original: Event, e: EditableEvent): string | null {
+  if (e.addr !== '') return e.addr;
+  return original.addr === '' ? '' : null;
 }
 
 /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet, Spec
@@ -195,7 +211,7 @@ export function fromEditable(original: Event, e: EditableEvent): Event {
     place,
     placeId: e.placeId,
     hofId: e.hofId,
-    addr: e.addr,
+    addr: addrZurueck(original, e),
     note: e.note,
     citations: e.citations,
   };

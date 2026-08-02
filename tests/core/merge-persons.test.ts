@@ -213,7 +213,7 @@ describe('mergePersons — Feldauswahl (ADR-v9-104: alle Skalarfelder)', () => {
     const seite = (id: string, mark: string, sex: 'M' | 'F'): Person =>
       makePerson(id, {
         surname: `${mark}sn`, given: `${mark}gn`, nick: `${mark}nk`, prefix: `${mark}pr`,
-        suffix: `${mark}su`, sex, title: `${mark}ti`, religion: `${mark}re`,
+        suffix: `${mark}su`, sex, title: `${mark}ti`,
         restriction: `${mark}rs`, email: `${mark}@x.de`, www: `${mark}.de`, uid: `${mark}uid`,
         cause: `${mark}ca`,
         birth: evt(`1 JAN 180${mark === 'W' ? 1 : 2}`, `${mark}-Geburtsort`),

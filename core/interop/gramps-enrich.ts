@@ -20,6 +20,7 @@ import { attr, childrenByTag, firstChild } from './xml-tree';
 import type { GrampsRefIndex } from './gramps';
 import { distributeFamilyEvents, distributePersonEvents, projectGrampsEvent } from './gramps-events';
 import { collectCitations } from './gramps-citations';
+import { nameTypeFromGramps } from './enum-maps';
 import { grampsMediaRefs } from './gramps-media';
 
 export interface EnrichContext {
@@ -115,8 +116,31 @@ function ownedEvents(node: XmlNode, ownerRole: string, ctx: EnrichContext): Even
 
 /** Füllt Ereignisse (Rolle „Primary") + Namens-/Personen-Zitate in eine projizierte Person. */
 export function enrichPerson(p: Person, node: XmlNode, ctx: EnrichContext): void {
-  const nameNode = firstChild(node, 'name');
-  if (nameNode) p.nameCitations = collectCitations(nameNode, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
+  const nameNodes = childrenByTag(node, 'name');
+  const nameNode = nameNodes[0] ?? null;
+  if (nameNode) {
+    p.nameCitations = collectCitations(nameNode, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
+    p.nameType = nameTypeFromGramps(attr(nameNode, 'type'));
+  }
+  // Jede WEITERE `<name>` ist eine Namensform (BL-292) — dieselbe Rolle wie die zweite
+  // `1 NAME`-Zeile in GEDCOM. Der In-Place-Write-Back fasst nur die erste an, die uebrigen
+  // bleiben ohnehin Passthrough; gelesen werden muessen sie trotzdem, sonst kennt der
+  // Cross-Format-Export sie nicht.
+  p.extraNames = nameNodes.slice(1).map((n) => {
+    const given = firstChild(n, 'first')?.text ?? '';
+    const surname = firstChild(n, 'surname')?.text ?? '';
+    return {
+    // `nameRaw` ist die GEDCOM-Schreibform — GRAMPS hat sie nicht, also bauen wir sie wie
+    // `projectPerson` es fuer den Hauptnamen tut (`Vorname /Nachname/`).
+    nameRaw: `${given} /${surname}/`.trim(),
+    given,
+    surname,
+    prefix: firstChild(n, 'title')?.text ?? '',
+    suffix: firstChild(n, 'suffix')?.text ?? '',
+    type: nameTypeFromGramps(attr(n, 'type')),
+    citations: collectCitations(n, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId),
+    };
+  });
   p.topLevelCitations = collectCitations(node, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId);
   p.media = grampsMediaRefs(node, ctx.handleToId);
 

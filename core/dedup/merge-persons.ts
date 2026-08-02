@@ -54,7 +54,6 @@ export const MERGEABLE_PERSON_FIELDS: readonly MergeableField[] = [
   { key: 'suffix', label: 'Namenssuffix' },
   { key: 'sex', label: 'Geschlecht' },
   { key: 'title', label: 'Titel' },
-  { key: 'religion', label: 'Religion' },
   { key: 'restriction', label: 'Schutzstatus' },
   { key: 'email', label: 'E-Mail' },
   { key: 'www', label: 'Website' },
@@ -155,7 +154,6 @@ export function mergePersons(
     winner.suffix = pick(selections, 'suffix', winner.suffix, loser.suffix);
     winner.sex = pick(selections, 'sex', winner.sex, loser.sex);
     winner.title = pick(selections, 'title', winner.title, loser.title);
-    winner.religion = pick(selections, 'religion', winner.religion, loser.religion);
     winner.restriction = pick(selections, 'restriction', winner.restriction, loser.restriction);
     winner.email = pick(selections, 'email', winner.email, loser.email);
     winner.www = pick(selections, 'www', winner.www, loser.www);

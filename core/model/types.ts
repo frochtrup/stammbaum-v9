@@ -51,8 +51,24 @@ export interface Media {
   id: MediaId;
   /** FILE / `<file src>` — relativer Pfad (Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
   file: string;
-  /** FORM / `<file mime>` — Dateiformat/MIME. */
+  /** FORM / `<file mime>` — Dateiformat, KANONISIERT als MIME (Narrow Waist, ADR-v9-126). */
   form: string;
+  /**
+   * Der GEDCOM-`FORM`-Wert, wie er in der Quelldatei stand (`JPEG`, `BMP`, `FILE`, `URL`) —
+   * neben `wireOrigin` das zweite reine Fidelity-Feld dieser Entität, mit derselben
+   * Begründung: der Writer erhält ihn unverändert (LP-1, BL-290/ADR-v9-207).
+   *
+   * `form` allein kann ihn nicht tragen: die Kanonisierung an der Parse-Grenze ist NICHT
+   * umkehrbar (`JPEG`→`image/jpeg`→`jpg`), und `FILE`/`URL` bezeichnen überhaupt kein
+   * Format. Ohne dieses Feld schrieb jedes Speichern die Schreibweise um — eine
+   * byte-verändernde Projektion ohne Anlass (ADR-v9-197).
+   *
+   * **Nur GEDCOM.** GRAMPS hat kein `FORM`: sein `<file mime>` IST das kanonische MIME und
+   * wird aus `form` zurückgeschrieben — dort bleibt das Feld leer. Beim Schreiben gilt es
+   * nur, solange es dasselbe Format bezeichnet wie `form` (`gedFormValue`); ein Nutzer-Edit
+   * an Format oder Dateiname setzt es außer Kraft, statt es zu konservieren.
+   */
+  formWire: string;
   /** MEDI — Medientyp (Standard-Enum unter FORM); GRAMPS/Import oft leer. */
   type: string;
   /** GLOBALE Beschriftung: GED7-Record-`TITL` / GRAMPS `<file description>`; leer bei 5.5.1-Inline. */
@@ -145,7 +161,7 @@ export interface ExternalId {
 
 /**
  * Event — Person und Familie teilen ein Modell (Spec 10 §5.1).
- * Feld-Tristate für date/place: null (Tag fehlt), '' (Tag da, leer), Wert (belegt).
+ * Feld-Tristate für date/place/addr: null (Tag fehlt), '' (Tag da, leer), Wert (belegt).
  */
 export interface Event {
   type: string;
@@ -158,7 +174,17 @@ export interface Event {
   hofId: HofId | null;
   lati: number | null;
   long: number | null;
-  addr: string;
+  /**
+   * `ADDR` — Tristate wie date/place, und aus demselben Grund verschärft (BL-292): eine
+   * `2 ADDR`-Zeile OHNE Wert, aber MIT `ADR1`/`CITY`/`POST`/`CTRY` darunter, ist im
+   * Realbestand der Regelfall der strukturierten Adresse (83× in `Unsere Familie 2026.ged`).
+   * Solange `''` „kein ADDR" hieß, schrieb der Writer die Zeile nicht — und mit ihr fiel
+   * der gesamte un-modellierte Teilbaum weg, den der Tiefen-Passthrough sonst rettet
+   * (231 verlorene Zeilen beim Neubau aller Records). Die Untertags selbst bleiben
+   * bewusst un-modelliert: sie überleben als Passthrough (INV-PT), sobald ihr Elternknoten
+   * wieder geschrieben wird.
+   */
+  addr: string | null;
   note: string;
   citations: Citation[];
   media: MediaCitation[];
@@ -184,9 +210,12 @@ export interface Person {
   prefix: string;
   suffix: string;
   nick: string;
+  /** `NAME.TYPE` des HAUPTNAMENS (`birth`/`married`/`aka`, GEDCOM `NAME_TYPE`). Gegenstück
+   *  zu `PersonName.type` der weiteren Namensformen — ohne dieses Feld wäre der Untertag
+   *  am Hauptnamen modelliert-aber-heimatlos und ginge beim Neubau verloren (BL-292). */
+  nameType: string;
   sex: Sex;
   title: string;
-  religion: string;
   restriction: string;
   email: string;
   www: string;
@@ -295,7 +324,9 @@ export interface Repository {
   id: RepoId;
   name: string;
   type: string;
-  address: string;
+  /** `ADDR` — Tristate wie `Event.addr` (BL-292): eine leere `1 ADDR`-Zeile trägt im
+   *  Bestand `CITY`/`POST` als Passthrough-Kinder. */
+  address: string | null;
   phone: string;
   www: string;
   email: string;

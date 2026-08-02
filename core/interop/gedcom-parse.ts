@@ -47,6 +47,7 @@ import type {
   Media,
   MediaCitation,
   MediaId,
+  PersonName,
   Quay,
 } from '../model/types';
 import { parseTree, child, children, childValue, unescapeAt } from './gedcom-tree';
@@ -187,7 +188,10 @@ export function projectMediaRecord(node: GedNode): Media | null {
   const formNode = fileNode ? child(fileNode, 'FORM') : null;
   const file = fileNode ? fileNode.value : id;
   // Input-Kanonisierung (ADR-v9-126): FORM-Endung → einheitliches MIME (Narrow-Waist).
-  const form = formToMime(formNode ? formNode.value : '', file);
+  // Der Rohwert bleibt daneben stehen (BL-290): die Kanonisierung ist nicht umkehrbar,
+  // ohne ihn schriebe jedes Speichern `JPEG` als `jpg` zurück.
+  const formWire = formNode ? formNode.value : '';
+  const form = formToMime(formWire, file);
   const type = (formNode ? childValue(formNode, 'MEDI') : '') || childValue(node, 'MEDI');
   // Globaler Titel NUR bei Top-Level-Records (TITL unter FILE [7.0] oder unter OBJE [5.5.1]);
   // bei Inline liegt der Titel referenz-spezifisch auf der MediaCitation.
@@ -195,20 +199,43 @@ export function projectMediaRecord(node: GedNode): Media | null {
   return makeMedia(id, {
     file,
     form,
+    formWire,
     type,
     title: titleNode ? collectText(titleNode) : '',
     wireOrigin: isRecord ? 'record' : 'inline',
   });
 }
 
-function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
-  const out = new Map<MediaId, Media>();
+/**
+ * Die OBJE-Knoten, die `db.media` tatsächlich DEFINIEREN — erstes Vorkommen in Dokument-
+ * ordnung gewinnt. `collectMedia` baut die Medien-Map daraus, und der Write-Back stellt
+ * über dieselbe Menge fest, WELCHE Fundstelle ein globaler Medien-Edit betrifft (BL-301).
+ *
+ * Beides aus EINER Regel, weil die Vorkommen einander widersprechen können: in der
+ * 5.5.1-Inline-Form ist die Datei die Identität, dieselbe Datei kann aber mehrfach mit
+ * ABWEICHENDEN Untertags dastehen (im Realbestand: dieselbe Matricula-URL 3× ohne `FORM`
+ * in Zitaten, 1× mit `FORM URL` unter der Quelle). Wer die Frage „hat sich das Medium
+ * geändert?" gegen ein nicht definierendes Vorkommen stellt, bekommt einen Unterschied
+ * gemeldet, den nie ein Nutzer gemacht hat — und schreibt die Datei um (ADR-v9-197).
+ */
+export function definingMediaNodes(roots: GedNode[]): Set<GedNode> {
+  const gesehen = new Set<MediaId>();
+  const out = new Set<GedNode>();
   const visit = (node: GedNode): void => {
     const m = projectMediaRecord(node);
-    if (m && !out.has(m.id)) out.set(m.id, m);
+    if (m && !gesehen.has(m.id)) { gesehen.add(m.id); out.add(node); }
     for (const c of node.children) visit(c);
   };
   for (const rec of roots) visit(rec);
+  return out;
+}
+
+function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
+  const out = new Map<MediaId, Media>();
+  for (const node of definingMediaNodes(roots)) {
+    const m = projectMediaRecord(node);
+    if (m) out.set(m.id, m);
+  }
   return out;
 }
 
@@ -232,8 +259,11 @@ function parseEvent(node: GedNode): Event {
     ev.long = parseCoord(childValue(map, 'LONG'));
   }
 
+  // Tristate wie DATE/PLAC (BL-292): der Knoten kann leer sein und trotzdem `ADR1`/`CITY`/
+  // `POST`/`CTRY` tragen. `''` hieße „kein ADDR" und ließe den Writer die Zeile weglassen —
+  // mit ihr fiele der ganze un-modellierte Teilbaum darunter.
   const addrNode = child(node, 'ADDR');
-  if (addrNode) ev.addr = collectText(addrNode);
+  ev.addr = addrNode ? collectText(addrNode) : null;
 
   const noteNode = child(node, 'NOTE');
   if (noteNode) ev.note = collectText(noteNode);
@@ -364,14 +394,39 @@ function roleFromGed7(asso: GedNode): string {
   return childValue(role, 'PHRASE') || role.value;
 }
 
+/**
+ * Eine WEITERE `1 NAME`-Zeile → `PersonName` (BL-292). Bewusst OHNE die Untertag-Ergänzung
+ * aus dem NAME-Wert (ADR-v9-112), die der Hauptname macht: die ist eine Anzeige-Bequemlichkeit
+ * und erzeugte hier `GIVN`/`SURN`-Zeilen, die in der Quelle nicht standen — eine
+ * byte-verändernde Ergänzung ohne Anlass (ADR-v9-197). Eine Namensform reist so, wie sie kam.
+ */
+function parsePersonName(node: GedNode): PersonName {
+  return {
+    nameRaw: node.value,
+    given: childValue(node, 'GIVN'),
+    surname: childValue(node, 'SURN'),
+    prefix: childValue(node, 'NPFX'),
+    suffix: childValue(node, 'NSFX'),
+    type: childValue(node, 'TYPE'),
+    citations: children(node, 'SOUR').map(parseCitation),
+  };
+}
+
 function parsePerson(rec: GedNode): Person {
   const id = rec.xref ?? '';
   const p = makePerson(id);
+  let nameGesehen = false;
 
   for (const c of rec.children) {
     switch (c.tag) {
       case 'NAME': {
-        if (!p.name) {
+        // Erste NAME-Zeile = Hauptname, jede weitere eine Namensform (BL-292). Vorher
+        // wurden sie stillschweigend verworfen — 95 Zeilen samt Untertags und Zitaten in
+        // `Unsere Familie 2026.ged`. Der Modell-Slot `extraNames` existierte bereits, wurde
+        // aber von KEINEM Parser gefüllt (dieselbe Lücke wie `dataEvents`, ADR-v9-151).
+        if (nameGesehen) { p.extraNames.push(parsePersonName(c)); break; }
+        nameGesehen = true;
+        {
           p.name = c.value;
           p.given = childValue(c, 'GIVN');
           p.surname = childValue(c, 'SURN');
@@ -389,6 +444,7 @@ function parsePerson(rec: GedNode): Person {
             if (!p.suffix) p.suffix = parts.suffix;
           }
           if (!p.nick) p.nick = childValue(c, 'NICK');
+          p.nameType = childValue(c, 'TYPE');
           for (const s of children(c, 'SOUR')) p.nameCitations.push(parseCitation(s));
         }
         break;
@@ -398,9 +454,6 @@ function parsePerson(rec: GedNode): Person {
         break;
       case 'TITL':
         p.title = c.value;
-        break;
-      case 'RELI':
-        p.religion = c.value;
         break;
       case 'RESN':
         p.restriction = c.value;
@@ -503,9 +556,14 @@ function parsePerson(rec: GedNode): Person {
   return p;
 }
 
+// `RELI` steht hier, seit BL-289 es vom Skalarfeld zum Ereignis gemacht hat: die Quelle
+// haengt Datum, Ort und Quellenzitate darunter (110 Zeilen, 119 `SOUR` in
+// `Unsere Familie 2026.ged`) — ein String konnte davon nur die Konfession halten, der Rest
+// ueberlebte bloss als Passthrough und war weder sichtbar noch editierbar (ADR-v9-156
+// hatte die Diagnose bereits gestellt, ohne die Konsequenz zu ziehen).
 const EVENT_TAGS = new Set([
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
-  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
+  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI', 'MARR', 'ENGA', 'DIV',
 ]);
 function isEventTag(tag: string): boolean {
   return EVENT_TAGS.has(tag);
@@ -609,7 +667,7 @@ function parseRepository(rec: GedNode): Repository {
   const r = makeRepository(id);
   r.name = childValue(rec, 'NAME');
   const addr = child(rec, 'ADDR');
-  if (addr) r.address = collectText(addr);
+  r.address = addr ? collectText(addr) : null;
   r.phone = childValue(rec, 'PHON');
   r.www = childValue(rec, 'WWW');
   r.email = childValue(rec, 'EMAIL');

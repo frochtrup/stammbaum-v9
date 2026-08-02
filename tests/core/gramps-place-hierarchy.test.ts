@@ -45,7 +45,9 @@ describe('BL-143 A — RESI/PROP <description> ↔ event.addr', () => {
     expect(resi.value).toBe('');
     const occu = p.events.find((e) => e.type === 'OCCU')!;
     expect(occu.value).toBe('Lehrer'); // Beruf bleibt value
-    expect(occu.addr).toBe('');
+    // `null` = gar keine Adresse (BL-292: `addr` ist Tristate wie date/place; `''` hieße
+    // „ADDR-Zeile vorhanden, ohne Wert"). GRAMPS legt für OCCU keine an.
+    expect(occu.addr).toBeNull();
   });
 });
 

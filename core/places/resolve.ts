@@ -190,7 +190,7 @@ function resolveOne(
   //    Die dazwischenliegenden PLAC→Dorf-Pfade 2–5 sind dann gegenstandslos (placeId != null
   //    ⇒ sie greifen ohnehin nicht) und werden übersprungen.
   const offenerAddrHof =
-    ev.hofId == null && ev.placeId != null && ev.addr !== '' && hofTypeAllowed &&
+    ev.hofId == null && ev.placeId != null && ev.addr != null && ev.addr !== '' && hofTypeAllowed &&
     !isAddrJustVillage(ev.addr, ev.placeId, ctx);
   if (!offenerAddrHof && (ev.placeId != null || ev.hofId != null)) {
     return { resolved: reproject('reproject'), review: null };
