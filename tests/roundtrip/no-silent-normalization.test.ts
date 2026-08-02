@@ -55,10 +55,13 @@ describe('BL-288 — Speichern schreibt nichts um (ADR-v9-197)', () => {
 // Der eigentliche Beleg: die kleine Fixture hat einen Ort ohne Verwaltungskette, an ihr
 // fällt eine Reprojektion gar nicht auf. Erst der echte Bestand mit seinen historischen
 // Ketten zeigt, ob das Speichern die Quelle in Ruhe lässt.
+// `realbestandText()` steht bewusst IM Test, nicht im describe-Body: `describe.skipIf`
+// überspringt nur die Testfälle — der Body läuft beim Sammeln der Suite trotzdem. Ein
+// `readFileSync` dort wirft in CI, wo die (gitignorte) Datei fehlt, und reißt den ganzen
+// Lauf mit. Genau so ist dieser Test beim ersten Push rot geworden.
 describe.skipIf(!realbestandVorhanden())('BL-288 — am Realbestand', () => {
-  const src = realbestandText();
-
   it('PLAC: kein einziger Wert wird umgeschrieben', () => {
+    const src = realbestandText();
     expect(umgeschrieben(src, ladenUndSpeichern(src), 'PLAC')).toEqual([]);
   });
 
@@ -71,6 +74,7 @@ describe.skipIf(!realbestandVorhanden())('BL-288 — am Realbestand', () => {
   // Bewusst als `skip` statt gelöscht: die Zusicherung ist richtig, nur noch nicht
   // eingelöst. Sie ist die fertige Rot-Probe für BL-290 — dort wieder scharfschalten.
   it.skip('FORM: kein einziger Wert wird umgeschrieben (BL-290)', () => {
+    const src = realbestandText();
     expect(umgeschrieben(src, ladenUndSpeichern(src), 'FORM')).toEqual([]);
   });
 });
