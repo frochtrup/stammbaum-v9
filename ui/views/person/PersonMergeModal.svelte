@@ -19,6 +19,7 @@
   import { displayName } from '../../shell/person-display';
   import { buildCompareRows, contextRows } from './person-dedup-model';
   import { portal } from '../../shell/portal';
+  import { focusTrap } from '../../shell/focus-trap';
 
   interface Props {
     appState: AppState;
@@ -144,7 +145,7 @@
      Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
      Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
      ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
-<div class="stb-modal-backdrop" use:portal onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" use:portal use:focusTrap onclick={onClose} role="presentation">
   <div
     class="person-merge__panel"
     onclick={(e) => e.stopPropagation()}

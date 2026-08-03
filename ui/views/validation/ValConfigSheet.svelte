@@ -13,6 +13,7 @@
   import { rulesByGroup, THRESHOLD_LABEL } from './validation-model';
   import { formSubmit } from '../../shell/form-keys';
   import { portal } from '../../shell/portal';
+  import { focusTrap } from '../../shell/focus-trap';
 
   interface Props {
     config: ValidationConfig;
@@ -82,7 +83,7 @@
      Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
      Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
      ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
-<div class="stb-modal-backdrop" use:portal onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" use:portal use:focusTrap onclick={onClose} role="presentation">
   <div
     class="valcfg__panel"
     onclick={(e) => e.stopPropagation()}

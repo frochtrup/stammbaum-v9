@@ -34,6 +34,7 @@
   } from '../../../core/places';
   import PlaceForm from './PlaceForm.svelte';
   import { portal } from '../../shell/portal';
+  import { focusTrap } from '../../shell/focus-trap';
 
   interface Props {
     appState: PlacesHost;
@@ -167,7 +168,7 @@
      Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
      Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
      ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
-<div class="stb-modal-backdrop" use:portal onclick={onClose} role="presentation">
+<div class="stb-modal-backdrop" use:portal use:focusTrap onclick={onClose} role="presentation">
   <div
     class="place-enclosure-modal__panel"
     onclick={(e) => e.stopPropagation()}
