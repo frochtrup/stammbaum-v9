@@ -278,7 +278,7 @@ function findUndersizedSizeTokens(
  * sie (noch) nicht. Die Ratsche misst genau das — wie viele Bedienelemente ihre Größe
  * noch selbst erfinden, statt eine Primitive zu benutzen.
  */
-const OHNE_GROESSE_RATSCHE = 175; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297) → 176 (BL-281) → 175 (BL-299).
+const OHNE_GROESSE_RATSCHE = 174; // GEMESSEN. 116 → 93 (BL-273/274) → 101 (BL-282) → 95 (BL-280) → 177 (BL-297) → 176 (BL-281) → 175 (BL-299) → 174 (BL-276: der „+ Quelle hinzufügen"-Knopf bekam beim Umzug in `EventCitationsSection` seine Mindesthöhe — ein Altfall, der ohnehin angefasst wurde).
 
 /**
  * Selektoren, deren Größe an einem PSEUDO-ELEMENT hängt (BL-280): `.stb-icon-btn` selbst

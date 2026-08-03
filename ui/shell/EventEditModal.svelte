@@ -38,20 +38,11 @@
   import type { Event, MediaCitation } from '../../core/model/types';
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { HOF_EVENT_TYPES } from '../../core/places';
-  import {
-    addCitationFor,
-    removeCitationAt,
-    setCitationSourceAt,
-    setCitationPageAt,
-    setCitationNoteAt,
-    setCitationQuayAt,
-    setCitationUrlAt,
-    setCitationEvalAt,
-  } from './event-edit-citations';
-  import SourceCitationRow from './SourceCitationRow.svelte';
+  import EventCitationsSection from './EventCitationsSection.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
   import EventAgeHelper from './EventAgeHelper.svelte';
+  import { formSubmit } from './form-keys';
   import {
     toEditable,
     markDateDirty,
@@ -148,15 +139,9 @@
    *  sofort, sodass „Abbrechen" die halbe Änderung stehen ließ (Design-Kritik 2026-07-31). */
   let stagedBirth = $state<string | null>(null);
 
-  const sources = $derived(Array.from(appState.db.sources.values()));
-
-  // Citation-Array-Editier-Funktionen (add/remove/setXAt) sind reine Funktionen aus
-  // ./event-edit-citations (max-lines-Extraktion, s. dortiger Kopfkommentar) — hier nur
-  // noch der EINE Guard, der eine Quelle voraussetzt.
-  function addCitation() {
-    if (sources.length === 0) return;
-    editable.citations = addCitationFor(editable.citations, sources[0].id);
-  }
+  // Die Quellen-Sektion (Überschrift, „+ Quelle hinzufügen", Zeilenliste) liegt seit
+  // BL-276 in `EventCitationsSection.svelte` — die Oberflächen-Hälfte derselben
+  // max-lines-Extraktion, die schon `event-edit-citations.ts` erzeugt hat.
 
   // 📷-Kamera-Schnellzugriff (Spec 20 §1.4 [S]): das gewählte/aufgenommene Foto wird SOFORT
   // mit DIESEM Ereignis verknüpft. `capture="environment"` öffnet mobil direkt die Kamera,
@@ -207,6 +192,12 @@
     aria-modal="true"
     aria-label={`${label} ${headingVerb}`}
   >
+  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schloss schon (svelte:window
+       oben), Enter tat nichts. Es liegt INNERHALB des Panels, nicht an seiner Stelle —
+       die Dialog-Rolle kann ein `<form>` nicht tragen. Alle Knöpfe darin sind
+       `type="button"` (geprüft), auch die der eingebetteten `SourceCitationRow` — Enter
+       gehört damit dem Speichern. -->
+  <form class="event-edit-modal__form" onsubmit={formSubmit(save)}>
     <div class="event-edit-modal__head">
       <h3>{label} {headingVerb}</h3>
       <button type="button" class="event-edit-modal__close-btn" onclick={onClose} aria-label="Schließen">✕</button>
@@ -367,29 +358,12 @@
       <textarea bind:value={editable.note}></textarea>
     </label>
 
-    <div class="event-edit-modal__citations">
-      <div class="event-edit-modal__citations-head">
-        <h5>Quellen</h5>
-        <button type="button" class="event-edit-modal__add-citation-btn" onclick={addCitation} disabled={sources.length === 0}>
-          + Quelle hinzufügen
-        </button>
-      </div>
-      {#each editable.citations as cit, i (i)}
-        <SourceCitationRow
-          {appState}
-          citation={cit}
-          index={i}
-          labelPrefix={label}
-          onSourceChange={(id) => (editable.citations = setCitationSourceAt(editable.citations, i, id))}
-          onPageChange={(page) => (editable.citations = setCitationPageAt(editable.citations, i, page))}
-          onQuayChange={(quay) => (editable.citations = setCitationQuayAt(editable.citations, i, quay))}
-          onNoteChange={(note) => (editable.citations = setCitationNoteAt(editable.citations, i, note))}
-          onUrlChange={(u) => (editable.citations = setCitationUrlAt(editable.citations, i, u))}
-          onEvalChange={(ev) => (editable.citations = setCitationEvalAt(editable.citations, i, ev))}
-          onRemove={() => (editable.citations = removeCitationAt(editable.citations, i))}
-        />
-      {/each}
-    </div>
+    <EventCitationsSection
+      {appState}
+      citations={editable.citations}
+      labelPrefix={label}
+      onChange={(next) => (editable.citations = next)}
+    />
 
     <div class="event-edit-modal__media">
       <label class="event-edit-modal__camera-btn">
@@ -417,13 +391,20 @@
           onclick={() => onCopy(liveEventFrom(editable))}
         >⧉ Kopieren</button>
       {/if}
-      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
       <button type="button" class="stb-btn" data-variant="secondary" onclick={onClose}>Abbrechen</button>
     </div>
+  </form>
   </div>
 </div>
 
 <style>
+  /* Das Formular ist eine reine Gruppierungs-Hülle im Panel (BL-276) — es soll dessen
+     Fluss nicht verändern, deshalb erbt es Spalten-Layout und Lücke. */
+  .event-edit-modal__form {
+    display: contents;
+  }
+
   .event-edit-modal__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);
@@ -503,39 +484,6 @@
   .event-edit-modal__muted {
     color: var(--stb-text-dim);
     font-size: 0.82rem;
-  }
-
-  .event-edit-modal__citations {
-    margin-top: 0.6rem;
-  }
-
-  .event-edit-modal__citations-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.3rem;
-  }
-
-  .event-edit-modal__citations h5 {
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-    margin: 0;
-  }
-
-  .event-edit-modal__add-citation-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
-
-  .event-edit-modal__add-citation-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
   }
 
   .event-edit-modal__media {

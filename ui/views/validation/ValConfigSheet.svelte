@@ -11,6 +11,7 @@
   import type { RuleId, Thresholds, ValidationConfig } from '../../../core/validate/index';
   import { defaultConfig } from '../../../core/validate/index';
   import { rulesByGroup, THRESHOLD_LABEL } from './validation-model';
+  import { formSubmit } from '../../shell/form-keys';
 
   interface Props {
     config: ValidationConfig;
@@ -83,6 +84,10 @@
     aria-modal="true"
     aria-label="Prüfregeln konfigurieren"
   >
+  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schloss schon (svelte:window
+       oben), Enter tat nichts. INNERHALB des Panels, nicht an seiner Stelle — die
+       Dialog-Rolle kann ein `<form>` nicht tragen. -->
+  <form class="valcfg__form" onsubmit={formSubmit(save)}>
     <div class="valcfg__head">
       <h3>Prüfregeln</h3>
       <button type="button" class="valcfg__close" onclick={onClose} aria-label="Schließen">✕</button>
@@ -125,12 +130,18 @@
 
     <div class="valcfg__actions">
       <button type="button" onclick={onClose}>Abbrechen</button>
-      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     </div>
+  </form>
   </div>
 </div>
 
 <style>
+  /* Reine Gruppierungs-Hülle im Panel (BL-276) — ändert dessen Fluss nicht. */
+  .valcfg__form {
+    display: contents;
+  }
+
   .valcfg__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);

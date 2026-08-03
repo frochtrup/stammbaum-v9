@@ -380,7 +380,6 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.stubGlobal('confirm', confirmSpy);
 
     render(HofDetail, { props: { appState, viewState, onBack } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.click(screen.getByText('Hof löschen'));
 
     expect(confirmSpy).toHaveBeenCalledOnce();
@@ -404,7 +403,6 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.stubGlobal('confirm', confirmSpy);
 
     render(HofDetail, { props: { appState, viewState, onBack } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.click(screen.getByText('Hof löschen'));
 
     expect(appState.db.hofObjects.has('@H1@')).toBe(true);
@@ -413,7 +411,10 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('zeigt "Hof löschen" NICHT außerhalb des Bearbeiten-Modus (ADR-v9-30 Punkt 5)', () => {
+  // GEDREHT mit BL-277/ADR-v9-217 — Begründung s. `PlaceDetail.component.test.ts`
+  // (Geschwister-Stelle). Geprüft bleibt die zweite Hälfte des alten Befunds: der Knopf
+  // steht NICHT mehr in der Knopfreihe des Grunddaten-Formulars.
+  it('zeigt "Hof löschen" in der abgesetzten Danger-Zone — auch ohne Bearbeiten-Modus (ADR-v9-217)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -424,7 +425,9 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
 
     render(HofDetail, { props: { appState, viewState } });
 
-    expect(screen.queryByText('Hof löschen')).toBeNull();
+    const knopf = screen.getByText('Hof löschen');
+    expect(knopf.closest('.delete-entity')).not.toBeNull();
+    expect(knopf.closest('.hof-detail__form')).toBeNull();
   });
 });
 

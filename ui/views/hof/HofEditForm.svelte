@@ -18,23 +18,28 @@
   // derselbe Knopf den Modus und wirkte damit wie eine Rücknahme auch der Adressvarianten
   // und des Dorf-Wechsels daneben — die er nie war (`updateHofAddr` zieht die Umbenennung
   // längst über alle referenzierenden Ereignisse, ADR-v9-81).
+  //
+  // UND SIE LÖSCHT NICHT (BL-277, ADR-v9-217). „Hof löschen" stand bis dahin in DIESER
+  // Knopfreihe — destruktiv unmittelbar neben der Primäraktion, und nur über den Editor
+  // erreichbar. Es sitzt jetzt wie bei Person/Familie/Quelle/Archiv/Medium in der
+  // abgesetzten Danger-Zone unten am Steckbrief (`DeleteEntityButton`, INV-UI-4).
   import { untrack } from 'svelte';
   import Picker from '../../shell/Picker.svelte';
   import CoordFields from '../../shell/CoordFields.svelte';
   import { resolveCoordFields } from '../../../core/places';
   import type { HofObject } from '../../../core/places/types';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     hof: HofObject;
     /** Alle übrigen Höfe (für die Vorgänger-/Nachfolger-Picker) — ohne diesen Hof selbst. */
     otherHofs: HofObject[];
     onSave: (updated: HofObject) => void;
-    onDelete: () => void;
     /** Legt einen neuen Hof mit dieser Adresse (im Dorf-Kontext des Aufrufers) an und liefert
      *  dessen id zurück (oder null bei leerer/ungültiger Adresse). */
     onCreateHof: (addr: string) => string | null;
   }
-  const { hof, otherHofs, onSave, onDelete, onCreateHof }: Props = $props();
+  const { hof, otherHofs, onSave, onCreateHof }: Props = $props();
 
   // Startwerte EINMAL aus `hof` lesen (Arbeitskopie, mountet frisch je Bearbeiten-Sitzung) —
   // aus plain-Const initialisieren, nicht direkt aus dem Prop (svelte-check state_referenced_locally).
@@ -99,6 +104,25 @@
     newHofAddr = '';
   }
 
+  /**
+   * Enter/Escape im Adressfeld der Inline-Neuanlage gehören DIESEM Feld (BL-276). Seit
+   * die Fläche ein `<form>` ist, löste ein Enter hier sonst das Speichern der Grunddaten
+   * aus — also die Aktion des umgebenden Formulars statt der sichtbaren Zeile davor;
+   * dieselbe Nachbarschafts-Regel, die `Picker.svelte` für seine Trefferliste hält.
+   */
+  function inlineCreateKeys(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmCreateHof();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      cancelCreateHof();
+    }
+  }
+
   function confirmCreateHof() {
     if (!creatingHofFor) return;
     const id = onCreateHof(newHofAddr.trim());
@@ -140,7 +164,13 @@
   }
 </script>
 
-<section class="hof-detail__section hof-detail__form" data-no-swipe>
+<!-- `<form>`, nicht `<section>` (BL-276, §6i): Enter speichert, Escape verwirft die
+     Feldwerte — dasselbe wie der Sekundär-Knopf (Regel und Fallen in `form-keys.ts`). -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="hof-detail__section hof-detail__form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(discard)}>
   <h3>Grunddaten</h3>
   <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
   <label>
@@ -163,7 +193,13 @@
          betrifft nur automatische Massenanlage beim Import. -->
     {#if creatingHofFor === 'predecessor'}
       <div class="hof-detail__inline-create">
-        <input type="text" placeholder="Adresse des neuen Hofs…" bind:value={newHofAddr} aria-label="Adresse des neuen Vorgänger-Hofs" />
+        <input
+          type="text"
+          placeholder="Adresse des neuen Hofs…"
+          bind:value={newHofAddr}
+          aria-label="Adresse des neuen Vorgänger-Hofs"
+          onkeydown={inlineCreateKeys}
+        />
         <button type="button" onclick={confirmCreateHof} disabled={!newHofAddr.trim()}>Anlegen</button>
         <button type="button" onclick={cancelCreateHof}>Abbrechen</button>
       </div>
@@ -187,7 +223,13 @@
     <span class="stb-field__caption">Nachfolger-Hof</span>
     {#if creatingHofFor === 'successor'}
       <div class="hof-detail__inline-create">
-        <input type="text" placeholder="Adresse des neuen Hofs…" bind:value={newHofAddr} aria-label="Adresse des neuen Nachfolger-Hofs" />
+        <input
+          type="text"
+          placeholder="Adresse des neuen Hofs…"
+          bind:value={newHofAddr}
+          aria-label="Adresse des neuen Nachfolger-Hofs"
+          onkeydown={inlineCreateKeys}
+        />
         <button type="button" onclick={confirmCreateHof} disabled={!newHofAddr.trim()}>Anlegen</button>
         <button type="button" onclick={cancelCreateHof}>Abbrechen</button>
       </div>
@@ -216,12 +258,12 @@
     <input type="text" bind:value={formGovTypes} placeholder="z. B. Hof, Gehöft" />
   </label>
   <div class="hof-detail__form-actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
-    <!-- „Verwerfen", nicht „Abbrechen" — Feldwerte dieser Fläche, nicht die Sitzung (INV-UI-16). -->
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
+    <!-- „Verwerfen", nicht „Abbrechen" — Feldwerte dieser Fläche, nicht die Sitzung (INV-UI-16).
+         Kein dritter, destruktiver Knopf mehr daneben (BL-277) — s. Kopf der Datei. -->
     <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
-    <button type="button" class="stb-btn" data-variant="danger" onclick={onDelete}>Hof löschen</button>
   </div>
-</section>
+</form>
 
 <style>
   .hof-detail__form {
@@ -283,12 +325,4 @@
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-  }
-
-
-
-
-  .hof-detail__form-actions > :last-child {
-    margin-left: auto;
-  }
-</style>
+  }</style>

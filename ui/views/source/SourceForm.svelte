@@ -32,6 +32,7 @@
   import type { Source } from '../../../core/model/types';
   import { SOURCE_TEMPLATES, type SourceTemplate } from '../../../core/model/source-templates';
   import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     appState: AppState;
@@ -133,7 +134,13 @@
   }
 </script>
 
-<div class="source-form" data-no-swipe>
+<!-- `<form>`, nicht `<div>` (BL-276, §6i): Enter speichert, Escape ruft denselben
+     Sekundär-Ausgang wie der Knopf unten — Regel und Fallen in `form-keys.ts`. -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="source-form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(onCancel ?? discard)}>
   <!-- Nur im ANLAGE-Fall (BL-274, §10e Redundanter Hero-Titel): auf der Detailseite steht
        der Name bereits in der Kopfzeile, die seit BL-274 im Bearbeiten-Modus stehen bleibt
        — „Quelle bearbeiten" wäre dort ein zweiter, ärmerer Titel. Im Picker-Entwurf gibt
@@ -230,14 +237,14 @@
   </label>
 
   <div class="source-form__actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     {#if onCancel}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
     {:else}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
     {/if}
   </div>
-</div>
+</form>
 
 <style>
   .source-form {

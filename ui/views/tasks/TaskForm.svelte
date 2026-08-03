@@ -16,6 +16,7 @@
   import SourcePicker from '../../shell/SourcePicker.svelte';
   import type { TaskEntityKind } from './tasks-model';
   import { SOURCE_TEMPLATES } from '../../../core/model';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   export interface TaskFormValues {
     text: string;
@@ -70,7 +71,11 @@
   }
 </script>
 
-<form class="task-form" onsubmit={(e) => { e.preventDefault(); submit(); }}>
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="task-form" onsubmit={formSubmit(submit)} onkeydown={formEscape(onCancel)}>
   <h3 class="task-form__title">{isEditing ? 'Aufgabe bearbeiten' : 'Aufgabe hinzufügen'}</h3>
 
   <label class="task-form__field">

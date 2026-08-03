@@ -14,6 +14,8 @@
   import EventsByType from '../../shell/EventsByType.svelte';
   import SourceForm from './SourceForm.svelte';
   import { tooltip } from '../../shell/tooltip';
+  import { isSourceEmpty } from '../../../core/model';
+  import { retractIfPristine } from '../../shell/create-retraction';
 
   interface Props {
     appState: AppState;
@@ -42,11 +44,41 @@
   const detail = $derived(sourceId ? buildSourceDetail(appState.db, sourceId) : null);
 
   let editing = $state(untrack(() => startInEdit));
+  /** Anlage-Sitzung nach „＋ Neue Quelle" (BL-275) — Begründung s. PersonDetail. */
+  let freshlyCreated = $state(untrack(() => startInEdit));
 
   /** Speichern schließt den Modus (Transaktion abgeschlossen, INV-UI-16); „Verwerfen"
    *  im Formular darf das nicht — es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
+    // Bewusst bestätigt: ab hier keine Rücknahme mehr (INV-UI-10 schützt den
+    // unbestätigten Zustand).
+    freshlyCreated = false;
+  }
+
+  /** Rücknahme einer leer gebliebenen Neuanlage (BL-275, INV-UI-10) — s. `create-retraction.ts`. */
+  function retractIfAbandoned(): boolean {
+    const weg = retractIfPristine({
+      fresh: freshlyCreated,
+      entity: detail?.source ?? null,
+      isEmpty: isSourceEmpty,
+      remove: (s) => appState.deleteSource(s.id),
+    });
+    if (weg) freshlyCreated = false;
+    return weg;
+  }
+
+  function toggleEdit() {
+    if (editing && retractIfAbandoned()) {
+      onBack?.();
+      return;
+    }
+    editing = !editing;
+  }
+
+  function handleBack() {
+    retractIfAbandoned();
+    onBack?.();
   }
 
   function navigateToOwner(kind: 'person' | 'family', id: string) {
@@ -99,9 +131,9 @@
     <!-- BL-274/INV-UI-16: die Kopfzeile bleibt im Bearbeiten-Modus stehen. Vorher ersetzte
          das Formular die ganze Seite — Titel und Rückweg verschwanden genau dann, wenn der
          Nutzer den Namen ändert. Der Schalter öffnet UND schließt (kein zweiter Ausgang). -->
-    <DetailHeader title={detail.source.abbr || detail.source.title || detail.source.id} onBack={onBack ?? (() => {})}>
+    <DetailHeader title={detail.source.abbr || detail.source.title || detail.source.id} onBack={handleBack}>
       {#snippet actions()}
-        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = !editing)}>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={toggleEdit}>
           {editing ? 'Fertig' : '✎ Bearbeiten'}
         </button>
       {/snippet}

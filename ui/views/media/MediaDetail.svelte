@@ -14,6 +14,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
   import EventsByType from '../../shell/EventsByType.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
@@ -194,16 +195,22 @@
     </span>
   {/if}
   {#if editingKey === row.key}
-    <div class="media-detail__ref-form">
+    <!-- `<form>`, nicht `<div>` (BL-276, §6i) — dieselbe Tastatur-Zusage wie in den
+         Entitäts-Formularen: Enter speichert, Escape ruft den Sekundär-Ausgang. -->
+    <form
+      class="media-detail__ref-form"
+      onsubmit={formSubmit(() => saveRef(row))}
+      onkeydown={formEscape(() => (editingKey = null))}
+    >
       <label>Titel-Override <input type="text" placeholder="(leer ⇒ globaler Titel)" bind:value={rTitle} /></label>
       <label>Aufnahmedatum <input type="text" bind:value={rDate} /></label>
       <label>Notiz <input type="text" bind:value={rNote} /></label>
       <label class="media-detail__ref-prim"><input type="checkbox" bind:checked={rPrimary} /> Primärbild/-dokument</label>
       <div class="media-detail__ref-form-actions">
-        <button type="button" class="stb-btn" data-variant="primary" onclick={() => saveRef(row)}>Speichern</button>
+        <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
         <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingKey = null)}>Abbrechen</button>
       </div>
-    </div>
+    </form>
   {/if}
 {/snippet}
 
@@ -225,16 +232,26 @@
     </DetailHeader>
 
     {#if editingGlobal}
-      <div class="media-detail__global-form">
+      <!-- `<form>`, nicht `<div>` (BL-276, §6i): Enter speichert, Escape ruft denselben
+           Sekundär-Ausgang wie der Knopf daneben — Regel und Fallen in `form-keys.ts`. -->
+      <!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+           Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+           Falschaussage. -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <form
+        class="media-detail__global-form"
+        onsubmit={formSubmit(saveGlobal)}
+        onkeydown={formEscape(() => (editingGlobal = false))}
+      >
         <label>Titel <input type="text" bind:value={gTitle} /></label>
         <label>Dateipfad <input type="text" bind:value={gFile} /></label>
         <label>Format (MIME) <input type="text" bind:value={gForm} /></label>
         <label>Medientyp <input type="text" bind:value={gType} /></label>
         <div class="media-detail__form-actions">
-          <button type="button" class="stb-btn" data-variant="primary" onclick={saveGlobal}>Speichern (alle Ref.)</button>
+          <button type="submit" class="stb-btn" data-variant="primary">Speichern (alle Ref.)</button>
           <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingGlobal = false)}>Abbrechen</button>
         </div>
-      </div>
+      </form>
     {:else}
       {#if fileKind !== 'weblink' && isImageMedia(detail.media.file, detail.media.form)}
         <figure class="media-detail__preview">

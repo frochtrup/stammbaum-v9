@@ -6,7 +6,7 @@
   // Die Komponente OWNS ihren Formularzustand (init aus `place` beim Mount — sie mountet
   // frisch je Bearbeiten-Sitzung, `{#if editing}`). Sie schreibt NICHT selbst: `save()`
   // baut das aktualisierte PlaceObject und reicht es per `onSave` an den Aufrufer
-  // (der ruft appState.savePlace). Löschen ist ebenfalls ein Callback.
+  // (der ruft appState.savePlace).
   //
   // DIESE FLÄCHE IST DIE TRANSAKTIONSGRENZE (Spec 21 §6m, INV-UI-16, ADR-v9-193).
   // „Verwerfen" setzt die FELDWERTE zurück und schließt die Fläche NICHT — deshalb gibt
@@ -15,6 +15,11 @@
   // daneben sichtbar macht (Namensvarianten, Zugehörigkeit, GOV-Import, Merge), las er
   // sich als Rücknahme von allem seit dem Öffnen — die war er nie. Den Modus verlässt
   // der Schalter, der ihn geöffnet hat („Fertig" im Kopf).
+  //
+  // UND SIE LÖSCHT NICHT (BL-277, ADR-v9-217). „Ort löschen" stand bis dahin in DIESER
+  // Knopfreihe — destruktiv unmittelbar neben der Primäraktion, und nur über den Editor
+  // erreichbar. Es sitzt jetzt wie bei Person/Familie/Quelle/Archiv/Medium in der
+  // abgesetzten Danger-Zone unten am Steckbrief (`DeleteEntityButton`, INV-UI-4).
   import { untrack } from 'svelte';
   import type { PlaceObject } from '../../../core/places/types';
   import { resolveCoordFields, type GeocodeHit } from '../../../core/places';
@@ -22,13 +27,13 @@
   import GeocodeButton from '../../shell/GeocodeButton.svelte';
   import TypeSelect from '../../shell/TypeSelect.svelte';
   import { PLACE_TYPE_OPTIONS } from '../../shell/place-labels';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     place: PlaceObject;
     onSave: (updated: PlaceObject) => void;
-    onDelete: () => void;
   }
-  const { place, onSave, onDelete }: Props = $props();
+  const { place, onSave }: Props = $props();
 
   // Startwerte EINMAL aus `place` lesen (die Form ist eine Arbeitskopie und mountet frisch
   // je Bearbeiten-Sitzung — sie soll bewusst NICHT auf spätere `place`-Änderungen reagieren).
@@ -120,7 +125,13 @@
   }
 </script>
 
-<section class="place-edit-form" data-no-swipe>
+<!-- `<form>`, nicht `<section>` (BL-276, §6i): Enter speichert, Escape verwirft die
+     Feldwerte — dasselbe wie der Sekundär-Knopf (Regel und Fallen in `form-keys.ts`). -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="place-edit-form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(discard)}>
   <h3>Grunddaten</h3>
   <label>
     Name
@@ -158,13 +169,13 @@
     <input type="text" bind:value={govTypesText} placeholder="z. B. Stadt, Kreis" />
   </label>
   <div class="place-edit-form__actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     <!-- „Verwerfen", nicht „Abbrechen": es betrifft die Feldwerte DIESER Fläche, nicht
-         die Bearbeiten-Sitzung (INV-UI-16). Das alte Wort versprach mehr, als es hielt. -->
+         die Bearbeiten-Sitzung (INV-UI-16). Das alte Wort versprach mehr, als es hielt.
+         Kein dritter, destruktiver Knopf mehr daneben (BL-277) — s. Kopf der Datei. -->
     <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
-    <button type="button" class="stb-btn" data-variant="danger" onclick={onDelete}>Ort löschen</button>
   </div>
-</section>
+</form>
 
 <style>
   .place-edit-form {
@@ -205,12 +216,5 @@
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-  }
-
-
-
-
-  .place-edit-form__actions > :last-child {
-    margin-left: auto;
   }
 </style>

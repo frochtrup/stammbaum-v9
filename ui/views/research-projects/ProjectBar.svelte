@@ -9,6 +9,7 @@
   // nicht hier.
   import type { ProjectsState } from '../../shell/projects-state.svelte';
   import { makeProject, type Project } from '../../../core/research/index';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     projects: ProjectsState;
@@ -151,7 +152,11 @@
   </div>
 
   {#if showForm}
-    <form class="project-bar__form" onsubmit={(e) => { e.preventDefault(); save(); }}>
+    <!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+         Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+         Falschaussage. -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <form class="project-bar__form" onsubmit={formSubmit(save)} onkeydown={formEscape(() => (showForm = false))}>
       <label class="project-bar__field">
         Name
         <input type="text" bind:value={fName} placeholder="z. B. Linie Decker" />
