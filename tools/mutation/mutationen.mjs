@@ -120,8 +120,17 @@ export const RUECKBAU_GEPRUEFT = [
       'byte-gleich, die FIXTUREN nicht: jede Datei prüft dieselbe Eigenschaft an ihrem eigenen ' +
       'Gegenstand (`media-shared-inline` an gemischten Medien-Records, `name-subtags` an ' +
       'NAME-Untertags, …). Gedoppelt ist der HELFER-Code, nicht die Abdeckung. Eine Löschung ' +
-      'nähme echte Abdeckung; die angemessene Antwort wäre eine geteilte Zusicherung — das ist ' +
-      'Extraktion, nicht Rückbau, und damit nicht diese Zeile.',
+      'nähme echte Abdeckung. Die naheliegende Antwort — Extraktion statt Rückbau — wurde am ' +
+      'selben Tag NACHGEMESSEN UND VERWORFEN (Nutzer-Entscheidung, s. 04a-Chronik#adr-v9-216): ' +
+      '13 entbehrliche Kopien = 83 von 56 674 Testzeilen (0,15 %), Fall- und Mutations-Zahlen ' +
+      'unverändert. Der einzige Teil mit Substanz war ein anderer als vermutet und ist hier ' +
+      'notiert, falls ihn jemand später aufgreift: `calcNetDelta` in `roundtrip-helpers.ts` ist ' +
+      'bereits geteilt (6 Nutzer), aber die SCHWÄCHERE Fassung (eine Zahl) — die schärfere, die ' +
+      'Zeilen-Multimengen vergleicht, liegt fünfmal von Hand vor, mit vier verschiedenen ' +
+      'Ausnahmelisten (`_UID` · + `ABBR` · + eine wörtliche NAME-Zeile · + `_DONE`). Jede ' +
+      'Ausnahme ist ein handgepflegtes Loch in LP-1, und niemand sieht sie zusammen. Die ' +
+      'Idempotenz-Zusicherung trägt dieses Argument NICHT: ihre 21 Fassungen wurden ' +
+      'durchgesehen und sind sachlich identisch.',
     verfahren: 'Rümpfe per Klammerzählung geschnitten, Kommentare/Whitespace entfernt, ab 80 Zeichen verglichen.',
   },
   {
