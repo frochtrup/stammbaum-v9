@@ -466,14 +466,18 @@ export const STELLEN = [
     // jetzt an der Eigenschaft, die die Invariante benennt.
     suche: '      selection[target] = id;',
     ersetze: '      selection.person = id;',
-    // BEWUSST NICHT DER GEMESSENE WERT. In CI-Lage (private Fixturen beiseite) schlagen
-    // 190 Fälle in 26 Dateien an — die Sprengweite dieser Mutation ist die halbe UI, weil
-    // jede Detail-Ansicht ihre Auswahl über das Register bezieht. Ein auf 190 gepinnter
-    // Wert flackerte bei jeder unbeteiligten Umsortierung eines Komponententests, und ein
-    // flackerndes Gate wird abgeschaltet (Lehre BL-47/48). 100 ist deshalb ein robuster
-    // BODEN, kein Ist-Wert: er meldet den Einbruch, den die Zusicherung meint („ein Test
-    // ist weggefallen, der sie trug"), und schweigt zum Rauschen. Die Datei-Untergrenze
-    // (≥2) prüft die andere Hälfte und bleibt scharf.
+    // BEWUSST NICHT DER GEMESSENE WERT — und der Grund dafür ist selbst eine Messung.
+    // Drei Läufe am 2026-08-03 auf unverändertem Code ergaben 190 Treffer in 26 Dateien
+    // (zweimal, `--nur INV-VS`, davon einer in CI-Lage mit beiseitegelegten privaten
+    // Fixturen) und 137 in 32 Dateien (voller Sweep). Die Sprengweite dieser Mutation ist
+    // die halbe UI — jede Detail-Ansicht bezieht ihre Auswahl über das Register —, und
+    // wenn eine Komponentendatei früh abbricht, verschiebt sich, wie viele EINZELFÄLLE
+    // dahinter noch zum Zug kommen. Die Datei-Zahl steigt dabei, die Fall-Zahl sinkt.
+    // Ein gepinnter Wert flackerte deshalb ohne jede Code-Änderung, und ein flackerndes
+    // Gate wird abgeschaltet (Lehre BL-47/48). 100 ist ein BODEN unter beiden
+    // Beobachtungen: er meldet den Einbruch, den die Zusicherung meint („ein Test ist
+    // weggefallen, der sie trug"), und schweigt zum Rauschen. Die Datei-Untergrenze (≥2)
+    // prüft die andere Hälfte und bleibt scharf.
     schwelle: 100,
   },
   // Die sechzehn Oberflächen-Invarianten stehen bewusst EINZELN da, nicht als erzeugte
