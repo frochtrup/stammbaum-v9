@@ -57,9 +57,12 @@ describe('PlaceEnclosureEditModal — Rendering bestehender Zugehörigkeiten', (
     );
     appState.loadDatabase(db, 'test.ged');
 
-    const { container } = render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
 
-    const labels = Array.from(container.querySelectorAll('.place-enclosure-modal__list > li > span:first-child')).map(
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const labels = Array.from(document.querySelectorAll('.place-enclosure-modal__list > li > span:first-child')).map(
       (el) => el.textContent,
     );
     expect(labels).toEqual(['Grafschaft Steinfurt', 'Amt Ochtrup', 'Kreis Steinfurt (undatiert)']);
@@ -166,8 +169,11 @@ describe('PlaceEnclosureEditModal — Modal-Schale (Backdrop/Escape, INV-UI-4)',
     const appState = setup();
     const onClose = vi.fn();
 
-    const { container } = render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose } });
-    const backdrop = container.querySelector('.stb-modal-backdrop') as HTMLElement;
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose } });
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const backdrop = document.querySelector('.stb-modal-backdrop') as HTMLElement;
     await fireEvent.click(backdrop);
 
     expect(onClose).toHaveBeenCalledOnce();
@@ -177,8 +183,11 @@ describe('PlaceEnclosureEditModal — Modal-Schale (Backdrop/Escape, INV-UI-4)',
     const appState = setup();
     const onClose = vi.fn();
 
-    const { container } = render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose } });
-    const panel = container.querySelector('.place-enclosure-modal__panel') as HTMLElement;
+    render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose } });
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const panel = document.querySelector('.place-enclosure-modal__panel') as HTMLElement;
     await fireEvent.click(panel);
 
     expect(onClose).not.toHaveBeenCalled();
@@ -232,11 +241,14 @@ describe('PlaceEnclosureEditModal — drei Datierungs-Zustände in der Sortierun
   it('stellt die nach unten offene Zuordnung an den ANFANG, die undatierte ans Ende', () => {
     const appState = ochtrup();
 
-    const { container } = render(PlaceEnclosureEditModal, {
+    render(PlaceEnclosureEditModal, {
       props: { appState, placeId: '@P1@', onClose: vi.fn() },
     });
 
-    const labels = Array.from(container.querySelectorAll('.place-enclosure-modal__parent')).map(
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const labels = Array.from(document.querySelectorAll('.place-enclosure-modal__parent')).map(
       (el) => el.textContent,
     );
     // Vorher stand „Fürstbistum Münster (…–1806)" UNTER „Kreis Steinfurt (1816–…)".

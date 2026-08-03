@@ -33,6 +33,7 @@
     placeDisplayName,
   } from '../../../core/places';
   import PlaceForm from './PlaceForm.svelte';
+  import { portal } from '../../shell/portal';
 
   interface Props {
     appState: PlacesHost;
@@ -160,7 +161,13 @@
 <svelte:window onkeydown={onBackdropKeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
+<!-- Portaliert (BL-278, INV-UI-13/§6k): §6k nennt Modal-Backdrops namentlich unter
+     „Wer portaliert" — bis hierher taten es die vier Konsumenten als einzige nicht. Der
+     Backdrop liegt `position: fixed`, das trug bisher; es trägt aber nur, solange KEIN
+     Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
+     Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
+     ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
+<div class="stb-modal-backdrop" use:portal onclick={onClose} role="presentation">
   <div
     class="place-enclosure-modal__panel"
     onclick={(e) => e.stopPropagation()}

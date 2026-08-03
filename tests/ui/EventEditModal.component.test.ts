@@ -326,10 +326,13 @@ describe('EventEditModal — Modal-Schale (Backdrop/Escape)', () => {
     const appState = createAppState();
     const onClose = vi.fn();
 
-    const { container } = render(EventEditModal, {
+    render(EventEditModal, {
       props: { appState, event: makeEvent('OCCU'), label: 'Beruf', onSave: vi.fn(), onClose },
     });
-    const backdrop = container.querySelector('.stb-modal-backdrop') as HTMLElement;
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const backdrop = document.querySelector('.stb-modal-backdrop') as HTMLElement;
     await fireEvent.click(backdrop);
 
     expect(onClose).toHaveBeenCalledOnce();
@@ -339,10 +342,13 @@ describe('EventEditModal — Modal-Schale (Backdrop/Escape)', () => {
     const appState = createAppState();
     const onClose = vi.fn();
 
-    const { container } = render(EventEditModal, {
+    render(EventEditModal, {
       props: { appState, event: makeEvent('OCCU'), label: 'Beruf', onSave: vi.fn(), onClose },
     });
-    const panel = container.querySelector('.event-edit-modal__panel') as HTMLElement;
+    // `document` statt `container` (BL-278/§6k): der Backdrop hängt seit dem Portal am
+    // <body> — dass die eingegrenzte Abfrage ihn NICHT mehr findet, ist der Nachweis,
+    // dass der Vorfahre verlassen wurde, kein Fehler.
+    const panel = document.querySelector('.event-edit-modal__panel') as HTMLElement;
     await fireEvent.click(panel);
 
     expect(onClose).not.toHaveBeenCalled();

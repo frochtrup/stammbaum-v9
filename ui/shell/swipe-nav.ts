@@ -30,11 +30,10 @@ export const SWIPE_AXIS_RATIO = 1.2;
 /**
  * Flächen, auf denen die Geste nichts verloren hat (BL-271, INV-UI-16-Nachbar).
  *
- * WARUM ÜBERHAUPT: Die Aktion hängt am Detail-Pane, und ein offenes Modal liegt bis
- * INV-UI-13 vollzogen ist (BL-278) im DOM DARIN — `position: fixed` verschiebt nur die
- * Darstellung, nicht die Ereigniskette. Ein Rechtswisch im offenen Ereignis-Editor
- * navigierte deshalb weg und verwarf die Eingabe still; einen Dirty-Schutz gibt es
- * nicht. Dasselbe im aufgeklappten Bearbeiten-Formular.
+ * WARUM ÜBERHAUPT: Die Aktion hängt am Detail-Pane, und ein offenes Modal lag im DOM
+ * DARIN — `position: fixed` verschiebt nur die Darstellung, nicht die Ereigniskette. Ein
+ * Rechtswisch im offenen Ereignis-Editor navigierte deshalb weg und verwarf die Eingabe
+ * still; einen Dirty-Schutz gibt es nicht. Dasselbe im aufgeklappten Bearbeiten-Formular.
  *
  * ZWEI EINTRÄGE, KEIN DRITTER MECHANISMUS: `.stb-modal-backdrop` ist die bereits
  * geteilte Overlay-Primitive (design-system.css, INV-UI-4) — sie deckt jedes Modal ab,
@@ -42,6 +41,16 @@ export const SWIPE_AXIS_RATIO = 1.2;
  * Flächen ohne Backdrop (die inline aufgeklappten Bearbeiten-Formulare). Bewusst NICHT
  * `input, textarea, button` pauschal: Ereigniszeilen SIND Buttons, ein solcher Ausschluss
  * nähme der Geste die halbe Detailfläche.
+ *
+ * DER BACKDROP-EINTRAG IST SEIT BL-278 REDUNDANT — UND BLEIBT TROTZDEM. Seit die vier
+ * Modale portalieren (INV-UI-13), hängt kein Backdrop mehr im Swipe-Knoten; eine
+ * Berührung darauf erreicht diese Aktion gar nicht erst, der Selektor kann nicht mehr
+ * greifen. Er sieht damit aus wie toter Code und ist es fachlich nicht: er ist die
+ * zweite Sicherung für ein Modal, das den Backdrop rendert, ohne ihn zu portalieren.
+ * Der Wächter dafür (`tests/ui/overlay-portal.test.ts`) rechnet seine Population aus dem
+ * Markup, findet also auch ein fünftes Modal — aber er läuft im Test, nicht zur Laufzeit,
+ * und der Ausfall hier ist stiller Datenverlust. Wer ihn entfernen will, entfernt eine
+ * Sicherung, keine Zeile.
  */
 export const KEIN_WISCH_SELEKTOR = '.stb-modal-backdrop, [data-no-swipe]';
 

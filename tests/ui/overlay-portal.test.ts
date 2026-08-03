@@ -16,6 +16,13 @@ import { anchorPosition } from '../../ui/shell/anchor-position';
 import { portal, anchoredTo } from '../../ui/shell/portal';
 import EventTypeMenu from '../../ui/shell/EventTypeMenu.svelte';
 import Picker from '../../ui/shell/Picker.svelte';
+import EventEditModal from '../../ui/shell/EventEditModal.svelte';
+import ValConfigSheet from '../../ui/views/validation/ValConfigSheet.svelte';
+import { createAppState } from '../../ui/shell/app-state.svelte';
+import { makeDatabase, makeEvent } from '../../core/model';
+import { defaultConfig } from '../../core/validate/index';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const VIEWPORT = { width: 375, height: 812 };
 
@@ -282,5 +289,87 @@ describe('die Komponenten nutzen den Mechanismus auch wirklich', () => {
 
     await fireEvent.click(treffer);
     expect(onChange).toHaveBeenCalledWith('p1');
+  });
+});
+
+describe('BL-278 — die Modal-Backdrops verlassen ihren Teilbaum (INV-UI-13)', () => {
+  // WARUM ALS GERECHNETE POPULATION, nicht als Namensliste: die vier Konsumenten waren
+  // bis BL-278 die einzige Gruppe, die §6k namentlich nennt und die den Mechanismus
+  // trotzdem nicht benutzte — und sie ist genau deshalb entstanden, weil ein fünfter
+  // Backdrop einfach dazugeschrieben werden kann. Eine Namensliste hätte den fünften
+  // nicht gesehen; `.stb-modal-backdrop` im Markup ist das Merkmal, an dem er hängt.
+  const UI_DIR = resolve(process.cwd(), 'ui');
+
+  function svelteFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) out.push(...svelteFiles(p));
+      else if (name.endsWith('.svelte')) out.push(p);
+    }
+    return out;
+  }
+
+  /** Jede Datei, die einen Modal-Backdrop RENDERT (Kommentare zählen nicht mit). */
+  function backdropKonsumenten(): { pfad: string; zeile: string }[] {
+    const out: { pfad: string; zeile: string }[] = [];
+    for (const pfad of svelteFiles(UI_DIR)) {
+      const src = readFileSync(pfad, 'utf8')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+      for (const zeile of src.split('\n')) {
+        if (/<div[^>]*class="stb-modal-backdrop"/.test(zeile)) out.push({ pfad, zeile });
+      }
+    }
+    return out;
+  }
+
+  it('es gibt überhaupt Backdrops zu prüfen', () => {
+    expect(backdropKonsumenten().length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('jeder Backdrop trägt `use:portal`', () => {
+    const verstoesse = backdropKonsumenten()
+      .filter(({ zeile }) => !/use:portal/.test(zeile))
+      .map(({ pfad }) => pfad.replace(UI_DIR, 'ui'));
+    expect(
+      verstoesse,
+      'Backdrop ohne Portal — §6k nennt Modal-Backdrops namentlich unter „Wer portaliert"',
+    ).toEqual([]);
+  });
+
+  // Und die Wirkung, an zwei der vier durchgespielt: einer aus `ui/shell` (tief in der
+  // Detailfläche gerendert), einer aus `ui/views` (eigene Fläche).
+  it('EventEditModal hängt seinen Backdrop an den <body> und räumt ihn wieder ab', async () => {
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'test.ged');
+    const { container, unmount } = render(EventEditModal, {
+      props: {
+        appState,
+        event: makeEvent('BIRT'),
+        label: 'Geburt',
+        onSave: vi.fn(),
+        onClose: vi.fn(),
+      },
+    });
+
+    const backdrop = document.querySelector('.stb-modal-backdrop');
+    expect(backdrop?.parentElement).toBe(document.body);
+    expect(container.querySelector('.stb-modal-backdrop')).toBeNull();
+
+    unmount();
+    expect(document.querySelector('.stb-modal-backdrop')).toBeNull();
+  });
+
+  it('ValConfigSheet ebenso — ein liegengebliebener Backdrop fängt jeden Klick', async () => {
+    const { container, unmount } = render(ValConfigSheet, {
+      props: { config: defaultConfig(), onSave: vi.fn(), onClose: vi.fn() },
+    });
+
+    expect(document.querySelector('.stb-modal-backdrop')?.parentElement).toBe(document.body);
+    expect(container.querySelector('.stb-modal-backdrop')).toBeNull();
+
+    unmount();
+    expect(document.querySelector('.stb-modal-backdrop')).toBeNull();
   });
 });
