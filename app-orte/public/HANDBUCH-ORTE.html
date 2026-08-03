@@ -186,7 +186,7 @@
 <header class="cover">
   <h1>Orte-Editor — Handbuch</h1>
   <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
-  <p class="stamp">Version 9.12 · Stand 2026-08-02</p>
+  <p class="stamp">Version 9.13 · Stand 2026-08-03</p>
 </header>
 
 <nav id="toc">
@@ -445,9 +445,13 @@
       Einträge: Ein Namens-Eintrag mit falsch getipptem Jahr und ein Zugehörigkeits-Zeitraum
       lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
-      der Geschichte, nur weil kein Anfangsjahr bekannt ist. „Ort löschen" setzt die
-      betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die Ereignisse
-      selbst gehen nie verloren.
+      der Geschichte, nur weil kein Anfangsjahr bekannt ist.
+    </p>
+    <p>
+      <strong>„Ort löschen"</strong> steht nicht in der Knopfreihe neben
+      <em>Speichern</em>, sondern ganz unten in der abgesetzten Zone — dieselbe Stelle
+      wie bei Person, Familie und Quelle. Es setzt die betroffenen Ereignisse behutsam
+      auf ihren reinen Textstand zurück; die Ereignisse selbst gehen nie verloren.
     </p>
     <h3>Was „Verwerfen" verwirft</h3>
     <p>
@@ -549,8 +553,37 @@
           und Anreicherungsgrad</figcaption>
       </figure></li>
   <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
-      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
+      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft. Die Ereignisse der
+      aufgelösten Orte hängen sich dabei auf den Sieger um — nach einem Merge zeigt kein
+      Ereignis mehr auf einen „nicht gefundenen Ort", und keines fällt in die Review-Liste
+      zurück, das vorher eindeutig zugeordnet war.</li>
 </ul>
+
+<h2>Eine Korrektur wirkt bis ins Ereignis</h2>
+<p>
+  Der wichtigste stille Dienst der Ortsverwaltung: Wenn Sie an einem Ort etwas
+  korrigieren, das seine <em>Identität</em> ausmacht — den Namen, die
+  Verwaltungszugehörigkeit, die Zuordnung zu einem übergeordneten Ort —, dann ziehen die
+  betroffenen Ereignisse mit. Und zwar nicht nur die dieses einen Ortes, sondern die
+  seines ganzen Teilbaums: Wer <em>„Amt Meinersen"</em> in <em>„Vogtei Meinersen"</em>
+  ändert, ändert damit die Ortsangabe jedes Ereignisses in jedem Dorf darunter.
+</p>
+<p>
+  Das klingt nach einer Kleinigkeit, entscheidet aber darüber, ob Ihre Arbeit den
+  nächsten Programmstart überlebt: Der Ortstext im Ereignis ist die Brücke zwischen Ihrer
+  Datei und Ihrem gepflegten Ortsbestand. Bliebe er auf dem alten Stand stehen, würde die
+  App beim nächsten Laden einen zweiten, gleichnamigen Ort anlegen — die Korrektur hätte
+  genau die Dublette erzeugt, die sie beseitigen sollte.
+</p>
+<div class="info">
+  <strong>Anzeige und Datei sind zweierlei.</strong> Was Sie in einer Ereigniszeile
+  <em>lesen</em>, wird immer periodengerecht aus dem Ortsobjekt berechnet: für ein
+  Ereignis von 1750 die Kette von 1750. Was in Ihrer <em>Datei</em> steht, bleibt
+  derweil Ihr Wortlaut — ein bloßes Öffnen und Speichern schreibt daran nichts um. Erst
+  eine bewusste Kuration (verknüpfen, zusammenführen, GOV übernehmen, umbenennen)
+  aktualisiert den Text in der Datei, und dann ist sie über <strong>↶ Rückgängig</strong>
+  zurücknehmbar.
+</div>
 
 
 
@@ -610,7 +643,9 @@
       <li>Wie der Ort trägt auch der Hof <strong>Koordinaten</strong> und eine
           <strong>Kartenvorschau</strong> im Detail — ein Hof kann so präziser verortet
           sein als sein Dorf (etwa ein einzelnes Gehöft).</li>
-      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
+      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren — zu
+          finden ganz unten am Steckbrief, in der abgesetzten Lösch-Zone, nicht neben
+          <em>Speichern</em>.</li>
     </ul>
   </div>
 </div>

@@ -22,6 +22,32 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.13] — 2026-08-03
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`8de4bc8`…HEAD) erzeugt._
+
+- fix(a11y): der Tastaturfokus bleibt im offenen Modal (LP-8, §6i) (`e8d66b4`)
+- fix(ui): BL-278 — die vier Modal-Backdrops verlassen ihren Teilbaum (INV-UI-13) (`607a0cc`)
+- feat(ui): BL-275/276/277 — Rücknahme der Sofort-Anlage, Tastatur in den Formularen, Löschen abgesetzt (`23c4333`)
+- feat(interop): BL-307 — `_DONE` wird gelesen, aber nicht mehr geschrieben (`b47381b`)
+- feat(interop): BL-306 — globale Medien-Werte, referenz-spezifische Zeilen (`d07dca0`)
+- feat(interop): BL-304 + BL-305 — was der Writer nicht erfinden und nicht überdehnen darf (`4e94b2f`)
+- fix(interop): BL-303 — fremde Werte halten, ohne ihren Tag zu kennen (`f01dc51`)
+- fix(interop): BL-302 — die Überlappungszone schließen, 53 verlorene Zeilen → 0 (`2ad45bd`)
+- feat(interop): Welle 1 — der Wire-Wert ist die Wahrheit, bis ihn jemand anfasst (`e63a056`)
+- fix(ui): BL-300 — der Eltern-Picker war ohne Ausweg (`983c50c`)
+- feat(ui): BL-299 — gezeichnete Größe und Trefferfläche entkoppelt (`33f1691`)
+- feat(ui): BL-281 — Segmentreihen tragen 44px, ohne der Ansicht Platz zu nehmen (`192ede9`)
+- fix(nav): BL-298 — aus einem Detail führte kein Weg mehr zur Liste (`e5e05af`)
+- feat(ui): Welle 1 — Trefferflächen: der Wächter sieht jetzt alles, die Glyphen sind greifbar (`350ba41`)
+- fix(dedup): BL-294 — ein Merge ließ einen toten Hypothesen-Zeiger zurück (`b0abcd9`)
+- fix(places): BL-291 — eine Ortskorrektur zieht ihre Ereignisse mit (`15ab965`)
+- fix(interop): BL-288 — Speichern schreibt PLAC nicht mehr um (`a2e77ea`)
+- fix(interop): BL-285 — der Write-Back verlor un-modellierte Zeilen (`da86e5c`)
+- fix(places): BL-284 — ein Merge nahm Ereignissen ihre Zuordnung (`6002474`)
+
+---
+
 ## [9.12] — 2026-08-02
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`17b776b`…HEAD) erzeugt._
