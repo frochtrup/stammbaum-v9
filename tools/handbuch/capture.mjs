@@ -55,12 +55,15 @@ const MEDIA_IMAGE_NAMES = [
 // ist vollständig (Nutzer-Vorgabe). @I3@ hat DEAT 7 SEP 1997.
 const RICH_PERSON = 'Kaspar Hörstmann'; // *1933 Vechta, †1997 Ochtrup, viele Berufe (Sanduhr-Vater, @I3@)
 const RICH_SURNAME = 'Hörstmann';
-// Für die Lösch-Zone (04c) bewusst eine KURZE Seite: die Zone steht per Definition ganz
-// unten, und auf einer langen Personenseite liegt sie im mobilen Viewport unterhalb der
-// Falz — dorthin zu scrollen ist am Handy derzeit gar nicht möglich (die Detailfläche
-// wird von `.entity-tab__swipe` nicht auf die Tab-Höhe begrenzt, deshalb greift ihr
-// `overflow-y: auto` nicht; nur programmatisch verschiebbar). Ein Handbuch-Bild soll
-// keinen Zustand zeigen, den die Hand nicht erreicht. Ebenfalls verstorben (README-
+// Für die Lösch-Zone (04c) bewusst eine KURZE Seite — die Zone steht per Definition ganz
+// unten, und nur hier passt der GANZE Steckbrief mitsamt ihr auf einen Schirm: Das Bild
+// zeigt damit die Aussage selbst („Löschen sitzt abgesetzt am Fuß"), statt einen aus dem
+// Zusammenhang gerissenen Seitenausschnitt.
+//
+// URSPRÜNGLICH war es ein Ausweichmanöver: auf einer langen Seite war die Zone am Handy
+// gar nicht erreichbar (BL-309 — `.entity-tab__swipe` ohne CSS-Regel, die Detailfläche
+// wurde nie höhenbegrenzt und scrollte nicht). Das ist seit ADR-v9-220 behoben; die
+// kurze Seite bleibt trotzdem, jetzt aus dem Grund oben. Ebenfalls verstorben (README-
 // Vorgabe) und im Bestand namens-EINDEUTIG geprüft (Lesson 6).
 const SHORT_PERSON = 'Engelbert Bendfeld'; // @I174@, nur NAME/SEX/BIRT/DEAT — Seite passt auf einen Schirm
 

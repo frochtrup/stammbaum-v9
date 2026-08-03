@@ -503,6 +503,33 @@
     min-height: 0;
   }
 
+  /* Der Wisch-Knoten ist ein EREIGNIS-GRIFF, keine Layout-Box (BL-309, ADR-v9-220).
+     Genau das sagt `display: contents`, und deshalb steht hier keine Flex-Plumbing.
+
+     DER DEFEKT, den diese eine Zeile behebt: Ohne Regel war der Wrapper eine normale
+     Block-Box und damit ein Flex-Kind von `.entity-tab` mit `flex: 0 1 auto`. Schrumpfen
+     konnte er nicht — seine automatische Mindesthöhe ist die INHALTShöhe, weil sein
+     eigenes `overflow` `visible` ist. Also wuchs er auf die volle Inhaltshöhe (gemessen
+     2534px in einem 688px hohen Tab), die Detail-Wurzel darin bekam nie eine Höhe, ihr
+     `overflow-y: auto` griff nie — und `main` (`overflow: hidden`) schnitt den Rest ab.
+     Auf dem Handy war damit alles unterhalb des ersten Bildschirms per Geste
+     unerreichbar; nur programmatisch verschiebbar. Betroffen waren ALLE sieben
+     Detailansichten, seit der Wrapper mit BL-07 ohne CSS-Regel entstand.
+
+     WARUM `display: contents` und nicht `flex: 1; min-height: 0`: Beides behebt es, aber
+     die Detail-Wurzeln sind bereits fertige Scroll-Container (`overflow-y: auto`, alle
+     sieben) — genau wie die LISTEN-Wurzeln, die als direkte Flex-Kinder anstandslos
+     scrollen. Ihnen fehlte nichts; dazwischen stand nur eine Box zu viel. `contents`
+     nimmt die Box weg und macht den Detail-Pfad damit strukturgleich zum Listen-Pfad,
+     statt die Höhenkette ein zweites Mal nachzubauen (Vereinfachen vor Erfinden).
+     Die Geste bleibt unberührt: `swipeNav` hängt an touch-Ereignissen, und die blubbern
+     die DOM-Kette hoch — die ist von `display: contents` nicht betroffen (nur die
+     Box-Kette ist es). Der Knoten selbst wird nie Treffer-Ziel, muss er auch nicht: er
+     hört zu, er zeigt nichts. Wächter: tests/ui/detail-scroll.test.ts. */
+  .entity-tab__swipe {
+    display: contents;
+  }
+
   /* Segment-Control-Pillen selbst kommen aus design-system.css (.stb-segment-row/
      .stb-segment-btn/--active) — hier bleibt nur das EntityTab-eigene Layout-Detail
      (Trennlinie unter der Segment-Reihe, gestrichelt unter der Subsegment-Reihe). */
