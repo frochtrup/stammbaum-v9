@@ -27,7 +27,14 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STELLEN, MUTATIONEN, UNTERGRENZE, UNTERGRENZE_RUECKSTAND } from './mutationen.mjs';
+import {
+  STELLEN,
+  MUTATIONEN,
+  UNTERGRENZE,
+  UNTERGRENZE_RUECKSTAND,
+  RUECKBAU_GEPRUEFT,
+  RUECKBAU_GELOESCHT,
+} from './mutationen.mjs';
 
 const WURZEL = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CACHE = join(WURZEL, 'node_modules/.cache/mutation');
@@ -44,6 +51,13 @@ const PRIVATE_FIXTURES = [
 const argv = process.argv.slice(2);
 const nurArg = argv.indexOf('--nur');
 const nur = nurArg >= 0 ? argv[nurArg + 1] : null;
+/**
+ * `--alle`: jede anschlagende Datei nennen statt der fünf lautesten. Für den Rückbau
+ * (BL-295) ist genau die Restliste die Auskunft — welche Datei trägt eine Invariante
+ * ALLEIN, und welche trägt gar keine. Der Normallauf bleibt kurz.
+ */
+const alle = argv.includes('--alle');
+const ZEIGE = alle ? Infinity : 5;
 
 /** Führt die volle Suite aus und liefert die Kennzahlen des Laufs. */
 function laufeSuite() {
@@ -157,8 +171,9 @@ function main() {
     console.log(
       `  ${treffer} Treffer in ${dateien} Datei(en)  (Schwelle ${soll ?? 'unkalibriert'})`,
     );
-    for (const d of r.dateien.slice(0, 5)) console.log(`    ${d.rot}×  ${d.datei}`);
-    if (r.dateien.length > 5) console.log(`    … und ${r.dateien.length - 5} weitere Dateien`);
+    for (const d of r.dateien.slice(0, ZEIGE)) console.log(`    ${d.rot}×  ${d.datei}`);
+    if (r.dateien.length > ZEIGE)
+      console.log(`    … und ${r.dateien.length - ZEIGE} weitere Dateien (\`--alle\` zeigt sie)`);
     for (const n of r.nichtGelaufen) console.log(`    (lief gar nicht erst durch: ${n})`);
     console.log('');
 
@@ -196,6 +211,18 @@ function main() {
   console.log(`  ${nachArt('offen').length} noch ohne Ziel:`);
   for (const s of nachArt('offen')) console.log(`      ${s.inv} (${s.ort})`);
   console.log('');
+
+  // Die Durchsicht auf Rückbau-Kandidaten gehört in denselben Bericht (BL-295): sonst
+  // liest sich ein grüner Lauf als „die Suite ist geprüft", und die Frage „was wurde
+  // eigentlich schon einmal widerlegt?" wird beim nächsten Anlauf von vorn gestellt.
+  const laeufe = [...new Set(RUECKBAU_GEPRUEFT.map((r) => r.lauf))];
+  console.log('─── Rückbau-Durchsicht ───');
+  console.log(
+    `  ${RUECKBAU_GEPRUEFT.length} Filter in ${laeufe.length} Lauf/Läufen (${laeufe.join(', ')}), ` +
+      `${RUECKBAU_GELOESCHT.length} Löschung(en) daraus.`,
+  );
+  for (const r of RUECKBAU_GEPRUEFT) console.log(`      ${r.filter.split(' — ')[0]}: ${r.gefunden}`);
+  console.log('  Gründe und Gegenbelege: RUECKBAU_GEPRUEFT in tools/mutation/mutationen.mjs\n');
 
   if (unterGrenze.length) {
     console.log(

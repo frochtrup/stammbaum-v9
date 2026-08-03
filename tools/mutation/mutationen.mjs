@@ -60,11 +60,115 @@ export const UNTERGRENZE = { dateien: 2 };
  * Invariante trägt — nicht, wenn die Zahl zufällig steigt.
  */
 export const UNTERGRENZE_RUECKSTAND = {
-  'INV-P4': 'BL-293 — nur tests/core/model/integrity.test.ts',
-  'INV-H2': 'BL-293 — nur tests/core/inv-h1-h2-hypothesis.test.ts',
-  'INV-H3': 'BL-293 — nur tests/core/identity-exclusion.test.ts',
-  'INV-VS': 'BL-293 — nur tests/ui/view-state.test.ts',
+  // Leer seit 2026-08-03 (BL-293, ADR-v9-215): die vier Einträge INV-P4/H2/H3/VS sind
+  // eingelöst, jeder mit einer zweiten, unabhängigen Testdatei an einer Naht —
+  // `tests/roundtrip/naht-kindschaft-import-export.test.ts`,
+  // `tests/core/naht-forschung-reload.test.ts` (trägt H2 und H3) und
+  // `tests/ui/naht-view-state-nav.test.ts`. Gemessen vorher/nachher, je 1 → 2 Dateien
+  // (INV-VS nach dem Umzielen der Mutation 26).
+  //
+  // Die Liste bleibt bestehen, nicht der Vollständigkeit halber: sie ist der Ort, an dem
+  // ein NEUER Rückstand bewusst benannt werden müsste, statt den Lauf rot zu lassen. Leer
+  // heißt: jede gemessene Invariante hält die Untergrenze. NUR SCHRUMPFEN gilt weiter —
+  // ein Eintrag kommt nur hinzu, wenn jemand ihn ausdrücklich einplant.
 };
+
+/**
+ * DIE DURCHSICHT AUF RÜCKBAU-KANDIDATEN (BL-295, 2026-08-03) — was gesucht, was gefunden
+ * wurde, und womit man es nachvollzieht.
+ *
+ * WARUM ES DIESEN EINTRAG GIBT. Der Nutzer-Einwand hinter BL-287 lautete: „jedes Problem
+ * führt zu einem neuen Test". BL-287 lieferte das VERFAHREN (diese Messung) und genau EINE
+ * Löschung; die systematische Durchsicht blieb offen. Ohne festgehaltenes Ergebnis wird sie
+ * beim nächsten Anlauf von vorn begonnen — und ein zweites Mal ergebnislos.
+ *
+ * DAS ERGEBNIS IST EIN NEGATIVBEFUND, und das ist die Aussage: von 338 Testdateien hält
+ * KEINE der Prüfung als Rückbau-Kandidat stand. Das ist kein Freibrief für die Suite,
+ * sondern die Auskunft, dass ihr Wachstum eine andere Form hat als vermutet — s. F2/F3.
+ *
+ * DIE REIHENFOLGE IST WESENTLICH: erst ein INHALTLICHER Kandidatengrund, dann die Messung
+ * als VETO. Umgekehrt wäre es ein Pauschal-Rückbau: fast keine Testdatei schlägt bei einer
+ * der 15 Mutationen an, „kostet messbar nichts" allein trifft also fast alle und sagt über
+ * den Wert einer Datei nichts (die Messung kennt nur die benannten Invarianten, nicht das
+ * Verhalten dazwischen). Genau davor warnt BL-295: „Kein Pauschal-Rückbau nach
+ * Plausibilität".
+ *
+ * NUR WACHSEN, NIE ÜBERSCHREIBEN. Wer die Durchsicht wiederholt, hängt seinen Lauf an,
+ * statt diesen zu ersetzen — sonst geht verloren, was schon einmal widerlegt wurde.
+ */
+export const RUECKBAU_GEPRUEFT = [
+  {
+    lauf: '2026-08-03 (BL-295)',
+    filter: 'F1 — der GRUND ist weggefallen: Testdatei nennt einen ADR mit Status ♻️/⛔/🟡',
+    gefunden: '17 Dateien über 4 solche ADRs (40, 104, 129, 173)',
+    befund:
+      'Kein Kandidat. Alle vier sind TEILweise ersetzt und sagen das selbst („E5 ♻️ ersetzt", ' +
+      '„Mittelwahl ♻️ ersetzt", „teilweise ersetzt durch ADR-v9-42"); die jeweils geprüfte ' +
+      'Zusage gilt weiter. Der stärkste Verdacht war `tests/services/dedup-ignore-store.test.ts` ' +
+      '(ADR-v9-104 → ADR-v9-174 verlegte den Ausschluss aus dem app-privaten Store IN die Datei) ' +
+      '— am Code widerlegt: `PersonDedupView.svelte` hält den Store als einmaliges ' +
+      'Übernahme-Angebot für den Altbestand weiter am Leben. Erst wenn dieses Angebot entfällt, ' +
+      'wird die Datei ein Kandidat.',
+    verfahren: 'Status aus 04-Entscheidungslog.md je ADR, gegen `ADR-v9-\\d+` in tests/ gematcht.',
+  },
+  {
+    lauf: '2026-08-03 (BL-295)',
+    filter: 'F2 — identischer, normalisierter `it`-RUMPF in zwei oder mehr Dateien',
+    gefunden: '10 Fundstellen (u. a. „zweimal speichern ändert nichts mehr" in 4 Dateien)',
+    befund:
+      'Kein Kandidat — und der aufschlussreichste Befund der Durchsicht. Die Rümpfe sind ' +
+      'byte-gleich, die FIXTUREN nicht: jede Datei prüft dieselbe Eigenschaft an ihrem eigenen ' +
+      'Gegenstand (`media-shared-inline` an gemischten Medien-Records, `name-subtags` an ' +
+      'NAME-Untertags, …). Gedoppelt ist der HELFER-Code, nicht die Abdeckung. Eine Löschung ' +
+      'nähme echte Abdeckung; die angemessene Antwort wäre eine geteilte Zusicherung — das ist ' +
+      'Extraktion, nicht Rückbau, und damit nicht diese Zeile.',
+    verfahren: 'Rümpfe per Klammerzählung geschnitten, Kommentare/Whitespace entfernt, ab 80 Zeichen verglichen.',
+  },
+  {
+    lauf: '2026-08-03 (BL-295)',
+    filter: 'F3 — identischer `it`-TITEL in zwei oder mehr Dateien',
+    gefunden: '63 Fundstellen',
+    befund:
+      'Kein Kandidat. Es ist durchweg die PARALLELE Geschwister-Abdeckung, die das Projekt ' +
+      'ausdrücklich will (Person/Familie/Ort/Hof, die fünf Picker, die beiden Dedup-Ansichten): ' +
+      'derselbe Kontrakt, je eigene Komponente. Eine Seite zu löschen entfernt die Abdeckung ' +
+      'einer echten Komponente — genau der Fehler, gegen den der Geschwister-Stellen-Grundsatz ' +
+      'in CLAUDE.md steht.',
+    verfahren: 'Titel-Literale aller `it(...)`-Aufrufe, nach Datei gruppiert.',
+  },
+  {
+    lauf: '2026-08-03 (BL-295)',
+    filter: 'F4 — die kleinsten Dateien (1–3 Fälle), die klassische „ein Defekt, eine Datei"-Form',
+    gefunden: '34 Dateien; die 12 kleinsten einzeln gelesen',
+    befund:
+      'Kein Kandidat. Jede ist entweder die EINZIGE Prüfung ihres Moduls (`tree-ring-model`, ' +
+      '`ProofSummaryNote`) oder ein bewusst begründeter Wächter, dessen Kopf die Grenze seiner ' +
+      'Aussage selbst benennt (`design-system-flex`, `filter-option-class`, `layout-ohne-start`). ' +
+      '`place-merge-realdaten.test.ts` (1 Fall, an den privaten Realdaten) begründet in seinem ' +
+      'Kopf, warum eine synthetische Fixture die Frage nicht stellen KANN — Löschung wäre ein ' +
+      'echter Verlust, obwohl sie in CI nichts kostet (die Datei skippt dort).',
+    verfahren: 'Fallzahl je Datei gezählt, aufsteigend sortiert.',
+  },
+  {
+    lauf: '2026-08-03 (BL-295)',
+    filter: 'F5 — die Mutationskarte selbst: welche Datei trägt eine Invariante ALLEIN?',
+    gefunden: 'Nach BL-293 keine mehr (vorher vier, s. UNTERGRENZE_RUECKSTAND)',
+    befund:
+      'Kein Kandidat, aber die Gegenprobe zu F1–F4: keine der 338 Dateien ist alleinige ' +
+      'Verteidigerin einer benannten Invariante, und keine ist deshalb unantastbar. Die Karte ' +
+      'entsteht mit `npm run test:mutation -- --alle` (Dateiliste je Stelle statt der fünf ' +
+      'lautesten).',
+    verfahren: 'npm run test:mutation -- --alle',
+  },
+];
+
+/** Was die Durchsicht tatsächlich gelöscht hat. Leer ist ein Ergebnis, kein Versäumnis. */
+export const RUECKBAU_GELOESCHT = [
+  // 2026-08-02 (BL-287, vor dieser Durchsicht): tests/core/interop-place-live.test.ts —
+  // existierte allein für das von BL-288 abgeschaffte ADR-v9-47; mit und ohne sie messen
+  // LP-1/LP-5/INV-PLACE identisch. Die Datei ist weg, der Eintrag bleibt als Beleg dafür,
+  // dass das Verfahren schon einmal zu einer Löschung geführt hat.
+];
 
 /**
  * @typedef {{
@@ -349,11 +453,28 @@ export const STELLEN = [
     art: 'mutation',
     zusicherung: 'Genau eine Instanz verwaltet die Auswahl je Ziel',
     datei: 'ui/shell/view-state.svelte.ts',
-    // Die Auswahl wird gesetzt, aber niemand erfährt es — genau das verstreute
-    // Zustands-Verhalten, gegen das INV-VS formuliert ist (v8s `currentX`-Trio).
-    suche: '      for (const fn of listeners) fn(target, id);',
-    ersetze: '      if (false) for (const fn of listeners) fn(target, id);',
-    schwelle: 1,
+    // Alle Ziele fallen in EINEN Topf — v8s `currentX`/`_lastTabSel`-Trio, also wörtlich
+    // das, wogegen INV-VS formuliert ist („eine Auswahl JE ZIEL", Spec 21 §5).
+    //
+    // UMGEZIELT AM 2026-08-03 (BL-293, ADR-v9-215). Vorher stand hier die stillgelegte
+    // Listener-Schleife („die Auswahl wird gesetzt, aber niemand erfährt es"). Beim
+    // Anlegen der zweiten Testdatei kam heraus, dass `viewState.subscribe` im ganzen Repo
+    // KEINEN Produktionskonsumenten hat — die Svelte-Seite liest reaktiv über `$derived`.
+    // Diese Mutation maß damit nur den einen Test, der sie eigens aufrief; jede zweite
+    // Datei dagegen hätte ihn kopieren müssen. Das Change-Event bleibt vertraglich
+    // zugesichert und in `tests/ui/view-state.test.ts` geprüft — nur die MESSUNG hängt
+    // jetzt an der Eigenschaft, die die Invariante benennt.
+    suche: '      selection[target] = id;',
+    ersetze: '      selection.person = id;',
+    // BEWUSST NICHT DER GEMESSENE WERT. In CI-Lage (private Fixturen beiseite) schlagen
+    // 190 Fälle in 26 Dateien an — die Sprengweite dieser Mutation ist die halbe UI, weil
+    // jede Detail-Ansicht ihre Auswahl über das Register bezieht. Ein auf 190 gepinnter
+    // Wert flackerte bei jeder unbeteiligten Umsortierung eines Komponententests, und ein
+    // flackerndes Gate wird abgeschaltet (Lehre BL-47/48). 100 ist deshalb ein robuster
+    // BODEN, kein Ist-Wert: er meldet den Einbruch, den die Zusicherung meint („ein Test
+    // ist weggefallen, der sie trug"), und schweigt zum Rauschen. Die Datei-Untergrenze
+    // (≥2) prüft die andere Hälfte und bleibt scharf.
+    schwelle: 100,
   },
   // Die sechzehn Oberflächen-Invarianten stehen bewusst EINZELN da, nicht als erzeugte
   // Liste: der Abdeckungs-Wächter (L13 in spec-lint) sucht `inv: 'INV-UI-7'` im Quelltext,
