@@ -445,3 +445,107 @@ describe('MapLensView — Marker-Klick öffnet das Explorationspanel (BL-210)', 
     expect(container.querySelector('.map-explore')).toBeNull();
   });
 });
+
+describe('MapLensView — der Leerzustand benennt seinen Grund (BL-310)', () => {
+  afterEach(() => setOnline(true));
+
+  /** Bestand MIT Orten, aber OHNE Koordinaten — der Zustand direkt nach dem Import
+   *  (Village-Seed, ADR-v9-28). Genau die Lage, in der die Karte bis BL-310 schwieg:
+   *  eine leere Weltkarte, 0 Marker, 0 erklärende Zeichen. TST-16 in Reinform — nicht
+   *  das naheliegende kuratierte Beispiel, sondern das unangereicherte. */
+  function dbUnangereichert(): ReturnType<typeof makeDatabase> {
+    const db = makeDatabase();
+    savePlaceObject(db.placeObjects, place('P1', { title: 'Ochtrup', type: 'Village' }));
+    savePlaceObject(db.placeObjects, place('P2', { title: 'Vreden', type: 'Village' }));
+    return db;
+  }
+
+  it('sagt nichts, solange Marker da sind', () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbWithPlace(), 'test.ged');
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute() },
+    });
+
+    expect(container.querySelector('.map-lens-view__empty')).toBeNull();
+  });
+
+  it('nennt bei unangereicherten Orten die Zahl statt nur „leer"', () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbUnangereichert(), 'test.ged');
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute() },
+    });
+
+    // Zwei Vorbedingungen, ohne die der Test die falsche Lage prüfte: es rendert
+    // wirklich der SVG-FALLBACK (nicht Leaflet), und er hat wirklich keinen Marker.
+    // Damit belegt diese Datei den zweiten Rendering-Pfad — der Leaflet-Pfad ist am
+    // laufenden Programm verifiziert. Beide, wie die Backlog-Zeile es verlangt.
+    expect(container.querySelector('.map-fallback')).toBeTruthy();
+    expect(container.querySelectorAll('.map-fallback__marker').length).toBe(0);
+    expect(screen.getByText(/2 Orte erfasst, keiner davon mit Koordinaten\./)).toBeTruthy();
+  });
+
+  it('führt auf den vorhandenen Batch-Geocoder statt einen zweiten zu bauen', async () => {
+    setOnline(false);
+    const onOpenPlaceList = vi.fn();
+    const appState = createAppState();
+    appState.loadDatabase(dbUnangereichert(), 'test.ged');
+
+    render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute(), onOpenPlaceList },
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Orte-Tab/ }));
+    expect(onOpenPlaceList).toHaveBeenCalledTimes(1);
+  });
+
+  it('bietet ohne einen einzigen Ort KEINEN Geocoding-Weg an — er führte ins Leere', () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(makeDatabase(), 'test.ged');
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute(), onOpenPlaceList: vi.fn() },
+    });
+
+    expect(container.querySelector('.map-lens-view__empty')).toBeTruthy();
+    expect(screen.getByText(/Noch keine Orte im Bestand\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Orte-Tab/ })).toBeNull();
+  });
+
+  it('gilt im Migrations-Modus genauso — der Nachbar, der vorher mitschwieg', async () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbUnangereichert(), 'test.ged');
+
+    render(MapLensView, {
+      props: { appState, viewState: createViewState(), route: createRoute() },
+    });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Migrationen' }));
+
+    expect(screen.getByText(/Keine Wanderungen darstellbar\./)).toBeTruthy();
+  });
+
+  it('der Personen-Satz kommt aus demselben Mechanismus, nicht mehr aus der Zeile im Picker', async () => {
+    setOnline(false);
+    const appState = createAppState();
+    appState.loadDatabase(dbUnangereichert(), 'test.ged');
+    const viewState = createViewState();
+
+    const { container } = render(MapLensView, {
+      props: { appState, viewState, route: createRoute() },
+    });
+    await fireEvent.click(screen.getByRole('tab', { name: 'Personen' }));
+    viewState.setCurrent('mapPerson', '@I1@');
+    await Promise.resolve();
+
+    // Der Satz steht jetzt auf der Kartenfläche, nicht mehr in der Picker-Zeile.
+    const zeile = container.querySelector('.map-lens-view__person-row');
+    expect(zeile?.textContent).not.toMatch(/Keine Koordinaten/);
+  });
+});

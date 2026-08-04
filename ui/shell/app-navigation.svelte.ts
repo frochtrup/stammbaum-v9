@@ -32,6 +32,12 @@ export interface AppNavigation {
   openSource(id: string): void;
   openPlace(id: string): void;
   openHof(id: string): void;
+  /** Die Orts-LISTE öffnen, nicht einen einzelnen Ort (BL-310). Geschwister von
+   *  `openPlace`, aber ohne Ziel-Id: die leere Karte verweist auf den Batch-Geocoder,
+   *  und der lebt in der Liste hinter der Werkzeuge-Disclosure (BL-130). Räumt die
+   *  Orts-Auswahl, sonst landete der Sprung auf einem zuvor geöffneten Steckbrief statt
+   *  dort, wo der Knopf hinzuführen verspricht. */
+  openPlaceList(): void;
   openStoryFromFamilyDetail(familyId: string): void;
   goToProband(): void;
   runCommand(cmd: Command): void;
@@ -60,6 +66,11 @@ export function createAppNavigation(appState: AppState, viewState: ViewState, ro
   return {
     navigateFromSidebar(target: NavTargetId) {
       route.setTarget(target);
+    },
+
+    openPlaceList() {
+      viewState.setCurrent('place', null);
+      route.setTarget('place');
     },
 
     navigate(slot: BottomNavSlot) {
