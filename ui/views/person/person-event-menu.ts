@@ -41,6 +41,7 @@ export function secondaryEventMenu(person: Person | null): EventMenuItem[] {
  *  benannter Typen erreichbar (z. B. Berufswechsel). */
 const OTHER_EVENT_TYPES = [
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP',
+  'RELI',
 ] as const;
 
 export const otherEventMenu: EventMenuItem[] = OTHER_EVENT_TYPES.map((t) => ({

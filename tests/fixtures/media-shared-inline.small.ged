@@ -1,0 +1,26 @@
+0 HEAD
+1 SOUR STAMMBAUM-TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Emil /Decker/
+1 OBJE
+2 TITL Familie Emil Decker
+2 FILE Pictures/familie.bmp
+3 FORM bmp
+4 MEDI photo
+1 BIRT
+2 DATE 1880
+2 OBJE
+3 TITL Familie Emil Decker, zweite Fundstelle
+3 FILE Pictures/familie.bmp
+4 FORM bmp
+0 @I2@ INDI
+1 NAME Franziska /Arck/
+1 OBJE
+2 TITL Urkunde ohne Medientyp
+2 FILE Documents/urkunde.jpg
+3 FORM jpg
+0 TRLR

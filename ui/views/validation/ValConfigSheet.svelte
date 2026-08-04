@@ -11,6 +11,9 @@
   import type { RuleId, Thresholds, ValidationConfig } from '../../../core/validate/index';
   import { defaultConfig } from '../../../core/validate/index';
   import { rulesByGroup, THRESHOLD_LABEL } from './validation-model';
+  import { formSubmit } from '../../shell/form-keys';
+  import { portal } from '../../shell/portal';
+  import { focusTrap } from '../../shell/focus-trap';
 
   interface Props {
     config: ValidationConfig;
@@ -74,7 +77,13 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onClose()} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
+<!-- Portaliert (BL-278, INV-UI-13/§6k): §6k nennt Modal-Backdrops namentlich unter
+     „Wer portaliert" — bis hierher taten es die vier Konsumenten als einzige nicht. Der
+     Backdrop liegt `position: fixed`, das trug bisher; es trägt aber nur, solange KEIN
+     Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
+     Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
+     ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
+<div class="stb-modal-backdrop" use:portal use:focusTrap onclick={onClose} role="presentation">
   <div
     class="valcfg__panel"
     onclick={(e) => e.stopPropagation()}
@@ -83,6 +92,10 @@
     aria-modal="true"
     aria-label="Prüfregeln konfigurieren"
   >
+  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schloss schon (svelte:window
+       oben), Enter tat nichts. INNERHALB des Panels, nicht an seiner Stelle — die
+       Dialog-Rolle kann ein `<form>` nicht tragen. -->
+  <form class="valcfg__form" onsubmit={formSubmit(save)}>
     <div class="valcfg__head">
       <h3>Prüfregeln</h3>
       <button type="button" class="valcfg__close" onclick={onClose} aria-label="Schließen">✕</button>
@@ -125,12 +138,18 @@
 
     <div class="valcfg__actions">
       <button type="button" onclick={onClose}>Abbrechen</button>
-      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     </div>
+  </form>
   </div>
 </div>
 
 <style>
+  /* Reine Gruppierungs-Hülle im Panel (BL-276) — ändert dessen Fluss nicht. */
+  .valcfg__form {
+    display: contents;
+  }
+
   .valcfg__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);

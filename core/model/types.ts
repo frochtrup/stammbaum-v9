@@ -51,10 +51,40 @@ export interface Media {
   id: MediaId;
   /** FILE / `<file src>` — relativer Pfad (Datei-/Sync-Ordner) — einzige Wahrheitsquelle. */
   file: string;
-  /** FORM / `<file mime>` — Dateiformat/MIME. */
+  /** FORM / `<file mime>` — Dateiformat, KANONISIERT als MIME (Narrow Waist, ADR-v9-126). */
   form: string;
+  /**
+   * Der GEDCOM-`FORM`-Wert, wie er in der Quelldatei stand (`JPEG`, `BMP`, `FILE`, `URL`) —
+   * neben `wireOrigin` das zweite reine Fidelity-Feld dieser Entität, mit derselben
+   * Begründung: der Writer erhält ihn unverändert (LP-1, BL-290/ADR-v9-207).
+   *
+   * `form` allein kann ihn nicht tragen: die Kanonisierung an der Parse-Grenze ist NICHT
+   * umkehrbar (`JPEG`→`image/jpeg`→`jpg`), und `FILE`/`URL` bezeichnen überhaupt kein
+   * Format. Ohne dieses Feld schrieb jedes Speichern die Schreibweise um — eine
+   * byte-verändernde Projektion ohne Anlass (ADR-v9-197).
+   *
+   * **Nur GEDCOM.** GRAMPS hat kein `FORM`: sein `<file mime>` IST das kanonische MIME und
+   * wird aus `form` zurückgeschrieben — dort bleibt das Feld leer. Beim Schreiben gilt es
+   * nur, solange es dasselbe Format bezeichnet wie `form` (`gedFormValue`); ein Nutzer-Edit
+   * an Format oder Dateiname setzt es außer Kraft, statt es zu konservieren.
+   */
+  formWire: string;
   /** MEDI — Medientyp (Standard-Enum unter FORM); GRAMPS/Import oft leer. */
   type: string;
+  /**
+   * `type`, wie er beim Laden in der Datei stand — der Vergleichswert, an dem der Writer
+   * einen NUTZER-Edit erkennt (BL-306). Anders als `formWire` trägt er keine eigene
+   * Schreibweise (`MEDI` ist nicht kanonisiert): sein Zweck ist allein die Frage
+   * „hat jemand den Typ angefasst?".
+   *
+   * WOZU. Die `MEDI`-Zeile eines inline-Mediums steht referenz-spezifisch da, der Wert ist
+   * global. Wo eine Fundstelle sie nie trug (`MediaCitation.typeSeen`), darf der Writer sie
+   * nicht ergänzen — es sei denn, der Nutzer hat den Typ geändert, dann käme sein Edit
+   * sonst nirgends an. Dieselbe Zwei-Gründe-Form wie bei den Namens-Untertags
+   * ([ADR-v9-210](../../specs/v9/04-Entscheidungslog.md)): die Quelle hatte es, oder es
+   * sagt etwas Neues.
+   */
+  typeWire: string;
   /** GLOBALE Beschriftung: GED7-Record-`TITL` / GRAMPS `<file description>`; leer bei 5.5.1-Inline. */
   title: string;
   /** Wire-Herkunft — der Writer erhält sie unverändert (LP-1): `record`→Record+Zeiger, `inline`→inline. */
@@ -77,6 +107,22 @@ export interface MediaCitation {
   note: string;
   /** _PRIM — Hauptfoto/-dokument für DIESEN Datensatz. */
   primary: boolean;
+  /**
+   * Trug DIESE Fundstelle die globalen Datenzeilen `FORM` bzw. `FORM`→`MEDI`? (BL-304-Klasse,
+   * BL-306) — die Frage ist REFERENZ-spezifisch, obwohl die Werte selbst global sind.
+   *
+   * Ein inline-Medium hat keinen eigenen Record: seine globalen Felder stehen physisch am
+   * `OBJE` JEDER verweisenden Stelle, und die Stellen dürfen einander widersprechen. `db.media`
+   * ist nach Dateipfad geschlüsselt und hält deshalb EINEN Wert (erstes Vorkommen gewinnt,
+   * `definingMediaNodes`) — ohne diese Auskunft schriebe der Emitter ihn an ALLE Fundstellen
+   * zurück, auch an die, die ihn nie hatten. Am Realbestand sind 396 von 641 inline-Medien
+   * mehrfach referenziert; 6 davon sind sich uneinig.
+   *
+   * Default `true`: eine Fundstelle, die das Modell NEU anlegt, ist die volle Form. Nur wer
+   * aus der Datei kommt, weiß es besser — `parseMedia` setzt beide aus dem Knoten.
+   */
+  formSeen: boolean;
+  typeSeen: boolean;
   /** Unbekannte OBJE-Kinder (z. B. `_SCBK`) verbatim erhalten (INV-PT, edit-sicher). */
   extra: GedNode[];
 }
@@ -87,7 +133,16 @@ export type Quay = 0 | 1 | 2 | 3;
 export interface Citation {
   sourceId: SourceId;
   page: string;
-  quay: Quay;
+  /**
+   * `QUAY` — TRISTATE: `null` = kein QUAY-Tag, `0`–`3` = ausdrückliche Bewertung
+   * (BL-302, [ADR-v9-208]). `0` heißt in GEDCOM „unzuverlässig" und ist damit eine
+   * AUSSAGE — solange es zugleich der Default war, fiel es mit „gar keine Bewertung"
+   * zusammen und der Writer ließ die Zeile weg (30× in `Unsere Familie 2026.ged`).
+   *
+   * Der Editor braucht dafür KEINEN vierten Zustand: „nicht bewertet" ist schlicht
+   * „nie angefasst". Anzeigende Leser nehmen `quay ?? 0` — für sie ändert sich nichts.
+   */
+  quay: Quay | null;
   note: string;
   media: MediaCitation[];
   eval: EvidenceEval | null;
@@ -145,7 +200,7 @@ export interface ExternalId {
 
 /**
  * Event — Person und Familie teilen ein Modell (Spec 10 §5.1).
- * Feld-Tristate für date/place: null (Tag fehlt), '' (Tag da, leer), Wert (belegt).
+ * Feld-Tristate für date/place/addr: null (Tag fehlt), '' (Tag da, leer), Wert (belegt).
  */
 export interface Event {
   type: string;
@@ -158,7 +213,17 @@ export interface Event {
   hofId: HofId | null;
   lati: number | null;
   long: number | null;
-  addr: string;
+  /**
+   * `ADDR` — Tristate wie date/place, und aus demselben Grund verschärft (BL-292): eine
+   * `2 ADDR`-Zeile OHNE Wert, aber MIT `ADR1`/`CITY`/`POST`/`CTRY` darunter, ist im
+   * Realbestand der Regelfall der strukturierten Adresse (83× in `Unsere Familie 2026.ged`).
+   * Solange `''` „kein ADDR" hieß, schrieb der Writer die Zeile nicht — und mit ihr fiel
+   * der gesamte un-modellierte Teilbaum weg, den der Tiefen-Passthrough sonst rettet
+   * (231 verlorene Zeilen beim Neubau aller Records). Die Untertags selbst bleiben
+   * bewusst un-modelliert: sie überleben als Passthrough (INV-PT), sobald ihr Elternknoten
+   * wieder geschrieben wird.
+   */
+  addr: string | null;
   note: string;
   citations: Citation[];
   media: MediaCitation[];
@@ -183,10 +248,46 @@ export interface Person {
   surname: string;
   prefix: string;
   suffix: string;
+  /**
+   * Standen `GIVN`/`SURN`/`NSFX` als Untertags in der Quelle? (BL-304) — dieselbe Rolle wie
+   * `sexSeen`, und aus demselben Grund nötig: die drei Felder sind ab Import IMMER gefüllt,
+   * weil `splitGedcomName` sie aus dem `NAME`-Wert ergänzt, wo die Quelle sie weglässt
+   * (ADR-v9-112). Das ist eine ANZEIGE-Bequemlichkeit — ohne sie müsste jeder Leser den
+   * Schrägstrich-Rückfall selbst kennen, ein Vertrag, der dreimal gerissen ist.
+   *
+   * Dem Writer fehlt damit die Auskunft, ob ein Wert aus der DATEI kam oder aus der
+   * Zerlegung: er schrieb beide gleich, und jeder neu gebaute Record bekam Untertags, die
+   * seine Quelle nie hatte (+100 `GIVN` und +100 `SURN` in `Unsere Familie 2026.ged`) —
+   * „Speichern schreibt um" im Sinne von ADR-v9-197.
+   *
+   * BEWUSST kein Tristate an `given`/`surname` selbst: die Zusage „ab Import gefüllt" ist
+   * genau der Zweck von ADR-v9-112 und darf nicht zurückgenommen werden, um eine Frage zu
+   * beantworten, die nur den Writer betrifft (dieselbe Abwägung wie bei `sexSeen`/INV-P1).
+   */
+  givenSeen: boolean;
+  surnameSeen: boolean;
+  suffixSeen: boolean;
   nick: string;
+  /** `NAME.TYPE` des HAUPTNAMENS (`birth`/`married`/`aka`, GEDCOM `NAME_TYPE`). Gegenstück
+   *  zu `PersonName.type` der weiteren Namensformen — ohne dieses Feld wäre der Untertag
+   *  am Hauptnamen modelliert-aber-heimatlos und ginge beim Neubau verloren (BL-292). */
+  nameType: string;
   sex: Sex;
+  /**
+   * Stand `1 SEX` in der Quelle? (BL-302) — dieselbe Rolle wie `Event.seen` (INV-P5):
+   * bewahrt einen vorhandenen Tag, dessen Wert mit dem Default zusammenfaellt.
+   *
+   * `U` IST modelliert und editierbar; verloren ging es nicht am Modell, sondern am
+   * WRITER, der `U` unterdrueckte — weil `U` zugleich der Default jedes Records OHNE
+   * SEX-Zeile ist (INV-P1) und ein bedingungsloses Schreiben jedem solchen Record eine
+   * Zeile hinzugefuegt haette, die er nie hatte (ADR-v9-197).
+   *
+   * BEWUSST kein `sex: Sex | null`: INV-P1 sagt zu, dass jeder Leser einen gueltigen Wert
+   * bekommt. Ein Tristate haette die Zusage gebrochen, um eine Frage zu beantworten, die
+   * nur den Writer betrifft.
+   */
+  sexSeen: boolean;
   title: string;
-  religion: string;
   restriction: string;
   email: string;
   www: string;
@@ -295,7 +396,9 @@ export interface Repository {
   id: RepoId;
   name: string;
   type: string;
-  address: string;
+  /** `ADDR` — Tristate wie `Event.addr` (BL-292): eine leere `1 ADDR`-Zeile trägt im
+   *  Bestand `CITY`/`POST` als Passthrough-Kinder. */
+  address: string | null;
   phone: string;
   www: string;
   email: string;

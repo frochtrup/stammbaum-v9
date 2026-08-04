@@ -102,7 +102,8 @@ export function buildSourceDetail(db: Database, sourceId: string): SourceDetailM
       ownerLabel: ownerLabel(db, ref.ownerKind, ref.ownerId),
       context: ref.context,
       page: ref.citation.page,
-      quay: ref.citation.quay,
+      // Anzeige: unbewertet (null, BL-302) wird wie 0 dargestellt — der Meter kennt vier Stufen.
+      quay: ref.citation.quay ?? 0,
       url: badgeLinkHref(ref.citation),
     }));
 

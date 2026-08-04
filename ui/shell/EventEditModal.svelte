@@ -38,20 +38,13 @@
   import type { Event, MediaCitation } from '../../core/model/types';
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { HOF_EVENT_TYPES } from '../../core/places';
-  import {
-    addCitationFor,
-    removeCitationAt,
-    setCitationSourceAt,
-    setCitationPageAt,
-    setCitationNoteAt,
-    setCitationQuayAt,
-    setCitationUrlAt,
-    setCitationEvalAt,
-  } from './event-edit-citations';
-  import SourceCitationRow from './SourceCitationRow.svelte';
+  import EventCitationsSection from './EventCitationsSection.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
   import EventAgeHelper from './EventAgeHelper.svelte';
+  import { formSubmit } from './form-keys';
+  import { portal } from './portal';
+  import { focusTrap } from './focus-trap';
   import {
     toEditable,
     markDateDirty,
@@ -114,7 +107,10 @@
    *  bewusst NICHT reaktiv: ein live abgeleiteter Ausdruck ließe das Feld beim Leeren unter
    *  dem Cursor verschwinden, und Leeren ist bei einem Non-Hof-Ereignis die häufigste
    *  Auflösung (s. showAddr). */
-  const hadAddrOnOpen = untrack(() => event.addr.trim() !== '');
+  const hadAddrOnOpen = untrack(() => (event.addr ?? '').trim() !== '');
+
+  /** Häufige Konfessionswerte — s. das Datalist am Wert-Feld unten. */
+  const RELIGION_PRESETS = ['röm.-kath.', 'evang.', 'katholisch'];
   /** Hof-Typen (RESI/PROP/CENS) haben das Adressfeld immer — dort entsteht Hof-Identität
    *  (`resolve.ts` Pfad B′). Ein Non-Hof-Typ bekommt es, wenn das Ereignis eine ADDR
    *  MITBRINGT: genau diese Kombination landet in der Hof-Review als Klasse A/D
@@ -145,15 +141,9 @@
    *  sofort, sodass „Abbrechen" die halbe Änderung stehen ließ (Design-Kritik 2026-07-31). */
   let stagedBirth = $state<string | null>(null);
 
-  const sources = $derived(Array.from(appState.db.sources.values()));
-
-  // Citation-Array-Editier-Funktionen (add/remove/setXAt) sind reine Funktionen aus
-  // ./event-edit-citations (max-lines-Extraktion, s. dortiger Kopfkommentar) — hier nur
-  // noch der EINE Guard, der eine Quelle voraussetzt.
-  function addCitation() {
-    if (sources.length === 0) return;
-    editable.citations = addCitationFor(editable.citations, sources[0].id);
-  }
+  // Die Quellen-Sektion (Überschrift, „+ Quelle hinzufügen", Zeilenliste) liegt seit
+  // BL-276 in `EventCitationsSection.svelte` — die Oberflächen-Hälfte derselben
+  // max-lines-Extraktion, die schon `event-edit-citations.ts` erzeugt hat.
 
   // 📷-Kamera-Schnellzugriff (Spec 20 §1.4 [S]): das gewählte/aufgenommene Foto wird SOFORT
   // mit DIESEM Ereignis verknüpft. `capture="environment"` öffnet mobil direkt die Kamera,
@@ -195,7 +185,13 @@
      Tastatur-taugliche Entsprechung ist der globale Escape-Handler oben (svelte:window),
      nicht ein zweiter Handler auf diesem <div>. -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="stb-modal-backdrop" onclick={onClose} role="presentation">
+<!-- Portaliert (BL-278, INV-UI-13/§6k): §6k nennt Modal-Backdrops namentlich unter
+     „Wer portaliert" — bis hierher taten es die vier Konsumenten als einzige nicht. Der
+     Backdrop liegt `position: fixed`, das trug bisher; es trägt aber nur, solange KEIN
+     Vorfahre `transform`/`filter`/`contain`/`will-change` setzt (dann wird er der
+     Containing Block, und erst dann klippt auch sein `overflow: auto`). Diese Bedingung
+     ist nichts, worauf eine Overlay-Fläche sich verlassen darf. -->
+<div class="stb-modal-backdrop" use:portal use:focusTrap onclick={onClose} role="presentation">
   <div
     class="event-edit-modal__panel"
     onclick={(e) => e.stopPropagation()}
@@ -204,6 +200,12 @@
     aria-modal="true"
     aria-label={`${label} ${headingVerb}`}
   >
+  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schloss schon (svelte:window
+       oben), Enter tat nichts. Es liegt INNERHALB des Panels, nicht an seiner Stelle —
+       die Dialog-Rolle kann ein `<form>` nicht tragen. Alle Knöpfe darin sind
+       `type="button"` (geprüft), auch die der eingebetteten `SourceCitationRow` — Enter
+       gehört damit dem Speichern. -->
+  <form class="event-edit-modal__form" onsubmit={formSubmit(save)}>
     <div class="event-edit-modal__head">
       <h3>{label} {headingVerb}</h3>
       <button type="button" class="event-edit-modal__close-btn" onclick={onClose} aria-label="Schließen">✕</button>
@@ -331,7 +333,25 @@
 
     <label>
       Wert
-      <input type="text" bind:value={editable.value} placeholder="z. B. Beruf bei OCCU" />
+      <input
+        type="text"
+        bind:value={editable.value}
+        placeholder={editable.type === 'RELI' ? 'z. B. röm.-kath.' : 'z. B. Beruf bei OCCU'}
+        list={editable.type === 'RELI' ? 'event-value-presets' : undefined}
+      />
+      <!-- Konfessions-Vorschläge (BL-212/ADR-v9-156, mit BL-289 vom Personen-Formular hierher
+           gewandert, weil RELI jetzt ein Ereignis ist): Preset+Freitext wie bei den
+           Aufgaben-Kategorien (INV-UI-4), KEIN geschlossenes Enum — Bestandswerte bleiben
+           unverändert (LP-1). Am Realbestand stehen mehrere Schreibweisen derselben
+           Konfession nebeneinander („röm.-kath." 58×, „röm. kath." 11×, „röm.-kath" 1×);
+           genau diese Streuung sollen die Vorschläge eindämmen. -->
+      {#if editable.type === 'RELI'}
+        <datalist id="event-value-presets">
+          {#each RELIGION_PRESETS as preset (preset)}
+            <option value={preset}></option>
+          {/each}
+        </datalist>
+      {/if}
     </label>
 
     {#if cause != null}
@@ -346,29 +366,12 @@
       <textarea bind:value={editable.note}></textarea>
     </label>
 
-    <div class="event-edit-modal__citations">
-      <div class="event-edit-modal__citations-head">
-        <h5>Quellen</h5>
-        <button type="button" class="event-edit-modal__add-citation-btn" onclick={addCitation} disabled={sources.length === 0}>
-          + Quelle hinzufügen
-        </button>
-      </div>
-      {#each editable.citations as cit, i (i)}
-        <SourceCitationRow
-          {appState}
-          citation={cit}
-          index={i}
-          labelPrefix={label}
-          onSourceChange={(id) => (editable.citations = setCitationSourceAt(editable.citations, i, id))}
-          onPageChange={(page) => (editable.citations = setCitationPageAt(editable.citations, i, page))}
-          onQuayChange={(quay) => (editable.citations = setCitationQuayAt(editable.citations, i, quay))}
-          onNoteChange={(note) => (editable.citations = setCitationNoteAt(editable.citations, i, note))}
-          onUrlChange={(u) => (editable.citations = setCitationUrlAt(editable.citations, i, u))}
-          onEvalChange={(ev) => (editable.citations = setCitationEvalAt(editable.citations, i, ev))}
-          onRemove={() => (editable.citations = removeCitationAt(editable.citations, i))}
-        />
-      {/each}
-    </div>
+    <EventCitationsSection
+      {appState}
+      citations={editable.citations}
+      labelPrefix={label}
+      onChange={(next) => (editable.citations = next)}
+    />
 
     <div class="event-edit-modal__media">
       <label class="event-edit-modal__camera-btn">
@@ -396,13 +399,20 @@
           onclick={() => onCopy(liveEventFrom(editable))}
         >⧉ Kopieren</button>
       {/if}
-      <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+      <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
       <button type="button" class="stb-btn" data-variant="secondary" onclick={onClose}>Abbrechen</button>
     </div>
+  </form>
   </div>
 </div>
 
 <style>
+  /* Das Formular ist eine reine Gruppierungs-Hülle im Panel (BL-276) — es soll dessen
+     Fluss nicht verändern, deshalb erbt es Spalten-Layout und Lücke. */
+  .event-edit-modal__form {
+    display: contents;
+  }
+
   .event-edit-modal__panel {
     background: var(--stb-surface-1);
     border: 1px solid var(--stb-gold-dim);
@@ -482,39 +492,6 @@
   .event-edit-modal__muted {
     color: var(--stb-text-dim);
     font-size: 0.82rem;
-  }
-
-  .event-edit-modal__citations {
-    margin-top: 0.6rem;
-  }
-
-  .event-edit-modal__citations-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.3rem;
-  }
-
-  .event-edit-modal__citations h5 {
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-    margin: 0;
-  }
-
-  .event-edit-modal__add-citation-btn {
-    background: var(--stb-surface-3);
-    color: var(--stb-text);
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: var(--stb-radius-control);
-    padding: 0.3rem 0.7rem;
-    cursor: pointer;
-    font-size: 0.82rem;
-  }
-
-  .event-edit-modal__add-citation-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
   }
 
   .event-edit-modal__media {

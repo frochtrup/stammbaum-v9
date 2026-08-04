@@ -186,7 +186,6 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.stubGlobal('confirm', confirmSpy);
 
     render(PlaceDetail, { props: { appState, viewState, onBack } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.click(screen.getByText('Ort löschen'));
 
     expect(confirmSpy).toHaveBeenCalledOnce();
@@ -210,7 +209,6 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.stubGlobal('confirm', confirmSpy);
 
     render(PlaceDetail, { props: { appState, viewState, onBack } });
-    await fireEvent.click(screen.getByText('✎ Bearbeiten'));
     await fireEvent.click(screen.getByText('Ort löschen'));
 
     expect(appState.db.placeObjects.has('@P1@')).toBe(true);
@@ -219,7 +217,13 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('zeigt "Ort löschen" NICHT außerhalb des Bearbeiten-Modus (ADR-v9-30 Punkt 5)', () => {
+  // GEDREHT mit BL-277/ADR-v9-217 (vorher: „zeigt Ort löschen NICHT außerhalb des
+  // Bearbeiten-Modus"). Das Gate aus ADR-v9-30 Punkt 5 hält Feld- und Beziehungs-Controls
+  // von der Lesefläche fern; ein Record-Löschen bringt mit dem Bestätigungsdialog sein
+  // eigenes, stärkeres Gate mit — und die fünf übrigen Entitäten führen es längst so
+  // (`DeleteEntityButton`, INV-UI-4). Die zweite Hälfte des alten Befunds bleibt geprüft:
+  // in der Knopfreihe des Formulars steht es NICHT mehr.
+  it('zeigt "Ort löschen" in der abgesetzten Danger-Zone — auch ohne Bearbeiten-Modus (ADR-v9-217)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -229,7 +233,9 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
 
     render(PlaceDetail, { props: { appState, viewState } });
 
-    expect(screen.queryByText('Ort löschen')).toBeNull();
+    const knopf = screen.getByText('Ort löschen');
+    expect(knopf.closest('.delete-entity')).not.toBeNull();
+    expect(knopf.closest('.place-edit-form')).toBeNull();
   });
 });
 

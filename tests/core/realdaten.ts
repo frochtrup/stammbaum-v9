@@ -24,6 +24,8 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parsePlacesFileWrapper } from '../../services/places';
+import type { PlaceObjects, HofObjects } from '../../core/places/types';
 
 /** Der maßgebliche Bestand — Ancestris-Export, Stand 25 JUN 2026. */
 export const REALBESTAND = {
@@ -33,6 +35,44 @@ export const REALBESTAND = {
    *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch. */
   erwartet: { individuals: 3180, families: 987, sources: 152, repositories: 7 },
 } as const;
+
+/**
+ * Der ZWEITE Realdaten-Eingang des Ladepfads (BL-287). `loadGedcomText` liest nicht nur
+ * die GEDCOM-Datei, sondern legt VOR der Auflösung den kuratierten Orts-/Hof-Bestand
+ * darüber (`persister.load()` → `db.placeObjects`/`db.hofObjects`). Erst diese Kombination
+ * ist der Zustand, in dem die App tatsächlich läuft: ohne den Bestand legt der Seed
+ * seine Orte aus dem PLAC-Text selbst an, und die Auflösung trifft nie auf einen
+ * kuratierten, periodengerecht datierten Ort.
+ *
+ * Bis BL-287 hat KEIN Test die beiden zusammengebracht — dieselbe Lücke wie die aus
+ * ADR-v9-196 („kein Test kombiniert `applyPlaceResolution` mit `serializeGedcom`"), nur
+ * eine Eingabe früher. Die Zahlen in ADR-v9-197/BL-288 (668 umgeschriebene PLAC-Werte)
+ * wurden von Hand mit dieser Datei gemessen, nicht von einem Test.
+ */
+export const ORTSBESTAND = {
+  datei: 'orte.v9.json',
+  /** Erwarteter Umfang — dieselbe Rolle wie `REALBESTAND.erwartet`: eine andere Datei
+   *  ist eine andere Aussage. */
+  erwartet: { placeObjects: 139, hofObjects: 181 },
+} as const;
+
+export const ortsbestandPfad = (): string => join(__dirname, '../fixtures', ORTSBESTAND.datei);
+
+export const ortsbestandVorhanden = (): boolean => existsSync(ortsbestandPfad());
+
+/**
+ * Lädt den kuratierten Bestand so, wie `PlacesPersister.load()` ihn liefert: als die
+ * beiden Maps, die der Ladepfad VOR `applyPlaceResolution` in die Datenbank legt.
+ * Bewusst über `parsePlacesFileWrapper` (dieselbe Validierung wie im echten Import),
+ * nicht über ein `JSON.parse` von Hand.
+ */
+export function ortsbestandLaden(): { placeObjects: PlaceObjects; hofObjects: HofObjects } {
+  const w = parsePlacesFileWrapper(readFileSync(ortsbestandPfad(), 'utf8'));
+  return {
+    placeObjects: new Map(w.placeObjects.map((p) => [p.id, p])),
+    hofObjects: new Map(w.hofObjects.map((h) => [h.id, h])),
+  };
+}
 
 /** Der eingefrorene Orakel-Snapshot. Gültig für Roundtrip/Parser — NICHT für Bestandszahlen. */
 export const ORAKEL_SNAPSHOT = {

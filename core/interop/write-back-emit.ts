@@ -21,15 +21,16 @@ import type {
   MediaCitation,
   MediaId,
   Person,
+  PersonName,
   Repository,
   Source,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
-import { buildPlacForGedcom, eventYear, type PlaceContext } from '../places';
 import type { GedNode } from './gedcom-tree';
-import { EVAL_TAGS, evalAxisValue } from './enum-maps';
-import { mimeToGedForm } from './media-mime';
+import { EVAL_TAGS, evalAxisValue, logResultToWire } from './enum-maps';
+import { splitGedcomName } from '../model/name-parts';
+import { gedFormValue } from './media-mime';
 
 /** Auflösung `mediaId` → globales `Media` (ADR-v9-124) — intern aus `db.media` gebaut. */
 export type MediaLookup = ReadonlyMap<MediaId, Media>;
@@ -78,9 +79,17 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
   if (mc.title) kids.push(N('TITL', mc.title));
   if (!isPointer) {
     const file = media ? media.file : mc.mediaId;
-    // Output-Rückübersetzung (ADR-v9-126): kanonisches MIME → GEDCOM-5.5.1-FORM-Endung.
-    const form = media ? mimeToGedForm(media.form, file) : '';
-    const type = media ? media.type : '';
+    // FORM-Wert: erhaltener Wire-Wert, sonst Rückübersetzung aus dem MIME (`gedFormValue`).
+    // Aber NUR an einer Fundstelle, die ihn auch trug (BL-306) — ODER wenn der Nutzer den
+    // globalen Wert geändert hat und sein Edit sonst nirgends ankäme. Dieselbe
+    // Zwei-Gründe-Form wie bei den Namens-Untertags (ADR-v9-210): die Quelle hatte es, oder
+    // es sagt etwas, das die Datei noch nicht sagt. Die Werte sind global, ihre ZEILEN
+    // stehen referenz-spezifisch da, und `db.media` hält nur EINE Fassung — sie bedingungslos
+    // an jede Fundstelle zurückzuschreiben, ergänzt Zeilen, die die Quelle nie hatte.
+    const formWert = media ? gedFormValue(media.form, file, media.formWire) : '';
+    const form = formWert && (mc.formSeen || formWert !== media!.formWire) ? formWert : '';
+    const type = media && media.type && (mc.typeSeen || media.type !== media.typeWire)
+      ? media.type : '';
     const fileKids: GedNode[] = [];
     if (form) fileKids.push(N('FORM', form, type ? [N('MEDI', type)] : []));
     kids.push(N('FILE', file, fileKids));
@@ -97,7 +106,7 @@ function mediaNode(mc: MediaCitation, media?: Media): GedNode {
  * FILE(→FORM→MEDI) + globaler TITL. Nur für `wireOrigin==='record'`-Medien.
  */
 export function emitMediaRecord(m: Media): GedNode {
-  const form = mimeToGedForm(m.form, m.file);
+  const form = gedFormValue(m.form, m.file, m.formWire);
   const fileKids: GedNode[] = [];
   if (form) fileKids.push(N('FORM', form, m.type ? [N('MEDI', m.type)] : []));
   const kids: GedNode[] = [N('FILE', m.file, fileKids)];
@@ -130,7 +139,7 @@ function evidenceEvalNode(ev: EvidenceEval | null): GedNode | null {
 function citationNode(c: Citation, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (c.page) kids.push(N('PAGE', c.page));
-  if (c.quay !== 0) kids.push(N('QUAY', String(c.quay)));
+  if (c.quay !== null) kids.push(N('QUAY', String(c.quay)));
   // v8-Orakel-Position: direkt nach QUAY, vor NOTE (`_writeSourCits`).
   const evalKid = evidenceEvalNode(c.eval);
   if (evalKid) kids.push(evalKid);
@@ -140,23 +149,26 @@ function citationNode(c: Citation, media?: MediaLookup): GedNode {
 }
 
 /**
- * PLAC-Wert für ein Event (INV-PLACE Mechanismus 2, ADR-v9-47): ist `placeId`/`hofId`
- * gesetzt, ist `ev.place` nur Projektions-Cache — der Writer liest ihn NICHT roh, sondern
- * berechnet den periodengerechten String LIVE über `buildPlacForGedcom`. Nur wenn kein
- * `ctx` vorliegt oder die Live-Berechnung null liefert (z. B. `hofId` gesetzt, HofObject
- * fehlt/stale — GUARD in build-plac.ts), fällt er auf den letzten bekannten `ev.place`
- * zurück. Ohne gesetzte `placeId`/`hofId` ist `ev.place` die Wire-Wahrheit (unverändert).
+ * PLAC-Wert für ein Event: `ev.place`, immer (ADR-v9-197, BL-288).
+ *
+ * Bis dahin berechnete der Writer den periodengerechten String bei gesetzter
+ * `placeId`/`hofId` LIVE (INV-PLACE Mechanismus 2, ADR-v9-47) und behandelte `ev.place`
+ * als bloßen Cache. Das schrieb die Datei bei jedem Speichern um — an
+ * `Unsere Familie 2026.ged` 668 Werte, an Ereignissen, die der Nutzer nie angefasst hatte.
+ * Eine byte-verändernde Projektion braucht einen bewussten Anlass; Speichern ist keiner.
+ *
+ * `ev.place` ist damit wieder die Wire-Wahrheit. Aktuell gehalten wird sie von den
+ * Kurations-Kommandos (`linkEventToPlace`/`linkEventToHof`, `renameHofAddrInEvents`/
+ * `relinkHofVillageInEvents`) — dort ist die Projektion user-induziert und mit Undo
+ * versehen. Die periodengerechte Kette bleibt in der ANZEIGE (`eventPlaceLabel`), wo sie
+ * nichts überschreibt.
  */
-function placValue(ev: Event, ctx?: PlaceContext): string {
-  if (ctx && (ev.placeId !== null || ev.hofId !== null)) {
-    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
-    if (live !== null) return live;
-  }
+function placValue(ev: Event): string {
   return ev.place ?? '';
 }
 
 /** Ereignis-Knoten (BIRT/OCCU/…) — parseEvent ist die Umkehr; nur „seen" Ereignisse. */
-function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+function eventNode(ev: Event, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (ev.eventType) kids.push(N('TYPE', ev.eventType));
   if (ev.date !== null) kids.push(N('DATE', ev.date));
@@ -169,11 +181,11 @@ function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode 
       if (ev.long !== null) mapKids.push(N('LONG', coordValue(ev.long, 'LONG')));
       placKids.push(N('MAP', '', mapKids));
     }
-    kids.push(N('PLAC', placValue(ev, ctx), placKids));
+    kids.push(N('PLAC', placValue(ev), placKids));
   }
   // ADDR bleibt bewusst byte-identisch (Fill-if-empty-Regel, §7/§4.2 REPROJECT) — NICHT
   // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
-  if (ev.addr) kids.push(textNode('ADDR', ev.addr));
+  if (ev.addr !== null) kids.push(textNode('ADDR', ev.addr));
   if (ev.note) kids.push(textNode('NOTE', ev.note));
   for (const c of ev.citations) kids.push(citationNode(c, media));
   for (const m of ev.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
@@ -183,14 +195,21 @@ function eventNode(ev: Event, ctx?: PlaceContext, media?: MediaLookup): GedNode 
 /**
  * Forschungsaufgabe (ResearchTask) → `1 _TASK`-Block (Spec 12 §1, Wire-Format 13 §2.3).
  * parseTask (gedcom-parse.ts) ist die Umkehr. Reihenfolge/Tags nach v8-Oracle
- * (`gedcom-writer.js` `_writeINDIExt`): `_CAT`, `_DONE` (IMMER, 0/1), `_TSTAT`, `_DATE`,
- * `_ID`, `SOUR`. `_DONE` wird mitgeschrieben (Spec nennt den Tag), obwohl es beim Lesen
- * aus `_TSTAT` abgeleitet wird — reine Redundanz für fremde Leser.
+ * (`gedcom-writer.js` `_writeINDIExt`): `_CAT`, `_TSTAT`, `_DATE`, `_ID`, `SOUR`.
+ *
+ * **`_DONE` wird NICHT MEHR geschrieben** (BL-307, ADR-v9-213). v8 führte zwei Tags für
+ * denselben Sachverhalt: `_DONE 0|1` (Erledigt-Haken) und, später dazugekommen, `_TSTAT`
+ * (Kanban-Status). Zwei Zeilen für eine Aussage sind eine Einladung zum Widerspruch —
+ * das Modell schließt ihn zwar aus (`done === (status === 'done')`, Spec 12 §1), eine
+ * FREMDE Datei kann ihn aber mitbringen, und dann konservierte ihn der Wert-Halt aus
+ * ADR-v9-209 sogar. `_TSTAT` trägt die Aussage vollständig; `_DONE` bleibt LESBAR
+ * (Rückfall in `parseTask`, für Aufgaben aus der Zeit vor v8 sw v307) und verschwindet
+ * beim Neubau eines Records — deshalb steht es in `ABGESCHAFFT` (write-back.ts), sonst
+ * zöge der Überschuss die alte Zeile als eingefrorenen Widerspruch wieder ein.
  */
 function taskNode(t: ResearchTask): GedNode {
   const kids: GedNode[] = [];
   if (t.category) kids.push(N('_CAT', t.category));
-  kids.push(N('_DONE', t.done ? '1' : '0'));
   kids.push(N('_TSTAT', t.status));
   if (t.created) kids.push(N('_DATE', t.created));
   if (t.id) kids.push(N('_ID', t.id));
@@ -210,7 +229,7 @@ function logEntryNode(l: LogEntry): GedNode {
   if (l.repoRef) kids.push(N('REPO', l.repoRef));
   if (l.sourceRef) kids.push(N('SOUR', l.sourceRef));
   if (l.query) kids.push(N('_QUERY', l.query));
-  kids.push(N('_RESULT', l.result));
+  kids.push(N('_RESULT', logResultToWire(l.result)));
   if (l.note) kids.push(textNode('NOTE', l.note));
   if (l.taskId) kids.push(N('_TASKID', l.taskId));
   return N('_RLOG', '', kids);
@@ -245,36 +264,86 @@ function hypothesisNode(h: Hypothesis): GedNode {
 /** Synthetisiert einen INDI-Record in kanonischer Reihenfolge (GEDCOM.md §1 INDI).
  *  `ctx` (optional): PlaceContext für die Live-PLAC-Berechnung (ADR-v9-47). Ohne ctx
  *  fällt die PLAC-Emission auf den `ev.place`-Cache zurück. */
-export function emitPerson(p: Person, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+/** Eine weitere Namensform → `1 NAME`-Block. Tag-Reihenfolge nach dem Bestand
+ *  (`TYPE`, `GIVN`, `SURN`, `NPFX`, `NSFX`, `SOUR`). */
+function extraNameNode(n: PersonName, media?: MediaLookup): GedNode {
+  const kids: GedNode[] = [];
+  if (n.type) kids.push(N('TYPE', n.type));
+  if (n.given) kids.push(N('GIVN', n.given));
+  if (n.surname) kids.push(N('SURN', n.surname));
+  if (n.prefix) kids.push(N('NPFX', n.prefix));
+  if (n.suffix) kids.push(N('NSFX', n.suffix));
+  for (const c of n.citations) kids.push(citationNode(c, media));
+  return N('NAME', n.nameRaw, kids);
+}
+
+/**
+ * Ein Namens-Untertag am HAUPTNAMEN — geschrieben nur dort, wo er etwas sagt (BL-304,
+ * ADR-v9-210). Zwei Gründe, und nur diese zwei:
+ *
+ *  (a) **Die Quelle hatte ihn** (`gesehen`). Dann steht er in der Datei, und ihn beim
+ *      Neubau wegzulassen wäre ein Verlust — auch wenn sein Wert redundant ist.
+ *  (b) **Er lässt sich aus dem `NAME`-Wert NICHT ableiten.** Dann trägt er Information,
+ *      die sonst niemand hält: ein `NAME` ohne wohlgeformtes Schrägstrichpaar
+ *      (`splitGedcomName` → `null`), oder ein `GIVN`, das enger gesetzt ist als der
+ *      Namenswert (`GIVN Anna` bei `NAME Anna Maria /Decker/`).
+ *
+ * Sonst nicht. Der `NAME`-Wert sagt bereits alles, was der Untertag sagen würde, und
+ * `splitGedcomName` holt ihn beim nächsten Laden identisch zurück — die Zeile wäre reine
+ * Wiederholung, und zwar eine, die die Quelle nicht hatte (ADR-v9-197).
+ *
+ * Der Nutzer-Edit fällt damit von selbst auf die richtige Seite: wer den Vornamen ändert,
+ * ändert über `composeGedcomName` auch den `NAME`-Wert — die Änderung landet in der Zeile,
+ * die sie tragen soll, und erzeugt keine zweite daneben. Wo die Quelle den Untertag hatte,
+ * wird er mitgezogen statt zurückgelassen.
+ */
+function nameSubtag(tag: string, wert: string, gesehen: boolean, abgeleitet: string): GedNode | null {
+  if (!wert) return null;
+  return gesehen || wert !== abgeleitet ? N(tag, wert) : null;
+}
+
+export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
 
   if (p.name || p.given || p.surname || p.prefix || p.suffix || p.nick || p.nameCitations.length) {
     const nameKids: GedNode[] = [];
-    if (p.given) nameKids.push(N('GIVN', p.given));
-    if (p.surname) nameKids.push(N('SURN', p.surname));
+    // Was der `NAME`-Wert von sich aus hergibt — die Messlatte für (b) oben.
+    const ausName = splitGedcomName(p.name);
+    const givn = nameSubtag('GIVN', p.given, p.givenSeen, ausName?.given ?? '');
+    const surn = nameSubtag('SURN', p.surname, p.surnameSeen, ausName?.surname ?? '');
+    const nsfx = nameSubtag('NSFX', p.suffix, p.suffixSeen, ausName?.suffix ?? '');
+    if (givn) nameKids.push(givn);
+    if (surn) nameKids.push(surn);
+    // `NPFX` bleibt bedingungslos: `splitGedcomName` leitet kein Präfix ab, der Parser
+    // ergänzt es folglich nie — es kann hier gar nicht erfunden werden.
     if (p.prefix) nameKids.push(N('NPFX', p.prefix));
-    if (p.suffix) nameKids.push(N('NSFX', p.suffix));
+    if (nsfx) nameKids.push(nsfx);
     if (p.nick) nameKids.push(N('NICK', p.nick));
+    if (p.nameType) nameKids.push(N('TYPE', p.nameType));
     for (const c of p.nameCitations) nameKids.push(citationNode(c, media));
     kids.push(N('NAME', p.name, nameKids));
   }
-  if (p.sex && p.sex !== 'U') kids.push(N('SEX', p.sex));
+  // Weitere Namensformen DIREKT hinter dem Hauptnamen (BL-292) — so, wie sie in der Datei
+  // stehen. `parsePersonName` ist die Umkehr.
+  for (const n of p.extraNames) kids.push(extraNameNode(n, media));
+  // `U` nur, wenn es in der Quelle stand (BL-302) — sonst bekaeme jeder Record ohne
+  // SEX-Zeile eine, weil `U` der Default ist.
+  if (p.sex !== 'U' || p.sexSeen) kids.push(N('SEX', p.sex));
   if (p.title) kids.push(N('TITL', p.title));
-  if (p.religion) kids.push(N('RELI', p.religion));
   if (p.restriction) kids.push(N('RESN', p.restriction));
   if (p.email) kids.push(N('EMAIL', p.email));
   if (p.www) kids.push(N('WWW', p.www));
   if (p.uid) kids.push(N('_UID', p.uid));
 
-  if (p.birth.seen) kids.push(eventNode(p.birth, ctx, media));
-  if (p.chr.seen) kids.push(eventNode(p.chr, ctx, media));
+  if (p.birth.seen) kids.push(eventNode(p.birth, media));
+  if (p.chr.seen) kids.push(eventNode(p.chr, media));
   if (p.death.seen) {
-    const dn = eventNode(p.death, ctx, media);
+    const dn = eventNode(p.death, media);
     if (p.cause) dn.children.push(N('CAUS', p.cause));
     kids.push(dn);
   }
-  if (p.buri.seen) kids.push(eventNode(p.buri, ctx, media));
-  for (const ev of p.events) kids.push(eventNode(ev, ctx, media));
+  if (p.buri.seen) kids.push(eventNode(p.buri, media));
+  for (const ev of p.events) kids.push(eventNode(ev, media));
 
   for (const link of p.childOf) {
     const fkids: GedNode[] = [];
@@ -335,14 +404,14 @@ function chanNode(lastChanged: string): GedNode {
 
 // --- Family (FAM) -----------------------------------------------------------------------
 
-export function emitFamily(f: Family, ctx?: PlaceContext, media?: MediaLookup): GedNode {
+export function emitFamily(f: Family, media?: MediaLookup): GedNode {
   const kids: GedNode[] = [];
   if (f.husband) kids.push(N('HUSB', f.husband));
   if (f.wife) kids.push(N('WIFE', f.wife));
   for (const cid of f.children) kids.push(N('CHIL', cid));
-  if (f.marriage.seen) kids.push(eventNode(f.marriage, ctx, media));
-  if (f.engagement.seen) kids.push(eventNode(f.engagement, ctx, media));
-  for (const ev of f.events) kids.push(eventNode(ev, ctx, media));
+  if (f.marriage.seen) kids.push(eventNode(f.marriage, media));
+  if (f.engagement.seen) kids.push(eventNode(f.engagement, media));
+  for (const ev of f.events) kids.push(eventNode(ev, media));
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
   for (const c of f.citations) kids.push(citationNode(c, media));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));
@@ -405,7 +474,7 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
 export function emitRepository(r: Repository): GedNode {
   const kids: GedNode[] = [];
   if (r.name) kids.push(N('NAME', r.name));
-  if (r.address) kids.push(textNode('ADDR', r.address));
+  if (r.address !== null) kids.push(textNode('ADDR', r.address));
   if (r.phone) kids.push(N('PHON', r.phone));
   if (r.www) kids.push(N('WWW', r.www));
   if (r.email) kids.push(N('EMAIL', r.email));

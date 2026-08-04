@@ -78,9 +78,11 @@ describe('Tag-Projektion ins Modell', () => {
     expect(p.cause).toBe('Alter');
   });
   it('generisches Ereignis (OCCU) landet in events[]', () => {
-    expect(p.events.length).toBe(1);
-    expect(p.events[0].type).toBe('OCCU');
-    expect(p.events[0].date).toBe('FROM 1990 TO 2010');
+    // Zwei, seit BL-289 auch `RELI` ein Ereignistyp ist (vorher das Skalarfeld
+    // `Person.religion`) — die Fixture traegt beide.
+    expect(p.events.map((e) => e.type)).toEqual(['RELI', 'OCCU']);
+    expect(p.events.find((e) => e.type === 'OCCU')?.date).toBe('FROM 1990 TO 2010');
+    expect(p.events.find((e) => e.type === 'RELI')?.value).toBe('röm.-kath.');
   });
   it('seen-Flag (INV-P5) für vorhandene Ereignisse', () => {
     expect(p.birth.seen).toBe(true);

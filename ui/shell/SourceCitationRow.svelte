@@ -47,7 +47,7 @@
     labelPrefix: string;
     onSourceChange: (sourceId: string) => void;
     onPageChange: (page: string) => void;
-    onQuayChange: (quay: Quay) => void;
+    onQuayChange: (quay: Quay | null) => void;
     onNoteChange: (note: string) => void;
     /** Weblink der Referenz (↗) — als OBJE/FILE-Medium gespeichert, s. core setCitationUrl. */
     onUrlChange: (url: string) => void;
@@ -183,9 +183,17 @@
   <select
     class="source-citation-row__quay"
     aria-label={`${labelPrefix} Zuverlässigkeit ${index + 1}`}
-    value={String(citation.quay)}
-    onchange={(e) => onQuayChange(Number((e.currentTarget as HTMLSelectElement).value) as Quay)}
+    value={citation.quay === null ? '' : String(citation.quay)}
+    onchange={(e) => {
+      const v = (e.currentTarget as HTMLSelectElement).value;
+      onQuayChange(v === '' ? null : (Number(v) as Quay));
+    }}
   >
+    <!-- Eigene Stufe fuer "nicht bewertet" (BL-302): vorher zeigte das Feld dafuer
+         "QUAY 0" an — also "unzuverlaessig", eine Aussage, die niemand getroffen hatte.
+         Der Wert ist round-trippable: von hier aus laesst sich auch wieder zurueck auf
+         "nicht bewertet" stellen. -->
+    <option value="">QUAY —</option>
     <option value="0">QUAY 0</option>
     <option value="1">QUAY 1</option>
     <option value="2">QUAY 2</option>
@@ -248,6 +256,7 @@
         createLabel="+ Neue Quelle anlegen …"
         onCreateRequested={beginCreate}
         startOpen={true}
+        onClose={() => (panelOpen = false)}
       />
     {/if}
   </div>

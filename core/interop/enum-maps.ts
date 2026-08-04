@@ -38,6 +38,7 @@ export const TAG_BY_GRAMPS: Record<string, string> = {
   Naturalization: 'NATU',
   Graduation: 'GRAD',
   Property: 'PROP',
+  Religion: 'RELI',
   'Military Service': 'MILI',
   Marriage: 'MARR',
   Engagement: 'ENGA',
@@ -259,4 +260,56 @@ export function mediToGrampsMedium(medi: string): string {
 export function grampsMediumToMedi(medium: string): string {
   if (!medium) return '';
   return MEDI_BY_MEDIUM[medium] ?? medium;
+}
+
+// ── 7. NAME.TYPE ↔ GRAMPS `<name type>` (BL-292) ──────────────────────────────
+// GEDCOM 5.5.1 `NAME_TYPE` kennt `aka`/`birth`/`immigrant`/`maiden`/`married` (+ Freitext),
+// GRAMPS die ausgeschriebenen Formen. EINE Tabelle für beide Richtungen — dieselbe Regel
+// wie bei `_EVAL` (BL-83): unbekannte Werte reisen VERLUSTFREI durch, statt auf einen
+// Default zu fallen (ein erfundener Typ wäre schlimmer als ein fremder).
+
+const NAME_TYPE_ZU_GRAMPS: Record<string, string> = {
+  aka: 'Also Known As', birth: 'Birth Name', immigrant: 'Unknown',
+  maiden: 'Birth Name', married: 'Married Name',
+};
+
+const GRAMPS_ZU_NAME_TYPE: Record<string, string> = {
+  'also known as': 'aka', 'birth name': 'birth', 'married name': 'married',
+};
+
+/** GEDCOM-`NAME.TYPE` → GRAMPS-`<name type>`; Unbekanntes bleibt, wie es ist. */
+export function nameTypeToGramps(value: string): string {
+  const v = value.trim();
+  return NAME_TYPE_ZU_GRAMPS[v.toLowerCase()] ?? v;
+}
+
+/** GRAMPS-`<name type>` → GEDCOM-`NAME.TYPE`; Unbekanntes bleibt, wie es ist. */
+export function nameTypeFromGramps(value: string): string {
+  const v = value.trim();
+  return GRAMPS_ZU_NAME_TYPE[v.toLowerCase()] ?? v;
+}
+
+
+// ── 8. `_RESULT` (Forschungsprotokoll) ↔ Wire-Wert (BL-302) ───────────────────
+// Das MODELL schreibt `notfound`, die DATEI `not-found` — v8s Schreibweise
+// (`ui-views-rlog.js`, `index.html` <option value="not-found">). v9 hatte den Bindestrich
+// beim Bau nicht uebernommen; sein Parser kannte den echten Wert deshalb nicht und schrieb
+// `pending` zurueck: aus "Nicht gefunden" wurde "offen", eine stille Umdeutung eines
+// Forschungsergebnisses (3x in `Unsere Familie 2026.ged`).
+//
+// Genau die Falle aus TST-6: das Spec-Bullet nannte nur die Tag-NAMEN, die Kodierung stand
+// im Quelltext. Gelesen werden beide Schreibweisen (v8-Dateien und bereits von v9
+// geschriebene), ausgegeben wird die etablierte.
+
+const RESULT_WIRE: Record<string, string> = { notfound: 'not-found' };
+
+/** Modell-`LogResult` → Wire-Wert. */
+export function logResultToWire(result: string): string {
+  return RESULT_WIRE[result] ?? result;
+}
+
+/** Wire-Wert → Modell-`LogResult`; unbekannt → '' (der Aufrufer entscheidet den Default). */
+export function logResultFromWire(raw: string): string {
+  const v = raw.trim().toLowerCase().replace(/[-_]/g, '');
+  return ['found', 'partial', 'notfound', 'pending'].includes(v) ? v : '';
 }

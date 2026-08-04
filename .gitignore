@@ -13,6 +13,9 @@ tests/fixtures/*.ged
 tests/fixtures/*.gramps
 !tests/fixtures/*.small.ged
 !tests/fixtures/*.small.gramps
+# Der kuratierte Orts-/Hof-Bestand (orte.json) ist der ZWEITE Realdaten-Eingang des
+# Ladepfads — genauso personenbezogen wie die Genealogie selbst (BL-287).
+tests/fixtures/orte*.json
 
 # Natural-Earth-Quelldateien (40 MB) — nur das generierte region-geo.ts wird eingecheckt
 tools/regiongeo/.cache/

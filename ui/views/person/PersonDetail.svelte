@@ -11,7 +11,7 @@
   import type { LensId } from '../../shell/lens-model';
   import type { EventClipboard } from '../../shell/event-clipboard.svelte';
   import type { MediaResolver } from '../../../services/media';
-  import type { Person, Event } from '../../../core/model/types';
+  import type { Person } from '../../../core/model/types';
   import { untrack } from 'svelte';
   import PersonDetailHeader from './PersonDetailHeader.svelte';
   import MediaThumb from '../../shell/MediaThumb.svelte';
@@ -25,14 +25,14 @@
   import { displayName } from '../../shell/person-display';
   import { resolveProband } from '../../shell/proband';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
+  import { createPersonEventModal, eventForKey } from './person-event-modal.svelte';
   import PersonForm from './PersonForm.svelte';
   import PersonFamilies from './PersonFamilies.svelte';
   import PersonAssociations from './PersonAssociations.svelte';
   import ProofSummaryNote from './ProofSummaryNote.svelte';
   import { makeEvent, makeAssociation } from '../../../core/model/factory';
-  import { isEventPresent, isEventEmpty } from '../../../core/model';
-  import { eventTypeLabel } from '../../shell/event-labels';
-  import { formatDateForDisplay } from '../../../core/model/gedcom-date';
+  import { isEventPresent, isEventEmpty, isPersonEmpty } from '../../../core/model';
+  import { retractIfPristine } from '../../shell/create-retraction';
 
   interface Props {
     appState: AppState;
@@ -93,6 +93,15 @@
 
   let editing = $state(untrack(() => startInEdit));
 
+  /**
+   * Läuft gerade eine ANLAGE-Sitzung (BL-275)? `startInEdit` setzt nur `entity-tab-
+   * navigation` und nur direkt nach „＋ Neue Person" — der Wert ist damit die einzige
+   * Auskunft dieser Fläche darüber, dass der Datensatz eben erst entstanden ist.
+   * Eigener Zustand statt einer Ableitung aus `editing`: der Modus wird auf einer
+   * bestehenden Person genauso geöffnet, die Anlage-Eigenschaft gilt aber nur einmal.
+   */
+  let freshlyCreated = $state(untrack(() => startInEdit));
+
   function goToPerson(id: string) {
     viewState.setCurrent('person', id);
   }
@@ -101,6 +110,45 @@
    *  „Verwerfen" im Formular darf das NICHT, es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
+    // Ein bewusstes „Speichern" beendet die Anlage-Sitzung: ab hier ist der Datensatz
+    // bestätigt, auch wenn er leer geblieben ist (INV-UI-10 schützt den unbestätigten
+    // Zustand, nicht den bestätigten). Sonst nähme der nächste Ausgang eine Anlage
+    // zurück, die der Nutzer gerade eben ausdrücklich abgeschlossen hat.
+    freshlyCreated = false;
+  }
+
+  /**
+   * Der Ausgang aus einer Anlage, an der nichts hängt (BL-275, INV-UI-10 — Regel und
+   * Begründung in `create-retraction.ts`). Liefert `true`, wenn die Person entfernt
+   * wurde; dann gibt es hier nichts mehr zu zeigen und der Rückweg ist Pflicht.
+   */
+  function retractIfAbandoned(): boolean {
+    const weg = retractIfPristine({
+      fresh: freshlyCreated,
+      entity: detail?.person ?? null,
+      isEmpty: isPersonEmpty,
+      remove: (p) => appState.deletePerson(p.id),
+    });
+    if (weg) freshlyCreated = false;
+    return weg;
+  }
+
+  /** „Fertig"/„✎ Identität" — derselbe Schalter (INV-UI-16). Schließt er eine leer
+   *  gebliebene Neuanlage, ist das zugleich deren Rücknahme. */
+  function toggleEdit() {
+    if (editing && retractIfAbandoned()) {
+      onBack?.();
+      return;
+    }
+    editing = !editing;
+  }
+
+  /** „← Zurück" — der zweite Ausgang aus der Anlage-Sitzung, mit derselben Rücknahme.
+   *  Ohne ihn bliebe die Leiche genau auf dem Weg zurück, den der zweifelnde Nutzer
+   *  am ehesten nimmt. */
+  function handleBack() {
+    retractIfAbandoned();
+    onBack?.();
   }
 
   // --- Ereignis-Kategorien: "Lebensdaten" (Geburt/Taufe/Tod/Bestattung) wird separat
@@ -179,66 +227,14 @@
   const menuSecondary = $derived(secondaryEventMenu(detail?.person ?? null));
   const menuOther = otherEventMenu;
 
-  // --- Einzel-Ereignis-Editor (✎-Icon je Zeile, ADR-v9-60) + Neu-Anlage (ADR-v9-63) —
-  // EIN Modal-Zustand für beide Aufrufarten: `edit` (bestehende Zeile, Row-`key` wie in
-  // person-detail-model.ts's toEventRow: 'BIRT'/'CHR'/'DEAT'/'BURI'/`ev-${i}`) ODER
-  // `create` (frisch angelegtes Event eines GEDCOM-Tags, `makeEvent(tag)`). ---
-  type ModalState = { kind: 'edit'; key: string } | { kind: 'create'; tag: string };
-  let modal = $state<ModalState | null>(null);
-
-  /** Liest das rohe Event-Objekt aus der Person für einen Row-key (Kehrseite von
-   *  toEventRow's key-Vergabe). */
-  function eventForKey(p: Person, key: string): Event {
-    if (key === 'BIRT') return p.birth;
-    if (key === 'CHR') return p.chr;
-    if (key === 'DEAT') return p.death;
-    if (key === 'BURI') return p.buri;
-    return p.events[Number(key.slice(3))];
-  }
-
-  function openEventEdit(key: string) {
-    modal = { kind: 'edit', key };
-  }
-
-  /** Sonder-Ereignis-Pills (Taufe/Bestattung) UND generische Neu-Anlage (Wohnort-
-   *  Standing-Pill, "+ Ereignis"-Menü, "andere Typ"-Fallback) laufen über denselben
-   *  Neu-Modus — der Aufrufer (saveModal) entscheidet anhand des Tags, ob das Ergebnis
-   *  ein Sonder-Feld ersetzt oder zu `events[]` hinzugefügt wird. */
-  function startCreate(tag: string) {
-    modal = { kind: 'create', tag };
-  }
-
-  function closeModal() {
-    modal = null;
-  }
-
-  /** Zwischenablage (BL-212): kopieren aus dem Editor, einfügen über das „+ Ereignis"-
-   *  Menü. Das eingefügte Ereignis wird direkt angehängt — es ist bereits vollständig,
-   *  ein leerer Editor-Zwischenschritt wäre nur ein Klick mehr. */
-  /** Beschriftung der Ablage: Typ + der Wert, der das Ereignis unterscheidbar macht,
-   *  + Herkunftsperson (Design-Kritik 2026-07-31 — „⧉ Übernehmen: Beruf" verriet weder,
-   *  WELCHER Beruf noch VON WEM; nach ein paar Minuten ist das nicht mehr erratbar). */
-  function copyEvent(ev: Event) {
-    if (!detail) return;
-    const typ = eventTypeLabel(ev.type);
-    const wert = ev.value || ev.addr || ev.place || '';
-    const wer = displayName(detail.person) || detail.person.id;
-    clipboard?.copy(ev, wert ? `${typ} (${wert}) von ${wer}` : `${typ} von ${wer}`);
-  }
-
-  /** Kopieren gibt es NUR für generische `events[]`-Einträge, nicht für die vier
-   *  Sonder-Felder (BIRT/CHR/DEAT/BURI): eingefügt landet ein Ereignis immer in `events[]`,
-   *  ein dort abgelegtes DEAT erzeugte also eine ZWEITE `1 DEAT`-Zeile im Export neben
-   *  `person.death` — beim nächsten Laden gewönne eine davon still (dieselbe Falle wie
-   *  RELI, ADR-v9-156). */
-  const copyable = $derived(modal?.kind === 'edit' && modal.key.startsWith('ev-'));
-
-  function pasteEvent() {
-    if (!detail || !clipboard) return;
-    const ev = clipboard.take();
-    if (!ev) return;
-    appState.savePerson({ ...detail.person, events: [...detail.person.events, ev] });
-  }
+  // Der Einzel-Ereignis-Editor (Zustand + Ableitungen + Rückschreib-Pfad) lebt seit
+  // BL-275 in `person-event-modal.svelte.ts` (max-lines-Ratsche, dieselbe Aufteilung wie
+  // `person-event-menu.ts`): WAS bearbeitet wird, gehört nicht in die Frage, WAS
+  // gerendert wird. `untrack`, weil die Fabrik einmal je Mount entsteht und ihre
+  // Abhängigkeiten selbst als Getter liest.
+  const eventModal = untrack(() =>
+    createPersonEventModal({ appState, detail: () => detail, clipboard }),
+  );
 
   /** Assoziationen (BL-127) — dasselbe Kommando-Chokepoint-Muster wie `saveModal`:
    *  vollständige Person an `savePerson`, kein Feld-Setter. Bestehende Einträge werden
@@ -256,69 +252,6 @@
     appState.savePerson({ ...p, associations: p.associations.filter((_, i) => i !== index) });
   }
 
-  const modalEvent = $derived.by<Event | null>(() => {
-    if (!detail || !modal) return null;
-    if (modal.kind === 'edit') return eventForKey(detail.person, modal.key);
-    return makeEvent(modal.tag);
-  });
-
-  const modalLabel = $derived.by<string>(() => {
-    if (!detail || !modal) return '';
-    // Lokale Kopie: im `.find()`-Callback verliert TypeScript sonst die Einschränkung
-    // auf `kind === 'edit'` (Closure über eine mutable `let`-Variable — TS muss
-    // annehmen, sie könne sich zwischen Check und Aufruf ändern). Zur Laufzeit
-    // harmlos (`.find` ist synchron), aber svelte-check meldet es zu Recht.
-    const m = modal;
-    if (m.kind === 'edit') {
-      const row = detail.events.find((r) => r.key === m.key);
-      return row?.label ?? eventTypeLabel(m.key);
-    }
-    return eventTypeLabel(m.tag);
-  });
-
-  const modalCause = $derived(modal?.kind === 'edit' && modal.key === 'DEAT' ? (detail?.person.cause ?? '') : null);
-
-  /** Speichert das im Modal bearbeitete/angelegte Event zurück — klont die Person,
-   *  ersetzt NUR das betroffene Feld (Sonder-Ereignis-Feld ODER events[Index]) bzw. hängt
-   *  ein frisch angelegtes generisches Event an `events[]` an, und ruft
-   *  appState.savePerson(model) mit dem VOLLSTÄNDIGEN Objekt auf (Spec 02 §3 Kommando-
-   *  Chokepoint, kein Feld-Setter-Pattern). `cause` (Todesursache) wird nur bei
-   *  key==='DEAT' übernommen (lebt auf Person.cause, nicht am Event). */
-  function saveModal(updated: Event, cause: string, derivedBirth: string | null = null) {
-    if (!detail || !modal) return;
-    const p = detail.person;
-    const next: Person = { ...p };
-    if (modal.kind === 'edit') {
-      const key = modal.key;
-      if (key === 'BIRT') next.birth = updated;
-      else if (key === 'CHR') next.chr = updated;
-      else if (key === 'DEAT') {
-        next.death = updated;
-        next.cause = cause;
-      } else if (key === 'BURI') next.buri = updated;
-      else {
-        const idx = Number(key.slice(3));
-        next.events = p.events.map((e, i) => (i === idx ? updated : e));
-      }
-    } else {
-      const tag = modal.tag;
-      if (tag === 'CHR') next.chr = updated;
-      else if (tag === 'BURI') next.buri = updated;
-      else next.events = [...p.events, updated];
-    }
-    // Im Dialog vorgemerktes Geburtsdatum (BL-212/ADR-v9-168) im SELBEN Kommando
-    // schreiben — ein Speichern, ein Undo-Schritt. Ein vorhandenes Datum wird nie still
-    // überschrieben; sagt der Nutzer hier Nein, bleibt der Rest der Änderung trotzdem.
-    if (derivedBirth) {
-      const vorhanden = next.birth.date;
-      const label = formatDateForDisplay(derivedBirth);
-      if (!vorhanden || window.confirm(`Geburtsdatum ist bereits „${formatDateForDisplay(vorhanden)}". Durch „${label}" ersetzen?`)) {
-        next.birth = { ...next.birth, date: derivedBirth };
-      }
-    }
-    appState.savePerson(next);
-    modal = null;
-  }
 </script>
 
 {#snippet eventRow(ev: EventRow)}
@@ -327,12 +260,13 @@
       <div class="person-detail__event-head">
         <span class="person-detail__event-label">{ev.label}</span>
         <span class="person-detail__event-value">✓ Verstorben</span>
-        <button type="button" class="stb-activation-pill" onclick={() => openEventEdit('DEAT')}>
+        <button type="button" class="stb-activation-pill" onclick={() => eventModal.openEdit('DEAT')}>
           + Datum/Ort ergänzen
         </button>
         <button
           type="button"
-          class="stb-pill__remove person-detail__death-retract-btn"
+          class="stb-icon-btn person-detail__death-retract-btn"
+          data-variant="danger"
           onclick={retractDeath}
           aria-label="Verstorben-Markierung zurücknehmen"
           use:tooltip={'Zurücknehmen'}
@@ -351,7 +285,7 @@
       {onNavigateToSource}
       {onNavigateLens}
       onRetract={ev.key !== 'DEAT' ? retractOrRemove : undefined}
-      onEdit={openEventEdit}
+      onEdit={(key) => eventModal.openEdit(key)}
       images={detail ? eventImages(appState.db, eventForKey(detail.person, ev.key)) : []}
       {mediaResolver}
     />
@@ -373,8 +307,8 @@
       person={detail.person}
       {isProband}
       {editing}
-      onBack={onBack ?? (() => {})}
-      onToggleEdit={() => (editing = !editing)}
+      onBack={handleBack}
+      onToggleEdit={toggleEdit}
       onSetProband={() => viewState.setProband(detail.person.id)}
       {onOpenLens}
     />
@@ -415,12 +349,12 @@
         {#if !deathPresent}
           <button type="button" class="stb-activation-pill" onclick={markDeceased}>☠ Verstorben markieren</button>
         {/if}
-        <button type="button" class="stb-activation-pill" onclick={() => startCreate('RESI')}>+ Wohnort</button>
+        <button type="button" class="stb-activation-pill" onclick={() => eventModal.startCreate('RESI')}>+ Wohnort</button>
         <EventTypeMenu
           groups={[menuPrimary, menuSecondary]}
           otherItems={menuOther}
-          onSelect={startCreate}
-          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: pasteEvent } : undefined}
+          onSelect={(tag) => eventModal.startCreate(tag)}
+          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: () => eventModal.paste() } : undefined}
           clearItem={clipboard?.event ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
         />
       </div>
@@ -435,16 +369,16 @@
       {/each}
     </section>
 
-    {#if modal && modalEvent}
+    {#if eventModal.event && eventModal.mode}
       <EventEditModal
         {appState}
-        event={modalEvent}
-        label={modalLabel}
-        cause={modalCause}
-        mode={modal.kind}
-        onSave={saveModal}
-        onClose={closeModal}
-        onCopy={clipboard && copyable ? copyEvent : undefined}
+        event={eventModal.event}
+        label={eventModal.label}
+        cause={eventModal.cause}
+        mode={eventModal.mode}
+        onSave={(ev, cause, derivedBirth) => eventModal.save(ev, cause, derivedBirth)}
+        onClose={() => eventModal.close()}
+        onCopy={clipboard && eventModal.copyable ? (ev) => eventModal.copy(ev) : undefined}
         allowDeriveBirth={true}
       />
     {/if}

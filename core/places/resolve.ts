@@ -12,7 +12,7 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
 import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
-import { buildPlacForGedcom, buildFormString, eventYear, type PlaceContext } from './build-plac';
+import { buildFormString, eventYear, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
 import { normPlaceName, extractHofAddr, normHofAddr } from './normalize';
 
@@ -117,30 +117,17 @@ function chainCompatible(
   // ist. Ein reiner Namensketten-Vergleich (title vs. pname) vetote hier fälschlich →
   // eindeutiges Ereignis kippte grundlos in Review-Klasse P (Bugfix 2026-07-12, ADR-v9-71).
   // Prefix-Semantik: nur die gemeinsame Länge zählt.
+  //
+  // EIN Pfad für datierte UND undatierte Ereignisse (ADR-v9-195). Bis dahin standen hier
+  // zwei Zweige: der undatierte durchsuchte seit ADR-v9-72 ALLE `enclosedBy`-Ketten (ein
+  // gemergter Ort trägt mehrere), der datierte lief weiter über die EINE Kette aus
+  // `enclosureWinnerAsOf` — und damit bei undatierten Einträgen über `enclosedBy[0]`, genau
+  // den Walk, den ADR-v9-72 abgeschafft hatte. Ergebnis: jeder Merge machte die datierten
+  // Ereignisse seiner Verlierer unauflösbar (Review-Klasse P). `chainCompatibleAnyPath`
+  // nimmt das Jahr jetzt selbst entgegen und bleibt periodentreu — die Zwei-Zweig-Struktur,
+  // in der eine Hälfte nachgezogen werden konnte und die andere stehen blieb, entfällt.
   const stated = placParents.map(normPlaceName);
-
-  // UNDATIERTES Event (year==null): ALLE undatierten `enclosedBy`-Pfade durchsuchen (nach
-  // einem Merge trägt der Kandidat mehrere gültige Ketten, ADR-v9-72). Deckt sich mit dem
-  // Seed-Dedup (`existingParentsCompatible`) — EINE gemeinsame Funktion, kein zweiter Walk.
-  if (year == null) {
-    return chainCompatibleAnyPath(reg.byId, candidateId, stated);
-  }
-
-  // DATIERTES Event: periodenkorrekte Einzelkette (`enclosureWinnerAsOf` wählt bereits unter
-  // mehreren DATIERTEN Kandidaten den im Jahr gültigen) — hier UNVERÄNDERT.
-  const modeledIds = reg.enclosureIdsAsOf(candidateId, year).slice(1);
-  const n = Math.min(modeledIds.length, stated.length);
-  for (let i = 0; i < n; i++) {
-    const node = reg.byId(modeledIds[i]);
-    if (!node) return false;
-    const names = new Set<string>();
-    for (const nm of [node.title, ...node.pnames.map((p) => p.value)]) {
-      const k = normPlaceName(nm);
-      if (k) names.add(k);
-    }
-    if (!names.has(stated[i])) return false;
-  }
-  return true;
+  return chainCompatibleAnyPath(reg.byId, candidateId, stated, year);
 }
 
 /**
@@ -170,14 +157,23 @@ function resolveOne(
   let review: ReviewItem | null = null;
 
   const reproject = (path: ResolvePath): ResolvedEvent => {
-    // INV-PLACE: am Ende jedes Pfads. Bei gesetztem placeId/hofId ist ev.place
-    // ausschließlich die periodengerechte Projektion. (Bis ADR-v9-88 wurde hier eine
-    // ZWEITE Hof-Registry gebaut, damit ein soeben gebootstrappter Hof sichtbar ist —
-    // `ctx.hofs` ist dank `indexHof()` an der Bootstrap-Stelle bereits aktuell.)
-    if (ev.hofId != null || ev.placeId != null) {
-      const proj = buildPlacForGedcom(ev, year, ctx);
-      if (proj != null) ev.place = proj;
-    }
+    // KEINE PLAC-Reprojektion mehr im Ladepass (ADR-v9-197, BL-288). Bis dahin schrieb
+    // dieser Schritt `ev.place` bei jedem Laden neu — und weil der Writer den Wert
+    // anschließend in die Datei schreibt, änderte ein reines Öffnen-und-Speichern an
+    // `Unsere Familie 2026.ged` **668 PLAC-Werte** an Ereignissen, die niemand angefasst
+    // hatte. Eine byte-verändernde Projektion braucht einen user-induzierten Anlass;
+    // Laden ist keiner.
+    //
+    // Die Reprojektion ist damit nicht abgeschafft, sondern VERLEGT (Lesart b): sie
+    // gehört an den Kurationszeitpunkt und steht dort bereits — `linkEventToPlace`/
+    // `linkEventToHof` (core/places/commands.ts), `renameHofAddrInEvents`/
+    // `relinkHofVillageInEvents` (services/places/apply-resolution.ts). Alle vier sind
+    // ausdrückliche Nutzerhandlungen mit Undo.
+    //
+    // Die ANZEIGE verliert dadurch nichts: sie projiziert ohnehin live aus `placeId`
+    // (`eventPlaceLabel` → `buildFormString`), `ev.place` ist dort nur der Fallback für
+    // ungebundene Ereignisse. Was der Nutzer sieht, bleibt periodengerecht; was in der
+    // Datei steht, bleibt seine Quelle.
     // ev.addr NUR füllen wenn leer — Wire-ADDR bleibt byte-identisch (ADDR-Roundtrip).
     if (ev.hofId != null && !ev.addr) {
       const a = ctx.hofs.resolveAddrAsOf(ev.hofId, year);
@@ -194,7 +190,7 @@ function resolveOne(
   //    Die dazwischenliegenden PLAC→Dorf-Pfade 2–5 sind dann gegenstandslos (placeId != null
   //    ⇒ sie greifen ohnehin nicht) und werden übersprungen.
   const offenerAddrHof =
-    ev.hofId == null && ev.placeId != null && ev.addr !== '' && hofTypeAllowed &&
+    ev.hofId == null && ev.placeId != null && ev.addr != null && ev.addr !== '' && hofTypeAllowed &&
     !isAddrJustVillage(ev.addr, ev.placeId, ctx);
   if (!offenerAddrHof && (ev.placeId != null || ev.hofId != null)) {
     return { resolved: reproject('reproject'), review: null };

@@ -25,6 +25,7 @@ export {
   makeMediaCitation,
 } from './factory';
 export { isEventPresent, isEventEmpty } from './event';
+export { isPersonEmpty, isSourceEmpty, isRepositoryEmpty } from './empty';
 export {
   classifyMediaFile,
   isWebLink,

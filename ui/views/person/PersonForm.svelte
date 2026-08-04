@@ -19,6 +19,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person } from '../../../core/model/types';
   import { composeGedcomName } from '../../../core/model/name-parts';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     appState: AppState;
@@ -49,17 +50,7 @@
   let nick = $state(untrack(() => person.nick));
   let sex = $state(untrack(() => person.sex));
   let title = $state(untrack(() => person.title));
-  let religion = $state(untrack(() => person.religion));
 
-  // Häufige Konfessionswerte als `<datalist>`-Vorschläge (BL-212, ADR-v9-156) — dieselbe
-  // Preset+Freitext-Mechanik wie die Aufgaben-Kategorien (INV-UI-4), KEIN geschlossenes
-  // Enum: Bestandswerte bleiben unverändert erhalten (LP-1).
-  //
-  // Warum überhaupt: `RELI` ist in v9 ein Skalarfeld (kein Ereignis, deshalb auch kein
-  // Quick-Add-Chip wie in v8 — ADR-v9-156). Am Realbestand gemessen stehen dort DREI
-  // Schreibweisen derselben Konfession nebeneinander („röm.-kath." 16×, „röm. kath." 11×,
-  // „röm.-kath" 1×) — genau die Streuung, die Vorschläge eindämmen.
-  const RELIGION_PRESETS = ['röm.-kath.', 'evang.', 'katholisch'];
   let noteText = $state(untrack(() => person.noteText));
   let restriction = $state(untrack(() => person.restriction));
   let email = $state(untrack(() => person.email));
@@ -78,7 +69,6 @@
   let showPrefixSuffix = $state(untrack(() => person.prefix !== '' || person.suffix !== ''));
   let showNick = $state(untrack(() => person.nick !== ''));
   let showTitle = $state(untrack(() => person.title !== ''));
-  let showReligion = $state(untrack(() => person.religion !== ''));
   let showRestriction = $state(untrack(() => person.restriction !== ''));
   let showEmail = $state(untrack(() => person.email !== ''));
   let showWww = $state(untrack(() => person.www !== ''));
@@ -89,7 +79,9 @@
     activate: () => void;
   }
 
-  /** Identitäts-Pills (Präfix/Suffix, Rufname, Titel, Religion, RESN, E-Mail, Website) —
+  /** Identitäts-Pills (Präfix/Suffix, Rufname, Titel, RESN, E-Mail, Website) — Religion
+   *  ist seit BL-289 keine Identitäts-Eigenschaft mehr, sondern ein Ereignis mit Datum,
+   *  Ort und Zitaten; sie wird über die Ereigniszeile gepflegt. —
    *  einzige verbleibende Pill-Gruppe in diesem Formular (die Ereignis-Pills leben seit
    *  ADR-v9-63 direkt auf `PersonDetail.svelte`). */
   const identityPills = $derived.by<FieldPill[]>(() => {
@@ -97,7 +89,6 @@
     if (!showPrefixSuffix) list.push({ id: 'prefix-suffix', label: 'Präfix / Suffix', activate: () => (showPrefixSuffix = true) });
     if (!showNick) list.push({ id: 'nick', label: 'Rufname', activate: () => (showNick = true) });
     if (!showTitle) list.push({ id: 'title', label: 'Titel', activate: () => (showTitle = true) });
-    if (!showReligion) list.push({ id: 'religion', label: 'Religion', activate: () => (showReligion = true) });
     if (!showRestriction) list.push({ id: 'restriction', label: 'Zugriffsbeschränkung', activate: () => (showRestriction = true) });
     if (!showEmail) list.push({ id: 'email', label: 'E-Mail', activate: () => (showEmail = true) });
     if (!showWww) list.push({ id: 'www', label: 'Website', activate: () => (showWww = true) });
@@ -119,7 +110,6 @@
     nick = person.nick;
     sex = person.sex;
     title = person.title;
-    religion = person.religion;
     noteText = person.noteText;
     restriction = person.restriction;
     email = person.email;
@@ -155,7 +145,6 @@
       nick: nick.trim(),
       sex,
       title: title.trim(),
-      religion: religion.trim(),
       noteText,
       restriction: restriction.trim(),
       email: email.trim(),
@@ -168,7 +157,13 @@
   }
 </script>
 
-<div class="person-form" data-no-swipe>
+<!-- `<form>`, nicht `<div>` (BL-276, §6i): Enter speichert, Escape ruft denselben
+     Sekundär-Ausgang wie der Knopf unten — Regel und Fallen in `form-keys.ts`. -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="person-form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(onCancel ?? discard)}>
   <!-- Nur im ANLAGE-Fall (BL-274, §10e Redundanter Hero-Titel): auf der Detailseite steht
        der Name bereits in der Kopfzeile, die seit BL-274 im Bearbeiten-Modus stehen bleibt
        — „Person bearbeiten" wäre dort ein zweiter, ärmerer Titel. Im Picker-Entwurf gibt
@@ -218,17 +213,6 @@
           <input type="text" bind:value={title} />
         </label>
       {/if}
-      {#if showReligion}
-        <label>
-          Religion
-          <input type="text" bind:value={religion} list="person-religion-presets" />
-          <datalist id="person-religion-presets">
-            {#each RELIGION_PRESETS as preset (preset)}
-              <option value={preset}></option>
-            {/each}
-          </datalist>
-        </label>
-      {/if}
       {#if showRestriction}
         <label>
           RESN (Zugriffsbeschränkung)
@@ -262,14 +246,14 @@
   </section>
 
   <div class="person-form__actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     {#if onCancel}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
     {:else}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
     {/if}
   </div>
-</div>
+</form>
 
 <style>
   .person-form {

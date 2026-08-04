@@ -296,6 +296,18 @@ export interface MergeResult {
    * nach (`mapAllEvents`). Leer, wenn kein Hof zusammengeführt wurde.
    */
   hofRemap: ReadonlyMap<HofId, HofId>;
+  /**
+   * Verlierer-Ort → Überlebender-Ort, exakt in der Rolle von `hofRemap` (ADR-v9-195).
+   * Bis dahin fasste der Merge `event.placeId` gar nicht an, mit der Begründung, das Feld
+   * sei runtime-only und werde „beim nächsten `resolveEvents()` neu abgeleitet". Beide
+   * Hälften der Annahme trugen nicht: in der laufenden Sitzung zeigt die Referenz auf eine
+   * gelöschte ID (sichtbar als „Ort nicht gefunden" am Ereignis-Link, und die Ereignisse
+   * fehlen im Steckbrief des Überlebenden), und der nächste Ladepass holte sie nicht heim,
+   * sondern warf sie in Review-Klasse P (s. `resolve.ts::chainCompatible`, im selben ADR
+   * behoben). Enthält nur tatsächlich zusammengeführte Orte — Selbst-Merge und fehlende
+   * IDs stehen nicht drin.
+   */
+  placeRemap: ReadonlyMap<PlaceId, PlaceId>;
 }
 
 /**
@@ -330,20 +342,29 @@ export function mergePlaceObjects(
   const losers = Array.isArray(mergedIds) ? mergedIds : [mergedIds as PlaceId];
   const thawedPlaces = new Set<PlaceId>();
   const thawedHofs = new Set<HofId>();
+  const placeRemap = new Map<PlaceId, PlaceId>();
   for (const mergedId of losers) {
-    mergePlaceObjectPair(places, hofObjects, survivorId, mergedId, thawedPlaces, thawedHofs);
+    mergePlaceObjectPair(places, hofObjects, survivorId, mergedId, thawedPlaces, thawedHofs, placeRemap);
   }
   const hofRemap = new Map<HofId, HofId>();
   const hofsMerged = reconcileHofsUnderVillage(hofObjects, survivorId, events, thawedHofs, hofRemap);
-  return { hofsMerged, villageId: hofsMerged > 0 ? survivorId : null, hofRemap };
+  return { hofsMerged, villageId: hofsMerged > 0 ? survivorId : null, hofRemap, placeRemap };
 }
+
+/**
+ * Identität eines `enclosedBy`-Eintrags für die Dedup-Prüfung: derselbe Elter zur selben
+ * Periode. EINE Definition für den Vereinigungs-Schritt und das Umhängen (ADR-v9-195) —
+ * zwei Kopien wären zwei Gelegenheiten zum Auseinanderlaufen.
+ */
+const encKey = (e: DatedRef): string => `${e.placeId}|${e.from}|${e.to}`;
 
 /**
  * Paarweiser, verlustfreier Orts-Merge (interne Kern-Logik, §9.2 Punkt 2). Titel + `pnames`
  * überleben als Namensvarianten (dedupliziert über die Norm-Form); fehlende Metadaten des
  * Überlebenden werden gefüllt; `enclosedBy` vereinigt; alle Fremd-Referenzen (andere
- * `PlaceObjects.enclosedBy`, `HofObjects.villageId`) umgehängt. `event.placeId` ist
- * runtime-only (Spec 11 §2) → beim nächsten `resolveEvents()` neu abgeleitet, hier nichts zu tun.
+ * `PlaceObjects.enclosedBy`, `HofObjects.villageId`) umgehängt. `event.placeId` wird nicht
+ * mutiert, sondern über `remap` GEMELDET — der Aufrufer zieht die Referenzen copy-on-write
+ * nach (ADR-v9-195, dieselbe Arbeitsteilung wie beim Hof-Merge, ADR-v9-92).
  * No-Op bei gleicher ID oder fehlendem Ort. Der Hof-Nachlauf läuft NICHT hier, sondern einmal
  * im Wrapper `mergePlaceObjects` (nach allen Verlierern).
  */
@@ -354,6 +375,7 @@ function mergePlaceObjectPair(
   mergedId: PlaceId,
   thawedPlaces: Set<PlaceId>,
   thawedHofs: Set<HofId>,
+  remap: Map<PlaceId, PlaceId>,
 ): void {
   if (survivorId === mergedId) return;
   // Der Überlebende wird geändert → bearbeitbares Exemplar (Copy-on-Write, ADR-v9-92).
@@ -378,7 +400,6 @@ function mergePlaceObjectPair(
   for (const pn of merged.pnames) addName(pn.value, pn.from, pn.to);
 
   // 2. enclosedBy vereinigen (Selbst-/Kreis-Referenzen weglassen, dedupliziert).
-  const encKey = (e: DatedRef): string => `${e.placeId}|${e.from}|${e.to}`;
   const encSeen = new Set(survivor.enclosedBy.map(encKey));
   for (const e of merged.enclosedBy) {
     if (e.placeId === survivorId || e.placeId === mergedId) continue;
@@ -426,12 +447,33 @@ function mergePlaceObjectPair(
   // 4. Fremd-Referenzen umhängen: andere PlaceObjects.enclosedBy, die auf mergedId zeigen.
   //    Erst prüfen (auf dem geteilten Objekt), dann NUR die Treffer auftauen — sonst wäre
   //    jeder Merge eine Tiefkopie aller Orte.
+  //
+  //    ZWEI Fälle, die ein naives Umhängen kaputtmacht (ADR-v9-195):
+  //    (a) Das Ziel IST der Überlebende — er war unter dem Verlierer eingeordnet (Merge
+  //        eines Ortes in sein eigenes Kind) oder hat den Verweis in Schritt 2 von einem
+  //        früheren Verlierer derselben Gruppe geerbt. Umhängen ergäbe „Ort enthält sich
+  //        selbst": ein Zustand, der in orte.json persistiert und jede Kette still an
+  //        Ort und Stelle enden lässt (`enclosureIdsAsOf` bricht per `seen`-Guard ab).
+  //        Der Verweis fällt deshalb ersatzlos weg — die Zugehörigkeit „zu sich selbst"
+  //        trägt keine Information, es geht nichts verloren (LP-1 unberührt).
+  //    (b) Das Ziel zeigt bereits auf den Überlebenden — dann entstünde durch das Umhängen
+  //        ein exaktes Duplikat. Dedupliziert wird über dasselbe `{placeId, from, to}`-
+  //        Tripel wie in Schritt 2 (eine Regel, nicht zwei).
   for (const id of [...places.keys()]) {
     if (id === mergedId) continue;
     const pl = places.get(id)!;
     if (!pl.enclosedBy.some((e) => e.placeId === mergedId)) continue;
     const target = editableIn(places, id, thawedPlaces)!;
-    for (const e of target.enclosedBy) if (e.placeId === mergedId) e.placeId = survivorId;
+    const seenEnc = new Set<string>();
+    target.enclosedBy = target.enclosedBy
+      .map((e) => (e.placeId === mergedId ? { ...e, placeId: survivorId } : e))
+      .filter((e) => {
+        if (e.placeId === id) return false; // (a) Selbstbezug
+        const k = encKey(e);
+        if (seenEnc.has(k)) return false; // (b) Duplikat
+        seenEnc.add(k);
+        return true;
+      });
   }
   // 5. HofObjects.villageId umhängen (gleiches Muster: prüfen, dann nur Treffer auftauen).
   for (const id of [...hofObjects.keys()]) {
@@ -439,8 +481,11 @@ function mergePlaceObjectPair(
     editableIn(hofObjects, id, thawedHofs)!.villageId = survivorId;
   }
 
-  // 6. Zusammengeführten Ort entfernen.
+  // 6. Zusammengeführten Ort entfernen und die Umhängung melden (ADR-v9-195). Der Eintrag
+  //    entsteht erst HIER — nach allen Guards oben —, damit nur tatsächlich zusammengeführte
+  //    Orte gemeldet werden (Selbst-Merge und fehlende IDs sind vorher schon returniert).
   places.delete(mergedId);
+  remap.set(mergedId, survivorId);
 }
 
 /**

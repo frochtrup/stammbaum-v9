@@ -71,6 +71,22 @@ export interface ExportRequestUi {
 }
 
 /**
+ * Ergebnis eines Export-Vorgangs für die Oberfläche.
+ *
+ * `handle` ist ein PFLICHTFELD des Rückgabetyps (optional nur im Wert), damit der Compiler
+ * jeden Aufrufer die Frage stellen lässt „muss ich das merken?" — dieselbe Wahl wie bei
+ * `EventsByType.resetKey` (Zwang statt Erinnerung). Wer es fallen lässt, verliert nur den
+ * stillen Folge-Save; wer es vergisst, ohne es zu sehen, hätte einen Nutzer, der bei JEDEM
+ * Speichern wieder den Dialog bekommt.
+ */
+export interface ExportOutcome {
+  /** Anzuzeigender Hinweis. */
+  notice: string;
+  /** Bei „Speichern unter" (Tier 1b) das neu erworbene FS-Handle, sonst undefined. */
+  handle?: unknown;
+}
+
+/**
  * DER EINE Export-Vorgang der Schale: Speichern-Knopf, ⌘S und die Export-Fläche laufen
  * hier durch. Liefert den anzuzeigenden Hinweis zurück (nie einen Wurf — der Aufrufer
  * soll eine Meldung zeigen, nicht abstürzen). Verzweigt formatabhängig zwischen GEDCOM-Doc
@@ -80,7 +96,7 @@ export async function exportGedcom(
   appState: AppState,
   fileService: FileService,
   req: ExportRequestUi,
-): Promise<string> {
+): Promise<ExportOutcome> {
   const baseName = baseNameOf(appState.fileName);
   const anonymize = req.anonymizeReferenceYear != null;
   const isGramps = req.format === 'gramps';
@@ -102,12 +118,32 @@ export async function exportGedcom(
       handle: inPlaceCapable ? req.handle : undefined,
       anonymizeReferenceYear: req.anonymizeReferenceYear,
     });
-    if (!result.ok) return 'Speichern abgebrochen.';
-    if (result.tier === 'fs-handle') return 'Gespeichert (direkt in die Datei).';
+    if (!result.ok) return { notice: 'Speichern abgebrochen.' };
+    if (result.tier === 'fs-handle') return { notice: 'Gespeichert (direkt in die Datei).' };
+    // Tier 1b: der Nutzer hat das Ziel selbst gewählt — die Datei IST geschrieben, nicht
+    // nur „angeboten". Das Handle geht mit zurück, damit der nächste Save still läuft.
+    if (result.tier === 'fs-picker') {
+      // Persistenz HIER, nicht beim Aufrufer: exportGedcom ist die eine Naht, durch die
+      // Knopf, ⌘S und Export-Fläche laufen — drei Aufrufer, die es einzeln vergessen
+      // könnten. Ein Tier-1b-Save trifft nur den nativen Pfad (jedes andere Format läuft
+      // mit forceDownload), das Handle gehört also zwingend zur Arbeitskopie.
+      //
+      // ABSICHTLICH best-effort: die Datei IST an dieser Stelle bereits vollständig
+      // geschrieben. Das Merken ist eine Bequemlichkeit für den NÄCHSTEN Save — scheitert
+      // es (IDB voll, Handle nicht strukturiert klonbar), wäre „Speichern fehlgeschlagen"
+      // eine Falschmeldung, die den Nutzer ein zweites Mal speichern lässt. Der Preis des
+      // Scheiterns ist allein, dass beim nächsten Mal wieder der Dialog kommt.
+      try {
+        await fileService.rememberHandle(result.handle);
+      } catch {
+        /* bewusst verschluckt — s. o. */
+      }
+      return { notice: 'Gespeichert (in die gewählte Datei).', handle: result.handle };
+    }
     const wohin = result.tier === 'share' ? 'Zum Sichern angeboten (Share-Sheet).' : 'Als Download bereitgestellt.';
-    return inPlaceCapable ? wohin : `${wohin.slice(0, -1)}: ${filename}`;
+    return { notice: inPlaceCapable ? wohin : `${wohin.slice(0, -1)}: ${filename}` };
   } catch (err) {
-    return 'Speichern fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err));
+    return { notice: 'Speichern fehlgeschlagen: ' + (err instanceof Error ? err.message : String(err)) };
   }
 }
 
@@ -121,6 +157,6 @@ export async function saveCurrentDoc(
   appState: AppState,
   fileService: FileService,
   handle?: unknown,
-): Promise<string> {
+): Promise<ExportOutcome> {
   return exportGedcom(appState, fileService, { format: nativeFormatOf(appState), handle });
 }

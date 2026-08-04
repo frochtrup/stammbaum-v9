@@ -16,8 +16,6 @@
   // noch an MoreView durch, statt sie hier selbst zu rendern.
   import { onMount, untrack } from 'svelte';
   import { createViewState } from '../ui/shell/view-state.svelte';
-  import { resolveProband } from '../ui/shell/proband';
-  import { displayName } from '../ui/shell/person-display';
   import { createProjectsState } from '../ui/shell/projects-state.svelte';
   import { createAppState } from '../ui/shell/app-state.svelte';
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
@@ -32,7 +30,6 @@
     isResearchTarget,
     type BottomNavSlot,
     type EntityTargetId,
-    type NavTargetId,
   } from '../ui/shell/nav-model';
   import { createRoute } from '../ui/shell/route.svelte';
   import { createNavHistory } from '../ui/shell/nav-history.svelte';
@@ -58,13 +55,10 @@
     type MediaResolver,
   } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
-  import type { LensId } from '../ui/shell/lens-model';
-  import { focusPersonInLens } from '../ui/shell/lens-jump';
-  import { jumpToEntity, jumpToFamilyStory, runPaletteCommand } from '../ui/shell/entity-jump';
   import UndoControls from '../ui/shell/UndoControls.svelte';
   import { createShortcutHandler } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
-  import type { Command } from '../ui/shell/command-palette-model';
+  import { createAppNavigation } from '../ui/shell/app-navigation.svelte';
   import { saveCurrentDoc } from '../ui/shell/save-action';
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
@@ -277,90 +271,35 @@
     layout.isDesktopLayout && route.target === 'more' ? route.entityTarget : route.target,
   );
 
-  function navigateFromSidebar(target: NavTargetId) {
-    route.setTarget(target);
-  }
-
-  function navigate(slot: BottomNavSlot) {
-    // "Personen" ist der Einstieg in die ENTITÄTEN (Spec 21 §2), nicht in die
-    // Personenliste im engeren Sinn: der Slot führt auf das zuletzt offene
-    // Entitäts-Segment zurück, nicht stur auf Personen.
-    if (slot === 'person') route.openEntities();
-    // "Baum" ist genauso der Einstieg in die LENSES, nicht in den Baum im engeren Sinn:
-    // der Slot führt auf die zuletzt offene Ansicht zurück (Baum/Karte/Zeitleiste).
-    // Bis ADR-v9-102 stand hier `setTarget('tree')` — der Slot sprang stur auf den Baum,
-    // während der Slot direkt daneben sich sein Segment längst merkte.
-    else if (slot === 'tree') route.openLens();
-    // "Aufgaben" ist genauso der Einstieg in die FORSCHUNG (Spec 21 §2, ADR-v9-116), nicht
-    // stur auf "Aufgaben": der Slot führt auf das zuletzt offene Forschungsziel zurück
-    // (Aufgaben/Protokoll/Hypothesen/Dashboard) — dieselbe Merker-Logik wie Personen/Baum.
-    else if (slot === 'tasks') route.openResearch();
-    else route.setTarget(slot);
-  }
-
-  // Lens-Umschalter (Spec 21 §4, INV-UI-3) — EIN Callback für alle Lens-Wechsel aus
-  // jeder Lens heraus (TreeView, MapLensView UND TimelineLensView reichen denselben
-  // Callback-Namen durch). Der Fokus selbst wird NICHT hier verschoben: er lebt bereits
-  // im geteilten ViewState-Slot `lensFocus` (view-state.svelte.ts) und bleibt beim
-  // Wechsel automatisch erhalten, weil alle Lenses denselben Slot lesen/schreiben.
-  function navigateLens(lens: LensId) {
-    // Lens-Ids sind seit BL-90 zugleich Ziel-Ids des Registers — die frühere
-    // if/else-Übersetzung entfällt. Alle vier Lenses (inkl. Story, BL-133) sind gebaut.
-    route.setTarget(lens);
-  }
-
-  // Umgekehrte Richtung: Personen-Kontext-Sprung aus PersonDetail in eine Lens
-  // (BL-60/ADR-v9-153; durchgereicht via EntityTab.onOpenLensForPerson ->
-  // PersonDetail.onOpenLens -> PersonDetailHeader/LensSwitcher). Ersetzt die vormals
-  // zwei handgeschriebenen Sprünge `openTreeFromPersonDetail`/`openStoryFromPersonDetail`
-  // — Karte und Zeitleiste fehlten dort schlicht. Die Slot-Reihenfolge lebt EINMAL in
-  // `ui/shell/lens-jump.ts` (INV-UI-4), nicht hier je Ziel nachgebaut.
-  function openLensForPerson(personId: string, lens: LensId) {
-    focusPersonInLens(viewState, route, personId, lens);
-  }
-
-  // Sprung auf eine Entitäts-Detailseite — aus der globalen Suche, der Befehlspalette,
-  // dem Baum (Zentrum-Karte -> Person, ⚭-Badge -> Familie) und „Zum Probanden". Die
-  // Mechanik (Auswahl setzen, Ziel setzen, Sonderfall Archiv) lebt EINMAL in
-  // `ui/shell/entity-jump.ts` (INV-UI-4), nicht hier siebenmal nachgebaut; hier bleiben
-  // nur die benannten Aufrufer, die die Kind-Komponenten als Callback bekommen.
-  const openPerson = (id: string) => jumpToEntity(viewState, route, 'person', id);
-  const openFamily = (id: string) => jumpToEntity(viewState, route, 'family', id);
-  const openSource = (id: string) => jumpToEntity(viewState, route, 'source', id);
-  const openPlace = (id: string) => jumpToEntity(viewState, route, 'place', id);
-  const openHof = (id: string) => jumpToEntity(viewState, route, 'hof', id);
-
-  // "📖 Story" aus FamilyDetail: couple-zentrische Familien-Biografie in der Story-Lens
-  // (BL-186). Setzt die explizit gewählte Familie + Familien-Modus.
-  const openStoryFromFamilyDetail = (familyId: string) => jumpToFamilyStory(viewState, route, familyId);
+  // Wohin es als Nächstes geht: Sidebar-/BottomNav-Slots, Lens-Wechsel, Entitäts-Sprünge
+  // und der Proband liegen seit ADR-v9-194 als kohäsive Einheit daneben (app-navigation),
+  // wie schon bei EntityTab. Hier bleibt, WELCHE Fläche zum aktuellen Ziel rendert.
+  const nav = createAppNavigation(appState, viewState, route);
+  const {
+    navigateFromSidebar,
+    navigate,
+    navigateLens,
+    openLensForPerson,
+    openPerson,
+    openFamily,
+    openSource,
+    openPlace,
+    openHof,
+    openStoryFromFamilyDetail,
+    runCommand,
+  } = nav;
   // Befehlspalette (⌘K, BL-93) — Desktop-Pendant zur Suche (Spec 21 §3). Sie lebt hier
   // an der Schale, weil sie in JEDER Ansicht erreichbar sein muss.
   let paletteOpen = $state(false);
 
-  /** Ausführen eines Palette-Befehls: Navigationsziel ODER Sprung auf eine Entität.
-   *  Die Entitäts-Sprünge nutzen exakt die Funktionen, die auch die Suchfläche
-   *  bedienen (openPerson & Co.) — kein zweiter Sprung-Pfad. */
-  // „Zum Probanden" (BL-120): auf die Detailseite der effektiven Referenzperson springen
-  // (Session-Proband, sonst kleinste ID — ADR-v9-135/139). Derselbe Sprung-Mechanismus wie
-  // die globale Suche (ViewState-Auswahl + Routen-Ziel setzen).
-  function goToProband() {
-    const pid = resolveProband(appState.db, viewState);
-    if (pid) openPerson(pid);
-  }
-
-  // Der effektive Proband als Palette-Befehl (id + Anzeigename) — App kennt viewState, die
-  // Palette selbst nicht; sie zeigt nur, was hier aufgelöst wurde.
-  const probandCommand = $derived.by(() => {
-    const pid = resolveProband(appState.db, viewState);
-    const p = pid ? appState.db.individuals.get(pid) : null;
-    return p ? { id: p.id, label: displayName(p) } : null;
-  });
-
-  const runCommand = (cmd: Command) => runPaletteCommand(viewState, route, cmd, goToProband);
 
   async function runSave() {
     if (!appState.fileName) return;
-    placesEditNotice = await saveCurrentDoc(appState, fileService, fileHandle);
+    const outcome = await saveCurrentDoc(appState, fileService, fileHandle);
+    placesEditNotice = outcome.notice;
+    // „Speichern unter" (Tier 1b) hat ein Handle erworben — ab jetzt schreibt ⌘S still
+    // in dieselbe Datei. In der Arbeitskopie liegt es schon (save-action.ts).
+    if (outcome.handle !== undefined) fileHandle = outcome.handle;
   }
 
   // Tastenkürzel der Schale (BL-01 Undo/Redo, BL-08 Speichern/Escape, BL-93 Palette).
@@ -395,7 +334,7 @@
   <CommandPalette
     db={appState.db}
     ctx={appState.placeContext}
-    proband={probandCommand}
+    proband={nav.probandCommand}
     onClose={() => (paletteOpen = false)}
     onRun={runCommand}
   />
@@ -501,7 +440,7 @@
         {fileHandle}
         {route}
         {viewState}
-        onImported={(handle) => (fileHandle = handle)}
+        onFileHandleChanged={(handle) => (fileHandle = handle)}
       />
     {/if}
   </main>

@@ -30,6 +30,7 @@
   import type { PlaceId } from '../../../core/model/types';
   import type { PlaceObject } from '../../../core/places/types';
   import PlaceEditForm from './PlaceEditForm.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import PlaceNamesSection from './PlaceNamesSection.svelte';
   import PlaceMiniMap from './PlaceMiniMap.svelte';
   import {
@@ -118,18 +119,16 @@
 
 
   /**
-   * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()` (kein etabliertes
-   * Bestätigungs-Dialog-Muster im Projekt gefunden — Vereinfachen-vor-Erfinden). Räumt
-   * hängende Event-Referenzen kaskadierend auf (`appState.deletePlace` →
-   * `deletePlaceCascade`, s. app-state.svelte.ts) — hier nur der UI-Trigger + Navigation
-   * zurück zur Liste danach.
+   * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()`. Räumt hängende
+   * Event-Referenzen kaskadierend auf (`appState.deletePlace` → `deletePlaceCascade`,
+   * s. app-state.svelte.ts) — hier nur der UI-Trigger + Navigation zurück danach.
+   *
+   * Die Bestätigung selbst trägt seit BL-277/ADR-v9-217 `DeleteEntityButton` (INV-UI-4,
+   * dieselbe abgesetzte Danger-Zone wie bei Person/Familie/Quelle/Archiv/Medium); dieses
+   * `confirm()` steht deshalb nicht mehr hier, sondern als `message` dort unten.
    */
   function handleDelete() {
     if (!detail) return;
-    const label = placeHeading(detail.place);
-    if (!window.confirm(`Ort „${label}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Ort werden dabei entfernt (nicht die Ereignisse selbst).`)) {
-      return;
-    }
     appState.deletePlace(detail.place.id);
     editing = false;
     onBack?.();
@@ -198,11 +197,7 @@
     </DetailHeader>
 
     {#if editing}
-      <PlaceEditForm
-        place={detail.place}
-        onSave={handleSaveEdit}
-        onDelete={handleDelete}
-      />
+      <PlaceEditForm place={detail.place} onSave={handleSaveEdit} />
     {/if}
 
     <section class="place-detail__section">
@@ -357,6 +352,19 @@
         </div>
       </section>
     {/if}
+
+    <!-- BL-277/ADR-v9-217: dieselbe abgesetzte Danger-Zone wie bei den fünf übrigen
+         Entitäten (INV-UI-4). Vorher stand „Ort löschen" in der Knopfreihe des
+         Grunddaten-Formulars — destruktiv unmittelbar neben „Speichern", und nur über den
+         Editor erreichbar. NICHT hinter `editing`: das Gate aus ADR-v9-30 Punkt 5 hält
+         Feld- und Beziehungs-Controls von der Lesefläche fern; ein Record-Löschen bringt
+         mit dem Bestätigungsdialog sein eigenes, stärkeres Gate mit — genau der
+         Unterschied zu GOV-Import/Merge, die keinen haben (ADR-v9-193). -->
+    <DeleteEntityButton
+      label="Ort löschen"
+      message={`Ort „${placeHeading(detail.place)}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Ort werden dabei entfernt (nicht die Ereignisse selbst).`}
+      onConfirm={handleDelete}
+    />
   {/if}
 </div>
 

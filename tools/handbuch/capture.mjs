@@ -55,6 +55,17 @@ const MEDIA_IMAGE_NAMES = [
 // ist vollständig (Nutzer-Vorgabe). @I3@ hat DEAT 7 SEP 1997.
 const RICH_PERSON = 'Kaspar Hörstmann'; // *1933 Vechta, †1997 Ochtrup, viele Berufe (Sanduhr-Vater, @I3@)
 const RICH_SURNAME = 'Hörstmann';
+// Für die Lösch-Zone (04c) bewusst eine KURZE Seite — die Zone steht per Definition ganz
+// unten, und nur hier passt der GANZE Steckbrief mitsamt ihr auf einen Schirm: Das Bild
+// zeigt damit die Aussage selbst („Löschen sitzt abgesetzt am Fuß"), statt einen aus dem
+// Zusammenhang gerissenen Seitenausschnitt.
+//
+// URSPRÜNGLICH war es ein Ausweichmanöver: auf einer langen Seite war die Zone am Handy
+// gar nicht erreichbar (BL-309 — `.entity-tab__swipe` ohne CSS-Regel, die Detailfläche
+// wurde nie höhenbegrenzt und scrollte nicht). Das ist seit ADR-v9-220 behoben; die
+// kurze Seite bleibt trotzdem, jetzt aus dem Grund oben. Ebenfalls verstorben (README-
+// Vorgabe) und im Bestand namens-EINDEUTIG geprüft (Lesson 6).
+const SHORT_PERSON = 'Engelbert Bendfeld'; // @I174@, nur NAME/SEX/BIRT/DEAT — Seite passt auf einen Schirm
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 if (!existsSync(CHROME)) { console.error('Chrome nicht gefunden:', CHROME); process.exit(1); }
@@ -120,6 +131,58 @@ async function shot(name) {
   await sleep(650); await page.screenshot({ path: `${OUT}/${name}.png` }); console.log('  ✓', name);
 }
 async function scrollTop() { await page.evaluate(() => window.scrollTo(0, 0)); await sleep(200); }
+// Wie scrollTop, aber auch für Ansichten, die einen INNEREN Container scrollen (Lesson 7):
+// `window.scrollTo` bewirkt dort nichts. Nötig nach jedem `click()`, denn dessen
+// `scrollIntoView({block:'center'})` verschiebt genau diesen Container — ein danach am
+// Kopf gemeinter Screenshot läge sonst mitten im Formular.
+async function scrollAllTop() {
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    for (const el of document.querySelectorAll('*')) {
+      if (el.scrollHeight > el.clientHeight + 4) el.scrollTop = 0;
+    }
+  });
+  await sleep(250);
+}
+// Scrollt ein Element in die MITTE des Sichtfelds; `scrollIntoView` findet den richtigen
+// Scroll-Vorfahren selbst (Lesson 7), eine eigene Vorfahren-Suche trifft dagegen leicht
+// einen kleinen inneren Container und lässt die Seite stehen (erlebt).
+//
+// ZWEI Fallen, beide an 04c-loeschzone erlebt:
+//  (a) `block:'end'` richtet die Unterkante an der Container-Unterkante aus — und die
+//      liegt hinter der eingeblendeten Bottom-Nav. Deshalb 'center'.
+//  (b) Der Steckbrief wächst NACH dem Scrollen: das Porträt und die Ereignis-Miniaturen
+//      kommen aus IndexedDB und werden asynchron eingesetzt. Wer sofort scrollt, scrollt
+//      auf eine Layout-Höhe, die es 300ms später nicht mehr gibt — das Ziel rutscht unter
+//      die Falz. Darum erst absetzen lassen, dann scrollen.
+// Deshalb wird ZWEIMAL gescrollt, mit einer Pause dazwischen: der zweite Lauf korrigiert,
+// was das Nachwachsen verschoben hat. Ein einzelner Scroll (auch nach 1,2s Wartezeit)
+// landete reproduzierbar knapp zu hoch.
+async function scrollToEl(selector, settleMs = 1200) {
+  const scrollIt = () => page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return false;
+    // Erst den echten Scroll-Container ans Ende fahren (er ist es, der die Position
+    // bestimmt), dann scrollIntoView als Feinschliff für den Fall, dass das Ziel NICHT
+    // das letzte Element ist. Nur scrollIntoView reichte nicht: es „zentriert" und
+    // klemmt am Maximum, landete an der langen Personenseite aber reproduzierbar so,
+    // dass das Ziel unter der Bottom-Nav lag.
+    let p = el.parentElement;
+    while (p) {
+      if (p.scrollHeight > p.clientHeight + 4) { p.scrollTop = p.scrollHeight; break; }
+      p = p.parentElement;
+    }
+    el.scrollIntoView({ block: 'center' });
+    return true;
+  }, selector);
+  await sleep(settleMs);
+  const ok = await scrollIt();
+  if (!ok) { console.log('  ! Element nicht gefunden:', selector); return false; }
+  await sleep(900);
+  await scrollIt();
+  await sleep(300);
+  return true;
+}
 async function fill(ph, val) { const ok = await page.evaluate((ph) => { const i = [...document.querySelectorAll('input,textarea')].find((x) => x.placeholder === ph && x.offsetParent); if (i) { i.focus(); return true; } return false; }, ph); if (ok) await page.keyboard.type(val, { delay: 8 }); await sleep(200); return ok; }
 async function pickTarget(term) {
   await page.evaluate(() => { const c = [...document.querySelectorAll('input[role=combobox]')].find((x) => /Person/.test(x.placeholder || '') && x.offsetParent); if (c) c.focus(); });
@@ -282,6 +345,23 @@ await page.evaluate(() => { const b = document.querySelector('.person-dedup__sca
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
 await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
+// Bearbeiten-Modus (BL-273/274): der Editor ERSETZT die Seite nicht mehr — Kopfzeile,
+// Name und Rückweg bleiben stehen, das Identitäts-Formular klappt darunter auf, der
+// Schalter heißt jetzt „Fertig". Genau das soll der Screenshot zeigen, also am KOPF
+// framen (scrollAllTop, nicht scrollTop: `click()` hat den inneren Scroll-Container
+// eben mit `block:'center'` verschoben).
+await click('✎ Identität'); await sleep(500); await scrollAllTop(); await shot('04b-person-bearbeiten');
+await click('Fertig'); await sleep(450); await scrollAllTop();
+// Die abgesetzte Lösch-Zone (BL-277): seit ADR-v9-217 tragen ALLE sieben Datenarten
+// dieselbe Danger-Zone unten am Steckbrief, mit Trennlinie und nie neben „Speichern".
+// Dafür auf eine KURZE Personenseite wechseln (Begründung bei SHORT_PERSON). Der Weg
+// zurück zur Liste ist der Klick auf das BEREITS AKTIVE Segment (BL-298) — derselbe
+// Griff, den Kapitel 3 beschreibt.
+await click('Personen'); await sleep(500); await scrollAllTop();
+await click(SHORT_PERSON, { contains: true }); await sleep(600);
+await scrollToEl('.delete-entity'); await shot('04c-loeschzone');
+await click('Personen'); await sleep(500); await scrollAllTop();
+await click(RICH_PERSON, { contains: true }); await sleep(600); await scrollAllTop();
 // Kaspar als Session-Proband setzen (BL-120): die effektive Referenzperson der Sitzung.
 // Davon erben gleich Beziehungsrechner (Person A), Ausgaben-Bezugsperson und Story-Modus
 // ihre Vorbelegung — der Screenshot des „★ Proband"-Zustands liegt im Steckbrief-Kopf.

@@ -234,6 +234,76 @@ export function renameHofAddrInEvents(
 }
 
 /**
+ * Kommando-Nachlauf zu jeder ORTSBEARBEITUNG (BL-291, ADR-v9-198): zieht die
+ * `PLAC`-Projektion aller Ereignisse nach, die an DIESEM Ort hängen.
+ *
+ * WARUM DAS NICHT KOSMETIK IST. `placeId` steht nie in der Datei (Spec 11 §2) — die
+ * Zuordnung wird bei jedem Laden neu berechnet, „Re-Derivation *ist* die Persistenz"
+ * ([01](../../specs/v9/01-Vision-und-Prinzipien.md) LP-5). Damit ist der `PLAC`-Text die
+ * EINGABE dieser Berechnung und die einzige Brücke zwischen Datei und kuratiertem Bestand.
+ * Korrigiert der Nutzer eine Verwaltungskette (`Amt Meinersen` → `Vogtei Meinersen`) und
+ * bleibt der Text stehen, findet der nächste Ladepass den Ort nicht wieder: der Seed legt
+ * eine Dublette an, das Ereignis bindet dorthin, der kuratierte Ort bleibt referenzlos —
+ * die Korrektur erzeugt genau das, was sie auflösen sollte.
+ *
+ * ABGRENZUNG zum Ladepass (BL-288): dort läuft KEINE Reprojektion mehr, weil Öffnen und
+ * Speichern keine Entscheidung des Nutzers sind — das waren die 668 stillen Umschreibungen.
+ * Hier gibt es einen Anlass: er hat den Ort bearbeitet. Deshalb auch nur die Ereignisse
+ * DIESES Ortes, nicht der ganze Bestand.
+ *
+ * BETROFFEN IST NICHT NUR DER ORT SELBST, SONDERN SEIN GANZER TEILBAUM. Wer „Amt
+ * Meinersen" in „Vogtei Meinersen" korrigiert, ändert die Projektion jedes Ereignisses in
+ * *Arpke* — denn dessen Kette trägt den Elternnamen mit. Eine Fassung, die nur
+ * `ev.placeId === placeId` erfasste, ließ genau diesen Fall liegen (vom Versprechen-Test
+ * `place-curation-roundtrip.test.ts` gefangen: die Umbenennung kam nie in der Datei an).
+ * Die Menge wird deshalb als Fixpunkt über `enclosedBy` gebildet — alle Orte, die
+ * transitiv unter dem geänderten hängen.
+ *
+ * Erfasst beide Bindungsarten: direkt (`ev.placeId`) und über den Hof (`ev.hofId`, dessen
+ * `villageId` im Teilbaum liegt) — die Hof-Projektion trägt den Dorfnamen mit.
+ *
+ * VORBEDINGUNG wie bei `renameHofAddrInEvents`: der geänderte Ort steht bereits in
+ * `db.placeObjects`, damit der hier gebaute `PlaceContext` die neue Kette sieht.
+ */
+export function reprojectEventsOfPlace(db: ReadonlyDatabase, placeId: PlaceId): Database {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+
+  // Fixpunkt: der Ort und alles, was (transitiv) unter ihm hängt. Über ALLE `enclosedBy`-
+  // Einträge, nicht nur den ersten — ein gemergter Ort trägt mehrere Ketten (ADR-v9-72).
+  const betroffeneOrte = new Set<PlaceId>([placeId]);
+  for (let gewachsen = true; gewachsen; ) {
+    gewachsen = false;
+    for (const [id, pl] of base.placeObjects) {
+      if (betroffeneOrte.has(id)) continue;
+      if (pl.enclosedBy.some((e) => betroffeneOrte.has(e.placeId))) {
+        betroffeneOrte.add(id);
+        gewachsen = true;
+      }
+    }
+  }
+  const hofsHier = new Set(
+    [...base.hofObjects.values()].filter((h) => betroffeneOrte.has(h.villageId)).map((h) => h.id),
+  );
+
+  return mapAllEvents(db, (ev) => {
+    const betroffen =
+      (ev.placeId != null && betroffeneOrte.has(ev.placeId)) ||
+      (ev.hofId != null && hofsHier.has(ev.hofId));
+    if (!betroffen) return null;
+    const proj = buildPlacForGedcom(ev, eventYear(ev), ctx);
+    // `null` → keine projizierbare Kette (Ort/Hof fehlt): dann den Wire-Wert stehen lassen,
+    // statt ihn zu leeren. Gleicher Wert → kein Schreibvorgang, damit der Dirty-Check den
+    // Record nicht grundlos als geändert meldet.
+    if (proj == null || proj === ev.place) return null;
+    return { ...ev, place: proj };
+  });
+}
+
+/**
  * Löst ALLE Events der Datenbank auf (Schritte 1–4 aus der Aufgabenstellung) und
  * schreibt die Ergebnisse IN-PLACE an ihre ursprüngliche Stelle zurück (Person/Family-
  * Objekte werden mutiert — das ist hier explizit gewollt, weil `db` frisch aus

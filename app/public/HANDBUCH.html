@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.11 · Stand 2026-08-01</div>
+  <div class="version">Benutzerhandbuch · Version 9.13 · Stand 2026-08-03</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -254,9 +254,13 @@
       anzeigen kann, steht unverändert wieder drin. Nachgewiesen wird das nicht behauptet,
       sondern gemessen: Jede Änderung am Programm muss einen automatischen Test bestehen,
       der eine echte Datei liest, schreibt, wieder liest und auf <strong>null Abweichung</strong>
-      prüft. Wer schon einmal beim Programmwechsel Notizen, Patenschaften oder
-      Quellenangaben verloren hat, weiß, warum das keine Selbstverständlichkeit ist
-      (Einzelheiten: <a href="#anhangB">Anhang B</a>).</li>
+      prüft. Und zwar an einem echten Bestand: Ein Öffnen-und-Speichern <em>ohne jede
+      Änderung</em> lässt an einer Datei mit gut 3.000 Personen inzwischen
+      <strong>keine einzige Zeile</strong> zurück und schreibt <strong>keinen einzigen
+      Wert</strong> um — auch nicht die 668 Ortstexte und 200 Namensteile, die eine frühere
+      Fassung noch stillschweigend „aufgeräumt" hat. Wer schon einmal beim Programmwechsel
+      Notizen, Patenschaften oder Quellenangaben verloren hat, weiß, warum das keine
+      Selbstverständlichkeit ist (Einzelheiten: <a href="#anhangB">Anhang B</a>).</li>
   <li><strong>Zwei Standardformate, gleichrangig.</strong> <strong>GEDCOM 5.5.1</strong> und
       <strong>GRAMPS XML</strong> — beide werden gelesen <em>und</em> geschrieben, Sie
       können zwischen ihnen wechseln, ohne etwas zu verlieren (siehe
@@ -279,6 +283,13 @@
       keine GEDCOM-Datei speichern kann.</li>
   <li><strong>Forschen mit Beleg.</strong> Aufgaben, Protokoll, Hypothesen und ein
       Qualitäts-Dashboard führen von der offenen Frage zur belegten Aussage.</li>
+  <li><strong>Für den Daumen gebaut, für die Tastatur auch.</strong> Kein am Schreibtisch
+      entstandenes Programm, das man aufs Handy geschoben hat: Jede Schaltfläche ist
+      mindestens fingerbreit (44&nbsp;Pixel Trefferfläche — auch dort, wo das Zeichen
+      kleiner gezeichnet ist), am Computer speichert die <kbd>Eingabetaste</kbd> jedes
+      Formular und <kbd>Esc</kbd> verwirft es, und in einem offenen Dialog bleibt der
+      Tastaturfokus, wo er hingehört. Ein automatischer Wächter prüft das bei jeder
+      Programmänderung nach (siehe <a href="#k3">Kapitel 3</a>).</li>
 </ul>
 
 <div class="info">
@@ -416,7 +427,47 @@
       In einem <em>offenen Formular oder Dialog</em> ist das Wischen abgeschaltet — eine
       halb ausgefüllte Eingabe soll nicht durch eine Handbewegung verschwinden.
     </p>
+    <p>
+      <strong>Zurück zur Liste — in einem Schritt.</strong> „← Zurück" folgt Ihrem Weg,
+      und nach einer längeren Wanderung (Person → Ort → Nachbar → Quelle) ist das nicht
+      immer das, was man will. Ein Tipp auf das <em>bereits aktive</em> Segment — also auf
+      <strong>Personen</strong>, während eine Person offen ist — legt die Auswahl ab und
+      zeigt wieder die Liste. Kein zusätzlicher Knopf, dieselbe Geste wie auf dem
+      Startbildschirm des Telefons. Ein <em>anderes</em> Segment räumt bewusst nichts weg:
+      Dessen eigene Auswahl wartet dort, wo Sie sie verlassen haben.
+    </p>
   </div>
+</div>
+
+<h2>Bedienbarkeit: Fingerbreite und Tastatur</h2>
+<p>
+  Zwei Zusagen, die man erst bemerkt, wenn sie fehlen — und die deshalb nicht dem
+  Augenmaß überlassen, sondern gemessen werden:
+</p>
+<ul>
+  <li><strong>Jede Schaltfläche ist mindestens 44&nbsp;Pixel hoch und breit.</strong> Das
+      gilt auch dort, wo das Zeichen kleiner <em>aussieht</em>: Die Segmentreihen, das
+      <strong>✎</strong> an einer Ereigniszeile oder das <strong>✕</strong> an einer
+      Marke bleiben optisch schlank, tragen aber eine unsichtbare Trefferzone in voller
+      Größe. So bleiben die Reihen luftig, ohne dass Sie zielen müssen.</li>
+  <li><strong>Tastatur-first, überall.</strong> In jeder Eingabefläche — vom
+      Personen-Steckbrief über Quelle, Archiv, Ort, Hof und Medium bis zu Aufgabe,
+      Protokoll und Hypothese — speichert die <kbd>Eingabetaste</kbd>, und <kbd>Esc</kbd>
+      tut genau das, was der zweite Knopf der Fläche tut: auf einer Detailseite die
+      Feldwerte verwerfen, in einem eingeblendeten Entwurf ihn schließen. Liegen zwei
+      Formulare ineinander (etwa ein „neu anlegen" mitten in einem Auswahlfeld), gilt die
+      Taste dem inneren zuerst.</li>
+  <li><strong>Im Dialog bleibt der Fokus im Dialog.</strong> Öffnet sich ein Modal
+      (Ereignis bearbeiten, Orts-Zugehörigkeit, Personen-Zusammenführung,
+      Prüfregeln), springt der Tastaturfokus hinein, wandert mit <kbd>Tab</kbd> nur darin
+      im Kreis und kehrt beim Schließen zum auslösenden Knopf zurück. Ein Ausgang gibt es
+      immer: <kbd>Esc</kbd>.</li>
+</ul>
+<div class="info">
+  Diese Regeln stehen nicht nur im Stilhandbuch: Ein automatischer Prüflauf zählt bei
+  jeder Programmänderung die Bedienelemente ohne ausreichende Trefferfläche und lässt die
+  Zahl nur sinken. Barrierefreiheit wird hier nicht nachträglich beteuert, sondern
+  eingebaut.
 </div>
 
 <h2>Auf dem Computer: Seitenleiste und zwei Spalten</h2>
@@ -529,9 +580,13 @@
           ersatzweise als Nummer <span class="badge q">§N</span>.</li>
     </ul>
     <p>
-      Oben führen <strong>✎ Bearbeiten</strong> und <strong>⧖ Im Baum anzeigen</strong>
-      weiter; <strong>+ Wohnort</strong> und <strong>+ Ereignis</strong> ergänzen neue
-      Einträge.
+      Oben führt <strong>✎ Identität</strong> in die Bearbeitung der Stammdaten (Name,
+      Geschlecht, Rufname, Titel …) — der Knopf heißt bewusst nicht „Bearbeiten", denn
+      die <em>Ereignisse</em> pflegen Sie ohne ihn, direkt an ihrer Zeile. Darunter liegt
+      eine Reihe, die dieselbe Person in einer anderen Ansicht öffnet:
+      <strong>⧖ Baum</strong>, <strong>🗺 Karte</strong>, <strong>⏱ Zeitleiste</strong>,
+      <strong>📖 Story</strong>. <strong>+ Wohnort</strong> und <strong>+ Ereignis</strong>
+      ergänzen neue Einträge.
     </p>
     <p>
       Ist ein <a href="#k9">Medium</a> als <strong>Primärbild</strong> gekennzeichnet und
@@ -545,6 +600,33 @@
     <img src="handbuch-assets/04-person-detail.png" alt="Personen-Detail mit gruppierten Ereignissen, Quellen-Badges und Koordinaten-Icons">
     <figcaption>Personen-Detail: Ereignisse nach Typ, mit Quellen und Koordinaten</figcaption>
   </figure>
+</div>
+
+<div class="shot-row pair">
+  <figure class="phone">
+    <img src="handbuch-assets/04b-person-bearbeiten.png" alt="Personen-Steckbrief im Bearbeiten-Modus: Kopfzeile mit Name bleibt stehen, darunter das Identitäts-Formular">
+    <figcaption>Bearbeiten heißt nicht „andere Seite": Kopf und Name bleiben stehen</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/04c-loeschzone.png" alt="Kurzer Personen-Steckbrief; ganz unten steht „Person löschen“ allein hinter einer Trennlinie">
+    <figcaption>„Person löschen" sitzt unten, allein hinter einer Trennlinie — nie neben „Speichern"</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Ein Bearbeiten-Paradigma für die ganze App</h2>
+    <p>
+      Der Bearbeiten-Modus <em>ersetzt</em> die Seite nicht: Kopfzeile, Name und Rückweg
+      bleiben stehen, das Formular klappt darunter auf, und <strong>Fertig</strong>
+      schließt es wieder. So wissen Sie jederzeit, <em>wen</em> Sie gerade bearbeiten —
+      und der Weg zurück verschwindet nicht unter dem Formular.
+    </p>
+    <p>
+      Dasselbe Muster gilt in allen Datenarten, und mit ihm drei Zusagen: Die Knöpfe
+      <em>Bearbeiten</em>, <em>Speichern</em> und <em>Verwerfen</em> sehen überall gleich
+      aus und sind überall fingerbreit; die <kbd>Eingabetaste</kbd> speichert,
+      <kbd>Esc</kbd> verwirft; und <strong>Löschen</strong> steht nie in dieser Reihe,
+      sondern abgesetzt am Fuß der Seite, hinter einer Trennlinie und einer Rückfrage.
+    </p>
+  </div>
 </div>
 
 <h3>Beweisführungsnotiz</h3>
@@ -606,6 +688,14 @@
     <li>Die Person mit den Eltern bzw. einer Familie verbinden (siehe
         <a href="#k5">Kapitel 5</a>).</li>
   </ol>
+  <p class="muted">
+    <strong>Doch nicht?</strong> Verlassen Sie die neu angelegte Person mit
+    <strong>Fertig</strong> oder <strong>← Zurück</strong>, ohne etwas eingetragen zu
+    haben, wird sie wieder entfernt — es bleibt kein namenloser Rumpf in Ihrer Datei
+    zurück. Sobald auch nur ein Feld gefüllt ist, bleibt der Datensatz selbstverständlich
+    stehen. Dasselbe gilt für <strong>Neue Quelle</strong> und
+    <strong>Neues Archiv</strong>.
+  </p>
 </div>
 
 <h2>So erfassen Sie ein Ereignis</h2>
@@ -642,6 +732,23 @@
   und wartet noch auf seine Zuordnung.
 </div>
 
+<h3>Die Konfession ist ein Ereignis, keine Eigenschaft</h3>
+<p>
+  <strong>Konfession</strong> steht in der Ereignisliste und nicht in den Stammdaten —
+  aus einem fachlichen Grund: Ein Konfessionswechsel hat ein <em>Datum</em>, oft einen
+  <em>Ort</em> und fast immer eine <em>Quelle</em>. Als bloßes Textfeld am Steckbrief
+  konnte davon nur das Wort selbst überleben; als Ereignis trägt es alles, was die
+  Urkunde hergibt — und ein Übertritt bleibt als Ereignis in der Lebensgeschichte
+  sichtbar, statt eine ältere Angabe zu überschreiben. Beim Erfassen schlägt die App die
+  gängigen Werte vor (<em>röm.-kath.</em>, <em>evang.</em>, <em>katholisch</em>); freier
+  Text ist erlaubt.
+</p>
+<div class="info">
+  Wenn Sie eine ältere Datei öffnen, in der die Konfession als einfaches Personenfeld
+  steht, wird sie beim Einlesen zu einem solchen Ereignis — samt Datum, Ort und
+  Quellenangaben, die dort schon darunter hingen und früher verlorengingen.
+</div>
+
 <div class="shot-row">
   <div class="prose">
     <h2>Doppelte Personen finden und zusammenführen</h2>
@@ -656,6 +763,14 @@
     <p>
       Ein Antippen öffnet den <strong>Zusammenführen-Dialog</strong>: Dort entscheiden Sie
       <em>feldweise</em>, welche Angaben der überlebende Datensatz behält.
+    </p>
+    <p>
+      Was dabei mit umzieht, ist mehr als die sichtbaren Felder: Namensvarianten,
+      Personenbezüge (Paten, Zeugen) und die Verweise Ihrer
+      <a href="#k12">Hypothesen</a> hängen sich auf den überlebenden Datensatz um. So
+      zeigt keine Beweisführung nach dem Zusammenführen ins Leere — und eine Hypothese,
+      die durch den Merge ihren Bezugspunkt verliert, bleibt als Befund im Text stehen,
+      statt still zu verschwinden.
     </p>
     <p>
       Ein Paar, das erkennbar <em>kein</em> Duplikat ist, halten Sie als
@@ -703,8 +818,12 @@
   löst den Datensatz auf und räumt dabei <em>alle</em> Verweise sauber weg — bei einer
   Person etwa ihre Familien-Rollen, Kindlisten und Zitate —, sodass keine kaputten
   Verknüpfungen zurückbleiben. Andere Personen und Ereignisse bleiben bestehen; eine
-  dadurch völlig leere Familie wird automatisch mitentfernt. Dasselbe Löschen-Muster gibt
-  es bei <strong>Personen, Familien, Quellen und Archiven</strong>.
+  dadurch völlig leere Familie wird automatisch mitentfernt.
+  <br><br>
+  Dasselbe Muster gilt für <strong>alle</strong> Datenarten — Personen, Familien,
+  Quellen, Archive, Medien, Orte und Höfe: „… löschen" steht überall <em>unten</em>, in
+  einer optisch abgesetzten Zone mit Trennlinie, und niemals in der Knopfreihe neben
+  „Speichern". Ein Löschen soll man suchen müssen, nicht danebentreffen.
 </div>
 
 <!-- ============================================================= -->
@@ -740,6 +859,14 @@
     <p>
       Ereignisse, die zu Personen <em>und</em> Familien gehören (etwa eine Heirat),
       teilen sich dieselbe Ereigniszeile — Sie pflegen sie nur an einer Stelle.
+    </p>
+    <p>
+      <strong>Einen Elternteil tauschen — oder es sich anders überlegen.</strong> Das
+      <strong>✎</strong> neben <em>Ehemann</em> bzw. <em>Ehefrau</em> blendet das
+      Suchfeld an Ort und Stelle ein. Sie verlassen es jederzeit wieder, ohne etwas zu
+      wählen: über das <strong>✕</strong> daneben, mit <kbd>Esc</kbd> oder indem Sie
+      danebentippen. Ein Auswahlfeld, das nur die Auswahl als Ausgang kennt, wäre eine
+      Falle — und war hier einmal eine.
     </p>
   </div>
 </div>
@@ -1012,9 +1139,13 @@
       Einträge: Ein Namens-Eintrag mit falsch getipptem Jahr und ein Zugehörigkeits-Zeitraum
       lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
-      der Geschichte, nur weil kein Anfangsjahr bekannt ist. „Ort löschen" setzt die
-      betroffenen Ereignisse behutsam auf ihren reinen Textstand zurück — die Ereignisse
-      selbst gehen nie verloren.
+      der Geschichte, nur weil kein Anfangsjahr bekannt ist.
+    </p>
+    <p>
+      <strong>„Ort löschen"</strong> steht nicht in der Knopfreihe neben
+      <em>Speichern</em>, sondern ganz unten in der abgesetzten Zone — dieselbe Stelle
+      wie bei Person, Familie und Quelle. Es setzt die betroffenen Ereignisse behutsam
+      auf ihren reinen Textstand zurück; die Ereignisse selbst gehen nie verloren.
     </p>
     <h3>Was „Verwerfen" verwirft</h3>
     <p>
@@ -1117,8 +1248,37 @@
           und Anreicherungsgrad</figcaption>
       </figure></li>
   <li><strong>Massen-Zusammenführung</strong> bündelt Konfliktgruppen (mehrere
-      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft.</li>
+      Schreibweisen desselben Ortes) und kennzeichnet die Herkunft. Die Ereignisse der
+      aufgelösten Orte hängen sich dabei auf den Sieger um — nach einem Merge zeigt kein
+      Ereignis mehr auf einen „nicht gefundenen Ort", und keines fällt in die Review-Liste
+      zurück, das vorher eindeutig zugeordnet war.</li>
 </ul>
+
+<h2>Eine Korrektur wirkt bis ins Ereignis</h2>
+<p>
+  Der wichtigste stille Dienst der Ortsverwaltung: Wenn Sie an einem Ort etwas
+  korrigieren, das seine <em>Identität</em> ausmacht — den Namen, die
+  Verwaltungszugehörigkeit, die Zuordnung zu einem übergeordneten Ort —, dann ziehen die
+  betroffenen Ereignisse mit. Und zwar nicht nur die dieses einen Ortes, sondern die
+  seines ganzen Teilbaums: Wer <em>„Amt Meinersen"</em> in <em>„Vogtei Meinersen"</em>
+  ändert, ändert damit die Ortsangabe jedes Ereignisses in jedem Dorf darunter.
+</p>
+<p>
+  Das klingt nach einer Kleinigkeit, entscheidet aber darüber, ob Ihre Arbeit den
+  nächsten Programmstart überlebt: Der Ortstext im Ereignis ist die Brücke zwischen Ihrer
+  Datei und Ihrem gepflegten Ortsbestand. Bliebe er auf dem alten Stand stehen, würde die
+  App beim nächsten Laden einen zweiten, gleichnamigen Ort anlegen — die Korrektur hätte
+  genau die Dublette erzeugt, die sie beseitigen sollte.
+</p>
+<div class="info">
+  <strong>Anzeige und Datei sind zweierlei.</strong> Was Sie in einer Ereigniszeile
+  <em>lesen</em>, wird immer periodengerecht aus dem Ortsobjekt berechnet: für ein
+  Ereignis von 1750 die Kette von 1750. Was in Ihrer <em>Datei</em> steht, bleibt
+  derweil Ihr Wortlaut — ein bloßes Öffnen und Speichern schreibt daran nichts um. Erst
+  eine bewusste Kuration (verknüpfen, zusammenführen, GOV übernehmen, umbenennen)
+  aktualisiert den Text in der Datei, und dann ist sie über <strong>↶ Rückgängig</strong>
+  zurücknehmbar.
+</div>
 
 <h2 data-doc="app">Orts-Datei importieren und exportieren</h2>
 <p data-doc="app">
@@ -1182,7 +1342,9 @@
       <li>Wie der Ort trägt auch der Hof <strong>Koordinaten</strong> und eine
           <strong>Kartenvorschau</strong> im Detail — ein Hof kann so präziser verortet
           sein als sein Dorf (etwa ein einzelnes Gehöft).</li>
-      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren.</li>
+      <li>„Hof löschen" entfernt die Hof-Ebene, ohne die Ereignisse zu verlieren — zu
+          finden ganz unten am Steckbrief, in der abgesetzten Lösch-Zone, nicht neben
+          <em>Speichern</em>.</li>
     </ul>
   </div>
 </div>
@@ -1791,6 +1953,15 @@
       <strong>🔍 Protokoll</strong> einen vorbefüllten, mit der Aufgabe verknüpften
       Protokolleintrag an; die Protokollzeile zeigt die auslösende Aufgabe als Rückverweis.
     </p>
+    <div class="info">
+      <strong>Aus einer älteren Fassung übernommen.</strong> Forschungsdaten reisen in
+      Ihrer Genealogie-Datei mit — auch aus Vorgängerversionen dieser App. Dabei gilt:
+      Eine <em>erledigte</em> Aufgabe bleibt erledigt, und ein Protokolleintrag mit dem
+      Ergebnis <em>nichts gefunden</em> behält es. Beides klingt selbstverständlich, war
+      es aber nicht: Zwei verschiedene Schreibweisen desselben Wertes haben aus
+      „erledigt" und „nichts gefunden" zeitweise wieder ein „offen" gemacht — und damit
+      genau die Auskunft entwertet, für die man ein Protokoll führt.
+    </div>
   </div>
 </div>
 
@@ -1934,13 +2105,61 @@
 <!-- ============================================================= -->
 <h1 class="chapter" id="k15">17. Speichern und Sichern</h1>
 
-<h2>Zwei Wege zu speichern</h2>
+<h2>Wohin „Speichern“ schreibt</h2>
 <p>
-  Stammbaum nutzt <strong>ein</strong> Export-Rohr mit zwei Stufen: Wo der Browser es
-  erlaubt, schreibt die App <strong>direkt in Ihre Datei</strong> zurück; sonst wird
-  die Datei zum <strong>Herunterladen</strong> bzw. Teilen angeboten. In beiden Fällen
-  entsteht dieselbe, formattreue Ausgabe.
+  Stammbaum nutzt <strong>ein</strong> Export-Rohr. Wohin es schreibt, entscheidet sich
+  danach, was Ihr Gerät anbietet — in dieser Reihenfolge:
 </p>
+<ul>
+  <li><strong>Zurück in dieselbe Datei</strong>, still und ohne Rückfrage. Das ist der
+    Normalfall, sobald die App Ihre Datei einmal kennt.</li>
+  <li><strong>Ein „Speichern unter“-Dialog</strong>, wenn sie sie noch nicht kennt — etwa
+    nach einem Neustart des Browsers. Sie wählen die Datei einmal aus; ab dann speichert
+    Stammbaum wieder still dorthin zurück.</li>
+  <li><strong>Das Teilen-Menü</strong> auf iPhone und iPad, wo „In Dateien sichern“ der
+    übliche Weg ist.</li>
+  <li><strong>Ein Download</strong>, wenn der Browser nichts davon kann — die Datei landet
+    dann in Ihrem Download-Ordner.</li>
+</ul>
+<p>
+  In allen Fällen entsteht dieselbe, formattreue Ausgabe. Bricht der Dialog ab, ist nichts
+  geschrieben und nichts verloren — Ihr Stand liegt weiter in der Arbeitskopie.
+</p>
+
+<h2>Was ein Speichern an Ihrer Datei ändert — und was nicht</h2>
+<p>
+  Die kürzeste Antwort: <strong>genau das, was Sie geändert haben.</strong> Ein Öffnen
+  und sofortiges Speichern ohne einen einzigen Eingriff gibt Ihnen dieselbe Datei zurück
+  — keine verlorene Zeile, kein umgeschriebener Wert, keine hinzuerfundene Angabe.
+</p>
+<p>
+  Das ist keine Selbstverständlichkeit, sondern das Ergebnis harter Arbeit an genau
+  dieser Stelle. Frühere Fassungen taten, was viele Programme tun: Sie „räumten auf".
+  Gemessen an einer echten Datei mit gut 3.000 Personen hieß das pro Speichervorgang
+</p>
+<ul>
+  <li><strong>668 Ortstexte</strong> auf die aus dem Ortsbestand berechnete Fassung
+      umgeschrieben,</li>
+  <li><strong>rund 200 Namensteile</strong> ergänzt, die die Quelldatei nie enthielt
+      (weil sich Vor- und Nachname aus dem Namen ja ableiten lassen),</li>
+  <li><strong>Formatangaben</strong> von Medien vereinheitlicht
+      (<code>JPEG</code>&nbsp;→&nbsp;<code>jpg</code>),</li>
+  <li><strong>zeitweise mehrere hundert Zeilen</strong> gar nicht wieder ausgegeben —
+      Quellenverweise, Beweiskraft-Angaben, Adressen, Notizen.</li>
+</ul>
+<p>
+  Jeder dieser Punkte ist einzeln gemessen, behoben und mit einem automatischen Wächter
+  gegen Rückfall gesichert. Der Grundsatz dahinter lautet: <em>Der Wert in Ihrer Datei
+  ist die Wahrheit, bis jemand ihn anfasst.</em> Solange Sie ein Feld nicht bearbeiten,
+  geht der Wortlaut Ihrer Quelle wieder heraus — auch dann, wenn die App ihn selbst
+  anders schreiben würde. Ändern Sie das Feld, tritt Ihre Fassung an seine Stelle.
+</p>
+<div class="practice">
+  Praktische Folge: Sie können Stammbaum bedenkenlos zwischen andere Programme schalten,
+  eine Datei nur zum Nachsehen öffnen oder ein Backup schreiben, ohne dass Ihr Bestand
+  dabei unbemerkt „driftet". Machen Sie die Probe: Datei öffnen, sofort speichern, beide
+  Fassungen vergleichen.
+</div>
 
 <h2>Arbeitskopie und Auto-Load</h2>
 <p>
@@ -2038,7 +2257,11 @@
     <p>
       Das Kernversprechen: Was hineingeht, kommt unverfälscht wieder heraus. Felder,
       die die App nicht selbst bearbeitet, werden unverändert durchgereicht — Ihre
-      Datei verliert beim Öffnen und Speichern nichts.
+      Datei verliert beim Öffnen und Speichern nichts. Und was sie bearbeitet, behält
+      seinen Wortlaut, solange Sie es nicht anfassen: Ein Speichern ohne Ihr Zutun
+      schreibt <em>keinen</em> Wert um. Wie das sichergestellt wird, steht in
+      <a href="#anhangB">Anhang B</a>; was es im Alltag bedeutet, in
+      <a href="#k15">Kapitel 17</a>.
     </p>
   </div>
   <figure class="phone">
@@ -2128,8 +2351,26 @@
       eines Ortes (Straße, Hausnummer). Siehe <a href="#k8">Kapitel 8</a>.</dd>
 
   <dt>Gehen beim Öffnen und Speichern Daten verloren?</dt>
-  <dd>Nein. Felder, die die App nicht selbst bearbeitet, werden unverändert
-      durchgereicht (siehe <a href="#k16">Kapitel 18</a>).</dd>
+  <dd>Nein — und es wird auch nichts stillschweigend umgeschrieben. Ein Öffnen und
+      sofortiges Speichern gibt an einer echten Datei mit gut 3.000 Personen
+      nachweislich null veränderte Zeilen zurück. Felder, die die App gar nicht
+      bearbeitet, werden unverändert durchgereicht; Felder, die sie bearbeitet, behalten
+      den Wortlaut Ihrer Quelle, bis Sie sie ändern (siehe
+      <a href="#k15">Kapitel 17</a> und <a href="#anhangB">Anhang B</a>).</dd>
+
+  <dt>Warum steht die Konfession bei den Ereignissen und nicht bei den Stammdaten?</dt>
+  <dd>Weil sie Datum, Ort und Quelle haben kann — ein Übertritt ist ein Ereignis im
+      Leben, keine Eigenschaft. Als Textfeld wäre genau das verloren
+      (<a href="#k4">Kapitel 4</a>).</dd>
+
+  <dt>Ich habe versehentlich „Neue Person" getippt. Bleibt jetzt ein leerer Eintrag?</dt>
+  <dd>Nein. Verlassen Sie die Anlage, ohne etwas einzutragen, wird sie wieder entfernt
+      (<a href="#k4">Kapitel 4</a>).</dd>
+
+  <dt>Ich bin über viele Details gewandert und finde nicht zur Liste zurück.</dt>
+  <dd>Tippen Sie auf das <em>bereits aktive</em> Segment — etwa auf
+      <strong>Personen</strong>, während eine Person offen ist. Das legt die Auswahl ab
+      und zeigt wieder die Liste (<a href="#k3">Kapitel 3</a>).</dd>
 
   <dt>Wie gebe ich einen Auszug weiter, ohne Lebende preiszugeben?</dt>
   <dd>Beim Export die <strong>Anonymisierung</strong> aktivieren
@@ -2210,9 +2451,26 @@
   <tr><th>Kürzel</th><th>Wirkung</th></tr>
   <tr><td>⌘K / Strg+K</td><td>Befehlspalette öffnen.</td></tr>
   <tr><td>⌘S / Strg+S</td><td>Speichern.</td></tr>
-  <tr><td>Esc</td><td>Dialog/Panel schließen.</td></tr>
+  <tr><td>Eingabetaste</td><td>In jedem Formular: speichern (Person, Quelle, Archiv, Ort,
+      Hof, Medium, Aufgabe, Protokoll, Hypothese). Liegen zwei Formulare ineinander, gilt
+      sie dem inneren.</td></tr>
+  <tr><td>Esc</td><td>Dialog/Panel schließen — und in einem Formular das, was dessen
+      zweiter Knopf tut: Feldwerte verwerfen bzw. den eingeblendeten Entwurf schließen.</td></tr>
+  <tr><td>Tab / Shift+Tab</td><td>In einem offenen Dialog nur innerhalb des Dialogs; beim
+      Schließen kehrt der Fokus zum auslösenden Knopf zurück.</td></tr>
   <tr><td>Alt+← / Alt+→</td><td>Im Verlauf zurück bzw. vorwärts (am Handy: nach rechts
       bzw. links wischen).</td></tr>
+</table>
+
+<h2>Gesten und Kniffe</h2>
+<table class="ref">
+  <tr><th>Handlung</th><th>Wirkung</th></tr>
+  <tr><td>Tipp auf das <em>aktive</em> Segment</td><td>Legt die Auswahl ab und zeigt
+      wieder die Liste (aus jeder Detailtiefe in einem Schritt).</td></tr>
+  <tr><td>Wischen nach rechts / links</td><td>Im Verlauf zurück bzw. vorwärts. In einem
+      offenen Formular oder Dialog bewusst abgeschaltet.</td></tr>
+  <tr><td>Tipp neben ein offenes Auswahlfeld</td><td>Schließt es, ohne etwas zu wählen
+      (ebenso das ✕ daneben und <kbd>Esc</kbd>).</td></tr>
 </table>
 
 <!-- ============================================================= -->
@@ -2232,6 +2490,39 @@
   selbst bearbeitet, werden aus dem Modell geschrieben; alle übrigen — auch fremde oder
   seltene Tags — werden als <strong>Passthrough</strong> unverändert durchgereicht. Ein
   erneutes Speichern ohne Änderung erzeugt bit-gleiche Ausgabe; es geht nichts verloren.
+</p>
+
+<h3>Die Überlappungszone — wo Datenverlust wirklich entsteht</h3>
+<p>
+  Der Passthrough kann per Konstruktion nur retten, was das Datenmodell <em>nicht</em>
+  beansprucht — sonst käme jeder von Ihnen gelöschte Wert bei jedem Speichern zurück.
+  Die eigentliche Gefahrenzone liegt genau dazwischen: bei Angaben, die das Modell für
+  sich beansprucht, aber nicht in voller Feinheit halten kann. Ein Beispiel: Das Modell
+  kennt „Beweiskraft&nbsp;0", die Datei aber unterscheidet zwischen <em>„ausdrücklich
+  als unzuverlässig bewertet"</em> und <em>„nie bewertet"</em> — schreibt die App den
+  internen Vorgabewert nicht mit, verschwindet eine Aussage.
+</p>
+<p>
+  Stammbaum schließt diese Zone mit zwei Werkzeugen, die keinen einzigen Tag namentlich
+  kennen und deshalb auch für künftige Felder wirken:
+</p>
+<ul>
+  <li><strong>Die Überschuss-Probe.</strong> Vor jeder Ausgabe wird der Schreibvorgang
+      zusätzlich auf das <em>unveränderte</em> Original angewandt. Entstehen dabei
+      weniger Zeilen als das Original trägt, liegt das am Modell und nicht an Ihnen — die
+      fehlenden werden aus dem Original ergänzt. Haben <em>Sie</em> etwas gelöscht, gibt
+      es keinen Überschuss und der Wert bleibt weg.</li>
+  <li><strong>Gesehen-oder-nicht.</strong> Wo die Abwesenheit einer Angabe mit einem
+      Vorgabewert zusammenfällt (Beweiskraft&nbsp;0, unbekanntes Geschlecht,
+      Namensbestandteile), merkt sich die App zusätzlich, ob die Datei die Zeile
+      <em>hatte</em>. Geschrieben wird nur, was da war oder was Sie gesetzt haben.</li>
+</ul>
+<p>
+  Dazu kommt die Formtreue der Ausgabe: Lange Texte werden nach der Regel des Standards
+  wieder auf Zeilen unter 255&nbsp;Zeichen umgebrochen (<code>CONC</code>), statt als
+  überlange Zeile ausgegeben zu werden, an der ältere Programme scheitern. Gemessen an
+  einem echten Bestand mit gut 3.000 Personen: <strong>0 verlorene Zeilen,
+  0 umgeschriebene Werte, 0 erfundene Zeilen, 0 zu lange Zeilen.</strong>
 </p>
 
 <h2>Export-Formate</h2>
@@ -2298,9 +2589,10 @@
 </p>
 <table class="ref">
   <tr><th>Kategorie</th><th>Verhalten</th></tr>
-  <tr><td>Von der App bearbeitet</td><td>Namen, Geschlecht, Ereignisse (Datum, Ort, Adresse), Quellen &amp; Zitate mit Beweiskraft, Notizen, Familien-/Kind-Verknüpfungen, die Forschungsdaten (Aufgaben/Protokoll/Hypothesen/Evidenz) — werden aus dem Modell geschrieben.</td></tr>
-  <tr><td>Erhalten, aber (noch) nicht editierbar</td><td>Medien-/Objektverweise, Assoziationen (Zeugen/Paten), seltene oder programmspezifische Fremd-Tags — bit-genau durchgereicht.</td></tr>
-  <tr><td>Bewusst nicht in GEDCOM abbildbar</td><td>Die <strong>Zeitachse</strong> der Orte (historische Namen, datierte Verwaltungszugehörigkeit) und die Hof-Historie. GEDCOM kennt nur <em>einen</em> Ortstext je Ereignis; beim Export wird die periodengerechte Fassung geschrieben, die volle Historie bleibt in <code>orte.json</code> (siehe <a href="#k7">Kapitel 7</a>).</td></tr>
+  <tr><td>Von der App bearbeitet</td><td>Namen (samt Namensvarianten), Geschlecht, Ereignisse (Datum, Ort, Adresse, Wert — auch die Konfession), Quellen &amp; Zitate mit Beweiskraft, Notizen, Familien-/Kind-Verknüpfungen, Medien-/Objektverweise, Personenbezüge (Paten/Zeugen), die Forschungsdaten (Aufgaben/Protokoll/Hypothesen/Evidenz) — werden aus dem Modell geschrieben.</td></tr>
+  <tr><td>Erhalten, aber (noch) nicht editierbar</td><td>Seltene oder programmspezifische Fremd-Tags, Kopfzeilen-Angaben Ihres Vorprogramms, Untersätze ohne eigene Maske — bit-genau durchgereicht.</td></tr>
+  <tr><td>Unangetastet, solange Sie es nicht anfassen</td><td>Der <strong>Wortlaut</strong> jedes Wertes, den die App zwar kennt, aber nicht anders meint: der Ortstext eines Ereignisses (auch wenn die App ihn periodengerecht <em>anzeigt</em>), das Dateiformat eines Mediums (<code>JPEG</code> bleibt <code>JPEG</code>), Namensbestandteile, die die Quelle nicht getrennt notiert hat. Erst Ihr Eingriff — oder eine bewusste Kuration wie ein Orts-Merge — ersetzt ihn.</td></tr>
+  <tr><td>Bewusst nicht in GEDCOM abbildbar</td><td>Die <strong>Zeitachse</strong> der Orte (historische Namen, datierte Verwaltungszugehörigkeit) und die Hof-Historie. GEDCOM kennt nur <em>einen</em> Ortstext je Ereignis; die volle Historie bleibt in <code>orte.json</code> (siehe <a href="#k7">Kapitel 7</a>).</td></tr>
 </table>
 
 <h2>Grenzen der Kompatibilität</h2>
@@ -2513,7 +2805,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.11 · Stand 2026-08-01<br>
+  Stammbaum · Benutzerhandbuch Version 9.13 · Stand 2026-08-03<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 

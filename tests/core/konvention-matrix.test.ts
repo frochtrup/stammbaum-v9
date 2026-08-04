@@ -1,7 +1,7 @@
 // Wire-Konventions-Matrix (Spec 11 §4.3) — je Konvention ein Fixture, das den
 // erwarteten Auflösungspfad verriegelt.
 import { describe, it, expect } from 'vitest';
-import { resolveEvents } from '../../core/places/index';
+import { resolveEvents, buildPlacForGedcom, makePlaceRegistry, makeHofRegistry } from '../../core/places/index';
 import { place, hof, placeMap, hofMap, ev } from './places-fixtures';
 
 const village = place('@OCHTRUP@', {
@@ -66,13 +66,21 @@ describe('Konvention 2 — MyHeritage/GRAMPS (PLAC Dorf + ADDR Hof)', () => {
     expect(res.events[0].event.hofId).toBe('_hof_wall_33_ochtrup');
   });
 
-  it('Hof-Typ, Hof existiert nicht → Pfad B\' (Bootstrap); sichtbarer Übergang zu Konvention 1', () => {
+  it('Hof-Typ, Hof existiert nicht → Pfad B\' (Bootstrap); der Hof ist gebunden', () => {
     const source = ev('RESI', { place: 'Ochtrup, Deutschland', addr: 'Wall 33', date: '1900' });
     const res = resolveEvents([source], places, hofMap());
     expect(res.events[0].path).toBe("B'");
     expect(res.hofObjects.size).toBe(1);
-    // Ehrlicher Übergang: PLAC bekommt beim Speichern den Hof-Präfix (Konvention-2→1).
-    expect(res.events[0].event.place).toBe('Wall 33, Ochtrup, Deutschland');
+    expect(res.events[0].event.hofId).not.toBeNull();
+    // Der Übergang Konvention 2→1 ist eine ANZEIGE-Aussage, keine Datei-Aussage
+    // (ADR-v9-197): `PLAC` bleibt, was die Quelle sagt — der Hof-Präfix erscheint in der
+    // projizierten Kette. Bis BL-288 schrieb der Ladepass ihn in `ev.place` und damit in
+    // die Datei, an einem Ereignis, das der Nutzer nie angefasst hatte.
+    expect(res.events[0].event.place).toBe('Ochtrup, Deutschland');
+    expect(buildPlacForGedcom(res.events[0].event, 1900, {
+      places: makePlaceRegistry(places),
+      hofs: makeHofRegistry(res.hofObjects),
+    })).toBe('Wall 33, Ochtrup, Deutschland');
   });
 
   it('Non-Hof-Typ mit ADDR ohne Hof-Match → Review Klasse A', () => {

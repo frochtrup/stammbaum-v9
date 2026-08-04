@@ -94,7 +94,7 @@
        selben Ziel (INV-UI-2). Die Reihe entfällt daher oberhalb der Layout-Grenze,
        wörtlich wie die Entitäten-Segmentreihe in EntityTab. -->
   {#if !layout.isDesktopLayout}
-    <div class="research-tab__segments stb-segment-row" role="tablist" aria-label="Forschungsansicht wählen">
+    <div class="research-tab__segments stb-segment-row stb-segment-row--full" role="tablist" aria-label="Forschungsansicht wählen">
       {#each segments as segment (segment.id)}
         <button
           type="button"

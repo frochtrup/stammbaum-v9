@@ -22,6 +22,7 @@
   import { eventImages } from '../../shell/entity-media';
   import type { MediaResolver } from '../../../services/media';
   import PersonPicker from '../../shell/PersonPicker.svelte';
+  import { tooltip } from '../../shell/tooltip';
   import { eventTypeLabel } from '../../shell/event-labels';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
 
@@ -265,15 +266,32 @@
           {@const member = parents.find((p) => p.role === role)}
           <div class="family-detail__parent-slot">
             {#if editingParent === role}
-              <PersonPicker
-                {appState}
-                value={role === 'husband' ? detail.family.husband : detail.family.wife}
-                onChange={(id) => setParent(role, id)}
-                allowNone={true}
-                noneLabel="— kein Elternteil —"
-                label={roleLabel[role]}
-                startOpen={true}
-              />
+              <!-- Abbruch auf DREI Wegen (BL-300): Escape und Tipp daneben melden beide
+                   `onClose`, dazu ein sichtbares ✕ — auf Touch gibt es kein Escape, und
+                   ein Weg, den man nicht sieht, ist für die Hälfte der Nutzer keiner.
+                   Ohne das war dieser Picker ohne Ausweg: er ließ sich nur durch eine
+                   AUSWAHL verlassen (Nutzer-Fund). -->
+              <div class="family-detail__parent-picker">
+                <PersonPicker
+                  {appState}
+                  value={role === 'husband' ? detail.family.husband : detail.family.wife}
+                  onChange={(id) => setParent(role, id)}
+                  onClose={() => (editingParent = null)}
+                  allowNone={true}
+                  noneLabel="— kein Elternteil —"
+                  label={roleLabel[role]}
+                  startOpen={true}
+                />
+                <button
+                  type="button"
+                  class="stb-icon-btn"
+                  onclick={() => (editingParent = null)}
+                  aria-label={`${roleLabel[role]} wählen abbrechen`}
+                  use:tooltip={'Abbrechen'}
+                >
+                  ✕
+                </button>
+              </div>
             {:else if member}
               <div class="family-detail__parent-box-wrap">
                 <button
@@ -337,7 +355,8 @@
               </button>
               <button
                 type="button"
-                class="family-detail__child-remove-btn"
+                class="stb-icon-btn"
+                data-variant="danger"
                 onclick={() => removeChild(child.personId)}
                 aria-label={`Kind ${child.name} entfernen`}
               >
@@ -452,6 +471,19 @@
     min-width: 0;
   }
 
+  /* Picker + Abbruch in EINER Zeile: das ✕ gehört sichtbar zum Picker, nicht darunter
+     (INV-UI-5, kompakte Zeile). `align-items: center` hält es auf der Feldmitte. */
+  .family-detail__parent-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .family-detail__parent-picker > :global(.stb-picker) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .family-detail__parent-box-wrap {
     display: flex;
     align-items: stretch;
@@ -526,20 +558,6 @@
     color: var(--stb-gold-light);
     font-size: 0.78rem;
     text-decoration: none;
-  }
-
-  .family-detail__child-remove-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.82rem;
-    flex: 0 0 auto;
-  }
-
-  .family-detail__child-remove-btn:hover,
-  .family-detail__child-remove-btn:focus-visible {
-    color: var(--stb-danger);
   }
 
   .family-detail__add-child {

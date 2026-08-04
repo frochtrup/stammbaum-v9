@@ -16,6 +16,7 @@
   import Picker from '../../shell/Picker.svelte';
   import type { LogResult } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   export interface LogFormValues {
     date: string;
@@ -74,7 +75,11 @@
   }
 </script>
 
-<form class="log-form" onsubmit={(e) => { e.preventDefault(); submit(); }}>
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="log-form" onsubmit={formSubmit(submit)} onkeydown={formEscape(onCancel)}>
   <h3 class="log-form__title">{isEditing ? 'Eintrag bearbeiten' : 'Eintrag hinzufügen'}</h3>
 
   <div class="log-form__row">

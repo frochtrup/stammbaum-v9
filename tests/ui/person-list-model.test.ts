@@ -4,7 +4,7 @@
 // selbst ist aber reine Funktion, deshalb hier statt als Component-Test, s. TST-5
 // Testpyramide).
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeFamily, makeCitation, makeMediaCitation } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeCitation, makeMediaCitation, makeEvent } from '../../core/model';
 import type { ChildLink } from '../../core/model/types';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import {
@@ -189,10 +189,14 @@ describe('filterAndSortPersons — Live-Suche über Name/Titel/Ereignisse/Notize
     expect(rows.map((p) => p.id)).toEqual(['@I1@']);
   });
 
-  it('findet über die Religion', () => {
+  // Seit BL-289 ist die Konfession ein RELI-EREIGNIS, kein Skalarfeld — die Suche findet
+  // sie deshalb über denselben Zweig wie Beruf/Wohnort (`p.events`), nicht über ein
+  // eigenes Feld. Die Zusicherung selbst ist unverändert: nach "katholisch" gesucht,
+  // genau diese Person gefunden.
+  it('findet über die Konfession (RELI-Ereignis)', () => {
     const db = makeDatabase();
-    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer', religion: 'katholisch' }));
-    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Meyer', religion: 'evangelisch' }));
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anna', surname: 'Bauer', events: [makeEvent('RELI', { value: 'katholisch', seen: true })] }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Otto', surname: 'Meyer', events: [makeEvent('RELI', { value: 'evangelisch', seen: true })] }));
 
     const rows = filterAndSortPersons(db, emptyContext(), 'name', 'katholisch', defaultPersonFilters());
     expect(rows.map((p) => p.id)).toEqual(['@I1@']);

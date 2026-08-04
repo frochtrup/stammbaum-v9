@@ -68,15 +68,20 @@
     mediaResolver?: MediaResolver;
     /** FS-Access-Handle der zuletzt geladenen/gespeicherten Datei (Tier 1), falls vorhanden. */
     fileHandle?: unknown;
-    /** Meldet einen neuen FS-Handle nach einem Import zurück an App.svelte (s. ImportButton). */
-    onImported?: (handle: unknown) => void;
+    /**
+     * Meldet an App.svelte, dass sich das FS-Handle der geladenen Datei geändert hat.
+     * ZWEI Auslöser, ein Kanal: ein Import (`ImportButton`) und ein „Speichern unter"
+     * (`SaveButton`, Tier 1b) — beide liefern dasselbe: ein Handle, über das der nächste
+     * Save still in-place läuft. Zwei Props dafür wären zwei Namen für eine Sache.
+     */
+    onFileHandleChanged?: (handle: unknown) => void;
     /** Die EINE Routen-Quelle (INV-UI-15) — der Hub hält keinen eigenen Unter-Zustand. */
     route: Route;
     /** Für die Proband-Vorbelegung der Report-Bezugsperson (BL-120), an ReportsView
      *  durchgereicht. Optional, damit bestehende Tests unverändert laufen. */
     viewState?: ViewState;
   }
-  const { appState, fileService, persister, placesFileIO, appDataIO, mediaResolver, fileHandle, onImported, route, viewState }: Props = $props();
+  const { appState, fileService, persister, placesFileIO, appDataIO, mediaResolver, fileHandle, onFileHandleChanged, route, viewState }: Props = $props();
 
   // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
   // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
@@ -134,13 +139,13 @@
       <div class="more-view__file">
         <section class="more-view__group" role="group" aria-labelledby="filegrp-load">
           <h3 id="filegrp-load" class="stb-role-label more-view__group-label">Laden</h3>
-          <ImportButton {appState} {persister} {fileService} {onImported} openIsPrimary={!appState.fileName} />
+          <ImportButton {appState} {persister} {fileService} onImported={onFileHandleChanged} openIsPrimary={!appState.fileName} />
         </section>
 
         {#if appState.fileName}
           <section class="more-view__group" role="group" aria-labelledby="filegrp-save">
             <h3 id="filegrp-save" class="stb-role-label more-view__group-label">Sichern</h3>
-            <SaveButton {appState} {fileService} handle={fileHandle} />
+            <SaveButton {appState} {fileService} handle={fileHandle} onHandleAcquired={onFileHandleChanged} />
           </section>
         {/if}
 
@@ -168,7 +173,7 @@
                (kein eigenes Nav-Ziel, ADR-v9-113). -->
           <details class="more-view__compare">
             <summary class="stb-btn" data-variant="secondary">In anderes Format exportieren</summary>
-            <ExportView {appState} {fileService} handle={fileHandle} {appDataIO} />
+            <ExportView {appState} {fileService} handle={fileHandle} {appDataIO} onHandleAcquired={onFileHandleChanged} />
           </details>
           <!-- Import-Vergleich (BL-107): arbeitet auf einer ZWEITEN Datei, nicht auf dem
                geladenen Bestand. Aufklappbar, weil selten gebraucht. -->

@@ -38,26 +38,21 @@ import type {
   Media,
   MediaCitation,
   Person,
+  PersonName,
   Repository,
   Source,
   SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
-import {
-  buildPlacForGedcom,
-  eventYear,
-  makePlaceRegistry,
-  makeHofRegistry,
-  type PlaceContext,
-} from '../places';
 import type { GedNode } from './gedcom-tree';
-import { evidenceEvalEqual } from './enum-maps';
+import { evidenceEvalEqual, EVAL_TAGS } from './enum-maps';
 import {
   parsePersonPublic,
   parseFamilyPublic,
   parseSourcePublic,
   parseRepositoryPublic,
   projectMediaRecord,
+  definingMediaNodes,
 } from './gedcom-parse';
 import {
   emitPerson,
@@ -106,16 +101,24 @@ const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL']);
  */
 export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] {
   const out: GedNode[] = [];
-  // PlaceContext INTERN aus db.placeObjects/db.hofObjects gebaut (ADR-v9-47): der Writer
-  // UND der Dirty-Check leiten den PLAC-String bei gesetzter placeId/hofId LIVE ab, statt
-  // dem möglicherweise veralteten ev.place-Cache zu vertrauen (INV-PLACE Mechanismus 2).
-  // Kein neuer externer Parameter nötig — `db` enthält alles (Vereinfachen vor Erfinden).
-  const ctx: PlaceContext = {
-    places: makePlaceRegistry(db.placeObjects),
-    hofs: makeHofRegistry(db.hofObjects),
-  };
+  // KEIN PlaceContext mehr (ADR-v9-197, BL-288): weder der Writer noch der Dirty-Check
+  // projizieren PLAC — beide lesen `ev.place` als Wire-Wahrheit. Damit entfällt auch der
+  // Aufbau zweier Registries über den GESAMTEN Orts-/Hof-Bestand bei JEDEM Speichern.
   // Medien-Auflösung (ADR-v9-124) ebenfalls INTERN aus db (kein neuer Parameter, wie ctx).
   const media: MediaLookup = db.media;
+  // Welche OBJE-Knoten haben `db.media` definiert (BL-301)? Nur an ihnen darf ein globaler
+  // Medien-Edit einen Record schmutzig machen — s. `inlineMediaChanged`.
+  const defining = definingMediaNodes(roots);
+  // Die Medien, WIE SIE IN DER DATEI STEHEN — bewusst NICHT `db.media`, das bereits die
+  // Nutzer-Edits trägt (BL-303). Die Probe `wieGelesen` muss den unveränderten Ausgangs-
+  // zustand abbilden; speist man sie aus `db.media`, hält sie einen Medien-Edit für eine
+  // Modell-Normalisierung und schreibt ihn zurück. Genau daran sind beim ersten Bau vier
+  // Tests aus BL-290/301 gescheitert — die Probe war stiller Mitwisser der Änderung.
+  const medienWieGelesen = new Map<string, Media>();
+  for (const n of defining) {
+    const m = projectMediaRecord(n);
+    if (m) medienWieGelesen.set(m.id, m);
+  }
   // Record-Lookup nach xref (BL-164): der Passthrough absorbierter Verlierer-Records wird von
   // hier geholt, solange sie noch im Eingangs-Baum stehen (vor dem ersten Save).
   const recById = new Map<string, GedNode>();
@@ -131,7 +134,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.INDI.add(id);
         const cur = db.individuals.get(id);
         if (!cur) break; // gelöscht → weglassen
-        out.push(personNode(rec, cur, ctx, media, recById));
+        out.push(personNode(rec, cur, media, recById, defining, medienWieGelesen));
         break;
       }
       case 'FAM': {
@@ -139,7 +142,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.FAM.add(id);
         const cur = db.families.get(id);
         if (!cur) break;
-        out.push(familyNode(rec, cur, ctx, media));
+        out.push(familyNode(rec, cur, media, defining, medienWieGelesen));
         break;
       }
       case 'SOUR': {
@@ -149,7 +152,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         seen.SOUR.add(id);
         const cur = db.sources.get(id);
         if (!cur) break;
-        out.push(sourceNode(rec, cur, media));
+        out.push(sourceNode(rec, cur, media, defining, medienWieGelesen));
         break;
       }
       case 'REPO': {
@@ -182,8 +185,8 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 
   // Neue Records (im Modell, nicht im Baum) vor TRLR (bzw. am Ende) einfügen.
   const additions: GedNode[] = [];
-  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, ctx, media));
-  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, ctx, media));
+  for (const p of db.individuals.values()) if (!seen.INDI.has(p.id)) additions.push(emitPerson(p, media));
+  for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, media));
   for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s, media));
   for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
   // Neue record-basierte Medien (ADR-v9-125): nur `wireOrigin==='record'` sind Top-Level-Records;
@@ -202,35 +205,42 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
 function personNode(
   orig: GedNode,
   cur: Person,
-  ctx: PlaceContext,
   media: MediaLookup,
   recById: Map<string, GedNode>,
+  defining: ReadonlySet<GedNode>,
+  medienWieGelesen: MediaLookup,
 ): GedNode {
   const carried = collectMergedPassthrough(cur.mergedRecordIds, recById, RECOGNIZED_PERSON);
   const projected = parsePersonPublic(orig);
   // Bei absorbiertem Passthrough NICHT kurzschließen — der Verlierer-Passthrough muss ran.
-  if (carried.length === 0 && personEqual(projected, cur, ctx)) return orig; // byte-identisch bewahren
-  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, ctx, media), carried);
+  // `inlineMediaChanged`: ein inline-Medium hat keinen eigenen Record, sein Edit muss hier
+  // durch (BL-301) — dieselbe Frage in allen drei Record-Typen, die ein OBJE tragen können.
+  if (carried.length === 0 && personEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig; // byte-identisch bewahren
+  return mergeRecord(orig, cur, RECOGNIZED_PERSON, (m) => emitPerson(m, media), carried,
+    () => emitPerson(projected, medienWieGelesen));
 }
-function familyNode(orig: GedNode, cur: Family, ctx: PlaceContext, media: MediaLookup): GedNode {
+function familyNode(orig: GedNode, cur: Family, media: MediaLookup, defining: ReadonlySet<GedNode>, medienWieGelesen: MediaLookup): GedNode {
   const projected = parseFamilyPublic(orig);
-  if (familyEqual(projected, cur, ctx)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, ctx, media));
+  if (familyEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_FAMILY, (m) => emitFamily(m, media), [],
+    () => emitFamily(projected, medienWieGelesen));
 }
-function sourceNode(orig: GedNode, cur: Source, media: MediaLookup): GedNode {
+function sourceNode(orig: GedNode, cur: Source, media: MediaLookup, defining: ReadonlySet<GedNode>, medienWieGelesen: MediaLookup): GedNode {
   const projected = parseSourcePublic(orig);
-  if (sourceEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media));
+  if (sourceEqual(projected, cur) && !inlineMediaChanged(orig, media, defining)) return orig;
+  return mergeRecord(orig, cur, RECOGNIZED_SOURCE, (m) => emitSource(m, media), [],
+    () => emitSource(projected, medienWieGelesen));
 }
 function repoNode(orig: GedNode, cur: Repository): GedNode {
   const projected = parseRepositoryPublic(orig);
   if (repoEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository);
+  return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository, [], () => emitRepository(projected));
 }
 function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
   const projected = projectMediaRecord(orig);
   if (projected && mediaRecordEqual(projected, cur)) return orig;
-  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord);
+  return mergeRecord(orig, cur, RECOGNIZED_MEDIA, emitMediaRecord, [],
+    projected ? () => emitMediaRecord(projected) : undefined);
 }
 
 /**
@@ -241,15 +251,307 @@ function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
  * wieder eingesetzt (kanonische Position bleibt lokal stabil); ist keins vorhanden (neuer
  * Feldwert), landen sie vor dem ersten Passthrough-Kind bzw. am Ende.
  */
+/**
+ * Welche KIND-Tags bildet das Modell unterhalb eines Tags ab (BL-285, ADR-v9-197)?
+ *
+ * WOZU. Ein erkannter Knoten wird beim Write-Back aus dem Modell neu gebaut. Um seine
+ * un-modellierten Enkel zu retten, muss unterschieden werden, ob ein Kind des ALTEN
+ * Knotens fehlt, weil das Modell es gar nicht kennt (→ Passthrough, muss bleiben), oder
+ * weil der Nutzer es GELÖSCHT hat (→ muss weg). Diese Menge ist deshalb bewusst
+ * **statisch** und NICHT aus der frischen Emission abgeleitet: aus ihr abgeleitet wäre
+ * jedes gelöschte Feld ununterscheidbar von einem un-modellierten und käme zurück — der
+ * Fix hätte einen Datenverlust gegen einen anderen getauscht.
+ *
+ * Nach dem LETZTEN Tag geschlüsselt, nicht nach dem vollen Pfad: `SOUR`/`OBJE`/`PLAC`
+ * tragen überall dieselbe Struktur (Zitat, Medien-Link, Ort), und ein Pfad-Schlüssel
+ * hätte dieselbe Liste ein Dutzend Mal wiederholt.
+ *
+ * Ein Tag, der hier FEHLT, gilt als „hat keine modellierten Kinder" — seine Kinder
+ * überleben also. Das ist die riskante Richtung (ein gelöschtes Feld käme zurück), und
+ * genau deshalb prüft `tests/roundtrip/dirty-record-passthrough.test.ts` per Drift-Guard,
+ * dass jedes Eltern-Kind-Paar, das der Emitter erzeugen kann, hier verzeichnet ist.
+ */
+/** Die Ereignis-Tags aus `RECOGNIZED_PERSON`/`RECOGNIZED_FAMILY`, die `eventNode` baut. */
+const EREIGNIS_TAGS = [
+  'BIRT', 'CHR', 'DEAT', 'BURI', 'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU',
+  'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI',
+  'MARR', 'ENGA', 'DIV',
+] as const;
+
+/** Was `eventNode` unter einem Ereignis schreibt (`CAUS` nur bei DEAT, schadet sonst nicht). */
+const EREIGNIS_KINDER = ['TYPE', 'DATE', 'PLAC', 'ADDR', 'NOTE', 'SOUR', 'OBJE', 'CAUS'] as const;
+
+const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
+  // Person/Familie
+  NAME: ['GIVN', 'SURN', 'NPFX', 'NSFX', 'NICK', 'TYPE', 'SOUR'],
+  FAMC: ['PEDI', '_FREL', '_MREL'],
+  ASSO: ['RELA', 'NOTE', 'SOUR'],
+  REFN: ['TYPE'],
+  CHAN: ['DATE'],
+  // Ereignisse (eventNode) — dieselbe Struktur für BIRT/CHR/DEAT/BURI/OCCU/RESI/…
+  ...Object.fromEntries(EREIGNIS_TAGS.map((t) => [t, EREIGNIS_KINDER])),
+  PLAC: ['MAP'],
+  MAP: ['LATI', 'LONG'],
+  DATE: ['TIME'], // nur unter CHAN belegt; anderswo schadet der Eintrag nicht
+  // Zitat (citationNode) und Medien-Link (mediaNode)
+  SOUR: ['PAGE', 'QUAY', '_EVAL', 'NOTE', 'OBJE'],
+  _EVAL: [...EVAL_TAGS],
+  OBJE: ['TITL', 'FILE', 'NOTE', '_DATE', '_PRIM'],
+  FILE: ['FORM'],
+  FORM: ['MEDI'],
+  // Quelle (emitSource) — `DATA` führt seinen Rest in `Source.dataExtra`, s.
+  // SELBSTVERWALTETER_PASSTHROUGH; die Tabelle beschreibt trotzdem, was das Modell kennt.
+  DATA: ['EVEN', 'AGNC'],
+  // KEIN eigener `EVEN`-Eintrag: der Tag ist zugleich Ereignis (unter INDI/FAM) und
+  // DATA-Kind. Die flache Schlüsselung nach dem letzten Tag verlangt hier die VEREINIGUNG —
+  // und `EREIGNIS_KINDER` enthält `DATE`/`PLAC` bereits. Ein zweiter Eintrag überschrieb
+  // den Ereignis-Eintrag und ließ `EVEN>TYPE`/`NOTE`/`SOUR`/`OBJE` als un-modelliert gelten
+  // (vom Drift-Guard gefangen).
+  REPO: ['CALN'],
+  CALN: ['MEDI'],
+  // Forschungsdaten (taskNode/logEntryNode/hypothesisNode)
+  _TASK: ['_CAT', '_DONE', '_TSTAT', '_DATE', '_ID', 'SOUR'],
+  _RLOG: ['DATE', 'REPO', 'SOUR', '_QUERY', '_RESULT', '_TASKID', '_ID', 'NOTE'],
+  _HYPO: ['_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR'],
+};
+
+/** Die Kind-Tags, die das Modell unter `tag` abbildet (leer = alles darunter ist Passthrough). */
+export function modellierteKinder(tag: string): readonly string[] {
+  return MODELLIERTE_KINDER[tag] ?? [];
+}
+
+/**
+ * Paart alte und frische Knoten desselben Tags (BL-285).
+ *
+ * Bei GLEICHER Anzahl der Reihe nach — der Emitter erhält die Modell-Reihenfolge, die
+ * ihrerseits aus der Datei stammt. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
+ * oder gelöscht) verschiebt eine Paarung nach Position die Zuordnung und übernähme
+ * Passthrough vom FALSCHEN Knoten; dann wird nur noch über den exakten Wert gepaart, und
+ * was übrig bleibt, bleibt ungepaart. Lieber ein Knoten ohne Passthrough-Rettung als einer
+ * mit fremden Zeilen.
+ */
+function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
+  if (alte.length === frische.length) return alte.map((a, i) => [a, frische[i]]);
+  const paare: [GedNode, GedNode][] = [];
+  const offen = [...frische];
+  for (const a of alte) {
+    const i = offen.findIndex((f) => f.value === a.value);
+    if (i >= 0) paare.push([a, offen.splice(i, 1)[0]]);
+  }
+  return paare;
+}
+
+/**
+ * Überträgt die un-modellierten Kinder der alten erkannten Knoten in die frischen — rekursiv,
+ * denn der Verlust sitzt beliebig tief (gemessen u. a. `INDI>OBJE>FILE>TITL`, BL-285).
+ *
+ * Mutiert die frischen Knoten in place; sie sind frisch emittiert, gehören also niemandem
+ * sonst. Angehängt wird HINTEN und nur, was nicht schon (strukturgleich) vorhanden ist —
+ * dieselbe Regel wie beim absorbierten Verlierer-Passthrough (BL-164).
+ */
+function uebernimmTiefenPassthrough(
+  alteKinder: readonly GedNode[],
+  frischeKinder: GedNode[],
+  wieGelesenKinder: readonly GedNode[],
+  recognized: Set<string>,
+): GedNode[] {
+  const alt = nachTag(alteKinder.filter((c) => recognized.has(c.tag)));
+  const frisch = nachTag(frischeKinder);
+  const gelesen = nachTag(wieGelesenKinder);
+  for (const [tag, alteGruppe] of alt) {
+    const frischeGruppe = frisch.get(tag);
+    if (!frischeGruppe) continue; // im Modell nicht mehr vorhanden → bewusst gelöscht
+    const gelesenGruppe = gelesen.get(tag) ?? [];
+    // Der Wert-Halt braucht eine VERLÄSSLICHE Zuordnung der drei Knoten. Nur bei gleicher
+    // Gruppengröße paart `paare` nach Position; sonst paart es nach Wert — und genau der
+    // Wert ist hier die Frage. Bei ungleicher Größe bleibt es deshalb beim alten Verhalten.
+    const gleichLang = alteGruppe.length === frischeGruppe.length
+      && frischeGruppe.length === gelesenGruppe.length;
+    const pos = new Map(alteGruppe.map((a, i) => [a, i]));
+    for (const [a, f] of paare(alteGruppe, frischeGruppe)) {
+      const g = gelesenGruppe[pos.get(a)!] ?? null;
+      if (gleichLang && g) haltWert(a, f, g);
+      uebernimmIn(a, f, g);
+    }
+  }
+  return frischeKinder;
+}
+
+/**
+ * Die WERT-Hälfte derselben Probe (BL-303) — Gegenstück zu `ueberschuss`.
+ *
+ * `ueberschuss` ist zähl-basiert: er fängt „ein Knoten ist verschwunden". Eine
+ * WERT-Umschreibung sieht er nicht, denn dort stimmt die Anzahl. Genau dort saßen die
+ * stillen Umdeutungen, die bis BL-302 einzeln behoben werden mussten — `FORM` (`JPEG`→`jpg`),
+ * `QUAY 0`, `SEX U`, `_RESULT`. Gemessen an einer Probe-Datei schrieb das Modell außerdem
+ * `_TSTAT erledigt`→`todo` (Bedeutung invertiert), `_HSTAT offen`→`open` und
+ * `_HWGT 7`→`medium` (eine Zahl wird zur Kategorie) — ohne dass ein Test anschlug.
+ *
+ * Dieselbe Dreiecks-Frage wie beim Überschuss, nur auf den Wert statt die Anzahl:
+ *  - `alt.value !== wieGelesen.value` → das Modell kann den Wert nicht halten (es hat ihn
+ *    beim Lesen normalisiert oder auf einen Default zurückfallen lassen);
+ *  - `wieGelesen.value === frisch.value` → der Nutzer hat an dieser Stelle nichts geändert.
+ * Beides zusammen heißt: die Abweichung stammt allein vom Modell — also gilt der Wert der
+ * Quelle. Weicht `frisch` dagegen von `wieGelesen` ab, hat der Nutzer entschieden, und
+ * seine Entscheidung schlägt die Quelle.
+ *
+ * Das ist idempotent: der zurückgehaltene Wert wird beim nächsten Laden wieder gleich
+ * normalisiert, die Probe stellt dieselbe Frage und kommt zum selben Ergebnis.
+ *
+ * **Was das NICHT heilt:** die ANZEIGE bleibt bei der normalisierten Lesart — eine Aufgabe
+ * mit `_TSTAT erledigt` steht in der App weiter auf „offen". Das ist eine getrennte Frage
+ * (das Modell müsste den fremden Wert kennen); hier geht es allein darum, dass die Datei
+ * ihn nicht verliert, solange niemand ihn anfasst.
+ */
+function haltWert(alt: GedNode, frisch: GedNode, wieGelesen: GedNode): void {
+  // `CONC`/`CONT` machen den Wert zum FRAGMENT: der volle Text steht erst mit den
+  // Fortsetzungs-Kindern zusammen da, und die baut der Emitter neu (er kennt nur `CONT`,
+  // die Quelle nutzt auch `CONC`). Den Wert allein zurückzusetzen, schnitte den Rest ab —
+  // am Realbestand sofort gemessen: die `TEXT`-Bilanz fiel von −3 auf −4, weil die
+  // CONC-Fortsetzung eines langen Quellentextes verlorenging. Mehrzeiliges bleibt deshalb
+  // außen vor; sein Umbruch ist ohnehin eine eigene Frage (BL-305).
+  const traegtFortsetzung = (n: GedNode): boolean => n.children.some((c) => FORTSETZUNG.has(c.tag));
+  if (traegtFortsetzung(alt) || traegtFortsetzung(wieGelesen) || traegtFortsetzung(frisch)) return;
+  if (alt.value === wieGelesen.value) return;    // das Modell hält den Wert — nichts zu tun
+  if (wieGelesen.value !== frisch.value) return; // der Nutzer hat ihn geändert — er gewinnt
+  frisch.value = alt.value;
+}
+
+function nachTag(xs: readonly GedNode[]): Map<string, GedNode[]> {
+  const m = new Map<string, GedNode[]>();
+  for (const x of xs) (m.get(x.tag) ?? m.set(x.tag, []).get(x.tag)!).push(x);
+  return m;
+}
+
+/**
+ * Der ÜBERSCHUSS (BL-302): erkannte Kinder, die das Modell strukturell nicht HALTEN kann.
+ *
+ * Der Passthrough rettet per Konstruktion nur Tags, die das Modell NICHT beansprucht
+ * (`mergeRecord` unten). Für beanspruchte Tags galt bisher ausnahmslos „fehlt im Modell =
+ * vom Nutzer gelöscht" — richtig für alles, was das Modell abbilden KANN, falsch für den
+ * Rest: ein Ereignis mit ZWEI `NOTE`-Zeilen, eine Quelle mit zwei `TEXT`, ein `1 NAME` ohne
+ * Wert. Das Modell hat je einen Slot, die zweite Zeile fiel still weg (22 Zeilen in
+ * `Unsere Familie 2026.ged`, nachdem BL-290/292 die anderen Klassen geschlossen hatten).
+ *
+ * `wieGelesen` ist die Probe, die beide Fälle trennt, OHNE ein Feld je Tag zu erfinden:
+ * derselbe Emitter, angewandt auf die Projektion des UNVERÄNDERTEN Originals. Erzeugt er
+ * für einen Tag weniger Knoten, als das Original trägt, liegt das am Modell — nicht am
+ * Nutzer. Löscht der Nutzer dagegen einen Wert, steht er in `wieGelesen` weiterhin, und der
+ * Überschuss bleibt leer: die Löschung wirkt.
+ *
+ * **Verglichen wird NUR die ANZAHL je Tag, nie die Struktur.** Der Emitter ordnet Kinder
+ * kanonisch um (`NAME`→GIVN/SURN/…); ein Tiefenvergleich hielte jeden umsortierten Knoten
+ * für unabbildbar und schriebe ihn ein zweites Mal daneben.
+ */
+function ueberschuss(
+  alteKinder: readonly GedNode[],
+  wieGelesenKinder: readonly GedNode[],
+  recognized: Set<string>,
+): GedNode[] {
+  const gelesen = nachTag(wieGelesenKinder);
+  const gesehen = new Map<string, number>();
+  const out: GedNode[] = [];
+  for (const c of alteKinder) {
+    if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag) || ABGESCHAFFT.has(c.tag)) continue;
+    const n = (gesehen.get(c.tag) ?? 0) + 1;
+    gesehen.set(c.tag, n);
+    if (n > (gelesen.get(c.tag)?.length ?? 0)) out.push(c);
+  }
+  return out;
+}
+
+/**
+ * `CONC`/`CONT` sind FORTSETZUNGEN des Elternwerts, keine eigenen Zeilen — sie als
+ * un-modellierten Passthrough zu übernehmen, hängte die alten Textfragmente an den neuen
+ * Wert an und verdoppelte damit jede geänderte Notiz/Adresse. (Vom Drift-Guard am
+ * Realbestand aufgedeckt: `NOTE>CONT`, `ADDR>CONT`, `OBJE>CONT`.)
+ */
+const FORTSETZUNG = new Set(['CONC', 'CONT']);
+
+/**
+ * Tags, die v9 bewusst NICHT MEHR schreibt und die beim Neubau eines Records deshalb
+ * VERSCHWINDEN sollen (BL-307, ADR-v9-213).
+ *
+ * WOZU EINE EIGENE MENGE. Jeder andere Mechanismus hier arbeitet erhaltend — der
+ * Passthrough rettet Un-modelliertes, der `ueberschuss` rettet, was das Modell nicht halten
+ * kann. Für einen Tag, den v9 abschafft, greift ausgerechnet der Überschuss falsch: der
+ * Emitter erzeugt ihn nicht mehr, also erzeugt ihn auch die Probe nicht, also sieht der
+ * Überschuss „das Modell kann ihn nicht halten" und zieht die ALTE Zeile verbatim wieder
+ * ein. Das Ergebnis wäre eine eingefrorene Zeile neben ihrer lebenden Nachfolgerin — genau
+ * der Widerspruch, dessentwegen der Tag abgeschafft wurde.
+ *
+ * Das ist die EINZIGE Stelle im Write-Back, die Daten aktiv entfernt; deshalb ist sie
+ * benannt, eng und begründet, statt als Sonderfall im Überschuss zu stehen.
+ *
+ * **Abgeschafft heißt nicht ungelesen:** `parseTask` liest `_DONE` weiterhin als Rückfall
+ * (Aufgaben aus der Zeit vor v8 sw v307 tragen nur ihn, BL-302). Verloren geht keine
+ * Aussage — sie steht danach in `_TSTAT`.
+ */
+const ABGESCHAFFT = new Set(['_DONE']);
+
+/**
+ * Knoten, die ihren un-modellierten Inhalt SELBST im Modell mitführen: `DATA` über
+ * `Source.dataExtra` (BL-217), `OBJE` über `MediaCitation.extra` (ADR-v9-124). Für ihre
+ * DIREKTEN Kinder darf der Tiefen-Passthrough nicht greifen — was dort fehlt, hat der
+ * Nutzer gelöscht, und es zurückzuholen machte die Löschung wirkungslos.
+ *
+ * Genau das ist passiert: der erste Bau holte ein entferntes `2 EVEN MARR` unter `DATA`
+ * zurück; `tests/roundtrip/source-data-roundtrip.test.ts` („eine ÄNDERUNG am Modell landet
+ * in der Datei — nicht nur der Passthrough") wurde rot. Die Rekursion läuft trotzdem
+ * weiter: unter `OBJE` hängt `FILE>TITL`, das `extra` NICHT abdeckt.
+ */
+const SELBSTVERWALTETER_PASSTHROUGH = new Set(['DATA', 'OBJE']);
+
+/** Ein Paar: un-modellierte Kinder von `alt` nach `frisch`, dann eine Ebene tiefer.
+ *  `wieGelesen` ist derselbe Knoten, wie ihn der Emitter aus dem UNVERÄNDERTEN Original
+ *  baut — er trennt „vom Nutzer gelöscht" von „vom Modell nicht abbildbar" (s. `ueberschuss`). */
+function uebernimmIn(alt: GedNode, frisch: GedNode, wieGelesen: GedNode | null): void {
+  const modelliert = new Set(modellierteKinder(alt.tag));
+  if (!SELBSTVERWALTETER_PASSTHROUGH.has(alt.tag)) {
+    for (const kind of alt.children) {
+      if (modelliert.has(kind.tag) || FORTSETZUNG.has(kind.tag)) continue; // modelliert → fehlt es, ist es gelöscht
+      if (frisch.children.some((x) => nodeEqual(x, kind))) continue;
+      frisch.children.push(kind);
+    }
+    // Überschuss an DIESER Ebene (BL-302): das zweite `NOTE` unter einem Ereignis, das
+    // zweite `_RESULT` unter einem `_RLOG`. Ohne `wieGelesen` ist die Frage nicht
+    // entscheidbar — dann bleibt es beim alten Verhalten (nichts nachtragen).
+    if (wieGelesen) {
+      for (const k of ueberschuss(alt.children, wieGelesen.children, modelliert)) {
+        if (!frisch.children.some((x) => nodeEqual(x, k))) frisch.children.push(k);
+      }
+    }
+  }
+  uebernimmTiefenPassthrough(alt.children, frisch.children, wieGelesen?.children ?? [], modelliert);
+}
+
 function mergeRecord<T>(
   orig: GedNode,
   cur: T,
   recognized: Set<string>,
   emit: (m: T) => GedNode,
   carried: GedNode[] = [], // absorbierter Verlierer-Passthrough (BL-164), dedupliziert angehängt
+  // Die PROBE: derselbe Emitter auf der Projektion des UNVERÄNDERTEN Originals — und mit
+  // dem Medienstand der DATEI, nicht dem aktuellen (BL-302/303). Fertig übergeben statt
+  // hier gebaut, weil nur der Aufrufer weiß, welche Seiten-Daten dazugehören.
+  probe?: () => GedNode,
 ): GedNode {
   const fresh = emit(cur); // vollständiger frischer Record aus dem Modell
-  const recognizedChildren = fresh.children; // alle erkannten Feldgruppen, kanonische Reihenfolge
+  // Sie trennt „vom Nutzer gelöscht/geändert" von „vom Modell nicht abbildbar". Ohne sie
+  // bleibt es beim alten Verhalten.
+  const wieGelesen = probe ? probe() : null;
+  // Un-modellierte ENKEL aus den alten erkannten Kindern in die frischen übernehmen
+  // (BL-285): ohne diesen Schritt nimmt jeder neu gebaute Knoten alles mit, was das Modell
+  // unterhalb von ihm nicht abbildet.
+  const recognizedChildren = uebernimmTiefenPassthrough(
+    orig.children, fresh.children, wieGelesen?.children ?? [], recognized,
+  );
+  // Überschuss der OBERSTEN Ebene: ein `1 NAME` ohne Wert, ein zweites `1 TEXT`.
+  if (wieGelesen) {
+    for (const k of ueberschuss(orig.children, wieGelesen.children, recognized)) {
+      if (!recognizedChildren.some((x) => nodeEqual(x, k))) recognizedChildren.push(k);
+    }
+  }
 
   const children: GedNode[] = [];
   let inserted = false;
@@ -259,7 +561,8 @@ function mergeRecord<T>(
         children.push(...recognizedChildren);
         inserted = true;
       }
-      // altes erkanntes Kind fällt weg (durch fresh ersetzt)
+      // altes erkanntes Kind fällt weg (durch fresh ersetzt — seine un-modellierten Enkel
+      // sind oben in den frischen Knoten gewandert)
     } else {
       children.push(c); // Passthrough: verbatim, an Ort und Stelle
     }
@@ -295,32 +598,21 @@ function collectMergedPassthrough(
 // Nicht modellierte Passthrough-Zeilen sind an der Original-Projektion nicht beteiligt und
 // überleben ohnehin — sie dürfen den Gleichheits-Vergleich nicht beeinflussen.
 
-/**
- * Live-PLAC eines Events für den Dirty-Check (ADR-v9-47): ist `placeId`/`hofId` gesetzt,
- * ist der PLAC-String der LIVE berechnete Wert, nicht der `ev.place`-Cache — sonst hielte
- * der Vergleich einen Datensatz für „unverändert", obwohl sich die Projektion (z. B. eine
- * neue datierte `enclosedBy`-Periode) geändert hat, und der Writer synthetisierte ihn nie
- * neu. GUARD-Fallback (Live == null) → letzter bekannter `ev.place` (siehe placValue).
- */
-function livePlace(ev: Event, ctx: PlaceContext): string | null {
-  if (ev.placeId !== null || ev.hofId !== null) {
-    const live = buildPlacForGedcom(ev, eventYear(ev), ctx);
-    if (live !== null) return live;
-  }
-  return ev.place;
-}
-
 // `a` = Original aus der Datei re-geparst (`a.place` = was buchstäblich in der Datei stand),
-// `b` = aktuelle db-Entität. Verglichen wird `a.place` gegen den LIVE-Wert von `b` — nicht
-// mehr `a.place === b.place` roh (ADR-v9-47). ADDR bleibt roh (bewusst asymmetrisch, §7).
-function eventEqual(a: Event, b: Event, ctx: PlaceContext): boolean {
+// `b` = aktuelle db-Entität. Verglichen wird wieder ROH, `a.place === b.place`
+// (ADR-v9-197, BL-288): seit der Writer nicht mehr live projiziert, sind BEIDE Seiten
+// Wire-Werte. Der frühere Vergleich gegen die Live-Projektion (`livePlace`, ADR-v9-47)
+// meldete sonst jeden Record als geändert, dessen Projektion vom Dateiwert abweicht — er
+// würde neu gebaut, obwohl sich nichts geändert hat, und die RT-1/RT-2-Zusicherung
+// „unveränderter Record bleibt dieselbe Referenz" verlöre ihren Sinn.
+function eventEqual(a: Event, b: Event): boolean {
   return (
     a.seen === b.seen &&
     a.type === b.type &&
     a.value === b.value &&
     a.eventType === b.eventType &&
     a.date === b.date &&
-    a.place === livePlace(b, ctx) &&
+    a.place === b.place &&
     a.addr === b.addr &&
     a.note === b.note &&
     a.lati === b.lati &&
@@ -435,16 +727,35 @@ function hypothesesEqual(a: Hypothesis[], b: Hypothesis[]): boolean {
   return true;
 }
 
-function personEqual(a: Person, b: Person, ctx: PlaceContext): boolean {
+/** Weitere Namensformen (BL-292) — ohne diesen Vergleich gälte ein Record, an dem NUR eine
+ *  Namensform geändert wurde, als unverändert, und der Edit erreichte die Datei nie. */
+function extraNamesEqual(a: PersonName[], b: PersonName[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x.nameRaw !== y.nameRaw || x.given !== y.given || x.surname !== y.surname ||
+      x.prefix !== y.prefix || x.suffix !== y.suffix || x.type !== y.type ||
+      !citationsEqual(x.citations, y.citations)) return false;
+  }
+  return true;
+}
+
+function personEqual(a: Person, b: Person): boolean {
   return (
     a.name === b.name && a.given === b.given && a.surname === b.surname &&
     a.prefix === b.prefix && a.suffix === b.suffix && a.nick === b.nick &&
-    a.sex === b.sex && a.title === b.title && a.religion === b.religion &&
+    // Die Herkunfts-Flags (BL-304) gehören in DENSELBEN Vergleich wie `sexSeen`: sie
+    // entscheiden mit, welche Zeilen der Writer erzeugt — ein Unterschied darin ist ein
+    // Unterschied in der Ausgabe.
+    a.givenSeen === b.givenSeen && a.surnameSeen === b.surnameSeen &&
+    a.suffixSeen === b.suffixSeen &&
+    a.nameType === b.nameType && extraNamesEqual(a.extraNames, b.extraNames) &&
+    a.sex === b.sex && a.sexSeen === b.sexSeen && a.title === b.title &&
     a.restriction === b.restriction && a.email === b.email && a.www === b.www &&
     a.uid === b.uid && a.cause === b.cause &&
-    eventEqual(a.birth, b.birth, ctx) && eventEqual(a.chr, b.chr, ctx) &&
-    eventEqual(a.death, b.death, ctx) && eventEqual(a.buri, b.buri, ctx) &&
-    eventsEqual(a.events, b.events, ctx) &&
+    eventEqual(a.birth, b.birth) && eventEqual(a.chr, b.chr) &&
+    eventEqual(a.death, b.death) && eventEqual(a.buri, b.buri) &&
+    eventsEqual(a.events, b.events) &&
     childOfEqual(a.childOf, b.childOf) &&
     arrEqual(a.parentIn, b.parentIn) &&
     arrEqual(a.aliases, b.aliases) && arrEqual(a.aliaNames, b.aliaNames) &&
@@ -461,9 +772,9 @@ function personEqual(a: Person, b: Person, ctx: PlaceContext): boolean {
   );
 }
 
-function eventsEqual(a: Event[], b: Event[], ctx: PlaceContext): boolean {
+function eventsEqual(a: Event[], b: Event[]): boolean {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i], ctx)) return false;
+  for (let i = 0; i < a.length; i++) if (!eventEqual(a[i], b[i])) return false;
   return true;
 }
 
@@ -498,12 +809,12 @@ function exidsEqual(a: { value: string; type: string }[], b: { value: string; ty
   return true;
 }
 
-function familyEqual(a: Family, b: Family, ctx: PlaceContext): boolean {
+function familyEqual(a: Family, b: Family): boolean {
   return (
     a.husband === b.husband && a.wife === b.wife &&
     arrEqual(a.children, b.children) &&
-    eventEqual(a.marriage, b.marriage, ctx) && eventEqual(a.engagement, b.engagement, ctx) &&
-    eventsEqual(a.events, b.events, ctx) &&
+    eventEqual(a.marriage, b.marriage) && eventEqual(a.engagement, b.engagement) &&
+    eventsEqual(a.events, b.events) &&
     a.noteText === b.noteText &&
     citationsEqual(a.citations, b.citations) &&
     tasksEqual(a.tasks, b.tasks) &&
@@ -542,5 +853,42 @@ function repoEqual(a: Repository, b: Repository): boolean {
 // Medien-Record-Vergleich (ADR-v9-125): die GLOBALEN Felder — hier wird eine Änderung an
 // Datei/Format/Typ/Titel erkannt (die natürliche Stelle, EIN Record statt jeder Referenz).
 function mediaRecordEqual(a: Media, b: Media): boolean {
-  return a.file === b.file && a.form === b.form && a.type === b.type && a.title === b.title;
+  return a.file === b.file && a.form === b.form && a.formWire === b.formWire
+    && a.type === b.type && a.typeWire === b.typeWire && a.title === b.title;
+}
+
+/**
+ * Dieselbe Frage für ein INLINE-Medium — und deshalb an einer anderen Stelle zu stellen
+ * (BL-301, ADR-v9-207): es hat keinen eigenen Record, seine globalen Felder stehen im
+ * `OBJE` des VERWEISENDEN Records. Die Dirty-Prüfung dort vergleicht bislang nur die
+ * `MediaCitation`s (die referenz-spezifische Hälfte); ein Edit an `db.media` ließ den
+ * Record damit als „unverändert" durchgehen und erreichte die Datei NIE — gemessen an
+ * `media-form-wire.small.ged`: Dateipfad und Format eines inline-Mediums geändert,
+ * Ausgabe byte-identisch zur Eingabe.
+ *
+ * Gefragt wird NUR an der Fundstelle, die das Medium definiert hat (`defining`, dieselbe
+ * Regel wie `collectMedia`). Der Realbestand hat gezeigt, warum: dieselbe Matricula-URL
+ * steht dort 3× ohne `FORM` und 1× mit `FORM URL`. Ohne diese Einschränkung meldete das
+ * abweichende Vierte eine Änderung, die niemand gemacht hat — und das Speichern löschte
+ * die `FORM URL`-Zeile. Genau der Umschreib-Fehler, gegen den ADR-v9-197 antritt.
+ *
+ * `title` ist bewusst NICHT dabei: in der 5.5.1-Inline-Form ist `TITL` unter `OBJE` der
+ * REFERENZ-Titel (`MediaCitation.title`) — für einen globalen Titel gibt es dort keinen
+ * Platz. Ihn hier zu vergleichen hieße, den Record dauerhaft als schmutzig zu führen für
+ * eine Änderung, die keine Zeile erzeugen kann. Diese Grenze gehört zur Klasse aus
+ * BL-292 („Modell-Erweiterung oder ausdrücklich dokumentierte Grenze"), nicht hierher.
+ */
+function inlineMediaChanged(orig: GedNode, media: MediaLookup, defining: ReadonlySet<GedNode>): boolean {
+  const abweichend = (n: GedNode): boolean => {
+    if (defining.has(n)) {
+      const projiziert = projectMediaRecord(n);
+      if (projiziert && projiziert.wireOrigin === 'inline') {
+        const cur = media.get(projiziert.id);
+        if (cur && !(projiziert.file === cur.file && projiziert.form === cur.form
+          && projiziert.formWire === cur.formWire && projiziert.type === cur.type)) return true;
+      }
+    }
+    return n.children.some(abweichend);
+  };
+  return abweichend(orig);
 }

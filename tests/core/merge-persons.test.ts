@@ -17,6 +17,7 @@ import { makeDatabase, makePerson, makeFamily, makeEvent, makeCitation, makeMedi
 import { findOrphanRefs, checkIndiFamConsistency } from '../../core/model/integrity';
 import { mergePersons, MERGEABLE_PERSON_FIELDS } from '../../core/dedup';
 import { savePerson, deletePerson } from '../../core/model/commands';
+import { makeHypothesis } from '../../core/research';
 import type { Database, Person, Family } from '../../core/model/types';
 
 function db(persons: Person[], families: Family[] = []): Database {
@@ -212,7 +213,7 @@ describe('mergePersons — Feldauswahl (ADR-v9-104: alle Skalarfelder)', () => {
     const seite = (id: string, mark: string, sex: 'M' | 'F'): Person =>
       makePerson(id, {
         surname: `${mark}sn`, given: `${mark}gn`, nick: `${mark}nk`, prefix: `${mark}pr`,
-        suffix: `${mark}su`, sex, title: `${mark}ti`, religion: `${mark}re`,
+        suffix: `${mark}su`, sex, title: `${mark}ti`,
         restriction: `${mark}rs`, email: `${mark}@x.de`, www: `${mark}.de`, uid: `${mark}uid`,
         cause: `${mark}ca`,
         birth: evt(`1 JAN 180${mark === 'W' ? 1 : 2}`, `${mark}-Geburtsort`),
@@ -344,6 +345,90 @@ describe('mergePersons — Randfälle', () => {
     expect(checkIndiFamConsistency(next)).toEqual([]);
     expect(next.families.get('@F1@')!.children).toContain('@WIN@');
     expect(next.families.get('@F2@')!.husband).toBe('@WIN@');
+  });
+});
+
+// --- Hypothesen-Zeiger (BL-294, ADR-v9-200) ---------------------------------------
+//
+// Gefunden vom Naht-Test Import→Merge→Export (BL-287): `mergePersons` hängte `aliases`
+// und `associations.personRef` auf den Gewinner um — `hypotheses.refs` nicht. Die refs
+// kamen mit ADR-v9-174 dazu, die Umhäng-Schleife wurde nicht mitgezogen. Geschwister-
+// Stelle: `deletePersonCascade` räumte sie von Anfang an korrekt auf.
+//
+// Die Regel ist NICHT neu erfunden, sondern die drei Zeilen darüber: ein Alias auf sich
+// selbst entfällt (`.filter((a) => a !== p.id)`), Duplikate fallen weg. Dieselbe Form wie
+// ADR-v9-195 Punkt 3 bei den Orten („kein Ort enthält sich selbst").
+describe('mergePersons — hypotheses.refs (BL-294)', () => {
+  // Über die Fabrik, nicht als Literal: ein handgebautes Objekt driftet vom Typ ab, sobald
+  // ein Feld dazukommt — genau das ist beim ersten Anlauf passiert (`conclusion` fehlte,
+  // Vitest lief grün, weil esbuild Typen entfernt, und erst `tsc --noEmit` schlug an).
+  const hypothese = (id: string, refs: string[]) =>
+    makeHypothesis(id, {
+      text: 'Vermutlich dieselbe Person',
+      kind: 'identity',
+      status: 'open',
+      weight: 'medium',
+      rationale: 'gleicher Hof, gleiche Paten',
+      refs,
+    });
+
+  it('ein FREMDER Zeiger auf den Verlierer wird auf den Gewinner umgehängt', () => {
+    const next = mergePersons(
+      db([
+        makePerson('@WIN@'),
+        makePerson('@LOSER@'),
+        makePerson('@X@', { hypotheses: [hypothese('H1', ['@LOSER@'])] }),
+      ]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    expect(next.individuals.get('@X@')!.hypotheses[0].refs).toEqual(['@WIN@']);
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('der EIGENE Zeiger des Gewinners auf den Verlierer entfällt, statt auf sich selbst zu zeigen', () => {
+    // Der Fall aus der Praxis: „@WIN@ und @LOSER@ sind dieselbe Person" — die Hypothese
+    // hat sich mit dem Merge erfüllt. Ein Zeiger auf den eigenen Datensatz wäre keine
+    // Aussage mehr; der Text bleibt als Befund stehen (INV-H3: ohne Bezug ist es kein
+    // Ausschluss mehr — genau die Entscheidung, die `deletePersonCascade` schon trifft).
+    const next = mergePersons(
+      db([makePerson('@WIN@', { hypotheses: [hypothese('H1', ['@LOSER@'])] }), makePerson('@LOSER@')]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    const h = next.individuals.get('@WIN@')!.hypotheses[0];
+    expect(h.refs).toEqual([]);
+    expect(h.text).toBe('Vermutlich dieselbe Person'); // der Befund bleibt
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('die Hypothese des VERLIERERS wandert mit und zeigt danach nicht auf den Gewinner selbst', () => {
+    const next = mergePersons(
+      db([makePerson('@WIN@'), makePerson('@LOSER@', { hypotheses: [hypothese('H1', ['@WIN@'])] })]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    const uebernommen = next.individuals.get('@WIN@')!.hypotheses;
+    expect(uebernommen).toHaveLength(1);
+    expect(uebernommen[0].refs).toEqual([]);
+    expect(findOrphanRefs(next)).toEqual([]);
+  });
+
+  it('ein Zeiger auf einen DRITTEN bleibt unangetastet (Kontrollfall)', () => {
+    const next = mergePersons(
+      db([
+        makePerson('@WIN@', { hypotheses: [hypothese('H1', ['@LOSER@', '@X@'])] }),
+        makePerson('@LOSER@'),
+        makePerson('@X@'),
+      ]),
+      '@WIN@',
+      '@LOSER@',
+    );
+
+    expect(next.individuals.get('@WIN@')!.hypotheses[0].refs).toEqual(['@X@']);
   });
 });
 

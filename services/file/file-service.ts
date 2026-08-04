@@ -48,14 +48,35 @@ export class FileService {
   }
 
   /**
+   * Merkt ein bei Tier 1b („Speichern unter") erworbenes FS-Handle an der EINEN
+   * Arbeitskopie (INV-FILE-1), damit der nächste Save still über Tier 1a läuft — auch
+   * nach einem Reload. Legt bewusst KEINE Arbeitskopie an, wenn keine existiert: ein
+   * Handle ohne Text wäre eine halbe Arbeitskopie, die der Auto-Load nicht laden kann.
+   */
+  async rememberHandle(handle: unknown): Promise<void> {
+    const existing = await this.adapters.workingCopyStore.load();
+    if (!existing) return;
+    await this.adapters.workingCopyStore.save({ ...existing, handle });
+  }
+
+  /**
    * Bytes raus (Export/Save). Die einzige Plattform-Verzweigung (INV-FILE-3):
-   *   Tier 1 (FS-Handle vorhanden + Plattform kann createWritable): in-place, still.
-   *   Tier 2a (navigator.share verfügbar): Share-Sheet.
+   *   Tier 1a (Handle vorhanden + Plattform kann createWritable): in-place, still.
+   *   Tier 1b (Plattform kann showSaveFilePicker): „Speichern unter"-Dialog.
+   *   Tier 2a (Share-Sheet ist hier ein TAUGLICHER Speicherweg): Share-Sheet.
    *   Tier 2b (sonst): <a download>-Fallback.
    *
-   * `handle` wird NUR für Tier 1 herangezogen; ein anonymisierter/Strict/GED7-Export
-   * ruft exportToFile ohne handle (oder mit forceDownload) auf, damit nie in-place in
-   * die Originaldatei geschrieben wird (Spec 14 §4, letzter Punkt).
+   * Die Reihenfolge ist inhaltlich, nicht historisch: je weiter oben, desto mehr Kontrolle
+   * behält der Nutzer über das Ziel (dieselbe Datei > selbst gewählte Datei > vom System
+   * angebotene Ziele > Download-Ordner).
+   *
+   * `handle` wird NUR für Tier 1a herangezogen; ein anonymisierter/Strict/GED7-Export
+   * ruft exportToFile mit forceDownload auf und überspringt damit AUCH Tier 1b — er ist
+   * eine Ausgabe, keine fortzuschreibende Datei (Spec 14 §4, letzter Punkt).
+   *
+   * Ein Nutzerabbruch (Tier 1b oder 2a) liefert `ok:false` und weicht NICHT auf einen
+   * weiteren Tier aus — das wäre eine zweite Verzweigung entgegen INV-FILE-3 und gegen
+   * die erklärte Absicht des Nutzers.
    */
   async exportToFile(
     bytes: Uint8Array | string,
@@ -71,7 +92,16 @@ export class FileService {
         await this.adapters.fsHandle.write(handle, bytes);
         return { tier: 'fs-handle', ok: true };
       }
-      // Permission verweigert → fällt durch auf Tier 2, kein Sonderpfad nötig.
+      // Permission verweigert → fällt durch, kein Sonderpfad nötig.
+    }
+
+    if (!forceDownload && this.adapters.fsHandle.canPickSaveTarget()) {
+      const picked = await this.adapters.fsHandle.pickSaveTarget(filename, mimeType);
+      if (!picked) return { tier: 'fs-picker', ok: false };
+      await this.adapters.fsHandle.write(picked, bytes);
+      // Das Handle geht an den AUFRUFER zurück, nicht in die Arbeitskopie: dasselbe Rohr
+      // bedient auch orte.json und den App-Daten-Export mit je eigenem Handle-Speicher.
+      return { tier: 'fs-picker', ok: true, handle: picked };
     }
 
     if (!forceDownload && this.adapters.share.isSupported()) {

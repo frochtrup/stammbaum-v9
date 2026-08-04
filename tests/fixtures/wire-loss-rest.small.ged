@@ -1,0 +1,33 @@
+0 HEAD
+1 SOUR WireLossRest
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Anna /Unbekannt/
+1 SEX U
+1 BIRT
+2 DATE 1880
+2 NOTE Erste Notiz am Ereignis
+2 NOTE Zweite Notiz am selben Ereignis
+2 SOUR @S1@
+3 PAGE 7
+3 QUAY 0
+1 _TASK Kirchenbuch prüfen
+2 _CAT kirchenbuch
+2 _DONE 1
+2 _DATE 4 MAY 2026
+2 _ID t-alt
+1 _RLOG
+2 DATE 2 JAN 2026
+2 _QUERY Todesdatum
+2 _RESULT not-found
+0 @I2@ INDI
+1 NAME
+1 SEX F
+0 @S1@ SOUR
+1 TITL Kirchenbuch Ochtrup
+1 TEXT Erster Textblock der Quelle
+1 TEXT Zweiter Textblock derselben Quelle
+0 TRLR

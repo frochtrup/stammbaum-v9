@@ -10,6 +10,7 @@
   import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof, markHofReviewed } from '../../../core/places';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
   import HofEditForm from './HofEditForm.svelte';
+  import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import Picker from '../../shell/Picker.svelte';
   import { placeDisplayName, normPlaceName } from '../../../core/places';
   import { hofHeading } from '../../shell/place-labels';
@@ -63,15 +64,13 @@
   }
 
   /**
-   * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()` (analog
-   * PlaceDetail.svelte — kein etabliertes Bestätigungs-Dialog-Muster im Projekt).
+   * Löschen (ADR-v9-78 Punkt 1): destruktiv, mit nativem `confirm()` — das seit
+   * BL-277/ADR-v9-217 `DeleteEntityButton` unten am Steckbrief trägt (INV-UI-4, dieselbe
+   * abgesetzte Danger-Zone wie bei Person/Familie/Quelle/Archiv/Medium), nicht mehr die
+   * Knopfreihe des Grunddaten-Formulars.
    */
   function handleDelete() {
     if (!detail) return;
-    const label = hofHeading(detail.hof);
-    if (!window.confirm(`Hof „${label}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Hof werden dabei entfernt (nicht die Ereignisse selbst).`)) {
-      return;
-    }
     appState.deleteHof(detail.hof.id);
     editing = false;
     onBack?.();
@@ -225,7 +224,7 @@
                 aria-label={`Gültig bis Zeile ${i + 1}`}
                 placeholder="bis"
               />
-              <button type="button" class="hof-detail__remove-btn" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
+              <button type="button" class="stb-icon-btn hof-detail__remove-btn" data-variant="danger" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
             {:else}
               <span>{a.value}</span>
               {#if a.from || a.to}<span class="hof-detail__muted">({a.from ?? '…'}–{a.to ?? '…'})</span>{/if}
@@ -266,13 +265,7 @@
     </section>
 
     {#if editing}
-      <HofEditForm
-        hof={detail.hof}
-        {otherHofs}
-        onSave={handleSaveEdit}
-        onDelete={handleDelete}
-        onCreateHof={createHofForForm}
-      />
+      <HofEditForm hof={detail.hof} {otherHofs} onSave={handleSaveEdit} onCreateHof={createHofForForm} />
     {/if}
 
     {#if detail.predecessorLabel || detail.successorLabel}
@@ -322,6 +315,15 @@
       {/if}
     </section>
     {/if}
+
+    <!-- BL-277/ADR-v9-217 — Geschwister-Stelle zu PlaceDetail: dieselbe abgesetzte
+         Danger-Zone wie bei den fünf übrigen Entitäten (INV-UI-4), nicht mehr die
+         Knopfreihe des Grunddaten-Formulars. Begründung zum Gate dort. -->
+    <DeleteEntityButton
+      label="Hof löschen"
+      message={`Hof „${hofHeading(detail.hof)}" wirklich löschen? Ereignis-Verknüpfungen zu diesem Hof werden dabei entfernt (nicht die Ereignisse selbst).`}
+      onConfirm={handleDelete}
+    />
   {/if}
 </div>
 
@@ -406,10 +408,6 @@
 
   .hof-detail__remove-btn {
     margin-left: auto;
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
   }
 
   .hof-detail__add-row {

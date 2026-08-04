@@ -17,6 +17,7 @@
   import type { AssociationRow, GodchildRow } from './person-detail-model';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import { tooltip } from '../../shell/tooltip';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     appState: AppState;
@@ -83,7 +84,8 @@
           {#if row.note}<span class="person-assoc__note">{row.note}</span>{/if}
           <button
             type="button"
-            class="stb-pill__remove person-assoc__remove"
+            class="stb-icon-btn person-assoc__remove"
+            data-variant="danger"
             onclick={() => remove(row)}
             aria-label="Assoziation entfernen"
             use:tooltip={'Entfernen'}
@@ -94,7 +96,11 @@
   {/if}
 
   {#if adding}
-    <form class="person-assoc__form" onsubmit={(e) => { e.preventDefault(); submit(); }}>
+    <!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+         Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+         Falschaussage. -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <form class="person-assoc__form" onsubmit={formSubmit(submit)} onkeydown={formEscape(reset)}>
       <div class="stb-field">
         <span class="stb-field__caption">Person</span>
         <PersonPicker

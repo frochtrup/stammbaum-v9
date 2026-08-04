@@ -1,0 +1,32 @@
+0 HEAD
+1 SOUR InlineCollision
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Johann /Ransmann/
+1 BIRT
+2 DATE 1749
+2 SOUR @S1@
+3 PAGE Taufe 1749
+3 QUAY 3
+3 OBJE
+4 FILE https://data.example.org/kb/KB002_1/?pg=126
+0 @I2@ INDI
+1 NAME Johanna /Lüder/
+1 BIRT
+2 SOUR @S1@
+3 PAGE Taufe 1749 (zweite Fundstelle)
+3 OBJE
+4 FILE https://data.example.org/kb/KB002_1/?pg=126
+0 @S1@ SOUR
+1 TITL Taufbuch St. Lambertus
+1 PUBL https://data.example.org/kb/KB002_1/?pg=126
+1 OBJE
+2 TITL Taufbuch Johann Bernhard Ransmann
+2 FILE https://data.example.org/kb/KB002_1/?pg=126
+3 FORM URL
+4 TYPE URL
+2 _SCBK Y
+0 TRLR

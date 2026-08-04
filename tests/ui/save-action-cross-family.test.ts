@@ -88,7 +88,7 @@ async function exportAndReparseGramps(appState: ReturnType<typeof createAppState
   // exportGedcom nutzt intern den projekteigenen gzipCodec (services/file) — hier reicht
   // ein äquivalenter echter Codec zur Kontrolle des Gates (kein zweiter Mechanismus).
   const notice = await exportGedcom(appState, fileService, { format: 'gramps' });
-  expect(notice).not.toMatch(/fehlgeschlagen/);
+  expect(notice.notice).not.toMatch(/fehlgeschlagen/);
   expect(download.downloadCalls).toHaveLength(1);
   expect(download.downloadCalls[0].filename.endsWith('.gramps')).toBe(true);
   const bytes = download.downloadBytes[0] as Uint8Array;
@@ -100,7 +100,7 @@ async function exportAndReparseGedcom(appState: ReturnType<typeof createAppState
   const { adapters, download } = createMockAdapterSet({ fsHandleSupported: false, shareSupported: false });
   const fileService = new FileService(adapters);
   const notice = await exportGedcom(appState, fileService, { format: 'gedcom-5.5.1' });
-  expect(notice).not.toMatch(/fehlgeschlagen/);
+  expect(notice.notice).not.toMatch(/fehlgeschlagen/);
   expect(download.downloadCalls).toHaveLength(1);
   expect(download.downloadCalls[0].filename.endsWith('.ged')).toBe(true);
   const text = String(download.downloadBytes[0]);

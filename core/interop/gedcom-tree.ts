@@ -109,23 +109,124 @@ export function parseTree(text: string): GedNode[] {
 }
 
 /**
+ * Die Zeilenlängen-Grenze von GEDCOM 5.5.1: 255 BYTES je physischer Zeile, Level und Tag
+ * eingerechnet (BL-305). GEDCOM 7 kennt sie nicht — dort steht `Infinity`, und `CONC`
+ * ist ohnehin abgeschafft.
+ */
+export const ZEILEN_MAX_BYTES = 255;
+
+/**
+ * Wie viele JS-Zeichen von `s` in `maxBytes` UTF-8-Bytes passen, OHNE ein Zeichen zu
+ * zerreißen (v8-Orakel `gedcom-writer.js` `_sliceByteLen`). Ein Umlaut zählt 2 Bytes,
+ * ein Emoji als Surrogatpaar 4 — nach Zeichen zu rechnen sprengte die Grenze still.
+ * Mindestens 1, damit die Schleife auch bei absurd kleinem `maxBytes` terminiert.
+ */
+function sliceByteLen(s: string, maxBytes: number): number {
+  if (maxBytes === Infinity) return s.length;
+  let bytes = 0, i = 0;
+  while (i < s.length) {
+    const c = s.charCodeAt(i);
+    const surrogat = c >= 0xd800 && c <= 0xdbff && i + 1 < s.length;
+    const b = surrogat ? 4 : c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
+    if (bytes + b > maxBytes) break;
+    bytes += b;
+    i += surrogat ? 2 : 1;
+  }
+  return i || (s.length ? 1 : 0);
+}
+
+/** UTF-8-Byte-Länge — die Grenze ist in Bytes formuliert, nicht in Zeichen. */
+function byteLen(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) { n += 4; i++; }
+    else n += c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
+  }
+  return n;
+}
+
+/**
+ * Eine Zeile ausgeben und, wo nötig, per `CONC` fortsetzen (BL-305, ADR-v9-211).
+ *
+ * `CONC` hängt den Folge-Wert OHNE Trennzeichen an (GEDCOM 5.5.1 §1 „Grammar"), der
+ * Schnitt liegt deshalb an der BYTE-Grenze und nicht an einer Wortgrenze — ein
+ * Wortgrenzen-Schnitt müsste das verschluckte Leerzeichen erfinden oder verlieren. So
+ * macht es auch das v8-Orakel (`pushCont`), und so ist der Umbruch verlustfrei umkehrbar:
+ * `assembleLines` faltet ihn wieder zusammen, `net_delta` bleibt 0.
+ *
+ * `contTiefe` ist die Ebene, auf der die Fortsetzung steht — die Kinder-Ebene des Knotens,
+ * ausser der Knoten IST bereits eine Fortsetzung: ein `2 CONT` wird von `2 CONC` fortgesetzt,
+ * nicht von `3 CONC`.
+ */
+function schreibeZeile(
+  praefix: string,
+  wert: string,
+  contTiefe: number,
+  out: string[],
+  maxBytes: number,
+): void {
+  if (wert === '') { out.push(praefix); return; }
+  const concPraefix = `${contTiefe} CONC`;
+  let rest = wert;
+  let p = praefix;
+  for (;;) {
+    let n = sliceByteLen(rest, maxBytes - byteLen(p) - 1);
+    if (n < rest.length) n = schnittNebenLeerzeichen(rest, n);
+    out.push(`${p} ${rest.slice(0, n)}`);
+    rest = rest.slice(n);
+    if (rest === '') return;
+    p = concPraefix;
+  }
+}
+
+/**
+ * Rückt die Schnittstelle so weit nach links, dass an der Naht KEIN Leerzeichen steht —
+ * weder am Ende des einen noch am Anfang des nächsten Stücks (BL-305, ADR-v9-211).
+ *
+ * WARUM, obwohl das v8-Orakel (`pushCont`) hart an der Byte-Grenze schneidet: `CONC` fügt
+ * beim Zusammensetzen nichts ein, ein Leerzeichen an der Naht ist also inhaltlich korrekt —
+ * aber es steht dann als FÜHRENDES oder NACHLAUFENDES Zeichen eines Zeilenwerts da, und
+ * jeder trimmende Leser verliert es. Unser eigener `assembleLines` (das net_delta-Maß,
+ * aus v8 portiert) trimmt: die Fixture dieses Tests, naiv an der Zeichengrenze umbrochen,
+ * las sich als `GrünäckeräöüßÄÖÜ` statt `Grünäcker äöüßÄÖÜ` zurück — die Bilanz einer
+ * Verlustmessung hätte das als geänderte Zeile gemeldet. Ein Umbruch, der die eigene
+ * Messung stört, ist kein unsichtbarer Umbruch.
+ *
+ * Kostet je Zeile wenige Bytes und ist deterministisch; `n >= 1` hält die Schleife am
+ * Laufen, auch wenn ein Wert nur aus Leerzeichen besteht.
+ */
+function schnittNebenLeerzeichen(s: string, n: number): number {
+  while (n > 1 && (s.charCodeAt(n) === 32 || s.charCodeAt(n - 1) === 32)) n--;
+  return n;
+}
+
+/**
  * Serialisiert einen Knotenbaum zurück zu GEDCOM-Zeilen.
  * Level werden aus der Baumtiefe abgeleitet (Wurzel = 0), NICHT aus node.level —
  * so bleibt der Writer korrekt, auch wenn ein Teilbaum umgehängt wurde.
+ *
+ * `maxBytes` ist per Default `Infinity`: der Baum-Writer ist format-AGNOSTISCH, die
+ * 255-Byte-Politik gehört dorthin, wo die Format-Wahl bekannt ist (`serializeGedcom`).
  */
-export function writeNode(node: GedNode, depth: number, out: string[]): void {
-  let line = String(depth);
-  if (depth === 0 && node.xref) line += ' ' + node.xref;
-  line += ' ' + node.tag;
-  if (node.value !== '') line += ' ' + node.value;
-  out.push(line);
-  for (const c of node.children) writeNode(c, depth + 1, out);
+export function writeNode(
+  node: GedNode,
+  depth: number,
+  out: string[],
+  maxBytes: number = Infinity,
+): void {
+  let praefix = String(depth);
+  if (depth === 0 && node.xref) praefix += ' ' + node.xref;
+  praefix += ' ' + node.tag;
+  const contTiefe = node.tag === 'CONC' || node.tag === 'CONT' ? depth : depth + 1;
+  schreibeZeile(praefix, node.value, contTiefe, out, maxBytes);
+  for (const c of node.children) writeNode(c, depth + 1, out, maxBytes);
 }
 
 /** Serialisiert mehrere Records; verbindet mit dem gegebenen Zeilenende. */
-export function writeTree(roots: GedNode[], eol = '\r\n'): string {
+export function writeTree(roots: GedNode[], eol = '\r\n', maxBytes: number = Infinity): string {
   const out: string[] = [];
-  for (const r of roots) writeNode(r, 0, out);
+  for (const r of roots) writeNode(r, 0, out, maxBytes);
   return out.join(eol);
 }
 

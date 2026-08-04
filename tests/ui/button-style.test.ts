@@ -63,9 +63,11 @@ describe('Aktions-Knopf — EIN Stil im Design-System', () => {
   it('`.stb-btn` existiert und holt die Trefferfläche aus dem Token, nicht als Literal', () => {
     const rule = /\.stb-btn\s*\{([^}]*)\}/.exec(css);
     expect(rule, '.stb-btn fehlt in design-system.css').not.toBeNull();
-    expect(rule![1]).toMatch(/min-height:\s*var\(--stb-touch-target\)/);
-    // Ein Literal hier wäre der Rückfall in genau die Doppelung, die diese Regel auflöst.
-    expect(rule![1]).not.toMatch(/min-height:\s*\d/);
+    // Seit BL-299 trägt die ZONE das Token, nicht die gezeichnete Höhe: der Knopf darf
+    // kleiner AUSSEHEN (Hierarchie), angefasst wird die volle Schwelle. Ein Literal in
+    // der Zone wäre der Rückfall in genau die Doppelung, die diese Regel auflöst.
+    expect(css).toMatch(/\.stb-btn::after[^{]*\{[^}]*height:\s*var\(--stb-touch-target\)/s);
+    expect(css).not.toMatch(/\.stb-btn::after[^{]*\{[^}]*height:\s*\d+px/s);
   });
 
   it('beide Varianten sind im Design-System definiert — das Attribut hält, was es verspricht', () => {
@@ -74,10 +76,25 @@ describe('Aktions-Knopf — EIN Stil im Design-System', () => {
   });
 });
 
-describe('WÄCHTER: `data-variant` ohne `.stb-btn` ist ein Marker ohne Wirkung', () => {
+/**
+ * Klassen, für die das Design-System überhaupt eine `[data-variant]`-Regel führt —
+ * aus dem CSS ABGELEITET, nicht aufgezählt. Anfangs war das nur `.stb-btn`; mit BL-280
+ * kam `.stb-icon-btn` dazu (destruktive Glyphe). Eine feste Namensliste hätte den
+ * zweiten Fall als Verstoß gemeldet, obwohl das Attribut dort sehr wohl wirkt — die
+ * Frage des Wächters ist „gibt es eine Regel dazu?", nicht „heißt es `.stb-btn`?".
+ */
+function variantTraegerKlassen(css: string): string[] {
+  const out = new Set<string>();
+  for (const m of css.matchAll(/\.([\w-]+)\[data-variant=/g)) out.add(m[1]);
+  return [...out];
+}
+
+describe('WÄCHTER: `data-variant` ohne tragende Klasse ist ein Marker ohne Wirkung', () => {
   it('jedes Element mit data-variant trägt auch die Klasse, die den Stil liefert', () => {
+    const traeger = variantTraegerKlassen(readFileSync(DESIGN_SYSTEM, 'utf8'));
+    expect(traeger).toContain('stb-btn');
     const offenders = variantElements()
-      .filter((e) => !/\bstb-btn\b/.test(e.classAttr))
+      .filter((e) => !traeger.some((k) => new RegExp(`\\b${k}\\b`).test(e.classAttr)))
       .map((e) => `${e.file}  <${e.tag} data-variant=${e.variant || '?'} class="${e.classAttr}">`);
     // Der Fall, der ihn ausgelöst hat: SettingsViews „Ordner wählen" trug das Attribut,
     // aber keine Regel — und rendete im Browser-Default, unlesbar.

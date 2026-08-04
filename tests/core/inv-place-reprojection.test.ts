@@ -1,10 +1,19 @@
-// INV-PLACE (Spec 11 §3): Ist placeId/hofId gesetzt, ist ev.place ausschließlich die
-// periodengerechte Projektion buildPlacForGedcom(ev, year). Projektions-Cache, keine
-// eigene Wahrheit. Reprojektion läuft am Ende JEDES Pfads → Stale-Cache ausgeschlossen.
+// INV-PLACE (Spec 11 §3), Fassung nach ADR-v9-197/BL-288.
+//
+// GEÄNDERT: Der Ladepass schreibt `ev.place` NICHT mehr um. Bis dahin galt „ev.place ist
+// ausschließlich die periodengerechte Projektion" — das war strukturell elegant (kein
+// Stale-Cache möglich) und kostete an `Unsere Familie 2026.ged` 668 umgeschriebene
+// PLAC-Werte bei jedem Speichern, an Ereignissen, die niemand angefasst hatte.
+//
+// Was bleibt, ist das ZIEL: der Nutzer sieht die periodengerechte Form. Nur der Weg ist
+// ein anderer — sie entsteht in der ANZEIGE (`buildFormString` aus `placeId`), nicht durch
+// Überschreiben der Quelle. `ev.place` ist wieder Wire-Wahrheit; aktuell gehalten wird sie
+// von den Kurations-Kommandos (user-induziert, mit Undo).
 import { describe, it, expect } from 'vitest';
 import {
   resolveEvents,
   buildPlacForGedcom,
+  buildFormString,
   makePlaceRegistry,
   makeHofRegistry,
   eventYear,
@@ -36,7 +45,7 @@ describe('INV-PLACE — Reprojektion am Pfad-Ende', () => {
     expect(out.place).toBe(buildPlacForGedcom(out, eventYear(out), ctx));
   });
 
-  it('ev.place = periodengerechte Projektion (pname greift im Jahr)', () => {
+  it('Anzeige periodengerecht, Datei unangetastet (pname greift im Jahr)', () => {
     const historic = placeMap(
       place('@S@', {
         title: 'Sassenberg',
@@ -45,22 +54,26 @@ describe('INV-PLACE — Reprojektion am Pfad-Ende', () => {
       }),
     );
     const res = resolveEvents([ev('BIRT', { place: 'Sassenberg', date: '1700' })], historic, hofMap());
-    // Modell-Wahrheit ändert die Anzeige: 1700 → historische Schreibweise.
-    expect(res.events[0].event.place).toBe('Sassenbergk');
+    const e = res.events[0].event;
+    expect(e.placeId).toBe('@S@'); // gebunden …
+    expect(e.place).toBe('Sassenberg'); // … aber die Quelle bleibt, wie sie war
+    // Die historische Schreibweise liefert die Projektion — das ist, was der Nutzer sieht.
+    expect(buildFormString(makePlaceRegistry(historic), '@S@', 1700)).toBe('Sassenbergk');
   });
 
-  it('Durchreich-REPROJECT: bereits gelinktes Event wird periodengerecht aktualisiert', () => {
-    // event kommt aus GRAMPS-Parser bereits mit placeId, aber veraltetem place-Cache.
+  it('Durchreich-Pfad: ein bereits gelinktes Event behält seinen Dateiwert', () => {
+    // Event kommt aus dem GRAMPS-Parser bereits mit placeId. Sein `place` mag von der
+    // Projektion abweichen — das ist KEIN „stale Cache" mehr, sondern die Quelle.
     const historic = placeMap(
       place('@S@', {
         title: 'Sassenberg',
         pnames: [{ value: 'Sassenbergk', from: 1600, to: 1750 }],
       }),
     );
-    const stale = ev('BIRT', { placeId: '@S@', place: 'VERALTET', date: '1700' });
-    const res = resolveEvents([stale], historic, hofMap());
-    expect(res.events[0].path).toBe('reproject');
-    expect(res.events[0].event.place).toBe('Sassenbergk');
+    const wire = ev('BIRT', { placeId: '@S@', place: 'Abweichender Wire-Wert', date: '1700' });
+    const res = resolveEvents([wire], historic, hofMap());
+    expect(res.events[0].path).toBe('reproject'); // Pfadname unverändert (Durchreichen)
+    expect(res.events[0].event.place).toBe('Abweichender Wire-Wert');
   });
 
   it('ohne placeId/hofId bleibt ev.place unverändert (kein Cache-Overwrite von Wire-Daten)', () => {

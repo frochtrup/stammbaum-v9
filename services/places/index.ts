@@ -9,6 +9,7 @@ export {
   deletePlaceCascade,
   deleteHofCascade,
   renameHofAddrInEvents,
+  reprojectEventsOfPlace,
   relinkHofVillageInEvents,
 } from './apply-resolution';
 export { mergeGrampsPlaces } from './merge-gramps-places';

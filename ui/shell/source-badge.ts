@@ -40,6 +40,9 @@ export function badgeLabel(citation: Citation, source?: Source): string {
 /** Screenreader-/Tooltip-Text für den Beweiskraft-Meter (Spec 21 §7, ADR-v9-118):
  *  die QUAY-Stufe als lesbarer Satz statt reiner Farbe. */
 export function quayAriaLabel(quay: Citation['quay']): string {
+  // `null` ist NICHT Stufe 0 (BL-302): "unzuverlaessig" ist eine Aussage, "nicht bewertet"
+  // keine. Sichtbar sind beide gleich (null Pips), hoerbar nicht.
+  if (quay === null) return 'Beweiskraft nicht bewertet';
   return `Beweiskraft ${quay} von 3`;
 }
 

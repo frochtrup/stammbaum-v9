@@ -152,8 +152,27 @@
     open();
   }
 
+  /**
+   * Segment-Klick. Auf das BEREITS AKTIVE Segment ist er der Rückweg zur Liste (BL-298).
+   *
+   * Seit BL-07 ist „← Zurück" herkunftsbewusst und geht EINEN Schritt zur Herkunft. Das
+   * ist richtig — aber es war danach der einzige Rückweg: wer über mehrere Details
+   * gewandert war, musste den ganzen Weg rückwärts ablaufen, um wieder eine Liste zu
+   * sehen. Weder die Segmentreihe noch die Bottom-Nav führten dorthin (beide setzen nur
+   * das Ziel, und das Ziel war schon richtig — die AUSWAHL verdeckte die Liste).
+   *
+   * Der aktive Tab ist die Wurzel seines eigenen Stapels (iOS-Konvention) — kein neues
+   * Bedienelement, keine zweite Beschriftung, und `backToList()` gibt es bereits: es ist
+   * der Boden, auf den `goBack()` fällt, wenn der Verlauf leer ist. Ein ANDERES Segment
+   * räumt bewusst nichts ab: dessen Auswahl ist der Stand, zu dem es zurückkehrt
+   * (INV-VS — je Ziel eine eigene Auswahl).
+   */
   function selectSegment(segment: (typeof segments)[number]) {
     if (!segment.implemented) return;
+    if (segment.id === activeSegment) {
+      nav.backToList();
+      return;
+    }
     route.setTarget(segment.id);
   }
 
@@ -247,7 +266,7 @@
        Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
        Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
   {#if !layout.isDesktopLayout}
-    <div class="entity-tab__segments stb-segment-row" role="tablist" aria-label="Entität wählen" data-tour="segments">
+    <div class="entity-tab__segments stb-segment-row stb-segment-row--full" role="tablist" aria-label="Entität wählen" data-tour="segments">
     {#each segments as segment (segment.id)}
       <button
         type="button"
@@ -267,7 +286,7 @@
 
   {#if activeSegment === 'source'}
     <div
-      class="entity-tab__subsegments stb-segment-row entity-tab__subsegments--dashed"
+      class="entity-tab__subsegments stb-segment-row stb-segment-row--full entity-tab__subsegments--dashed"
       role="tablist"
       aria-label="Quellen-Ansicht wählen"
     >
@@ -484,6 +503,33 @@
     min-height: 0;
   }
 
+  /* Der Wisch-Knoten ist ein EREIGNIS-GRIFF, keine Layout-Box (BL-309, ADR-v9-220).
+     Genau das sagt `display: contents`, und deshalb steht hier keine Flex-Plumbing.
+
+     DER DEFEKT, den diese eine Zeile behebt: Ohne Regel war der Wrapper eine normale
+     Block-Box und damit ein Flex-Kind von `.entity-tab` mit `flex: 0 1 auto`. Schrumpfen
+     konnte er nicht — seine automatische Mindesthöhe ist die INHALTShöhe, weil sein
+     eigenes `overflow` `visible` ist. Also wuchs er auf die volle Inhaltshöhe (gemessen
+     2534px in einem 688px hohen Tab), die Detail-Wurzel darin bekam nie eine Höhe, ihr
+     `overflow-y: auto` griff nie — und `main` (`overflow: hidden`) schnitt den Rest ab.
+     Auf dem Handy war damit alles unterhalb des ersten Bildschirms per Geste
+     unerreichbar; nur programmatisch verschiebbar. Betroffen waren ALLE sieben
+     Detailansichten, seit der Wrapper mit BL-07 ohne CSS-Regel entstand.
+
+     WARUM `display: contents` und nicht `flex: 1; min-height: 0`: Beides behebt es, aber
+     die Detail-Wurzeln sind bereits fertige Scroll-Container (`overflow-y: auto`, alle
+     sieben) — genau wie die LISTEN-Wurzeln, die als direkte Flex-Kinder anstandslos
+     scrollen. Ihnen fehlte nichts; dazwischen stand nur eine Box zu viel. `contents`
+     nimmt die Box weg und macht den Detail-Pfad damit strukturgleich zum Listen-Pfad,
+     statt die Höhenkette ein zweites Mal nachzubauen (Vereinfachen vor Erfinden).
+     Die Geste bleibt unberührt: `swipeNav` hängt an touch-Ereignissen, und die blubbern
+     die DOM-Kette hoch — die ist von `display: contents` nicht betroffen (nur die
+     Box-Kette ist es). Der Knoten selbst wird nie Treffer-Ziel, muss er auch nicht: er
+     hört zu, er zeigt nichts. Wächter: tests/ui/detail-scroll.test.ts. */
+  .entity-tab__swipe {
+    display: contents;
+  }
+
   /* Segment-Control-Pillen selbst kommen aus design-system.css (.stb-segment-row/
      .stb-segment-btn/--active) — hier bleibt nur das EntityTab-eigene Layout-Detail
      (Trennlinie unter der Segment-Reihe, gestrichelt unter der Subsegment-Reihe). */
@@ -492,8 +538,13 @@
     border-bottom: 1px solid var(--stb-surface-3);
   }
 
+  /* KEIN `padding-top: 0` mehr (BL-299): die Trefferzone ist auf die PILLE zentriert, die
+     Mindesthöhe der Reihe hält sie deshalb nur dann in ihren Grenzen, wenn die Pille auch
+     mittig sitzt. Die asymmetrische Polsterung zog sie 2,8px nach oben — der Abstand zur
+     Segment-Reihe darüber fiel damit auf 41,3px, und die untere Zone deckte den unteren
+     Rand der oberen zu. Die Reihen bleiben trotzdem als Paar erkennbar: das leistet die
+     gestrichelte Trennlinie, nicht die fehlende Polsterung. */
   .entity-tab__subsegments--dashed {
-    padding-top: 0;
     border-bottom-style: dashed;
   }
 

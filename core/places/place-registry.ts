@@ -2,7 +2,7 @@
 // Ersetzt den lazy-gecachten, an AppState hängenden v8-getPlaceRegistry durch eine
 // reine Funktion (context → registry). Kein Zustand, keine Mutation (TST-3, Spec 11 §4.1).
 import type { PlaceId } from '../model/types';
-import type { PlaceObject, PlaceObjects, Year } from './types';
+import type { DatedRef, PlaceObject, PlaceObjects, Year } from './types';
 import { normPlaceName, placeYear, placeTypeRank } from './normalize';
 
 export interface EnclosureMeta {
@@ -47,7 +47,8 @@ function nodeNames(node: PlaceObject): Set<string> {
 }
 
 /**
- * UNDATIERTE Eltern-Verträglichkeit über ALLE `enclosedBy`-Pfade (DFS/Backtracking).
+ * Eltern-Verträglichkeit über ALLE im Ereignisjahr gültigen `enclosedBy`-Pfade
+ * (DFS/Backtracking).
  *
  * WARUM DFS statt linearem `enclosedBy[0]`-Walk (Bugfix 2026-07-12, ADR-v9-72): ein durch
  * `mergePlaceObjectPair` zusammengeführter Ort (z. B. der kuratierte `_po_ochtrup`, in den
@@ -57,25 +58,73 @@ function nodeNames(node: PlaceObject): Set<string> {
  * gewertet → der Ort (bzw. seine Kette) wurde beim nächsten Laden/Seeden neu angelegt,
  * obwohl seine Kette bereits (an anderer Position) in `enclosedBy` steht (stille Verdopplung).
  *
- * Verträglich = es EXISTIERT ein Pfad durch den undatierten `enclosedBy`-Graphen ab
- * `leafId`, sodass `statedParentsNorm[i]` einen Namen des i-ten Vorfahren trifft
- * (Präfix-Semantik: läuft die Modell-Kette vor den Stated-Segmenten aus, bleibt es
- * verträglich). Deterministisch (Eingabe-Ordnung der `enclosedBy`-Liste). Lenient bei
- * fehlenden/zyklischen Knoten (wie der frühere Einzelpfad-Walk: nicht verifizierbar → ok).
+ * WARUM AUCH FÜR DATIERTE EREIGNISSE (ADR-v9-195): ADR-v9-72 setzte diese Funktion nur im
+ * `year==null`-Zweig von `resolve.ts::chainCompatible` ein — der datierte Zweig durchsuche
+ * über `enclosureWinnerAsOf` „bereits korrekt ALLE datierten Einträge". Das traf nicht zu:
+ * `enclosureWinnerAsOf` liefert GENAU EINEN Gewinner und fällt bei ausschließlich
+ * undatierten Einträgen auf den ERSTEN zurück — also genau den `enclosedBy[0]`-Walk, den
+ * ADR-v9-72 abgeschafft hat, nur auf der anderen Hälfte der Fälle. Da praktisch jedes Datum
+ * einer Genealogie an einem Ereignis hängt, war das die GRÖSSERE Hälfte: am Realbestand
+ * kostete ein Merge von vier „Arpke" elf Ereignisse ihre Zuordnung (Review-Klasse P statt
+ * gebundenem Ort) — dauerhaft, weil auch der nächste Ladepass denselben Weg nimmt.
  *
- * EIN gemeinsamer Mechanismus für `seed.ts::existingParentsCompatible` UND
- * `resolve.ts::chainCompatible` (year==null) — nicht zweimal geschrieben.
+ * `year` schaltet die Periodentreue scharf, HEBT SIE ABER NICHT AUF: je Knoten werden nur
+ * die im Jahr gültigen Einträge verzweigt (datierter Treffer ODER undatiert = „ohne bekannte
+ * Datierung", deshalb jederzeit zulässig). Ein datierter Eintrag, dessen Periode das Jahr
+ * nicht abdeckt, vetoet weiterhin. Unterschied zu `enclosureWinnerAsOf`: mehrere gleichzeitig
+ * gültige Einträge werden ALLE probiert, statt „spätestes `from` gewinnt" — das ist der
+ * Unterschied zwischen einer PRÜFUNG (mehrdeutig erlaubt: es genügt EIN passender Pfad) und
+ * einer PROJEKTION (`enclosureIdsAsOf`, muss eindeutig bleiben und ändert sich hier nicht).
+ * `year == null` verhält sich unverändert: alle Einträge kommen in Frage.
+ *
+ * Verträglich = es EXISTIERT ein Pfad durch den `enclosedBy`-Graphen ab `leafId`, sodass
+ * `statedParentsNorm[i]` einen Namen des i-ten Vorfahren trifft (Präfix-Semantik: läuft die
+ * Modell-Kette vor den Stated-Segmenten aus, bleibt es verträglich). Deterministisch
+ * (Eingabe-Ordnung der `enclosedBy`-Liste). Lenient bei fehlenden/zyklischen Knoten und bei
+ * Knoten, die im Jahr nicht existierten (wie der frühere Einzelpfad-Walk: nicht
+ * verifizierbar → ok).
+ *
+ * EIN gemeinsamer Mechanismus für `seed.ts::existingParentsCompatible` (grundsätzlich
+ * undatiert) UND `resolve.ts::chainCompatible` (beide Jahres-Fälle) — nicht dreimal
+ * geschrieben, und keine zweite Stelle mehr, an der die eine Hälfte nachgezogen werden kann
+ * und die andere stehen bleibt.
  */
 export function chainCompatibleAnyPath(
   byId: (id: PlaceId) => PlaceObject | undefined,
   leafId: PlaceId,
   statedParentsNorm: readonly string[],
+  year: Year = null,
 ): boolean {
+  const y = placeYear(year);
+  /** Im Jahr gültige Zugehörigkeiten eines Knotens (undatiert = jederzeit). */
+  const validEnclosures = (pl: PlaceObject): readonly DatedRef[] => {
+    if (y == null) return pl.enclosedBy;
+    return pl.enclosedBy.filter((e) => {
+      const ef = placeYear(e.from);
+      const et = placeYear(e.to);
+      return (ef == null && et == null) || dateMatches(ef, et, y);
+    });
+  };
+  /**
+   * Existierte der Ort im Ereignisjahr? Spiegelt `enclosureIdsAsOf`, das die Kette an einem
+   * zeitlich unpassenden Knoten abbricht — ohne diese Prüfung wäre der neue gemeinsame Pfad
+   * an einer Stelle STRENGER als der abgelöste datierte Walk (ein Ort, der 1990 längst nicht
+   * mehr existierte, würde plötzlich gegen seine Elternkette geprüft statt lenient
+   * durchgelassen).
+   */
+  const existsInYear = (pl: PlaceObject): boolean => {
+    if (y == null || (pl.existsFrom == null && pl.existsTo == null)) return true;
+    const ef = placeYear(pl.existsFrom);
+    const et = placeYear(pl.existsTo);
+    return !((ef != null && y < ef) || (et != null && y > et));
+  };
+
   const dfs = (curId: PlaceId, depth: number, seen: ReadonlySet<PlaceId>): boolean => {
     if (depth >= statedParentsNorm.length) return true; // alle Stated getroffen
     const cur = byId(curId);
     if (!cur) return true; // Knoten fehlt → nicht verifizierbar, lenient
-    const entries = cur.enclosedBy;
+    if (!existsInYear(cur)) return true; // Kette endet zeitlich → Präfix ok
+    const entries = validEnclosures(cur);
     if (entries.length === 0) return true; // Modell-Kette endet → Präfix ok
     const want = statedParentsNorm[depth];
     for (const e of entries) {

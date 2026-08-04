@@ -28,7 +28,7 @@ export function setCitationNoteAt(citations: Citation[], index: number, note: st
   return citations.map((c, i) => (i === index ? { ...c, note } : c));
 }
 
-export function setCitationQuayAt(citations: Citation[], index: number, quay: Quay): Citation[] {
+export function setCitationQuayAt(citations: Citation[], index: number, quay: Quay | null): Citation[] {
   return citations.map((c, i) => (i === index ? setCitationQuay(c, quay) : c));
 }
 

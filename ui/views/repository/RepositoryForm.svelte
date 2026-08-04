@@ -9,6 +9,7 @@
   import type { Repository } from '../../../core/model/types';
   import TypeSelect from '../../shell/TypeSelect.svelte';
   import { REPO_TYPE_OPTIONS } from '../../shell/repo-labels';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     appState: AppState;
@@ -32,7 +33,10 @@
   // PersonForm.svelte/SourceForm.svelte) — kein fortlaufendes Re-Sync.
   let name = $state(untrack(() => repository.name));
   let type = $state(untrack(() => repository.type));
-  let address = $state(untrack(() => repository.address));
+  // `address` ist Tristate (BL-292): `null` = kein ADDR-Tag, `''` = Tag ohne Wert (der
+  // Bestand trägt darunter `CITY`/`POST` als Passthrough). Das Feld kennt nur Text —
+  // `adresseZurueck` beim Speichern führt es wieder zurück.
+  let address = $state(untrack(() => repository.address ?? ''));
   let phone = $state(untrack(() => repository.phone));
   let www = $state(untrack(() => repository.www));
   let email = $state(untrack(() => repository.email));
@@ -48,11 +52,19 @@
   function discard() {
     name = repository.name;
     type = repository.type;
-    address = repository.address;
+    address = repository.address ?? '';
     phone = repository.phone;
     www = repository.www;
     email = repository.email;
     findingAid = repository.findingAid;
+  }
+
+  /** Ein leeres Feld heißt nicht „kein ADDR": war die Zeile schon vorher leer, bleibt sie —
+   *  sonst risse ein Namens-Edit die strukturierte Adresse darunter mit. Erst das Löschen
+   *  eines VORHANDENEN Werts entfernt die Zeile. Spiegel zu `addrZurueck` (event-edit.ts). */
+  function adresseZurueck(vorher: string | null, feld: string): string | null {
+    if (feld !== '') return feld;
+    return vorher === '' ? '' : null;
   }
 
   function save() {
@@ -60,7 +72,7 @@
       ...repository,
       name: name.trim(),
       type: type.trim(),
-      address: address.trim(),
+      address: adresseZurueck(repository.address, address.trim()),
       phone: phone.trim(),
       www: www.trim(),
       email: email.trim(),
@@ -71,7 +83,13 @@
   }
 </script>
 
-<div class="repository-form" data-no-swipe>
+<!-- `<form>`, nicht `<div>` (BL-276, §6i): Enter speichert, Escape ruft denselben
+     Sekundär-Ausgang wie der Knopf unten — Regel und Fallen in `form-keys.ts`. -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="repository-form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(onCancel ?? discard)}>
   <!-- Nur im ANLAGE-Fall (BL-274, §10e Redundanter Hero-Titel): auf der Detailseite steht
        der Name bereits in der Kopfzeile, die seit BL-274 im Bearbeiten-Modus stehen bleibt
        — „Archiv bearbeiten" wäre dort ein zweiter, ärmerer Titel. Im Picker-Entwurf gibt
@@ -115,14 +133,14 @@
   </div>
 
   <div class="repository-form__actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save}>Speichern</button>
+    <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
     {#if onCancel}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
     {:else}
       <button type="button" class="stb-btn" data-variant="secondary" onclick={discard}>Verwerfen</button>
     {/if}
   </div>
-</div>
+</form>
 
 <style>
   .repository-form {

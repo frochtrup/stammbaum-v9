@@ -40,15 +40,29 @@ export function createMockPicker(result: PickedFile | null): PickerAdapter {
 export function createMockFsHandle(opts: {
   supported: boolean;
   permissionGranted?: boolean;
-}): FsHandleAdapter & { writeCalls: Array<{ handle: unknown; bytes: Uint8Array | string }> } {
+  /** Tier 1b: kann die Plattform „Speichern unter"? Default: wie `supported`. */
+  canPickSaveTarget?: boolean;
+  /** Was der Dialog liefert. `null` = Nutzerabbruch. */
+  saveTarget?: unknown | null;
+}): FsHandleAdapter & {
+  writeCalls: Array<{ handle: unknown; bytes: Uint8Array | string }>;
+  pickSaveTargetCalls: Array<{ filename: string; mimeType: string }>;
+} {
   const writeCalls: Array<{ handle: unknown; bytes: Uint8Array | string }> = [];
+  const pickSaveTargetCalls: Array<{ filename: string; mimeType: string }> = [];
   return {
     isSupported: vi.fn(() => opts.supported),
     requestPermission: vi.fn(async () => opts.permissionGranted ?? true),
     write: vi.fn(async (handle: unknown, bytes: Uint8Array | string) => {
       writeCalls.push({ handle, bytes });
     }),
-    writeCalls
+    canPickSaveTarget: vi.fn(() => opts.canPickSaveTarget ?? opts.supported),
+    pickSaveTarget: vi.fn(async (filename: string, mimeType: string) => {
+      pickSaveTargetCalls.push({ filename, mimeType });
+      return 'saveTarget' in opts ? opts.saveTarget : { id: 'gewählt' };
+    }),
+    writeCalls,
+    pickSaveTargetCalls
   };
 }
 
@@ -99,6 +113,8 @@ export function createMockAdapterSet(opts: {
   pickResult?: PickedFile | null;
   fsHandleSupported?: boolean;
   fsPermissionGranted?: boolean;
+  fsCanPickSaveTarget?: boolean;
+  fsSaveTarget?: unknown | null;
   shareSupported?: boolean;
   shareSucceeds?: boolean;
 } = {}): MockAdapterSet {
@@ -106,7 +122,11 @@ export function createMockAdapterSet(opts: {
   const picker = createMockPicker(opts.pickResult ?? null);
   const fsHandle = createMockFsHandle({
     supported: opts.fsHandleSupported ?? false,
-    permissionGranted: opts.fsPermissionGranted ?? true
+    permissionGranted: opts.fsPermissionGranted ?? true,
+    // Default bewusst `false`: die bestehenden Tier-Tests wurden geschrieben, als es Tier 1b
+    // noch nicht gab — sie sollen weiter genau den Tier prüfen, den sie benennen.
+    canPickSaveTarget: opts.fsCanPickSaveTarget ?? false,
+    ...('fsSaveTarget' in opts ? { saveTarget: opts.fsSaveTarget } : {})
   });
   const share = createMockShare({
     supported: opts.shareSupported ?? false,

@@ -204,7 +204,11 @@ textarea::placeholder {
    ausdrücklich verlangt, dass sie EINMAL als Token steht. Der vorhandene Wächter konnte
    das nicht sehen: er fängt eine zu KLEIN gesetzte Größe, nicht eine fehlende. */
 .stb-btn {
-  min-height: var(--stb-touch-target);
+  position: relative;
+  /* SICHTBAR kleiner als die Trefferfläche (BL-299): 2,25rem = 36px gezeichnet, 44px
+     anfassbar. Ein beschrifteter Aktions-Knopf bleibt damit das optisch schwerste
+     Bedienelement, ohne die Ansicht zu verdrängen. */
+  min-height: 2.25rem;
   border: 1px solid transparent;
   border-radius: var(--stb-radius-control);
   padding: 0.5rem 0.9rem;
@@ -249,6 +253,134 @@ textarea::placeholder {
 .stb-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Ikonisches Inline-Bedienelement (BL-280, Spec 21 §6i/§6a INV-UI-5, ADR-v9-155).
+   DER EINE Stil für ein glyphisches ✎/✕ IN einer kompakten Zeile — Ereigniszeile,
+   Pill-Rücknahme, Medien-Referenzzeile, Kind-/Adresszeile.
+
+   WARUM NICHT `.stb-btn`: sein Rahmen, sein Padding und `font-weight: 600` sprengen die
+   kompakte Zeile, die INV-UI-5 gerade verlangt. Das Problem dieser Elemente ist die
+   TREFFERFLÄCHE, nicht die Optik — sie bleiben rahmenlos und unaufdringlich, sie werden
+   nur greifbar. (Der Wächter aus BL-273 benennt diese Grenze ausdrücklich, statt so zu
+   tun, als sei sie mit der `.stb-btn`-Umstellung erledigt.)
+
+   DIE MECHANIK: die Trefferzone ist ein absolut positioniertes `::after` — sie hängt
+   über die Glyphe hinaus, ohne im Fluss vorzukommen. **Die Zeile wird dadurch weder
+   höher noch breiter, und kein Knopf bricht um.** Sichtbar ist weiterhin nur die Glyphe.
+
+   ZWEI VERWORFENE FASSUNGEN, beide gebaut und gemessen, nicht überlegt:
+   (a) *echter 44×44-Kasten ohne negative Ränder* — bei 375px wuchs die Ereigniszeile von
+       47,3px auf 68,6px: die 44px breite Aktionsgruppe drängte den Ortstext in einen
+       Umbruch. Breite kostet also doch Höhe, nur indirekt.
+   (b) *echter Kasten mit negativen Rändern* — Höhe blieb, aber der Fluss wuchs trotzdem
+       um ~2px je Glyphe (das Randmaß rechnet mit `1em`, die Glyphe ist schmaler) und um
+       4,4px je Paar. Klein, aber es ist Breite; und Breite ist hier ausgeschlossen.
+
+   ZWEI GLYPHEN NEBENEINANDER (Medien-Referenzzeile ✎ ✕, Ereigniszeile ✕ ✎) überlappen
+   sonst, und die spätere gewinnt: das ✕ läge über der Mitte des ✎, die meistgenutzte
+   Bearbeiten-Fläche wäre praktisch nicht mehr treffbar. Jeder der beiden gibt deshalb
+   seinen Überhang zur ANDEREN Seite auf — der erste hängt nur nach links über, der
+   zweite nur nach rechts. Ergebnis, gemessen statt behauptet: die HÖHE ist immer die
+   volle Vorgabe aus `--stb-touch-target`; die BREITE ist 44px, wo eine Glyphe allein
+   steht, und ~28px, wo zwei sich eine Zeile teilen — über der Untergrenze aus WCAG 2.2
+   SC 2.5.8 (24px). Vorher waren beide Achsen bei 10–14px. */
+.stb-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  line-height: 1;
+  color: var(--stb-text-dim);
+  cursor: pointer;
+}
+
+/* ══ DIE TREFFERZONE — eine Mechanik für alle Knopf-Primitiven (BL-299, §6i, INV-UI-4).
+
+   SICHTBARE GRÖSSE UND TREFFERFLÄCHE SIND ENTKOPPELT. Die Zone ist ein absolut
+   positioniertes `::after`: sie hängt über das Element hinaus, ohne im Fluss vorzukommen —
+   die Zeile wird weder höher noch breiter, kein Knopf bricht um. Damit darf die sichtbare
+   Größe die INFORMATIONSHIERARCHIE ausdrücken (Aktion > Navigation > Inline-Glyphe),
+   während jedes dieser Elemente dieselben 44px zum Anfassen hat.
+
+   Das löst den Konflikt auf, an dem BL-281 zuerst hängenblieb: dort standen „Trefferfläche
+   anheben" und „nutzbare Fläche erhalten" gegeneinander, weil beide dieselbe Größe meinten.
+   Die damals verworfene Gegenrichtung („Kopf-Aktionen verkleinern") war verworfen, WEIL sie
+   die Trefferfläche mit verkleinert hätte — mit dieser Mechanik tut sie das nicht mehr, und
+   die Ablehnung verliert ihre Prämisse (Nutzer-Vorschlag, s. ADR-v9-205).
+
+   DIE HARTE RANDBEDINGUNG, die dafür gilt: **der senkrechte Abstand zweier übereinander-
+   liegender Bedienelemente bleibt ≥ `--stb-touch-target`.** Sonst greifen zwei Zonen
+   ineinander, und die spätere Regel gewinnt — das obere Element würde unerreichbar. Bei
+   375px gemessen ist der engste Fall die Segment-/Sub-Segment-Reihe im Quellen-Tab; deshalb
+   behält `.stb-segment-row` genau so viel Polsterung, dass ihre Höhe über der Schwelle
+   bleibt. Wer eine Reihe enger stellt, prüft das nach — statisch ist es nicht zu sehen.
+
+   Die geteilte Regel wirkt nur SENKRECHT — waagerecht sind beschriftete Knöpfe und Pillen
+   ohnehin breit genug. Wer auch dort zu schmal ist (Segment-Pillen, Glyphen), ergänzt den
+   seitlichen Überhang unten, jeweils höchstens um die halbe Reihen-Lücke: so stoßen die
+   Zonen benachbarter Knöpfe genau aneinander, statt sich zu überlappen — eine Überlappung
+   machte den früheren Knopf untreffbar (s. den ✎/✕-Fall unten). */
+.stb-btn::after,
+.stb-segment-btn::after,
+.stb-activation-pill::after,
+.stb-hit::after,
+.stb-icon-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--stb-touch-target);
+  left: 0;
+  right: 0;
+}
+
+/* Nur für einen Aufhänger im Markup, der keine Primitive ist (z. B. `← Zurück` im
+   Detail-Kopf): dieselbe Zone, ohne dass die Komponente eine Knopf-Optik erbt. */
+.stb-hit,
+.stb-activation-pill,
+.stb-segment-btn {
+  position: relative;
+}
+
+/* Segment-Pillen: die schmalste misst 41,8px („Orte"). Ein Überhang von der halben
+   Reihen-Lücke (0,3rem → 0,15rem je Seite) bringt sie über die Schwelle und lässt die
+   Zonen der Reihe lückenlos aneinanderstoßen — zwischen zwei Pillen bleibt kein toter
+   Streifen mehr. */
+.stb-segment-btn::after {
+  left: -0.15rem;
+  right: -0.15rem;
+}
+
+/* Glyphen sind in BEIDEN Achsen zu klein — nur sie hängen auch seitlich weit über. */
+.stb-icon-btn::after {
+  left: calc((1em - var(--stb-touch-target)) / 2);
+  right: calc((1em - var(--stb-touch-target)) / 2);
+}
+
+.stb-icon-btn:has(+ .stb-icon-btn)::after {
+  right: 0;
+}
+
+.stb-icon-btn + .stb-icon-btn::after {
+  left: 0;
+}
+
+.stb-icon-btn:hover,
+.stb-icon-btn:focus-visible {
+  color: var(--stb-gold-light);
+}
+
+/* Destruktive Glyphe (✕ „entfernen"). Dieselbe Fläche, andere Rückmeldung — dieselbe
+   Haltung wie `.stb-btn[data-variant='danger']`: destruktiv sieht nicht aus wie die
+   Primäraktion, aber es ist derselbe Mechanismus (INV-UI-4). */
+.stb-icon-btn[data-variant='danger']:hover,
+.stb-icon-btn[data-variant='danger']:focus-visible {
+  color: var(--stb-danger);
 }
 
 /* Formularfeld ohne <label>-Wrapper (ADR-v9-103, TST-18, INV-UI-4).
@@ -325,7 +457,18 @@ textarea::placeholder {
 .stb-segment-row {
   display: flex;
   gap: 0.3rem;
-  padding: 0.5rem 0.75rem;
+  /* Die Reihe trägt die Randbedingung der Trefferzone STRUKTURELL, nicht als Rechnung
+     (BL-299): sie ist mindestens so hoch wie die Zone ihrer Pillen. Damit kann die Zone
+     senkrecht nie über die Reihe hinausragen — zwei gestapelte Reihen überdecken sich
+     ihre Zonen also nicht gegenseitig, unabhängig davon, wie klein die Pille GEZEICHNET
+     wird. Eine Fassung, die stattdessen Polsterung + Pillenhöhe addierte, kam auf 44,2px
+     und hing damit an zwei Zahlen, die niemand zusammen im Blick hat.
+     Die Polsterung darüber hinaus ist reine Optik: sie trennt gestapelte Reihen
+     voneinander. Nutzbare Fläche ist selbst ein Bedienbarkeits-Kriterium — eine
+     Trefferfläche, die den Inhalt verdrängt, hat den Konflikt nur verschoben. */
+  min-height: var(--stb-touch-target);
+  align-items: center;
+  padding: 0.35rem 0.75rem;
   /* UMBRUCH statt Horizontal-Scroll (Spec 21 §2 „Aktionsreihen brechen um statt
      horizontal aus dem Bild zu scrollen", §9 B7; BL-95).
 
@@ -344,6 +487,26 @@ textarea::placeholder {
      Mechanismus, eine Korrektur, alle Nutzer der Klasse zugleich). */
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+/* Volle Breite für die BANDREIHEN (BL-299): Entitäten-Segmente, Sub-Segmente,
+   Lens-Umschalter, Forschungs-Register, Listen-Abschnitte. Zwei Gründe, beide messbar:
+   die Ziele werden breiter UND sie stoßen lückenlos aneinander — zwischen zwei Pillen
+   bleibt kein toter Streifen, die ganze Bandbreite ist Bedienfläche (Fitts). Und die
+   durchgehende Reihe trennt sich optisch klarer vom Inhalt darunter als eine Reihe, die
+   nach zwei Dritteln aufhört.
+
+   `flex: 1 0 auto` statt gleicher Breiten: der Rest wird VERTEILT, nicht erzwungen —
+   „Medien" (59,8px) darf breiter bleiben als „Orte" (41,8px). Gleiche Breiten (`flex: 1
+   1 0`) würden bei 375px auf 54,5px je Pille hinauslaufen und die beiden längsten Labels
+   abschneiden.
+
+   BEWUSST NICHT auf allen `.stb-segment-row`: `ViewModeToggle` (131px) und die
+   Projekt-Chips (65px) sind Inline-Umschalter INNERHALB einer Kopfzeile — über die volle
+   Breite gezogen behaupteten sie einen Rang, den sie nicht haben. Und eine UMBRECHENDE
+   Reihe (Medien-Filter) bekäme in der letzten Zeile zwei überbreite Kacheln. */
+.stb-segment-row--full > .stb-segment-btn {
+  flex: 1 0 auto;
 }
 
 .stb-segment-btn {
@@ -366,6 +529,25 @@ textarea::placeholder {
   font-size: 0.78rem;
   white-space: nowrap;
   cursor: pointer;
+  position: relative;
+  /* Die Trefferfläche ist hier eine ENTSCHEIDUNG, kein Nebenprodukt (BL-281, §6i).
+     Vorher setzte diese Klasse nur `padding`/`font-size`; die Höhe ergab sich daraus —
+     mit dem Beleg, dass sie niemand kontrollierte, gleich mitgeliefert: DIESELBE Klasse
+     maß 26,1px in den Entitäten-Segmenten und 27,6px im Lens-Umschalter, weil dieser
+     lokal `font-size: 1rem; line-height: 1` fürs Icon setzt. Damit war die primäre
+     Navigation des Bildschirms sein KLEINSTES Bedienelement, während eine sekundäre
+     Kopf-Aktion mit 44px das größte war — visuelles Gewicht gegen Informationshierarchie
+     (Nutzer-Fund am Screenshot).
+
+     Nur die HÖHE: `min-height` wirkt nicht in der Breite, die Reihen bleiben also
+     umbruchfrei (nachgemessen, s. den Umbruch-Kommentar an `.stb-segment-row` oben).
+     Die Gegenrichtung — die Kopf-Aktionen wieder verkleinern — widerspräche §6i
+     „Eine Trefferfläche gibt nie nach" und damit BL-272/273.
+
+     SICHTBAR 2rem = 32px (BL-299), anfassbar 44 über die geteilte Zone oben — leichter
+     als ein Aktions-Knopf (36px), schwerer als eine Inline-Glyphe. Die Reihe polstert die
+     Differenz, das gibt zugleich die optische Trennung zwischen gestapelten Reihen. */
+  min-height: 2rem;
 }
 
 .stb-segment-btn:disabled {
@@ -404,21 +586,6 @@ textarea::placeholder {
   border: 1px solid var(--stb-gold-dim);
   border-radius: 999px;
   padding: 0.15em 0.6em;
-}
-
-.stb-pill__remove {
-  background: transparent;
-  border: none;
-  color: var(--stb-text-dim);
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  font-size: 0.85em;
-}
-
-.stb-pill__remove:hover,
-.stb-pill__remove:focus-visible {
-  color: var(--stb-text);
 }
 
 /* Aktivierungs-Pill (Spec 20 §2 "Progressive Offenlegung", ADR-v9-63): DER EINE Stil für

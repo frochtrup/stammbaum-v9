@@ -129,7 +129,7 @@
               aria-label={`Namensvariante ${i + 1} — gültig bis (Jahr)`}
               onchange={(e) => updatePname(i, v.value, v.from, jahrAusEingabe(e.currentTarget.value))}
             />
-            <button type="button" class="place-detail__edit-remove" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+            <button type="button" class="stb-icon-btn place-detail__edit-remove" data-variant="danger" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
           </li>
         {/each}
       </ul>
@@ -155,7 +155,7 @@
             <span class="stb-pill">
               <span class="place-detail__trans-lang">{t.lang}</span> {t.value}
               {#if editing}
-                <button type="button" class="stb-pill__remove" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
+                <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
               {/if}
             </span>
           {/each}
@@ -275,9 +275,5 @@
 
   .place-detail__edit-remove {
     margin-left: auto;
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
   }
 </style>

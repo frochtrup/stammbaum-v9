@@ -17,11 +17,14 @@
     quay: Citation['quay'];
   }
   const { quay }: Props = $props();
+  // `null` = nicht bewertet (BL-302). Gezeichnet wie Stufe 0 (null Pips) — die Skala hat
+  // nur drei Pips; unterschieden wird im aria-label, wo der Unterschied auch trägt.
+  const stufe = $derived(quay ?? 0);
 </script>
 
-<span class="quay-meter" data-quay={quay} role="img" aria-label={quayAriaLabel(quay)}>
+<span class="quay-meter" data-quay={stufe} role="img" aria-label={quayAriaLabel(quay)}>
   {#each [1, 2, 3] as level (level)}
-    <i class="quay-meter__pip {level <= quay ? 'quay-meter__pip--on' : ''}"></i>
+    <i class="quay-meter__pip {level <= stufe ? 'quay-meter__pip--on' : ''}"></i>
   {/each}
 </span>
 

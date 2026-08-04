@@ -1,0 +1,55 @@
+0 HEAD
+1 SOUR WireLossClasses
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Elisabeth Auguste /Scho/
+2 GIVN Elisabeth Auguste
+2 SURN Scho
+2 SOUR @S1@
+3 QUAY 3
+1 NAME Elisabeth, Auguste /Schoo/
+2 TYPE birth
+2 GIVN Elisabeth, Auguste
+2 SURN Schoo
+2 NPFX Frfr.
+2 NSFX d. Ä.
+2 SOUR @S1@
+3 PAGE KB016 T_270
+3 QUAY 3
+3 _EVAL
+4 _STYP original
+4 _INFO primary
+1 NAME Tante Pully /Scho/
+2 GIVN Tante, Pully
+1 SEX F
+1 RELI röm.-kath.
+2 DATE
+2 PLAC
+2 SOUR @S1@
+3 PAGE 12
+3 QUAY 3
+1 RELI evang.
+2 SOUR @S1@
+1 RESI
+2 DATE FROM MAR 1799
+2 ADDR
+3 ADR1 Schwüblingshöfe
+3 ADR2 Hinterhaus
+3 CITY Ochtrup
+3 POST 48607
+3 CTRY Deutschland
+1 PROP
+2 ADDR Oster 52 (15)
+3 CITY Ochtrup
+0 @S1@ SOUR
+1 TITL Kirchenbuch Ochtrup
+1 REPO @R1@
+0 @R1@ REPO
+1 NAME Bistumsarchiv Münster
+1 ADDR
+2 CITY München
+2 POST 80804
+0 TRLR

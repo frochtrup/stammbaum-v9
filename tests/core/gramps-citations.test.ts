@@ -30,7 +30,9 @@ describe('projectGrampsCitation — ein <citation> → Modell-Citation', () => {
     expect(c.quay).toBe(3); // 4 → min(4,3)
   });
   it('confidence 0–4 → quay 0–3 (D4)', () => {
-    const q = (conf: string): number => projectGrampsCitation(citation('_c', conf, '', '_src1'), srcId).quay;
+    // GRAMPS kennt kein Ohne-Bewertung: `<confidence>` ist Pflicht, `quay` daher nie null
+    // (BL-302 betrifft nur die GEDCOM-Seite, wo `QUAY` fehlen darf).
+    const q = (conf: string): number => projectGrampsCitation(citation('_c', conf, '', '_src1'), srcId).quay ?? -1;
     expect([q('0'), q('1'), q('2'), q('3'), q('4')]).toEqual([0, 1, 2, 3, 3]);
   });
   it('fehlende page → leer', () => {

@@ -21,6 +21,11 @@ export function grampsMediaRefs(node: XmlNode, handleToId: Map<string, string>):
  * `<file>`: `src`→file, `mime`→form, `description`→title (global). `type` (MEDI) hat in
  * GRAMPS kein `<file>`-Pendant → immer ''. Kontextfrei, damit der Write-Back denselben Knoten
  * mit EXAKT dieser Vorschrift re-projizieren kann („hat sich etwas geändert?", ADR-v9-14/125).
+ *
+ * `formWire` bleibt hier bewusst LEER (BL-290): es hält den GEDCOM-`FORM`-Wert, den GRAMPS
+ * gar nicht kennt — sein `mime` IST das kanonische MIME und wird aus `form` zurück-
+ * geschrieben, es gibt also keine Schreibweise zu bewahren. Würde man es hier füllen, trüge
+ * ein GRAMPS→GEDCOM-Export `image/jpeg` in ein 5.5.1-`FORM`, das eine Endung erwartet.
  */
 export function projectGrampsObject(obj: XmlNode): Media {
   const id = attr(obj, 'id') || attr(obj, 'handle');

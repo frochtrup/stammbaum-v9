@@ -16,6 +16,7 @@
   import type { PlacesHost } from '../../shell/places-host';
   import type { PlaceObject } from '../../../core/places/types';
   import { slugify } from '../../../core/places';
+  import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     appState: PlacesHost;
@@ -74,7 +75,13 @@
   }
 </script>
 
-<div class="place-form">
+<!-- `<form>`, nicht `<div>` (BL-276, §6i): Enter legt an, Escape ruft denselben
+     Sekundär-Ausgang wie der Knopf unten — Regel und Fallen in `form-keys.ts`. -->
+<!-- Der Escape-Handler gehört der GANZEN Formularfläche, nicht einem einzelnen
+     Feld (BL-276, `form-keys.ts`) — ein Rollen-Attribut daran wäre eine
+     Falschaussage. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form class="place-form" onsubmit={formSubmit(save)} onkeydown={formEscape(cancel)}>
   <h3>Neuer Ort</h3>
 
   <label>
@@ -95,10 +102,10 @@
   </label>
 
   <div class="place-form__actions">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={save} disabled={!title.trim()}>Speichern</button>
+    <button type="submit" class="stb-btn" data-variant="primary" disabled={!title.trim()}>Speichern</button>
     <button type="button" class="stb-btn" data-variant="secondary" onclick={cancel}>Abbrechen</button>
   </div>
-</div>
+</form>
 
 <style>
   .place-form {

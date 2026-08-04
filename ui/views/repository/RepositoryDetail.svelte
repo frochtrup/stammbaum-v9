@@ -11,6 +11,8 @@
   import { buildRepositoryDetail } from './repository-detail-model';
   import { repoTypeLabel } from '../../shell/repo-labels';
   import RepositoryForm from './RepositoryForm.svelte';
+  import { isRepositoryEmpty } from '../../../core/model';
+  import { retractIfPristine } from '../../shell/create-retraction';
 
   interface Props {
     appState: AppState;
@@ -29,11 +31,41 @@
   const detail = $derived(repoId ? buildRepositoryDetail(appState.db, repoId) : null);
 
   let editing = $state(untrack(() => startInEdit));
+  /** Anlage-Sitzung nach „＋ Neues Archiv" (BL-275) — Begründung s. PersonDetail. */
+  let freshlyCreated = $state(untrack(() => startInEdit));
 
   /** Speichern schließt den Modus (Transaktion abgeschlossen, INV-UI-16); „Verwerfen"
    *  im Formular darf das nicht — es betrifft nur die Feldwerte. */
   function afterSave() {
     editing = false;
+    // Bewusst bestätigt: ab hier keine Rücknahme mehr (INV-UI-10 schützt den
+    // unbestätigten Zustand).
+    freshlyCreated = false;
+  }
+
+  /** Rücknahme einer leer gebliebenen Neuanlage (BL-275, INV-UI-10) — s. `create-retraction.ts`. */
+  function retractIfAbandoned(): boolean {
+    const weg = retractIfPristine({
+      fresh: freshlyCreated,
+      entity: detail?.repository ?? null,
+      isEmpty: isRepositoryEmpty,
+      remove: (r) => appState.deleteRepository(r.id),
+    });
+    if (weg) freshlyCreated = false;
+    return weg;
+  }
+
+  function toggleEdit() {
+    if (editing && retractIfAbandoned()) {
+      onBack?.();
+      return;
+    }
+    editing = !editing;
+  }
+
+  function handleBack() {
+    retractIfAbandoned();
+    onBack?.();
   }
 </script>
 
@@ -46,9 +78,9 @@
     <!-- BL-274/INV-UI-16: die Kopfzeile bleibt im Bearbeiten-Modus stehen. Vorher ersetzte
          das Formular die ganze Seite — Titel und Rückweg verschwanden genau dann, wenn der
          Nutzer den Namen ändert. Der Schalter öffnet UND schließt (kein zweiter Ausgang). -->
-    <DetailHeader title={detail.repository.name || detail.repository.id} onBack={onBack ?? (() => {})}>
+    <DetailHeader title={detail.repository.name || detail.repository.id} onBack={handleBack}>
       {#snippet actions()}
-        <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editing = !editing)}>
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={toggleEdit}>
           {editing ? 'Fertig' : '✎ Bearbeiten'}
         </button>
       {/snippet}
