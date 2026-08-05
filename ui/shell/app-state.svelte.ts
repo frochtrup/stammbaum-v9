@@ -50,6 +50,7 @@ import {
   applyGovEntry,
   parseGovText,
   normPlaceName,
+  normHofAddr,
   type PlaceContext,
   type MergeResult,
   type MoveHofResult,
@@ -84,6 +85,8 @@ import {
   relinkHofVillageInEvents,
   renameHofAddrInEvents,
   reprojectEventsOfPlace,
+  reprojectEventsOf,
+  reprojectHofAddrInEvents,
 } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -791,7 +794,26 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, model);
-      commit({ ...db, hofObjects: nextHofs }, { places: true });
+      // Nachlauf wie bei `savePlace` (ADR-v9-223): dieses Kommando speichert das GANZE
+      // Hof-Objekt, also auch seine `addrs` — `HofDetail` legt darüber Adressvarianten an
+      // und entfernt sie. Fällt die Variante weg, die der Ereignistext trägt, zeigte die
+      // Datei bis dahin weiter die alte Adresse, während die Anzeige längst die neue baute.
+      // (Der dedizierte Umbenenn-Pfad `updateHofAddr` hatte seinen Nachlauf seit ADR-v9-81
+      // — die Geschwister-Stelle daneben nicht.)
+      //
+      // ZWEI Repräsentationen, deshalb zwei Schritte: `ev.addr` ist der eingefrorene
+      // Wire-Wert (ADR-v9-47/-81) und wird nur dort ersetzt, wo er einen ENTFALLENEN
+      // Adresswert trägt; `ev.place` baut der Nachlauf danach ohnehin neu.
+      const vorher = db.hofObjects.get(model.id);
+      // `includes` statt eines Sets: eine Handvoll Adressvarianten je Hof, und ein Set wäre
+      // hier die reaktive Sonderform (svelte/prefer-svelte-reactivity).
+      const behalten = model.addrs.map((a) => normHofAddr(a.value));
+      const entfallen = (vorher?.addrs ?? [])
+        .map((a) => a.value)
+        .filter((v) => !behalten.includes(normHofAddr(v)));
+      const basis = reprojectHofAddrInEvents({ ...db, hofObjects: nextHofs }, model.id, entfallen);
+      const next = reprojectEventsOf(basis, { hofs: [model.id] });
+      commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) });
     },
     updateHofAddr(hofId, index, value, from, to) {
       const hof = db.hofObjects.get(hofId);
@@ -832,9 +854,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       const remap = mergeHofObjects(nextHofs, survivorId, mergedIds);
-      commit(applyHofRemap({ ...db, hofObjects: nextHofs }, remap), { places: true });
+      // Nachlauf (ADR-v9-223): die umgehängten Ereignisse hängen jetzt am Überlebenden —
+      // der kann eine andere Adressvariante führen UND in einem anderen Dorf liegen. Ohne
+      // die Reprojektion nannte der Dateitext weiter das alte Dorf, während die Anzeige
+      // schon das neue zeigte. Dasselbe hatte `mergePlace` seit ADR-v9-195, `mergeHof` nicht.
+      const basis = applyHofRemap({ ...db, hofObjects: nextHofs }, remap);
+      const next = reprojectEventsOf(basis, { hofs: [survivorId] });
+      commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) || remap.size > 0 });
     },
     replacePlacesAndHofs(placeObjects, hofObjects) {
+      // Der Stand VOR dem Einspielen — Grundlage des Inhaltsvergleichs unten.
+      const vorherPlaces = db.placeObjects;
+      const vorherHofs = db.hofObjects;
       const nextDb = { ...db, placeObjects, hofObjects };
       // Reklassifiziert ALLE Events der aktuell geladenen Genealogie gegen den neuen
       // Orts-/Hof-Bestand (mutiert individuals/families IN-PLACE, wie mergePlace/mergeHof
@@ -845,6 +876,26 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // neu geprüft werden (ADR-v9-74) — sonst würde der "bereits gelinkt"-Kurzschluss
       // in resolveEvents jede Verbesserung verhindern.
       const resolution = applyPlaceResolution(nextDb, { resetUncuratedLinks: true });
+      // Nachlauf (ADR-v9-223): der eingespielte Stand kann Orte/Höfe INHALTLICH geändert
+      // haben — etwa eine datierte Umbenennung an einem Elternglied, gemacht im
+      // Standalone-Orte-Editor oder auf einem zweiten Gerät. Die Anzeige folgt sofort
+      // (sie projiziert live), der Dateitext nicht: der Ladepass reprojiziert seit
+      // ADR-v9-197 bewusst nicht mehr, und das nächste Öffnen ist wieder nur ein Ladepass
+      // — die Abweichung bliebe dauerhaft. Der Import IST die Nutzerhandlung, die den
+      // Anlass gibt; sein Nachlauf ist nur zufällig ein Ladepass.
+      //
+      // NUR die tatsächlich geänderten Objekte, per Inhaltsvergleich gegen den Stand davor.
+      // NEUE Orte stehen bewusst nicht drin: ein Ereignis, das durch diesen Pass ERSTMALS
+      // gebunden wird, ist der normale Ladefall — seinen Text umzuschreiben wären genau die
+      // 668 stillen Umschreibungen aus ADR-v9-197.
+      const geaenderteOrte = [...placeObjects.keys()].filter((id) => {
+        const alt = vorherPlaces.get(id);
+        return alt !== undefined && JSON.stringify(alt) !== JSON.stringify(placeObjects.get(id));
+      });
+      const geaenderteHoefe = [...hofObjects.keys()].filter((id) => {
+        const alt = vorherHofs.get(id);
+        return alt !== undefined && JSON.stringify(alt) !== JSON.stringify(hofObjects.get(id));
+      });
       // KEIN Undo-Eintrag, sondern Stack LEEREN (ADR-v9-92 Punkt 5): `applyPlaceResolution`
       // ist der volle Lade-Pass und mutiert Person-/Family-Events in-place — es teilt seine
       // Entitäten also mit zuvor abgelegten Zuständen und würde sie mitverändern. Der ADR
@@ -853,7 +904,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // genau so ein Massen-Wechsel der Orts-Identität (Spec 11 §3 „Mechanismus 1").
       // Konsequenz statt stiller Beschädigung: was davor war, ist nicht mehr rücknehmbar.
       stackClear();
-      db = nextDb;
+      db = reprojectEventsOf(nextDb, { places: geaenderteOrte, hofs: geaenderteHoefe });
       persistWorkingCopyIfLoaded();
       // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand
       // bereits gespeichert (s. Interface-Doku). Nur bei Wachstum durch die

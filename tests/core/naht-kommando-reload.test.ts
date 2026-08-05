@@ -21,6 +21,8 @@ import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/i
 import {
   applyPlaceResolution,
   reprojectEventsOfPlace,
+  reprojectEventsOf,
+  reprojectHofAddrInEvents,
   renameHofAddrInEvents,
   relinkHofVillageInEvents,
   deletePlaceCascade,
@@ -154,6 +156,29 @@ describe('Naht Kommando → Speichern → Neu laden (Orte/Höfe)', () => {
     expect(wohnsitz(zweit.db).hofId).not.toBeNull();
   });
 
+  // ADR-v9-223: die Mengen-Fassung. Anlass war ein Nutzerbefund am Import-Weg — dort gibt
+  // es keinen EINEN geänderten Ort, sondern einen eingespielten Stand, aus dem der Aufrufer
+  // die geänderten Objekte erst herausdifft. Hier in der schärfsten Form: ein HOF ändert
+  // sich, ohne dass sein Dorf sich ändert — er liegt dann in keinem Orts-Teilbaum, den die
+  // Einzel-Fassung aufspannen würde.
+  it('reprojectEventsOf (Hof-Menge): die neue Adressvariante steht nach dem Reload in der Datei', () => {
+    const { datei, zweit } = durchNaht((db) => {
+      const hof = [...db.hofObjects.values()][0];
+      const hofs = new Map(db.hofObjects);
+      // Vollspeicherung des Objekts, wie `HofDetail` sie beim Anlegen/Entfernen einer
+      // Adressvariante auslöst — NICHT der dedizierte Umbenenn-Pfad daneben.
+      saveHofObject(hofs, { ...hof, addrs: [{ value: 'Hof Nr. 9', from: null, to: null }] });
+      // Beide Repräsentationen, wie `saveHof` sie nachzieht: der eingefrorene `ADDR`-Wert
+      // (nur wo er einen entfallenen Wert trägt) und danach die `PLAC`-Projektion.
+      const mitAddr = reprojectHofAddrInEvents({ ...db, hofObjects: hofs }, hof.id, ['Hof Nr. 3']);
+      return reprojectEventsOf(mitAddr, { hofs: [hof.id] });
+    });
+
+    expect(datei).toContain('Hof Nr. 9');
+    expect(wohnsitz(zweit.db).addr).toBe('Hof Nr. 9');
+    expect(wohnsitz(zweit.db).hofId).not.toBeNull();
+  });
+
   it('moveHofToVillage + relinkHofVillageInEvents: das Ereignis liegt nach dem Reload im neuen Dorf', () => {
     const { zweit } = durchNaht((db) => {
       const hof = [...db.hofObjects.values()][0];
@@ -235,6 +260,8 @@ describe('Naht Kommando → Speichern → Neu laden (Orte/Höfe)', () => {
 describe('Wächter: jedes Nachlauf-Kommando steht in der Naht-Tabelle', () => {
   const GEPRUEFT = [
     'reprojectEventsOfPlace',
+    'reprojectEventsOf',
+    'reprojectHofAddrInEvents',
     'renameHofAddrInEvents',
     'relinkHofVillageInEvents',
     'deletePlaceCascade',
