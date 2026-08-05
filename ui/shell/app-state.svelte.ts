@@ -49,6 +49,7 @@ import {
   linkEventToHof as linkEventToHofCmd,
   applyGovEntry,
   parseGovText,
+  normPlaceName,
   type PlaceContext,
   type MergeResult,
   type MoveHofResult,
@@ -587,6 +588,33 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     });
   };
   /**
+   * Die zweite, seit ADR-v9-222 nötige Hälfte des Orts-Merges: Ortsnennungen, die zum
+   * Merge-Zeitpunkt MEHRDEUTIG waren (`placeId == null`, Review-Klasse P) und deren
+   * Leitsegment einen Namen der zusammengeführten Gruppe trägt, an den Überlebenden binden.
+   * Die anschließende `reprojectEventsOfPlace` schreibt ihren Text auf dessen Kette um.
+   *
+   * WARUM DAS DIE FALTUNG ERSETZT. Bis ADR-v9-222 sammelte der Überlebende die Namen und
+   * Verwaltungsketten aller Verlierer ein; genau daran dockten diese Nennungen beim nächsten
+   * Ladepass wieder an. Ohne Ersatz legte der Seed sie als neue Orte an — am Realbestand
+   * kamen 14 von 129 zusammengeführten Orten zurück (59 Ereignisse betroffen). Der Merge
+   * löst die Mehrdeutigkeit jetzt dort auf, wo sie steht, statt sie am Objekt zu
+   * konservieren.
+   *
+   * `mentionNames` ist leer, wenn noch ein gleichnamiger Ort außerhalb der Gruppe existiert
+   * (Teil-Auswahl im Dedup-Dialog) — dann bleibt jede Nennung unangetastet.
+   */
+  const bindPlaceMentions = (base: Database, survivorId: PlaceId, mentionNames: readonly string[]): Database => {
+    if (mentionNames.length === 0) return base;
+    // Bewusst `includes` statt eines Sets: eine Dubletten-Gruppe hat eine Handvoll Namen,
+    // und ein Set wäre hier eine reaktive Sonderform (svelte/prefer-svelte-reactivity).
+    return mapAllEvents(base, (ev) => {
+      if (ev.placeId != null || !ev.place) return null;
+      const lead = ev.place.split(',').map((s) => s.trim()).filter(Boolean)[0];
+      if (lead === undefined || !mentionNames.includes(normPlaceName(lead))) return null;
+      return { ...ev, placeId: survivorId };
+    });
+  };
+  /**
    * DER Chokepoint für jede Zustandsänderung durch ein Editier-Kommando (Spec 02 §3).
    *
    * WARUM ALLES HIER DURCHLÄUFT statt `pushUndoSnapshot()` an ~20 Kommandos daneben:
@@ -742,9 +770,13 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // automatischen Nachlaufs (ADR-v9-92). `workingCopy` ist jetzt nötig: mit der
       // korrigierten `placeId` schreibt der Writer ein anderes `PLAC` (er baut es live aus
       // dem Orts-Bestand), die Arbeitskopie muss also mitziehen.
-      const next = applyPlaceRemap(
-        applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap),
-        result.placeRemap,
+      const next = bindPlaceMentions(
+        applyPlaceRemap(
+          applyHofRemap({ ...db, placeObjects: nextPlaces, hofObjects: nextHofs }, result.hofRemap),
+          result.placeRemap,
+        ),
+        survivorId,
+        result.mentionNames,
       );
       // Nachlauf wie bei `savePlace` (BL-291): der Überlebende trägt jetzt die vereinigten
       // Namen und Ketten — die Ereignisse, die nach dem Remap an ihm hängen, bekommen die

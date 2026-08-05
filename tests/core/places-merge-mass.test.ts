@@ -6,16 +6,19 @@ import { makeHofRegistry } from '../../core/places/index';
 import { place, hof, placeMap, hofMap, ev } from './places-fixtures';
 
 describe('mergePlaceObjects — Array von Verlierern (Massen-Merge, §9.2 Punkt 2)', () => {
-  it('führt mehrere Verlierer verlustfrei in den Gewinner zusammen', () => {
+  it('führt mehrere Verlierer zusammen: der Gewinner behält seine Namen, Lücken werden gefüllt', () => {
     const places = placeMap(
       place('@A@', { title: 'Ochtrup' }),
       place('@B@', { title: 'Ochtorp' }),
       place('@C@', { title: 'Ochtrupe', lat: 52.2, long: 7.2 }),
     );
-    mergePlaceObjects(places, hofMap(), '@A@', ['@B@', '@C@']);
+    const res = mergePlaceObjects(places, hofMap(), '@A@', ['@B@', '@C@']);
     expect(places.has('@B@')).toBe(false);
     expect(places.has('@C@')).toBe(false);
-    expect(places.get('@A@')!.pnames.map((p) => p.value).sort()).toEqual(['Ochtorp', 'Ochtrupe']);
+    // ADR-v9-222: keine Namensfaltung — die Schreibweisen ALLER Verlierer stehen
+    // stattdessen in `mentionNames`, für das Umschreiben der Ortsnennungen.
+    expect(places.get('@A@')!.pnames).toEqual([]);
+    expect(res.mentionNames.sort()).toEqual(['ochtorp', 'ochtrup', 'ochtrupe']);
     expect(places.get('@A@')!.lat).toBe(52.2); // Lücke aus @C@ gefüllt
   });
 
@@ -41,20 +44,24 @@ describe('mergePlaceObjects — Array von Verlierern (Massen-Merge, §9.2 Punkt 
     expect(places.get('@A@')!.shortName).toBe('Frankfurt (Main)');
   });
 
-  it('faltet den shortName des Verlierers NICHT in pnames (kein Match-Kriterium)', () => {
+  it('bringt den shortName des Verlierers auch nicht als Ortsnennung ins Spiel (kein Match-Kriterium)', () => {
     const places = placeMap(
       place('@A@', { title: 'Frankfurt' }),
       place('@B@', { title: 'Franckfurt', shortName: 'Frankfurt (Main)' }),
     );
-    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
-    expect(places.get('@A@')!.pnames.map((p) => p.value)).toEqual(['Franckfurt']);
+    const res = mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.pnames).toEqual([]);
+    // `mentionNames` speist die Nachbindung von Ortsnennungen — ein reiner Anzeigename
+    // gehört dort so wenig hin wie früher in `pnames` (ADR-v9-90/-100).
+    expect(res.mentionNames.sort()).toEqual(['franckfurt', 'frankfurt']);
   });
 
   it('bleibt rückwärtskompatibel: einzelner String-Verlierer funktioniert weiter', () => {
     const places = placeMap(place('@A@', { title: 'Ochtrup' }), place('@B@', { title: 'Ochtorp' }));
-    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    const res = mergePlaceObjects(places, hofMap(), '@A@', '@B@');
     expect(places.has('@B@')).toBe(false);
-    expect(places.get('@A@')!.pnames.map((p) => p.value)).toEqual(['Ochtorp']);
+    expect(places.get('@A@')!.pnames).toEqual([]);
+    expect(res.mentionNames.sort()).toEqual(['ochtorp', 'ochtrup']);
   });
 });
 
@@ -117,7 +124,7 @@ describe('mergePlaceObjects — kein Selbstbezug in enclosedBy (ADR-v9-195)', ()
     expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId)).toEqual([]);
   });
 
-  it('echte Elternverweise bleiben unangetastet (keine Über-Bereinigung)', () => {
+  it('der eigene Elternverweis des Gewinners bleibt unangetastet — der des Verlierers kommt nicht hinzu', () => {
     const places = placeMap(
       place('@S@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
       place('@L@', { title: 'Ochtorp', enclosedBy: [{ placeId: '@LAND@', from: null, to: null }] }),
@@ -125,7 +132,7 @@ describe('mergePlaceObjects — kein Selbstbezug in enclosedBy (ADR-v9-195)', ()
       place('@LAND@', { title: 'Westfalen' }),
     );
     mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
-    expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId).sort()).toEqual(['@KREIS@', '@LAND@']);
+    expect(places.get('@S@')!.enclosedBy.map((e) => e.placeId)).toEqual(['@KREIS@']);
   });
 });
 
@@ -235,8 +242,8 @@ describe('Merge und der Prüf-Marker (ADR-v9-191)', () => {
     mergePlaceObjects(places, hofMap(), '@S@', ['@L@']);
 
     const survivor = places.get('@S@')!;
-    // Die Notiz wandert (fill-if-empty, Inhalt), der Marker nicht (Aussage über einen
-    // Menschen — sie fand nie am Überlebenden statt).
+    // Die Notiz wandert (fill-if-empty, Inhalt — der Gewinner hat keine), der Marker nicht
+    // (Aussage über einen Menschen — sie fand nie am Überlebenden statt).
     expect(survivor.note).toBe('geprüft und gepflegt');
     expect(survivor.reviewedAt ?? null).toBeNull();
   });

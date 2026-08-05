@@ -314,25 +314,56 @@ describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-R
   });
 });
 
-describe('mergePlaceObjects — Dubletten-Merge (verlustfrei, Spec 20 §1.7 [K])', () => {
-  it('faltet Titel + pnames des zusammengeführten Orts als Varianten in den Überlebenden (verlustfrei)', () => {
+// ADR-v9-222 — „im Orte-Dedup sollte nur der Gewinner überbleiben". Bis dahin faltete der
+// Merge Titel, `pnames` und `enclosedBy` der Verlierer in den Überlebenden; am Realbestand
+// entstanden daraus Orte mit mehreren gleichzeitig gültigen, undatierten Verwaltungsketten
+// („Steinwedel" unter vier Regimen). Die Identitäts-Felder fallen jetzt mit dem Verlierer
+// weg; was seine Nennungen an den Überlebenden bindet, meldet `mentionNames`.
+describe('mergePlaceObjects — Dubletten-Merge (nur der Gewinner überlebt, ADR-v9-222)', () => {
+  it('übernimmt WEDER Titel NOCH pnames des zusammengeführten Orts', () => {
     const places = placeMap(
       place('@A@', { title: 'Ochtrup', type: 'Town' }),
       place('@B@', { title: 'Ochtorp', pnames: [{ value: 'Ochtrupe', from: 1600, to: 1700 }] }),
     );
-    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    const res = mergePlaceObjects(places, hofMap(), '@A@', '@B@');
     expect(places.has('@B@')).toBe(false);
     expect(places.get('@A@')!.title).toBe('Ochtrup');
-    expect(places.get('@A@')!.pnames.map((p) => p.value).sort()).toEqual(['Ochtorp', 'Ochtrupe']);
+    expect(places.get('@A@')!.pnames).toEqual([]);
+    // Die Schreibweisen sind nicht verloren, sie wechseln die Zuständigkeit: der Aufrufer
+    // bindet die Nennungen, die sie tragen, an den Überlebenden.
+    expect(res.mentionNames.sort()).toEqual(['ochtorp', 'ochtrup', 'ochtrupe']);
   });
 
-  it('dedupliziert Namensvarianten über die Norm-Form (kein doppelter Wert)', () => {
+  it('übernimmt die Zugehörigkeiten (enclosedBy) des Verlierers nicht — keine zweite Kette am Gewinner', () => {
     const places = placeMap(
-      place('@A@', { title: 'Ochtrup', pnames: [{ value: 'Ochtorp', from: null, to: null }] }),
-      place('@B@', { title: 'ochtorp' }), // Norm-Duplikat der bestehenden Variante
+      place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_ST@', from: null, to: null }] }),
+      place('@B@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_AH@', from: null, to: null }] }),
+      place('@KR_ST@', { title: 'Kreis Steinfurt' }),
+      place('@KR_AH@', { title: 'Kreis Ahaus' }),
     );
     mergePlaceObjects(places, hofMap(), '@A@', '@B@');
-    expect(places.get('@A@')!.pnames).toHaveLength(1);
+    expect(places.get('@A@')!.enclosedBy.map((e) => e.placeId)).toEqual(['@KR_ST@']);
+  });
+
+  it('erbt die Existenzspanne des Verlierers nicht (sie datiert einen anderen Eintrag)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtrup', existsFrom: 1150, existsTo: 1802 }),
+    );
+    mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.get('@A@')!.existsFrom).toBeNull();
+    expect(places.get('@A@')!.existsTo).toBeNull();
+  });
+
+  it('meldet KEINE mentionNames, wenn außerhalb der Gruppe ein gleichnamiger Ort bleibt (Teil-Auswahl, §9.2)', () => {
+    const places = placeMap(
+      place('@A@', { title: 'Ochtrup' }),
+      place('@B@', { title: 'Ochtrup' }),
+      place('@C@', { title: 'Ochtrup' }), // nicht ausgewählt → die Mehrdeutigkeit bleibt echt
+    );
+    const res = mergePlaceObjects(places, hofMap(), '@A@', '@B@');
+    expect(places.has('@B@')).toBe(false);
+    expect(res.mentionNames).toEqual([]);
   });
 
   it('repointet hofObjects.villageId vom zusammengeführten auf den Überlebenden Ort', () => {
@@ -365,32 +396,42 @@ describe('mergePlaceObjects — Dubletten-Merge (verlustfrei, Spec 20 §1.7 [K])
     expect(a.type).toBe('Town');
   });
 
-  it('vereinigt translations (Sprachachse) verlustfrei, dedupliziert über lang|value', () => {
+  it('hängt die Notiz des Verlierers NICHT an eine vorhandene an (fill-if-empty, kein Wachstum)', () => {
     const places = placeMap(
-      place('@A@', { title: 'Breslau', translations: [{ lang: 'pl', value: 'Wrocław' }] }),
-      place('@B@', {
-        title: 'Breslau',
-        translations: [
-          { lang: 'pl', value: 'wrocław' }, // Norm-Duplikat (nur Groß/klein) → nicht doppeln
-          { lang: 'cs', value: 'Vratislav' }, // neu → übernehmen
-        ],
-      }),
+      place('@A@', { title: 'Ochtrup', note: 'Eigene Notiz' }),
+      place('@B@', { title: 'Ochtrup', note: 'Notiz des Verlierers' }),
     );
     mergePlaceObjects(places, hofMap(), '@A@', '@B@');
-    const a = places.get('@A@')!;
-    expect(a.translations).toEqual([
-      { lang: 'pl', value: 'Wrocław' },
-      { lang: 'cs', value: 'Vratislav' },
-    ]);
+    expect(places.get('@A@')!.note).toBe('Eigene Notiz');
+  });
+
+  it('übernimmt translations nur, wenn der Überlebende gar keine hat (fill-if-empty statt Union)', () => {
+    const mitEigenen = placeMap(
+      place('@A@', { title: 'Breslau', translations: [{ lang: 'pl', value: 'Wrocław' }] }),
+      place('@B@', { title: 'Breslau', translations: [{ lang: 'cs', value: 'Vratislav' }] }),
+    );
+    mergePlaceObjects(mitEigenen, hofMap(), '@A@', '@B@');
+    expect(mitEigenen.get('@A@')!.translations).toEqual([{ lang: 'pl', value: 'Wrocław' }]);
+
+    const ohneEigene = placeMap(
+      place('@A@', { title: 'Breslau' }),
+      place('@B@', { title: 'Breslau', translations: [{ lang: 'cs', value: 'Vratislav' }] }),
+    );
+    mergePlaceObjects(ohneEigene, hofMap(), '@A@', '@B@');
+    expect(ohneEigene.get('@A@')!.translations).toEqual([{ lang: 'cs', value: 'Vratislav' }]);
   });
 
   it('No-Op bei gleicher ID oder fehlendem Ort', () => {
     const places = placeMap(place('@A@', { title: 'Ochtrup' }));
-    mergePlaceObjects(places, hofMap(), '@A@', '@A@');
-    mergePlaceObjects(places, hofMap(), '@A@', '@MISSING@');
+    const selbst = mergePlaceObjects(places, hofMap(), '@A@', '@A@');
+    const fehlend = mergePlaceObjects(places, hofMap(), '@A@', '@MISSING@');
     expect(places.size).toBe(1);
     expect(places.get('@A@')!.title).toBe('Ochtrup');
     expect(places.get('@A@')!.pnames).toHaveLength(0);
+    // Kein Merge → nichts umzuschreiben. Sonst bände ein No-Op-Aufruf fremde Nennungen
+    // an einen Ort, an dem sich gar nichts geändert hat.
+    expect(selbst.mentionNames).toEqual([]);
+    expect(fehlend.mentionNames).toEqual([]);
   });
 });
 
