@@ -50,6 +50,11 @@
   // (`matchesSearch`, nicht bloß ein Substring-Vergleich auf dem Anzeigenamen).
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import MapExplorePanel from './MapExplorePanel.svelte';
+  // Warum die Fläche leer ist (BL-310). Eine leere Karte ohne Text ist kein Zustand,
+  // sondern ein vermuteter Defekt — und leer ist sie beim ERSTEN Blick fast immer, weil
+  // der Village-Seed unangereicherte Orte ohne Koordinaten anlegt (ADR-v9-28). Die
+  // Begründung ist eine reine Funktion, damit sie ohne Datenbank prüfbar bleibt.
+  import { mapEmptyReason } from './map-empty-model';
 
   interface Props {
     appState: AppState;
@@ -61,6 +66,12 @@
     onNavigateToPerson?: (personId: string) => void;
     onNavigateToPlace?: (placeId: string) => void;
     onNavigateToHof?: (hofId: string) => void;
+    /** Weg in den Orte-Tab, wenn die Karte mangels Koordinaten leer ist (BL-310). Der
+     *  Batch-Geocoder lebt dort hinter der Werkzeuge-Disclosure (`PlaceList`, BL-130) —
+     *  die Karte VERWEIST darauf und baut ihn nicht nach (INV-UI-4). Optional wie die
+     *  Sprung-Callbacks daneben, damit isolierte Tests ohne Schale laufen; fehlt er,
+     *  bleibt der erklärende Satz und nur der Knopf entfällt. */
+    onOpenPlaceList?: () => void;
   }
   const {
     appState,
@@ -70,6 +81,7 @@
     onNavigateToPerson,
     onNavigateToPlace,
     onNavigateToHof,
+    onOpenPlaceList,
   }: Props = $props();
 
   // Geklickter Marker (BL-210) — komponenten-lokal, bewusst NICHT in Route/ViewState:
@@ -150,6 +162,22 @@
   const places = $derived(placesWithCoords(appState.db, appState.placeContext));
   const migrations = $derived(migrationLines(appState.db, appState.placeContext));
   const biography = $derived(personId ? personBiographyPoints(appState.db, appState.placeContext, personId) : []);
+
+  // BL-310: die Zahlen, die schon da sind, an die Begründungs-Funktion reichen — sie
+  // leitet nichts selbst her. Neu sind nur die beiden Bestandsgrößen, und sie gehen
+  // GETRENNT hinein: ein Hof ist keine Unterart von Ort ([11 §1]), eine Summe im Satz
+  // wäre also falsch, nicht bloß ungenau.
+  const empty = $derived(
+    mapEmptyReason({
+      mode,
+      markers: places.length,
+      migrations: migrations.length,
+      biography: biography.length,
+      personSelected: personId != null,
+      places: appState.db.placeObjects.size,
+      hofs: appState.db.hofObjects.size,
+    }),
+  );
 
   function stopAnim(): void {
     animRunning = false;
@@ -330,9 +358,10 @@
         placeholder="Person wählen…"
         label="Person für Karte wählen"
       />
-      {#if personId && biography.length === 0}
-        <span class="map-lens-view__empty-hint">Keine Koordinaten für diese Person vorhanden</span>
-      {/if}
+      <!-- Der frühere Inline-Satz „Keine Koordinaten für diese Person vorhanden" stand
+           hier und war der EINZIGE Leerzustand der drei Modi (BL-310). Er lebt jetzt in
+           `mapEmptyReason` und erscheint mit denselben Worten auf der Kartenfläche —
+           ein Mechanismus statt eines pro Modus (INV-UI-4). -->
     </div>
   {/if}
 
@@ -372,7 +401,33 @@
     </div>
   {/if}
 
-  <div class="map-lens-view__host" bind:this={containerEl}></div>
+  <!-- BL-310: der Hinweis liegt ÜBER der Kartenfläche, nicht in einer der beiden Inseln.
+       Damit gilt er für Leaflet UND den SVG-Fallback, ohne dass ein Rendering-Pfad ihn
+       kennen muss — dieselbe Offline-Parität wie beim Marker-Klick (ADR-v9-154), nur
+       billiger erreicht. Er sitzt auf einer Fläche, auf der ohnehin nichts ist, und
+       verschwindet mit dem ersten Marker: kein Dauer-Element, kein Zuwachs am
+       Befehlsflächen-Budget (INV-UI-11, [21 §6h]). -->
+  <div class="map-lens-view__canvas">
+    <div class="map-lens-view__host" bind:this={containerEl}></div>
+    {#if empty}
+      <!-- BEWUSST KEIN `role="status"`. Der erste Bau-Stand hatte es und brach zwei
+           bestehende Tests, die den Offline-Banner über genau diese Rolle finden — die
+           Kollision war der Anlass, die Frage überhaupt zu stellen, und die Antwort gab
+           dem Test recht: eine Live-Region meldet ÄNDERUNGEN. Der Banner ist eine
+           (offline ⇄ online), dieser Hinweis nicht — er steht beim Betreten schon da und
+           würde bei jedem Re-Render neu vorgelesen. Als normaler Inhalt erreicht ihn der
+           Screenreader in Dokumentreihenfolge, und zwar genau einmal. -->
+      <div class="map-lens-view__empty">
+        <p class="map-lens-view__empty-headline">{empty.headline}</p>
+        <p class="map-lens-view__empty-hint">{empty.hint}</p>
+        {#if empty.offersGeocoding && onOpenPlaceList}
+          <button type="button" class="stb-btn" data-variant="secondary" onclick={onOpenPlaceList}>
+            📍 Zum Orte-Tab
+          </button>
+        {/if}
+      </div>
+    {/if}
+  </div>
 
   <!-- Orts-Explorationspanel (BL-210): unter der Karte, nicht darüber — s.
        MapExplorePanel.svelte. Nur im Orte-Modus, weil nur dort Orts-/Hof-Marker
@@ -421,9 +476,62 @@
     padding: 0.5rem 0.75rem 0;
   }
 
+  /* BL-310 — Leerzustand der Kartenfläche.
+     `__canvas` ist der Bezugsrahmen: er erbt die Flex-Rolle, die vorher `__host` allein
+     trug, damit die Karte weiter die Resthöhe füllt. Der Hinweis liegt darüber und
+     nimmt keine eigene Höhe ein — er darf die Karte nicht kleiner machen, nur weil er
+     erscheint. */
+  .map-lens-view__canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-lens-view__empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1.5rem;
+    text-align: center;
+    /* Die Grundkarte bleibt sichtbar (sie trägt den Kontext „das ist eine Karte"), aber
+       gedämpft — sonst kämpft der Satz gegen Straßendetail. Kein voller Blocker: die
+       Zoom-Bedienelemente bleiben erreichbar, deshalb `pointer-events: none` und nur der
+       Knopf selbst wieder klickbar. */
+    background: color-mix(in srgb, var(--stb-bg) 78%, transparent);
+    pointer-events: none;
+    /* ÜBER Leaflets Karteninhalt, UNTER seinen Bedienelementen. Leaflet staffelt seine
+       Panes fest (leaflet.css: tile 200 · overlay 400 · shadow 500 · marker 600 ·
+       tooltip 650 · popup 700) und legt die Controls auf 800/1000. Ohne eigenen Wert
+       gewinnt jeder positionierte Pane — im ersten Bau-Stand stand eine einzelne Kachel
+       ungedämpft MITTEN im Satz und machte die Überschrift unlesbar. Kein Test konnte
+       das finden: happy-dom rechnet keine Stapelreihenfolge; nur die Sicht auf die echte
+       Karte zeigte es. 750 dämpft alles Karteninhaltliche und lässt +/− scharf. */
+    z-index: 750;
+  }
+
+  .map-lens-view__empty > :global(.stb-btn) {
+    pointer-events: auto;
+  }
+
+  .map-lens-view__empty-headline {
+    margin: 0;
+    max-width: 34rem;
+    color: var(--stb-text);
+    font-weight: 600;
+  }
+
   .map-lens-view__empty-hint {
+    margin: 0;
+    max-width: 34rem;
     color: var(--stb-text-dim);
     font-size: 0.8rem;
+    line-height: 1.5;
   }
 
   .map-lens-view__legend {
@@ -473,6 +581,8 @@
     color: var(--stb-text-dim);
   }
 
+  /* Die Flex-Rolle liegt seit BL-310 am `__canvas`-Rahmen darüber; hier bleibt nur noch,
+     wie die Karte selbst darin sitzt. */
   .map-lens-view__host {
     flex: 1;
     min-height: 0;

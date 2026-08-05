@@ -284,6 +284,7 @@
     openFamily,
     openSource,
     openPlace,
+    openPlaceList,
     openHof,
     openStoryFromFamilyDetail,
     runCommand,
@@ -404,6 +405,7 @@
         onNavigateToPerson={openPerson}
         onNavigateToPlace={openPlace}
         onNavigateToHof={openHof}
+        onOpenPlaceList={openPlaceList}
       />
     {:else if shownTarget === 'timeline'}
       <TimelineLensView {appState} {viewState} {route} onNavigateLens={navigateLens} />

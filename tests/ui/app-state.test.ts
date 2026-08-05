@@ -48,7 +48,7 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
   });
 
-  it('mergePlace führt Dubletten zusammen: Variante überlebt, Hof-villageId wird umgehängt, Kontext bleibt konsistent', () => {
+  it('mergePlace führt Dubletten zusammen: der Gewinner bleibt unverändert, Hof-villageId wird umgehängt', () => {
     const appState = createAppState();
     appState.savePlace(place('@A@', { title: 'Ochtrup', type: 'Town' }));
     appState.savePlace(place('@B@', { title: 'Ochtorp' }));
@@ -57,10 +57,52 @@ describe('AppState.savePlace/deletePlace — Chokepoint-Kontext bleibt konsisten
     appState.mergePlace('@A@', '@B@');
 
     expect(appState.db.placeObjects.has('@B@')).toBe(false);
-    expect(appState.db.placeObjects.get('@A@')?.pnames.map((p) => p.value)).toContain('Ochtorp');
+    // ADR-v9-222: keine Namensfaltung mehr — der Name des Verlierers ist mit ihm weg, und
+    // der Chokepoint-Kontext kennt ihn folgerichtig nicht mehr.
+    expect(appState.db.placeObjects.get('@A@')?.pnames).toEqual([]);
+    expect(appState.placeContext.places.findByName('Ochtorp')).toBeNull();
     expect(appState.db.hofObjects.get('_hof_x')?.villageId).toBe('@A@');
-    // Chokepoint-Kontext passt zur neuen db: die zusammengeführte Variante findet jetzt @A@.
-    expect(appState.placeContext.places.findByName('Ochtorp')).toBe('@A@');
+  });
+
+  // Die Hälfte, die seit ADR-v9-222 an die Stelle der Faltung tritt: eine Ortsnennung, die
+  // zum Merge-Zeitpunkt MEHRDEUTIG war (`placeId == null`), wird an den Überlebenden
+  // gebunden und auf dessen Namen umgeschrieben. Ohne sie legte der Seed des nächsten
+  // Ladepasses den Verlierer aus genau diesem Text neu an (am Realbestand: 14 von 129).
+  it('mergePlace bindet mehrdeutige Ortsnennungen der Gruppe an den Überlebenden', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtorp' }));
+    db.individuals.set(
+      '@I1@',
+      makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Ochtorp, Westfalen', date: '3 MAR 1830' }) }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+
+    appState.mergePlace('@A@', '@B@');
+
+    const birt = appState.db.individuals.get('@I1@')!.birth!;
+    expect(birt.placeId).toBe('@A@');
+    expect(birt.place).toBe('Ochtrup'); // auf den Namen des Überlebenden umgeschrieben
+  });
+
+  it('mergePlace lässt Nennungen in Ruhe, solange ein gleichnamiger Ort außerhalb der Gruppe bleibt', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Ochtrup' }));
+    db.placeObjects.set('@C@', place('@C@', { title: 'Ochtrup' })); // nicht ausgewählt
+    db.individuals.set(
+      '@I1@',
+      makePerson('@I1@', { birth: makeEvent('BIRT', { place: 'Ochtrup, Westfalen', date: '3 MAR 1830' }) }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+
+    appState.mergePlace('@A@', '@B@');
+
+    const birt = appState.db.individuals.get('@I1@')!.birth!;
+    expect(birt.placeId ?? null).toBeNull();
+    expect(birt.place).toBe('Ochtrup, Westfalen'); // unangetastet — die Mehrdeutigkeit ist echt
   });
 
   it('mergePlace akzeptiert ein Array von Verlierern (Massen-Dedup, §9.2) und gibt ein MergeResult zurück', () => {
@@ -275,7 +317,10 @@ describe('AppState.mergePlace/mergeHof — Persistenz-Rundlauf (TST-8: speichern
     reloaded.loadDatabase(db2, 'reload.ged');
 
     expect(reloaded.db.placeObjects.has('@B@')).toBe(false);
-    expect(reloaded.db.placeObjects.get('@A@')?.pnames.map((p) => p.value)).toContain('Ochtorp');
+    // Der konsolidierte Stand ist der Gewinner selbst — nichts vom Verlierer klebt an ihm
+    // (ADR-v9-222). Dass die Konsolidierung den Reload überlebt, zeigt das Fehlen von @B@.
+    expect(reloaded.db.placeObjects.get('@A@')?.pnames).toEqual([]);
+    expect(reloaded.db.placeObjects.get('@A@')?.title).toBe('Ochtrup');
   });
 });
 

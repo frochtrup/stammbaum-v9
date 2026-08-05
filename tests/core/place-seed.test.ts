@@ -9,6 +9,8 @@ import {
   makePlaceRegistry,
   makeHofRegistry,
   mergePlaceObjects,
+  buildPlacForGedcom,
+  eventYear,
 } from '../../core/places/index';
 import type { PlaceContext, PlaceObject } from '../../core/places/index';
 import { place, placeMap, hofMap, ev } from './places-fixtures';
@@ -283,7 +285,15 @@ describe('seedPlacesFromEvents — Auto-Seed (ADR-v9-28)', () => {
       expect(ochtrups[0].id).not.toBe('@OCH@');
     });
 
-    it('End-to-End: echter Merge zweier verschiedener Ochtrup-Ketten → Reseed legt nichts neu an', () => {
+    // ADR-v9-222 hat die Arbeitsteilung dieses End-to-End-Falls gedreht. Bis dahin sammelte
+    // der Merge die Ketten der Verlierer ein, und genau daran dockte der Reseed wieder an;
+    // seither behält der Gewinner SEINE Kette, und der Merge meldet stattdessen die Namen der
+    // Gruppe (`mentionNames`) — der Aufrufer bindet die betroffenen Nennungen an den
+    // Überlebenden und schreibt ihren Text auf dessen Kette um. Das Ergebnis ist dasselbe
+    // (kein Reseed), der Weg ein anderer: nicht das Objekt merkt sich jede Vergangenheit,
+    // sondern die Nennung wird angefasst. Die Nachbindung selbst prüft
+    // `tests/ui/app-state.test.ts` am Kommando.
+    it('End-to-End: echter Merge zweier Ochtrup-Ketten → nach dem Umschreiben legt der Reseed nichts neu an', () => {
       // Ausgangslage: zwei distinkte Ochtrups (aus zwei Import-Läufen unterschiedlicher Tiefe).
       const places = placeMap(
         place('@OCH_A@', { title: 'Ochtrup', type: 'Town', enclosedBy: [{ placeId: '@KR_STEINFURT@', from: null, to: null }] }),
@@ -293,13 +303,24 @@ describe('seedPlacesFromEvents — Auto-Seed (ADR-v9-28)', () => {
         place('@WESTF@', { title: 'Westfalen', type: 'Region' }),
       );
       const hofs = hofMap();
-      // Nutzer merged @OCH_B@ in den kuratierten @OCH_A@ → @OCH_A@ trägt jetzt beide Ketten.
-      mergePlaceObjects(places, hofs, '@OCH_A@', '@OCH_B@');
-      expect(places.get('@OCH_A@')!.enclosedBy.length).toBe(2); // Historie erhalten
+      // Nutzer merged @OCH_B@ in den kuratierten @OCH_A@.
+      const res = mergePlaceObjects(places, hofs, '@OCH_A@', '@OCH_B@');
+      // Der Gewinner bleibt der Gewinner: EINE Kette, nicht die vereinigte Historie beider.
+      expect(places.get('@OCH_A@')!.enclosedBy.map((e) => e.placeId)).toEqual(['@KR_STEINFURT@']);
+      // Stattdessen meldet der Merge die Namen, deren Nennungen umzuschreiben sind.
+      expect(res.mentionNames).toContain('ochtrup');
 
-      // Reseed mit einem Event der (vormals @OCH_B@-)Ahaus-Kette → keine Dublette.
+      // Die Nennung der (vormals @OCH_B@-)Ahaus-Kette, umgeschrieben wie im Kommando:
+      // binden + reprojizieren. Danach findet der Reseed nichts Neues.
       const ctx: PlaceContext = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
-      const created = seedPlacesFromEvents([ev('BIRT', { place: 'Ochtrup, Kreis Ahaus, Westfalen' })], ctx);
+      // Mit Jahr, damit die Reprojektion die volle Kette baut (ohne Jahr liefert
+      // `buildFormString` bewusst nur den atomaren Namen, s. build-plac.ts).
+      const nennung = ev('BIRT', { place: 'Ochtrup, Kreis Ahaus, Westfalen', date: '12 MAY 1720' });
+      nennung.placeId = '@OCH_A@';
+      nennung.place = buildPlacForGedcom(nennung, eventYear(nennung), ctx) ?? nennung.place;
+      expect(nennung.place).toBe('Ochtrup, Kreis Steinfurt, Westfalen');
+
+      const created = seedPlacesFromEvents([nennung], ctx);
       expect(created).toEqual([]);
     });
   });

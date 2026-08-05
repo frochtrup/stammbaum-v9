@@ -423,7 +423,10 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege (jetzt i
   });
 });
 
-describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () => {
+// ADR-v9-222: der Merge faltet nichts mehr in den Überlebenden — er bleibt, wie er war.
+// Die frühere „Herkunfts-Pille" (gefaltete Variante des Verlierers) gibt es deshalb nicht
+// mehr; der zweite Test hält jetzt fest, dass sie AUSBLEIBT.
+describe('PlaceDetail — Dubletten-Merge (nur der Gewinner überlebt, ADR-v9-222)', () => {
   it('bietet die übrigen Orte als Ziel-Auswahl an (nicht sich selbst)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
@@ -456,14 +459,14 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
     await fireEvent.click(screen.getByText('Ochtrupp'));
     await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
 
-    // Dublette ist verschwunden, Überlebender hat die Variante aufgenommen (verlustfrei).
+    // Dublette ist verschwunden — der Überlebende hat NICHTS von ihr übernommen.
     expect(appState.db.placeObjects.get('@P1@')).toBeUndefined();
-    expect(appState.db.placeObjects.get('@P2@')?.pnames.map((p) => p.value)).toContain('Ochtrup');
-    // Navigation zum Ziel-Ort (der jetzt die Varianten hält).
+    expect(appState.db.placeObjects.get('@P2@')?.pnames).toEqual([]);
+    // Navigation zum Ziel-Ort.
     expect(viewState.getCurrent('place')).toBe('@P2@');
   });
 
-  it('zeigt die gefaltete Variante nach dem Merge als Herkunfts-Pille beim Ziel-Ort', async () => {
+  it('zeigt beim Ziel-Ort KEINE geerbte Namensvariante — der Gewinner bleibt, wie er war', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
@@ -479,17 +482,11 @@ describe('PlaceDetail — Dubletten-Merge (verlustfrei, Herkunfts-Pille)', () =>
     await fireEvent.click(screen.getByText('In Ziel-Ort zusammenführen'));
 
     expect(screen.getByText('Ochtrupp')).toBeTruthy(); // Ziel-Titel im Steckbrief
-    // Im Bearbeiten-Modus sind bestehende Varianten seit ADR-v9-183 änderbare ZEILEN,
-    // keine Pillen — die gefaltete Variante steht dort als Feldwert.
-    expect((screen.getByLabelText('Namensvariante 1') as HTMLInputElement).value).toBe('Ochtrup');
-    // Auf der LESEFLÄCHE bleibt sie die Herkunfts-Pille (Verlustfreiheit sichtbar).
-    // „Fertig" statt vormals „Abbrechen" (INV-UI-16, ADR-v9-193): der Modus wird von dem
-    // Schalter geschlossen, der ihn geöffnet hat. Dieser Test ist selbst ein Beleg für den
-    // behobenen Defekt — der Merge oben ist längst geschrieben, und trotzdem stand hier
-    // „Abbrechen".
+    // Vor ADR-v9-222 stand hier die gefaltete Variante als „Namensvariante 1" bzw. auf der
+    // Lesefläche als Herkunfts-Pille. Beides ist jetzt genau das, was NICHT passieren soll.
+    expect(screen.queryByLabelText('Namensvariante 1')).toBeNull();
     await fireEvent.click(screen.getByText('Fertig'));
-    const pill = screen.getByText('Ochtrup', { selector: '.stb-pill' });
-    expect(pill.closest('.stb-pill')).toBeTruthy();
+    expect(screen.queryByText('Ochtrup', { selector: '.stb-pill' })).toBeNull();
   });
 
   it('schließt Selbst-Merge aus (kein appState.mergePlace-Aufruf, Fehlermeldung)', async () => {

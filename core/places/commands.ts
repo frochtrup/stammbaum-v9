@@ -297,6 +297,24 @@ export interface MergeResult {
    */
   hofRemap: ReadonlyMap<HofId, HofId>;
   /**
+   * Normalisierte Namen der zusammengeführten Gruppe (Titel + `pnames` aller Mitglieder,
+   * VOR dem Merge gelesen) — die Ortsnennungen, die der Aufrufer an den Überlebenden
+   * binden und auf dessen Kette umschreiben soll (ADR-v9-222).
+   *
+   * WOZU. Seit dem Merge nur noch der Gewinner überlebt (keine Namens-/Kettenfaltung
+   * mehr), verliert der Bestand die Schreibweisen und Verwaltungsketten der Verlierer.
+   * Ereignisse, die zum Merge-Zeitpunkt MEHRDEUTIG waren (Review-Klasse P, `placeId=null`,
+   * also von `placeRemap` nicht erfasst), trügen ihren alten Text sonst unverändert weiter
+   * — und der Seed des nächsten Ladepasses legte den Verlierer daraus neu an. Am
+   * Realbestand: 14 von 129 zusammengeführten Orten kamen so zurück. Genau diese Nennungen
+   * löst der Merge auf, indem der Aufrufer sie an den Überlebenden bindet.
+   *
+   * LEER, wenn nach dem Merge noch ein gleichnamiger Ort AUSSERHALB der Gruppe steht (etwa
+   * weil der Nutzer im Dialog nur einen Teil der Gruppe ausgewählt hat, §9.2): dann ist die
+   * Mehrdeutigkeit echt und keine Nennung darf still gebunden werden.
+   */
+  mentionNames: string[];
+  /**
    * Verlierer-Ort → Überlebender-Ort, exakt in der Rolle von `hofRemap` (ADR-v9-195).
    * Bis dahin fasste der Merge `event.placeId` gar nicht an, mit der Begründung, das Feld
    * sei runtime-only und werde „beim nächsten `resolveEvents()` neu abgeleitet". Beide
@@ -311,9 +329,15 @@ export interface MergeResult {
 }
 
 /**
- * Kommando: Dubletten-Merge (Spec 20 §1.7 [K] „Dubletten-Merge, verlustfrei", §9.2 Punkt 2).
- * Führt ein ODER mehrere PlaceObjects (`mergedIds`) in `survivorId` zusammen und entfernt sie.
- * Dünner Wrapper über die paarweise Merge-Logik (`mergePlaceObjectPair`) — keine Duplizierung.
+ * Kommando: Dubletten-Merge (Spec 20 §1.7 [K], §9.2 Punkt 2). Führt ein ODER mehrere
+ * PlaceObjects (`mergedIds`) in `survivorId` zusammen und entfernt sie. Dünner Wrapper über
+ * die paarweise Merge-Logik (`mergePlaceObjectPair`) — keine Duplizierung.
+ *
+ * **Der Gewinner bleibt der Gewinner (ADR-v9-222).** Er erbt weder Namen noch Ketten noch
+ * Existenzspanne der Verlierer; beschreibende Felder werden nur gefüllt, wo er leer ist.
+ * Was die Verlierer an Identität trugen, gibt die Rückgabe als `mentionNames` weiter —
+ * der Aufrufer bindet die betroffenen Ortsnennungen an den Überlebenden und schreibt sie
+ * auf dessen Kette um (dieselbe Arbeitsteilung wie bei `placeRemap`/`hofRemap`).
  *
  * Anschließend läuft der **automatische, verlustfreie Hof-Nachlauf** (ADR-v9-45 Nachtrag
  * 2026-07-10, Schritt 6/7): sind durch die `HofObjects.villageId`-Umhängung Höfe mit identischer
@@ -340,15 +364,42 @@ export function mergePlaceObjects(
   events: readonly Event[] = [],
 ): MergeResult {
   const losers = Array.isArray(mergedIds) ? mergedIds : [mergedIds as PlaceId];
+  // Die Namen der Gruppe VOR dem Merge einsammeln — danach sind die Verlierer weg und
+  // ihre Schreibweisen mit ihnen (ADR-v9-222).
+  const mentionNames = new Set<string>();
+  for (const id of [survivorId, ...losers]) {
+    const po = places.get(id);
+    if (!po) continue;
+    for (const name of [po.title, ...po.pnames.map((p) => p.value)]) {
+      const k = normPlaceName(name);
+      if (k) mentionNames.add(k);
+    }
+  }
+
   const thawedPlaces = new Set<PlaceId>();
   const thawedHofs = new Set<HofId>();
   const placeRemap = new Map<PlaceId, PlaceId>();
   for (const mergedId of losers) {
     mergePlaceObjectPair(places, hofObjects, survivorId, mergedId, thawedPlaces, thawedHofs, placeRemap);
   }
+
+  // Steht noch ein gleichnamiger Ort außerhalb der Gruppe? Dann ist die Mehrdeutigkeit
+  // echt (Teil-Auswahl im Dialog, §9.2) und keine Nennung darf gebunden werden.
+  const fremdGleichnamig = [...places.values()].some(
+    (po) =>
+      po.id !== survivorId &&
+      [po.title, ...po.pnames.map((p) => p.value)].some((n) => mentionNames.has(normPlaceName(n))),
+  );
+
   const hofRemap = new Map<HofId, HofId>();
   const hofsMerged = reconcileHofsUnderVillage(hofObjects, survivorId, events, thawedHofs, hofRemap);
-  return { hofsMerged, villageId: hofsMerged > 0 ? survivorId : null, hofRemap, placeRemap };
+  return {
+    hofsMerged,
+    villageId: hofsMerged > 0 ? survivorId : null,
+    hofRemap,
+    placeRemap,
+    mentionNames: fremdGleichnamig || placeRemap.size === 0 ? [] : [...mentionNames],
+  };
 }
 
 /**
@@ -359,10 +410,11 @@ export function mergePlaceObjects(
 const encKey = (e: DatedRef): string => `${e.placeId}|${e.from}|${e.to}`;
 
 /**
- * Paarweiser, verlustfreier Orts-Merge (interne Kern-Logik, §9.2 Punkt 2). Titel + `pnames`
- * überleben als Namensvarianten (dedupliziert über die Norm-Form); fehlende Metadaten des
- * Überlebenden werden gefüllt; `enclosedBy` vereinigt; alle Fremd-Referenzen (andere
- * `PlaceObjects.enclosedBy`, `HofObjects.villageId`) umgehängt. `event.placeId` wird nicht
+ * Paarweiser Orts-Merge (interne Kern-Logik, §9.2 Punkt 2). Seit ADR-v9-222 überlebt der
+ * Gewinner mit SEINEN Angaben: Namen (`title`/`pnames`), Zugehörigkeiten (`enclosedBy`) und
+ * Existenzspanne des Verlierers fallen weg; beschreibende Felder werden nur gefüllt, wo der
+ * Gewinner leer ist. Alle Fremd-Referenzen (andere
+ * `PlaceObjects.enclosedBy`, `HofObjects.villageId`) werden umgehängt. `event.placeId` wird nicht
  * mutiert, sondern über `remap` GEMELDET — der Aufrufer zieht die Referenzen copy-on-write
  * nach (ADR-v9-195, dieselbe Arbeitsteilung wie beim Hof-Merge, ADR-v9-92).
  * No-Op bei gleicher ID oder fehlendem Ort. Der Hof-Nachlauf läuft NICHT hier, sondern einmal
@@ -384,55 +436,34 @@ function mergePlaceObjectPair(
   const merged = places.get(mergedId);
   if (!survivor || !merged) return;
 
-  // 1. Namen verlustfrei falten (Titel + pnames des Merged → pnames des Überlebenden),
-  //    dedupliziert über die Norm-Form (survivor.title + bestehende pnames zählen bereits).
-  const seen = new Set<string>([
-    normPlaceName(survivor.title),
-    ...survivor.pnames.map((p) => normPlaceName(p.value)),
-  ]);
-  const addName = (value: string, from: DatedName['from'], to: DatedName['to']): void => {
-    const k = normPlaceName(value);
-    if (!k || seen.has(k)) return;
-    seen.add(k);
-    survivor.pnames.push({ value, from, to });
-  };
-  addName(merged.title, null, null);
-  for (const pn of merged.pnames) addName(pn.value, pn.from, pn.to);
+  // 1./2. KEINE Namens- und KEINE Zugehörigkeits-Faltung mehr (ADR-v9-222). Titel, `pnames`
+  //    und `enclosedBy` des Verlierers fallen mit ihm weg — es sind genau die Felder, über
+  //    die der Resolver Identität entscheidet, und in der Vereinigung machten sie den
+  //    Überlebenden zu einem Ort mit mehreren gleichzeitig gültigen, undatierten
+  //    Verwaltungsketten (am Realbestand: „Steinwedel" zugleich unter Fürstentum Lüneburg,
+  //    Kurfürstentum Braunschweig-Lüneburg, Kurfürstentum Hannover und Département de
+  //    l'Aller). Das Wissen geht nicht verloren, es wechselt den Ort: die betroffenen
+  //    Ortsnennungen werden auf die Kette des Überlebenden umgeschrieben (`mentionNames`,
+  //    s. MergeResult) — dort, wo der Nutzer sie liest, statt als Altlast am Objekt.
+  //    Ebenso NICHT geerbt: `existsFrom`/`existsTo` — die Lebensspanne eines anderen
+  //    Eintrags datiert nicht den Überlebenden.
 
-  // 2. enclosedBy vereinigen (Selbst-/Kreis-Referenzen weglassen, dedupliziert).
-  const encSeen = new Set(survivor.enclosedBy.map(encKey));
-  for (const e of merged.enclosedBy) {
-    if (e.placeId === survivorId || e.placeId === mergedId) continue;
-    if (encSeen.has(encKey(e))) continue;
-    encSeen.add(encKey(e));
-    survivor.enclosedBy.push({ ...e });
-  }
-
-  // 3. Fehlende Metadaten des Überlebenden aus dem Merged füllen (nie überschreiben).
+  // 3. Fehlende Metadaten des Überlebenden aus dem Merged füllen (nie überschreiben) —
+  //    beschreibende Felder ohne Einfluss auf die Identitätsauflösung, jedes höchstens
+  //    EINMAL vorhanden. Sie können den Überlebenden nicht „zumüllen": entweder er hat
+  //    den Wert schon (dann passiert nichts), oder die Lücke wird geschlossen.
   if (!survivor.type && merged.type) survivor.type = merged.type;
   if (survivor.lat == null && merged.lat != null) survivor.lat = merged.lat;
   if (survivor.long == null && merged.long != null) survivor.long = merged.long;
+  // Notiz: fill-if-empty wie der Rest — die frühere `\n`-Verkettung war die einzige Stelle,
+  // an der ein Feld beim Merge WUCHS statt gefüllt zu werden.
   if (!survivor.note) survivor.note = merged.note;
-  else if (merged.note && merged.note !== survivor.note) survivor.note = `${survivor.note}\n${merged.note}`;
-  if (survivor.existsFrom == null) survivor.existsFrom = merged.existsFrom;
-  if (survivor.existsTo == null) survivor.existsTo = merged.existsTo;
-  // shortName folgt fill-if-empty wie die übrigen Metadaten — und wird bewusst NICHT
-  // über addName() in `pnames` gefaltet (anders als `merged.title`): `pnames` sind
-  // Identitätsnamen, die der Resolver matcht; ein Anzeigename dort würde zum
-  // Match-Kriterium und höbe genau die Trennung auf, für die das Feld existiert
-  // (ADR-v9-90/-100, Spec 11 §1).
   if (!survivor.shortName && merged.shortName) survivor.shortName = merged.shortName;
-  // translations (Sprachachse, BL-59) verlustfrei vereinigen — dedupliziert über lang|value,
-  // NICHT in pnames gefaltet (Übersetzungen sind keine Identitätsnamen; s. shortName-Grund
-  // oben). App-privat, unsichtbar im Export; der Union erhält beide Seiten (LP-1).
-  const trOf = (p: PlaceObject): NameTranslation[] => p.translations ?? [];
-  const trKey = (t: NameTranslation): string => `${t.lang.toLowerCase()}|${normPlaceName(t.value)}`;
-  survivor.translations = trOf(survivor);
-  const trSeen = new Set(survivor.translations.map(trKey));
-  for (const t of trOf(merged)) {
-    if (trSeen.has(trKey(t))) continue;
-    trSeen.add(trKey(t));
-    survivor.translations.push({ ...t });
+  // translations (Sprachachse, BL-59): ebenfalls fill-if-empty statt Union — eine Liste,
+  // die bei jedem Merge wächst, ist dasselbe Zumüllen wie bei `pnames`, auch wenn sie den
+  // Resolver nicht beeinflusst.
+  if ((survivor.translations ?? []).length === 0 && (merged.translations ?? []).length > 0) {
+    survivor.translations = (merged.translations ?? []).map((t) => ({ ...t }));
   }
   if (!survivor.govId && merged.govId) survivor.govId = merged.govId;
   if (!survivor.govTypes && merged.govTypes) survivor.govTypes = merged.govTypes;
