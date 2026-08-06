@@ -87,6 +87,7 @@ import {
   reprojectEventsOfPlace,
   reprojectEventsOf,
   reprojectHofAddrInEvents,
+  alignCuratedEventTexts,
 } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -310,6 +311,14 @@ export interface AppState extends PlacesHost {
    */
   mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
   /**
+   * Gleicht die Ereignistexte an das kuratierte Ortswissen an (ADR-v9-224) — der
+   * Autoritäts-Satz aus Spec 11 §3: wo ein Ereignis an kuratiertem Wissen hängt, IST der
+   * Dateitext die Projektion; wo es an einem Seed-Objekt hängt, bleibt die Quelle stehen.
+   * Läuft nach jedem Laden und nach jedem orte.json-Import automatisch, ist aber ein
+   * gewöhnliches Kommando: rücknehmbar, und die Schale zeigt seine Zahl.
+   */
+  alignPlaceTexts(): { geaendert: number; luecken: number };
+  /**
    * Kommando: ersetzt placeObjects/hofObjects durch das Ergebnis eines orte.json-Datei-
    * Imports (ADR-v9-70, Spec 14 §6) UND reklassifiziert im selben Zug ALLE Events der
    * aktuell geladenen Genealogie gegen den neuen Orts-/Hof-Bestand (`applyPlaceResolution`,
@@ -476,6 +485,19 @@ export interface CreateAppStateOptions {
    * geladen ist (kein fileName) — s. persistWorkingCopyIfLoaded().
    */
   persistWorkingCopy?: (text: string) => void;
+  /**
+   * Meldet das Ergebnis der Text-Angleichung an das kuratierte Ortswissen (ADR-v9-224).
+   * Die Schale zeigt daraus ihren Hinweis — eine automatische Änderung, die niemand sieht,
+   * wäre genau die stille Umschreibung, die ADR-v9-197 abgeschafft hat.
+   *
+   * Als RÜCKRUF statt als Rückgabewert, weil die Angleichung auf vier Wegen läuft (Datei
+   * öffnen, Demo, Arbeitskopie beim Start, orte.json-Import) — ein Rückgabewert müsste
+   * durch jeden davon einzeln durchgereicht werden, und der vierte wurde beim ersten
+   * Versuch prompt vergessen (der Hinweis stand in `ImportButton` und war nach dem Laden
+   * unsichtbar, weil die Datei-Fläche verlassen wird — von der eigenen Browser-Prüfung
+   * gefangen, nicht von einem Test).
+   */
+  onPlaceTextsAligned?: (geaendert: number, luecken: number) => void;
 }
 
 export function createAppState(opts: CreateAppStateOptions = {}): AppState {
@@ -862,10 +884,15 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       const next = reprojectEventsOf(basis, { hofs: [survivorId] });
       commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) || remap.size > 0 });
     },
+    alignPlaceTexts() {
+      const res = alignCuratedEventTexts(db);
+      if (res.geaendert > 0) commit(res.db, { workingCopy: true });
+      if (res.geaendert > 0 || res.luecken.length > 0) {
+        opts.onPlaceTextsAligned?.(res.geaendert, res.luecken.length);
+      }
+      return { geaendert: res.geaendert, luecken: res.luecken.length };
+    },
     replacePlacesAndHofs(placeObjects, hofObjects) {
-      // Der Stand VOR dem Einspielen — Grundlage des Inhaltsvergleichs unten.
-      const vorherPlaces = db.placeObjects;
-      const vorherHofs = db.hofObjects;
       const nextDb = { ...db, placeObjects, hofObjects };
       // Reklassifiziert ALLE Events der aktuell geladenen Genealogie gegen den neuen
       // Orts-/Hof-Bestand (mutiert individuals/families IN-PLACE, wie mergePlace/mergeHof
@@ -876,26 +903,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // neu geprüft werden (ADR-v9-74) — sonst würde der "bereits gelinkt"-Kurzschluss
       // in resolveEvents jede Verbesserung verhindern.
       const resolution = applyPlaceResolution(nextDb, { resetUncuratedLinks: true });
-      // Nachlauf (ADR-v9-223): der eingespielte Stand kann Orte/Höfe INHALTLICH geändert
-      // haben — etwa eine datierte Umbenennung an einem Elternglied, gemacht im
-      // Standalone-Orte-Editor oder auf einem zweiten Gerät. Die Anzeige folgt sofort
-      // (sie projiziert live), der Dateitext nicht: der Ladepass reprojiziert seit
-      // ADR-v9-197 bewusst nicht mehr, und das nächste Öffnen ist wieder nur ein Ladepass
-      // — die Abweichung bliebe dauerhaft. Der Import IST die Nutzerhandlung, die den
-      // Anlass gibt; sein Nachlauf ist nur zufällig ein Ladepass.
-      //
-      // NUR die tatsächlich geänderten Objekte, per Inhaltsvergleich gegen den Stand davor.
-      // NEUE Orte stehen bewusst nicht drin: ein Ereignis, das durch diesen Pass ERSTMALS
-      // gebunden wird, ist der normale Ladefall — seinen Text umzuschreiben wären genau die
-      // 668 stillen Umschreibungen aus ADR-v9-197.
-      const geaenderteOrte = [...placeObjects.keys()].filter((id) => {
-        const alt = vorherPlaces.get(id);
-        return alt !== undefined && JSON.stringify(alt) !== JSON.stringify(placeObjects.get(id));
-      });
-      const geaenderteHoefe = [...hofObjects.keys()].filter((id) => {
-        const alt = vorherHofs.get(id);
-        return alt !== undefined && JSON.stringify(alt) !== JSON.stringify(hofObjects.get(id));
-      });
+      // Nachlauf: seit ADR-v9-224 derselbe wie beim Laden — der AUTORITÄTS-Satz, nicht
+      // mehr ein Inhaltsvergleich alt/neu (ADR-v9-223). Ein Import ist der Fall, für den
+      // der Satz gemacht ist: er bringt genau das kuratierte Wissen mit, dem der Dateitext
+      // folgen soll. Der frühere Diff war die halbe Antwort — er heilte nur, was sich in
+      // DIESEM Moment änderte, und ließ jede vorher entstandene Abweichung stehen.
       // KEIN Undo-Eintrag, sondern Stack LEEREN (ADR-v9-92 Punkt 5): `applyPlaceResolution`
       // ist der volle Lade-Pass und mutiert Person-/Family-Events in-place — es teilt seine
       // Entitäten also mit zuvor abgelegten Zuständen und würde sie mitverändern. Der ADR
@@ -904,7 +916,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // genau so ein Massen-Wechsel der Orts-Identität (Spec 11 §3 „Mechanismus 1").
       // Konsequenz statt stiller Beschädigung: was davor war, ist nicht mehr rücknehmbar.
       stackClear();
-      db = reprojectEventsOf(nextDb, { places: geaenderteOrte, hofs: geaenderteHoefe });
+      const angleich = alignCuratedEventTexts(nextDb);
+      db = angleich.db;
+      if (angleich.geaendert > 0 || angleich.luecken.length > 0) {
+        opts.onPlaceTextsAligned?.(angleich.geaendert, angleich.luecken.length);
+      }
       persistWorkingCopyIfLoaded();
       // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand
       // bereits gespeichert (s. Interface-Doku). Nur bei Wachstum durch die

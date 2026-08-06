@@ -6,7 +6,7 @@
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
-import { findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed } from '../../../core/places';
+import { isCuratedPlace, findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed } from '../../../core/places';
 import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
@@ -78,6 +78,8 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
               usage: usage.get(id) ?? 0,
               hasCoords: !!po && po.lat != null && po.long != null,
               hasNote: !!po?.note,
+              // ADR-v9-225: das erste Kriterium des Vorschlags — s. `DedupCandidateMeta`.
+              curated: !!po && isCuratedPlace(po),
             },
           ];
         }),

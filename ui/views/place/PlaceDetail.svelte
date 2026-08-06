@@ -22,7 +22,7 @@
   import { tooltip } from '../../shell/tooltip';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
-  import { markPlaceReviewed } from '../../../core/places';
+  import { markPlaceReviewed, isCuratedPlace } from '../../../core/places';
   import { placeTypeLabel, placeHeading } from '../../shell/place-labels';
   import PlaceMergeSection from './PlaceMergeSection.svelte';
   import SourceBadge from '../../shell/SourceBadge.svelte';
@@ -62,6 +62,12 @@
   /** Info-Tooltip-Text für die Verwaltungszugehörigkeit (Spec 21 §10g): ersetzt einen
    *  permanenten Fließtext-Satz durch ein ⓘ neben der Überschrift statt ihn stets
    *  einzublenden. */
+  /** ADR-v9-224 — was „kuratiert" für die gespeicherte Datei bedeutet. */
+  const KURATIERT_INFO =
+    'Kuratiert (geprüft oder angereichert): Die Ereignistexte dieses Ortes folgen beim ' +
+    'Speichern der periodengerechten Kette aus dem Orts-Bestand. Bei einem nicht ' +
+    'kuratierten Ort bleibt stehen, was die Quelldatei schreibt.';
+
   const ENCLOSURE_INFO =
     'Zugehörigkeit nach Jahr: die volle Verwaltungskette (bearbeitbar über ' +
     '„Zugehörigkeit bearbeiten") zu jedem Jahr, in dem sich die Kette ändert — auch ' +
@@ -175,6 +181,12 @@
              dem Import (ADR-v9-77 „der normale, unauffällige Fall"), kein Handlungssignal
              im Steckbrief-Kopf. -->
         {#if placeTypeLabel(detail.place.type)}<span class="place-detail__type-badge">{placeTypeLabel(detail.place.type)}</span>{/if}
+        <!-- ADR-v9-224: dieselbe Pille wie in der Liste, und dieselbe Aussage — sie sagt
+             nicht „gut gepflegt", sondern was mit der DATEI geschieht. Der Tooltip trägt
+             den Satz, statt ihn als Dauertext in den Kopf zu schreiben (Spec 21 §10g). -->
+        {#if isCuratedPlace(detail.place)}
+          <span class="place-detail__type-badge" role="note" aria-label={KURATIERT_INFO} use:tooltip={KURATIERT_INFO}>kuratiert</span>
+        {/if}
         {#if !editing}
           <!-- ADR-v9-191: der EINZIGE Weg zum Prüf-Marker. Bewusst neben „Bearbeiten" und
                nicht darin: „angesehen, nichts zu ergänzen" ist gerade der Fall, in dem

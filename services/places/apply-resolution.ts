@@ -29,6 +29,7 @@ import {
   buildPlacForGedcom,
   eventYear,
   normHofAddr,
+  normPlaceName,
   type ResolveResult,
   type PlaceContext,
 } from '../../core/places';
@@ -450,4 +451,151 @@ export function relinkHofVillageInEvents(
     if (proj != null) next.place = proj;
     return next;
   });
+}
+
+/** Ein Ereignis, dessen Text NICHT angeglichen wurde, weil die Projektion ärmer wäre. */
+export interface AngleichLuecke {
+  /** Der Ort/Hof, an dem das Ereignis hängt — die Fundstelle der Kurationslücke. */
+  placeId: PlaceId | null;
+  hofId: HofId | null;
+  /** Was in der Datei steht, und was die Projektion daraus machen wollte. */
+  quelle: string;
+  projektion: string;
+}
+
+export interface AngleichErgebnis {
+  db: Database;
+  /** Angeglichene Ereignisse. */
+  geaendert: number;
+  /** Übersprungene: die Projektion hätte Segmente verloren (Kurationslücke, s. u.). */
+  luecken: AngleichLuecke[];
+}
+
+/** Segmente eines PLAC-Strings in Norm-Form — leere Template-Felder fallen weg. */
+function placSegmente(s: string | null | undefined): string[] {
+  return (s ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => normPlaceName(x));
+}
+
+/**
+ * ALLE Namen, unter denen die projizierte Kette bekannt ist — Titel und `pnames` jedes
+ * Knotens (periodenunabhängig), dazu die Adressvarianten des Hofs.
+ *
+ * WOZU: um eine UMBENENNUNG von einem VERLUST zu unterscheiden. Beide sehen im Text gleich
+ * aus — ein Segment der Quelle taucht in der Projektion nicht auf. „Kreis X" -> „Amt X" ist
+ * aber derselbe Knoten unter seinem periodengerechten Namen (nichts geht verloren), während
+ * „…, NRW, Deutschland" -> „…, Nordrhein-Westfalen" eine Ebene WEGLÄSST, die der Bestand
+ * nicht kennt. Auf Zeichenketten-Ebene ist das nicht zu trennen, auf Knoten-Ebene schon:
+ * gehört das Segment zu irgendeinem Knoten der Kette, ist es abgedeckt; gehört es zu
+ * keinem, fehlt die Ebene.
+ */
+function ketteNamen(
+  kette: readonly PlaceId[],
+  hofId: HofId | null,
+  places: Database['placeObjects'],
+  hofs: Database['hofObjects'],
+): Set<string> {
+  const namen = new Set<string>();
+  for (const id of kette) {
+    const po = places.get(id);
+    if (!po) continue;
+    namen.add(normPlaceName(po.title));
+    for (const pn of po.pnames ?? []) namen.add(normPlaceName(pn.value));
+    if (po.shortName) namen.add(normPlaceName(po.shortName));
+  }
+  const hof = hofId != null ? hofs.get(hofId) : undefined;
+  for (const a of hof?.addrs ?? []) namen.add(normHofAddr(a.value));
+  namen.delete('');
+  return namen;
+}
+
+/**
+ * Gleicht den Dateitext an das kuratierte Ortswissen an (ADR-v9-224).
+ *
+ * DER AUTORITÄTS-SATZ, den diese Funktion umsetzt: hängt ein Ereignis an einem
+ * **kuratierten** Ort/Hof (§9.1: geprüft ODER angereichert), ist `orte.json` die Autorität
+ * — der Dateitext IST die periodengerechte Projektion. Hängt es an einem SEED-Objekt oder
+ * gar nicht, ist die Quelle die Autorität und der Text bleibt unangetastet.
+ *
+ * WARUM DIESE GRENZE UND NICHT „Laden gegen Bearbeiten" (ADR-v9-197). Am Realbestand
+ * gemessen (2026-08-05, `Unsere Familie 2026.ged` + `orte.v9.json`) fällt die Abweichung
+ * zwischen Datei und Anzeige sauber in zwei Hälften:
+ *   an KURATIERTEM Wissen  4860 Ereignisse, 279 abweichend — 232 periodengerechte
+ *     Umbenennungen („Herzogtum Oldenburg" 1905 -> „Großherzogtum Oldenburg"),
+ *     14 Anreicherungen, 19 Leerfelder, 14 sonstige, **0 Kürzungen**
+ *   an SEED-Objekten        297 Ereignisse, 235 abweichend — ausschließlich Leerfelder
+ *     und KÜRZUNGEN („…, Rheine, , , NRW, Deutschland" -> „Rheine, Nordrhein-Westfalen")
+ * Ein Seed-Objekt ist ein Spiegel des Dateitexts; aus ihm kann die Projektion nichts
+ * hinzufügen, aber Ebenen verlieren, die er nie modelliert hat. Die 668 stillen
+ * Umschreibungen aus ADR-v9-197 waren die Summe beider Hälften — getrennt betrachtet sind
+ * es 279 Gewinne und 235 Schäden.
+ *
+ * DIE VERARMUNGS-SPERRE ist trotzdem eine Regel, kein Zufall: enthält die Projektion nicht
+ * jedes Segment der Quelle, wird NICHT geschrieben, und das Ereignis erscheint als
+ * `AngleichLuecke`. Am heutigen Bestand trifft das auf der kuratierten Seite null Fälle —
+ * tritt es auf, ist es ein Kurations-Befund („der Bestand kennt über NRW nichts mehr"),
+ * kein Schreibanlass. Verglichen wird über Norm-Segmente, damit ein reines Leerfeld oder
+ * eine Groß-/Kleinschreibung nicht als Verlust zählt.
+ *
+ * REIN und idempotent: gleiche Eingabe, gleiche Ausgabe; ein zweiter Lauf ändert nichts
+ * mehr (die Projektion ist dann bereits der Text). Copy-on-write über `mapAllEvents` —
+ * nur Owner mit tatsächlich geändertem Ereignis werden geklont.
+ */
+export function alignCuratedEventTexts(db: ReadonlyDatabase): AngleichErgebnis {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+  const luecken: AngleichLuecke[] = [];
+  let geaendert = 0;
+
+  const naechste = mapAllEvents(db, (ev) => {
+    if (ev.placeId == null && ev.hofId == null) return null;
+
+    // Kuratiert? Die Frage gilt der GANZEN Kette, nicht nur dem gebundenen Objekt: die
+    // Projektion baut sich aus jedem Knoten von unten bis oben, und das kuratierte Wissen
+    // sitzt oft am VORFAHREN — „Bayern" -> „Freistaat Bayern" ist eine Aussage über den
+    // Elter, nicht über das Dorf darunter. Eine Prüfung nur am gebundenen Objekt ließ genau
+    // den Fall liegen, mit dem dieser ADR angefangen hat (datierte Umbenennung am
+    // Elternglied); ein Test hat es sofort gezeigt.
+    const hof = ev.hofId != null ? base.hofObjects.get(ev.hofId) : undefined;
+    const ankerId = hof ? hof.villageId : ev.placeId;
+    const jahr = eventYear(ev);
+    const kette = ankerId != null ? ctx.places.enclosureIdsAsOf(ankerId, jahr) : [];
+    const kuratiert =
+      (hof != null && isCuratedHof(hof)) ||
+      kette.some((id) => {
+        const po = base.placeObjects.get(id);
+        return po != null && isCuratedPlace(po);
+      });
+    if (!kuratiert) return null;
+
+    const proj = buildPlacForGedcom(ev, jahr, ctx);
+    if (proj == null || proj === ev.place) return null;
+
+    // Verarmungs-Sperre auf KNOTEN-Ebene (s. `ketteNamen`): jedes Segment der Quelle muss
+    // von einem Knoten der Kette getragen werden — unter irgendeinem seiner Namen. Ein
+    // Segment, das zu keinem Knoten gehört, ist eine Ebene, die der Bestand nicht kennt;
+    // sie zu überschreiben hieße, Wissen der Quelle zu löschen (LP-1).
+    const abgedeckt = ketteNamen(kette, ev.hofId, base.placeObjects, base.hofObjects);
+    const quelle = placSegmente(ev.place);
+    if (!quelle.every((seg) => abgedeckt.has(seg))) {
+      luecken.push({
+        placeId: ev.placeId,
+        hofId: ev.hofId,
+        quelle: ev.place ?? '',
+        projektion: proj,
+      });
+      return null;
+    }
+
+    geaendert += 1;
+    return { ...ev, place: proj };
+  });
+
+  return { db: naechste, geaendert, luecken };
 }

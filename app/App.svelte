@@ -145,12 +145,33 @@
       persister
         .persist(places, hofs)
         .then((r) => {
-          placesEditNotice = r.notice;
+          // NUR eine echte Meldung überschreibt den Kanal. Das Speichern läuft
+          // fire-and-forget neben den Kommandos und meldet im Normalfall '' — es kam
+          // dadurch regelmäßig NACH einer anderen Meldung an und löschte sie (bei der
+          // Angleichung aus ADR-v9-224 im Browser beobachtet: der Hinweis erschien nie).
+          if (r.notice) placesEditNotice = r.notice;
         })
         .catch((err) => {
           placesEditNotice = 'Speichern des Orts-/Hofwissens fehlgeschlagen.';
           console.error('persistPlaces', err);
         });
+    },
+    onPlaceTextsAligned: (geaendert, luecken) => {
+      // EIN Hinweis-Kanal für alles Orts-Bezogene (INV-UI-4) — derselbe, den die
+      // orte.json-Persistenz nutzt. Er steht in der Schale und überlebt deshalb, dass die
+      // Datei-Fläche nach dem Laden verlassen wird.
+      const teile: string[] = [];
+      if (geaendert > 0) {
+        teile.push(
+          `${geaendert} ${geaendert === 1 ? 'Ortsangabe' : 'Ortsangaben'} an den kuratierten Orts-Bestand angeglichen — rückgängig über „Rückgängig“`,
+        );
+      }
+      if (luecken > 0) {
+        teile.push(
+          `${luecken} ${luecken === 1 ? 'Ereignis' : 'Ereignisse'} unverändert gelassen — der Bestand kennt eine dort genannte Ebene nicht`,
+        );
+      }
+      placesEditNotice = teile.join(' · ') + '.';
     },
     persistWorkingCopy: (text) => {
       // Stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1) — fire-and-forget,

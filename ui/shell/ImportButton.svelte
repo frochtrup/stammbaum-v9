@@ -46,7 +46,6 @@
   /** Einfacher State-Flag für Konflikt-/Schema-Hinweise (Spec 30 §4 LP-9) — kein Modal,
    * keine eigene Toast-Infrastruktur vorhanden; reicht laut Aufgabenstellung. */
   let placesNotice = $state('');
-
   async function handleClick() {
     status = 'loading-file';
     errorMessage = '';

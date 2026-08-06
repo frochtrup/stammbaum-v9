@@ -23,6 +23,7 @@ import {
   reprojectEventsOfPlace,
   reprojectEventsOf,
   reprojectHofAddrInEvents,
+  alignCuratedEventTexts,
   renameHofAddrInEvents,
   relinkHofVillageInEvents,
   deletePlaceCascade,
@@ -156,6 +157,30 @@ describe('Naht Kommando → Speichern → Neu laden (Orte/Höfe)', () => {
     expect(wohnsitz(zweit.db).hofId).not.toBeNull();
   });
 
+  // ADR-v9-224: der Autoritäts-Satz. Anders als die Nachläufe darüber braucht er KEINEN
+  // Anlass am einzelnen Objekt — er fragt für jedes Ereignis, ob sein Ortswissen kuratiert
+  // ist, und macht den Dateitext dann zur Projektion. Hier an der Naht geprüft, weil genau
+  // das die Zusicherung ist: was die Anzeige zeigt, steht nach dem Speichern in der Datei
+  // und wird beim nächsten Laden wieder erkannt.
+  it('alignCuratedEventTexts: die periodengerechte Kette steht nach dem Reload in der Datei', () => {
+    const { datei, zweit } = durchNaht((db) => {
+      // Den Elter anreichern (datierte Namensvariante) — kuratiertes Wissen, das die Kette
+      // des Kindes trägt. KEIN Kommando am Kind selbst.
+      const places = new Map(db.placeObjects);
+      const elter = [...places.values()].find((p) => p.title === 'Amt Meinersen');
+      expect(elter).toBeDefined();
+      savePlaceObject(places, {
+        ...elter!,
+        pnames: [{ value: 'Vogtei Meinersen', from: 1700, to: 1800 }],
+      });
+      return alignCuratedEventTexts({ ...db, placeObjects: places }).db;
+    });
+
+    expect(datei).toContain('Vogtei Meinersen');
+    // Und die Bindung hält: der Text findet seinen Ort nach dem Reload wieder.
+    expect(geburt(zweit.db).placeId).not.toBeNull();
+  });
+
   // ADR-v9-223: die Mengen-Fassung. Anlass war ein Nutzerbefund am Import-Weg — dort gibt
   // es keinen EINEN geänderten Ort, sondern einen eingespielten Stand, aus dem der Aufrufer
   // die geänderten Objekte erst herausdifft. Hier in der schärfsten Form: ein HOF ändert
@@ -262,6 +287,7 @@ describe('Wächter: jedes Nachlauf-Kommando steht in der Naht-Tabelle', () => {
     'reprojectEventsOfPlace',
     'reprojectEventsOf',
     'reprojectHofAddrInEvents',
+    'alignCuratedEventTexts',
     'renameHofAddrInEvents',
     'relinkHofVillageInEvents',
     'deletePlaceCascade',
