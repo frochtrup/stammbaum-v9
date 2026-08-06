@@ -447,6 +447,19 @@ describe('isReviewed / isCuratedPlace / isCuratedHof (§9.1, ADR-v9-191)', () =>
 // Realbestand gemessen (Histogramme im Kopf von `placeEnrichmentLevel`/`hofEnrichmentLevel`);
 // diese Tests halten fest, WAS sie unterscheiden sollen, nicht bloß die Zahl.
 describe('placeEnrichmentLevel / hofEnrichmentLevel (§9.1, ADR-v9-191)', () => {
+  // ADR-v9-224: `Unknown` ist die GRAMPS-Schreibweise für „nicht kategorisiert", nicht für
+  // eine Kategorie — `placeTypeLabel` liefert dafür schon bewusst kein Label (ADR-v9-149).
+  // Als Anreicherungs-Facette gezählt machte sie einen sonst rohen Ort zur Autorität über
+  // den Dateitext. Am Realbestand: 13 Orte mit `Unknown`, 9 davon sonst plain.
+  it('zählt type="Unknown" NICHT als Anreicherung (nicht kategorisiert ist keine Kategorie)', () => {
+    expect(placeEnrichmentLevel(place('@A@', { title: 'Kiel', type: 'Unknown' }))).toBe('none');
+    expect(isEnrichedPlace(place('@A@', { title: 'Kiel', type: 'Unknown' }))).toBe(false);
+    // Groß-/Kleinschreibung ist Fremddaten-Rauschen, keine Bedeutung.
+    expect(isEnrichedPlace(place('@A@', { title: 'Kiel', type: 'unknown' }))).toBe(false);
+    // Eine ECHTE Kategorie zählt weiter.
+    expect(isEnrichedPlace(place('@A@', { title: 'Kiel', type: 'Town' }))).toBe(true);
+  });
+
   it('bleibt deckungsgleich mit isEnrichedPlace/isEnrichedHof — EINE Definition, zwei Auflösungen', () => {
     const faelle = [
       place('@A@', { title: 'Ochtrup' }),

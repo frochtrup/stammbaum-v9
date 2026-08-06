@@ -3,7 +3,7 @@
 // `findPlaceDuplicates(items, 'farms')` aufbauend.
 import type { Database, Event, HofId } from '../../../core/model/types';
 import type { PlaceContext, HofObject } from '../../../core/places';
-import { findPlaceDuplicates, eventHofId, hofEnrichmentLevel, isReviewed, placeDisplayName } from '../../../core/places';
+import { findPlaceDuplicates, eventHofId, hofEnrichmentLevel, isReviewed, placeDisplayName, isCuratedHof } from '../../../core/places';
 import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
@@ -53,6 +53,11 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
               usage: usage.get(id) ?? 0,
               hasCoords: !!h && h.lat != null && h.long != null,
               hasNote: !!h?.note,
+              // ADR-v9-225: das erste Kriterium des Vorschlags — s. `DedupCandidateMeta`.
+              // Der Hof-Pfad bekommt es mit, obwohl der gemessene Fall ein Ort war: die
+              // Heuristik ist EINE (geteilte Datei), und die Begründung — die Ereignisse
+              // folgen ohnehin dem Gewinner — gilt für Höfe wortgleich.
+              curated: !!h && isCuratedHof(h),
             },
           ];
         }),

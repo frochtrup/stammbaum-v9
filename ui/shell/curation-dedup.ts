@@ -12,12 +12,25 @@ export interface DedupCandidateMeta {
   usage: number;
   hasCoords: boolean;
   hasNote: boolean;
+  /**
+   * Kuratiert (§9.1: geprüft ODER angereichert) — seit ADR-v9-225 das ERSTE Kriterium,
+   * noch vor der Verwendungszahl. Grund ist ein am Realbestand gemessener Beinahe-Verlust:
+   * ein kuratierter Ort (2 Namensvarianten, 6 datierte Ketten-Einträge, Koordinaten,
+   * Ortsgeschichte) stand ohne Ereignisbezug neben einer Seed-Dublette, die das eine
+   * Ereignis trug — die Heuristik schlug die DUBLETTE vor. Seit ADR-v9-222 behält der
+   * Gewinner nur seine eigenen Angaben; ein Klick auf den Vorschlag hätte die Kuration
+   * gelöscht. Die Ereignisse folgen dem Gewinner ohnehin (`placeRemap`), die
+   * Verwendungszahl war also nie ein Argument FÜR ein Objekt, sondern nur ein Proxy für
+   * „das wird gebraucht".
+   */
+  curated: boolean;
 }
 
 /**
  * Wählt den Gewinner-Vorschlag aus `ids` (Spec 11 §9.2 Heuristik). Deterministisch:
- * höhere Verwendungszahl zuerst, dann Koordinaten vorhanden, dann Notiz vorhanden, dann
- * kleinste ID (String-Vergleich) als letzter, stabiler Tie-Breaker.
+ * KURATIERT zuerst (ADR-v9-225), dann höhere Verwendungszahl, dann Koordinaten vorhanden,
+ * dann Notiz vorhanden, dann kleinste ID (String-Vergleich) als letzter, stabiler
+ * Tie-Breaker. Bleibt ein VORSCHLAG — der Nutzer wählt das Ziel selbst (§9.2).
  */
 export function pickWinnerId<Id extends string>(ids: readonly Id[], meta: Map<Id, DedupCandidateMeta>): Id {
   return ids
@@ -25,6 +38,9 @@ export function pickWinnerId<Id extends string>(ids: readonly Id[], meta: Map<Id
     .sort((a, b) => {
       const ma = meta.get(a);
       const mb = meta.get(b);
+      const ka = ma?.curated ? 1 : 0;
+      const kb = mb?.curated ? 1 : 0;
+      if (kb !== ka) return kb - ka;
       const ua = ma?.usage ?? 0;
       const ub = mb?.usage ?? 0;
       if (ub !== ua) return ub - ua;

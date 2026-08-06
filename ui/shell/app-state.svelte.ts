@@ -50,6 +50,7 @@ import {
   applyGovEntry,
   parseGovText,
   normPlaceName,
+  normHofAddr,
   type PlaceContext,
   type MergeResult,
   type MoveHofResult,
@@ -84,6 +85,9 @@ import {
   relinkHofVillageInEvents,
   renameHofAddrInEvents,
   reprojectEventsOfPlace,
+  reprojectEventsOf,
+  reprojectHofAddrInEvents,
+  alignCuratedEventTexts,
 } from '../../services/places';
 import { collectAllEvents } from './all-events';
 import type { Hypothesis, LogEntry, TaskStatus } from '../../core/research/types';
@@ -307,6 +311,14 @@ export interface AppState extends PlacesHost {
    */
   mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
   /**
+   * Gleicht die Ereignistexte an das kuratierte Ortswissen an (ADR-v9-224) — der
+   * Autoritäts-Satz aus Spec 11 §3: wo ein Ereignis an kuratiertem Wissen hängt, IST der
+   * Dateitext die Projektion; wo es an einem Seed-Objekt hängt, bleibt die Quelle stehen.
+   * Läuft nach jedem Laden und nach jedem orte.json-Import automatisch, ist aber ein
+   * gewöhnliches Kommando: rücknehmbar, und die Schale zeigt seine Zahl.
+   */
+  alignPlaceTexts(): { geaendert: number; luecken: number };
+  /**
    * Kommando: ersetzt placeObjects/hofObjects durch das Ergebnis eines orte.json-Datei-
    * Imports (ADR-v9-70, Spec 14 §6) UND reklassifiziert im selben Zug ALLE Events der
    * aktuell geladenen Genealogie gegen den neuen Orts-/Hof-Bestand (`applyPlaceResolution`,
@@ -473,6 +485,19 @@ export interface CreateAppStateOptions {
    * geladen ist (kein fileName) — s. persistWorkingCopyIfLoaded().
    */
   persistWorkingCopy?: (text: string) => void;
+  /**
+   * Meldet das Ergebnis der Text-Angleichung an das kuratierte Ortswissen (ADR-v9-224).
+   * Die Schale zeigt daraus ihren Hinweis — eine automatische Änderung, die niemand sieht,
+   * wäre genau die stille Umschreibung, die ADR-v9-197 abgeschafft hat.
+   *
+   * Als RÜCKRUF statt als Rückgabewert, weil die Angleichung auf vier Wegen läuft (Datei
+   * öffnen, Demo, Arbeitskopie beim Start, orte.json-Import) — ein Rückgabewert müsste
+   * durch jeden davon einzeln durchgereicht werden, und der vierte wurde beim ersten
+   * Versuch prompt vergessen (der Hinweis stand in `ImportButton` und war nach dem Laden
+   * unsichtbar, weil die Datei-Fläche verlassen wird — von der eigenen Browser-Prüfung
+   * gefangen, nicht von einem Test).
+   */
+  onPlaceTextsAligned?: (geaendert: number, luecken: number) => void;
 }
 
 export function createAppState(opts: CreateAppStateOptions = {}): AppState {
@@ -791,7 +816,26 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, model);
-      commit({ ...db, hofObjects: nextHofs }, { places: true });
+      // Nachlauf wie bei `savePlace` (ADR-v9-223): dieses Kommando speichert das GANZE
+      // Hof-Objekt, also auch seine `addrs` — `HofDetail` legt darüber Adressvarianten an
+      // und entfernt sie. Fällt die Variante weg, die der Ereignistext trägt, zeigte die
+      // Datei bis dahin weiter die alte Adresse, während die Anzeige längst die neue baute.
+      // (Der dedizierte Umbenenn-Pfad `updateHofAddr` hatte seinen Nachlauf seit ADR-v9-81
+      // — die Geschwister-Stelle daneben nicht.)
+      //
+      // ZWEI Repräsentationen, deshalb zwei Schritte: `ev.addr` ist der eingefrorene
+      // Wire-Wert (ADR-v9-47/-81) und wird nur dort ersetzt, wo er einen ENTFALLENEN
+      // Adresswert trägt; `ev.place` baut der Nachlauf danach ohnehin neu.
+      const vorher = db.hofObjects.get(model.id);
+      // `includes` statt eines Sets: eine Handvoll Adressvarianten je Hof, und ein Set wäre
+      // hier die reaktive Sonderform (svelte/prefer-svelte-reactivity).
+      const behalten = model.addrs.map((a) => normHofAddr(a.value));
+      const entfallen = (vorher?.addrs ?? [])
+        .map((a) => a.value)
+        .filter((v) => !behalten.includes(normHofAddr(v)));
+      const basis = reprojectHofAddrInEvents({ ...db, hofObjects: nextHofs }, model.id, entfallen);
+      const next = reprojectEventsOf(basis, { hofs: [model.id] });
+      commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) });
     },
     updateHofAddr(hofId, index, value, from, to) {
       const hof = db.hofObjects.get(hofId);
@@ -832,7 +876,21 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       const remap = mergeHofObjects(nextHofs, survivorId, mergedIds);
-      commit(applyHofRemap({ ...db, hofObjects: nextHofs }, remap), { places: true });
+      // Nachlauf (ADR-v9-223): die umgehängten Ereignisse hängen jetzt am Überlebenden —
+      // der kann eine andere Adressvariante führen UND in einem anderen Dorf liegen. Ohne
+      // die Reprojektion nannte der Dateitext weiter das alte Dorf, während die Anzeige
+      // schon das neue zeigte. Dasselbe hatte `mergePlace` seit ADR-v9-195, `mergeHof` nicht.
+      const basis = applyHofRemap({ ...db, hofObjects: nextHofs }, remap);
+      const next = reprojectEventsOf(basis, { hofs: [survivorId] });
+      commit(next, { places: true, workingCopy: ereignisseGeaendert(basis, next) || remap.size > 0 });
+    },
+    alignPlaceTexts() {
+      const res = alignCuratedEventTexts(db);
+      if (res.geaendert > 0) commit(res.db, { workingCopy: true });
+      if (res.geaendert > 0 || res.luecken.length > 0) {
+        opts.onPlaceTextsAligned?.(res.geaendert, res.luecken.length);
+      }
+      return { geaendert: res.geaendert, luecken: res.luecken.length };
     },
     replacePlacesAndHofs(placeObjects, hofObjects) {
       const nextDb = { ...db, placeObjects, hofObjects };
@@ -845,6 +903,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // neu geprüft werden (ADR-v9-74) — sonst würde der "bereits gelinkt"-Kurzschluss
       // in resolveEvents jede Verbesserung verhindern.
       const resolution = applyPlaceResolution(nextDb, { resetUncuratedLinks: true });
+      // Nachlauf: seit ADR-v9-224 derselbe wie beim Laden — der AUTORITÄTS-Satz, nicht
+      // mehr ein Inhaltsvergleich alt/neu (ADR-v9-223). Ein Import ist der Fall, für den
+      // der Satz gemacht ist: er bringt genau das kuratierte Wissen mit, dem der Dateitext
+      // folgen soll. Der frühere Diff war die halbe Antwort — er heilte nur, was sich in
+      // DIESEM Moment änderte, und ließ jede vorher entstandene Abweichung stehen.
       // KEIN Undo-Eintrag, sondern Stack LEEREN (ADR-v9-92 Punkt 5): `applyPlaceResolution`
       // ist der volle Lade-Pass und mutiert Person-/Family-Events in-place — es teilt seine
       // Entitäten also mit zuvor abgelegten Zuständen und würde sie mitverändern. Der ADR
@@ -853,7 +916,11 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // genau so ein Massen-Wechsel der Orts-Identität (Spec 11 §3 „Mechanismus 1").
       // Konsequenz statt stiller Beschädigung: was davor war, ist nicht mehr rücknehmbar.
       stackClear();
-      db = nextDb;
+      const angleich = alignCuratedEventTexts(nextDb);
+      db = angleich.db;
+      if (angleich.geaendert > 0 || angleich.luecken.length > 0) {
+        opts.onPlaceTextsAligned?.(angleich.geaendert, angleich.luecken.length);
+      }
       persistWorkingCopyIfLoaded();
       // Bewusst NICHT unbedingt persistPlaces() — der Aufrufer hat den importierten Stand
       // bereits gespeichert (s. Interface-Doku). Nur bei Wachstum durch die

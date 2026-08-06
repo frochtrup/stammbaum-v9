@@ -51,7 +51,13 @@ export type EnrichmentLevel = 'none' | 'sparse' | 'rich';
  */
 function placeFacetCount(po: PlaceObject): number {
   let n = 0;
-  if (po.type !== '') n += 1;
+  // `Unknown` ist KEINE Kategorisierung, sondern die GRAMPS-Schreibweise für „nicht
+  // kategorisiert" — dieselbe Lesart, aus der `placeTypeLabel` dafür bewusst gar kein
+  // Label liefert (ADR-v9-77/-149: „der normale, unauffällige Fall"). Als Facette gezählt
+  // machte sie einen sonst rohen Ort zu einem „angereicherten" und damit — seit ADR-v9-224,
+  // wo Kuratiertheit über den DATEITEXT entscheidet — zu einer Autorität, die es nicht
+  // gibt. Am Realbestand betrifft das 13 Orte (`orte.v9.json`), 9 davon sonst plain.
+  if (po.type !== '' && po.type.toLowerCase() !== 'unknown') n += 1;
   if (po.pnames.length !== 0) n += 1;
   // Zugehörigkeit zählt erst als Anreicherung, wenn sie ÜBER den Seed-Rohzustand hinausgeht:
   // ein einzelner undatierter Eintrag entsteht automatisch (Spec 11 §4.2 Schritt 0).

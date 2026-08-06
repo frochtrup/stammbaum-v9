@@ -12,8 +12,7 @@ import {
   isUnresolvedGovPlaceholder,
   hasReference,
   placeDisplayName,
-  eventPlaceId,
-} from '../../../core/places';
+  eventPlaceId, isCuratedPlace,} from '../../../core/places';
 import { placeTypeCategory } from '../../shell/place-labels';
 
 export interface PlaceRow {
@@ -31,6 +30,18 @@ export interface PlaceRow {
    *  `enclosedBy`-Zugehörigkeit erfasst ist. UNABHÄNGIG von `level` (ein Ort kann
    *  eine Kette haben, ohne sonst angereichert zu sein, oder umgekehrt). */
   hasHierarchy: boolean;
+  /**
+   * Kuratiert (§9.1: geprüft ODER angereichert) — seit ADR-v9-224 keine reine
+   * Pflegezustands-Auskunft mehr, sondern eine Aussage über die DATEI: nur an einem
+   * kuratierten Ort folgt der Ereignistext der periodengerechten Projektion; an einem
+   * Seed-Eintrag bleibt stehen, was die Quelle schreibt. Deshalb sichtbar in der Zeile.
+   *
+   * Als POSITIVE Pille auf dem selteneren Zustand — am Realbestand tragen sie 46 von 168
+   * Zeilen mit Ereignisbezug (27 %). Das ist die Kehrseite von ADR-v9-149, das die
+   * „ohne Zusatzangaben"-Pille abschaffte, WEIL sie auf 79 % der Zeilen stand und den
+   * informationsärmsten Zustand benannte.
+   */
+  curated: boolean;
   /** Zahl der DISTINKTEN Personen mit mind. einem Ereignis an diesem Ort (BL-204,
    *  v8-Orakel „N Personen"), über den `eventPlaceId`-Chokepoint aufgelöst. `0`, wenn
    *  keine Zählung übergeben wurde (z. B. globale Suche). */
@@ -107,6 +118,7 @@ function toRow(pl: PlaceObject, personCounts?: Map<PlaceId, number>): PlaceRow {
     coords: hasCoords ? { lat: pl.lat as number, long: pl.long as number } : null,
     variants: pl.pnames.map((p) => p.value).filter(Boolean),
     level: placeEnrichmentLevel(pl),
+    curated: isCuratedPlace(pl),
     hasHierarchy: pl.enclosedBy.length > 0,
     personCount: personCounts?.get(pl.id) ?? 0,
   };

@@ -56,5 +56,13 @@ export async function loadGedcomText(
 
   appState.loadDatabase(parsed.db, fileName, parsed.roots);
 
+  // NACH loadDatabase, nicht davor: `loadDatabase` leert den Undo-Stack (ADR-v9-92 — über
+  // eine Dateiöffnung hinweg gibt es kein Undo). Die Angleichung ist ein eigenes Kommando
+  // darauf und damit rücknehmbar, obwohl sie automatisch läuft. Ihr Ergebnis meldet sie
+  // über den `onPlaceTextsAligned`-Rückruf an die Schale — NICHT über den Rückgabewert:
+  // sie läuft auf VIER Wegen (Datei öffnen, Demo, Arbeitskopie beim Start, orte.json-
+  // Import), und ein Rückgabewert müsste durch jeden davon einzeln durchgereicht werden.
+  appState.alignPlaceTexts();
+
   return { placesNotice };
 }

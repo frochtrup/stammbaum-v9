@@ -57,5 +57,9 @@ export async function loadGrampsText(
 
   appState.loadGrampsDoc(parsed.db, fileName, parsed.doc);
 
+  // Wie im GEDCOM-Pfad (ADR-v9-224): der Autoritäts-Satz gilt formatunabhängig — er ist
+  // eine Aussage über Ortswissen, nicht über eine Dateiform.
+  appState.alignPlaceTexts();
+
   return { placesNotice };
 }

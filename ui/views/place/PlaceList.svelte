@@ -296,6 +296,12 @@
                      liefert '' → kein Chip, statt „Unbekannt" auf der Mehrheit der Zeilen. -->
                 {#if placeTypeLabel(row.type)}<span class="stb-pill">{placeTypeLabel(row.type)}</span>{/if}
                 {#if row.hasHierarchy}<span class="stb-pill">Hierarchie</span>{/if}
+                <!-- ADR-v9-224: eine Aussage über die DATEI, nicht über den Pflegezustand —
+                     nur an einem kuratierten Ort folgt der Ereignistext der periodengerechten
+                     Projektion. POSITIV und auf dem selteneren Zustand (gemessen 46 von 168
+                     Zeilen mit Ereignisbezug, 27 %); das ist die Gegenprobe zu ADR-v9-149,
+                     das die „ohne Zusatzangaben"-Pille strich, weil sie auf 79 % stand. -->
+                {#if row.curated}<span class="stb-pill" title="Kuratiert — Ereignistexte folgen diesem Ort">kuratiert</span>{/if}
               </span>
               <!-- D4: die Personenzahl ist eine Ereignis-Auskunft — ohne Kontext wäre sie
                    überall 0 und damit reines Rauschen. -->

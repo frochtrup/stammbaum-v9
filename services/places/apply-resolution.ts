@@ -28,6 +28,8 @@ import {
   isCuratedHof,
   buildPlacForGedcom,
   eventYear,
+  normHofAddr,
+  normPlaceName,
   type ResolveResult,
   type PlaceContext,
 } from '../../core/places';
@@ -234,6 +236,47 @@ export function renameHofAddrInEvents(
 }
 
 /**
+ * Der Geschwister-Nachlauf zu `renameHofAddrInEvents` für die VOLLSPEICHERUNG eines Hofs
+ * (`saveHof`, ADR-v9-223): dort gibt es kein alt→neu-Paar, sondern eine Adressliste, aus
+ * der Werte verschwunden sein können — `HofDetail` legt Varianten über dieses Kommando an
+ * und entfernt sie.
+ *
+ * `entfalleneWerte` sind die Adress-Bezeichnungen, die der Hof VORHER trug und jetzt nicht
+ * mehr. Jedes Ereignis am Hof, dessen `ev.addr` einen davon trägt, bekommt die zum
+ * EREIGNISJAHR gültige Adresse — dieselbe Wahl, die die Anzeige trifft
+ * (`resolveAddrAsOf`). Deshalb je Ereignis neu bestimmt und nicht ein fester neuer Wert:
+ * ein Hof kann datierte Adressvarianten führen, und dann ist „die neue Adresse" für ein
+ * Ereignis von 1750 eine andere als für eines von 1900.
+ *
+ * GUARD wie in ADR-v9-81: umgeschrieben wird nur, was VORHER SAUBER war (der Wert stand
+ * so in `addrs`). Eine quellen-eigene, byte-abweichende Schreibweise, die nie im Bestand
+ * stand, bleibt unangetastet — sie ist Wire-Wahrheit, kein veralteter Cache (LP-1).
+ */
+export function reprojectHofAddrInEvents(
+  db: ReadonlyDatabase,
+  hofId: HofId,
+  entfalleneWerte: readonly string[],
+): Database {
+  const base = db as unknown as Database;
+  if (entfalleneWerte.length === 0) return base;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+  const entfallen = new Set(entfalleneWerte.map((v) => normHofAddr(v)));
+
+  return mapAllEvents(db, (ev) => {
+    if (ev.hofId !== hofId || !ev.addr || !entfallen.has(normHofAddr(ev.addr))) return null;
+    const jetzt = ctx.hofs.resolveAddrAsOf(hofId, eventYear(ev));
+    if (!jetzt || jetzt === ev.addr) return null;
+    const next: Event = { ...ev, addr: jetzt };
+    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    if (proj != null) next.place = proj;
+    return next;
+  });
+}
+
+/**
  * Kommando-Nachlauf zu jeder ORTSBEARBEITUNG (BL-291, ADR-v9-198): zieht die
  * `PLAC`-Projektion aller Ereignisse nach, die an DIESEM Ort hängen.
  *
@@ -266,16 +309,47 @@ export function renameHofAddrInEvents(
  * `db.placeObjects`, damit der hier gebaute `PlaceContext` die neue Kette sieht.
  */
 export function reprojectEventsOfPlace(db: ReadonlyDatabase, placeId: PlaceId): Database {
+  return reprojectEventsOf(db, { places: [placeId] });
+}
+
+/**
+ * Die Mengen-Fassung von `reprojectEventsOfPlace` — dieselbe Zusicherung für MEHRERE
+ * geänderte Orte und/oder Höfe, in EINEM Durchlauf (ADR-v9-223).
+ *
+ * WARUM ES SIE BRAUCHT. Drei Kommandos ändern Orts-/Hof-INHALT, ohne dass ein einzelner
+ * Ort der Anlass wäre, und alle drei ließen den Ereignistext zurück (gemessen 2026-08-05,
+ * Anzeige gegen Wire):
+ *   `replacePlacesAndHofs` (orte.json-Import / Standalone-Editor / zweites Gerät) —
+ *     eine datierte Umbenennung an einem ELTERNGLIED wirkte in der Anzeige sofort,
+ *     die Datei behielt die alte Kette. Für immer: der Ladepass reprojiziert seit
+ *     ADR-v9-197 bewusst nicht mehr, das nächste Öffnen ist wieder nur ein Ladepass.
+ *   `saveHof` — Adressvariante hinzugefügt/entfernt (HofDetail), Text blieb stehen.
+ *   `mergeHof` — das Ereignis hängt danach am Überlebenden, ggf. in einem ANDEREN Dorf;
+ *     der Text nannte weiter das alte.
+ *
+ * `hofs` ist dabei nicht nur Bequemlichkeit: ein Hof kann sich ändern, ohne dass sein
+ * Dorf sich ändert (Adresse), und dann liegt er in keinem Orts-Teilbaum, den `places`
+ * aufspannt.
+ *
+ * KEIN Rückfall in den Ladepass-Zustand von vor ADR-v9-197: dort wurde jedes Ereignis
+ * reprojiziert, auch wenn niemand etwas geändert hatte (668 stille Umschreibungen). Hier
+ * bestimmt der AUFRUFER die Menge, und er bildet sie aus dem, was der Nutzer tatsächlich
+ * angefasst hat.
+ */
+export function reprojectEventsOf(
+  db: ReadonlyDatabase,
+  targets: { places?: Iterable<PlaceId>; hofs?: Iterable<HofId> },
+): Database {
   const base = db as unknown as Database;
   const ctx: PlaceContext = {
     places: makePlaceRegistry(base.placeObjects),
     hofs: makeHofRegistry(base.hofObjects),
   };
 
-  // Fixpunkt: der Ort und alles, was (transitiv) unter ihm hängt. Über ALLE `enclosedBy`-
+  // Fixpunkt: die Orte und alles, was (transitiv) unter ihnen hängt. Über ALLE `enclosedBy`-
   // Einträge, nicht nur den ersten — ein gemergter Ort trägt mehrere Ketten (ADR-v9-72).
-  const betroffeneOrte = new Set<PlaceId>([placeId]);
-  for (let gewachsen = true; gewachsen; ) {
+  const betroffeneOrte = new Set<PlaceId>(targets.places ?? []);
+  for (let gewachsen = betroffeneOrte.size > 0; gewachsen; ) {
     gewachsen = false;
     for (const [id, pl] of base.placeObjects) {
       if (betroffeneOrte.has(id)) continue;
@@ -285,9 +359,9 @@ export function reprojectEventsOfPlace(db: ReadonlyDatabase, placeId: PlaceId): 
       }
     }
   }
-  const hofsHier = new Set(
-    [...base.hofObjects.values()].filter((h) => betroffeneOrte.has(h.villageId)).map((h) => h.id),
-  );
+  const hofsHier = new Set<HofId>(targets.hofs ?? []);
+  for (const h of base.hofObjects.values()) if (betroffeneOrte.has(h.villageId)) hofsHier.add(h.id);
+  if (betroffeneOrte.size === 0 && hofsHier.size === 0) return base;
 
   return mapAllEvents(db, (ev) => {
     const betroffen =
@@ -377,4 +451,151 @@ export function relinkHofVillageInEvents(
     if (proj != null) next.place = proj;
     return next;
   });
+}
+
+/** Ein Ereignis, dessen Text NICHT angeglichen wurde, weil die Projektion ärmer wäre. */
+export interface AngleichLuecke {
+  /** Der Ort/Hof, an dem das Ereignis hängt — die Fundstelle der Kurationslücke. */
+  placeId: PlaceId | null;
+  hofId: HofId | null;
+  /** Was in der Datei steht, und was die Projektion daraus machen wollte. */
+  quelle: string;
+  projektion: string;
+}
+
+export interface AngleichErgebnis {
+  db: Database;
+  /** Angeglichene Ereignisse. */
+  geaendert: number;
+  /** Übersprungene: die Projektion hätte Segmente verloren (Kurationslücke, s. u.). */
+  luecken: AngleichLuecke[];
+}
+
+/** Segmente eines PLAC-Strings in Norm-Form — leere Template-Felder fallen weg. */
+function placSegmente(s: string | null | undefined): string[] {
+  return (s ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => normPlaceName(x));
+}
+
+/**
+ * ALLE Namen, unter denen die projizierte Kette bekannt ist — Titel und `pnames` jedes
+ * Knotens (periodenunabhängig), dazu die Adressvarianten des Hofs.
+ *
+ * WOZU: um eine UMBENENNUNG von einem VERLUST zu unterscheiden. Beide sehen im Text gleich
+ * aus — ein Segment der Quelle taucht in der Projektion nicht auf. „Kreis X" -> „Amt X" ist
+ * aber derselbe Knoten unter seinem periodengerechten Namen (nichts geht verloren), während
+ * „…, NRW, Deutschland" -> „…, Nordrhein-Westfalen" eine Ebene WEGLÄSST, die der Bestand
+ * nicht kennt. Auf Zeichenketten-Ebene ist das nicht zu trennen, auf Knoten-Ebene schon:
+ * gehört das Segment zu irgendeinem Knoten der Kette, ist es abgedeckt; gehört es zu
+ * keinem, fehlt die Ebene.
+ */
+function ketteNamen(
+  kette: readonly PlaceId[],
+  hofId: HofId | null,
+  places: Database['placeObjects'],
+  hofs: Database['hofObjects'],
+): Set<string> {
+  const namen = new Set<string>();
+  for (const id of kette) {
+    const po = places.get(id);
+    if (!po) continue;
+    namen.add(normPlaceName(po.title));
+    for (const pn of po.pnames ?? []) namen.add(normPlaceName(pn.value));
+    if (po.shortName) namen.add(normPlaceName(po.shortName));
+  }
+  const hof = hofId != null ? hofs.get(hofId) : undefined;
+  for (const a of hof?.addrs ?? []) namen.add(normHofAddr(a.value));
+  namen.delete('');
+  return namen;
+}
+
+/**
+ * Gleicht den Dateitext an das kuratierte Ortswissen an (ADR-v9-224).
+ *
+ * DER AUTORITÄTS-SATZ, den diese Funktion umsetzt: hängt ein Ereignis an einem
+ * **kuratierten** Ort/Hof (§9.1: geprüft ODER angereichert), ist `orte.json` die Autorität
+ * — der Dateitext IST die periodengerechte Projektion. Hängt es an einem SEED-Objekt oder
+ * gar nicht, ist die Quelle die Autorität und der Text bleibt unangetastet.
+ *
+ * WARUM DIESE GRENZE UND NICHT „Laden gegen Bearbeiten" (ADR-v9-197). Am Realbestand
+ * gemessen (2026-08-05, `Unsere Familie 2026.ged` + `orte.v9.json`) fällt die Abweichung
+ * zwischen Datei und Anzeige sauber in zwei Hälften:
+ *   an KURATIERTEM Wissen  4860 Ereignisse, 279 abweichend — 232 periodengerechte
+ *     Umbenennungen („Herzogtum Oldenburg" 1905 -> „Großherzogtum Oldenburg"),
+ *     14 Anreicherungen, 19 Leerfelder, 14 sonstige, **0 Kürzungen**
+ *   an SEED-Objekten        297 Ereignisse, 235 abweichend — ausschließlich Leerfelder
+ *     und KÜRZUNGEN („…, Rheine, , , NRW, Deutschland" -> „Rheine, Nordrhein-Westfalen")
+ * Ein Seed-Objekt ist ein Spiegel des Dateitexts; aus ihm kann die Projektion nichts
+ * hinzufügen, aber Ebenen verlieren, die er nie modelliert hat. Die 668 stillen
+ * Umschreibungen aus ADR-v9-197 waren die Summe beider Hälften — getrennt betrachtet sind
+ * es 279 Gewinne und 235 Schäden.
+ *
+ * DIE VERARMUNGS-SPERRE ist trotzdem eine Regel, kein Zufall: enthält die Projektion nicht
+ * jedes Segment der Quelle, wird NICHT geschrieben, und das Ereignis erscheint als
+ * `AngleichLuecke`. Am heutigen Bestand trifft das auf der kuratierten Seite null Fälle —
+ * tritt es auf, ist es ein Kurations-Befund („der Bestand kennt über NRW nichts mehr"),
+ * kein Schreibanlass. Verglichen wird über Norm-Segmente, damit ein reines Leerfeld oder
+ * eine Groß-/Kleinschreibung nicht als Verlust zählt.
+ *
+ * REIN und idempotent: gleiche Eingabe, gleiche Ausgabe; ein zweiter Lauf ändert nichts
+ * mehr (die Projektion ist dann bereits der Text). Copy-on-write über `mapAllEvents` —
+ * nur Owner mit tatsächlich geändertem Ereignis werden geklont.
+ */
+export function alignCuratedEventTexts(db: ReadonlyDatabase): AngleichErgebnis {
+  const base = db as unknown as Database;
+  const ctx: PlaceContext = {
+    places: makePlaceRegistry(base.placeObjects),
+    hofs: makeHofRegistry(base.hofObjects),
+  };
+  const luecken: AngleichLuecke[] = [];
+  let geaendert = 0;
+
+  const naechste = mapAllEvents(db, (ev) => {
+    if (ev.placeId == null && ev.hofId == null) return null;
+
+    // Kuratiert? Die Frage gilt der GANZEN Kette, nicht nur dem gebundenen Objekt: die
+    // Projektion baut sich aus jedem Knoten von unten bis oben, und das kuratierte Wissen
+    // sitzt oft am VORFAHREN — „Bayern" -> „Freistaat Bayern" ist eine Aussage über den
+    // Elter, nicht über das Dorf darunter. Eine Prüfung nur am gebundenen Objekt ließ genau
+    // den Fall liegen, mit dem dieser ADR angefangen hat (datierte Umbenennung am
+    // Elternglied); ein Test hat es sofort gezeigt.
+    const hof = ev.hofId != null ? base.hofObjects.get(ev.hofId) : undefined;
+    const ankerId = hof ? hof.villageId : ev.placeId;
+    const jahr = eventYear(ev);
+    const kette = ankerId != null ? ctx.places.enclosureIdsAsOf(ankerId, jahr) : [];
+    const kuratiert =
+      (hof != null && isCuratedHof(hof)) ||
+      kette.some((id) => {
+        const po = base.placeObjects.get(id);
+        return po != null && isCuratedPlace(po);
+      });
+    if (!kuratiert) return null;
+
+    const proj = buildPlacForGedcom(ev, jahr, ctx);
+    if (proj == null || proj === ev.place) return null;
+
+    // Verarmungs-Sperre auf KNOTEN-Ebene (s. `ketteNamen`): jedes Segment der Quelle muss
+    // von einem Knoten der Kette getragen werden — unter irgendeinem seiner Namen. Ein
+    // Segment, das zu keinem Knoten gehört, ist eine Ebene, die der Bestand nicht kennt;
+    // sie zu überschreiben hieße, Wissen der Quelle zu löschen (LP-1).
+    const abgedeckt = ketteNamen(kette, ev.hofId, base.placeObjects, base.hofObjects);
+    const quelle = placSegmente(ev.place);
+    if (!quelle.every((seg) => abgedeckt.has(seg))) {
+      luecken.push({
+        placeId: ev.placeId,
+        hofId: ev.hofId,
+        quelle: ev.place ?? '',
+        projektion: proj,
+      });
+      return null;
+    }
+
+    geaendert += 1;
+    return { ...ev, place: proj };
+  });
+
+  return { db: naechste, geaendert, luecken };
 }
