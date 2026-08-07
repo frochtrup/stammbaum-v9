@@ -679,3 +679,72 @@ describe('FamilyDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
     expect(saved.events[0].value).toBe('Zählung 1900'); // unangetastet
   });
 });
+
+// Spec 20 §2 — Geschwister-Stelle zu PersonDetail: befüllte Ereignisse sind über dasselbe
+// Control löschbar, nur mit vorgeschaltetem `confirm`. MARR spiegelt BIRT (kein Control).
+describe('FamilyDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)', () => {
+  function seedFamily(build: (f: ReturnType<typeof makeFamily>) => void) {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    build(f);
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+    render(FamilyDetail, { props: { appState, viewState } });
+    return { appState, viewState };
+  }
+
+  it('entfernt ein befülltes generisches Ereignis aus events[] — nach bestätigtem confirm', async () => {
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+    const { appState } = seedFamily((f) => {
+      f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900', seen: true }));
+    });
+
+    await fireEvent.click(screen.getByLabelText('Volkszählung löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(appState.db.families.get('@F1@')!.events).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('abgebrochenes confirm lässt events[] unverändert', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => false));
+    const { appState } = seedFamily((f) => {
+      f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900', seen: true }));
+    });
+
+    await fireEvent.click(screen.getByLabelText('Volkszählung löschen'));
+
+    expect(appState.db.families.get('@F1@')!.events).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('setzt eine befüllte Verlobung auf den unbefüllten Ausgangszustand zurück', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { appState } = seedFamily((f) => {
+      f.engagement.date = '12 MAR 1920';
+      f.engagement.seen = true;
+    });
+
+    await fireEvent.click(screen.getByLabelText('Verlobung löschen'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(isEventPresent(saved.engagement)).toBe(false);
+    expect(saved.engagement.date).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('bietet für die Heiratszeile KEIN Entfernen-Control — Spiegelbild zu Geburt bei Person', () => {
+    seedFamily((f) => {
+      f.marriage.date = '4 JUN 1921';
+      f.marriage.seen = true;
+    });
+
+    expect(screen.queryByLabelText('Heirat löschen')).toBeNull();
+    expect(screen.queryByLabelText('Heirat zurücknehmen')).toBeNull();
+    expect(screen.getByLabelText('Heirat bearbeiten')).toBeTruthy();
+  });
+});

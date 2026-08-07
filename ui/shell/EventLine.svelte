@@ -15,6 +15,16 @@
   //
   // Alles Übrige (Label/Value/Addr/Note, Quellen-Badges via SourceBadge, ✕-Rücknahme,
   // ✎-Bearbeiten) bleibt unverändert — nur an EINER Stelle statt zwei.
+  //
+  // Entfernen-Control (Spec 20 §2): EINE Fläche, zwei Stufen — `ev.empty` zeigt ✕ und
+  // wirkt sofort (nichts zu verlieren), ein befülltes Ereignis zeigt 🗑 und geht durch
+  // `window.confirm`. Bewusst KEIN drittes Icon: die Zeile behält zwei Befehlsflächen
+  // (Entfernen + Bearbeiten), nur die Bedingung des Entfernens ist weiter gefasst als
+  // vorher. Ob eine Zeile überhaupt entfernbar ist, entscheidet weiterhin der Aufrufer
+  // über das Vorhandensein von `onRetract` (Geburt/Heirat: nie, s. dort) — und WAS das
+  // Entfernen bedeutet (Sonder-Feld zurücksetzen vs. aus `events[]` streichen) ebenfalls.
+  // Der Bestätigungstext bleibt hier, weil nur diese Komponente Label und Füllstand der
+  // Zeile kennt; für den Nutzer ist die Unterscheidung ohnehin dieselbe Handlung.
   import type { AppState } from './app-state.svelte';
   import type { ViewState } from './view-state.svelte';
   import type { LensId } from './lens-model';
@@ -115,6 +125,19 @@
   // wert — sonst erscheint z. B. "Heirat Y". Zentral hier für alle Konsumenten gefiltert
   // (displayEventValue, event-line-row.ts) statt in jedem *-detail-model einzeln.
   const shownValue = $derived(displayEventValue(ev.value));
+
+  // Destruktives Entfernen eines BEFÜLLTEN Ereignisses — natives `confirm()` wie in
+  // `DeleteEntityButton.svelte` (kein eigenes Dialog-Muster im Projekt). Der Text nennt,
+  // was verloren geht, nicht bloß „wirklich?": Medien-VERKNÜPFUNGEN fallen weg, die
+  // Medien-Datensätze selbst bleiben (referenz-auflösend wie jedes andere Löschen hier).
+  function handleDelete() {
+    if (!onRetract) return;
+    const msg =
+      `Ereignis „${ev.label}" wirklich löschen? Datum, Ort, Wert, Notiz, Quellenzitate und ` +
+      `Medien-Verknüpfungen dieses Ereignisses gehen verloren. Die zitierten Quellen und die ` +
+      `verknüpften Medien selbst bleiben bestehen.`;
+    if (window.confirm(msg)) onRetract(ev.key);
+  }
 </script>
 
 <li class="event-line">
@@ -156,17 +179,30 @@
       <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
     {/each}
     <span class="event-line__actions">
-      {#if ev.empty && onRetract}
-        <button
-          type="button"
-          class="stb-icon-btn"
-          data-variant="danger"
-          onclick={() => onRetract(ev.key)}
-          aria-label={`${ev.label} zurücknehmen`}
-          use:tooltip={'Zurücknehmen'}
-        >
-          ✕
-        </button>
+      {#if onRetract}
+        {#if ev.empty}
+          <button
+            type="button"
+            class="stb-icon-btn"
+            data-variant="danger"
+            onclick={() => onRetract(ev.key)}
+            aria-label={`${ev.label} zurücknehmen`}
+            use:tooltip={'Zurücknehmen'}
+          >
+            ✕
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="stb-icon-btn"
+            data-variant="danger"
+            onclick={handleDelete}
+            aria-label={`${ev.label} löschen`}
+            use:tooltip={'Löschen'}
+          >
+            🗑
+          </button>
+        {/if}
       {/if}
       <button
         type="button"

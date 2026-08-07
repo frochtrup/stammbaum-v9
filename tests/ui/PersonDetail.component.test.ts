@@ -970,6 +970,122 @@ describe('PersonDetail — generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, S
   });
 });
 
+// Spec 20 §2: befüllte Ereignisse sind über dasselbe Control löschbar, nur mit
+// vorgeschaltetem `confirm`. Vorher gab es dafür KEINEN Weg — das ✕ verschwand, sobald
+// echter Inhalt da war.
+describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)', () => {
+  function seedPerson(build: (p: ReturnType<typeof makePerson>) => void) {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
+    build(p);
+    db.individuals.set('@I1@', p);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    render(PersonDetail, { props: { appState, viewState } });
+    return { appState, viewState };
+  }
+
+  it('entfernt ein befülltes generisches Ereignis aus events[] — nach bestätigtem confirm', async () => {
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+    const { appState } = seedPerson((p) => {
+      p.events.push(makeEvent('OCCU', { value: 'Landwirt', date: '1920', seen: true }));
+      p.events.push(makeEvent('CENS', { value: 'Zählung', date: '1925', seen: true }));
+    });
+
+    await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(saved.events).toHaveLength(1);
+    expect(saved.events[0].type).toBe('CENS'); // Nachbar unangetastet
+    vi.unstubAllGlobals();
+  });
+
+  it('abgebrochenes confirm lässt events[] unverändert', async () => {
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmSpy);
+    const { appState } = seedPerson((p) => {
+      p.events.push(makeEvent('OCCU', { value: 'Landwirt', date: '1920', seen: true }));
+    });
+
+    await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(appState.db.individuals.get('@I1@')!.events).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
+
+  // Der eigentliche Auslöser: `lati`/`long` (aus `2 MAP` beim Import) und Medien lassen
+  // sich im EventEditModal NICHT leeren — solche Ereignisse konnten nie „leer" werden und
+  // waren damit unentfernbar. Genau dieser Fall muss jetzt gehen (TST-16-Geist: bewusst
+  // das unbequeme, importierte Beispiel statt des frisch angelegten).
+  it('entfernt auch ein Ereignis, das NUR über nicht-editierbare Felder befüllt ist (lati/long aus 2 MAP)', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { appState } = seedPerson((p) => {
+      p.events.push(makeEvent('RESI', { lati: 52.2, long: 7.4, seen: true }));
+    });
+
+    await fireEvent.click(screen.getByLabelText('Wohnort löschen'));
+
+    expect(appState.db.individuals.get('@I1@')!.events).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('setzt ein befülltes Sonder-Ereignis (Taufe) auf den unbefüllten Ausgangszustand zurück, statt es aus einem Array zu streichen', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { appState } = seedPerson((p) => {
+      p.chr.date = '3 FEB 1890';
+      p.chr.place = 'Ochtrup';
+      p.chr.seen = true;
+    });
+
+    await fireEvent.click(screen.getByLabelText('Taufe löschen'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(isEventPresent(saved.chr)).toBe(false);
+    expect(saved.chr.date).toBeNull();
+    expect(saved.chr.place).toBeNull();
+    // Die Zeile ist damit auch aus der Fläche verschwunden (isEventPresent-Gate).
+    expect(screen.queryByLabelText('Taufe löschen')).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  // DEAT trägt `cause` AUSSERHALB des Events (Person.cause) — ein Reset, der nur `death`
+  // anfasst, ließe die Todesursache als Waise zurück.
+  it('räumt beim Löschen der befüllten Tod-Zeile auch Person.cause mit ab und bringt den "☠ Verstorben markieren"-Pill zurück', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    const { appState } = seedPerson((p) => {
+      p.death.date = '7 MAI 1953';
+      p.death.seen = true;
+      p.cause = 'Lungenentzündung';
+    });
+
+    await fireEvent.click(screen.getByLabelText('Tod löschen'));
+
+    const saved = appState.db.individuals.get('@I1@')!;
+    expect(isEventPresent(saved.death)).toBe(false);
+    expect(saved.cause).toBe('');
+    expect(screen.getByRole('button', { name: /Verstorben markieren/ })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  // Geburt ist `isEventPresent`-gegatet und hat KEINEN "+ Geburt"-Pill: gelöscht wäre die
+  // Zeile ohne jede Affordanz weg. Deshalb bewusst kein Entfernen-Control.
+  it('bietet für die Geburtszeile KEIN Entfernen-Control — weder ✕ noch 🗑', () => {
+    seedPerson((p) => {
+      p.birth.date = '1 JAN 1900';
+      p.birth.seen = true;
+    });
+
+    expect(screen.queryByLabelText('Geburt löschen')).toBeNull();
+    expect(screen.queryByLabelText('Geburt zurücknehmen')).toBeNull();
+    expect(screen.getByLabelText('Geburt bearbeiten')).toBeTruthy();
+  });
+});
+
 describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
   function seedAssoc() {
     const appState = createAppState();

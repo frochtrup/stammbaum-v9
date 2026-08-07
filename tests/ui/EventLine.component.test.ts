@@ -329,6 +329,106 @@ describe('EventLine — ✕-Rücknahme + ✎-Bearbeiten', () => {
     expect(screen.queryByLabelText('Geburt zurücknehmen')).toBeNull();
   });
 
+  it('das ✕ des LEEREN Falls fragt NICHT nach — es gibt nichts zu verlieren', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const onRetract = vi.fn();
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+
+    renderEventLine( {
+      props: { ev: row({ empty: true }), appState, viewState, onRetract, onEdit: vi.fn() },
+    });
+    await fireEvent.click(screen.getByLabelText('Geburt zurücknehmen'));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(onRetract).toHaveBeenCalledWith('BIRT');
+    vi.unstubAllGlobals();
+  });
+});
+
+// Spec 20 §2: ein BEFÜLLTES Ereignis zeigt an DERSELBEN Stelle 🗑 statt ✕ — dieselbe
+// Handlung, nur mit Rückfrage. Vorher gab es dafür gar keinen Weg: das ✕ verschwand,
+// sobald echter Inhalt da war, und `lati`/`long`/`media` ließen sich im Editor nicht
+// leeren — ein importiertes Ereignis mit Koordinaten war unentfernbar.
+describe('EventLine — 🗑-Löschen befüllter Ereignisse (Spec 20 §2)', () => {
+  it('zeigt 🗑 statt ✕, sobald das Ereignis Inhalt trägt', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    renderEventLine( {
+      props: {
+        ev: row({ label: 'Beruf', value: 'Lehrer', empty: false }),
+        appState,
+        viewState,
+        onRetract: vi.fn(),
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(screen.getByLabelText('Beruf löschen')).toBeTruthy();
+    expect(screen.queryByLabelText('Beruf zurücknehmen')).toBeNull();
+  });
+
+  it('ruft onRetract erst nach bestätigtem confirm auf', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const onRetract = vi.fn();
+    const confirmSpy = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirmSpy);
+
+    renderEventLine( {
+      props: {
+        ev: row({ key: 'ev-3', label: 'Beruf', value: 'Lehrer' }),
+        appState,
+        viewState,
+        onRetract,
+        onEdit: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(onRetract).toHaveBeenCalledWith('ev-3');
+    vi.unstubAllGlobals();
+  });
+
+  it('abgebrochenes confirm lässt das Ereignis unangetastet', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const onRetract = vi.fn();
+    const confirmSpy = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmSpy);
+
+    renderEventLine( {
+      props: {
+        ev: row({ key: 'ev-3', label: 'Beruf', value: 'Lehrer' }),
+        appState,
+        viewState,
+        onRetract,
+        onEdit: vi.fn(),
+      },
+    });
+    await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+
+    expect(confirmSpy).toHaveBeenCalledOnce();
+    expect(onRetract).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('ohne onRetract bleibt die Zeile ganz ohne Entfernen-Control (Geburt/Heirat)', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+
+    renderEventLine( {
+      props: { ev: row({ label: 'Geburt', dateLabel: '1890' }), appState, viewState, onEdit: vi.fn() },
+    });
+
+    expect(screen.queryByLabelText('Geburt löschen')).toBeNull();
+    expect(screen.queryByLabelText('Geburt zurücknehmen')).toBeNull();
+    expect(screen.getByLabelText('Geburt bearbeiten')).toBeTruthy();
+  });
+
   it('ruft onEdit mit dem Zeilen-Key auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
