@@ -7,7 +7,7 @@
 // indexedDB.open(): sonst gewinnt beim ersten Anlegen nur der zuerst aufgerufene
 // Upgrade-Handler und fremde Object-Stores fehlen, s. Kopf von idb-schema.ts).
 import type { AppDataStore, AppDataWrapper } from './types';
-import { openStammbaumDb, STORE_APP_DATA as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_APP_DATA as STORE_NAME } from '../idb-schema';
 
 const KEY = 'current';
 
@@ -23,12 +23,6 @@ export class IdbAppDataStore implements AppDataStore {
   }
 
   async save(wrapper: AppDataWrapper): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(wrapper, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, wrapper, KEY);
   }
 }

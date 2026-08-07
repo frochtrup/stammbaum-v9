@@ -9,7 +9,7 @@
 // Plattform-API (indexedDB) bewusst NUR hier, hinter dem ProjectsStore-Vertrag: die
 // Aufrufer (UI/AppState) und der Kern sehen sie nie (Spec 02 §7, Spec 32 §5 TST-3).
 import { normalizeProject, type Project } from '../../core/research/index';
-import { openStammbaumDb, STORE_PROJECTS as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_PROJECTS as STORE_NAME } from '../idb-schema';
 
 const KEY = 'all';
 
@@ -31,13 +31,7 @@ export class IdbProjectsStore implements ProjectsStore {
   }
 
   async save(projects: Project[]): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(projects, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, projects, KEY);
   }
 }
 

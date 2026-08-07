@@ -16,6 +16,7 @@ import { editDatabase, type ReadonlyDatabase } from '../model/draft';
 import { addChildToFamily, addParentToFamily } from '../model/integrity';
 import { allocatorFromDatabase, nextId, type IdAllocator } from '../model/ids';
 import { makeSource, makeCitation } from '../model/factory';
+import { klonen } from '../clone-diagnose';
 import type { Citation, Database, Event, Person, PersonId, RepoId, Repository, Source, SourceId } from '../model/types';
 import type { PersonGraph } from './person-duplicates';
 import type { ImportMatch } from './compare-import';
@@ -181,7 +182,7 @@ export function applyImportPatch(
       const fremd = imported.repositories?.get(repo);
       if (!fremd) return '';
       const ziel = nextId(alloc, 'R');
-      d.setRepository({ ...structuredClone(fremd), id: ziel });
+      d.setRepository({ ...klonen(fremd, 'Übernahme eines Datensatzes aus der zweiten Datei'), id: ziel });
       repoMap.set(repo, ziel);
       carriedRepositories++;
       return ziel;
@@ -198,7 +199,7 @@ export function applyImportPatch(
             continue;
           }
           ziel = nextId(alloc, 'S');
-          const kopie = structuredClone(fremd);
+          const kopie = klonen(fremd, 'Übernahme eines Datensatzes aus der zweiten Datei');
           d.setSource({ ...kopie, id: ziel, repo: mapRepo(String(kopie.repo ?? '')) });
           sourceMap.set(c.sourceId, ziel);
           carriedSources++;
@@ -241,7 +242,7 @@ export function applyImportPatch(
           // ein späterer Edit am Bestand veränderte still die Vergleichsgrundlage.
           const quelle = importPerson.events.find((ev) => `event|${ev.type}|${ev.date ?? ''}` === key);
           if (!quelle) continue;
-          const kopie = structuredClone(quelle);
+          const kopie = klonen(quelle, 'Übernahme eines Datensatzes aus der zweiten Datei');
           mapEventCitations(kopie);
           if (sourceId) citeEvent(kopie, sourceId);
           ziel.events.push(kopie);
@@ -278,7 +279,7 @@ export function applyImportPatch(
     for (const importId of neueIds) {
       const quelle = imported.individuals.get(importId)!;
       const neueId = nextId(alloc, 'I');
-      const kopie = structuredClone(quelle) as Person;
+      const kopie = klonen(quelle, 'Übernahme eines Datensatzes aus der zweiten Datei') as Person;
       kopie.id = neueId;
       // Die Beziehungsfelder tragen Ids der FREMDDATEI — sie werden unten aus den
       // Familien der Fremddatei neu aufgebaut, soweit die Gegenstücke mitkommen.
