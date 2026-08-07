@@ -4,6 +4,18 @@ on:
     branches: [main, v9-dev]
   pull_request:
     branches: [main]
+  # Handstart über die Actions-Oberfläche ("Run workflow", Branch wählbar).
+  #
+  # WARUM: am 2026-08-06 hatte GitHub Actions eine Störung und drosselte Webhooks auf
+  # ~15 % — der Merge von PR #11 auf `main` löste deshalb KEINEN Lauf aus, und ohne Lauf
+  # keinen Deploy: `deploy` hängt an `needs: test` und `github.ref == refs/heads/main`.
+  # Live blieb der Stand von PR #10, bis ein leerer Commit auf `main` das Push-Ereignis
+  # nachreichte. Ein Handstart hätte dafür genügt.
+  #
+  # Der naheliegende Griff hilft in dieser Lage NICHT: "Re-run all jobs" auf dem letzten
+  # `main`-Lauf checkt dessen Commit aus — also den ALTEN Stand — und deployt ihn erneut.
+  # Genau das passierte am 2026-08-07 um 06:07 unbemerkt.
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -17,7 +17,7 @@
 // Browser-Spiegel hier ist der geräteweite, cross-Stammbaum-Cache (Spec 11 §2 Zeile 1).
 
 import type { PlacesFileWrapper, PlacesStore } from './types';
-import { openStammbaumDb, STORE_PLACES_MIRROR as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_PLACES_MIRROR as STORE_NAME } from '../idb-schema';
 
 const KEY = 'current';
 
@@ -33,12 +33,6 @@ export class IdbPlacesStore implements PlacesStore {
   }
 
   async save(wrapper: PlacesFileWrapper): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(wrapper, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, wrapper, KEY);
   }
 }

@@ -12,7 +12,7 @@
 // Medien werden deshalb über den DATEINAMEN zugeordnet, und dieser Treffer trägt dieselbe
 // Markierung wie jeder andere Basisnamen-Treffer (ADR-v9-187 Punkt 5) — die Unschärfe wird
 // angezeigt, nicht verschwiegen.
-import { openStammbaumDb, STORE_MEDIA_BYTES as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_MEDIA_BYTES as STORE_NAME } from '../idb-schema';
 import { normalizePath } from './media-index';
 
 /** Schlüssel-Präfix aus Spec 14 §7 — wörtlich übernommen, damit Spec und Code dieselbe
@@ -34,13 +34,7 @@ export interface MediaBytesStore {
 
 export class IdbMediaBytesStore implements MediaBytesStore {
   async put(path: string, blob: Blob): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(blob, bytesKey(path));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, blob, bytesKey(path));
   }
 
   async get(path: string): Promise<Blob | null> {

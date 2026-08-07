@@ -35,6 +35,7 @@ import type {
   Source,
   SourceId,
 } from './types';
+import { klonen } from '../clone-diagnose';
 
 /** Die Sonder-Ereignisslots von Person bzw. Familie (neben dem freien `events[]`-Array). */
 const PERSON_EVENT_FIELDS = ['birth', 'chr', 'death', 'buri'] as const;
@@ -112,12 +113,15 @@ export interface DatabaseDraft {
 
 /**
  * Die EINZIGE Stelle, an der die Readonly-Zusicherung aufgehoben wird — bewusst zentral,
- * damit sie prüfbar bleibt statt an ~20 Kommandos verstreut zu sein. `structuredClone`
- * trifft hier immer genau EINE Entität (nicht die Datenbank), ist also der kleine,
- * lokale Preis des Copy-on-Write, nicht die verworfene Tiefkopie.
+ * damit sie prüfbar bleibt statt an ~20 Kommandos verstreut zu sein. Das Klonen trifft
+ * hier immer genau EINE Entität (nicht die Datenbank), ist also der kleine, lokale Preis
+ * des Copy-on-Write, nicht die verworfene Tiefkopie.
  */
 function thaw<T>(frozen: DeepReadonly<T>): T {
-  return structuredClone(frozen) as T;
+  // `klonen` statt nacktem `structuredClone`: schlägt das Kopieren fehl, nennt die Meldung
+  // Pfad und Feld statt nur „The object can not be cloned." (core/clone-diagnose.ts). Im
+  // Normalfall — jedem einzelnen Edit — kostet der try-Block nichts.
+  return klonen(frozen, 'Kopie eines Datensatzes zum Bearbeiten') as T;
 }
 
 /**

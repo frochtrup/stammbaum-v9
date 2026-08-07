@@ -8,7 +8,7 @@
 // Plattform-API (indexedDB) bewusst NUR hier, hinter dem ValConfigStore-Vertrag: die
 // Aufrufer (UI) und die Kern-Engine sehen sie nie (Spec 02 §7, Spec 32 §5 TST-3).
 import type { StoredValidationConfig } from '../../core/validate/index';
-import { openStammbaumDb, STORE_VAL_CONFIG as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_VAL_CONFIG as STORE_NAME } from '../idb-schema';
 
 const KEY = 'current';
 
@@ -31,13 +31,7 @@ export class IdbValConfigStore implements ValConfigStore {
   }
 
   async save(cfg: StoredValidationConfig): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(cfg, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, cfg, KEY);
   }
 
   async clear(): Promise<void> {

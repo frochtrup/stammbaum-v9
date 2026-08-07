@@ -82,3 +82,31 @@ describe('IndexedDB-Schema — genau EIN zentraler Öffner (Regressionstest)', (
     expect(schemaSrc).toMatch(/STORE_PLACES_FILE_HANDLE\s*=\s*'places-file-handle'/);
   });
 });
+
+// Zweiter Wächter derselben Bauart, aus demselben Grund: eine Regel, die nur in zehn
+// Dateien wiederholt wird, fehlt irgendwann in der elften. Hier geht es um den
+// `DataCloneError`-Zweig in `idbPut` — schreibt ein Store direkt per `.put()`, meldet er
+// im Fehlerfall wieder die nackte Browser-Meldung ohne Feld und Pfad (Safari-Fund
+// 2026-08-07). Der Test stellt die Frage bei jedem Lauf, statt sie einem Kommentar zu
+// überlassen.
+describe('IndexedDB-Schreibzugriffe — genau EIN Weg (idbPut)', () => {
+  const ORTE_DIR = join(__dirname, '../../app-orte');
+
+  it('kein Modul außer idb-schema.ts ruft objectStore(...).put() selbst auf', () => {
+    const offenders: string[] = [];
+    for (const file of [...walkTsFiles(SERVICES_DIR), ...walkTsFiles(ORTE_DIR)]) {
+      const src = stripLineComments(readFileSync(file, 'utf8'));
+      if (/objectStore\([^)]*\)\.put\(/.test(src)) offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('idbPut reichert einen DataCloneError mit Pfad und Feld an, statt ihn durchzureichen', () => {
+    const schemaSrc = stripLineComments(readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8'));
+    // Der Zweig selbst ist ohne echte IndexedDB nicht ausführbar (ADR-v9-15: kein
+    // fake-indexeddb) — geprüft wird, dass er existiert und die Diagnose benutzt. Was die
+    // Diagnose LEISTET, prüft tests/core/clone-diagnose.test.ts am echten Verhalten.
+    expect(schemaSrc).toMatch(/DataCloneError/);
+    expect(schemaSrc).toMatch(/klonFehlerText/);
+  });
+});

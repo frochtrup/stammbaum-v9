@@ -17,6 +17,8 @@
 // EIN Ort definiert ALLE Stores + die aktuelle Version — jedes künftige Store muss hier
 // ergänzt werden (Analog zum "ein Export-Rohr"-Prinzip, INV-FILE-2, nur für Storage-Setup).
 
+import { klonFehlerText } from '../core/clone-diagnose';
+
 const DB_NAME = 'stammbaum-v9';
 const DB_VERSION = 10;
 
@@ -102,4 +104,40 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
     });
   }
   return dbPromise;
+}
+
+/**
+ * Schreibt EINEN Wert unter EINEM Schlüssel — die Boilerplate, die vorher in jedem der
+ * neun Stores wortgleich stand (Transaktion öffnen, `put`, `oncomplete`/`onerror` in ein
+ * Promise wickeln).
+ *
+ * DER EIGENTLICHE GRUND FÜR DIE EXTRAKTION ist der `catch`-Zweig: `put()` wirft einen
+ * `DataCloneError` SYNCHRON, wenn der Wert nicht strukturiert klonbar ist, und die
+ * Browser-Meldung nennt das schuldige Feld nicht — Chromium liefert bestenfalls
+ * „#<Object> could not be cloned", WebKit nur „The object can not be cloned." (Fund
+ * 2026-08-07, Safari: ein Ortsdatei-Import scheiterte, und die Meldung sagte weder
+ * welchen Speicher noch welches Feld sie meint). Die Nachmessung findet den Pfad; sie
+ * läuft NUR im Fehlerfall und kostet im Normalbetrieb nichts.
+ *
+ * Wäre der Zweig in jedem Store einzeln gebaut worden, hätte er in genau dem Store
+ * gefehlt, der als nächstes kippt — dieselbe Geschwister-Lücke, die die Stores schon
+ * einmal auseinanderlaufen ließ (s. Kopfkommentar oben zum eigenen `open()` je Modul).
+ */
+export async function idbPut(storeName: string, wert: unknown, key: IDBValidKey): Promise<void> {
+  const db = await openStammbaumDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    try {
+      tx.objectStore(storeName).put(wert, key);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'DataCloneError') {
+        reject(new Error(klonFehlerText(wert, `Speicher „${storeName}"`), { cause: err }));
+        return;
+      }
+      reject(err);
+      return;
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }

@@ -182,13 +182,14 @@
   }
 
   /** Rücknahme von "Verstorben markieren" (Nachtrag 2026-07-12 zu ADR-v9-62/63,
-   *  Spec 20 §2) — nur erreichbar, solange `deathCompact` gilt (bloßes Flag, keine
-   *  echten Daten, per Template-Guard sichergestellt). Setzt `death` exakt auf den
-   *  Ausgangszustand zurück, den `makePerson` selbst vergibt (`makeEvent('DEAT')`),
-   *  statt einzelne Felder von Hand zurückzudrehen — eine Quelle für "was ist der
-   *  unbefüllte Zustand". `cause` ist an dieser Stelle bereits '' (sonst wäre
-   *  `deathHasDetails` true und die Zeile gar nicht kompakt), wird hier trotzdem
-   *  explizit mitgesetzt für Symmetrie zu `saveModal`s DEAT-Zweig. */
+   *  Spec 20 §2). Setzt `death` exakt auf den Ausgangszustand zurück, den `makePerson`
+   *  selbst vergibt (`makeEvent('DEAT')`), statt einzelne Felder von Hand zurückzudrehen
+   *  — eine Quelle für "was ist der unbefüllte Zustand".
+   *
+   *  ZWEI Aufrufer: das ✕ am kompakten "✓ Verstorben"-Indikator (bloßes Flag, folgenlos)
+   *  UND `retractOrRemove('DEAT')` für die befüllte Tod-Zeile (dort mit `confirm` davor,
+   *  s. `EventLine`). Deshalb setzt es `cause` explizit mit zurück statt sich darauf zu
+   *  verlassen, dass es im kompakten Fall ohnehin '' ist. */
   function retractDeath() {
     if (!detail) return;
     const p = detail.person;
@@ -196,21 +197,31 @@
     appState.savePerson(next);
   }
 
-  /** Generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert") für JEDE
-   *  Ereigniszeile außer BIRT (immer offen, nicht rücknehmbar) UND DEAT (eigener, oben
-   *  bereits bestehender Pfad `retractDeath`, andere Leer-Semantik bei `value`). Direktes
+  /** Entfernen einer Ereigniszeile (Spec 20 §2) für JEDE Zeile außer BIRT. Direktes
    *  Kommando, kein Modal — derselbe Chokepoint (`appState.savePerson`, volles, geklontes
-   *  Objekt) wie überall sonst. Sonder-Felder (Taufe/Bestattung) werden auf den
-   *  unbefüllten Ausgangszustand zurückgesetzt (`makeEvent(tag)`, wie bei Tod); generische
+   *  Objekt) wie überall sonst. Sonder-Felder (Taufe/Tod/Bestattung) werden auf den
+   *  unbefüllten Ausgangszustand zurückgesetzt (`makeEvent(tag)`); generische
    *  `events[]`-Einträge (`ev-${i}`-Key) werden aus dem Array entfernt (NICHT zurück-
-   *  gesetzt — es gibt kein "unbefülltes Array-Element", das je wieder befüllt würde). Nur
-   *  über den Template-Guard `ev.empty` erreichbar — kein Bestätigungsdialog nötig, weil
-   *  ausschließlich der leere/folgenlose Fall betroffen ist (kein allgemeiner Lösch-
-   *  Mechanismus für recherchierte Ereignisse, s. Spec-Abgrenzung). */
+   *  gesetzt — es gibt kein "unbefülltes Array-Element", das je wieder befüllt würde).
+   *
+   *  Diese Funktion prüft NICHT, ob das Ereignis leer ist: `EventLine` entscheidet, ob
+   *  die Handlung sofort (leer, ✕) oder erst nach `confirm` (befüllt, 🗑) hier ankommt.
+   *  Das Ergebnis ist in beiden Fällen dasselbe — ein Reset auf `makeEvent(tag)` bzw. ein
+   *  Array-Splice.
+   *
+   *  **BIRT ist die einzige Ausnahme** (Aufrufer-Guard im Template, s. `eventRow`): die
+   *  Geburtszeile ist `isEventPresent`-gegatet und hat keinen "+ Geburt"-Pill — gelöscht
+   *  wäre sie ohne jede Affordanz aus der Fläche verschwunden.
+   *
+   *  DEAT delegiert an `retractDeath`, statt den Reset ein zweites Mal zu schreiben —
+   *  dort hängt `cause` (Person-Feld, nicht Event-Feld) mit dran. Der kompakte
+   *  "✓ Verstorben"-Zweig hat sein eigenes ✕ und läuft gar nicht durch `EventLine`. */
   function retractOrRemove(key: string) {
     if (!detail) return;
     const p = detail.person;
-    if (key === 'CHR') {
+    if (key === 'DEAT') {
+      retractDeath();
+    } else if (key === 'CHR') {
       appState.savePerson({ ...p, chr: makeEvent('CHR') });
     } else if (key === 'BURI') {
       appState.savePerson({ ...p, buri: makeEvent('BURI') });
@@ -276,6 +287,9 @@
       </div>
     </li>
   {:else}
+    <!-- Geburt behält als EINZIGE Zeile kein Entfernen-Control (Spec 20 §2, Begründung an
+         `retractOrRemove`). DEAT kommt hier nur im BEFÜLLTEN Fall an — der kompakte
+         "✓ Verstorben"-Zweig oben hat sein eigenes, folgenloses ✕. -->
     <EventLine
       {ev}
       {appState}
@@ -284,7 +298,7 @@
       {onNavigateToHof}
       {onNavigateToSource}
       {onNavigateLens}
-      onRetract={ev.key !== 'DEAT' ? retractOrRemove : undefined}
+      onRetract={ev.key !== 'BIRT' ? retractOrRemove : undefined}
       onEdit={(key) => eventModal.openEdit(key)}
       images={detail ? eventImages(appState.db, eventForKey(detail.person, ev.key)) : []}
       {mediaResolver}

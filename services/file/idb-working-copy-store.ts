@@ -12,7 +12,7 @@
 // Object-Stores anderer Module fehlen (s. Kommentarkopf idb-schema.ts).
 
 import type { WorkingCopy, WorkingCopyStore } from './types';
-import { openStammbaumDb, STORE_WORKING_COPY as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_WORKING_COPY as STORE_NAME } from '../idb-schema';
 
 const KEY = 'current';
 
@@ -28,13 +28,7 @@ export class IdbWorkingCopyStore implements WorkingCopyStore {
   }
 
   async save(copy: WorkingCopy): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(copy, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, copy, KEY);
   }
 
   async clear(): Promise<void> {

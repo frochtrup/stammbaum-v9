@@ -9,6 +9,7 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation } from './types';
 import { buildPlacForGedcom, eventYear, type PlaceContext } from './build-plac';
 import { normPlaceName, normHofAddr } from './normalize';
+import { klonen } from '../clone-diagnose';
 
 /**
  * Kommando: legt ein PlaceObject an oder ersetzt es vollständig (Upsert per id).
@@ -277,7 +278,7 @@ function editableIn<K, V>(map: Map<K, V>, key: K, thawed: Set<K>): V | undefined
   const current = map.get(key);
   if (current === undefined) return undefined;
   if (thawed.has(key)) return current;
-  const copy = structuredClone(current);
+  const copy = klonen(current, 'Kopie eines Orts-/Hof-Datensatzes zum Bearbeiten');
   map.set(key, copy);
   thawed.add(key);
   return copy;

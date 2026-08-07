@@ -12,7 +12,7 @@
 // und nichts liest ihn außer der Wiederherstellungs-Abfrage beim Start.
 
 import type { HofObject, PlaceObject } from '../core/places';
-import { openStammbaumDb, STORE_ORTE_DRAFT as STORE_NAME } from '../services/idb-schema';
+import { openStammbaumDb, idbPut, STORE_ORTE_DRAFT as STORE_NAME } from '../services/idb-schema';
 
 const KEY = 'current';
 
@@ -45,13 +45,7 @@ export class IdbOrteDraftStore implements OrteDraftStore {
   }
 
   async save(draft: OrteDraft): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(draft, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, draft, KEY);
   }
 
   async clear(): Promise<void> {

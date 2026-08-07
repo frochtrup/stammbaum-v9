@@ -6,7 +6,7 @@
 // geteilte Datenbank über services/idb-schema.ts (nicht ein eigener indexedDB.open()
 // mit eigenem Upgrade-Handler, s. Kommentarkopf dort).
 import type { MediaFolderHandleStore } from './types';
-import { openStammbaumDb, STORE_MEDIA_FOLDER_HANDLE as STORE_NAME } from '../idb-schema';
+import { openStammbaumDb, idbPut, STORE_MEDIA_FOLDER_HANDLE as STORE_NAME } from '../idb-schema';
 
 const KEY = 'current';
 
@@ -22,13 +22,7 @@ export class IdbMediaFolderHandleStore implements MediaFolderHandleStore {
   }
 
   async save(handle: unknown): Promise<void> {
-    const db = await openStammbaumDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(handle, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    return idbPut(STORE_NAME, handle, KEY);
   }
 
   async clear(): Promise<void> {

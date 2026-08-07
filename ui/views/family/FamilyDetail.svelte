@@ -118,13 +118,17 @@
     appState.saveFamily(next);
   }
 
-  /** Generalisierte ✕-Rücknahme (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert", analog
-   *  PersonDetail.svelte) für JEDE Ereigniszeile außer MARR (Heirat, immer offen, nicht
-   *  rücknehmbar). Direktes Kommando, kein Modal — Verlobung wird auf den unbefüllten
+  /** Entfernen einer Ereigniszeile (Spec 20 §2, analog PersonDetail.svelte) für JEDE Zeile
+   *  außer MARR. Direktes Kommando, kein Modal — Verlobung wird auf den unbefüllten
    *  Ausgangszustand zurückgesetzt (`makeEvent('ENGA')`), generische `events[]`-Einträge
-   *  (`ev-${i}`-Key) werden aus dem Array entfernt. Nur über den Template-Guard
-   *  `ev.empty` erreichbar — kein Bestätigungsdialog nötig (nur der leere/folgenlose Fall
-   *  ist betroffen). */
+   *  (`ev-${i}`-Key) werden aus dem Array entfernt.
+   *
+   *  Prüft NICHT auf Leere: `EventLine` entscheidet, ob die Handlung sofort (leer, ✕) oder
+   *  erst nach `confirm` (befüllt, 🗑) hier ankommt — das Ergebnis ist dasselbe.
+   *
+   *  **MARR ist die einzige Ausnahme** (Aufrufer-Guard im Template): die Heiratszeile ist
+   *  `isEventPresent`-gegatet und hat keinen "+ Heirat"-Pill — gelöscht wäre sie ohne jede
+   *  Affordanz aus der Fläche verschwunden. Spiegelt BIRT bei Person. */
   function retractOrRemove(key: string) {
     if (!detail) return;
     const f = detail.family;
