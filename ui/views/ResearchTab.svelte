@@ -29,6 +29,7 @@
   import { linkLogToTask } from '../../core/research/index';
   import HypothesesView from './hypotheses/HypothesesView.svelte';
   import QualityDashboard from './quality/QualityDashboard.svelte';
+  import type { QualityDashboardState } from './quality/quality-dashboard-state.svelte';
   import ProjectBar from './research-projects/ProjectBar.svelte';
   import type { ProjectsState } from '../shell/projects-state.svelte';
 
@@ -40,6 +41,12 @@
     viewState: ViewState;
     /** Forschungsprojekte + aktive Auswahl (BL-58) — scopen Aufgaben/Protokoll/Hypothesen. */
     projects: ProjectsState;
+    /**
+     * Ansichts-Unterzustand des Qualitäts-Dashboards (BL-319). Wird nur durchgereicht:
+     * die Instanz gehört der App-Wurzel, weil auch DIESE Fläche beim Wechsel auf eine
+     * Person abgebaut wird — ein hier angelegter Halter hätte nichts gerettet.
+     */
+    quality?: QualityDashboardState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -50,6 +57,7 @@
     route,
     viewState,
     projects,
+    quality,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -120,6 +128,7 @@
     <QualityDashboard
       {appState}
       {viewState}
+      {quality}
       scope={projects.activeScope}
       {onNavigateToPerson}
       {onNavigateToFamily}

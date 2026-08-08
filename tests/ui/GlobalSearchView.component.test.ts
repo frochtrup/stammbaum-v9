@@ -8,6 +8,10 @@ import GlobalSearchView from '../../ui/views/search/GlobalSearchView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { makeDatabase, makeFamily, makePerson, makeSource } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
+import {
+  createGlobalSearchState,
+  type GlobalSearchState,
+} from '../../ui/views/search/global-search-state.svelte';
 
 function seedDb() {
   const db = makeDatabase();
@@ -223,5 +227,75 @@ describe('GlobalSearchView — Klick navigiert über die Navigations-Callbacks',
     await fireEvent.click(screen.getByText('Wall 33'));
 
     expect(onNavigateToHof).toHaveBeenCalledWith('@H1@');
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// Die Trefferliste überlebt den Sprung auf einen Treffer (Spec 21 §5, Nutzer-Auftrag
+// 2026-08-08 „in der gleichen Logik sollten auch Suchergebnisse stehen bleiben").
+//
+// Derselbe Weg wie beim Qualitäts-Dashboard (BL-319): setzen -> wegnavigieren (= Unmount,
+// App.svelte rendert die Ziele über `{:else if}`) -> zurück -> HINSEHEN. Geprüft wird die
+// gerenderte Trefferliste, nicht der Halter — gespeichert ist nicht sichtbar.
+describe('GlobalSearchView — Anfrage und Filter überleben den Sprung auf einen Treffer', () => {
+  function renderWith(search: GlobalSearchState, db = seedDb()) {
+    const appState = createAppState();
+    appState.loadDatabase(db, 'test.ged');
+    return render(GlobalSearchView, {
+      props: {
+        appState,
+        search,
+        onNavigateToPerson: vi.fn(),
+        onNavigateToFamily: vi.fn(),
+        onNavigateToSource: vi.fn(),
+        onNavigateToPlace: vi.fn(),
+        onNavigateToHof: vi.fn(),
+      },
+    });
+  }
+
+  it('kommt mit derselben Anfrage und derselben Trefferliste zurück, nicht mit leerem Feld', async () => {
+    const search = createGlobalSearchState();
+    const first = renderWith(search);
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Otto' } });
+    expect(screen.getByText('Otto Bauer')).toBeTruthy();
+    first.unmount();
+
+    renderWith(search);
+
+    expect((screen.getByLabelText('Global suchen') as HTMLInputElement).value).toBe('Otto');
+    expect(screen.getByText('Otto Bauer')).toBeTruthy();
+    expect(screen.queryByText(/Mindestens 2 Zeichen/)).toBeNull();
+  });
+
+  it('kommt mit gesetztem Soundex-Schalter zurück (samt der nur dadurch gefundenen Treffer)', async () => {
+    const db = seedDb();
+    db.individuals.set('@I3@', makePerson('@I3@', { given: 'Karl', surname: 'Maier' }));
+    const search = createGlobalSearchState();
+    const first = renderWith(search, db);
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'meyer' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Soundex/ }));
+    expect(screen.getByText('Karl Maier')).toBeTruthy();
+    first.unmount();
+
+    renderWith(search, db);
+
+    expect(screen.getByRole('button', { name: /Soundex/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('Karl Maier')).toBeTruthy();
+  });
+
+  it('kommt mit dem gewählten Typ-Filter zurück (Chips zeigen ihn gedrückt)', async () => {
+    const search = createGlobalSearchState();
+    const first = renderWith(search);
+    // „Ochtrup" trifft Ort UND Hof (Wall 33 liegt in Ochtrup) — genug für die Chip-Reihe.
+    await fireEvent.input(screen.getByLabelText('Global suchen'), { target: { value: 'Ochtrup' } });
+    await fireEvent.click(screen.getByRole('button', { name: /^Orte/ }));
+    expect(screen.getByRole('button', { name: /^Orte/ }).getAttribute('aria-pressed')).toBe('true');
+    first.unmount();
+
+    renderWith(search);
+
+    expect(screen.getByRole('button', { name: /^Orte/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /^Alle/ }).getAttribute('aria-pressed')).toBe('false');
   });
 });

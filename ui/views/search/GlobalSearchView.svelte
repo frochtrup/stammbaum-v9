@@ -10,9 +10,19 @@
   // nach oben gereichten onNavigate*-Callback (analog `onNavigateToTree` in App.svelte)
   // — kein zweiter Navigationspfad neben dem, den EntityTab für seine eigenen
   // Cross-Entitäts-Sprünge nutzt.
+  //
+  // Anfrage, Soundex-Schalter und Typ-Filter liegen NICHT hier, sondern im mitgegebenen
+  // `GlobalSearchState` — sonst ist die Trefferliste nach dem Sprung auf den ersten
+  // Treffer weg (Spec 21 §5, Begründung in `global-search-state.svelte.ts`).
+  import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
+  import {
+    createGlobalSearchState,
+    type GlobalSearchState,
+    type SearchKind,
+  } from './global-search-state.svelte';
   import { sexSymbol } from '../../shell/person-display';
 
   /**
@@ -40,6 +50,13 @@
     onNavigateToPlace: (id: string) => void;
     /** Navigiert zur Hof-Detailseite (EntityTab-Segment "hof", ADR-v9-24). */
     onNavigateToHof: (id: string) => void;
+    /**
+     * Anfrage-/Filterzustand von AUSSEN: er muss den Sprung auf einen Treffer und zurück
+     * überleben, diese Fläche wird dabei abgebaut. Optional, damit Komponententests die
+     * Suche ohne Umgebung montieren können — dann mit einer eigenen Instanz, die schlicht
+     * so lange lebt wie die Komponente.
+     */
+    search?: GlobalSearchState;
   }
   const {
     appState,
@@ -48,10 +65,15 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
+    search: searchProp,
   }: Props = $props();
 
-  let query = $state('');
-  let soundexEnabled = $state(false);
+  // Einmal beim Aufbau festgelegt (das `untrack` sagt genau das): die Hülle wird nie
+  // ausgetauscht, der Zustand DARIN ist reaktiv.
+  const search = untrack(() => searchProp ?? createGlobalSearchState());
+
+  const query = $derived(search.query);
+  const soundexEnabled = $derived(search.soundex);
 
   const results = $derived(globalSearch(appState.db, appState.placeContext, query, soundexEnabled));
 
@@ -60,8 +82,7 @@
   // bleibt unverändert vollständig, damit die Command-Palette (⌘K) denselben Kern ohne
   // Filter-Semantik weiternutzt. `.stb-segment-row`/`.stb-segment-btn` (INV-UI-4), kein
   // eigenes Segment-Control.
-  type SearchKind = 'persons' | 'families' | 'sources' | 'places' | 'hofs';
-  let filter = $state<'all' | SearchKind>('all');
+  const filter = $derived(search.filter);
 
   const groupMeta = $derived(
     [
@@ -94,7 +115,7 @@
   const phonSplit = $derived(phonCount > 0 && phonCount < results.persons.length);
 
   function clearSearch() {
-    query = '';
+    search.clearQuery();
   }
 </script>
 
@@ -105,7 +126,8 @@
         type="search"
         placeholder="Suche über Personen, Familien, Quellen, Orte, Höfe…"
         aria-label="Global suchen"
-        bind:value={query}
+        value={query}
+        oninput={(e) => search.setQuery(e.currentTarget.value)}
       />
       {#if query}
         <button type="button" class="global-search__clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
@@ -117,7 +139,7 @@
       class:stb-segment-btn--active={soundexEnabled}
       aria-pressed={soundexEnabled}
       use:tooltip={'Auch ähnlich klingende Namen finden (Soundex)'}
-      onclick={() => (soundexEnabled = !soundexEnabled)}
+      onclick={() => search.toggleSoundex()}
     >
       ≈ Soundex
     </button>
@@ -135,7 +157,7 @@
           class="stb-segment-btn"
           class:stb-segment-btn--active={activeFilter === 'all'}
           aria-pressed={activeFilter === 'all'}
-          onclick={() => (filter = 'all')}
+          onclick={() => search.setFilter('all')}
         >
           Alle <span class="global-search__filter-count">{totalResultCount(results)}</span>
         </button>
@@ -145,7 +167,7 @@
             class="stb-segment-btn"
             class:stb-segment-btn--active={activeFilter === g.kind}
             aria-pressed={activeFilter === g.kind}
-            onclick={() => (filter = g.kind)}
+            onclick={() => search.setFilter(g.kind)}
           >
             {g.label} <span class="global-search__filter-count">{g.count}</span>
           </button>

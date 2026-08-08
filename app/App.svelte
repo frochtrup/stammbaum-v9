@@ -36,6 +36,8 @@
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
+  import { createQualityDashboardState } from '../ui/views/quality/quality-dashboard-state.svelte';
+  import { createGlobalSearchState } from '../ui/views/search/global-search-state.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -135,6 +137,15 @@
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
   const clipboard = createEventClipboard();
+  // Ansichts-Unterzustand zweier Flächen, die beim Wegnavigieren abgebaut werden und
+  // deren Zustand das überleben muss (Spec 21 §5, BL-319): das Qualitäts-Dashboard
+  // (Brennpunkte-Filter, offener Prüfbericht samt Umfang, Ast-Auswahl) und die globale
+  // Suche (Anfrage, Soundex-Schalter, Typ-Filter). Dasselbe Muster wie `clipboard`
+  // darüber und `MediaGalleryFilters` (ADR-v9-192) — eigener Halter je Fläche, EINMAL
+  // hier erzeugt und als Prop durchgereicht; die App-Wurzel ist die einzige Ebene, die
+  // JEDEN Navigationsweg überdauert.
+  const qualityState = createQualityDashboardState();
+  const searchState = createGlobalSearchState();
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -435,6 +446,7 @@
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
+        search={searchState}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToSource={openSource}
@@ -447,6 +459,7 @@
         {route}
         {viewState}
         projects={projectsState}
+        quality={qualityState}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToPlace={openPlace}
