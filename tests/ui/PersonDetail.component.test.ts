@@ -659,7 +659,7 @@ describe('PersonDetail — Wohnort-Standing-Pill (ADR-v9-62/63)', () => {
     const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
     p.events.push({
       type: 'RESI', value: '', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
-      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true, grampsId: null,
+      hofId: null, lati: null, long: null, addr: '', addrExtra: [], note: '', citations: [], media: [], seen: true, grampsId: null,
     });
     db.individuals.set('@I1@', p);
     appState.loadDatabase(db, 'test.ged');
@@ -749,7 +749,7 @@ describe('PersonDetail — "+ Ereignis"-Sammel-Menü (ADR-v9-62/63)', () => {
     const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
     p.events.push({
       type: 'OCCU', value: 'Bauer', eventType: '', date: null, datePhrase: '', place: null, placeId: null,
-      hofId: null, lati: null, long: null, addr: '', note: '', citations: [], media: [], seen: true, grampsId: null,
+      hofId: null, lati: null, long: null, addr: '', addrExtra: [], note: '', citations: [], media: [], seen: true, grampsId: null,
     });
     db.individuals.set('@I1@', p);
     appState.loadDatabase(db, 'test.ged');

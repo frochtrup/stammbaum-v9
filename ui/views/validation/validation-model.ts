@@ -20,6 +20,7 @@ export const GROUP_LABEL: Record<RuleGroup, string> = {
   quellen: 'Quellen',
   vernetzung: 'Vernetzung',
   geo: 'Orte & Höfe',
+  format: 'Dateiformat',
 };
 
 /** Ein Befund, angereichert um die Beschriftungen, die die Zeile darstellen muss. */

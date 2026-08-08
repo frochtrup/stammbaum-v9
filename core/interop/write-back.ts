@@ -491,16 +491,23 @@ const ABGESCHAFFT = new Set(['_DONE']);
 
 /**
  * Knoten, die ihren un-modellierten Inhalt SELBST im Modell mitführen: `DATA` über
- * `Source.dataExtra` (BL-217), `OBJE` über `MediaCitation.extra` (ADR-v9-124). Für ihre
- * DIREKTEN Kinder darf der Tiefen-Passthrough nicht greifen — was dort fehlt, hat der
- * Nutzer gelöscht, und es zurückzuholen machte die Löschung wirkungslos.
+ * `Source.dataExtra` (BL-217), `OBJE` über `MediaCitation.extra` (ADR-v9-124), `ADDR` über
+ * `Event.addrExtra` (ADR-v9-228). Für ihre DIREKTEN Kinder darf der Tiefen-Passthrough
+ * nicht greifen — was dort fehlt, hat der Nutzer gelöscht, und es zurückzuholen machte die
+ * Löschung wirkungslos.
  *
  * Genau das ist passiert: der erste Bau holte ein entferntes `2 EVEN MARR` unter `DATA`
  * zurück; `tests/roundtrip/source-data-roundtrip.test.ts` („eine ÄNDERUNG am Modell landet
  * in der Datei — nicht nur der Passthrough") wurde rot. Die Rekursion läuft trotzdem
  * weiter: unter `OBJE` hängt `FILE>TITL`, das `extra` NICHT abdeckt.
+ *
+ * Für `ADDR` ist es dieselbe Notwendigkeit an einer neuen Stelle: ADR-v9-228 Entscheidung 3
+ * leert `addrExtra`, sobald der Nutzer die Adresse ändert — ohne diesen Eintrag hätte der
+ * Passthrough `ADR1`/`CITY` danach wieder angehängt, und die geänderte Adresse stünde neben
+ * den Index-Kopien der alten. Der Drift-Guard (`dirty-record-passthrough.test.ts`) hat
+ * genau darauf gezeigt, bevor es jemand bemerken konnte.
  */
-const SELBSTVERWALTETER_PASSTHROUGH = new Set(['DATA', 'OBJE']);
+const SELBSTVERWALTETER_PASSTHROUGH = new Set(['DATA', 'OBJE', 'ADDR']);
 
 /** Ein Paar: un-modellierte Kinder von `alt` nach `frisch`, dann eine Ebene tiefer.
  *  `wieGelesen` ist derselbe Knoten, wie ihn der Emitter aus dem UNVERÄNDERTEN Original
@@ -614,12 +621,23 @@ function eventEqual(a: Event, b: Event): boolean {
     a.date === b.date &&
     a.place === b.place &&
     a.addr === b.addr &&
+    // ADR-v9-228: ohne diesen Vergleich gälte ein Ereignis, dessen Adress-Edit NUR die
+    // Index-Tags geleert hat (addr unverändert, weil der Text schon stimmte), als
+    // „unverändert" — der Writer gäbe den Original-Knoten zurück und die Zeilen kämen
+    // wieder. Dieselbe Falle wie bei `evidenceEvalEqual` in citationsEqual unten.
+    nodeListEqual(a.addrExtra, b.addrExtra) &&
     a.note === b.note &&
     a.lati === b.lati &&
     a.long === b.long &&
     citationsEqual(a.citations, b.citations) &&
     mediaEqual(a.media, b.media)
   );
+}
+
+function nodeListEqual(a: readonly GedNode[], b: readonly GedNode[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!nodeEqual(a[i], b[i])) return false;
+  return true;
 }
 
 function citationsEqual(a: Citation[], b: Citation[]): boolean {

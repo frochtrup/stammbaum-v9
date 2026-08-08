@@ -26,7 +26,10 @@ export type RuleGroup =
   | 'vollstaendigkeit'
   | 'quellen'
   | 'vernetzung'
-  | 'geo';
+  | 'geo'
+  /** Format (Interop) — prüft nicht den genealogischen Inhalt, sondern die Struktur der
+   *  Datei (ADR-v9-228). Erste Regel dieser Art: ADDR_INDEX_ONLY. */
+  | 'format';
 
 /**
  * Vorschlags-Kategorie für „→ Als Aufgabe übernehmen" (ResearchTask.category).
@@ -227,4 +230,6 @@ export type RuleId =
   | 'PNAME_OVERLAP'
   | 'ENCLOSURE_CYCLE'
   | 'HOF_NO_COORD'
-  | 'HOF_FAR';
+  | 'HOF_FAR'
+  // Format (Interop)
+  | 'ADDR_INDEX_ONLY';

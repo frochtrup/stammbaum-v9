@@ -5,7 +5,7 @@
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
-import { isEventPresent, isEventEmpty } from '../../../core/model';
+import { isEventPresent, isEventEmpty, addrDisplay } from '../../../core/model';
 import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
@@ -184,7 +184,7 @@ function toEventRow(
     age: birth && key !== 'BIRT' ? ageAtEvent(birth, ev) : '',
     placeLabel: eventPlaceLabel(ev, ctx),
     value: ev.value,
-    addr: ev.addr ?? '',
+    addr: addrDisplay(ev),
     note: ev.note,
     citations: ev.citations,
     coords: eventCoords(ev, ctx),

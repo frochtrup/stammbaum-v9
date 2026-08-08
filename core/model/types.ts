@@ -219,11 +219,32 @@ export interface Event {
    * Realbestand der Regelfall der strukturierten Adresse (83× in `Unsere Familie 2026.ged`).
    * Solange `''` „kein ADDR" hieß, schrieb der Writer die Zeile nicht — und mit ihr fiel
    * der gesamte un-modellierte Teilbaum weg, den der Tiefen-Passthrough sonst rettet
-   * (231 verlorene Zeilen beim Neubau aller Records). Die Untertags selbst bleiben
-   * bewusst un-modelliert: sie überleben als Passthrough (INV-PT), sobald ihr Elternknoten
-   * wieder geschrieben wird.
+   * (231 verlorene Zeilen beim Neubau aller Records). Die Untertags selbst bekommen keine
+   * eigene Semantik — sie liegen verbatim in `addrExtra` (s. dort, ADR-v9-228).
    */
   addr: string | null;
+  /**
+   * Die nicht erkannten `ADDR`-Kinder, verbatim ([ADR-v9-228](../../specs/v9/04-Entscheidungslog.md)).
+   * Also alles außer `CONT`/`CONC` — die gehören zum Text und stecken bereits in `addr`.
+   *
+   * WARUM GEHALTEN STATT MODELLIERT: `ADR1`/`ADR2`/`ADR3` sind laut GEDCOM 5.5.1 (S. 41)
+   * definitionsgemäß Kopien der `ADDR`- bzw. der beiden ersten `CONT`-Zeilen, `CITY`/
+   * `STAE`/`POST`/`CTRY` isolierte Bestandteile derselben Adresse — Index-Kopien zum
+   * Sortieren, keine zusätzlichen Angaben. Sieben Modellfelder hätten diese Redundanz als
+   * eigenständige Semantik nachgebaut; `ADR1` stünde neben einem `addr`, dessen erste
+   * Zeile es per Definition ist.
+   *
+   * WARUM ÜBERHAUPT AM MODELL: Der Passthrough erhält diese Zeilen zwar, aber er ist ein
+   * Schreib-Mechanismus ohne Lesezugriff — die Zuordnung Ereignis ↔ Knoten entsteht erst
+   * beim Serialisieren (positionelle Paarung in `write-back.ts`), ein Rückverweis vom
+   * Event auf seinen `GedNode` existiert nicht. Ohne dieses Feld bleibt eine strukturierte
+   * Adresse in der Anzeige unsichtbar, obwohl sie in der Datei steht (an
+   * `Testdateien/Unsere Familie 2026.ged` 83 Blöcke, 82 davon an `RESI`).
+   *
+   * Dieselbe Form wie `MediaCitation.extra` und `Source.dataExtra` — drittes Vorkommen
+   * eines vorhandenen Musters, keine neue Bauart.
+   */
+  addrExtra: GedNode[];
   note: string;
   citations: Citation[];
   media: MediaCitation[];
@@ -397,8 +418,16 @@ export interface Repository {
   name: string;
   type: string;
   /** `ADDR` — Tristate wie `Event.addr` (BL-292): eine leere `1 ADDR`-Zeile trägt im
-   *  Bestand `CITY`/`POST` als Passthrough-Kinder. */
+   *  Bestand `CITY`/`POST` als Kinder — die liegen in `addressExtra`. */
   address: string | null;
+  /** Die nicht erkannten `ADDR`-Kinder, verbatim — Geschwister-Feld zu `Event.addrExtra`
+   *  (ADR-v9-228). Seit `ADDR` ein selbstverwalteter Passthrough-Container ist, MUSS jeder
+   *  ADDR-Träger sein eigenes Extra-Feld führen: der Tiefen-Passthrough greift dort nicht
+   *  mehr, und ohne dieses Feld fiele die strukturierte Archiv-Adresse beim Record-Neubau
+   *  weg. Genau das hat `wire-loss-classes.test.ts` beim ersten Bau gemeldet („2 CITY
+   *  München" verschwand) — die Regel war an einer Stelle gebaut und an der Geschwister-
+   *  Stelle vergessen. */
+  addressExtra: GedNode[];
   phone: string;
   www: string;
   email: string;

@@ -364,6 +364,7 @@ function leeresEreignis(type: string): Event {
     lati: null,
     long: null,
     addr: '',
+    addrExtra: [],
     note: '',
     citations: [],
     media: [],
