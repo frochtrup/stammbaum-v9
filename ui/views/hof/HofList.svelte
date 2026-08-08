@@ -3,6 +3,7 @@
   // (aus Events aufgelöst, numerisch sortiert), Zugehöriges Dorf anzeigen"). Anreicherungs-
   // Pille (ADR-v9-44) + Referenz-Filter (ADR-v9-46, Spec 11 §9.3) — analog PlaceList.svelte.
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import { tooltip } from '../../shell/tooltip';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
@@ -137,7 +138,7 @@
   {:else}
     <div class="hof-list__toolbar">
       <div class="hof-list__search">
-        <input type="search" placeholder="Suche…" aria-label="Höfe durchsuchen" bind:value={list.query} />
+        <input type="search" {...PLAIN_FIELD} placeholder="Suche…" aria-label="Höfe durchsuchen" bind:value={list.query} />
         {#if list.query}
           <button type="button" class="hof-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}

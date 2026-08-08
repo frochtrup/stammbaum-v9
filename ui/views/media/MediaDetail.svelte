@@ -11,6 +11,7 @@
   // HEIRATS-Ereignis (f.marriage.media), nicht an einem Familien-Top-Level-Feld — der
   // Familien-Zweig editiert daher marriage, nicht die Familie selbst.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
@@ -202,9 +203,9 @@
       onsubmit={formSubmit(() => saveRef(row))}
       onkeydown={formEscape(() => (editingKey = null))}
     >
-      <label>Titel-Override <input type="text" placeholder="(leer ⇒ globaler Titel)" bind:value={rTitle} /></label>
-      <label>Aufnahmedatum <input type="text" bind:value={rDate} /></label>
-      <label>Notiz <input type="text" bind:value={rNote} /></label>
+      <label>Titel-Override <input type="text" {...PLAIN_FIELD} placeholder="(leer ⇒ globaler Titel)" bind:value={rTitle} /></label>
+      <label>Aufnahmedatum <input type="text" {...PLAIN_FIELD} bind:value={rDate} /></label>
+      <label>Notiz <input type="text" {...PLAIN_FIELD} bind:value={rNote} /></label>
       <label class="media-detail__ref-prim"><input type="checkbox" bind:checked={rPrimary} /> Primärbild/-dokument</label>
       <div class="media-detail__ref-form-actions">
         <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
@@ -243,10 +244,10 @@
         onsubmit={formSubmit(saveGlobal)}
         onkeydown={formEscape(() => (editingGlobal = false))}
       >
-        <label>Titel <input type="text" bind:value={gTitle} /></label>
-        <label>Dateipfad <input type="text" bind:value={gFile} /></label>
-        <label>Format (MIME) <input type="text" bind:value={gForm} /></label>
-        <label>Medientyp <input type="text" bind:value={gType} /></label>
+        <label>Titel <input type="text" {...PLAIN_FIELD} bind:value={gTitle} /></label>
+        <label>Dateipfad <input type="text" {...PLAIN_FIELD} bind:value={gFile} /></label>
+        <label>Format (MIME) <input type="text" {...PLAIN_FIELD} bind:value={gForm} /></label>
+        <label>Medientyp <input type="text" {...PLAIN_FIELD} bind:value={gType} /></label>
         <div class="media-detail__form-actions">
           <button type="submit" class="stb-btn" data-variant="primary">Speichern (alle Ref.)</button>
           <button type="button" class="stb-btn" data-variant="secondary" onclick={() => (editingGlobal = false)}>Abbrechen</button>

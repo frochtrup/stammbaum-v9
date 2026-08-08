@@ -9,6 +9,7 @@
   // neue id über onCreate an den Aufrufer (EntityTab), der Auswahl + Editor-Öffnung
   // übernimmt — dieselbe Kommando-Disziplin wie appState.saveFamily(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeFamily, allocatorFromDatabase, nextId } from '../../../core/model';
   import { tooltip } from '../../shell/tooltip';
@@ -115,7 +116,7 @@
       <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
       <div class="family-list__search">
         <input
-          type="search"
+          type="search" {...PLAIN_FIELD}
           placeholder="Suche…"
           aria-label="Familien durchsuchen"
           bind:value={list.query}
@@ -136,7 +137,7 @@
           </label>
           <label>
             Heiratsort
-            <input type="text" bind:value={filters.marriagePlace} placeholder="Ort…" />
+            <input type="text" {...PLAIN_FIELD} bind:value={filters.marriagePlace} placeholder="Ort…" />
           </label>
           <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noMarriageDate} />

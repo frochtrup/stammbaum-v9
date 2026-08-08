@@ -28,6 +28,7 @@
   // Fallback: value ohne Treffer in items -> Rohwert statt "nichts ausgewaehlt") — bleibt
   // erhalten, bis der Nutzer aktiv ein anderes Archiv waehlt oder "— kein Archiv —" waehlt.
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Source } from '../../../core/model/types';
   import { SOURCE_TEMPLATES, type SourceTemplate } from '../../../core/model/source-templates';
@@ -153,7 +154,7 @@
     <div class="source-form__field stb-field">
       <span class="stb-field__caption">Vorlage (optional)</span>
       <input
-        type="text"
+        type="text" {...PLAIN_FIELD}
         bind:value={templateQuery}
         list="source-templates"
         placeholder="Vorlage wählen…"
@@ -175,27 +176,27 @@
   <div class="source-form__grid">
     <label>
       Titel
-      <input type="text" bind:value={title} />
+      <input type="text" {...PLAIN_FIELD} bind:value={title} />
     </label>
     <label>
       Kurzname
-      <input type="text" bind:value={abbr} />
+      <input type="text" {...PLAIN_FIELD} bind:value={abbr} />
     </label>
     <label>
       Autor
-      <input type="text" bind:value={author} />
+      <input type="text" {...PLAIN_FIELD} bind:value={author} />
     </label>
     <label>
       Erfasst am
-      <input type="text" bind:value={createdDate} />
+      <input type="text" {...PLAIN_FIELD} bind:value={createdDate} />
     </label>
     <label>
       Verlag
-      <input type="text" bind:value={publisher} />
+      <input type="text" {...PLAIN_FIELD} bind:value={publisher} />
     </label>
     <label>
       Signatur
-      <input type="text" bind:value={callNumber} />
+      <input type="text" {...PLAIN_FIELD} bind:value={callNumber} />
     </label>
     <label>
       <!-- GEDCOM SOUR.REPO.CALN.MEDI: hängt strukturell an der Signatur (CALN) — der
@@ -204,7 +205,7 @@
            gilt bereits für die read-only-Anzeige im Steckbrief (ADR-v9-151). -->
       Medientyp (zur Signatur)
       <input
-        type="text"
+        type="text" {...PLAIN_FIELD}
         bind:value={callMedia}
         placeholder="z. B. manuscript, tombstone"
         aria-describedby={mediaOrphan ? 'source-form-media-warn' : undefined}
@@ -233,7 +234,7 @@
 
   <label>
     Notiz
-    <textarea bind:value={text}></textarea>
+    <textarea {...PROSE_FIELD} bind:value={text}></textarea>
   </label>
 
   <div class="source-form__actions">

@@ -14,6 +14,7 @@
   // Assoziation nicht erfassbar. Die „Keine X erfasst"-Zeile entfällt trotzdem, weil der
   // „+ Assoziation"-Knopf die Leere bereits ausspricht.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { AssociationRow, GodchildRow } from './person-detail-model';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import { tooltip } from '../../shell/tooltip';
@@ -114,7 +115,7 @@
       </div>
       <label class="person-assoc__field">
         Rolle
-        <input type="text" bind:value={role} list="person-assoc-roles" placeholder="frei wählbar…" />
+        <input type="text" {...PLAIN_FIELD} bind:value={role} list="person-assoc-roles" placeholder="frei wählbar…" />
         <datalist id="person-assoc-roles">
           {#each ROLE_PRESETS as preset (preset)}
             <option value={preset}></option>
@@ -128,7 +129,7 @@
       </div>
       <label class="person-assoc__field">
         Notiz (optional)
-        <input type="text" bind:value={note} placeholder="z. B. Quelle der Angabe" />
+        <input type="text" {...PLAIN_FIELD} bind:value={note} placeholder="z. B. Quelle der Angabe" />
       </label>
       <div class="person-assoc__actions">
         <button type="button" class="stb-btn" data-variant="secondary" onclick={reset}>Abbrechen</button>

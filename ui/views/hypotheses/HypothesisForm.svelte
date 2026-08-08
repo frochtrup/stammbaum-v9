@@ -7,6 +7,7 @@
   // Es SPEICHERT NICHT selbst: `onSubmit` liefert die Werte, der Aufrufer entscheidet
   // zwischen appState.addHypothesis und appState.updateHypothesis (Chokepoint, Spec 02 §3).
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
@@ -90,7 +91,7 @@
 
   <label class="hyp-form__field">
     Behauptung
-    <textarea bind:value={text} rows="2" placeholder="Was wird vermutet?" required></textarea>
+    <textarea {...PROSE_FIELD} bind:value={text} rows="2" placeholder="Was wird vermutet?" required></textarea>
   </label>
 
   <div class="hyp-form__row">
@@ -120,7 +121,7 @@
     {#each evidence as ev, i (i)}
       <div class="hyp-form__evidence-row">
         <SourcePicker {appState} value={ev.sourceId || null} onChange={(id) => setEvidenceSource(i, id ?? '')} label={`Evidenz-Quelle ${i + 1}`} />
-        <input type="text" placeholder="Seite" aria-label={`Evidenz-Seite ${i + 1}`} value={ev.page} onchange={(e) => setEvidencePage(i, (e.currentTarget as HTMLInputElement).value)} />
+        <input type="text" {...PLAIN_FIELD} placeholder="Seite" aria-label={`Evidenz-Seite ${i + 1}`} value={ev.page} onchange={(e) => setEvidencePage(i, (e.currentTarget as HTMLInputElement).value)} />
         <button type="button" class="hyp-form__remove-btn" onclick={() => removeEvidenceRow(i)} aria-label={`Beleg ${i + 1} entfernen`}>✕</button>
       </div>
     {/each}
@@ -128,12 +129,12 @@
 
   <label class="hyp-form__field">
     Begründung
-    <textarea bind:value={rationale} rows="3" placeholder="Beweisführung"></textarea>
+    <textarea {...PROSE_FIELD} bind:value={rationale} rows="3" placeholder="Beweisführung"></textarea>
   </label>
 
   <label class="hyp-form__field">
     Auflösungsnotiz
-    <textarea bind:value={conclusion} rows="2" placeholder="Wie wurde die Hypothese geklärt?"></textarea>
+    <textarea {...PROSE_FIELD} bind:value={conclusion} rows="2" placeholder="Wie wurde die Hypothese geklärt?"></textarea>
   </label>
 
   {#if !isEditing}

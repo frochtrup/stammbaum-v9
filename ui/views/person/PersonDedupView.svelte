@@ -20,6 +20,7 @@
   // ergaben 1.267 Paare eine 90.212 px lange Scrollstrecke und 11.542 DOM-Knoten.
   // Bewusst dieselbe Primitive wie EventsByType, kein zweiter Mechanismus (INV-UI-4).
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import { DEFAULT_DUPLICATE_THRESHOLD, collectIdentityExclusions } from '../../../core/dedup';
   import { pageSlice, DEFAULT_PAGE_SIZE } from '../../shell/pagination';
   import { IdbDedupIgnoreStore, loadIgnoredPairs, type DedupIgnoreStore } from '../../../services/dedup';
@@ -207,7 +208,7 @@
       <label class="person-dedup__exclude-label" for="dedup-exclusion-reason">
         Begründung (Pflicht) — warum sind das zwei verschiedene Personen?
       </label>
-      <textarea
+      <textarea {...PROSE_FIELD}
         id="dedup-exclusion-reason"
         class="person-dedup__exclude-input"
         rows="3"
@@ -236,7 +237,7 @@
   {:else}
     <div class="person-dedup__searchwrap">
       <input
-        type="search"
+        type="search" {...PLAIN_FIELD}
         class="person-dedup__search"
         placeholder="Ergebnisse durchsuchen"
         aria-label="Ergebnisse durchsuchen"

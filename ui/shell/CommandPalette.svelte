@@ -16,6 +16,7 @@
   //   - Fokus geht beim Öffnen ins Feld und beim Schließen dorthin zurück, wo er war —
   //     sonst landet er auf <body> und die Tastaturbedienung beginnt von vorn.
   import { tick } from 'svelte';
+  import { PLAIN_FIELD } from './plain-input';
   import { portal } from './portal';
   import { buildCommands, moveSelection, type Command } from './command-palette-model';
   import type { Database } from '../../core/model/types';
@@ -86,7 +87,7 @@
   <input
     bind:this={input}
     class="cmdp__input"
-    type="text"
+    type="text" {...PLAIN_FIELD}
     placeholder="Springen oder suchen …"
     aria-label="Befehl oder Suchbegriff"
     bind:value={query}

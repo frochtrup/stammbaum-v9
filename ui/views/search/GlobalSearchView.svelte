@@ -15,6 +15,7 @@
   // `GlobalSearchState` — sonst ist die Trefferliste nach dem Sprung auf den ersten
   // Treffer weg (Spec 21 §5, Begründung in `global-search-state.svelte.ts`).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
@@ -123,7 +124,7 @@
   <div class="global-search__toolbar">
     <div class="global-search__field">
       <input
-        type="search"
+        type="search" {...PLAIN_FIELD}
         placeholder="Suche über Personen, Familien, Quellen, Orte, Höfe…"
         aria-label="Global suchen"
         value={query}

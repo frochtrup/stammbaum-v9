@@ -7,6 +7,7 @@
   // "Ohne Bezug"-Abschnitt — dort bleiben Orte voll editierbar/löschbar (Klick navigiert
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -156,7 +157,7 @@
   {:else}
     <div class="place-list__toolbar">
       <div class="place-list__search">
-        <input type="search" placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={list.query} />
+        <input type="search" {...PLAIN_FIELD} placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={list.query} />
         {#if list.query}
           <button type="button" class="place-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}

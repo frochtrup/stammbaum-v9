@@ -24,6 +24,7 @@
   // erreichbar. Es sitzt jetzt wie bei Person/Familie/Quelle/Archiv/Medium in der
   // abgesetzten Danger-Zone unten am Steckbrief (`DeleteEntityButton`, INV-UI-4).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import Picker from '../../shell/Picker.svelte';
   import CoordFields from '../../shell/CoordFields.svelte';
   import { resolveCoordFields } from '../../../core/places';
@@ -175,7 +176,7 @@
   <CoordFields bind:latText={formLatText} bind:longText={formLongText} />
   <label>
     Notiz
-    <textarea bind:value={formNote}></textarea>
+    <textarea {...PROSE_FIELD} bind:value={formNote}></textarea>
   </label>
   <label>
     Existiert von (Jahr)
@@ -194,7 +195,7 @@
     {#if creatingHofFor === 'predecessor'}
       <div class="hof-detail__inline-create">
         <input
-          type="text"
+          type="text" {...PLAIN_FIELD}
           placeholder="Adresse des neuen Hofs…"
           bind:value={newHofAddr}
           aria-label="Adresse des neuen Vorgänger-Hofs"
@@ -224,7 +225,7 @@
     {#if creatingHofFor === 'successor'}
       <div class="hof-detail__inline-create">
         <input
-          type="text"
+          type="text" {...PLAIN_FIELD}
           placeholder="Adresse des neuen Hofs…"
           bind:value={newHofAddr}
           aria-label="Adresse des neuen Nachfolger-Hofs"
@@ -251,11 +252,11 @@
   </div>
   <label>
     GOV-ID
-    <input type="text" bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
+    <input type="text" {...PLAIN_FIELD} bind:value={formGovId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
   </label>
   <label>
     GOV-Typen (kommagetrennt)
-    <input type="text" bind:value={formGovTypes} placeholder="z. B. Hof, Gehöft" />
+    <input type="text" {...PLAIN_FIELD} bind:value={formGovTypes} placeholder="z. B. Hof, Gehöft" />
   </label>
   <div class="hof-detail__form-actions">
     <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>

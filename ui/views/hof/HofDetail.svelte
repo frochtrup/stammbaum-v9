@@ -4,6 +4,7 @@
   // Koordinaten, Notiz, Lebenszyklus)"). Bewohner-Zeilen verlinken zur Person
   // (Cross-Tab-Navigation, ADR-v9-17-Muster).
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
@@ -202,7 +203,7 @@
           <li>
             {#if editing}
               <input
-                type="text"
+                type="text" {...PLAIN_FIELD}
                 class="hof-detail__addr-edit-value"
                 value={a.value}
                 onchange={(e) => updateAddrValue(i, e.currentTarget.value)}
@@ -234,7 +235,7 @@
       </ul>
       {#if editing}
         <div class="hof-detail__add-row">
-          <input type="text" placeholder="neue Adresse…" bind:value={newAddrValue} aria-label="Neue Adressvariante" />
+          <input type="text" {...PLAIN_FIELD} placeholder="neue Adresse…" bind:value={newAddrValue} aria-label="Neue Adressvariante" />
           <input type="number" placeholder="von" bind:value={newAddrFrom} aria-label="Gültig von (Jahr)" />
           <input type="number" placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr)" />
           <button type="button" onclick={addAddr}>+ Hinzufügen</button>

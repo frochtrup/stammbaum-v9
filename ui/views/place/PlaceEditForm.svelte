@@ -21,6 +21,7 @@
   // erreichbar. Es sitzt jetzt wie bei Person/Familie/Quelle/Archiv/Medium in der
   // abgesetzten Danger-Zone unten am Steckbrief (`DeleteEntityButton`, INV-UI-4).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import type { PlaceObject } from '../../../core/places/types';
   import { resolveCoordFields, type GeocodeHit } from '../../../core/places';
   import CoordFields from '../../shell/CoordFields.svelte';
@@ -135,9 +136,9 @@
   <h3>Grunddaten</h3>
   <label>
     Name
-    <input type="text" bind:value={title} />
+    <input type="text" {...PLAIN_FIELD} bind:value={title} />
   </label>
-  <label>Anzeigename (Listen) <input type="text" bind:value={shortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
+  <label>Anzeigename (Listen) <input type="text" {...PLAIN_FIELD} bind:value={shortName} placeholder="nur bei Homonymen nötig, z. B. Frankfurt (Main) — nie exportiert" /></label>
   <!-- Geschwister-Stelle zu BL-203: ADR-v9-149 hat die ANZEIGE des Ortstyps auf Deutsch
        umgestellt, das Eingabefeld blieb englischer Freitext („z. B. Village, City…") —
        getippt englisch, angezeigt deutsch. Gleicher Mechanismus wie der Archivtyp
@@ -150,7 +151,7 @@
   <GeocodeButton name={title.trim() || place.title} onResult={applyGeocodeHit} />
   <label>
     Notiz
-    <textarea bind:value={note}></textarea>
+    <textarea {...PROSE_FIELD} bind:value={note}></textarea>
   </label>
   <label>
     Existiert von (Jahr)
@@ -162,11 +163,11 @@
   </label>
   <label>
     GOV-ID
-    <input type="text" bind:value={govId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
+    <input type="text" {...PLAIN_FIELD} bind:value={govId} placeholder="z. B. eine gov.genealogy.net-Kennung" />
   </label>
   <label>
     GOV-Typen (kommagetrennt)
-    <input type="text" bind:value={govTypesText} placeholder="z. B. Stadt, Kreis" />
+    <input type="text" {...PLAIN_FIELD} bind:value={govTypesText} placeholder="z. B. Stadt, Kreis" />
   </label>
   <div class="place-edit-form__actions">
     <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>

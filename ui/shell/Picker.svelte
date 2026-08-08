@@ -50,6 +50,7 @@
   // weiteren unerreichbar. Derselbe Vorfahren-Typ, dieselbe Ursache wie beim Filter-Panel
   // (BL-85) und beim Ereignis-Menü; ein höherer z-index hilft dagegen nicht (ADR-v9-97).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD } from './plain-input';
   import { anchoredTo } from './portal';
   import {
     haltFokusImFeld,
@@ -312,7 +313,7 @@
        bleibt unverändert. -->
   <div class="stb-picker__box" class:stb-picker__box--has-value={!open && !!selectedLabel}>
     <input
-      type="text"
+      type="text" {...PLAIN_FIELD}
       role="combobox"
       bind:this={fieldEl}
       class="stb-picker__field"

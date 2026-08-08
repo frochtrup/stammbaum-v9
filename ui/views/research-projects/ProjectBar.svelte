@@ -8,6 +8,7 @@
   // Matching-Wahrheit (welche Person fällt hinein) liegt im Kern (matchesScope, BL-58),
   // nicht hier.
   import type { ProjectsState } from '../../shell/projects-state.svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import { makeProject, type Project } from '../../../core/research/index';
   import { formEscape, formSubmit } from '../../shell/form-keys';
 
@@ -159,7 +160,7 @@
     <form class="project-bar__form" onsubmit={formSubmit(save)} onkeydown={formEscape(() => (showForm = false))}>
       <label class="project-bar__field">
         Name
-        <input type="text" bind:value={fName} placeholder="z. B. Linie Decker" />
+        <input type="text" {...PLAIN_FIELD} bind:value={fName} placeholder="z. B. Linie Decker" />
       </label>
       <div class="project-bar__field">
         <span id="project-bar-color-label">Farbe</span>
@@ -201,11 +202,11 @@
       <div class="project-bar__row">
         <label class="project-bar__field">
           Nachnamen
-          <input type="text" bind:value={fSurnames} placeholder="Decker, Meyer" />
+          <input type="text" {...PLAIN_FIELD} bind:value={fSurnames} placeholder="Decker, Meyer" />
         </label>
         <label class="project-bar__field">
           Orte
-          <input type="text" bind:value={fPlaces} placeholder="Ochtrup, Rheine" />
+          <input type="text" {...PLAIN_FIELD} bind:value={fPlaces} placeholder="Ochtrup, Rheine" />
         </label>
       </div>
       <div class="project-bar__row">
@@ -220,7 +221,7 @@
       </div>
       <label class="project-bar__field">
         Notiz
-        <textarea bind:value={fNote} rows="2" placeholder="Freie Notiz zu diesem Projekt"></textarea>
+        <textarea {...PROSE_FIELD} bind:value={fNote} rows="2" placeholder="Freie Notiz zu diesem Projekt"></textarea>
       </label>
       <p class="project-bar__hint">Leere Achse schränkt nicht ein; alle Achsen sind UND-verknüpft.</p>
       <div class="project-bar__actions">

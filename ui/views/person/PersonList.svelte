@@ -9,6 +9,7 @@
   // neue id über onCreate an den Aufrufer (EntityTab), der Auswahl + Editor-Öffnung
   // übernimmt — dieselbe Kommando-Disziplin wie appState.savePerson(model) überall sonst.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { resolveProband } from '../../shell/proband';
@@ -146,7 +147,7 @@
       <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
       <div class="person-list__search">
         <input
-          type="search"
+          type="search" {...PLAIN_FIELD}
           placeholder="Suche…"
           aria-label="Personen durchsuchen"
           bind:value={list.query}
@@ -186,7 +187,7 @@
           </label>
           <label>
             Geburtsort
-            <input type="text" bind:value={filters.birthPlace} placeholder="Ort…" />
+            <input type="text" {...PLAIN_FIELD} bind:value={filters.birthPlace} placeholder="Ort…" />
           </label>
           <label class="stb-filter-opt stb-filter-opt--compact">
             <input type="checkbox" bind:checked={filters.noDeathDate} />

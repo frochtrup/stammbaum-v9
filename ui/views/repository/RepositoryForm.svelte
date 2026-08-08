@@ -5,6 +5,7 @@
   // Repository ist ein FLACHES Modell (Spec 10 §4) — reine bind:value-Textfelder,
   // kein Dirty-Tracking noetig (analog SourceForm.svelte).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Repository } from '../../../core/model/types';
   import TypeSelect from '../../shell/TypeSelect.svelte';
@@ -101,7 +102,7 @@
   <div class="repository-form__grid">
     <label>
       Name
-      <input type="text" bind:value={name} />
+      <input type="text" {...PLAIN_FIELD} bind:value={name} />
     </label>
     <!-- BL-203: kuratiertes Vokabular statt Freitext. Die `stb-field`-Hülle statt eines
          <label>-Wrappers ist das etablierte Muster für zusammengesetzte Felder (TST-18) —
@@ -112,11 +113,11 @@
     </div>
     <label>
       Adresse
-      <input type="text" bind:value={address} />
+      <input type="text" {...PLAIN_FIELD} bind:value={address} />
     </label>
     <label>
       Telefon
-      <input type="text" bind:value={phone} />
+      <input type="text" {...PLAIN_FIELD} bind:value={phone} />
     </label>
     <label>
       Website

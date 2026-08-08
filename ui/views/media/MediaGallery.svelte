@@ -21,6 +21,7 @@
   // Medien entstehen beim Import oder über den 📷-Schnellzugriff im Ereignis-Editor (Spec
   // 20 §1.4 [S]) — dieselbe "keine leere Neuanlage"-Begründung wie PersonPicker allowCreate.
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { layout } from '../../shell/layout.svelte';
   import { noDataHint } from '../../shell/nav-model';
@@ -120,7 +121,7 @@
   {:else}
     <div class="media-gallery__toolbar">
       <input
-        type="search"
+        type="search" {...PLAIN_FIELD}
         class="media-gallery__search"
         placeholder="Dateiname, Titel, Notiz …"
         aria-label="Medien durchsuchen"

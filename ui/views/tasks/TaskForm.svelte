@@ -11,6 +11,7 @@
   // Ziel-Entitäts-Auswahl per Radio + PersonPicker/FamilyPicker (ADR-v9-40, INV-UI-4 —
   // EIN Entitäts-Picker-Muster statt einer eigenen Text+<select>-Handkonstruktion).
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
@@ -80,12 +81,12 @@
 
   <label class="task-form__field">
     Text
-    <input type="text" bind:value={text} placeholder="Was ist zu tun?" required />
+    <input type="text" {...PLAIN_FIELD} bind:value={text} placeholder="Was ist zu tun?" required />
   </label>
 
   <label class="task-form__field">
     Kategorie
-    <input type="text" bind:value={category} list="tasks-category-presets" placeholder="frei wählbar…" />
+    <input type="text" {...PLAIN_FIELD} bind:value={category} list="tasks-category-presets" placeholder="frei wählbar…" />
     <datalist id="tasks-category-presets">
       {#each CATEGORY_OPTIONS as preset (preset)}
         <option value={preset}></option>
