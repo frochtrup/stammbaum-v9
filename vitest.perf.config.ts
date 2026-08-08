@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // Eigene Config für das Skalen-/Performance-Gate (tests/perf/), weil die Haupt-Config
 // tests/perf/ bewusst AUSSCHLIESST (dort begründet: Pre-Commit-Tauglichkeit).
@@ -6,9 +7,19 @@ import { defineConfig } from 'vitest/config';
 // stillschweigend 0 Tests finden und grün melden — genau die Sorte lautlos wirkungsloses
 // Gate, die dieses Projekt an anderer Stelle schon einmal hatte.
 //
-// Kein svelte-Plugin/browser-Conditions nötig: gemessen wird ausschließlich
-// framework-freier Kern-/Dienst-Code plus reine Modell-Funktionen (INV-ARCH-2).
+// Svelte-Plugin + browser-Conditions seit BL-311 (ADR-v9-234): die Skalen-Ebene misst nicht
+// mehr nur framework-freien Kern-Code, sondern auch, WIE VIELE DOM-KNOTEN eine Index-Fläche
+// bei 20.000 Einträgen erzeugt (`list-render.perf.test.ts`). Das ist der eine Messwert
+// dieser Frage, der hardware-unabhängig ist — headless gemessen deckt er sich mit der
+// Browser-Messung (22.272 vs. 22.613 Knoten, unter 2 % Abweichung). Der frühere Kopfsatz
+// „kein svelte-Plugin nötig, gemessen wird ausschließlich framework-freier Kern-Code" gilt
+// damit nicht mehr; die Kern-/Dienst-Messungen bleiben davon unberührt (sie laufen weiter
+// in 'node' und importieren kein svelte, nur die Render-Datei trägt den happy-dom-Docblock).
 export default defineConfig({
+  plugins: [svelte()],
+  resolve: {
+    conditions: ['browser'],
+  },
   test: {
     environment: 'node',
     globals: true,
