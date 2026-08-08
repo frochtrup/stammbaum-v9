@@ -13,7 +13,9 @@
     type HofRow,
     type HofFilters,
   } from './hof-list-model';
+  import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { createHofListState, type HofListState } from '../list-view-state.svelte';
   import { enrichmentLabel } from '../../shell/place-labels';
   import { buildHofDedupGroups } from './hof-dedup-model';
   import { buildHofReview } from './hof-review-model';
@@ -32,17 +34,33 @@
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
      *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
+    /**
+     * Suche, Filter und Abschnitt von AUSSEN (BL-320): auf Mobil ersetzt das Detail diese Liste,
+     * komponenten-lokal wäre die Eingrenzung nach jedem Blick auf einen Treffer weg
+     * (Spec 21 §5). Optional, damit Komponententests die Liste ohne Umgebung montieren
+     * können — dann mit einer eigenen, komponenten-langen Instanz.
+     */
+    list?: HofListState;
   }
-  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    onOpenReview,
+    onOpenDedup,
+    onNavigateLens,
+    list: listProp,
+  }: Props = $props();
 
-  let query = $state('');
-  let section = $state<'referenced' | 'unreferenced'>('referenced');
+  const list = untrack(() => listProp ?? createHofListState());
+
   /** ADR-v9-149 — ersetzt die frühere „ohne Zusatzangaben"-Zeilenpille. */
-  let filters = $state<HofFilters>(defaultHofFilters());
+  // `filters` ist ein Alias auf das Filter-Objekt IM Halter — es wird nie ersetzt,
+  // sondern nur in seinen Feldern verändert (`bind:` schreibt durch den $state-Proxy).
+  const filters = list.filters;
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultHofFilters()));
   const events = $derived(collectAllEvents(appState.db));
-  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, query, filters));
+  const sections = $derived(buildHofListSections(appState.db, appState.placeContext, events, list.query, filters));
 
   // Kurations-Handlungsbedarf (BL-206, ADR-v9-148): analog PlaceList — der immer sichtbare
   // „Werkzeuge"-Trigger trägt einen Achtungs-Punkt bei offenen Hof-Dedup-Gruppen oder
@@ -58,7 +76,7 @@
   const rows = $derived(
     !appState.caps.hasEventContext
       ? [...sections.referenced, ...sections.unreferenced]
-      : section === 'referenced'
+      : list.section === 'referenced'
         ? sections.referenced
         : sections.unreferenced,
   );
@@ -70,7 +88,7 @@
   }
 
   function clearSearch() {
-    query = '';
+    list.query = '';
   }
 </script>
 
@@ -119,8 +137,8 @@
   {:else}
     <div class="hof-list__toolbar">
       <div class="hof-list__search">
-        <input type="search" placeholder="Suche…" aria-label="Höfe durchsuchen" bind:value={query} />
-        {#if query}
+        <input type="search" placeholder="Suche…" aria-label="Höfe durchsuchen" bind:value={list.query} />
+        {#if list.query}
           <button type="button" class="hof-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
@@ -140,7 +158,7 @@
             Anreicherung
             <select
               value={filters.level}
-              onchange={(e) => (filters = { ...filters, level: (e.currentTarget as HTMLSelectElement).value as HofFilters['level'] })}
+              onchange={(e) => (filters.level = (e.currentTarget as HTMLSelectElement).value as HofFilters['level'])}
             >
               <option value="">alle</option>
               <option value="none">{enrichmentLabel('none')}</option>
@@ -148,7 +166,7 @@
               <option value="rich">{enrichmentLabel('rich')}</option>
             </select>
           </label>
-          <button type="button" class="hof-list__review-btn" onclick={() => (filters = defaultHofFilters())}>
+          <button type="button" class="hof-list__review-btn" onclick={() => Object.assign(filters, defaultHofFilters())}>
             Filter zurücksetzen
           </button>
         </div>
@@ -178,20 +196,20 @@
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'referenced'}
+        aria-selected={list.section === 'referenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'referenced'}
-        onclick={() => (section = 'referenced')}
+        class:stb-segment-btn--active={list.section === 'referenced'}
+        onclick={() => (list.section = 'referenced')}
       >
         Höfe ({sections.referenced.length})
       </button>
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'unreferenced'}
+        aria-selected={list.section === 'unreferenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'unreferenced'}
-        onclick={() => (section = 'unreferenced')}
+        class:stb-segment-btn--active={list.section === 'unreferenced'}
+        onclick={() => (list.section = 'unreferenced')}
       >
         Ohne Bezug ({sections.unreferenced.length})
       </button>
@@ -200,7 +218,7 @@
 
     {#if rows.length === 0}
       <p class="hof-list__empty">
-        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
+        {!appState.caps.hasEventContext || list.section === 'referenced' ? 'Keine Höfe gefunden.' : 'Keine referenzlosen Höfe.'}
       </p>
     {:else}
       <!-- Gruppiert nach Dorf (Nutzer-Vorgabe 2026-07-10) — DIE EINE Gruppen+Header-
@@ -265,7 +283,6 @@
     gap: 0.75rem;
     align-items: center;
   }
-
 
   /* Bulk-Aktionen (Hof-Zuweisungen prüfen/Massen-Dedup) rechtsbündig, sofern Platz in
      der Zeile ist. margin-left:auto ist hier sicher (TST-11), weil dieser Block IMMER
@@ -366,7 +383,6 @@
     font-size: 0.78rem;
     color: var(--stb-text-dim);
   }
-
 
   .hof-list__row:hover,
   .hof-list__row:focus-visible {

@@ -11,7 +11,9 @@
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
+  import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { createPlaceListState, type PlaceListState } from '../list-view-state.svelte';
   import { placeTypeLabel, enrichmentLabel } from '../../shell/place-labels';
   import { countUnresolvedGovPlaceholders } from '../../../core/places';
   import {
@@ -37,17 +39,28 @@
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
      *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
+    /**
+     * Suche, Filter, Varianten-Anzeige und Abschnitt von AUSSEN (BL-320): auf Mobil ersetzt das Detail diese Liste,
+     * komponenten-lokal wäre die Eingrenzung nach jedem Blick auf einen Treffer weg
+     * (Spec 21 §5). Optional, damit Komponententests die Liste ohne Umgebung montieren
+     * können — dann mit einer eigenen, komponenten-langen Instanz.
+     */
+    list?: PlaceListState;
   }
-  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    onOpenReview,
+    onOpenDedup,
+    onNavigateLens,
+    list: listProp,
+  }: Props = $props();
 
-  let query = $state('');
-  let filters = $state<PlaceFilters>(defaultPlaceFilters());
-  /** Blendet die pnames-Varianten unter dem Titel ein (Anzeige, kein Filter — s. Markup).
-   *  Der v8-Name „Gruppen-Modus" trug noch die string-basierte Liste im Rücken; in v9 ist
-   *  die Liste ID-basiert, die Gruppierung also strukturell schon passiert — sichtbar
-   *  gemacht werden nur noch die Varianten selbst (ADR-v9-149). */
-  let groupMode = $state(false);
-  let section = $state<'referenced' | 'unreferenced'>('referenced');
+  const list = untrack(() => listProp ?? createPlaceListState());
+
+  // `filters` ist ein Alias auf das Filter-Objekt IM Halter — es wird nie ersetzt,
+  // sondern nur in seinen Feldern verändert (`bind:` schreibt durch den $state-Proxy).
+  const filters = list.filters;
   /** Batch-Geocoding-Fortschritt (BL-130): `null` = nicht gelaufen. */
   let batch = $state<{ running: boolean; done: number; total: number; ok: number } | null>(null);
 
@@ -99,7 +112,7 @@
   const placeReviewCount = $derived(buildPlaceReview(appState.db, appState.placeContext).rows.length);
   const govPlaceholderCount = $derived(countUnresolvedGovPlaceholders(appState.db.placeObjects));
   const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0 || govPlaceholderCount > 0);
-  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
+  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, list.query, filters));
   // D1 (Spec 22 §3.1): ohne Ereignis-Kontext ist „referenzlos" für JEDES Objekt wahr —
   // die Aufteilung wäre nicht falsch, sondern bedeutungslos, und die Hauptliste stünde
   // leer da. Dann zeigt die Liste alle Orte. Die Verkettung erhält die Sortierung, weil
@@ -108,7 +121,7 @@
   const rows = $derived(
     !appState.caps.hasEventContext
       ? [...sections.referenced, ...sections.unreferenced]
-      : section === 'referenced'
+      : list.section === 'referenced'
         ? sections.referenced
         : sections.unreferenced,
   );
@@ -126,11 +139,11 @@
   }
 
   function clearSearch() {
-    query = '';
+    list.query = '';
   }
 
   function resetFilters() {
-    filters = defaultPlaceFilters();
+    Object.assign(filters, defaultPlaceFilters());
   }
 </script>
 
@@ -143,8 +156,8 @@
   {:else}
     <div class="place-list__toolbar">
       <div class="place-list__search">
-        <input type="search" placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={query} />
-        {#if query}
+        <input type="search" placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={list.query} />
+        {#if list.query}
           <button type="button" class="place-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
@@ -175,7 +188,7 @@
             Anreicherung
             <select
               value={filters.level}
-              onchange={(e) => (filters = { ...filters, level: (e.currentTarget as HTMLSelectElement).value as PlaceFilters['level'] })}
+              onchange={(e) => (filters.level = (e.currentTarget as HTMLSelectElement).value as PlaceFilters['level'])}
             >
               <option value="">alle</option>
               <option value="none">{enrichmentLabel('none')}</option>
@@ -197,7 +210,7 @@
                Sie sitzt trotzdem hier, weil sie als Dauer-Element im Kopf eine dritte
                Toolbar-Zeile erzwang (bei 375px gemessen: 81px/3 Zeilen → INV-UI-11-Bruch). -->
           <label class="stb-filter-opt stb-filter-opt--compact">
-            <input type="checkbox" bind:checked={groupMode} />
+            <input type="checkbox" bind:checked={list.groupMode} />
             Namensvarianten anzeigen
           </label>
           <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
@@ -244,20 +257,20 @@
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'referenced'}
+        aria-selected={list.section === 'referenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'referenced'}
-        onclick={() => (section = 'referenced')}
+        class:stb-segment-btn--active={list.section === 'referenced'}
+        onclick={() => (list.section = 'referenced')}
       >
         Orte ({sections.referenced.length})
       </button>
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'unreferenced'}
+        aria-selected={list.section === 'unreferenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'unreferenced'}
-        onclick={() => (section = 'unreferenced')}
+        class:stb-segment-btn--active={list.section === 'unreferenced'}
+        onclick={() => (list.section = 'unreferenced')}
       >
         Ohne Bezug ({sections.unreferenced.length})
       </button>
@@ -266,7 +279,7 @@
 
     {#if rows.length === 0}
       <p class="place-list__empty">
-        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
+        {!appState.caps.hasEventContext || list.section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
       </p>
     {:else}
       <ul class="place-list__rows">
@@ -308,7 +321,7 @@
               {#if appState.caps.hasEventContext && row.personCount > 0}
                 <span class="place-list__meta">{row.personCount} {row.personCount === 1 ? 'Person' : 'Personen'}</span>
               {/if}
-              {#if groupMode && row.variants.length > 0}
+              {#if list.groupMode && row.variants.length > 0}
                 <span class="place-list__variants">{row.variants.join(' · ')}</span>
               {/if}
             </button>
@@ -435,7 +448,6 @@
     border-radius: var(--stb-radius-control);
     padding: 0.3rem 0.5rem;
   }
-
 
   .place-list__rows {
     list-style: none;

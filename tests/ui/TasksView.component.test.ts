@@ -9,7 +9,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import TasksView from '../../ui/views/tasks/TasksView.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createTasksViewState } from '../../ui/views/research-segment-state.svelte';
 import { makeDatabase, makePerson, makeFamily, makeSource } from '../../core/model';
 import { makeTask } from '../../core/research/index';
 
@@ -38,7 +40,7 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   appState.loadDatabase(db, 'test.ged');
   const onNavigateToPerson = vi.fn();
   const onNavigateToFamily = vi.fn();
-  const utils = render(TasksView, { props: { appState, onNavigateToPerson, onNavigateToFamily } });
+  const utils = render(TasksView, { props: { appState, route: createRoute(), onNavigateToPerson, onNavigateToFamily } });
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
@@ -212,5 +214,47 @@ describe('TasksView — MD-Export-Button vorhanden', () => {
     expect(screen.queryByRole('button', { name: /Als Markdown exportieren/ })).toBeNull();
     await openFilters();
     expect(screen.getByRole('button', { name: /Als Markdown exportieren/ })).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: Filter und Anzeige-Modus überleben das Wegnavigieren (Spec 21 §5). Der Modus
+// liegt dabei in der Routen-Quelle (dort, wo die Lens-Modi längst liegen), der Filter im
+// Halter der Fläche — zwei Heimaten, weil es zwei Arten von Zustand sind.
+describe('TasksView — Filter und Anzeige-Modus überleben das Wegnavigieren (BL-320)', () => {
+  it('kommt mit dem gesetzten Status-Filter zurück, nicht auf „Offen"', async () => {
+    const tasks = createTasksViewState();
+    const route = createRoute();
+    const appState = createAppState();
+    appState.loadDatabase(seedDb(), 'test.ged');
+    const props = { appState, route, tasks, onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
+
+    const first = render(TasksView, { props });
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await fireEvent.click(screen.getByLabelText('Erledigt'));
+    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    first.unmount();
+
+    render(TasksView, { props: { ...props } });
+
+    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    expect((screen.getByLabelText('Erledigt') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('kommt in der Board-Ansicht zurück, nicht in der Liste', async () => {
+    const route = createRoute();
+    const appState = createAppState();
+    appState.loadDatabase(seedDb(), 'test.ged');
+    const props = { appState, route, tasks: createTasksViewState(), onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
+
+    const first = render(TasksView, { props });
+    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
+    first.unmount();
+
+    render(TasksView, { props: { ...props } });
+
+    expect(screen.getByRole('tab', { name: '▦ Board' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: '☰ Liste' }).getAttribute('aria-selected')).toBe('false');
   });
 });

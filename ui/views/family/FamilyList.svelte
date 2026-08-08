@@ -15,13 +15,14 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
+  import { untrack } from 'svelte';
   import { layout } from '../../shell/layout.svelte';
+  import { createFamilyListState, type FamilyListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import {
     buildFamilyRows,
     defaultFamilyFilters,
-    type FamilyFilters,
     type FamilySortMode,
     type FamilyRow,
   } from './family-list-model';
@@ -41,8 +42,17 @@
     viewState: ViewState;
     /** Nach dem Anlegen einer neuen Familie aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
     onCreate?: (familyId: string) => void;
+    /**
+     * Suche, Filter und Sortier-Modus von AUSSEN (BL-320): auf Mobil ersetzt das Detail diese Liste,
+     * komponenten-lokal wäre die Eingrenzung nach jedem Blick auf einen Treffer weg
+     * (Spec 21 §5). Optional, damit Komponententests die Liste ohne Umgebung montieren
+     * können — dann mit einer eigenen, komponenten-langen Instanz.
+     */
+    list?: FamilyListState;
   }
-  const { appState, viewState, onCreate }: Props = $props();
+  const { appState, viewState, onCreate, list: listProp }: Props = $props();
+
+  const list = untrack(() => listProp ?? createFamilyListState());
 
   function createFamily() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -58,12 +68,12 @@
     marriageDate: 'Heiratsdatum',
   };
 
-  let sortMode = $state<FamilySortMode>('husbandSurname');
-  let query = $state('');
-  let filters = $state<FamilyFilters>(defaultFamilyFilters());
+  // `filters` ist ein Alias auf das Filter-Objekt IM Halter — es wird nie ersetzt,
+  // sondern nur in seinen Feldern verändert (`bind:` schreibt durch den $state-Proxy).
+  const filters = list.filters;
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultFamilyFilters()));
-  const rows = $derived(buildFamilyRows(appState.db, appState.placeContext, sortMode, query, filters));
+  const rows = $derived(buildFamilyRows(appState.db, appState.placeContext, list.sortMode, list.query, filters));
   const isEmpty = $derived(appState.db.families.size === 0);
 
   function selectFamily(id: string) {
@@ -78,16 +88,16 @@
   }
 
   function cycleSortMode() {
-    const idx = SORT_CYCLE.indexOf(sortMode);
-    sortMode = SORT_CYCLE[(idx + 1) % SORT_CYCLE.length];
+    const idx = SORT_CYCLE.indexOf(list.sortMode);
+    list.sortMode = SORT_CYCLE[(idx + 1) % SORT_CYCLE.length];
   }
 
   function clearSearch() {
-    query = '';
+    list.query = '';
   }
 
   function resetFilters() {
-    filters = defaultFamilyFilters();
+    Object.assign(filters, defaultFamilyFilters());
   }
 </script>
 
@@ -100,7 +110,7 @@
   {:else}
     <div class="family-list__toolbar">
       <button type="button" class="family-list__sort-toggle" onclick={cycleSortMode}>
-        ⇅ {SORT_LABEL[sortMode]}
+        ⇅ {SORT_LABEL[list.sortMode]}
       </button>
       <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
       <div class="family-list__search">
@@ -108,9 +118,9 @@
           type="search"
           placeholder="Suche…"
           aria-label="Familien durchsuchen"
-          bind:value={query}
+          bind:value={list.query}
         />
-        {#if query}
+        {#if list.query}
           <button type="button" class="family-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>

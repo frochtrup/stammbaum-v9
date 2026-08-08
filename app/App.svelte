@@ -38,6 +38,17 @@
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
   import { createQualityDashboardState } from '../ui/views/quality/quality-dashboard-state.svelte';
   import { createGlobalSearchState } from '../ui/views/search/global-search-state.svelte';
+  import {
+    createFamilyListState,
+    createHofListState,
+    createPersonListState,
+    createPlaceListState,
+  } from '../ui/views/list-view-state.svelte';
+  import {
+    createHypothesesViewState,
+    createLogViewState,
+    createTasksViewState,
+  } from '../ui/views/research-segment-state.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -146,6 +157,18 @@
   // JEDEN Navigationsweg überdauert.
   const qualityState = createQualityDashboardState();
   const searchState = createGlobalSearchState();
+  // Suche/Filter/Modus der vier Entitätslisten und der drei übrigen Forschungs-Segmente
+  // (BL-320) — dieselbe Klasse, derselbe Eigentümer: die Wurzel ist die einzige Ebene, die
+  // JEDEN Navigationsweg überdauert (auch den Sprung in eine Lens, der EntityTab abbaut).
+  const listStates = {
+    person: createPersonListState(),
+    family: createFamilyListState(),
+    place: createPlaceListState(),
+    hof: createHofListState(),
+  };
+  const tasksState = createTasksViewState();
+  const logState = createLogViewState();
+  const hypothesesState = createHypothesesViewState();
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -412,6 +435,7 @@
         {mediaResolver}
         {route}
         {navHistory}
+        {listStates}
         onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
@@ -460,6 +484,9 @@
         {viewState}
         projects={projectsState}
         quality={qualityState}
+        tasks={tasksState}
+        log={logState}
+        hypotheses={hypothesesState}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToPlace={openPlace}

@@ -15,9 +15,16 @@
   import type { LensId } from '../shell/lens-model';
   import { ENTITY_TARGETS, type EntityTargetId } from '../shell/nav-model';
   import type { Route } from '../shell/route.svelte';
+  import type {
+    FamilyListState,
+    HofListState,
+    PersonListState,
+    PlaceListState,
+  } from './list-view-state.svelte';
   import type { NavHistory } from '../shell/nav-history.svelte';
   import { swipeNav } from '../shell/swipe-nav';
   import { createEntityTabOverlays } from './entity-tab-overlays.svelte';
+  import { createEntityTabPanes } from './entity-tab-panes.svelte';
   import { createEntityTabNavigation } from './entity-tab-navigation.svelte';
   import { createMediaGalleryFilters } from './media/media-gallery-filters.svelte';
   import type { EventClipboard } from '../shell/event-clipboard.svelte';
@@ -77,6 +84,17 @@
      * führt zur Liste (der Fallback ist ohnehin der Rückweg, wenn nichts im Stack liegt).
      */
     navHistory?: NavHistory;
+    /**
+     * Suche/Filter/Modus der vier Entitätslisten (BL-320) — nur durchgereicht: die
+     * Instanzen gehören der App-Wurzel, weil der Sprung in eine Lens auch DIESE Fläche
+     * abbaut (Spec 21 §5, ADR-v9-229).
+     */
+    listStates?: {
+      person?: PersonListState;
+      family?: FamilyListState;
+      place?: PlaceListState;
+      hof?: HofListState;
+    };
   }
   const {
     appState,
@@ -88,6 +106,7 @@
     onNavigateLens,
     clipboard,
     mediaResolver,
+    listStates,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -134,7 +153,7 @@
   /**
    * Ein Werkzeug zu öffnen GIBT die Einzelauswahl des Segments auf (ADR-v9-184).
    *
-   * Warum das nötig ist: `overlayActive` (unten) lässt ein Werkzeug nur die volle Breite
+   * Warum das nötig ist: `panes.overlayActive` (unten) lässt ein Werkzeug nur die volle Breite
    * belegen, solange nichts ausgewählt ist — sonst gewönne ein vergessener Overlay-Zustand
    * gegen den gerade angesteuerten Datensatz. Diese Bedingung stammt aus dem MOBILEN
    * Entweder-oder-Modell, wo die Liste (und damit der Werkzeug-Auslöser) bei vorhandener
@@ -204,55 +223,15 @@
   const navigateToPlace = (id: string) => nav.toPlace(id);
   const navigateToHof = (id: string) => nav.toHof(id);
 
-
-  const selectedPersonId = $derived(viewState.getCurrent('person'));
-  const selectedFamilyId = $derived(viewState.getCurrent('family'));
-  const selectedSourceId = $derived(viewState.getCurrent('source'));
-  const selectedRepositoryId = $derived(viewState.getCurrent('repository'));
-  const selectedPlaceId = $derived(viewState.getCurrent('place'));
-  const selectedHofId = $derived(viewState.getCurrent('hof'));
-  const selectedMediaId = $derived(viewState.getCurrent('media'));
-
-  /** Hat das aktive Segment gerade eine Auswahl? Entscheidet mobil Liste-ODER-Detail
-   *  und auf Desktop, ob der Detail-Pane Inhalt oder Leerzustand zeigt. */
-  const hasSelection = $derived.by(() => {
-    if (activeSegment === 'person') return !!selectedPersonId;
-    if (activeSegment === 'family') return !!selectedFamilyId;
-    if (activeSegment === 'source')
-      return sourceSubView === 'repositories' ? !!selectedRepositoryId : !!selectedSourceId;
-    if (activeSegment === 'place') return !!selectedPlaceId;
-    if (activeSegment === 'media') return !!selectedMediaId;
-    return !!selectedHofId;
+  // Welche FLÄCHE gezeigt wird (Auswahl je Segment, Liste-oder-Detail, ganzflächiges
+  // Werkzeug, Flächen-Übersicht) liegt seit BL-320 in `entity-tab-panes.svelte.ts` —
+  // dritte kohäsive Einheit neben `overlays` und `nav` (dort die Begründung).
+  const panes = createEntityTabPanes({
+    viewState,
+    overlays,
+    activeSegment: () => activeSegment,
+    sourceSubView: () => sourceSubView,
   });
-
-  /** Review-/Dedup-Werkzeuge sind breite Arbeitsflächen, keine Listen: sie belegen in
-   *  BEIDEN Formfaktoren die volle Breite statt des schmalen Listen-Panes. Sonst
-   *  quetschte man eine Kandidaten-Tabelle in ~22rem (Spec 11 §6/§9.2). */
-  const overlayActive = $derived.by(() => {
-    if (activeSegment === 'person') return (overlays.personDedup || overlays.relationshipTool) && !selectedPersonId;
-    if (activeSegment === 'place') return (overlays.placeReview || overlays.placeDedup) && !selectedPlaceId;
-    if (activeSegment === 'hof') return (overlays.hofReview || overlays.hofDedup) && !selectedHofId;
-    return false;
-  });
-
-  /**
-   * Segmente, deren ÜBERSICHT eine Fläche ist statt einer Spalte (ADR-v9-192) — heute
-   * genau die Medien-Kachelgalerie. Sie folgen dem Entweder-oder-Modell in BEIDEN
-   * Formfaktoren: Übersicht über die ganze Fläche, Auswahl schaltet auf das Detail um.
-   *
-   * Warum das Multi-Pane hier nicht trägt: die Listenspalte ist 22rem breit und für einen
-   * Index zum Überfliegen ausgelegt (INV-UI-14-Kurznamen). Ein Kachelraster (`auto-fill`,
-   * 11rem-Kacheln) bekommt darin genau EINE Spalte — am Realbestand standen 641 Kacheln
-   * untereinander in einem Drittel des Fensters, während zwei Drittel den Leerzustand
-   * „Kein Eintrag ausgewählt" trugen. Das ist derselbe Gedanke, aus dem `overlayActive`
-   * die Review-/Dedup-Werkzeuge ganzflächig zeigt (Spec 21 §10n): eine Arbeitsfläche ist
-   * keine zweite Detailansicht neben einer Liste — nur hier gilt er für die Übersicht
-   * selbst, nicht für ein Werkzeug daneben.
-   *
-   * Folge, die mitgezogen werden MUSS: ohne dauerhaft sichtbare Übersicht braucht das
-   * Detail auch auf Desktop den Rückweg (`DetailHeader backAlways`, dort begründet).
-   */
-  const areaOverview = $derived(activeSegment === 'media');
 
 </script>
 
@@ -331,12 +310,13 @@
       <PersonList
         {appState}
         {viewState}
+        list={listStates?.person}
         onCreate={(id) => nav.createPerson(id)}
         onOpenDedup={() => openTool('person', overlays.openPersonDedup)}
         onOpenRelationship={() => openTool('person', overlays.openRelationshipTool)}
       />
     {:else if activeSegment === 'family'}
-      <FamilyList {appState} {viewState} onCreate={(id) => nav.createFamily(id)} />
+      <FamilyList {appState} {viewState} list={listStates?.family} onCreate={(id) => nav.createFamily(id)} />
     {:else if activeSegment === 'source'}
       {#if sourceSubView === 'repositories'}
         <RepositoryList {appState} {viewState} onCreate={(id) => nav.createRepository(id)} />
@@ -347,6 +327,7 @@
       <PlaceList
         {appState}
         {viewState}
+        list={listStates?.place}
         onOpenReview={() => openTool('place', overlays.openPlaceReview)}
         onOpenDedup={() => openTool('place', overlays.openPlaceDedup)}
         {onNavigateLens}
@@ -355,6 +336,7 @@
       <HofList
         {appState}
         {viewState}
+        list={listStates?.hof}
         onOpenReview={() => openTool('hof', overlays.openHofReview)}
         onOpenDedup={() => openTool('hof', overlays.openHofDedup)}
         {onNavigateLens}
@@ -365,7 +347,7 @@
   {/snippet}
 
   {#snippet detailPane()}
-    {#if activeSegment === 'person' && selectedPersonId}
+    {#if activeSegment === 'person' && panes.selectedPersonId}
       <PersonDetail
         {appState}
         {viewState}
@@ -378,9 +360,9 @@
         onBack={goBack}
         {clipboard}
         {mediaResolver}
-        startInEdit={selectedPersonId === nav.createdPersonId}
+        startInEdit={panes.selectedPersonId === nav.createdPersonId}
       />
-    {:else if activeSegment === 'family' && selectedFamilyId}
+    {:else if activeSegment === 'family' && panes.selectedFamilyId}
       <FamilyDetail
         {appState}
         {viewState}
@@ -393,15 +375,15 @@
         onBack={goBack}
         {mediaResolver}
       />
-    {:else if activeSegment === 'source' && sourceSubView === 'repositories' && selectedRepositoryId}
+    {:else if activeSegment === 'source' && sourceSubView === 'repositories' && panes.selectedRepositoryId}
       <RepositoryDetail
         {appState}
         {viewState}
         onNavigateToSource={navigateToSource}
         onBack={goBack}
-        startInEdit={selectedRepositoryId === nav.createdRepositoryId}
+        startInEdit={panes.selectedRepositoryId === nav.createdRepositoryId}
       />
-    {:else if activeSegment === 'source' && sourceSubView === 'sources' && selectedSourceId}
+    {:else if activeSegment === 'source' && sourceSubView === 'sources' && panes.selectedSourceId}
       <SourceDetail
         {appState}
         {viewState}
@@ -409,9 +391,9 @@
         onNavigateToFamily={navigateToFamily}
         onNavigateToRepository={navigateToRepository}
         onBack={goBack}
-        startInEdit={selectedSourceId === nav.createdSourceId}
+        startInEdit={panes.selectedSourceId === nav.createdSourceId}
       />
-    {:else if activeSegment === 'place' && selectedPlaceId}
+    {:else if activeSegment === 'place' && panes.selectedPlaceId}
       <PlaceDetail
         {appState}
         {viewState}
@@ -420,9 +402,9 @@
         onBack={goBack}
         {onNavigateLens}
       />
-    {:else if activeSegment === 'hof' && selectedHofId}
+    {:else if activeSegment === 'hof' && panes.selectedHofId}
       <HofDetail {appState} {viewState} onNavigateToPerson={navigateToPerson} onBack={goBack} {onNavigateLens} />
-    {:else if activeSegment === 'media' && selectedMediaId}
+    {:else if activeSegment === 'media' && panes.selectedMediaId}
       <MediaDetail
         {appState}
         {viewState}
@@ -440,9 +422,9 @@
     {/if}
   {/snippet}
 
-  {#if overlayActive}
+  {#if panes.overlayActive}
     <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
-         s. `overlayActive` oben. -->
+         s. `panes.overlayActive` oben. -->
     {#if activeSegment === 'person' && overlays.personDedup}
       <PersonDedupView {appState} onClose={overlays.closePersonDedup} />
     {:else if activeSegment === 'person' && overlays.relationshipTool}
@@ -466,22 +448,22 @@
     {:else if activeSegment === 'hof' && overlays.hofDedup}
       <HofDedupView {appState} onClose={overlays.closeHofDedup} />
     {/if}
-  {:else if layout.isDesktopLayout && areaOverview}
-    <!-- Flächen-Übersicht auf Desktop (`areaOverview`, ADR-v9-192): Entweder-oder auf der
+  {:else if layout.isDesktopLayout && panes.areaOverview}
+    <!-- Flächen-Übersicht auf Desktop (`panes.areaOverview`, ADR-v9-192): Entweder-oder auf der
          GANZEN Fläche statt Liste-neben-Detail. Die Pane-Hülle stellt Höhe und
          Scroll-Container (geteilt mit dem Multi-Pane), aber eine EIGENE Modifier-Klasse:
          `--detail` steht für „die rechte Hälfte", und diese Fläche ist keine Hälfte —
          Tests wie `multi-pane.test.ts` prüfen genau daran. Keine Wisch-Geste: die ist
          ausdrücklich mobil (s. u.), hier tragen Zurück-Knopf und Tastenkürzel. -->
     <div class="entity-tab__pane entity-tab__pane--area">
-      {#if hasSelection}{@render detailPane()}{:else}{@render listPane()}{/if}
+      {#if panes.hasSelection}{@render detailPane()}{:else}{@render listPane()}{/if}
     </div>
   {:else if layout.isDesktopLayout}
     <div class="entity-tab__panes">
       <div class="entity-tab__pane entity-tab__pane--list">{@render listPane()}</div>
       <div class="entity-tab__pane entity-tab__pane--detail">{@render detailPane()}</div>
     </div>
-  {:else if hasSelection}
+  {:else if panes.hasSelection}
     <!-- Wisch-Geste NUR auf der mobilen Detail-Fläche (BL-07, Spec 21 §2): dort ersetzt
          das Detail die Liste, ein Rückweg ist also erwartbar. Die Lens-Inseln bekommen
          sie ausdrücklich NICHT — dort gehört die waagerechte Geste dem Karten-/Baum-Pan
@@ -578,7 +560,7 @@
     flex: 1;
   }
 
-  /* Ganzflächige Übersicht statt Listenspalte (ADR-v9-192, `areaOverview`) — dieselbe
+  /* Ganzflächige Übersicht statt Listenspalte (ADR-v9-192, `panes.areaOverview`) — dieselbe
      Pane-Mechanik, nur ohne Nachbarn. */
   .entity-tab__pane--area {
     flex: 1;

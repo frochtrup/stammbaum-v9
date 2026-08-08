@@ -9,6 +9,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createPersonListState } from '../../ui/views/list-view-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson, makeMediaCitation } from '../../core/model';
 import { AnchorDownloadAdapter } from '../../services/file/download-adapter';
@@ -383,5 +384,44 @@ describe('PersonList — Namenlose gruppiert/kollabiert (ADR-v9-121)', () => {
     // genau der eine namenlose Treffer ist ohne Toggle sichtbar
     expect(screen.getByText('(ohne Namen)')).toBeTruthy();
     expect(screen.getByRole('button', { name: /1 ohne Namen/ })).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: Suche, Filter und Sortier-Modus überleben das Wegnavigieren (Spec 21 §5).
+// Auf Mobil ERSETZT das Detail diese Liste — wer aus einer gefilterten Liste eine Person
+// öffnet, kam bisher in die ungefilterte zurück. Geprüft am gerenderten DOM, nicht am
+// Halter: gespeichert ist nicht sichtbar.
+describe('PersonList — Suche/Filter/Sortierung überleben das Wegnavigieren (BL-320)', () => {
+  it('kommt mit derselben Suche und derselben Trefferzahl zurück', async () => {
+    const list = createPersonListState();
+    const appState = seedAppState();
+    const props = { appState, viewState: createViewState(), list };
+
+    const first = render(PersonList, { props });
+    await fireEvent.input(screen.getByLabelText('Personen durchsuchen'), { target: { value: 'Otto' } });
+    expect(screen.getByRole('button', { name: /Otto/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Anna/ })).toBeNull();
+    first.unmount();
+
+    render(PersonList, { props: { appState, viewState: createViewState(), list } });
+
+    expect((screen.getByLabelText('Personen durchsuchen') as HTMLInputElement).value).toBe('Otto');
+    expect(screen.getByRole('button', { name: /Otto/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Anna/ })).toBeNull();
+  });
+
+  it('kommt im zuletzt gewählten Sortier-Modus zurück, nicht auf „Name"', async () => {
+    const list = createPersonListState();
+    const appState = seedAppState();
+
+    const first = render(PersonList, { props: { appState, viewState: createViewState(), list } });
+    await fireEvent.click(screen.getByRole('button', { name: /⇅/ }));
+    expect(screen.getByRole('button', { name: /Geburtsdatum/ })).toBeTruthy();
+    first.unmount();
+
+    render(PersonList, { props: { appState, viewState: createViewState(), list } });
+
+    expect(screen.getByRole('button', { name: /Geburtsdatum/ })).toBeTruthy();
   });
 });

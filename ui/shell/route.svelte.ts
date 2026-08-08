@@ -89,6 +89,16 @@ export interface Route {
    * die Story-Lens ihren zuletzt gewählten Modus behält (Spec 21 §4).
    */
   readonly storyMode: StoryModeId;
+  /**
+   * Anzeige-Modus der Aufgaben-Fläche (Liste · Board) und des Protokolls (gruppiert ·
+   * Zeitleiste). Achte und neunte Ausprägung desselben Merkers (BL-320,
+   * ADR-v9-229-Nachtrag): beide hängen an einem `ViewModeToggle` wie die vier Lens-Modi
+   * darüber und lagen trotzdem als komponenten-lokaler `$state` in ihrer View — die Regel
+   * war an vier Stellen gebaut und an diesen zwei nicht. Wer aus einem Kanban-Board eine
+   * Person öffnete, kam in die Listenansicht zurück.
+   */
+  readonly tasksMode: TasksModeId;
+  readonly logMode: LogModeId;
   /** Ziel setzen; ist es ein Entitäts-/Lens-Ziel, zieht der jeweilige Merker mit. */
   setTarget(target: RouteTarget): void;
   /** Zurück in die Entitäten-Fläche, auf das zuletzt dort offene Segment. */
@@ -105,10 +115,20 @@ export interface Route {
   setTreeMode(mode: TreeModeId): void;
   /** Anzeige-Modus der Story-Lens wechseln (Person · Familie; merkt ihn sich). */
   setStoryMode(mode: StoryModeId): void;
+  /** Anzeige-Modus der Aufgaben-Fläche wechseln (Liste · Board; merkt ihn sich). */
+  setTasksMode(mode: TasksModeId): void;
+  /** Anzeige-Modus des Protokolls wechseln (gruppiert · Zeitleiste; merkt ihn sich). */
+  setLogMode(mode: LogModeId): void;
 }
 
 /** Anzeige-Modus der Story-Lens (BL-186, Spec 20 §1.10). */
 export type StoryModeId = 'person' | 'family';
+
+/** Anzeige-Modus der Aufgaben-Fläche (BL-320, Spec 20 §1.11a). */
+export type TasksModeId = 'list' | 'board';
+
+/** Anzeige-Modus des Forschungsprotokolls (BL-320, Spec 20 §1.11b). */
+export type LogModeId = 'grouped' | 'timeline';
 
 export interface RouteOptions {
   /** Startziel (Default 'person' — Spec 21 §2: Personen ist der Einstieg). */
@@ -127,6 +147,10 @@ export interface RouteOptions {
   treeMode?: TreeModeId;
   /** Start-Modus der Story-Lens. */
   storyMode?: StoryModeId;
+  /** Start-Modus der Aufgaben-Fläche. */
+  tasksMode?: TasksModeId;
+  /** Start-Modus des Protokolls. */
+  logMode?: LogModeId;
 }
 
 export function createRoute(options: RouteOptions = {}): Route {
@@ -145,6 +169,8 @@ export function createRoute(options: RouteOptions = {}): Route {
   let timelineMode = $state<TimelineModeId>(options.timelineMode ?? 'swim');
   let treeMode = $state<TreeModeId>(options.treeMode ?? 'hourglass');
   let storyMode = $state<StoryModeId>(options.storyMode ?? 'person');
+  let tasksMode = $state<TasksModeId>(options.tasksMode ?? 'list');
+  let logMode = $state<LogModeId>(options.logMode ?? 'grouped');
 
   return {
     get target() {
@@ -170,6 +196,12 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     get storyMode() {
       return storyMode;
+    },
+    get tasksMode() {
+      return tasksMode;
+    },
+    get logMode() {
+      return logMode;
     },
     setTarget(next) {
       if (isEntityTarget(next)) entityTarget = next;
@@ -197,6 +229,12 @@ export function createRoute(options: RouteOptions = {}): Route {
     },
     setStoryMode(next) {
       storyMode = next;
+    },
+    setTasksMode(next) {
+      tasksMode = next;
+    },
+    setLogMode(next) {
+      logMode = next;
     },
   };
 }

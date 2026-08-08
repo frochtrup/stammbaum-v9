@@ -308,3 +308,32 @@ describe('App — Ansichts-Unterzustand überlebt echte Navigation (BL-319, Spec
     expect(screen.getByText('Max Muster')).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// BL-320: dieselbe Zusicherung an der Fläche, die ein Nutzer am häufigsten benutzt — die
+// Personenliste. Auf Mobil ERSETZT das Detail die Liste; der Weg ist also derselbe wie
+// beim Dashboard oben, nur eine Ebene alltäglicher. Auch hier mit echter Navigation, weil
+// nur so geprüft ist, dass die App-Wurzel die Halter durchreicht.
+describe('App — Listen-Suche überlebt echte Navigation (BL-320, Spec 21 §5)', () => {
+  it('Personenliste: die Suche steht nach dem Öffnen einer Person und dem Rückweg noch', async () => {
+    const { adapters } = createMockAdapterSet({
+      initialWorkingCopy: { text: MINI_GED, name: 'arbeitskopie.ged' },
+    });
+    render(App, {
+      props: { fileService: new FileService(adapters), persister: mockPersister(), layoutEnv: layoutEnvFor(false) },
+    });
+
+    const feld = await waitFor(() => screen.getByLabelText('Personen durchsuchen'));
+    await fireEvent.input(feld, { target: { value: 'Muster' } });
+    const zeile = await waitFor(() => screen.getByRole('button', { name: /Max Muster/ }));
+
+    // Person öffnen (mobil ersetzt das Detail die Liste) …
+    await fireEvent.click(zeile);
+    expect(await waitFor(() => screen.getByRole('heading', { name: /Max Muster/ }))).toBeTruthy();
+    // … und über „← Zurück" wieder in die Liste.
+    await fireEvent.click(screen.getByRole('button', { name: /Zurück/ }));
+
+    expect((await waitFor(() => screen.getByLabelText('Personen durchsuchen'))) as HTMLInputElement).toBeTruthy();
+    expect((screen.getByLabelText('Personen durchsuchen') as HTMLInputElement).value).toBe('Muster');
+  });
+});

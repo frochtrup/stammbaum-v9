@@ -17,14 +17,14 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
+  import { untrack } from 'svelte';
   import { layout } from '../../shell/layout.svelte';
+  import { createPersonListState, type PersonListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import {
     buildPersonGroups,
     defaultPersonFilters,
-    type PersonFilters,
-    type PersonSortMode,
     type PersonRow,
   } from './person-list-model';
 
@@ -50,8 +50,26 @@
     /** Öffnet den Beziehungsrechner (BL-134). Gleiches Muster wie onOpenDedup — die Ansicht
      *  gehört EntityTab, hier sitzt nur der Öffner. */
     onOpenRelationship?: () => void;
+    /**
+     * Suche, Filter und Sortier-Modus von AUSSEN (BL-320): auf Mobil ersetzt das Detail
+     * diese Liste, komponenten-lokal wäre eine eingegrenzte Suche nach jedem Blick auf
+     * eine Person weg (Spec 21 §5). Optional, damit Komponententests die Liste ohne
+     * Umgebung montieren können — dann mit einer eigenen, komponenten-langen Instanz.
+     */
+    list?: PersonListState;
   }
-  const { appState, viewState, onCreate, onOpenDedup, onOpenRelationship }: Props = $props();
+  const {
+    appState,
+    viewState,
+    onCreate,
+    onOpenDedup,
+    onOpenRelationship,
+    list: listProp,
+  }: Props = $props();
+
+  // Einmal beim Aufbau festgelegt (das `untrack` sagt genau das): die Hülle wird nie
+  // ausgetauscht, der Zustand DARIN ist reaktiv.
+  const list = untrack(() => listProp ?? createPersonListState());
 
   function createPerson() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -60,16 +78,16 @@
     onCreate?.(id);
   }
 
-  let sortMode = $state<PersonSortMode>('name');
-  let query = $state('');
-  let filters = $state<PersonFilters>(defaultPersonFilters());
+  // `filters` ist ein Alias auf das Filter-Objekt IM Halter — es wird nie ersetzt,
+  // sondern nur in seinen Feldern verändert (`bind:` schreibt durch den $state-Proxy).
+  const filters = list.filters;
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultPersonFilters()));
   // Effektiver Proband (BL-120) bestimmt die Kekulé-Ziffern der Zeilen (BL-195). Das Modell
   // bleibt DOM-frei; die Auflösung passiert hier in der Schale.
   const probandId = $derived(resolveProband(appState.db, viewState));
   const groups = $derived(
-    buildPersonGroups(appState.db, appState.placeContext, sortMode, query, filters, probandId),
+    buildPersonGroups(appState.db, appState.placeContext, list.sortMode, list.query, filters, probandId),
   );
   const isEmpty = $derived(appState.db.individuals.size === 0);
   const hasResults = $derived(groups.some((g) => g.rows.length > 0));
@@ -90,7 +108,7 @@
   // gelistet (ADR-v9-121) — sonst öffnet die Liste mit einem Stapel „(ohne Namen)"/„?".
   // Bei aktiver Suche/Filterung stets aufgeklappt, sonst würden namenlose Treffer versteckt.
   let namelessExpanded = $state(false);
-  const hasActiveQuery = $derived(query.trim() !== '' || activeFilterCount > 0);
+  const hasActiveQuery = $derived(list.query.trim() !== '' || activeFilterCount > 0);
   const namelessOpen = $derived(namelessExpanded || hasActiveQuery);
 
   function selectPerson(id: string) {
@@ -98,15 +116,17 @@
   }
 
   function toggleSortMode() {
-    sortMode = sortMode === 'name' ? 'birthDate' : 'name';
+    list.sortMode = list.sortMode === 'name' ? 'birthDate' : 'name';
   }
 
   function clearSearch() {
-    query = '';
+    list.query = '';
   }
 
   function resetFilters() {
-    filters = defaultPersonFilters();
+    // Felder zurücksetzen statt das Objekt zu ersetzen — der Alias oben zeigt weiter
+    // auf dasselbe Filter-Objekt im Halter.
+    Object.assign(filters, defaultPersonFilters());
   }
 </script>
 
@@ -121,7 +141,7 @@
   {:else}
     <div class="person-list__toolbar">
       <button type="button" class="person-list__sort-toggle" onclick={toggleSortMode}>
-        ⇅ {sortMode === 'name' ? 'Name' : 'Geburtsdatum'}
+        ⇅ {list.sortMode === 'name' ? 'Name' : 'Geburtsdatum'}
       </button>
       <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
       <div class="person-list__search">
@@ -129,9 +149,9 @@
           type="search"
           placeholder="Suche…"
           aria-label="Personen durchsuchen"
-          bind:value={query}
+          bind:value={list.query}
         />
-        {#if query}
+        {#if list.query}
           <button type="button" class="person-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>

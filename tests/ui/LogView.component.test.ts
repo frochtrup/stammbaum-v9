@@ -5,7 +5,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import LogView from '../../ui/views/research-log/LogView.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createLogViewState } from '../../ui/views/research-segment-state.svelte';
 import { makeDatabase, makePerson, makeRepository, makeSource } from '../../core/model';
 import { makeLogEntry, makeTask } from '../../core/research/index';
 
@@ -25,7 +27,7 @@ function renderView(db: ReturnType<typeof makeDatabase>) {
   appState.loadDatabase(db, 'test.ged');
   const onNavigateToPerson = vi.fn();
   const onNavigateToFamily = vi.fn();
-  const utils = render(LogView, { props: { appState, onNavigateToPerson, onNavigateToFamily } });
+  const utils = render(LogView, { props: { appState, route: createRoute(), onNavigateToPerson, onNavigateToFamily } });
   return { ...utils, appState, onNavigateToPerson, onNavigateToFamily };
 }
 
@@ -207,5 +209,24 @@ describe('LogView — MD-Export-Button vorhanden', () => {
     expect(screen.queryByRole('button', { name: /Als Markdown exportieren/ })).toBeNull();
     await openFilters();
     expect(screen.getByRole('button', { name: /Als Markdown exportieren/ })).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: Filter (Halter) und Anzeige-Modus (Routen-Merker) überleben das Wegnavigieren.
+describe('LogView — Filter und Anzeige-Modus überleben das Wegnavigieren (BL-320)', () => {
+  it('kommt in der Zeitleisten-Ansicht zurück, nicht in der gruppierten', async () => {
+    const route = createRoute();
+    const appState = createAppState();
+    appState.loadDatabase(seedDb(), 'test.ged');
+    const props = { appState, route, log: createLogViewState(), onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
+
+    const first = render(LogView, { props });
+    await fireEvent.click(screen.getByRole('tab', { name: /Timeline|Zeitleiste|🕒/ }));
+    first.unmount();
+
+    render(LogView, { props: { ...props } });
+
+    expect(screen.getByRole('tab', { name: /Timeline|Zeitleiste|🕒/ }).getAttribute('aria-selected')).toBe('true');
   });
 });
