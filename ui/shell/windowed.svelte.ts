@@ -76,9 +76,10 @@ export interface WindowedSection {
 export interface Windowed {
   /**
    * Eine Gruppe im selben Scroll-Container — memoisiert je `key`, damit die zurückgegebenen
-   * Actions über die Lebenszeit der Fläche dieselben bleiben.
+   * Actions über die Lebenszeit der Fläche dieselben bleiben. Schlüssel dürfen zur Laufzeit
+   * entstehen (eine nach Buchstaben gruppierte Liste kennt ihre Gruppen erst dann).
    */
-  section(key: string, klassen: readonly string[]): WindowedSection;
+  section(key: string): WindowedSection;
   /**
    * NUR für Tests: die Messwerte einer Gruppe setzen (happy-dom hat kein Layout, 32 TST-24).
    * Die Naht überbrückt genau den Teil, der schiefgehen kann — der Fertig-Zustand verlangt
@@ -126,13 +127,19 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
   let gemerkt = 0;
 
   // --- Gruppen im selben Scroll-Container (ADR-v9-235 Entscheidung 1) --------------------
-  // Die Schlüssel werden beim ersten `section(key)` vorbelegt, nicht erst beim Messen: ein
-  // erst später angelegter Feldname eines `$state`-Objekts ist eine Wette auf das
-  // Proxy-Verhalten, und Wetten sind genau das, was diese Zeile zweimal gekostet hat.
-  const tops = $state<Record<string, number>>({});
-  // Musterhöhe je Gruppe UND Höhenklasse, Schlüssel `gruppe::klasse` — die SCHÄTZUNG für noch
-  // nie gerenderte Zeilen.
-  const classHeights = $state<Record<string, number>>({});
+  // KEIN `$state`-Objekt mit dynamischen Feldnamen, sondern schlichte Maps plus ZWEI Zähler
+  // als Reaktivitäts-Quelle. Grund: eine nach Buchstaben gruppierte Liste legt ihre Gruppen
+  // erst zur Laufzeit an; ein `$state`-Objekt müsste dafür entweder Felder WÄHREND des
+  // Renderns anlegen (unsichere Mutation) oder auf das Proxy-Verhalten bei noch nicht
+  // existierenden Feldern wetten. Zwei Zähler sind gröber — jede Messung invalidiert alle
+  // Fenster — aber jedes Fenster ist ohnehin eine Division und eine binäre Suche.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const tops = new Map<string, number>();
+  /** Musterhöhe je Gruppe UND Höhenklasse (`gruppe::klasse`) — Schätzung fürs Ungerenderte. */
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const classHeights = new Map<string, number>();
+  /** Zählt jede geänderte Gruppen-Position; `slice` hängt daran. */
+  let geometrie = $state(0);
   // Gemessene Höhe je Zeile, ein `Float64Array` je Gruppe (0 = noch nie gerendert) — die
   // WAHRHEIT. Bewusst kein `$state`: ein Proxy über 20.000 Zahlen wäre teuer und brächte
   // nichts, weil ohnehin die ganze Präfixsumme neu gebaut wird. Die Reaktivität trägt
@@ -163,7 +170,10 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
     const st = containerNode.scrollTop;
     for (const [key, node] of frames) {
       const t = node.getBoundingClientRect().top - cTop + st;
-      if (tops[key] !== t) tops[key] = t;
+      if (tops.get(key) !== t) {
+        tops.set(key, t);
+        geometrie++;
+      }
     }
   }
 
@@ -172,14 +182,9 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
       return windowSlice({ count, rowHeight, scrollTop, viewportHeight, overscan: options.overscan });
     },
 
-    section(key: string, klassen: readonly string[]): WindowedSection {
+    section(key: string): WindowedSection {
       const vorhanden = sections.get(key);
       if (vorhanden) return vorhanden;
-      if (!(key in tops)) tops[key] = 0;
-      for (const k of klassen) {
-        const feld = `${key}::${k}`;
-        if (!(feld in classHeights)) classHeights[feld] = 0;
-      }
 
       const messe = (node: HTMLElement, zeile: ZeilenMass) => {
         // `getBoundingClientRect().height`, nicht `offsetHeight`: letzteres rundet auf ganze
@@ -189,7 +194,10 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         if (h <= 0) return; // happy-dom/kein Layout: keine Messung ist besser als eine 0
         // (a) Schätzung für ungerenderte Zeilen — monoton, damit die Folge endlich bleibt.
         const feld = `${key}::${zeile.klasse}`;
-        if (h > (classHeights[feld] ?? 0)) classHeights[feld] = h;
+        if (h > (classHeights.get(feld) ?? 0)) {
+          classHeights.set(feld, h);
+          messungen++;
+        }
         // (b) Wahrheit für diese eine Zeile. Bei gegebener Breite konstant, die Folge endet
         // also nach dem ersten Schreiben; ein Breitenwechsel schreibt einmal neu.
         const arr = rowHeights.get(key);
@@ -225,7 +233,8 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         },
 
         height(klasse: string) {
-          return classHeights[`${key}::${klasse}`] ?? 0;
+          void messungen;
+          return classHeights.get(`${key}::${klasse}`) ?? 0;
         },
 
         offsets(count: number, klasseVon: (i: number) => string): Float64Array {
@@ -245,7 +254,7 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
             let h = arr[i];
             if (h <= 0) {
               const k = klasseVon(i);
-              h = schaetzung[k] ?? (schaetzung[k] = classHeights[`${key}::${k}`] ?? 0);
+              h = schaetzung[k] ?? (schaetzung[k] = classHeights.get(`${key}::${k}`) ?? 0);
             }
             out[i + 1] = out[i] + h;
           }
@@ -253,16 +262,18 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         },
 
         slice(offsets) {
+          void geometrie;
           return windowSliceOffsets({
             offsets,
-            scrollTop: scrollTop - tops[key],
+            scrollTop: scrollTop - (tops.get(key) ?? 0),
             viewportHeight,
             overscan: options.overscan,
           });
         },
 
         get top() {
-          return tops[key];
+          void geometrie;
+          return tops.get(key) ?? 0;
         },
       };
       sections.set(key, s);
@@ -270,10 +281,13 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
     },
 
     setSectionMetrics(key, werte) {
-      if (!(key in tops)) tops[key] = 0;
-      if (werte.top !== undefined) tops[key] = werte.top;
+      if (werte.top !== undefined) {
+        tops.set(key, werte.top);
+        geometrie++;
+      }
       for (const [klasse, h] of Object.entries(werte.heights ?? {})) {
-        classHeights[`${key}::${klasse}`] = h;
+        classHeights.set(`${key}::${klasse}`, h);
+        messungen++;
       }
     },
 

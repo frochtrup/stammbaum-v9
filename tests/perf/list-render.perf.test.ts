@@ -8,18 +8,19 @@
 // 140.012 Knoten bei 20.000 Personen. Ohne Gate fällt das niemandem auf, weil der reale
 // Bestand mit ~3.200 Personen bei jeder Implementierung noch trägt.
 //
-// GEMESSEN WIRD „KNOTEN JE ZEILE", NICHT DIE ABSOLUTE ZAHL — und das ist Absicht:
-//  * Die Kennzahl trifft genau die Frage. Eine flache Liste hat einen konstanten Wert je
-//    Zeile (7,0), ein Fenster über den sichtbaren Bereich lässt ihn mit steigender
-//    Zeilenzahl gegen 0 fallen (der Zähler bleibt stehen, der Nenner wächst). Der Sprung
-//    von O(n) auf O(sichtbar) ist damit EINE Zahl statt acht Einzelwerte.
-//  * Sie ist hardware-unabhängig und deterministisch: die headless gemessene Knotenzahl
-//    deckt sich mit der Browser-Messung vom 2026-08-04 (22.272 vs. 22.613 bei 3.180
+// GEMESSEN WIRD DIE ABSOLUTE KNOTENZAHL GEGEN EIN FESTES BUDGET — seit BL-311 ③ alle acht
+// Flächen virtuell scrollen. Vorher stand hier „Knoten je Zeile", weil das den Sprung von
+// O(n) auf O(sichtbar) in EINER Zahl sichtbar machte; jetzt ist der Sprung vollzogen, und
+// die richtige Frage lautet nicht mehr „wie stark wächst es", sondern „wächst es überhaupt
+// noch". Deshalb prüfen n=2.000 und der Anker bei 20.000 gegen DASSELBE Budget: eine Fläche,
+// die wieder mit ihren Daten wächst, reißt es sofort.
+//  * Die Zahl ist hardware-unabhängig und deterministisch: die headless gemessene Knotenzahl
+//    deckte sich mit der Browser-Messung vom 2026-08-04 (22.272 vs. 22.613 bei 3.180
 //    Personen, unter 2 % Abweichung) — kein Emulator-Artefakt.
 //  * Sie ist billig. Der erste Entwurf rendert alle acht Flächen bei 20.000 Einträgen und
 //    sprengte reproduzierbar den Worker-Heap (OOM ab der dritten Fläche, auch mit
 //    `--expose-gc` und `--max-old-space-size=4096`; jede Fläche EINZELN läuft problemlos —
-//    es ist reine Anhäufung). Bei 2.000 Zeilen ist die Kennzahl dieselbe, der Lauf kostet
+//    es ist reine Anhäufung). Bei 2.000 Zeilen ist die Aussage dieselbe, der Lauf kostet
 //    Sekunden statt Minuten, und der Speicher bleibt flach.
 // EIN absoluter Anker bleibt: `PersonList` bei 20.000 — das ist die Zahl, die Spec 30 §1
 // nennt, und sie soll im Log stehen, nicht nur hochgerechnet werden.
@@ -29,13 +30,9 @@
 // CI-Messung eine Schätzung auf fremder Hardware (Lehre ADR-v9-91: eine Schwelle für
 // fremde Hardware lässt sich auf eigener nicht kalibrieren).
 //
-// RATSCHE, NICHT ZIELWERT. Die Werte unten stehen auf dem heutigen IST plus Reserve, nicht
-// auf dem Ziel aus NFR-1 — sonst wäre das Gate am Tag seiner Entstehung rot und würde
-// abgeschaltet (dieselbe Erwägung wie in `scale.perf.test.ts`). Es friert den Status quo
-// ein: keine Änderung darf eine Index-Fläche TEURER machen. Die Distanz zum Ziel steht in
-// jeder Zeile der Ausgabe — sie ist die eigentliche Aussage, solange BL-311s
-// Windowing-Primitive nicht an allen acht Flächen hängt. Danach sinkt die Ratsche auf
-// O(sichtbar); die Backlog-Zeile sagt das ausdrücklich.
+// RATSCHE, NICHT ZIELWERT: das Budget steht auf dem gemessenen Höchstwert plus Reserve und
+// darf nur FALLEN. Es friert den erreichten Zustand ein — keine Änderung darf eine
+// Index-Fläche teurer machen.
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import PersonList from '../../ui/views/person/PersonList.svelte';
@@ -68,43 +65,39 @@ const ZEILEN = 2_000;
 const ANKER_ZEILEN = 20_000;
 
 /**
- * Ratschen je Fläche: **gemessener Ist-Wert** (2026-08-09, headless, n=2.000) plus Reserve —
- * keine Zielwerte, keine geschätzten Zahlen. Der Kommentar hinter jeder Zeile ist die
- * Messung, gegen die die Reserve gelegt wurde.
+ * DIE EINE RATSCHE, seit alle acht Index-Flächen virtuell scrollen (BL-311 ③, ADR-v9-236):
+ * ein **absolutes Knoten-Budget je Fläche, unabhängig von der Zeilenzahl**.
  *
- * `HofList` fällt bewusst aus der Reihe: sie gruppiert nach Dorf, und eine Gruppe mit mehr
- * als 30 Zeilen klappt automatisch ein (Spec 21 §10b/ADR-v9-78). Sie rendert deshalb schon
- * heute O(Gruppen) statt O(Zeilen) — ihre Ratsche SCHÜTZT dieses Verhalten, statt ein
- * Versäumnis festzuhalten. Aufgefallen erst in der Messung: die Backlog-Zeile hatte alle
- * sechs Listen als flach geführt.
+ * Das ist der eigentliche Beweis des virtuellen Scrollens und der Grund, warum die frühere
+ * Tabelle „Knoten je Zeile" hier verschwindet: eine Kennzahl PRO ZEILE misst eine Fläche,
+ * die mit ihren Daten wächst. Genau das soll es nicht mehr geben. Eine Fläche, die wieder
+ * flach rendert, reißt dieses Budget bei n=2.000 sofort — und der Anker bei 20.000 misst
+ * dasselbe Budget, nicht ein eigenes.
  *
- * `GlobalSearchView` ist seit ADR-v9-236 die erste Fläche mit VIRTUELLEM Scrollen: 5,00 →
- * 0,03 Knoten je Zeile (10.010 → 56 bei n=2.000), Mount 213 → 12 ms. Ihre Ratsche misst
- * damit ein Fenster-Budget, nicht mehr den Ist-Wert einer flachen Liste. Die übrigen sieben
- * folgen (BL-311 ③) — erst wenn ALLE acht so gemessen werden, tritt die eine gemeinsame
- * Sichtbar-Ratsche an die Stelle dieser Tabelle, und erst dann ist die Backlog-Zeile belegt.
- * (Ihr Name steht hier bewusst NICHT ausgeschrieben: er IST der Beleg der Zeile, und ein
- * Kommentar, der ihn nennt, würde die Zeile als fertig melden — vom Backlog-Lint gefangen.)
+ * **Was hier gemessen wird, und was nicht.** happy-dom hat kein Layout, die Höhensonden
+ * liefern 0 — die Flächen rendern deshalb ihr ANFANGSFENSTER (`ERSTES_FENSTER`, 60 Zeilen je
+ * Gruppe, ADR-v9-236 Entscheidung 4). Das ist kein Kunstzustand, sondern genau der erste
+ * Takt im Browser, also die SPITZE. Das Gate bewacht damit die teuerste Stelle; den
+ * eingeschwungenen Zustand (~25–35 Zeilen je sichtbarer Gruppe) belegt der Browser-Lauf,
+ * den [32 TST-24](../../specs/v9/32-Testframework.md) zusätzlich verlangt.
+ *
+ * Gemessen 2026-08-09, headless, n=2.000: PersonList 431 · FamilyList 309 · SourceList 364 ·
+ * RepositoryList 304 · PlaceList 543 · HofList 11 · GlobalSearchView 56 · MediaGallery 433;
+ * Anker PersonList bei 20.000: 431 (vorher 140.012). Höchstwert 543 plus Reserve.
  */
-const RATSCHE_JE_ZEILE: Record<string, number> = {
-  PersonList: 7.5, // gemessen 7,01
-  FamilyList: 5.5, // gemessen 5,00
-  SourceList: 6.5, // gemessen 6,00
-  RepositoryList: 5.5, // gemessen 5,00
-  PlaceList: 9.5, // gemessen 9,01
-  HofList: 0.05, // gemessen 0,01 — Auto-Einklappen je Dorf-Gruppe (ADR-v9-78)
-  GlobalSearchView: 0.05, // gemessen 0,03 — virtuelles Scrollen, O(Fenster) statt O(Zeilen)
-  MediaGallery: 7.5, // gemessen 7,01
-};
-/** Ratsche des absoluten Ankers (Ist 140.012 + Reserve). */
-const RATSCHE_ANKER_KNOTEN = 148_000;
+const RATSCHE_SICHTBAR = 700;
 
-/**
- * Ziel-Größenordnung für die Distanz-Meldung: ein Fenster über den sichtbaren Bereich
- * braucht ~40 Zeilen Reserve, bei ≤10 Knoten je Zeile also einige hundert Knoten. 5.000
- * ist die großzügige Obergrenze — wer darunter liegt, rendert erwiesen nicht den Bestand.
- */
-const ZIEL_KNOTEN = 5_000;
+/** Die acht Flächen, die der Auftrag der Zeile nennt — Grundlage des Vollständigkeits-Siegels. */
+const FLAECHEN = [
+  'PersonList',
+  'FamilyList',
+  'SourceList',
+  'RepositoryList',
+  'PlaceList',
+  'HofList',
+  'GlobalSearchView',
+  'MediaGallery',
+] as const;
 
 /** Mount-Zeit: weiter Größenordnungs-Wecker, bis die erste CI-Messung ihn kalibriert. */
 const BUDGET_MOUNT_MS = 30_000;
@@ -219,14 +212,11 @@ function messen(name: string, zeilen: number, db: Database, bauen: Bauen): numbe
   const knoten = gebaut.container.querySelectorAll('*').length;
   gebaut.unmount();
 
-  const jeZeile = knoten / zeilen;
-  const hochgerechnet = Math.round(jeZeile * ANKER_ZEILEN);
   console.log(
-    `${name.padEnd(18)} n=${String(zeilen).padStart(6)} · Knoten ${String(knoten).padStart(7)}` +
-      ` · ${jeZeile.toFixed(2)}/Zeile` +
+    `${name.padEnd(18)} n=${String(zeilen).padStart(6)} · Knoten ${String(knoten).padStart(5)}` +
+      ` · ${(knoten / zeilen).toFixed(3)} Knoten/Zeile` +
       ` · Mount ${ms.toFixed(0).padStart(5)} ms` +
-      ` · bei ${ANKER_ZEILEN}: ~${hochgerechnet.toLocaleString('de-DE')} Knoten` +
-      ` = ${(hochgerechnet / ZIEL_KNOTEN).toFixed(0)}× Ziel (${ZIEL_KNOTEN})`,
+      ` · ${((knoten / RATSCHE_SICHTBAR) * 100).toFixed(0)}% des Fenster-Budgets (${RATSCHE_SICHTBAR})`,
   );
 
   expect(ms, `${name}: Mount-Zeit über dem Budget`).toBeLessThan(BUDGET_MOUNT_MS);
@@ -236,15 +226,15 @@ function messen(name: string, zeilen: number, db: Database, bauen: Bauen): numbe
   // „unter der Ratsche" (ADR-v9-200). Die Schwelle ist bewusst niedrig: eine Fläche, die
   // ihre Gruppen einklappt (HofList), rendert RICHTIGERWEISE wenig.
   expect(knoten, `${name}: hat nichts gerendert`).toBeGreaterThan(10);
-  return jeZeile;
+  return knoten;
 }
 
-/** Eine Fläche prüfen: Kennzahl gegen ihre Ratsche, Name fürs Vollständigkeits-Siegel. */
+/** Eine Fläche prüfen: Knotenzahl gegen das Fenster-Budget, Name fürs Vollständigkeits-Siegel. */
 function pruefen(name: string, db: Database, bauen: Bauen): void {
-  const jeZeile = messen(name, ZEILEN, db, bauen);
+  const knoten = messen(name, ZEILEN, db, bauen);
   gemessen.push(name);
-  expect(jeZeile, `${name}: Knoten je Zeile über der Ratsche`).toBeLessThanOrEqual(
-    RATSCHE_JE_ZEILE[name],
+  expect(knoten, `${name}: rendert mehr Knoten als das Fenster-Budget`).toBeLessThanOrEqual(
+    RATSCHE_SICHTBAR,
   );
 }
 
@@ -325,18 +315,18 @@ describe('Index-Flächen: Knoten je Zeile (BL-311, Spec 30 §1 NFR-1)', () => {
     ));
 
   it(`PersonList bei ${ANKER_ZEILEN} — der absolute Anker aus Spec 30 §1`, () => {
-    const jeZeile = messen('PersonList/Anker', ANKER_ZEILEN, personenDb(ANKER_ZEILEN), (a) =>
+    const knoten = messen('PersonList/Anker', ANKER_ZEILEN, personenDb(ANKER_ZEILEN), (a) =>
       render(PersonList, { props: { appState: a, viewState: vs() } }),
     );
-    expect(jeZeile * ANKER_ZEILEN, 'Anker über der Ratsche').toBeLessThanOrEqual(
-      RATSCHE_ANKER_KNOTEN,
-    );
+    // DASSELBE Budget wie bei n=2.000 — das ist die Aussage: die Knotenzahl folgt dem
+    // Fenster, nicht den Daten. Ein eigener Anker-Wert würde genau diese Aussage verwässern.
+    expect(knoten, 'Anker über dem Fenster-Budget').toBeLessThanOrEqual(RATSCHE_SICHTBAR);
   });
 
   afterAll(() => {
     // Kein stiller Teil-Lauf: acht Flächen sind der Auftrag der Zeile (BL-311). Ohne diese
     // Prüfung könnte ein `-t`-Filter oder ein entfernter Block das Gate auf eine Fläche
     // schrumpfen, und es meldete weiter grün.
-    expect(gemessen.slice().sort()).toEqual(Object.keys(RATSCHE_JE_ZEILE).sort());
+    expect(gemessen.slice().sort()).toEqual([...FLAECHEN].sort());
   });
 });

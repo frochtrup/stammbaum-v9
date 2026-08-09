@@ -13,6 +13,7 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
   import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { createPlaceListState, type PlaceListState } from '../list-view-state.svelte';
   import { placeTypeLabel, enrichmentLabel } from '../../shell/place-labels';
@@ -47,6 +48,12 @@
      * können — dann mit einer eigenen, komponenten-langen Instanz.
      */
     list?: PlaceListState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN — wie `list`, und weil happy-dom
+     * kein Layout hat, ist er der einzige Weg, gemessene Höhen für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
   const {
     appState,
@@ -55,6 +62,7 @@
     onOpenDedup,
     onNavigateLens,
     list: listProp,
+    windowed: windowedProp,
   }: Props = $props();
 
   const list = untrack(() => listProp ?? createPlaceListState());
@@ -133,6 +141,32 @@
     const ch = title.trim().charAt(0).toUpperCase();
     return /[A-ZÄÖÜ0-9]/.test(ch) ? ch : '#';
   }
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // Diese Fläche wird FLACHGELEGT gefenstert, nicht je Gruppe (ADR-v9-235 Entscheidung 1
+  // nennt sie namentlich): ihre Buchstaben-Trenner sind ohnehin Zeilen IN der Liste, keine
+  // Überschriften mit eigenem Sprungziel. Sie werden deshalb zu Einträgen der gefensterten
+  // Folge — sonst stimmte die Platzhalter-Rechnung nicht, sobald ein Trenner übersprungen
+  // wird. Zwei Höhenklassen: Trenner und Zeile; die WAHRE Höhe misst die Fläche je Zeile
+  // (ADR-v9-236), die Klasse ist nur die Schätzung fürs Ungerenderte.
+  type PlaceEintrag =
+    | { art: 'kopf'; letter: string }
+    | { art: 'zeile'; row: (typeof rows)[number] };
+  const eintraege = $derived.by((): PlaceEintrag[] => {
+    const out: PlaceEintrag[] = [];
+    rows.forEach((row, i) => {
+      if (i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)) {
+        out.push({ art: 'kopf', letter: placeInitial(row.title) });
+      }
+      out.push({ art: 'zeile', row });
+    });
+    return out;
+  });
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('places');
+  const off = $derived(sec.offsets(eintraege.length, (i: number) => eintraege[i].art));
+  const win = $derived(sec.slice(off));
+
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
 
   function selectPlace(id: string) {
@@ -148,7 +182,7 @@
   }
 </script>
 
-<div class="place-list">
+<div class="place-list" use:w.container>
   {#if isEmpty}
     <p class="place-list__empty">
       Noch keine Orte — Orte werden beim Laden einer GEDCOM-Datei automatisch aus den
@@ -283,18 +317,22 @@
         {!appState.caps.hasEventContext || list.section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
       </p>
     {:else}
-      <ul class="place-list__rows">
-        {#each rows as row, i (row.id)}
+      <ul class="place-list__rows" use:sec.frame>
+        {#if win.padTop > 0}
+          <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+        {/if}
+        {#each eintraege.slice(win.start, win.end) as eintrag, i (eintrag.art === 'kopf' ? `k${win.start + i}` : eintrag.row.id)}
           <!-- Alphabetischer Trenner (BL-204): beim ersten Buchstabenwechsel des Titels. -->
-          {#if i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)}
+          {#if eintrag.art === 'kopf'}
             <!-- `role="separator"` sitzt am inneren `<span>`, nicht am `<li>` (BL-66/axe):
                  ein `<ul>` darf nur Listeneinträge besitzen — ein `<li>`, dessen Rolle auf
                  `separator` umgestellt ist, ist keiner mehr und macht die ganze Liste
                  ungültig. Zugänglicher Name wie in `PersonList` (INV-UI-4). -->
-            <li class="place-list__letter">
-              <span role="separator" aria-label="Buchstabe {placeInitial(row.title)}">{placeInitial(row.title)}</span>
+            <li class="place-list__letter" use:sec.probe={{ klasse: 'kopf', index: win.start + i }}>
+              <span role="separator" aria-label="Buchstabe {eintrag.letter}">{eintrag.letter}</span>
             </li>
-          {/if}
+          {:else}
+            {@const row = eintrag.row}
           <!-- Der Koordinaten-Indikator steht NEBEN der Zeile, nicht darin (BL-66/axe
                `nested-interactive`): er trägt selbst einen Button (Sprung zur Karte) und
                einen Link (OpenStreetMap) — beides in der Zeilen-Schaltfläche verschachtelt
@@ -302,7 +340,7 @@
                Karten-Sprung UND die Zeilenauswahl aus, weil das Ereignis nach oben stieg.
                Dieselbe Regel, aus der `PlaceMiniMap` schon `role="button"` statt `<button>`
                ableitete — dort war nur die HTML-Hälfte gesehen, nicht die ARIA-Hälfte. -->
-          <li class="place-list__item">
+          <li class="place-list__item" use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
@@ -334,7 +372,11 @@
                  Zeilen tragen nur noch POSITIVE Fakten. -->
             <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
           </li>
+          {/if}
         {/each}
+        {#if win.padBottom > 0}
+          <li class="stb-window-pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+        {/if}
       </ul>
     {/if}
   {/if}

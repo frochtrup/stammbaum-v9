@@ -357,7 +357,7 @@ describe('GlobalSearchView — virtuelles Scrollen (BL-311, ADR-v9-236)', () => 
     for (let i = 0; i < n; i++) gesamt += i % 3 === 0 ? 34 : 51;
     for (const scrollTop of [0, 5_000, 40_000, 90_000]) {
       const { container } = renderGefenstert(n, scrollTop);
-      const pads = [...container.querySelectorAll<HTMLElement>('.global-search__pad')];
+      const pads = [...container.querySelectorAll<HTMLElement>('.stb-window-pad')];
       const padSumme = pads.reduce((s, p) => s + parseFloat(p.style.height), 0);
       const fenster = [...container.querySelectorAll('.global-search__row')].length;
       // Das Fenster selbst zählt in Zeilen; seine Höhe liegt zwischen n×34 und n×51.

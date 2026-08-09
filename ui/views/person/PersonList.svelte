@@ -11,14 +11,14 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import { tooltip } from '../../shell/tooltip';
   import { resolveProband } from '../../shell/proband';
-  import { sexSymbol } from '../../shell/person-display';
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
+  import PersonListRow from './PersonListRow.svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { layout } from '../../shell/layout.svelte';
   import { createPersonListState, type PersonListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
@@ -58,6 +58,12 @@
      * Umgebung montieren können — dann mit einer eigenen, komponenten-langen Instanz.
      */
     list?: PersonListState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN — wie `list`, und weil happy-dom
+     * kein Layout hat, ist er der einzige Weg, gemessene Höhen für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
   const {
     appState,
@@ -66,6 +72,7 @@
     onOpenDedup,
     onOpenRelationship,
     list: listProp,
+    windowed: windowedProp,
   }: Props = $props();
 
   // Einmal beim Aufbau festgelegt (das `untrack` sagt genau das): die Hülle wird nie
@@ -97,6 +104,26 @@
   // und sortierte Zeilenmenge, wie sie die Liste gerade zeigt" meint die Filterung, nicht
   // die View-lokale Kollaps-Anzeige).
   const flatRows = $derived(groups.flatMap((g) => g.rows));
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // EIN Fenster je GRUPPE, nicht eines über eine flachgelegte Liste. Anders als bei den Orten
+  // ist das hier keine Stilfrage: die Buchstaben-Trenner sind `position: sticky`, und ihr
+  // Klebe-Bezug ist der Gruppen-Container. Flachgelegt stapelten sich alle Trenner am oberen
+  // Rand, statt einander wegzuschieben — die Gruppierung TRÄGT also sichtbares Verhalten.
+  // Die Fenster stehen als EIN `$derived` im Skript (ADR-v9-235 Entscheidung 5); die Gruppen
+  // entstehen zur Laufzeit, deshalb sind auch die Gruppen-Schlüssel dynamisch.
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const gruppenSchluessel = (g: (typeof groups)[number]) =>
+    g.nameless ? 'namenlos' : g.phonetic ? 'phon' : `L${g.letter ?? '·'}`;
+  const fenster = $derived.by(() =>
+    groups.map((g) => {
+      const sec = w.section(gruppenSchluessel(g));
+      // Eingeklappte Namenlose rendern nichts — dann ist auch nichts zu fenstern.
+      const anzahl = g.nameless && !namelessOpen ? 0 : g.rows.length;
+      return { sec, win: sec.slice(sec.offsets(anzahl, () => 'zeile')) };
+    }),
+  );
+
 
   function exportCsv() {
     const csv = toCsv(flatRows, csvColumns);
@@ -133,7 +160,7 @@
 
 <!-- `data-tour`: Ziel des Erstnutzer-Rundgangs (BL-213). Reines Anker-Attribut —
      die Liste weiß nichts vom Rundgang, der Rundgang nichts von der Liste. -->
-<div class="person-list" data-tour="list">
+<div class="person-list" data-tour="list" use:w.container>
   {#if isEmpty}
     <p class="person-list__empty">{noDataHint('Personen', layout.isDesktopLayout)}</p>
     <div class="person-list__toolbar person-list__toolbar--empty">
@@ -230,28 +257,19 @@
       {/if}
     </div>
 
-    {#snippet personRows(rows: PersonRow[])}
-      <ul class="person-list__rows">
-        {#each rows as row (row.id)}
-          <li>
-            <button type="button" class="person-list__row" onclick={() => selectPerson(row.id)}>
-              <span class="person-list__name-line">
-                <span class="person-list__sex person-list__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>
-                <span class="person-list__name">{row.name}</span>
-                {#if row.kekule != null}<span class="person-list__kekule" use:tooltip={'Ahnenziffer (Kekulé) zum Probanden'}>#{row.kekule}</span>{/if}
-                {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
-              </span>
-              <span class="person-list__meta">
-                {#if row.birthSummary}
-                  <span use:tooltip={row.birthPlaceFull || undefined}>* {row.birthSummary}</span>
-                {/if}
-                {#if row.deathSummary}
-                  <span use:tooltip={row.deathPlaceFull || undefined}>† {row.deathSummary}</span>
-                {/if}
-              </span>
-            </button>
+    {#snippet personRows(rows: PersonRow[], f: (typeof fenster)[number])}
+      <ul class="person-list__rows" use:f.sec.frame>
+        {#if f.win.padTop > 0}
+          <li class="stb-window-pad" style:height={f.win.padTop + 'px'} aria-hidden="true"></li>
+        {/if}
+        {#each rows.slice(f.win.start, f.win.end) as row, i (row.id)}
+          <li use:f.sec.probe={{ klasse: 'zeile', index: f.win.start + i }}>
+            <PersonListRow {row} onSelect={selectPerson} />
           </li>
         {/each}
+        {#if f.win.padBottom > 0}
+          <li class="stb-window-pad" style:height={f.win.padBottom + 'px'} aria-hidden="true"></li>
+        {/if}
       </ul>
     {/snippet}
 
@@ -261,7 +279,7 @@
       <!-- Schlüssel muss die Vorrang-Gruppe unterscheiden (ADR-v9-160): im Datum-Modus
            trägt AUCH die Restgruppe `letter === null` — ohne das eigene Präfix kollidierten
            beide Schlüssel. -->
-      {#each groups as group (group.phonetic ? 'phon' : (group.letter ?? '·'))}
+      {#each groups as group, gi (group.phonetic ? 'phon' : (group.letter ?? '·'))}
         {#if group.nameless}
           <div class="person-list__group person-list__group--nameless">
             <button
@@ -274,7 +292,7 @@
               {group.rows.length} ohne Namen
             </button>
             {#if namelessOpen}
-              {@render personRows(group.rows)}
+              {@render personRows(group.rows, fenster[gi])}
             {/if}
           </div>
         {:else}
@@ -294,7 +312,7 @@
                 {group.letter}
               </div>
             {/if}
-            {@render personRows(group.rows)}
+            {@render personRows(group.rows, fenster[gi])}
           </div>
         {/if}
       {/each}
@@ -498,70 +516,4 @@
     padding: 0;
   }
 
-  .person-list__row {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--stb-surface-2);
-    padding: 0.55rem 1rem;
-    text-align: left;
-    cursor: pointer;
-    color: var(--stb-text);
-  }
-
-  .person-list__row:hover,
-  .person-list__row:focus-visible {
-    background: var(--stb-surface-2);
-  }
-
-  .person-list__name-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .person-list__name {
-    font-weight: 600;
-  }
-
-  /* Geschlechts-Icon (BL-195) — dieselben Farben wie Sanduhr/Statistik (--stb-sex-*). */
-  .person-list__sex {
-    flex: none;
-    font-size: 0.9rem;
-    line-height: 1;
-    color: var(--stb-text-dim);
-  }
-  .person-list__sex--m {
-    color: var(--stb-sex-m);
-  }
-  .person-list__sex--f {
-    color: var(--stb-sex-f);
-  }
-
-  /* Kekulé-/Ahnenziffer relativ zum Probanden (BL-195, v8-Orakel `p-kekule`).
-     Sekundär-Datum → bewusst entdramatisiert (Design-Kritik 2026-07-29): Outline statt
-     gefülltem Gold, damit der Name primär bleibt und die Ziffer nicht mit Aktions-Pills
-     konkurriert. Löst zugleich das Gold-auf-Gold-Kontrastrisiko. */
-  .person-list__kekule {
-    flex: none;
-    font-size: 0.72rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--stb-gold-light);
-    background: transparent;
-    border: 1px solid var(--stb-gold-dim);
-    border-radius: 0.6rem;
-    padding: 0.05rem 0.4rem;
-  }
-
-  .person-list__meta {
-    display: flex;
-    gap: 0.75rem;
-    font-size: 0.78rem;
-    color: var(--stb-text-dim);
-  }
 </style>

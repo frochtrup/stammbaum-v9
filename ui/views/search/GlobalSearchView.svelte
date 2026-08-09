@@ -134,13 +134,12 @@
   // binäre Suche darin ist NFR-1s „O(log n)" wörtlich.
   // Die Fenster stehen als `$derived` IM SKRIPT, nicht als `{@const}` im Template
   // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
-  const KLASSEN = ['eins', 'zwei', 'kopf'] as const;
   const w = untrack(() => windowedProp ?? createWindowed());
-  const secPersons = w.section('persons', KLASSEN);
-  const secFamilies = w.section('families', KLASSEN);
-  const secSources = w.section('sources', KLASSEN);
-  const secPlaces = w.section('places', KLASSEN);
-  const secHofs = w.section('hofs', KLASSEN);
+  const secPersons = w.section('persons');
+  const secFamilies = w.section('families');
+  const secSources = w.section('sources');
+  const secPlaces = w.section('places');
+  const secHofs = w.section('hofs');
 
   /** Höhenklasse einer Trefferzeile: mit Zweitzeile („* 1905, Vreden") oder ohne. */
   const klasseVon = (row: { secondary?: string | null }) => (row.secondary ? 'zwei' : 'eins');
@@ -253,7 +252,7 @@
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
             {#if winPersons.padTop > 0}
-              <li class="global-search__pad" style:height={winPersons.padTop + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winPersons.padTop + 'px'} aria-hidden="true"></li>
             {/if}
             {#each personRows.slice(winPersons.start, winPersons.end) as eintrag, i (eintrag.art === 'kopf' ? `k${winPersons.start + i}` : eintrag.row.id)}
               <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
@@ -283,7 +282,7 @@
               {/if}
             {/each}
             {#if winPersons.padBottom > 0}
-              <li class="global-search__pad" style:height={winPersons.padBottom + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winPersons.padBottom + 'px'} aria-hidden="true"></li>
             {/if}
           </ul>
         </section>
@@ -294,7 +293,7 @@
           <h2 class="global-search__group-title">Familien</h2>
           <ul class="global-search__rows">
             {#if winFamilies.padTop > 0}
-              <li class="global-search__pad" style:height={winFamilies.padTop + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winFamilies.padTop + 'px'} aria-hidden="true"></li>
             {/if}
             {#each results.families.slice(winFamilies.start, winFamilies.end) as row, i (row.id)}
               <li use:secFamilies.probe={{ klasse: klasseVon(row), index: winFamilies.start + i }}>
@@ -307,7 +306,7 @@
               </li>
             {/each}
             {#if winFamilies.padBottom > 0}
-              <li class="global-search__pad" style:height={winFamilies.padBottom + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winFamilies.padBottom + 'px'} aria-hidden="true"></li>
             {/if}
           </ul>
         </section>
@@ -318,7 +317,7 @@
           <h2 class="global-search__group-title">Quellen</h2>
           <ul class="global-search__rows">
             {#if winSources.padTop > 0}
-              <li class="global-search__pad" style:height={winSources.padTop + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winSources.padTop + 'px'} aria-hidden="true"></li>
             {/if}
             {#each results.sources.slice(winSources.start, winSources.end) as row, i (row.id)}
               <li use:secSources.probe={{ klasse: klasseVon(row), index: winSources.start + i }}>
@@ -329,7 +328,7 @@
               </li>
             {/each}
             {#if winSources.padBottom > 0}
-              <li class="global-search__pad" style:height={winSources.padBottom + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winSources.padBottom + 'px'} aria-hidden="true"></li>
             {/if}
           </ul>
         </section>
@@ -340,7 +339,7 @@
           <h2 class="global-search__group-title">Orte</h2>
           <ul class="global-search__rows">
             {#if winPlaces.padTop > 0}
-              <li class="global-search__pad" style:height={winPlaces.padTop + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winPlaces.padTop + 'px'} aria-hidden="true"></li>
             {/if}
             {#each results.places.slice(winPlaces.start, winPlaces.end) as row, i (row.id)}
               <li use:secPlaces.probe={{ klasse: klasseVon(row), index: winPlaces.start + i }}>
@@ -351,7 +350,7 @@
               </li>
             {/each}
             {#if winPlaces.padBottom > 0}
-              <li class="global-search__pad" style:height={winPlaces.padBottom + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winPlaces.padBottom + 'px'} aria-hidden="true"></li>
             {/if}
           </ul>
         </section>
@@ -362,7 +361,7 @@
           <h2 class="global-search__group-title">Höfe</h2>
           <ul class="global-search__rows">
             {#if winHofs.padTop > 0}
-              <li class="global-search__pad" style:height={winHofs.padTop + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winHofs.padTop + 'px'} aria-hidden="true"></li>
             {/if}
             {#each results.hofs.slice(winHofs.start, winHofs.end) as row, i (row.id)}
               <li use:secHofs.probe={{ klasse: klasseVon(row), index: winHofs.start + i }}>
@@ -373,7 +372,7 @@
               </li>
             {/each}
             {#if winHofs.padBottom > 0}
-              <li class="global-search__pad" style:height={winHofs.padBottom + 'px'} aria-hidden="true"></li>
+              <li class="stb-window-pad" style:height={winHofs.padBottom + 'px'} aria-hidden="true"></li>
             {/if}
           </ul>
         </section>
@@ -490,19 +489,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-  }
-
-  /* Platzhalter für die nicht gerenderten Zeilen ober- und unterhalb des Fensters
-     (ADR-v9-235 Entscheidung 3): sie halten Scrollbalken, Scroll-Position und Sprünge
-     wahr — ohne sie wäre virtuelles Scrollen eine Täuschung über die Datenmenge.
-     Ihre Höhe kommt über die `style:height`-Direktive, NICHT über ein `style=`-Attribut:
-     die Direktive schreibt zur Laufzeit ins CSSOM (`element.style.setProperty`), was die
-     Content-Security-Policy erlaubt — ein Attribut im Markup wäre unter ihr tot
-     (`npm run check:csp`). Das ist die erste Fläche mit dynamischer Geometrie, deshalb
-     steht es hier und nicht schon irgendwo als Präzedenz. */
-  .global-search__pad {
-    list-style: none;
-    pointer-events: none;
   }
 
   .global-search__row {

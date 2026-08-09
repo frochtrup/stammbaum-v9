@@ -23,7 +23,7 @@ function zeile(hoehe: number): HTMLElement {
 describe('Höhenmessung terminiert (der Riegel gegen die Schaukel, ADR-v9-236 Entscheidung 3)', () => {
   it('nimmt den größten Wert und hört dann auf, sich zu ändern', () => {
     const w = createWindowed();
-    const sec = w.section('g', ['eins']);
+    const sec = w.section('g');
 
     // Die Folge, die im Browser entstand: das Fenster wandert, mal steht eine flache, mal
     // eine hohe Zeile an erster Stelle. Eine Übernahme „bei jeder Abweichung" schreibt hier
@@ -44,7 +44,7 @@ describe('Höhenmessung terminiert (der Riegel gegen die Schaukel, ADR-v9-236 En
 
   it('ignoriert eine 0-Messung (happy-dom/kein Layout) statt das Fenster abzuschalten', () => {
     const w = createWindowed();
-    const sec = w.section('g', ['eins']);
+    const sec = w.section('g');
     sec.probe(zeile(51.1), { klasse: 'eins', index: 0 });
     sec.probe(zeile(0), { klasse: 'eins', index: 0 });
     expect(sec.height('eins')).toBe(51.1);
@@ -52,8 +52,8 @@ describe('Höhenmessung terminiert (der Riegel gegen die Schaukel, ADR-v9-236 En
 
   it('hält die Klassen einer Gruppe auseinander und die Gruppen voneinander', () => {
     const w = createWindowed();
-    const a = w.section('a', ['eins', 'zwei']);
-    const b = w.section('b', ['eins', 'zwei']);
+    const a = w.section('a');
+    const b = w.section('b');
     a.probe(zeile(34.1), { klasse: 'eins', index: 0 });
     a.probe(zeile(51.1), { klasse: 'zwei', index: 1 });
     b.probe(zeile(80), { klasse: 'eins', index: 0 });
@@ -83,7 +83,7 @@ describe('Das Höhenmodell bildet die echten Zeilenhöhen ab (ADR-v9-236, offene
 
   it('die modellierte Gesamthöhe ist die echte, auch bei ungleichen Höhen INNERHALB einer Klasse', () => {
     const w = createWindowed();
-    const sec = w.section('g', ['zwei']);
+    const sec = w.section('g');
     // Jede Zeile wird einmal gemessen — im Browser passiert genau das, sobald sie ins
     // Fenster wandert.
     // Die Präfixsumme einmal anfordern, damit die Gruppe ihre Zeilenzahl kennt …

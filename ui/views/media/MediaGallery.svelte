@@ -26,6 +26,7 @@
   import { layout } from '../../shell/layout.svelte';
   import { noDataHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import {
     buildMediaTiles,
     buildOwnerFilterOptions,
@@ -55,8 +56,20 @@
      * die schlicht so lange lebt wie die Komponente.
      */
     filters?: MediaGalleryFilters;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN — wie `filters`, und weil
+     * happy-dom kein Layout hat, ist er der einzige Weg, Messwerte für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
-  const { appState, viewState, mediaResolver, filters: filtersProp }: Props = $props();
+  const {
+    appState,
+    viewState,
+    mediaResolver,
+    filters: filtersProp,
+    windowed: windowedProp,
+  }: Props = $props();
 
   // Einmal beim Aufbau festgelegt: die Instanz wird nie ausgetauscht (das `untrack` sagt
   // genau das — sonst warnte der Compiler zu Recht, hier werde nur der Anfangswert eines
@@ -91,6 +104,78 @@
 
   const rows = $derived(searched.filter((r) => matchesKindFilter(r, kindSel) && matchesOwnerFilter(r, ownerSel)));
 
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // EINE Fläche mit anderer Geometrie: die Galerie ist ein CSS-Raster, keine Liste. Gefenstert
+  // wird deshalb über RASTERZEILEN, nicht über Kacheln. Rasterzeilen sind NICHT gleich hoch:
+  // am Realbestand gemessen kommen 82,4 / 97,4 / 97,9 / 113,4px nebeneinander vor — Kacheln
+  // mit Miniatur (`aspect-ratio: 4/3`) sind höher als Weblink-Kacheln, und ein umbrechender
+  // Dateiname hebt eine ganze Reihe an (im Raster ist die Reihenhöhe das Maximum ihrer
+  // Kacheln). Deshalb misst diese Fläche eine Höhe JE RASTERZEILE über dieselbe Primitive
+  // wie die Listen. Ihr eigen bleiben nur die zwei Größen, die eine Liste nicht kennt:
+  // Spaltenzahl und Zeilenabstand — letzterer steckt nicht in der Kachelhöhe und wird
+  // deshalb auf die Präfixsumme addiert.
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('media');
+  let spalten = $state(1);
+  let zeilenAbstand = $state(0);
+
+  /** Action am Raster: Spaltenzahl und Zeilenabstand messen, auch nach Größenänderung. */
+  function raster(node: HTMLElement) {
+    const messen = () => {
+      const cs = window.getComputedStyle(node);
+      // `grid-template-columns` liefert die AUFGELÖSTEN Spaltenbreiten — ihre Anzahl ist die
+      // Spaltenzahl, ohne sie aus Container- und Mindestbreite nachrechnen zu müssen.
+      const spaltenJetzt = cs.gridTemplateColumns.split(' ').filter(Boolean).length;
+      if (spaltenJetzt > 0 && spaltenJetzt !== spalten) spalten = spaltenJetzt;
+      const abstand = parseFloat(cs.rowGap) || 0;
+      if (abstand !== zeilenAbstand) zeilenAbstand = abstand;
+    };
+    messen();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => messen());
+    ro?.observe(node);
+    return { destroy: () => ro?.disconnect() };
+  }
+
+  const spaltenSicher = $derived(Math.max(spalten, 1));
+  const rasterZeilen = $derived(Math.ceil(rows.length / spaltenSicher));
+  /** Rasterzeile einer Kachel — mehrere Kacheln teilen sich eine, und ihre Höhe auch. */
+  const rasterZeileVon = (kachelIndex: number) => Math.floor(kachelIndex / spaltenSicher);
+
+  /**
+   * HÖHENKLASSE EINER RASTERZEILE — und warum sie hier nötig ist, nicht bloß hübsch.
+   *
+   * Im Raster ist die Reihenhöhe das MAXIMUM ihrer Kacheln, und eine Kachel mit Miniatur ist
+   * mehr als doppelt so hoch wie eine ohne (`aspect-ratio: 4/3`; am Realbestand gemessen
+   * 82–98px gegen 205–220px). Mit EINER Klasse ist die Schätzung für ungemessene Reihen der
+   * Höchstwert — also 2,7× zu hoch für die Mehrheit. Jede neu gemessene Reihe korrigiert das
+   * Modell dann stark nach unten, das verschiebt das Fenster, das rendert neue Reihen, die
+   * gemessen werden … Bei einem großen Sprung kettet sich das innerhalb EINES Svelte-Takts so
+   * oft, dass der Effektbaum abbricht (`effect_update_depth_exceeded`, im Browser ausgelöst).
+   * Ob eine Reihe eine Miniatur enthält, steht aber in den DATEN — damit liegt die Schätzung
+   * je Klasse nah an der Wahrheit und die Korrekturen bleiben klein.
+   */
+  const zeigtMiniatur = (row: (typeof rows)[number]) => row.fileKind !== 'weblink' && row.isImage;
+  const klasseVonRasterzeile = (r: number) => {
+    const von = r * spaltenSicher;
+    for (let i = von; i < von + spaltenSicher && i < rows.length; i++) {
+      if (zeigtMiniatur(rows[i])) return 'bild';
+    }
+    return 'text';
+  };
+  const off = $derived.by(() => {
+    // Die gemessenen Höhen kommen aus DERSELBEN Primitive wie bei den Listen (je Rasterzeile
+    // eine, gemessen sobald sie einmal im Fenster stand). Was sie nicht kennen kann, ist der
+    // Zeilenabstand des Rasters: `getBoundingClientRect` einer Kachel enthält ihn nicht.
+    // Deshalb hier aufaddiert — vor Zeile `i` liegen genau `i` Abstände.
+    const roh = sec.offsets(rasterZeilen, klasseVonRasterzeile);
+    const mitAbstand = new Float64Array(roh.length);
+    for (let i = 1; i < roh.length; i++) mitAbstand[i] = roh[i] + zeilenAbstand * i;
+    return mitAbstand;
+  });
+  const win = $derived(sec.slice(off));
+  const sichtbareKacheln = $derived(rows.slice(win.start * spaltenSicher, win.end * spaltenSicher));
+
+
   // ⚠ auf der Kachel-ÜBERSCHRIFT meint weiterhin nur den fehlenden Verweis; ob eine
   // Datei im Ordner auffindbar ist, beantwortet `MediaThumb` an der Bildstelle selbst
   // (dort steht auch der Dateiname im Tooltip).
@@ -115,7 +200,7 @@
   }
 </script>
 
-<div class="media-gallery">
+<div class="media-gallery" use:w.container>
   {#if isEmpty}
     <p class="media-gallery__empty">{noDataHint('Medien', layout.isDesktopLayout)}</p>
   {:else}
@@ -183,9 +268,12 @@
     {#if rows.length === 0}
       <p class="media-gallery__empty">Kein Medium passt zu Filter/Suche.</p>
     {:else}
-      <ul class="media-gallery__tiles">
-        {#each rows as row (row.id)}
-          <li>
+      <ul class="media-gallery__tiles" use:sec.frame use:raster>
+        {#if win.padTop > 0}
+          <li class="stb-window-pad media-gallery__pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+        {/if}
+        {#each sichtbareKacheln as row, i (row.id)}
+          <li use:sec.probe={{ klasse: klasseVonRasterzeile(rasterZeileVon(win.start * spaltenSicher + i)), index: rasterZeileVon(win.start * spaltenSicher + i) }}>
             <button type="button" class="media-gallery__tile" onclick={() => selectMedia(row.id)}>
               {#if row.fileKind !== 'weblink' && row.isImage}
                 <MediaThumb
@@ -215,6 +303,9 @@
             </button>
           </li>
         {/each}
+        {#if win.padBottom > 0}
+          <li class="stb-window-pad media-gallery__pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+        {/if}
       </ul>
     {/if}
   {/if}
@@ -279,6 +370,12 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
     gap: 0.5rem;
+  }
+
+  /* Die Platzhalter des Fensters müssen im Raster die volle Breite einnehmen — sonst
+     belegten sie eine Kachelspalte und verschöben die Reihen. */
+  .media-gallery__pad {
+    grid-column: 1 / -1;
   }
 
   .media-gallery__tile {

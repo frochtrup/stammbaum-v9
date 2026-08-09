@@ -167,3 +167,29 @@ describe('windowSliceOffsets — ungleich hohe Zeilen (die Fassung, die NFR-1 wo
     expect(s.end).toBeGreaterThan(s.start);
   });
 });
+
+describe('windowSliceOffsets — Gruppen außerhalb des Sichtbereichs (ADR-v9-236)', () => {
+  const offsets = buildOffsets(Array.from({ length: 300 }, () => 50));
+  const gesamt = 300 * 50;
+
+  it('Gruppe komplett UNTER dem Sichtbereich: keine Zeile, volle Höhe im unteren Platzhalter', () => {
+    // Nullpunkt der Gruppe liegt unterhalb des Fensters → gruppenlokal negativ.
+    const s = windowSliceOffsets({ offsets, scrollTop: -5_000, viewportHeight: 800 });
+    expect(s.end - s.start).toBe(0);
+    expect(s.padTop).toBe(0);
+    expect(s.padBottom).toBe(gesamt);
+  });
+
+  it('Gruppe komplett ÜBER dem Sichtbereich: keine Zeile, volle Höhe im oberen Platzhalter', () => {
+    const s = windowSliceOffsets({ offsets, scrollTop: gesamt + 5_000, viewportHeight: 800 });
+    expect(s.end - s.start).toBe(0);
+    expect(s.padTop).toBe(gesamt);
+    expect(s.padBottom).toBe(0);
+  });
+
+  it('sobald die Gruppe den Sichtbereich berührt, rendert sie wieder', () => {
+    const s = windowSliceOffsets({ offsets, scrollTop: -700, viewportHeight: 800 });
+    expect(s.end - s.start).toBeGreaterThan(0);
+    expect(s.padTop + (offsets[s.end] - offsets[s.start]) + s.padBottom).toBe(gesamt);
+  });
+});

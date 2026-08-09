@@ -136,6 +136,19 @@ export function windowSliceOffsets(input: OffsetWindowInput): WindowSlice {
     return { start: 0, end: Math.min(count, ERSTES_FENSTER), padTop: 0, padBottom: 0 };
   }
 
+  // Gruppe ganz außerhalb des Sichtbereichs → GAR KEINE Zeile rendern, die Platzhalter
+  // tragen ihre volle Höhe. Ohne diese beiden Zeilen rendert jede Gruppe mindestens ihr
+  // Overscan-Fenster, auch wenn sie kilometerweit weg ist — bei fünf Gruppen sind das ~120
+  // Zeilen statt ~30, bei einer nach Buchstaben gruppierten Liste mit 27 Gruppen ~700.
+  // `scrollTop` ist hier bereits gruppenlokal (Nullpunkt der Gruppe) und darf negativ sein;
+  // genau dieses Vorzeichen ist die Information, die die Klammerung unten wegwirft.
+  // Nur bei GEMESSENEM Container: eine Höhe von 0 heißt „noch nicht gemessen", und dann
+  // hieße „nichts schneidet den Sichtbereich" fälschlich „nichts rendern".
+  if (viewportHeight > 0) {
+    if (scrollTop + viewportHeight <= 0) return { start: 0, end: 0, padTop: 0, padBottom: gesamt };
+    if (scrollTop >= gesamt) return { start: count, end: count, padTop: gesamt, padBottom: 0 };
+  }
+
   const oben = Math.min(Math.max(scrollTop, 0), gesamt);
   const unten = oben + Math.max(viewportHeight, 0);
   const ersteSichtbare = letzteZeileOberhalb(offsets, count, oben);

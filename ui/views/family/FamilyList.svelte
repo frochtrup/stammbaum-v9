@@ -17,6 +17,7 @@
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { noDataHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { layout } from '../../shell/layout.svelte';
   import { createFamilyListState, type FamilyListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
@@ -50,10 +51,18 @@
      * können — dann mit einer eigenen, komponenten-langen Instanz.
      */
     list?: FamilyListState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311). Von AUSSEN, aus demselben Grund wie
+     * `list`: die Scroll-Position soll die Navigation überleben (Spec 21 §5) — und
+     * weil happy-dom kein Layout hat, ist er der einzige Weg, die gemessenen Höhen für
+     * einen Test zu stellen ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
-  const { appState, viewState, onCreate, list: listProp }: Props = $props();
+  const { appState, viewState, onCreate, list: listProp, windowed: windowedProp }: Props = $props();
 
   const list = untrack(() => listProp ?? createFamilyListState());
+
 
   function createFamily() {
     const alloc = allocatorFromDatabase(appState.db);
@@ -75,6 +84,18 @@
 
   const activeFilterCount = $derived(countActiveFilters(filters, defaultFamilyFilters()));
   const rows = $derived(buildFamilyRows(appState.db, appState.placeContext, list.sortMode, list.query, filters));
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // EIN Fenster über die Liste: gerendert wird nur, was im Sichtbereich steht, plus Overscan.
+  // Die Höhe jeder Zeile wird GEMESSEN, sobald sie einmal im Fenster stand; die Höhenklasse
+  // ist nur die Schätzung für alles, was noch nie gerendert wurde (ADR-v9-236). Diese Liste
+  // hat genau EINE Klasse — ihre Zeilen tragen immer beide Zeilen (Name + Meta).
+  // Das Fenster steht als `$derived` IM SKRIPT, nicht als `{@const}` im Template
+  // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('families');
+  const off = $derived(sec.offsets(rows.length, () => 'zeile'));
+  const win = $derived(sec.slice(off));
   const isEmpty = $derived(appState.db.families.size === 0);
 
   function selectFamily(id: string) {
@@ -102,7 +123,7 @@
   }
 </script>
 
-<div class="family-list">
+<div class="family-list" use:w.container>
   {#if isEmpty}
     <p class="family-list__empty">{noDataHint('Familien', layout.isDesktopLayout)}</p>
     <div class="family-list__toolbar family-list__toolbar--empty">
@@ -162,9 +183,12 @@
     {#if rows.length === 0}
       <p class="family-list__empty">Keine Familien gefunden.</p>
     {:else}
-      <ul class="family-list__rows">
-        {#each rows as row (row.id)}
-          <li>
+      <ul class="family-list__rows" use:sec.frame>
+        {#if win.padTop > 0}
+          <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+        {/if}
+        {#each rows.slice(win.start, win.end) as row, i (row.id)}
+          <li use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
             <button type="button" class="family-list__row" onclick={() => selectFamily(row.id)}>
               <span class="family-list__parents">{row.parentsLabel}</span>
               <span class="family-list__meta">
@@ -176,6 +200,9 @@
             </button>
           </li>
         {/each}
+        {#if win.padBottom > 0}
+          <li class="stb-window-pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+        {/if}
       </ul>
     {/if}
   {/if}
