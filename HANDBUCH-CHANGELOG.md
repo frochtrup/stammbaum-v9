@@ -22,6 +22,32 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.14] — 2026-08-09
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`284ea57`…HEAD) erzeugt._
+
+- fix(v9): Kaskaden-Riegel — höchstens eine reaktive Runde je Frame (ADR-v9-238) (`47c8072`)
+- feat(v9): Scroll-Position der Index-Flächen überlebt die Navigation (Spec 21 §5) (`e001e82`)
+- feat(v9): BL-311 ③ — alle acht Index-Flächen fenstern, eine Ratsche für alle (`f97e0e8`)
+- fix(v9): BL-311 — Höhe je Zeile statt je Klasse, und ein Anfangsfenster statt "alles" (`3e82aaa`)
+- fix(v9): Platzhalter-Höhe über style:-Direktive — ein style=-Attribut ist CSP-tot (`b057bee`)
+- feat(v9): BL-311 ② — virtuelles Scrollen an der Suche, und warum es zweimal einfror (`8b6dc9d`)
+- feat(v9): BL-311 ② Teil 1 — die Windowing-Primitive, zwei Hälften, getestet (`0d0a8e7`)
+- fix(v9): keine Autokorrektur in Eingabefeldern — Namen und Orte kennt kein Wörterbuch (`1848cba`)
+- feat(v9): BL-320 — Suche, Filter und Anzeige-Modus überleben die Navigation an allen sieben Flächen (`72ee391`)
+- feat(v9): BL-319 — Ansichtszustand von Dashboard und Suche übersteht die Navigation (`ba88e31`)
+- fix(v9): die neue Prüfregel erschien nicht — zweite Fundstelle bei der Gruppen-Reihenfolge (`366ba52`)
+- feat(v9): strukturierte Adressen sichtbar und bearbeitbar (ADR-v9-228, BL-317) (`075c02e`)
+- feat(v9): Klon-Diagnose an allen Speicher-Chokepoints (ADR-v9-227) (`5a5073d`)
+- feat(v9): Ereignisse löschen — dieselbe Fläche, zwei Stufen (ADR-v9-226) (`d09dfbe`)
+- feat(places): ADR-v9-224/225 — kuratiertes Ortswissen ist Autorität über den Dateitext (`8edee50`)
+- fix(places): ADR-v9-223 — drei Kommandos ließen den Ereignistext zurück (`7394d8c`)
+- feat(places): ADR-v9-222 — der Orts-Merge sammelt nicht mehr ein, er schreibt die Nennungen um (`64e04ee`)
+- feat(ui): BL-310 — die Karte sagt jetzt, warum sie leer ist (`ddd296f`)
+- fix(ui): BL-309 — die mobile Detailansicht scrollte nicht (`39aff55`)
+
+---
+
 ## [9.13] — 2026-08-03
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`8de4bc8`…HEAD) erzeugt._
