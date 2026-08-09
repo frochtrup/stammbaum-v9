@@ -16,14 +16,18 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ORAKEL_SNAPSHOT,
+  ORTSBESTAND,
   REALBESTAND,
   fehlendHinweis,
+  ortsbestandLaden,
+  ortsbestandVorhanden,
   realbestandText,
   realbestandVorhanden,
   zaehleRecords,
 } from './realdaten';
 
 const e = REALBESTAND.erwartet;
+const o = ORTSBESTAND.erwartet;
 
 describe('Messgrundlage (TST-21)', () => {
   it.skipIf(!realbestandVorhanden())(
@@ -51,6 +55,30 @@ describe('Messgrundlage (TST-21)', () => {
     // der die Lücke überlebt hat.)
     expect(realbestandVorhanden()).toBe(false);
   });
+
+  // DIE ZWEITE HÄLFTE, bis 2026-08-09 nicht gebaut (ADR-v9-242). `ORTSBESTAND.erwartet`
+  // stand seit BL-287 in der Deklaration und wurde von keinem Test gelesen — der Symlink
+  // zeigte auf die älteste von vier Ortsdateien, und die deklarierten Zahlen passten
+  // nicht einmal zu ihr. Der Ortsbestand ist der ZWEITE Realdaten-Eingang des Ladepfads
+  // (s. Kommentar an ORTSBESTAND): ohne ihn trifft die Auflösung nie auf einen
+  // kuratierten, periodengerecht datierten Ort. Eine Aussage „am Realbestand" hängt
+  // deshalb an BEIDEN Dateien, nicht nur an der GEDCOM.
+  it.skipIf(!ortsbestandVorhanden())(
+    `${ORTSBESTAND.datei} trägt ${o.placeObjects} Orte / ${o.hofObjects} Höfe`,
+    () => {
+      const b = ortsbestandLaden();
+      // Ein Vergleich, nicht zwei — gleiche Begründung wie oben.
+      expect({ placeObjects: b.placeObjects.size, hofObjects: b.hofObjects.size }).toEqual({ ...o });
+    },
+  );
+
+  it.skipIf(ortsbestandVorhanden())(
+    `ÜBERSPRUNGEN: ${ORTSBESTAND.datei} nicht in tests/fixtures/ — Symlink auf den ` +
+      `aktuellen Ortsbestand anlegen (gitignored). Ohne ihn läuft der Ladepfad ohne kuratierte Orte.`,
+    () => {
+      expect(ortsbestandVorhanden()).toBe(false);
+    },
+  );
 
   it('der Orakel-Snapshot ist NICHT der Realbestand — die Zahlen dürfen nie zusammenfallen', () => {
     // Bewacht den naheliegenden „Fix", wenn der Test oben rot ist: den vorhandenen
