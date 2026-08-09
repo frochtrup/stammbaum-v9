@@ -95,3 +95,83 @@ describe('Das Höhenmodell bildet die echten Zeilenhöhen ab (ADR-v9-236, offene
     expect(modell[modell.length - 1]).toBeCloseTo(ECHTE_GESAMTHOEHE, 3);
   });
 });
+
+describe('Scroll-Position überlebt den Abbau der Fläche (Spec 21 §5, BL-311)', () => {
+  /**
+   * Ein Container-Doppel: happy-dom hat kein Layout, aber `scrollTop` ist eine schlichte
+   * Eigenschaft — genau das, was die Wiederherstellung schreibt und liest. Die KÜRZUNG durch
+   * den Browser (Inhalt noch zu kurz) wird über `maxScroll` nachgebildet; sie ist der Grund,
+   * warum die Wiederherstellung überhaupt mehrere Anläufe braucht.
+   */
+  function container(maxScroll = Infinity) {
+    let intern = 0;
+    const node = {
+      clientHeight: 800,
+      addEventListener() {},
+      removeEventListener() {},
+      getBoundingClientRect: () => ({ top: 0, height: 800 }),
+      get scrollTop() {
+        return intern;
+      },
+      set scrollTop(v: number) {
+        intern = Math.min(v, maxScroll);
+      },
+    };
+    return node as unknown as HTMLElement;
+  }
+
+  const takt = () => new Promise((r) => setTimeout(r, 0));
+
+  it('stellt die gemerkte Position beim nächsten Aufbau wieder her', async () => {
+    const w = createWindowed();
+    w.setMetrics({ scrollTop: 4_200 }); // „der Nutzer hat gescrollt"
+    const node = container();
+    w.container(node);
+    await takt();
+    expect(node.scrollTop).toBe(4_200);
+    expect(w.scrollTop).toBe(4_200);
+  });
+
+  it('wartet, bis der Inhalt hoch genug ist — und überschreibt sein Ziel dabei nicht selbst', async () => {
+    // DER FALL, DER OHNE SPERRE STILL DANEBENGEHT: beim ersten Takt steht nur das
+    // Anfangsfenster, der Inhalt ist zu kurz, und der Browser kürzt das gesetzte `scrollTop`.
+    // Das Setzen löst SELBST ein Scroll-Ereignis aus — würde der Merker dabei überschrieben,
+    // wäre das Ziel nach dem ersten Anlauf verloren und die Fläche käme „fast" an der
+    // richtigen Stelle zurück. Das fällt niemandem auf, und genau deshalb steht es hier.
+    const w = createWindowed();
+    w.setMetrics({ scrollTop: 4_200 });
+
+    let maxScroll = 500; // erster Takt: nur das Anfangsfenster
+    let intern = 0;
+    const node = {
+      clientHeight: 800,
+      addEventListener() {},
+      removeEventListener() {},
+      getBoundingClientRect: () => ({ top: 0, height: 800 }),
+      get scrollTop() {
+        return intern;
+      },
+      set scrollTop(v: number) {
+        intern = Math.min(v, maxScroll);
+      },
+    } as unknown as HTMLElement;
+
+    w.container(node);
+    await takt();
+    expect(node.scrollTop, 'erster Anlauf wird gekürzt').toBe(500);
+
+    // Zweiter Takt: die Höhen sind gemessen, der Inhalt hat seine volle Höhe.
+    maxScroll = 100_000;
+    await takt();
+    await takt();
+    expect(node.scrollTop, 'Ziel wurde nicht vom eigenen Scroll-Ereignis überschrieben').toBe(4_200);
+  });
+
+  it('ohne gemerkte Position wird nichts gesetzt', async () => {
+    const w = createWindowed();
+    const node = container();
+    w.container(node);
+    await takt();
+    expect(node.scrollTop).toBe(0);
+  });
+});

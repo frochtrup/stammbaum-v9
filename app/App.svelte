@@ -36,19 +36,6 @@
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
-  import { createQualityDashboardState } from '../ui/views/quality/quality-dashboard-state.svelte';
-  import { createGlobalSearchState } from '../ui/views/search/global-search-state.svelte';
-  import {
-    createFamilyListState,
-    createHofListState,
-    createPersonListState,
-    createPlaceListState,
-  } from '../ui/views/list-view-state.svelte';
-  import {
-    createHypothesesViewState,
-    createLogViewState,
-    createTasksViewState,
-  } from '../ui/views/research-segment-state.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -81,6 +68,7 @@
   import { createTourState } from '../ui/shell/onboarding-state.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
   import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
+  import { createViewHolders } from '../ui/shell/view-holders.svelte';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -148,27 +136,17 @@
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
   const clipboard = createEventClipboard();
-  // Ansichts-Unterzustand zweier Flächen, die beim Wegnavigieren abgebaut werden und
-  // deren Zustand das überleben muss (Spec 21 §5, BL-319): das Qualitäts-Dashboard
-  // (Brennpunkte-Filter, offener Prüfbericht samt Umfang, Ast-Auswahl) und die globale
-  // Suche (Anfrage, Soundex-Schalter, Typ-Filter). Dasselbe Muster wie `clipboard`
-  // darüber und `MediaGalleryFilters` (ADR-v9-192) — eigener Halter je Fläche, EINMAL
-  // hier erzeugt und als Prop durchgereicht; die App-Wurzel ist die einzige Ebene, die
-  // JEDEN Navigationsweg überdauert.
-  const qualityState = createQualityDashboardState();
-  const searchState = createGlobalSearchState();
-  // Suche/Filter/Modus der vier Entitätslisten und der drei übrigen Forschungs-Segmente
-  // (BL-320) — dieselbe Klasse, derselbe Eigentümer: die Wurzel ist die einzige Ebene, die
-  // JEDEN Navigationsweg überdauert (auch den Sprung in eine Lens, der EntityTab abbaut).
-  const listStates = {
-    person: createPersonListState(),
-    family: createFamilyListState(),
-    place: createPlaceListState(),
-    hof: createHofListState(),
-  };
-  const tasksState = createTasksViewState();
-  const logState = createLogViewState();
-  const hypothesesState = createHypothesesViewState();
+  // Ansichts-Halter der Wurzel — Suche, Filter, Anzeige-Modus und Scroll-Position aller
+  // Flächen, die beim Wegnavigieren abgebaut werden (Spec 21 §5). Warum sie hier liegen und
+  // nicht in den Flächen selbst, steht in `view-holders.svelte.ts`.
+  const holders = createViewHolders();
+  const qualityState = holders.quality;
+  const searchState = holders.search;
+  const listStates = holders.lists;
+  const windowStates = holders.windows;
+  const tasksState = holders.tasks;
+  const logState = holders.log;
+  const hypothesesState = holders.hypotheses;
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -436,6 +414,7 @@
         {route}
         {navHistory}
         {listStates}
+        {windowStates}
         onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
@@ -471,6 +450,7 @@
       <GlobalSearchView
         {appState}
         search={searchState}
+        windowed={windowStates.search}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToSource={openSource}

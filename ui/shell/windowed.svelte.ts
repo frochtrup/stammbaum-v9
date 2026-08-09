@@ -125,6 +125,8 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
   let rowHeight = $state(0);
   // Nicht reaktiv: nur der Wiederherstellungs-Merker zwischen zwei Mounts derselben Fläche.
   let gemerkt = 0;
+  /** Sperre, solange die gemerkte Position gesetzt wird — s. `onScroll` im Container. */
+  let stelltWiederHer = false;
 
   // --- Gruppen im selben Scroll-Container (ADR-v9-235 Entscheidung 1) --------------------
   // KEIN `$state`-Objekt mit dynamischen Feldnamen, sondern schlichte Maps plus ZWEI Zähler
@@ -302,19 +304,41 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
       };
       const onScroll = () => {
         scrollTop = node.scrollTop;
-        gemerkt = node.scrollTop;
+        // WÄHREND der Wiederherstellung NICHT merken: das Setzen von `scrollTop` löst selbst
+        // ein Scroll-Ereignis aus, und solange der Inhalt noch nicht seine volle Höhe hat,
+        // kürzt der Browser den Wert stillschweigend. Ohne diese Sperre überschriebe die
+        // Wiederherstellung ihr eigenes Ziel mit dem gekürzten Wert — und zwar genau einmal,
+        // unbemerkt, mit dem Ergebnis „Position fast wiederhergestellt".
+        if (!stelltWiederHer) gemerkt = node.scrollTop;
         messeTops();
       };
       node.addEventListener('scroll', onScroll, { passive: true });
       messen();
-      // Gemerkte Position wiederherstellen — erst NACH dem ersten Takt, weil der Container
-      // vorher nicht seine volle Höhe hat und der Browser ein `scrollTop` über der Höhe
-      // stillschweigend auf das Maximum kürzt (dann wäre die Position verloren).
+      // Gemerkte Position wiederherstellen (Spec 21 §5). Das geht NICHT in einem Zug: beim
+      // ersten Takt kennt die Fläche noch keine Zeilenhöhe und rendert nur ihr Anfangsfenster
+      // (ADR-v9-236 Entscheidung 4) — der Inhalt ist dann zu kurz, und der Browser kürzt ein
+      // `scrollTop` über der Höhe auf das Maximum. Deshalb wird es wiederholt versucht, bis
+      // der Inhalt hoch genug ist; die Obergrenze verhindert eine Endlosschleife, wenn die
+      // Position schlicht nicht mehr erreichbar ist (Liste ist kürzer geworden).
       if (gemerkt > 0) {
-        queueMicrotask(() => {
-          node.scrollTop = gemerkt;
+        const ziel = gemerkt;
+        let versuche = 0;
+        const wiederherstellen = () => {
+          stelltWiederHer = true;
+          node.scrollTop = ziel;
+          stelltWiederHer = false;
           scrollTop = node.scrollTop;
-        });
+          if (node.scrollTop < ziel - 1 && versuche++ < 20) {
+            // `requestAnimationFrame` gibt es nicht überall (Node-Umgebung im Test) — dann
+            // reicht ein Makrotask: es geht nur darum, dem nächsten Render-Takt Vortritt zu
+            // lassen, nicht um Bildsynchronität.
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(wiederherstellen);
+            else setTimeout(wiederherstellen, 0);
+          } else {
+            gemerkt = node.scrollTop;
+          }
+        };
+        queueMicrotask(wiederherstellen);
       }
       const ro =
         typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => messen());

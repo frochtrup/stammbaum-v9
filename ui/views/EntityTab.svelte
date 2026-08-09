@@ -27,6 +27,8 @@
   import { createEntityTabPanes } from './entity-tab-panes.svelte';
   import { createEntityTabNavigation } from './entity-tab-navigation.svelte';
   import { createMediaGalleryFilters } from './media/media-gallery-filters.svelte';
+  import type { Windowed } from '../shell/windowed.svelte';
+  import EntityTabTools from './EntityTabTools.svelte';
   import type { EventClipboard } from '../shell/event-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
@@ -39,14 +41,8 @@
   import RepositoryDetail from './repository/RepositoryDetail.svelte';
   import PlaceList from './place/PlaceList.svelte';
   import PlaceDetail from './place/PlaceDetail.svelte';
-  import PlaceDedupView from './place/PlaceDedupView.svelte';
-  import PersonDedupView from './person/PersonDedupView.svelte';
-  import RelationshipTool from './tools/RelationshipTool.svelte';
-  import PlaceReview from './place/PlaceReview.svelte';
   import HofList from './hof/HofList.svelte';
   import HofDetail from './hof/HofDetail.svelte';
-  import HofReview from './hof/HofReview.svelte';
-  import HofDedupView from './hof/HofDedupView.svelte';
   import MediaGallery from './media/MediaGallery.svelte';
   import type { MediaResolver } from '../../services/media';
   import MediaDetail from './media/MediaDetail.svelte';
@@ -95,6 +91,13 @@
       place?: PlaceListState;
       hof?: HofListState;
     };
+    /**
+     * Scroll-Position der gefensterten Index-Flächen (BL-311, Spec 21 §5) — aus demselben
+     * Grund an derselben Stelle wie `listStates`: mit einem Fenster ist die Position ein
+     * Offset im Halter, kein DOM-Zustand, den der Browser noch hätte (die Zeilen existieren
+     * beim Verlassen gar nicht mehr). Nur durchgereicht.
+     */
+    windowStates?: Partial<Record<'person' | 'family' | 'source' | 'repository' | 'place' | 'media', Windowed>>;
   }
   const {
     appState,
@@ -107,6 +110,7 @@
     clipboard,
     mediaResolver,
     listStates,
+    windowStates,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -311,23 +315,41 @@
         {appState}
         {viewState}
         list={listStates?.person}
+        windowed={windowStates?.person}
         onCreate={(id) => nav.createPerson(id)}
         onOpenDedup={() => openTool('person', overlays.openPersonDedup)}
         onOpenRelationship={() => openTool('person', overlays.openRelationshipTool)}
       />
     {:else if activeSegment === 'family'}
-      <FamilyList {appState} {viewState} list={listStates?.family} onCreate={(id) => nav.createFamily(id)} />
+      <FamilyList
+        {appState}
+        {viewState}
+        list={listStates?.family}
+        windowed={windowStates?.family}
+        onCreate={(id) => nav.createFamily(id)}
+      />
     {:else if activeSegment === 'source'}
       {#if sourceSubView === 'repositories'}
-        <RepositoryList {appState} {viewState} onCreate={(id) => nav.createRepository(id)} />
+        <RepositoryList
+          {appState}
+          {viewState}
+          windowed={windowStates?.repository}
+          onCreate={(id) => nav.createRepository(id)}
+        />
       {:else}
-        <SourceList {appState} {viewState} onCreate={(id) => nav.createSource(id)} />
+        <SourceList
+          {appState}
+          {viewState}
+          windowed={windowStates?.source}
+          onCreate={(id) => nav.createSource(id)}
+        />
       {/if}
     {:else if activeSegment === 'place'}
       <PlaceList
         {appState}
         {viewState}
         list={listStates?.place}
+        windowed={windowStates?.place}
         onOpenReview={() => openTool('place', overlays.openPlaceReview)}
         onOpenDedup={() => openTool('place', overlays.openPlaceDedup)}
         {onNavigateLens}
@@ -342,7 +364,13 @@
         {onNavigateLens}
       />
     {:else if activeSegment === 'media'}
-      <MediaGallery {appState} {viewState} {mediaResolver} filters={mediaFilters} />
+      <MediaGallery
+        {appState}
+        {viewState}
+        {mediaResolver}
+        filters={mediaFilters}
+        windowed={windowStates?.media}
+      />
     {/if}
   {/snippet}
 
@@ -425,29 +453,14 @@
   {#if panes.overlayActive}
     <!-- Werkzeug-Overlays (Orts-/Hof-Review, Massen-Dedup) belegen die volle Breite,
          s. `panes.overlayActive` oben. -->
-    {#if activeSegment === 'person' && overlays.personDedup}
-      <PersonDedupView {appState} onClose={overlays.closePersonDedup} />
-    {:else if activeSegment === 'person' && overlays.relationshipTool}
-      <RelationshipTool {appState} {viewState} onClose={overlays.closeRelationshipTool} />
-    {:else if activeSegment === 'place' && overlays.placeReview}
-      <PlaceReview
-        {appState}
-        onNavigateToPerson={navigateToPerson}
-        onNavigateToFamily={navigateToFamily}
-        onClose={overlays.closePlaceReview}
-      />
-    {:else if activeSegment === 'place' && overlays.placeDedup}
-      <PlaceDedupView {appState} onClose={overlays.closePlaceDedup} />
-    {:else if activeSegment === 'hof' && overlays.hofReview}
-      <HofReview
-        {appState}
-        onNavigateToPerson={navigateToPerson}
-        onNavigateToFamily={navigateToFamily}
-        onClose={overlays.closeHofReview}
-      />
-    {:else if activeSegment === 'hof' && overlays.hofDedup}
-      <HofDedupView {appState} onClose={overlays.closeHofDedup} />
-    {/if}
+    <EntityTabTools
+      {appState}
+      {viewState}
+      {activeSegment}
+      {overlays}
+      onNavigateToPerson={navigateToPerson}
+      onNavigateToFamily={navigateToFamily}
+    />
   {:else if layout.isDesktopLayout && panes.areaOverview}
     <!-- Flächen-Übersicht auf Desktop (`panes.areaOverview`, ADR-v9-192): Entweder-oder auf der
          GANZEN Fläche statt Liste-neben-Detail. Die Pane-Hülle stellt Höhe und
