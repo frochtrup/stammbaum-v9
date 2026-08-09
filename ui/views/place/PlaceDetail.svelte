@@ -73,6 +73,14 @@
     '„Zugehörigkeit bearbeiten") zu jedem Jahr, in dem sich die Kette ändert — auch ' +
     'wenn nur eine übergeordnete Ebene wechselt, nicht die direkte Zugehörigkeit selbst.';
 
+  /** BL-325 — der Hinweis, den [11 §5] seit jeher verlangt und den es nie gab. Er sagt
+   *  bewusst NICHT „Fehler": zwei Perioden, die sich ein Grenzjahr teilen, sind der
+   *  Regelfall, solange Jahre die Auflösung sind. Er sagt, dass hier gewählt wurde. */
+  const UEBERLAPP_INFO =
+    'In diesem Jahr gelten mehrere Zugehörigkeiten gleichzeitig. Gezeigt wird die mit ' +
+    'dem späteren Beginn — das ist eine Regel, keine Aussage der Daten. Meist teilen ' +
+    'sich zwei aufeinanderfolgende Perioden nur ihr Grenzjahr.';
+
   /** ADR-v9-191: erklärt, WESSEN Geschichte der zweite Block zeigt — ohne diese Zuschreibung
    *  las sich eine geerbte Jahresreihe wie die Historie dieses Orts. */
   const ANCESTOR_INFO =
@@ -156,7 +164,7 @@
      goToPlace, außer dem Segment, das auf DIESEN Ort selbst zeigt (kein Selbst-Link) —
      das ist bei der "Aktuell:"-Kette das erste Segment, bei den Zeitleisten-Zeilen kommt
      die eigene Id gar nicht vor (bereits serverseitig .slice(1)). -->
-{#snippet chainRow(chain: ChainSegment[], truncated: boolean)}
+{#snippet chainRow(chain: ChainSegment[], truncated: boolean, ueberlappt = false)}
   {#each chain as seg, i (seg.id)}
     {#if i > 0}<span class="place-detail__chain-sep"> › </span>{/if}
     {#if seg.id === placeId}
@@ -166,6 +174,15 @@
     {/if}
   {/each}
   {#if truncated}<span class="place-detail__chain-sep"> › </span><span class="place-detail__muted">?</span>{/if}
+  <!-- BL-325: derselbe Zeilen-Hinweis-Platz wie das „› ?" darüber (INV-UI-4 — kein
+       zweiter Ort für Kettenbefunde). Kein Knopf: es gibt nichts zu klicken, die
+       Auflösung ist „Zugehörigkeit bearbeiten" daneben. -->
+  {#if ueberlappt}<span
+      class="place-detail__chain-warn"
+      role="note"
+      aria-label={UEBERLAPP_INFO}
+      use:tooltip={UEBERLAPP_INFO}>⚠</span
+    >{/if}
 {/snippet}
 
 <div class="place-detail">
@@ -232,7 +249,7 @@
             <li class="place-detail__timeline-row">
               <span class="place-detail__timeline-span">{row.label}</span>
               {#if row.chain}
-                <span>{@render chainRow(row.chain, row.truncated)}</span>
+                <span>{@render chainRow(row.chain, row.truncated, row.ueberlappt)}</span>
               {:else}
                 <span class="place-detail__muted">unbekannt</span>
               {/if}
@@ -261,7 +278,7 @@
             <li class="place-detail__timeline-row">
               <span class="place-detail__timeline-span">{row.label}</span>
               {#if row.chain}
-                <span>{@render chainRow(row.chain, row.truncated)}</span>
+                <span>{@render chainRow(row.chain, row.truncated, row.ueberlappt)}</span>
               {:else}
                 <span class="place-detail__muted">unbekannt</span>
               {/if}
@@ -541,6 +558,15 @@
      Erklär-Fließtexts — native title-Tooltip, keine neue Abhängigkeit. */
   .place-detail__info-icon {
     color: var(--stb-text-dim);
+    font-size: 0.8rem;
+    cursor: help;
+  }
+
+  /* BL-325 — kein Fehler-Rot: eine Randberührung ist der Regelfall, solange Jahre die
+     Auflösung sind. Gold wie die übrigen Hinweise, nur mit eigenem Zeichen. */
+  .place-detail__chain-warn {
+    margin-left: 0.35rem;
+    color: var(--stb-gold-light);
     font-size: 0.8rem;
     cursor: help;
   }

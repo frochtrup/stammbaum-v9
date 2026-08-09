@@ -7,6 +7,20 @@ import { normPlaceName, placeYear, placeTypeRank } from './normalize';
 
 export interface EnclosureMeta {
   truncated: boolean;
+  /**
+   * Traf im Jahr MEHR ALS EINE datierte Zugehörigkeit zu? (BL-325, Spec 11 §5)
+   *
+   * Dann hat die Tie-Break-Regel entschieden („höheres `from` gewinnt"), nicht die Datenlage.
+   * Das ist zulässig und deterministisch — aber es ist eine Wahl unter mehreren richtigen
+   * Antworten, und die gehört sichtbar gemacht. Am maßgeblichen Bestand
+   * (`Testdateien/orte-2.json`, rev 277) sind das 433 Paare — ausnahmslos Randberührungen
+   * („…1810" trifft „1810…"), weil `from`/`to` Jahre sind und beide Enden einschließen.
+   *
+   * Bewusst ein eigenes Feld neben `truncated` und nicht mit ihm verrechnet: `truncated`
+   * heißt „die Kette bricht ab, es gibt hier KEINE Antwort", `ueberlappt` heißt „es gibt
+   * MEHRERE". Das sind gegensätzliche Befunde und für den Nutzer gegensätzliche Aufgaben.
+   */
+  ueberlappt: boolean;
 }
 
 export interface PlaceRegistry {
@@ -177,13 +191,17 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
   const enclosureWinnerAsOf = (
     id: PlaceId,
     y: number,
-  ): { placeId: PlaceId | null; truncated: boolean } => {
+  ): { placeId: PlaceId | null; truncated: boolean; ueberlappt: boolean } => {
     const pl = places.get(id);
-    if (!pl) return { placeId: null, truncated: false };
+    if (!pl) return { placeId: null, truncated: false, ueberlappt: false };
     const encs = pl.enclosedBy;
     let bestFrom = -Infinity;
     let bestId: PlaceId | null = null;
     let undated: PlaceId | null = null;
+    // Wie viele DATIERTE Einträge treffen das Jahr? Zwei oder mehr heißt: der Tie-Break
+    // unten hat gewählt, nicht die Datenlage (BL-325). Undatierte zählen NICHT mit — sie
+    // sind der Rückfall („ohne bekannte Datierung"), nicht ein konkurrierender Anspruch.
+    let treffer = 0;
     for (const e of encs) {
       const ef = placeYear(e.from);
       const et = placeYear(e.to);
@@ -192,6 +210,7 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
         continue;
       }
       if (dateMatches(ef, et, y)) {
+        treffer += 1;
         const f = ef ?? -Infinity;
         // `bestId == null` MUSS mitgeprüft werden: eine nach unten offene Zuordnung
         // (`from` fehlt, `to` gesetzt — „seit jeher bis X", Spec 11 §1) trägt
@@ -210,7 +229,7 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
     }
     const chosen = bestId ?? undated;
     const hasDated = encs.some((e) => placeYear(e.from) != null || placeYear(e.to) != null);
-    return { placeId: chosen, truncated: chosen == null && hasDated };
+    return { placeId: chosen, truncated: chosen == null && hasDated, ueberlappt: treffer > 1 };
   };
 
   const reg: PlaceRegistry = {
@@ -260,6 +279,9 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
         if (y != null) {
           const w = enclosureWinnerAsOf(cur, y);
           if (w.truncated && meta) meta.truncated = true;
+          // Gilt für die GANZE Kette, nicht nur für den Blattknoten: eine mehrdeutige
+          // Ebene weiter oben bestimmt den Rest der Kette genauso.
+          if (w.ueberlappt && meta) meta.ueberlappt = true;
           cur = w.placeId;
         } else {
           cur = pl.enclosedBy[0]?.placeId ?? null;

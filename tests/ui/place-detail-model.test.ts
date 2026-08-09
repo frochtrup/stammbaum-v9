@@ -215,6 +215,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
           { id: '@LAND@', label: 'Preußen' },
         ],
         truncated: false,
+        ueberlappt: false,
       },
     ]);
   });
@@ -253,6 +254,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
           { id: '@PREUSSEN@', label: 'Preußen' },
         ],
         truncated: false,
+        ueberlappt: false,
       },
       {
         year: 1946,
@@ -262,6 +264,7 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
           { id: '@NRW@', label: 'Nordrhein-Westfalen' },
         ],
         truncated: false,
+        ueberlappt: false,
       },
     ]);
   });
@@ -296,9 +299,9 @@ describe('buildPlaceDetail — hierarchyTimeline ("Zugehörigkeit nach Jahr", vo
     // 1813 liegt noch INNERHALB der GRAF-Periode (inklusiv) -> identische Kette wie 1300,
     // wird zusammengefasst. 1814 liegt in der echten Lücke -> "unbekannt". 1816 -> AMT.
     expect(detail!.hierarchyTimeline).toEqual([
-      { year: 1300, label: 'ab 1300', chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false },
-      { year: 1814, label: 'ab 1814', chain: null, truncated: false },
-      { year: 1816, label: 'ab 1816', chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false },
+      { year: 1300, label: 'ab 1300', chain: [{ id: '@GRAF@', label: 'Grafschaft Steinfurt' }], truncated: false, ueberlappt: false },
+      { year: 1814, label: 'ab 1814', chain: null, truncated: false, ueberlappt: false },
+      { year: 1816, label: 'ab 1816', chain: [{ id: '@AMT@', label: 'Amt Ochtrup' }], truncated: false, ueberlappt: false },
     ]);
   });
 });
@@ -536,7 +539,7 @@ describe('Zugehörigkeit nach Jahr — geerbte Historie gehört dem Elternort (A
     const detail = buildPlaceDetail(db, ctxFor(db), '@ERK@');
 
     expect(detail!.hierarchyTimeline).toEqual([
-      { year: null, label: 'undatiert', chain: [{ id: '@OPF@', label: 'Oberpfalz' }], truncated: false },
+      { year: null, label: 'undatiert', chain: [{ id: '@OPF@', label: 'Oberpfalz' }], truncated: false, ueberlappt: false },
     ]);
     // Der eigentliche Wächter: keine Zeile über diesen Ort trägt je ein Jahr, solange er
     // selbst undatiert ist. Vor ADR-v9-191 standen hier die Jahre 1180/1805/1871 — jedes
@@ -627,5 +630,106 @@ describe('Zugehörigkeit nach Jahr — geerbte Historie gehört dem Elternort (A
 
     const datiert = place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: 1500, to: null }] });
     expect(buildAncestorHistory(ctx, '@ERK@', datiert)).toEqual([]);
+  });
+});
+
+// BL-325 / [ADR-v9-243] — der ⚠-Hinweis, den Spec 11 §5 seit jeher verlangt und der nie
+// gebaut war: gelten in einem Jahr MEHRERE datierte Zugehörigkeiten, hat die Tie-Break-
+// Regel gewählt („höheres `from` gewinnt"), nicht die Datenlage. Am maßgeblichen Bestand
+// (`Testdateien/orte-2.json`, rev 277) sind das 433 Paare — ausnahmslos Randberührungen,
+// weil `from`/`to` Jahre sind und beide Enden einschließen.
+//
+// `ueberlappt` ist bewusst das GEGENTEIL von `truncated` und deshalb ein eigenes Feld:
+// dort fehlt eine Antwort, hier gibt es mehrere.
+describe('buildPlaceDetail — überlappende Zugehörigkeiten (BL-325)', () => {
+  /** Der Regelfall im echten Bestand: zwei aufeinanderfolgende Perioden teilen ihr Grenzjahr. */
+  function randberuehrung() {
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Département de l’Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1810 },
+          { placeId: '@DEP@', from: 1810, to: 1813 },
+        ],
+      }),
+    );
+    return db;
+  }
+
+  it('markiert das Grenzjahr, in dem beide Perioden gelten', () => {
+    const db = randberuehrung();
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    const grenzjahr = rows.find((r) => r.year === 1810);
+    expect(grenzjahr, 'für 1810 muss es eine Zeile geben').toBeDefined();
+    expect(grenzjahr!.ueberlappt).toBe(true);
+    // Die Tie-Break-Regel selbst bleibt unverändert: das spätere `from` gewinnt.
+    expect(grenzjahr!.chain).toEqual([{ id: '@DEP@', label: 'Département de l’Aller' }]);
+  });
+
+  it('lässt die eindeutigen Jahre unmarkiert — sonst wäre der Hinweis wertlos', () => {
+    const db = randberuehrung();
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    const eindeutig = rows.filter((r) => r.year !== 1810);
+    expect(eindeutig.length, 'es muss auch unmarkierte Zeilen geben').toBeGreaterThan(0);
+    expect(eindeutig.every((r) => !r.ueberlappt)).toBe(true);
+  });
+
+  it('zählt eine UNDATIERTE Zugehörigkeit nicht als Konkurrenz', () => {
+    // „ohne bekannte Datierung" ist der Rückfall, kein zweiter Anspruch — sonst wäre nach
+    // jedem Merge (der mehrere undatierte Ketten hinterlässt, ADR-v9-72) jedes Jahr ⚠.
+    const db = makeDatabase();
+    db.placeObjects.set('@A@', place('@A@', { title: 'Amt' }));
+    db.placeObjects.set('@B@', place('@B@', { title: 'Bezirk' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dorf',
+        enclosedBy: [
+          { placeId: '@A@', from: 1800, to: 1850 },
+          { placeId: '@B@', from: null, to: null },
+        ],
+      }),
+    );
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => !r.ueberlappt)).toBe(true);
+  });
+
+  it('markiert auch, wenn die Mehrdeutigkeit eine ÜBERGEORDNETE Ebene betrifft', () => {
+    // Die gezeigte Kette hängt an jeder Ebene — eine Wahl weiter oben bestimmt den Rest
+    // genauso. Der Blattknoten selbst ist hier eindeutig.
+    const db = makeDatabase();
+    db.placeObjects.set('@X@', place('@X@', { title: 'Preußen' }));
+    db.placeObjects.set('@Y@', place('@Y@', { title: 'Norddeutscher Bund' }));
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis',
+        enclosedBy: [
+          { placeId: '@X@', from: 1815, to: 1866 },
+          { placeId: '@Y@', from: 1866, to: 1871 },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', { title: 'Dorf', enclosedBy: [{ placeId: '@KREIS@', from: 1815, to: null }] }),
+    );
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    const grenzjahr = rows.find((r) => r.year === 1866);
+    expect(grenzjahr, 'für 1866 muss es eine Zeile geben').toBeDefined();
+    expect(grenzjahr!.ueberlappt).toBe(true);
   });
 });

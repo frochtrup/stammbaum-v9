@@ -1471,3 +1471,66 @@ describe('PlaceDetail — Transaktionsgrenze (INV-UI-16)', () => {
     expect(screen.queryByText('Speichern')).toBeNull();
   });
 });
+
+// BL-325 / [ADR-v9-243] — Spec 11 §5 versprach den Warnhinweis seit jeher, gebaut war er
+// nie: alle 433 Überlappungen des maßgeblichen Bestands (`Testdateien/orte-2.json`,
+// rev 277) wurden stumm per Tie-Break aufgelöst. Er sitzt an derselben Stelle wie das
+// „› ?" für die abgebrochene Kette (INV-UI-4 — ein Ort für Kettenbefunde, nicht zwei).
+describe('PlaceDetail — ⚠ bei mehreren gleichzeitig gültigen Zugehörigkeiten (BL-325)', () => {
+  function renderMitRandberuehrung() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Departement Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1810 },
+          { placeId: '@DEP@', from: 1810, to: 1813 },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    return render(PlaceDetail, { props: { appState, viewState } });
+  }
+
+  it('rendert das Zeichen mit einer Erklärung, die die Tie-Break-Regel benennt', () => {
+    const { container } = renderMitRandberuehrung();
+
+    const warn = container.querySelector('.place-detail__chain-warn');
+    expect(warn).toBeTruthy();
+    expect(warn?.textContent?.trim()).toBe('⚠');
+    // Wie beim ⓘ daneben liegt der Text auf aria-label (geteilte tooltip-Action).
+    expect(warn?.getAttribute('aria-label')).toContain('mehrere Zugehörigkeiten');
+    expect(warn?.getAttribute('aria-label')).toContain('späteren Beginn');
+  });
+
+  it('zeigt es NICHT, wenn die Perioden sich nicht überschneiden', () => {
+    // Die Kontrollprobe: ohne sie belegte der Test nur, dass irgendwo ein ⚠ steht.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Departement Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1809 },
+          { placeId: '@DEP@', from: 1810, to: 1813 },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(container.querySelector('.place-detail__chain-warn')).toBeNull();
+  });
+});

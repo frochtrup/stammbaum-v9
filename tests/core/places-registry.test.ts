@@ -176,10 +176,13 @@ describe('PlaceRegistry — nach unten offene Perioden (ADR-v9-181)', () => {
     expect(ochtrup().enclosureIdsAsOf('@P1@', 1806)).toEqual(['@P1@', '@FUERST@']);
   });
 
-  it('meldet für ein solches Jahr KEIN `truncated` — die Kette ist bekannt, nicht abgeschnitten', () => {
-    const meta = { truncated: false };
+  it('meldet für ein solches Jahr weder `truncated` noch `ueberlappt` — die Kette ist bekannt und eindeutig', () => {
+    const meta = { truncated: false, ueberlappt: false };
     ochtrup().enclosureIdsAsOf('@P1@', 1750, meta);
     expect(meta.truncated).toBe(false);
+    // BL-325: die nach unten offene Periode ist der EINZIGE Treffer in 1750 — sie darf
+    // den neuen Hinweis nicht auslösen, sonst stünde er an fast jedem frühen Jahr.
+    expect(meta.ueberlappt).toBe(false);
   });
 
   it('lässt den datierten Nachfolger nach seinem Beginn gewinnen (Vorrangregel unverändert)', () => {

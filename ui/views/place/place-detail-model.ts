@@ -63,6 +63,11 @@ export interface HierarchyTimelineRow {
    *  (`enclosureIdsAsOf`s `meta.truncated`) — kein eigenes Segment (kein Ziel-Ort), nur
    *  ein „› ?"-Hinweis in der Anzeige. */
   truncated: boolean;
+  /** In diesem Jahr galten MEHRERE datierte Zugehörigkeiten; die gezeigte Kette ist die
+   *  Wahl der Tie-Break-Regel, nicht die einzige richtige Antwort (`meta.ueberlappt`,
+   *  BL-325, Spec 11 §5). Gegenteil von `truncated`: dort fehlt eine Antwort, hier gibt
+   *  es zu viele. */
+  ueberlappt: boolean;
 }
 
 /**
@@ -277,14 +282,14 @@ function buildHierarchyTimeline(
   let lastKey: string | null = null;
   let inGap = false;
   for (const year of sortedKeyYears) {
-    const meta = { truncated: false };
+    const meta = { truncated: false, ueberlappt: false };
     // Dieselbe periodengerechte ID-Kette wie enclosureChainAsOf (das ist intern nichts
     // anderes als enclosureIdsAsOf + resolveAsOf pro Knoten, ADR-v9-78 Punkt 3) — hier
     // direkt über die ID-Variante gebaut, damit jedes Segment eine klickbare Ziel-Id trägt.
     const ids = ctx.places.enclosureIdsAsOf(placeId, year, meta).slice(1);
     if (!ids.length) {
       if (!inGap) {
-        rows.push({ year, label: hierarchySpanLabel(year, null), chain: null, truncated: false });
+        rows.push({ year, label: hierarchySpanLabel(year, null), chain: null, truncated: false, ueberlappt: false });
         inGap = true;
       }
       lastKey = null;
@@ -300,10 +305,10 @@ function buildHierarchyTimeline(
     // Dedup-Schlüssel spiegelt exakt das, was gerendert würde (id UND periodengerechter
     // Name je Segment) — identisch zum vormaligen String-Vergleich (chain.join(' › ')),
     // nur jetzt strukturiert statt als zusammengesetzter Text.
-    const key = chain.map((s) => `${s.id}:${s.label}`).join('|') + (meta.truncated ? '|trunc' : '');
+    const key = chain.map((s) => `${s.id}:${s.label}`).join('|') + (meta.truncated ? '|trunc' : '') + (meta.ueberlappt ? '|ueb' : '');
     if (key === lastKey) continue;
     lastKey = key;
-    rows.push({ year, label: hierarchySpanLabel(year, null), chain, truncated: meta.truncated });
+    rows.push({ year, label: hierarchySpanLabel(year, null), chain, truncated: meta.truncated, ueberlappt: meta.ueberlappt });
   }
 
   // Die ERSTE Zeile trägt "bis …", wenn eine nach unten offene Zuordnung sie regiert —
@@ -370,7 +375,7 @@ function buildUndatedEnclosureRow(
   }
   if (!chain.length) return [];
   if (!hatAhnenGeschichte && chain.length < 2) return [];
-  return [{ year: null, label: 'undatiert', chain, truncated: false }];
+  return [{ year: null, label: 'undatiert', chain, truncated: false, ueberlappt: false }];
 }
 
 /**
