@@ -16,9 +16,57 @@
 // im Test), bleibt die letzte Messung stehen — die Fläche funktioniert, sie passt sich nur
 // nicht an. Das ist der Unterschied zwischen „braucht einen Browser" und „nutzt einen, wenn
 // einer da ist".
-import { windowSlice, type WindowSlice } from './window-slice';
+import { windowSlice, windowSliceOffsets, type WindowSlice } from './window-slice';
+
+/**
+ * Eine GRUPPE innerhalb desselben Scroll-Containers (ADR-v9-235 Entscheidung 1: die
+ * Suchtreffer behalten ihre fünf `<section>`/`<h2>`, jede bekommt ihr eigenes Fenster mit
+ * verschobenem Nullpunkt).
+ *
+ * HÖHENKLASSEN STATT EINER HÖHE (ADR-v9-236). Eine Trefferzeile ist 34,1px hoch ohne und
+ * 51,1px mit Zweitzeile — welche von beiden, steht in den DATEN, nicht im Layout. Die Fläche
+ * meldet deshalb je Zeile ihre KLASSE (`probe`), bekommt je Klasse EINE gemessene Musterhöhe
+ * zurück (`height`) und baut daraus ihre Präfixsumme.
+ */
+export interface WindowedSection {
+  /**
+   * Action für das `<section>`-Element: hält fest, wo die Gruppe im Scroll-Inhalt beginnt.
+   * Das ist der verschobene Nullpunkt — ohne ihn rechnen alle Gruppen mit derselben
+   * Scroll-Position und vier von fünf stehen dauerhaft am Anschlag.
+   */
+  frame(node: HTMLElement): { destroy(): void };
+  /**
+   * Action für JEDE gerenderte Zeile dieser Gruppe, mit ihrer Höhenklasse als Parameter.
+   *
+   * DER RIEGEL GEGEN DIE SCHAUKEL: übernommen wird nur ein GRÖSSERER Wert. Monotone Schreiber
+   * können nicht endlos kreisen — genau daran ist der zweite Anlauf gestorben (Messung an der
+   * echten Zeile → neue Höhe → neues Fenster → andere Zeile gemessen → …, bis Svelte mit
+   * `effect_update_depth_exceeded` den Effektbaum abbrach und die Fläche einfror). Ein
+   * Höchstwert je Klasse terminiert nach höchstens so vielen Takten, wie es verschiedene
+   * Höhen gibt, und irrt im Zweifel nach oben — ein etwas zu langer Scrollbalken statt einer
+   * toten Fläche.
+   */
+  probe(node: HTMLElement, klasse: string): { destroy(): void; update(klasse: string): void };
+  /** Gemessene Musterhöhe einer Klasse, `0` solange keine Zeile dieser Klasse stand. */
+  height(klasse: string): number;
+  /** Der Ausschnitt dieser Gruppe aus ihrer Höhen-Präfixsumme (`buildOffsets`). */
+  slice(offsets: ArrayLike<number>): WindowSlice;
+  /** Position der Gruppe im Scroll-Inhalt (für Tests und die Browser-Prüfung lesbar). */
+  readonly top: number;
+}
 
 export interface Windowed {
+  /**
+   * Eine Gruppe im selben Scroll-Container — memoisiert je `key`, damit die zurückgegebenen
+   * Actions über die Lebenszeit der Fläche dieselben bleiben.
+   */
+  section(key: string, klassen: readonly string[]): WindowedSection;
+  /**
+   * NUR für Tests: die Messwerte einer Gruppe setzen (happy-dom hat kein Layout, 32 TST-24).
+   * Die Naht überbrückt genau den Teil, der schiefgehen kann — der Fertig-Zustand verlangt
+   * deshalb ZUSÄTZLICH einen Browser-Lauf.
+   */
+  setSectionMetrics(key: string, werte: { heights?: Record<string, number>; top?: number }): void;
   /** Aktueller Ausschnitt für `count` Zeilen — reaktiv aus dem Template lesbar. */
   slice(count: number): WindowSlice;
   /**
@@ -59,18 +107,131 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
   // Nicht reaktiv: nur der Wiederherstellungs-Merker zwischen zwei Mounts derselben Fläche.
   let gemerkt = 0;
 
+  // --- Gruppen im selben Scroll-Container (ADR-v9-235 Entscheidung 1) --------------------
+  // Die Schlüssel werden beim ersten `section(key)` vorbelegt, nicht erst beim Messen: ein
+  // erst später angelegter Feldname eines `$state`-Objekts ist eine Wette auf das
+  // Proxy-Verhalten, und Wetten sind genau das, was diese Zeile zweimal gekostet hat.
+  const tops = $state<Record<string, number>>({});
+  // Musterhöhe je Gruppe UND Höhenklasse, Schlüssel `gruppe::klasse`.
+  const classHeights = $state<Record<string, number>>({});
+  // Bewusst KEINE `SvelteMap`: beide halten Identitäten, keine Anzeigewerte — `frames` die
+  // DOM-Knoten für die Messung, `sections` die memoisierten Gruppen-Objekte, damit die
+  // Actions über die Lebenszeit der Fläche dieselben bleiben. Reaktiv gemacht, würde jedes
+  // Registrieren eines Rahmens ein Rendern auslösen, das nichts anderes zeigt. Die
+  // reaktiven Werte stehen daneben in den drei `$state`-Objekten.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const frames = new Map<string, HTMLElement>();
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const sections = new Map<string, WindowedSection>();
+  let containerNode: HTMLElement | null = null;
+  let frameRO: ResizeObserver | null = null;
+
+  /**
+   * Misst, wo jede Gruppe im Scroll-Inhalt beginnt. Fünf `getBoundingClientRect` je
+   * Scroll-Takt — der Spike hat belegt, dass selbst eine Messung an JEDER Zeile nur einen
+   * zusätzlichen Takt kostet. Geschrieben wird nur bei echter Änderung.
+   */
+  function messeTops() {
+    if (!containerNode) return;
+    const cTop = containerNode.getBoundingClientRect().top;
+    const st = containerNode.scrollTop;
+    for (const [key, node] of frames) {
+      const t = node.getBoundingClientRect().top - cTop + st;
+      if (tops[key] !== t) tops[key] = t;
+    }
+  }
+
   return {
     slice(count: number): WindowSlice {
       return windowSlice({ count, rowHeight, scrollTop, viewportHeight, overscan: options.overscan });
     },
 
+    section(key: string, klassen: readonly string[]): WindowedSection {
+      const vorhanden = sections.get(key);
+      if (vorhanden) return vorhanden;
+      if (!(key in tops)) tops[key] = 0;
+      for (const k of klassen) {
+        const feld = `${key}::${k}`;
+        if (!(feld in classHeights)) classHeights[feld] = 0;
+      }
+
+      /** Monotone Übernahme — s. `WindowedSection.probe`: nur größer, nie kleiner. */
+      const messe = (node: HTMLElement, klasse: string) => {
+        // `getBoundingClientRect().height`, nicht `offsetHeight`: letzteres rundet auf ganze
+        // Pixel, und 0,1px mal 1.958 Zeilen sind 196px falsche Gesamthöhe — die
+        // Platzhalter-Zusicherung (ADR-v9-235 Entscheidung 3) wäre verletzt.
+        const h = node.getBoundingClientRect().height;
+        const feld = `${key}::${klasse}`;
+        if (h > 0 && h > (classHeights[feld] ?? 0)) classHeights[feld] = h;
+      };
+
+      const s: WindowedSection = {
+        frame(node: HTMLElement) {
+          frames.set(key, node);
+          frameRO?.observe(node);
+          // Erst nach dem Takt messen: beim Anbinden steht das Layout der Geschwister-
+          // Gruppen noch nicht.
+          queueMicrotask(messeTops);
+          return {
+            destroy() {
+              frames.delete(key);
+              frameRO?.unobserve(node);
+            },
+          };
+        },
+
+        probe(node: HTMLElement, klasse: string) {
+          messe(node, klasse);
+          return {
+            update(neu: string) {
+              messe(node, neu);
+            },
+            destroy() {},
+          };
+        },
+
+        height(klasse: string) {
+          return classHeights[`${key}::${klasse}`] ?? 0;
+        },
+
+        slice(offsets) {
+          return windowSliceOffsets({
+            offsets,
+            scrollTop: scrollTop - tops[key],
+            viewportHeight,
+            overscan: options.overscan,
+          });
+        },
+
+        get top() {
+          return tops[key];
+        },
+      };
+      sections.set(key, s);
+      return s;
+    },
+
+    setSectionMetrics(key, werte) {
+      if (!(key in tops)) tops[key] = 0;
+      if (werte.top !== undefined) tops[key] = werte.top;
+      for (const [klasse, h] of Object.entries(werte.heights ?? {})) {
+        classHeights[`${key}::${klasse}`] = h;
+      }
+    },
+
     container(node: HTMLElement) {
+      containerNode = node;
+      frameRO =
+        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => messeTops());
+      for (const n of frames.values()) frameRO?.observe(n);
       const messen = () => {
         viewportHeight = node.clientHeight;
+        messeTops();
       };
       const onScroll = () => {
         scrollTop = node.scrollTop;
         gemerkt = node.scrollTop;
+        messeTops();
       };
       node.addEventListener('scroll', onScroll, { passive: true });
       messen();
@@ -90,6 +251,9 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         destroy() {
           node.removeEventListener('scroll', onScroll);
           ro?.disconnect();
+          frameRO?.disconnect();
+          frameRO = null;
+          containerNode = null;
         },
       };
     },

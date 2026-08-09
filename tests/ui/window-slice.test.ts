@@ -6,7 +6,12 @@
 // leere Liste. Ein Fenster, das in einem dieser Fälle „nichts" liefert, zeigt eine leere
 // Liste, und das wäre schlimmer als ein zu großes Fenster.
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_OVERSCAN, windowSlice, windowSliceMixed } from '../../ui/shell/window-slice';
+import {
+  DEFAULT_OVERSCAN,
+  buildOffsets,
+  windowSlice,
+  windowSliceOffsets,
+} from '../../ui/shell/window-slice';
 
 describe('windowSlice — Grundfall', () => {
   it('rendert bei 20.000 Zeilen nur das Fenster plus Overscan', () => {
@@ -89,40 +94,65 @@ describe('windowSlice — die Fälle, die im Betrieb auftreten', () => {
   });
 });
 
-describe('windowSliceMixed — zwei Höhen (Zeilen + Kopfzeilen)', () => {
-  /** 1.000 Einträge, jede zehnte eine Kopfzeile (Buchstaben-Trenner). */
-  const count = 1_000;
-  const headerCount = 100;
-  const headerBefore = (i: number) => Math.min(headerCount, Math.ceil(i / 10));
+describe('windowSliceOffsets — ungleich hohe Zeilen (die Fassung, die NFR-1 woertlich erfuellt)', () => {
+  /** 1.000 Zeilen im echten Mischungsverhaeltnis der Suchtreffer: mal mit, mal ohne Zweitzeile. */
+  const hoehen = Array.from({ length: 1_000 }, (_, i) => (i % 3 === 0 ? 34.1 : 51.1));
+  const offsets = buildOffsets(hoehen);
+  const gesamt = hoehen.reduce((a, b) => a + b, 0);
 
-  it('Platzhalter und Fenster ergeben die Gesamthöhe (beide Höhen berücksichtigt)', () => {
-    const gesamt = (count - headerCount) * 40 + headerCount * 24;
-    for (const scrollTop of [0, 5_000, 20_000, 37_000]) {
-      const s = windowSliceMixed({
-        count,
-        rowHeight: 40,
-        headerHeight: 24,
-        headerCount,
-        headerBefore,
-        scrollTop,
-        viewportHeight: 800,
-      });
-      const kopfImFenster = headerBefore(s.end) - headerBefore(s.start);
-      const fenster = (s.end - s.start - kopfImFenster) * 40 + kopfImFenster * 24;
-      expect(s.padTop + fenster + s.padBottom, `scrollTop=${scrollTop}`).toBe(gesamt);
+  it('buildOffsets liefert die Oberkanten und als letzten Eintrag die Gesamthoehe', () => {
+    expect(offsets.length).toBe(hoehen.length + 1);
+    expect(offsets[0]).toBe(0);
+    expect(offsets[1]).toBeCloseTo(34.1, 6);
+    expect(offsets[1_000]).toBeCloseTo(gesamt, 6);
+  });
+
+  it('Platzhalter und Fenster ergeben an JEDER Position exakt die Gesamthoehe', () => {
+    for (const scrollTop of [0, 1_000, 12_345, 30_000, gesamt]) {
+      const s = windowSliceOffsets({ offsets, scrollTop, viewportHeight: 800 });
+      const fenster = offsets[s.end] - offsets[s.start];
+      expect(s.padTop + fenster + s.padBottom, `scrollTop=${scrollTop}`).toBeCloseTo(gesamt, 6);
     }
   });
 
-  it('ohne gemessene Zeilenhöhe: alles rendern', () => {
-    const s = windowSliceMixed({
-      count,
-      rowHeight: 0,
-      headerHeight: 24,
-      headerCount,
-      headerBefore,
-      scrollTop: 0,
-      viewportHeight: 800,
-    });
-    expect(s.end).toBe(count);
+  it('das Fenster deckt den sichtbaren Bereich wirklich ab — an keiner Position ein Loch', () => {
+    for (let scrollTop = 0; scrollTop < gesamt - 800; scrollTop += 997) {
+      const s = windowSliceOffsets({ offsets, scrollTop, viewportHeight: 800 });
+      expect(s.padTop, `oben, scrollTop=${scrollTop}`).toBeLessThanOrEqual(scrollTop);
+      expect(offsets[s.end], `unten, scrollTop=${scrollTop}`).toBeGreaterThanOrEqual(scrollTop + 800);
+    }
+  });
+
+  it('Overscan wirkt: das Fenster beginnt frueher und endet spaeter als der Sichtbereich', () => {
+    const s = windowSliceOffsets({ offsets, scrollTop: 20_000, viewportHeight: 800 });
+    const ohne = windowSliceOffsets({ offsets, scrollTop: 20_000, viewportHeight: 800, overscan: 0 });
+    expect(ohne.start - s.start).toBe(DEFAULT_OVERSCAN);
+    expect(s.end - ohne.end).toBe(DEFAULT_OVERSCAN);
+  });
+
+  it('noch keine Hoehe gemessen (alle 0): ALLES rendern, nicht nichts', () => {
+    const leer = buildOffsets(new Array(500).fill(0));
+    const s = windowSliceOffsets({ offsets: leer, scrollTop: 0, viewportHeight: 800 });
+    expect(s.start).toBe(0);
+    expect(s.end).toBe(500);
+  });
+
+  it('leere Liste: nichts zu rendern, keine Platzhalter', () => {
+    const s = windowSliceOffsets({ offsets: buildOffsets([]), scrollTop: 0, viewportHeight: 800 });
+    expect(s).toEqual({ start: 0, end: 0, padTop: 0, padBottom: 0 });
+  });
+
+  it('Scroll-Position hinter dem Listenende und negativ: Fenster bleibt in der Liste', () => {
+    const hinten = windowSliceOffsets({ offsets, scrollTop: gesamt * 2, viewportHeight: 800 });
+    expect(hinten.end).toBe(1_000);
+    expect(hinten.padBottom).toBe(0);
+    const vorn = windowSliceOffsets({ offsets, scrollTop: -400, viewportHeight: 800 });
+    expect(vorn.start).toBe(0);
+    expect(vorn.padTop).toBe(0);
+  });
+
+  it('Container noch nicht gemessen (Hoehe 0): mindestens eine Zeile rendern', () => {
+    const s = windowSliceOffsets({ offsets, scrollTop: 0, viewportHeight: 0 });
+    expect(s.end).toBeGreaterThan(s.start);
   });
 });

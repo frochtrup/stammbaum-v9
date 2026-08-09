@@ -12,6 +12,7 @@ import {
   createGlobalSearchState,
   type GlobalSearchState,
 } from '../../ui/views/search/global-search-state.svelte';
+import { createWindowed } from '../../ui/shell/windowed.svelte';
 
 function seedDb() {
   const db = makeDatabase();
@@ -297,5 +298,104 @@ describe('GlobalSearchView — Anfrage und Filter überleben den Sprung auf eine
 
     expect(screen.getByRole('button', { name: /^Orte/ }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: /^Alle/ }).getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('GlobalSearchView — virtuelles Scrollen (BL-311, ADR-v9-236)', () => {
+  /** Viele Treffer, gemischt hoch: jede dritte Person ohne Zweitzeile (keine Daten). */
+  function vieleDb(n: number) {
+    const db = makeDatabase();
+    for (let i = 0; i < n; i++) {
+      const p = makePerson(`@I${i}@`, { given: `Vorname${i}`, surname: 'Muster' });
+      if (i % 3 !== 0) p.birth.date = '1 JAN 1900'; // erzeugt die Zweitzeile „* 1900"
+      db.individuals.set(p.id, p);
+    }
+    return db;
+  }
+
+  /**
+   * DIE NAHT — und ihre Grenze. happy-dom hat kein Layout, die Höhen kommen deshalb
+   * gestellt ([32 TST-24](../../specs/v9/32-Testframework.md)). Diese Tests prüfen die
+   * ARITHMETIK über der Messung, nicht die Messung; der Beleg, dass die Messung selbst
+   * stimmt, ist der Browser-Lauf aus ADR-v9-236.
+   */
+  function renderGefenstert(n: number, scrollTop = 0) {
+    const appState = createAppState();
+    appState.loadDatabase(vieleDb(n), 'test.ged');
+    const search = createGlobalSearchState();
+    search.setQuery('Muster');
+    const windowed = createWindowed();
+    windowed.setMetrics({ viewportHeight: 800, scrollTop });
+    windowed.setSectionMetrics('persons', { heights: { eins: 34, zwei: 51, kopf: 24 } });
+    const utils = render(GlobalSearchView, {
+      props: {
+        appState,
+        search,
+        windowed,
+        onNavigateToPerson: vi.fn(),
+        onNavigateToFamily: vi.fn(),
+        onNavigateToSource: vi.fn(),
+        onNavigateToPlace: vi.fn(),
+        onNavigateToHof: vi.fn(),
+      },
+    });
+    return { ...utils, windowed };
+  }
+
+  it('rendert bei 2.000 Treffern nur ein Fenster, nicht die ganze Liste', () => {
+    const { container } = renderGefenstert(2_000);
+    const zeilen = container.querySelectorAll('.global-search__row').length;
+    expect(zeilen).toBeGreaterThan(0); // sonst prüfte der Rest eine leere Menge (ADR-v9-200)
+    expect(zeilen).toBeLessThan(100);
+  });
+
+  it('Platzhalter plus Fenster ergeben die volle Höhe — der Scrollbalken lügt nicht', () => {
+    const n = 2_000;
+    // Höhen wie oben gestellt: jede dritte Zeile 34, die übrigen 51.
+    let gesamt = 0;
+    for (let i = 0; i < n; i++) gesamt += i % 3 === 0 ? 34 : 51;
+    for (const scrollTop of [0, 5_000, 40_000, 90_000]) {
+      const { container } = renderGefenstert(n, scrollTop);
+      const pads = [...container.querySelectorAll<HTMLElement>('.global-search__pad')];
+      const padSumme = pads.reduce((s, p) => s + parseFloat(p.style.height), 0);
+      const fenster = [...container.querySelectorAll('.global-search__row')].length;
+      // Das Fenster selbst zählt in Zeilen; seine Höhe liegt zwischen n×34 und n×51.
+      expect(padSumme + fenster * 34, `scrollTop=${scrollTop}`).toBeLessThanOrEqual(gesamt);
+      expect(padSumme + fenster * 51, `scrollTop=${scrollTop}`).toBeGreaterThanOrEqual(gesamt);
+    }
+  });
+
+  it('ohne gemessene Höhe rendert die Fläche ALLES, nicht nichts (ADR-v9-235 Entscheidung 4)', () => {
+    const appState = createAppState();
+    appState.loadDatabase(vieleDb(120), 'test.ged');
+    const search = createGlobalSearchState();
+    search.setQuery('Muster');
+    const { container } = render(GlobalSearchView, {
+      props: {
+        appState,
+        search,
+        windowed: createWindowed(), // keine Messwerte gestellt — wie happy-dom ohne Naht
+        onNavigateToPerson: vi.fn(),
+        onNavigateToFamily: vi.fn(),
+        onNavigateToSource: vi.fn(),
+        onNavigateToPlace: vi.fn(),
+        onNavigateToHof: vi.fn(),
+      },
+    });
+    expect(container.querySelectorAll('.global-search__row').length).toBe(120);
+  });
+
+  it('das Fenster wandert mit der Scroll-Position — andere Namen, gleiche Zeilenzahl', () => {
+    const oben = renderGefenstert(2_000, 0);
+    const obenNamen = [...oben.container.querySelectorAll('.global-search__primary')].map(
+      (e) => e.textContent?.trim(),
+    );
+    const unten = renderGefenstert(2_000, 40_000);
+    const untenNamen = [...unten.container.querySelectorAll('.global-search__primary')].map(
+      (e) => e.textContent?.trim(),
+    );
+    expect(untenNamen.length).toBeGreaterThan(0);
+    expect(untenNamen).not.toEqual(obenNamen);
+    expect(untenNamen.some((n) => obenNamen.includes(n))).toBe(false);
   });
 });

@@ -49,6 +49,7 @@ import MediaGallery from '../../ui/views/media/MediaGallery.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { createGlobalSearchState } from '../../ui/views/search/global-search-state.svelte';
+import { createWindowed } from '../../ui/shell/windowed.svelte';
 import {
   makeDatabase,
   makeFamily,
@@ -71,11 +72,19 @@ const ANKER_ZEILEN = 20_000;
  * keine Zielwerte, keine geschätzten Zahlen. Der Kommentar hinter jeder Zeile ist die
  * Messung, gegen die die Reserve gelegt wurde.
  *
- *  fällt bewusst aus der Reihe: sie gruppiert nach Dorf, und eine Gruppe mit mehr
+ * `HofList` fällt bewusst aus der Reihe: sie gruppiert nach Dorf, und eine Gruppe mit mehr
  * als 30 Zeilen klappt automatisch ein (Spec 21 §10b/ADR-v9-78). Sie rendert deshalb schon
  * heute O(Gruppen) statt O(Zeilen) — ihre Ratsche SCHÜTZT dieses Verhalten, statt ein
  * Versäumnis festzuhalten. Aufgefallen erst in der Messung: die Backlog-Zeile hatte alle
  * sechs Listen als flach geführt.
+ *
+ * `GlobalSearchView` ist seit ADR-v9-236 die erste Fläche mit VIRTUELLEM Scrollen: 5,00 →
+ * 0,03 Knoten je Zeile (10.010 → 56 bei n=2.000), Mount 213 → 12 ms. Ihre Ratsche misst
+ * damit ein Fenster-Budget, nicht mehr den Ist-Wert einer flachen Liste. Die übrigen sieben
+ * folgen (BL-311 ③) — erst wenn ALLE acht so gemessen werden, tritt die eine gemeinsame
+ * Sichtbar-Ratsche an die Stelle dieser Tabelle, und erst dann ist die Backlog-Zeile belegt.
+ * (Ihr Name steht hier bewusst NICHT ausgeschrieben: er IST der Beleg der Zeile, und ein
+ * Kommentar, der ihn nennt, würde die Zeile als fertig melden — vom Backlog-Lint gefangen.)
  */
 const RATSCHE_JE_ZEILE: Record<string, number> = {
   PersonList: 7.5, // gemessen 7,01
@@ -84,7 +93,7 @@ const RATSCHE_JE_ZEILE: Record<string, number> = {
   RepositoryList: 5.5, // gemessen 5,00
   PlaceList: 9.5, // gemessen 9,01
   HofList: 0.05, // gemessen 0,01 — Auto-Einklappen je Dorf-Gruppe (ADR-v9-78)
-  GlobalSearchView: 5.5, // gemessen 5,00
+  GlobalSearchView: 0.05, // gemessen 0,03 — virtuelles Scrollen, O(Fenster) statt O(Zeilen)
   MediaGallery: 7.5, // gemessen 7,01
 };
 /** Ratsche des absoluten Ankers (Ist 140.012 + Reserve). */
@@ -294,7 +303,20 @@ describe('Index-Flächen: Knoten je Zeile (BL-311, Spec 30 §1 NFR-1)', () => {
     pruefen('GlobalSearchView', personenDb(ZEILEN), (a) => {
       const search = createGlobalSearchState();
       search.setQuery('Vorname');
-      return render(GlobalSearchView, { props: { appState: a, search, ...navCallbacks() } });
+      // DIE NAHT, UND WARUM SIE HIER NÖTIG IST (ADR-v9-236, [32 TST-24]): diese Fläche
+      // fenstert virtuell, und das Fenster folgt aus GEMESSENEN Zeilenhöhen. happy-dom hat
+      // kein Layout, misst also 0 — und ohne Messung rendert die Fläche bewusst ALLES
+      // (ADR-v9-235 Entscheidung 4). Ohne die gestellten Werte würde dieses Gate also
+      // weiterhin den flachen Rückfall messen und für eine Fläche grün melden, die es so
+      // gar nicht mehr gibt. Die Werte sind die im Browser am Realbestand gemessenen.
+      const windowed = createWindowed();
+      windowed.setMetrics({ viewportHeight: 800 });
+      for (const gruppe of ['persons', 'families', 'sources', 'places', 'hofs']) {
+        windowed.setSectionMetrics(gruppe, { heights: { eins: 34.1, zwei: 51.1, kopf: 24 } });
+      }
+      return render(GlobalSearchView, {
+        props: { appState: a, search, windowed, ...navCallbacks() },
+      });
     }));
 
   it('MediaGallery', () =>

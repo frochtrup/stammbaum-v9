@@ -5,15 +5,18 @@
 // hoch die Platzhalter darüber und darunter sein müssen. Damit ist der Kern der Sache
 // build-frei testbar (INV-ARCH-2) und die Svelte-Seite trägt nur noch Messwerte und Listener.
 //
-// EINE HÖHE JE ZEILE, GEMESSEN STATT GERATEN. Spec 30 §1 nennt „O(log n)-Positionsbestimmung",
-// also die binäre Suche in einer Höhen-Präfixsumme für ungleich hohe Zeilen. Diese Fassung
-// nimmt bewusst EINE Höhe für alle Zeilen einer Fläche und lässt sie zur Laufzeit messen (die
-// erste gerenderte Zeile). Begründung: die Zeilen einer Index-Fläche sind gleichförmig gebaut
-// (Symbol · Name · Zahlenspalte), die Abweichung liegt bei einzelnen Pixeln, und die
-// Positionsbestimmung ist damit O(1) statt O(log n) — schneller als die Zusicherung, ohne
-// Höhen-Buchhaltung. Wo eine Fläche später WIRKLICH ungleich hohe Zeilen bekommt (etwa
-// Gruppen-Kopfzeilen zwischen den Zeilen), trägt `windowSlice` das über `headerHeight`: eine
-// zweite Höhe, keine Liste von Höhen.
+// ZWEI FASSUNGEN, WEIL DIE ZEILEN NICHT GLEICH HOCH SIND. `windowSlice` rechnet mit EINER
+// Höhe (O(1), eine Division) und passt für Flächen, deren Zeilen wirklich gleichförmig sind.
+// `windowSliceOffsets` rechnet mit einer PRÄFIXSUMME der Zeilen-Oberkanten und einer binären
+// Suche — das ist wörtlich, was Spec 30 §1 NFR-1 unter „O(log n)-Positionsbestimmung" fordert.
+//
+// Warum die Präfixsumme doch gebraucht wird (ADR-v9-235 Entscheidung 2 nahm das Gegenteil an,
+// am Realbestand widerlegt, s. ADR-v9-236): eine Suchtreffer-Zeile ist 34,1px hoch, wenn die
+// Person keine Datumszeile hat, und 51,1px, wenn sie eine hat — 50% Unterschied, nicht
+// „einzelne Pixel". Mit einer einzigen Höhe war die modellierte Gesamthöhe 16% zu kurz, und
+// die Messung an den echten Zeilen schaukelte sich auf, bis Svelte den Effektbaum abbrach
+// (`effect_update_depth_exceeded`). Die Klasse einer Zeile steht in den DATEN (hat sie eine
+// Zweitzeile?), gemessen wird nur EINE Musterhöhe je Klasse — daraus die Präfixsumme.
 //
 // Was hier NICHT steht: Scroll-Listener, ResizeObserver, `scrollTop`-Wiederherstellung. Das
 // ist Sache der Schale (`ui/shell/windowed.svelte.ts`).
@@ -82,37 +85,78 @@ export function windowSlice(input: WindowInput): WindowSlice {
   };
 }
 
+export interface OffsetWindowInput {
+  /**
+   * Oberkante jeder Zeile als Präfixsumme: `offsets[i]` ist der Abstand der Zeile `i` vom
+   * Listenanfang, `offsets[count]` die Gesamthöhe. Die Länge ist also `count + 1`. Die
+   * aufrufende Fläche baut sie aus ihren Daten (welche Zeile hat welche Höhenklasse) und
+   * EINER gemessenen Musterhöhe je Klasse — ein `Float64Array` reicht, auch bei 20.000
+   * Zeilen (160 KB, einmal je Anfrage gebaut).
+   */
+  offsets: ArrayLike<number>;
+  scrollTop: number;
+  viewportHeight: number;
+  overscan?: number;
+}
+
 /**
- * Dasselbe für eine Liste mit Kopfzeilen ANDERER Höhe (Buchstaben-Trenner, Gruppen-Header).
- * Die Positionsbestimmung bleibt O(1), weil nur ZWEI Höhen vorkommen und die Zahl der
- * Kopfzeilen vor einem Index als Präfixsumme mitgegeben wird — die Rechnung ist dann eine
- * Division, keine Suche.
+ * Das Fenster über UNGLEICH hohen Zeilen — die Fassung, die NFR-1 wörtlich erfüllt:
+ * binäre Suche in der Höhen-Präfixsumme, O(log n).
  *
- * `headerBefore(i)` liefert, wie viele Kopfzeilen VOR Index `i` liegen. Die Schale baut diese
- * Funktion aus ihrer flachen Zeilenliste (ein `Uint32Array` reicht) — hier bleibt sie ein
- * Parameter, damit dieses Modul DOM- und datenfrei bleibt.
+ * Sie ist der Präzisions-Gewinn gegenüber `windowSlice`: die Platzhalter sind hier nicht
+ * gerechnet, sondern ABGELESEN (`padTop = offsets[start]`), also exakt — was immer die
+ * Fläche in die Präfixsumme geschrieben hat, steht danach auch im Scrollbalken.
  */
-export function windowSliceMixed(
-  input: WindowInput & { headerHeight: number; headerCount: number; headerBefore: (i: number) => number },
-): WindowSlice {
-  const { count, rowHeight, headerHeight, headerCount, headerBefore } = input;
+export function windowSliceOffsets(input: OffsetWindowInput): WindowSlice {
+  const { offsets, scrollTop, viewportHeight } = input;
+  const overscan = input.overscan ?? DEFAULT_OVERSCAN;
+  const count = offsets.length - 1;
+
   if (count <= 0) return { start: 0, end: 0, padTop: 0, padBottom: 0 };
-  if (!Number.isFinite(rowHeight) || rowHeight <= 0) {
+  const gesamt = offsets[count];
+  if (!Number.isFinite(gesamt) || gesamt <= 0) {
+    // Noch keine Höhe gemessen — alles rendern, nicht nichts (ADR-v9-235 Entscheidung 4).
     return { start: 0, end: count, padTop: 0, padBottom: 0 };
   }
-  // Mittlere Höhe: aus ihr folgt der Startindex direkt. Der Fehler daraus ist kleiner als das
-  // Overscan-Fenster — deshalb genügt sie, statt eine Präfixsumme zu durchsuchen.
-  const gesamt = (count - headerCount) * rowHeight + headerCount * headerHeight;
-  const mittel = gesamt / count;
-  const grob = windowSlice({ ...input, rowHeight: mittel });
-  const kopfVorStart = headerBefore(grob.start);
-  const kopfVorEnde = headerBefore(grob.end);
+
+  const oben = Math.min(Math.max(scrollTop, 0), gesamt);
+  const unten = oben + Math.max(viewportHeight, 0);
+  const ersteSichtbare = letzteZeileOberhalb(offsets, count, oben);
+  const letzteSichtbare = letzteZeileOberhalb(offsets, count, unten);
+
+  const start = Math.max(0, ersteSichtbare - overscan);
+  const end = Math.max(start + 1, Math.min(count, letzteSichtbare + 1 + overscan));
+
   return {
-    start: grob.start,
-    end: grob.end,
-    padTop: (grob.start - kopfVorStart) * rowHeight + kopfVorStart * headerHeight,
-    padBottom:
-      (count - grob.end - (headerCount - kopfVorEnde)) * rowHeight +
-      (headerCount - kopfVorEnde) * headerHeight,
+    start,
+    end,
+    padTop: offsets[start],
+    padBottom: gesamt - offsets[end],
   };
+}
+
+/** Größter Index `i` mit `offsets[i] <= ziel` — die binäre Suche hinter NFR-1s O(log n). */
+function letzteZeileOberhalb(offsets: ArrayLike<number>, count: number, ziel: number): number {
+  let lo = 0;
+  let hi = count;
+  while (lo < hi) {
+    const mitte = (lo + hi + 1) >> 1;
+    if (offsets[mitte] <= ziel) lo = mitte;
+    else hi = mitte - 1;
+  }
+  return lo;
+}
+
+/**
+ * Baut die Präfixsumme aus den Höhen der einzelnen Zeilen. Steht hier statt in der Fläche,
+ * damit jede Fläche dieselbe Rechnung benutzt (INV-UI-4) — und damit sie build-frei geprüft
+ * ist: eine falsche Präfixsumme wäre eine Lüge über die Datenmenge, die niemand sieht.
+ */
+export function buildOffsets(heights: ArrayLike<number>): Float64Array {
+  const offsets = new Float64Array(heights.length + 1);
+  for (let i = 0; i < heights.length; i++) {
+    const h = heights[i];
+    offsets[i + 1] = offsets[i] + (Number.isFinite(h) && h > 0 ? h : 0);
+  }
+  return offsets;
 }

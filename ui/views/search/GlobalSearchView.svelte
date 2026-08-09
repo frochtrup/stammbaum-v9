@@ -25,6 +25,8 @@
     type SearchKind,
   } from './global-search-state.svelte';
   import { sexSymbol } from '../../shell/person-display';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
+  import { buildOffsets } from '../../shell/window-slice';
 
   /**
    * Soundex-Umschalter der globalen Suche (BL-10, ADR-v9-159): sichtbares Bedienelement
@@ -58,6 +60,14 @@
      * so lange lebt wie die Komponente.
      */
     search?: GlobalSearchState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311). Von AUSSEN, aus demselben Grund wie
+     * `search`: die Scroll-Position soll den Sprung auf einen Treffer überleben (Spec 21
+     * §5) — und weil happy-dom kein Layout hat, ist er der einzige Weg, die gemessenen
+     * Höhen für einen Test zu stellen (`setSectionMetrics`, [32 TST-24](../../../specs/v9/32-Testframework.md)).
+     * Fehlt er, lebt eine eigene Instanz genau so lange wie die Komponente.
+     */
+    windowed?: Windowed;
   }
   const {
     appState,
@@ -67,6 +77,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     search: searchProp,
+    windowed: windowedProp,
   }: Props = $props();
 
   // Einmal beim Aufbau festgelegt (das `untrack` sagt genau das): die Hülle wird nie
@@ -115,12 +126,71 @@
   const phonCount = $derived(results.persons.filter((r) => r.phonetic).length);
   const phonSplit = $derived(phonCount > 0 && phonCount < results.persons.length);
 
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235 in der Fassung von ADR-v9-236) --------------
+  // EIN Fenster je GRUPPE im gemeinsamen Scroll-Container. Die Zeilen sind NICHT gleich hoch:
+  // eine Trefferzeile misst 34,1px ohne Zweitzeile und 51,1px mit einer (am Realbestand
+  // gemessen). Welche von beiden, steht in den DATEN (`row.secondary`), also wird je Zeile
+  // eine HÖHENKLASSE gemeldet, je Klasse EINE Musterhöhe gemessen und daraus eine
+  // Höhen-Präfixsumme gebaut — die binäre Suche darin ist NFR-1s „O(log n)" wörtlich.
+  // Die Fenster stehen als `$derived` IM SKRIPT, nicht als `{@const}` im Template
+  // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
+  const KLASSEN = ['eins', 'zwei', 'kopf'] as const;
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const secPersons = w.section('persons', KLASSEN);
+  const secFamilies = w.section('families', KLASSEN);
+  const secSources = w.section('sources', KLASSEN);
+  const secPlaces = w.section('places', KLASSEN);
+  const secHofs = w.section('hofs', KLASSEN);
+
+  /** Höhenklasse einer Trefferzeile: mit Zweitzeile („* 1905, Vreden") oder ohne. */
+  const klasseVon = (row: { secondary?: string | null }) => (row.secondary ? 'zwei' : 'eins');
+
+  /**
+   * Die Personen-Gruppe ist die einzige mit Zwischenüberschriften (ADR-v9-169, nur im
+   * Soundex-Modus). Damit die Platzhalter-Zusicherung stimmt, wird sie als EINE flache
+   * Zeilenliste gefenstert — Kopfzeilen sind Einträge darin (Klasse `kopf`), keine
+   * Sonderfälle daneben.
+   */
+  type PersonZeile =
+    | { art: 'kopf'; label: string; count: number }
+    | { art: 'zeile'; row: (typeof results.persons)[number] };
+  const personRows = $derived.by((): PersonZeile[] => {
+    const rows = results.persons;
+    if (!phonSplit) return rows.map((row): PersonZeile => ({ art: 'zeile', row }));
+    const out: PersonZeile[] = [];
+    rows.forEach((row, i) => {
+      if (i === 0) out.push({ art: 'kopf', label: 'Ähnlicher Nachname', count: phonCount });
+      else if (i === phonCount)
+        out.push({ art: 'kopf', label: 'Weitere Treffer', count: rows.length - phonCount });
+      out.push({ art: 'zeile', row });
+    });
+    return out;
+  });
+
+  // Die Präfixsummen. Sie werden neu gebaut, wenn sich die Treffer ändern ODER eine
+  // Musterhöhe dazukommt — beides selten, und O(n) ist neben der Suche selbst nichts.
+  const offPersons = $derived.by(() =>
+    buildOffsets(
+      personRows.map((e) => (e.art === 'kopf' ? secPersons.height('kopf') : secPersons.height(klasseVon(e.row)))),
+    ),
+  );
+  const offFamilies = $derived.by(() => buildOffsets(results.families.map((r) => secFamilies.height(klasseVon(r)))));
+  const offSources = $derived.by(() => buildOffsets(results.sources.map((r) => secSources.height(klasseVon(r)))));
+  const offPlaces = $derived.by(() => buildOffsets(results.places.map((r) => secPlaces.height(klasseVon(r)))));
+  const offHofs = $derived.by(() => buildOffsets(results.hofs.map((r) => secHofs.height(klasseVon(r)))));
+
+  const winPersons = $derived(secPersons.slice(offPersons));
+  const winFamilies = $derived(secFamilies.slice(offFamilies));
+  const winSources = $derived(secSources.slice(offSources));
+  const winPlaces = $derived(secPlaces.slice(offPlaces));
+  const winHofs = $derived(secHofs.slice(offHofs));
+
   function clearSearch() {
     search.clearQuery();
   }
 </script>
 
-<div class="global-search">
+<div class="global-search" use:w.container>
   <div class="global-search__toolbar">
     <div class="global-search__field">
       <input
@@ -177,51 +247,55 @@
     {/if}
     <div class="global-search__groups">
       {#if showGroup('persons') && results.persons.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secPersons.frame>
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
-            {#each results.persons as row, i (row.id)}
+            {#if winPersons.padTop > 0}
+              <li class="global-search__pad" style="height:{winPersons.padTop}px" aria-hidden="true"></li>
+            {/if}
+            {#each personRows.slice(winPersons.start, winPersons.end) as eintrag, i (eintrag.art === 'kopf' ? `k${winPersons.start + i}` : eintrag.row.id)}
               <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
                    stünde die Soundex-Reihenfolge kommentarlos da. Nur im Soundex-Modus,
                    und nur wenn beide Mengen nicht leer sind. -->
               <!-- `role="separator"` am inneren `<span>`, nicht am `<li>` — Begründung
                    wie in `PlaceList.svelte` (BL-66/axe: ein `<ul>` besitzt nur
                    Listeneinträge). -->
-              {#if phonSplit && i === 0}
-                <li class="global-search__subhead">
-                  <span role="separator" aria-label="Ähnlich klingender Nachname">
-                    Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+              {#if eintrag.art === 'kopf'}
+                <li class="global-search__subhead" use:secPersons.probe={'kopf'}>
+                  <span role="separator" aria-label={eintrag.label === 'Ähnlicher Nachname' ? 'Ähnlich klingender Nachname' : eintrag.label}>
+                    {eintrag.label} <span class="global-search__subcount">{eintrag.count}</span>
                   </span>
                 </li>
-              {:else if phonSplit && i === phonCount}
-                <li class="global-search__subhead">
-                  <span role="separator" aria-label="Weitere Treffer">
-                    Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
-                  </span>
+              {:else}
+                <li use:secPersons.probe={klasseVon(eintrag.row)}>
+                  <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(eintrag.row.id)}>
+                    <span class="global-search__primary">
+                      {#if eintrag.row.sex}<span class="global-search__sex global-search__sex--{eintrag.row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(eintrag.row.sex)}</span>{/if}
+                      {eintrag.row.primary}
+                    </span>
+                    {#if eintrag.row.secondary}
+                      <span class="global-search__secondary" use:tooltip={eintrag.row.secondaryFull || undefined}>{eintrag.row.secondary}</span>
+                    {/if}
+                  </button>
                 </li>
               {/if}
-              <li>
-                <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
-                  <span class="global-search__primary">
-                    {#if row.sex}<span class="global-search__sex global-search__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>{/if}
-                    {row.primary}
-                  </span>
-                  {#if row.secondary}
-                    <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
-                  {/if}
-                </button>
-              </li>
             {/each}
+            {#if winPersons.padBottom > 0}
+              <li class="global-search__pad" style="height:{winPersons.padBottom}px" aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('families') && results.families.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secFamilies.frame>
           <h2 class="global-search__group-title">Familien</h2>
           <ul class="global-search__rows">
-            {#each results.families as row (row.id)}
-              <li>
+            {#if winFamilies.padTop > 0}
+              <li class="global-search__pad" style="height:{winFamilies.padTop}px" aria-hidden="true"></li>
+            {/if}
+            {#each results.families.slice(winFamilies.start, winFamilies.end) as row (row.id)}
+              <li use:secFamilies.probe={klasseVon(row)}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToFamily(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}
@@ -230,54 +304,75 @@
                 </button>
               </li>
             {/each}
+            {#if winFamilies.padBottom > 0}
+              <li class="global-search__pad" style="height:{winFamilies.padBottom}px" aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('sources') && results.sources.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secSources.frame>
           <h2 class="global-search__group-title">Quellen</h2>
           <ul class="global-search__rows">
-            {#each results.sources as row (row.id)}
-              <li>
+            {#if winSources.padTop > 0}
+              <li class="global-search__pad" style="height:{winSources.padTop}px" aria-hidden="true"></li>
+            {/if}
+            {#each results.sources.slice(winSources.start, winSources.end) as row (row.id)}
+              <li use:secSources.probe={klasseVon(row)}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToSource(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winSources.padBottom > 0}
+              <li class="global-search__pad" style="height:{winSources.padBottom}px" aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('places') && results.places.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secPlaces.frame>
           <h2 class="global-search__group-title">Orte</h2>
           <ul class="global-search__rows">
-            {#each results.places as row (row.id)}
-              <li>
+            {#if winPlaces.padTop > 0}
+              <li class="global-search__pad" style="height:{winPlaces.padTop}px" aria-hidden="true"></li>
+            {/if}
+            {#each results.places.slice(winPlaces.start, winPlaces.end) as row (row.id)}
+              <li use:secPlaces.probe={klasseVon(row)}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPlace(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winPlaces.padBottom > 0}
+              <li class="global-search__pad" style="height:{winPlaces.padBottom}px" aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('hofs') && results.hofs.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secHofs.frame>
           <h2 class="global-search__group-title">Höfe</h2>
           <ul class="global-search__rows">
-            {#each results.hofs as row (row.id)}
-              <li>
+            {#if winHofs.padTop > 0}
+              <li class="global-search__pad" style="height:{winHofs.padTop}px" aria-hidden="true"></li>
+            {/if}
+            {#each results.hofs.slice(winHofs.start, winHofs.end) as row (row.id)}
+              <li use:secHofs.probe={klasseVon(row)}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToHof(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winHofs.padBottom > 0}
+              <li class="global-search__pad" style="height:{winHofs.padBottom}px" aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
@@ -393,6 +488,14 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  /* Platzhalter für die nicht gerenderten Zeilen ober- und unterhalb des Fensters
+     (ADR-v9-235 Entscheidung 3): sie halten Scrollbalken, Scroll-Position und Sprünge
+     wahr — ohne sie wäre virtuelles Scrollen eine Täuschung über die Datenmenge. */
+  .global-search__pad {
+    list-style: none;
+    pointer-events: none;
   }
 
   .global-search__row {
