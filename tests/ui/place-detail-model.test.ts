@@ -733,3 +733,54 @@ describe('buildPlaceDetail — überlappende Zugehörigkeiten (BL-325)', () => {
     expect(grenzjahr!.ueberlappt).toBe(true);
   });
 });
+
+// BL-324 Punkt 1 (Nutzer-Rückfrage): der Stichtag muss in der Zeitleiste ANKOMMEN.
+// Ohne diesen Schritt trug man ihn ein und sah nichts — die Zeile fragte weiter nach dem
+// ganzen Jahr, in dem beide Perioden gelten, und der ⚠-Hinweis blieb stehen.
+describe('buildPlaceDetail — Stichtage in der Zeitleiste (BL-324)', () => {
+  function dolgen(mitStichtag: boolean) {
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Departement Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1810, ...(mitStichtag ? { toDate: '30 SEP 1810' } : {}) },
+          { placeId: '@DEP@', from: 1810, to: 1813, ...(mitStichtag ? { fromDate: '1 OCT 1810' } : {}) },
+        ],
+      }),
+    );
+    return db;
+  }
+
+  it('OHNE Stichtag: Jahres-Zeile, und der Hinweis bleibt zu Recht stehen', () => {
+    const db = dolgen(false);
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    const grenze = rows.find((r) => r.year === 1810)!;
+    expect(grenze.label).toBe('ab 1810');
+    expect(grenze.ueberlappt).toBe(true);
+  });
+
+  it('MIT Stichtag: die Zeile nennt den Tag, und der Hinweis verschwindet', () => {
+    const db = dolgen(true);
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    // GENAU EINE Zeile im Grenzjahr, und sie nennt den Tag. Der zweite Schluesselpunkt
+    // (30 SEP 1810, das Ende der alten Periode) faellt der vorhandenen Dedup zum Opfer,
+    // weil sich die KETTE dort nicht aendert - richtig so: eine Zeile entsteht bei einem
+    // Wechsel, nicht bei jedem Datum.
+    const imGrenzjahr = rows.filter((r) => r.year === 1810);
+    expect(imGrenzjahr.map((r) => r.label)).toEqual(['ab 1. Oktober 1810']);
+    expect(imGrenzjahr[0].ueberlappt, 'kein Hinweis mehr - die Frage ist beantwortet').toBe(false);
+    expect(imGrenzjahr[0].chain).toEqual([{ id: '@DEP@', label: 'Departement Aller' }]);
+    // Und davor gilt weiterhin das Amt - die Zeile davor bleibt unberuehrt.
+    const davor = rows.filter((r) => r.year === 1512);
+    expect(davor.map((r) => r.label)).toEqual(['ab 1512']);
+    expect(davor[0].chain).toEqual([{ id: '@AMT@', label: 'Amt Ilten' }]);
+  });
+});

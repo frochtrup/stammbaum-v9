@@ -23,7 +23,7 @@ describe('HofList — Sammlung, Dorf-Gruppierung, Klick-Navigation', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -40,7 +40,7 @@ describe('HofList — Sammlung, Dorf-Gruppierung, Klick-Navigation', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -67,7 +67,7 @@ describe('HofList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', 
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -82,10 +82,10 @@ describe('HofList — Anreicherung als Filter statt Zeilen-Pille (ADR-v9-149)', 
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     db.hofObjects.set(
       '@H2@',
-      hof('@H2@', '@P1@', { addrs: [{ value: 'Bachweg 7', from: null, to: null }], note: 'Hof am Bach' }),
+      hof('@H2@', '@P1@', { addrs: [{ value: 'Bachweg 7', from: null, to: null , fromDate: null, toDate: null }], note: 'Hof am Bach' }),
     );
     withReferencingPerson(db, '@I1@', '@H1@');
     withReferencingPerson(db, '@I2@', '@H2@');
@@ -119,8 +119,8 @@ describe('HofList — Referenz-Filter (ADR-v9-46, Spec 11 §9.3)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
-    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Verwaist 1', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Verwaist 1', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -161,7 +161,7 @@ describe('HofList — CoordIndicator (ADR-v9-79 Punkt l, INV-UI-4)', () => {
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.hofObjects.set(
       '@H1@',
-      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.1, long: 7.6 }),
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], lat: 52.1, long: 7.6 }),
     );
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
@@ -179,7 +179,7 @@ describe('HofList — CoordIndicator (ADR-v9-79 Punkt l, INV-UI-4)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -205,7 +205,7 @@ describe('HofList — Toolbar-Ownership "Hof-Zuweisungen prüfen"/"Massen-Dedup"
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -231,7 +231,7 @@ describe('HofList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -247,8 +247,8 @@ describe('HofList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR
     const db = makeDatabase();
     // Zwei gleichadressige Höfe im selben Dorf → EINE Dedup-Gruppe (findHofDuplicates).
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
-    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     withReferencingPerson(db, '@I2@', '@H2@');
     appState.loadDatabase(db, 'test.ged');
@@ -274,7 +274,7 @@ describe('HofList — Suche und Abschnitt überleben das Wegnavigieren (BL-320)'
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     withReferencingPerson(db, '@I1@', '@H1@');
     appState.loadDatabase(db, 'test.ged');
     const props = { appState, viewState: createViewState(), list };

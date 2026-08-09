@@ -18,6 +18,14 @@ export interface Dated {
   from: Year;
   to: Year;
   dateRaw?: string | null;
+  /** Tagegenauer Beginn als GEDCOM-Datumsstring (BL-324, ADR-v9-243) — optional und
+   *  ADDITIV: `from` bleibt die Jahres-Vergleichsbasis und muss dazu passen. Wo dies
+   *  fehlt, verhält sich die Auflösung unverändert jahresweise (`core/places/zeitbezug.ts`).
+   *  App-privat: erreicht weder GEDCOM noch GRAMPS. NICHT zu verwechseln mit `dateRaw`,
+   *  das den unveränderten Quelltext einer IMPORTIERTEN Datierung bewahrt. */
+  fromDate?: string | null;
+  /** Tagegenaues Ende, analog `fromDate`. */
+  toDate?: string | null;
 }
 
 /** Datierte Namensvariante eines PlaceObject (sprachlich/orthographisch/historisch). */
@@ -34,6 +42,10 @@ export interface DatedRef {
   from: Year;
   to: Year;
   dateRaw?: string | null;
+  /** s. `Dated.fromDate` (BL-324) — hier trägt es den Stichtag einer Verwaltungsreform. */
+  fromDate?: string | null;
+  /** s. `Dated.toDate` (BL-324). */
+  toDate?: string | null;
 }
 
 /**

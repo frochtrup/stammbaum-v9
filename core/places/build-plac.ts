@@ -12,6 +12,7 @@ import type { Year, PlaceObject } from './types';
 import type { PlaceRegistry } from './place-registry';
 import type { HofRegistry } from './hof-registry';
 import { extractHofAddr, placeYear } from './normalize';
+import { spanneVonEreignis, type Spanne, type Zeitbezug } from './zeitbezug';
 
 /** Erstes Komma-Segment eines Namens (atomarer Ortsname ohne Hierarchie). */
 function atomic(s: string | null): string {
@@ -31,13 +32,13 @@ export interface PlaceContext {
 export function buildFormString(
   reg: PlaceRegistry,
   placeId: PlaceId | null,
-  year: Year,
+  when: Zeitbezug,
 ): string | null {
   if (!placeId) return null;
-  if (year == null) return atomic(reg.resolveAsOf(placeId, null)) || null;
-  const chain = reg.enclosureChainAsOf(placeId, year).map(atomic).filter(Boolean);
+  if (when == null) return atomic(reg.resolveAsOf(placeId, null)) || null;
+  const chain = reg.enclosureChainAsOf(placeId, when).map(atomic).filter(Boolean);
   if (chain.length) return chain.join(', ');
-  return atomic(reg.resolveAsOf(placeId, year)) || null;
+  return atomic(reg.resolveAsOf(placeId, when)) || null;
 }
 
 /**
@@ -90,14 +91,14 @@ export function placeDisplayName(po: PlaceObject | undefined | null): string {
  */
 export function buildListPlaceName(ev: Event, ctx: PlaceContext): string {
   if (!ev) return '';
-  const year = eventYear(ev);
+  const bezug = eventSpanne(ev);
 
   if (ev.hofId != null) {
     const hof = ctx.hofs.byId(ev.hofId);
     if (hof) {
       // Komma-Schutz wie im Wire-Bau: eine Alt-Adresse "Oster 82a, Wester 141" ist zwei
       // Adressen in einem Feld — in der Listenzeile zählt die erste.
-      const addrFull = ctx.hofs.resolveAddrAsOf(ev.hofId, year) ?? '';
+      const addrFull = ctx.hofs.resolveAddrAsOf(ev.hofId, bezug) ?? '';
       const addr = addrFull.includes(',') ? extractHofAddr(addrFull) : addrFull;
       const village = placeDisplayName(ctx.places.byId(hof.villageId));
       if (addr && village) return `${addr}, ${village}`;
@@ -121,20 +122,20 @@ export function buildListPlaceName(ev: Event, ctx: PlaceContext): string {
  *   2. kein hofId, aber placeId → nur Dorf-Hierarchie.
  * Reine Funktion — keine Wall-Clock, kein Zustand.
  */
-export function buildPlacForGedcom(ev: Event, year: Year, ctx: PlaceContext): string | null {
+export function buildPlacForGedcom(ev: Event, when: Zeitbezug, ctx: PlaceContext): string | null {
   if (!ev) return null;
 
   const hofId: HofId | null = ev.hofId;
   if (hofId != null) {
     const hof = ctx.hofs.byId(hofId);
     if (hof) {
-      const hofAddrFull = ctx.hofs.resolveAddrAsOf(hofId, year) ?? '';
+      const hofAddrFull = ctx.hofs.resolveAddrAsOf(hofId, when) ?? '';
       // Komma-Schutz: PLAC nutzt ',' als Hierarchie-Separator. Enthält die Hof-Adresse
       // selbst ein Komma (Altbestand „Oster 82a, Wester 141"), nur den Teil bis zum
       // ersten Komma in PLAC schreiben. ADDR trägt den vollen Wert; beim Re-Import
       // findet Pfad B (ADDR-basiert) den Hof wieder.
       const hofAddr = hofAddrFull.includes(',') ? extractHofAddr(hofAddrFull) : hofAddrFull;
-      const villagePart = buildFormString(ctx.places, hof.villageId, year);
+      const villagePart = buildFormString(ctx.places, hof.villageId, when);
       if (hofAddr && villagePart) return hofAddr + ', ' + villagePart;
       return hofAddr || villagePart || null;
     }
@@ -143,11 +144,27 @@ export function buildPlacForGedcom(ev: Event, year: Year, ctx: PlaceContext): st
     return null;
   }
 
-  if (ev.placeId != null) return buildFormString(ctx.places, ev.placeId, year);
+  if (ev.placeId != null) return buildFormString(ctx.places, ev.placeId, when);
   return null;
 }
 
 /** Jahr des Events aus seinem DATE-Feld (Chokepoint-intern; null wenn undatiert). */
 export function eventYear(ev: Event): Year {
   return placeYear(ev.date);
+}
+
+/**
+ * Der ZEITBEZUG eines Events für die Orts-Auflösung (BL-324) — der Nachfolger von
+ * `eventYear` an genau den Stellen, an denen gegen datierte Perioden verglichen wird.
+ *
+ * Warum nicht `eventYear` selbst umgebaut wurde: es hat 53 Aufrufer, und die meisten
+ * wollen wirklich ein JAHR (Lebensalter, Zeitleisten-Achse, Karten-Einfärbung,
+ * Story-Epochen). Nur die Orts-Auflösung braucht die Tagesauflösung; sie bekommt hier
+ * ihre eigene, schmale Tür statt einer Signaturänderung quer durch die App.
+ *
+ * `null` heißt „undatiert" — identisch zu `eventYear(ev) == null`, und die Aufrufer
+ * behandeln es wie bisher (kein Jahreskontext, alle Einträge kommen in Frage).
+ */
+export function eventSpanne(ev: Event): Spanne | null {
+  return spanneVonEreignis(ev.date);
 }

@@ -30,16 +30,18 @@ describe('parseGovText (BL-131)', () => {
     const e = parseGovText(OCHTRUP)!;
     expect(e.govId).toBe('object_162795');
     expect(e.names).toEqual([
-      { lang: 'deu', value: 'Ochtrup', from: null, to: null },
-      { lang: 'nld', value: 'Ochtrup', from: null, to: null },
+      { lang: 'deu', value: 'Ochtrup', from: null, to: null, fromDate: null, toDate: null },
+      { lang: 'nld', value: 'Ochtrup', from: null, to: null, fromDate: null, toDate: null },
     ]);
     expect(e.types).toEqual([
       { rawType: 'Kirchdorf', type: 'Village', from: null, to: null },
       { rawType: 'Stadt', type: 'Town', from: 1969, to: null },
     ]);
+    // BL-324: GOV liefert den Stichtag der Reform mit — bis dahin verwarf `govYear`
+    // ihn. Genau diese Angabe macht die Randberührung 1969 entscheidbar.
     expect(e.parents).toEqual([
-      { govObjId: 'object_279180', from: 1803, to: 1969 },
-      { govObjId: 'object_190334', from: 1969, to: null },
+      { govObjId: 'object_279180', from: 1803, to: 1969, fromDate: null, toDate: '30 JUN 1969' },
+      { govObjId: 'object_190334', from: 1969, to: null, fromDate: '1 JUL 1969', toDate: null },
     ]);
     expect(e.extIds).toEqual({ geonames: '2856803' });
     expect(e.description).toBe('Ochtrup ist eine Stadt im Kreis Steinfurt.');
@@ -53,12 +55,16 @@ describe('parseGovText (BL-131)', () => {
 
   it('versteht die Altform „gehört DATUM zu …" (Stichtag ohne ab/bis)', () => {
     const e = parseGovText('object_1\ngehört 1885 zu object_9')!;
-    expect(e.parents).toEqual([{ govObjId: 'object_9', from: 1885, to: 1885 }]);
+    expect(e.parents).toEqual([
+      { govObjId: 'object_9', from: 1885, to: 1885, fromDate: null, toDate: null },
+    ]);
   });
 
   it('versteht ein Zusatzwort vor „zu" (Form aus gov-enrich.py — der v8-UI-Parser verlor sie still)', () => {
     const e = parseGovText('object_1\ngehört ab 1803 kirchlich zu object_9')!;
-    expect(e.parents).toEqual([{ govObjId: 'object_9', from: 1803, to: null }]);
+    expect(e.parents).toEqual([
+      { govObjId: 'object_9', from: 1803, to: null, fromDate: null, toDate: null },
+    ]);
   });
 
   it('lässt ein unbekanntes GOV-Typwort roh stehen, statt einen Typ zu erfinden', () => {
@@ -134,8 +140,8 @@ describe('applyGovEntry (BL-131)', () => {
 
     expect(res.createdPlaceholders).toHaveLength(2);
     expect(pl.enclosedBy).toEqual([
-      { placeId: govPlaceholderId('object_279180'), from: 1803, to: 1969 },
-      { placeId: govPlaceholderId('object_190334'), from: 1969, to: null },
+      { placeId: govPlaceholderId('object_279180'), from: 1803, to: 1969, fromDate: null, toDate: '30 JUN 1969' },
+      { placeId: govPlaceholderId('object_190334'), from: 1969, to: null, fromDate: '1 JUL 1969', toDate: null },
     ]);
     expect(countUnresolvedGovPlaceholders(places)).toBe(2);
   });

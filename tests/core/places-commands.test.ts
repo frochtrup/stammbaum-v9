@@ -63,7 +63,7 @@ describe('withAddedPname/withRemovedPname — pnames-Zeitachse (Formular-Pfad)',
   it('hängt eine datierte Namensvariante an, ohne das Original zu mutieren', () => {
     const pl = place('@P1@', { title: 'Sassenberg' });
     const next = withAddedPname(pl, 'Sassenbergk', 1600, 1750);
-    expect(next.pnames).toEqual([{ value: 'Sassenbergk', from: 1600, to: 1750 }]);
+    expect(next.pnames).toEqual([{ value: 'Sassenbergk', from: 1600, to: 1750 , fromDate: null, toDate: null }]);
     expect(pl.pnames).toEqual([]); // Original unangetastet
   });
 
@@ -76,12 +76,12 @@ describe('withAddedPname/withRemovedPname — pnames-Zeitachse (Formular-Pfad)',
   it('entfernt eine pnames-Variante am Index', () => {
     const pl = place('@P1@', {
       pnames: [
-        { value: 'A', from: null, to: null },
-        { value: 'B', from: null, to: null },
+        { value: 'A', from: null, to: null , fromDate: null, toDate: null },
+        { value: 'B', from: null, to: null , fromDate: null, toDate: null },
       ],
     });
     const next = withRemovedPname(pl, 0);
-    expect(next.pnames).toEqual([{ value: 'B', from: null, to: null }]);
+    expect(next.pnames).toEqual([{ value: 'B', from: null, to: null , fromDate: null, toDate: null }]);
   });
 });
 
@@ -127,7 +127,7 @@ describe('withAddedEnclosedBy/withRemovedEnclosedBy — Verwaltungs-Zeitachse', 
   it('hängt eine datierte enclosedBy-Zugehörigkeit an', () => {
     const pl = place('@P1@');
     const next = withAddedEnclosedBy(pl, '@KREIS@', 1900, null);
-    expect(next.enclosedBy).toEqual([{ placeId: '@KREIS@', from: 1900, to: null }]);
+    expect(next.enclosedBy).toEqual([{ placeId: '@KREIS@', from: 1900, to: null , fromDate: null, toDate: null }]);
   });
 
   it('ignoriert leere parentId', () => {
@@ -137,19 +137,19 @@ describe('withAddedEnclosedBy/withRemovedEnclosedBy — Verwaltungs-Zeitachse', 
   });
 
   it('entfernt eine enclosedBy-Zugehörigkeit am Index', () => {
-    const pl = place('@P1@', { enclosedBy: [{ placeId: '@A@', from: null, to: null }, { placeId: '@B@', from: null, to: null }] });
+    const pl = place('@P1@', { enclosedBy: [{ placeId: '@A@', from: null, to: null , fromDate: null, toDate: null }, { placeId: '@B@', from: null, to: null , fromDate: null, toDate: null }] });
     const next = withRemovedEnclosedBy(pl, 1);
-    expect(next.enclosedBy).toEqual([{ placeId: '@A@', from: null, to: null }]);
+    expect(next.enclosedBy).toEqual([{ placeId: '@A@', from: null, to: null , fromDate: null, toDate: null }]);
   });
 });
 
 describe('withAddedHofAddr/withRemovedHofAddr — Adressvarianten (Formular-Pfad)', () => {
   it('hängt eine Adressvariante an, ohne Dedup (expliziter Nutzer-Intent)', () => {
-    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] });
     const next = withAddedHofAddr(h, 'Wall 33 neu', 1950, null);
     expect(next.addrs).toEqual([
-      { value: 'Wall 33', from: null, to: null },
-      { value: 'Wall 33 neu', from: 1950, to: null },
+      { value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null },
+      { value: 'Wall 33 neu', from: 1950, to: null , fromDate: null, toDate: null },
     ]);
   });
 
@@ -162,12 +162,12 @@ describe('withAddedHofAddr/withRemovedHofAddr — Adressvarianten (Formular-Pfad
   it('entfernt eine Adressvariante am Index', () => {
     const h = hof('@H1@', '@P1@', {
       addrs: [
-        { value: 'A', from: null, to: null },
-        { value: 'B', from: null, to: null },
+        { value: 'A', from: null, to: null , fromDate: null, toDate: null },
+        { value: 'B', from: null, to: null , fromDate: null, toDate: null },
       ],
     });
     const next = withRemovedHofAddr(h, 0);
-    expect(next.addrs).toEqual([{ value: 'B', from: null, to: null }]);
+    expect(next.addrs).toEqual([{ value: 'B', from: null, to: null , fromDate: null, toDate: null }]);
   });
 });
 
@@ -175,43 +175,43 @@ describe('withUpdatedHofAddr — bestehende Adressvariante bearbeiten (Formular-
   it('ersetzt Wert/from/to an gültigem Index, Rest der Liste unverändert, ohne Original zu mutieren', () => {
     const h = hof('@H1@', '@P1@', {
       addrs: [
-        { value: 'Wall 33', from: 1900, to: 1950 },
-        { value: 'Wall 34', from: null, to: null },
+        { value: 'Wall 33', from: 1900, to: 1950 , fromDate: null, toDate: null },
+        { value: 'Wall 34', from: null, to: null , fromDate: null, toDate: null },
       ],
     });
     const next = withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949);
     expect(next.addrs).toEqual([
-      { value: 'Wall 33a', from: 1901, to: 1949 },
-      { value: 'Wall 34', from: null, to: null },
+      { value: 'Wall 33a', from: 1901, to: 1949 , fromDate: null, toDate: null },
+      { value: 'Wall 34', from: null, to: null , fromDate: null, toDate: null },
     ]);
     // Original unangetastet (unveränderliche Funktion).
     expect(h.addrs).toEqual([
-      { value: 'Wall 33', from: 1900, to: 1950 },
-      { value: 'Wall 34', from: null, to: null },
+      { value: 'Wall 33', from: 1900, to: 1950 , fromDate: null, toDate: null },
+      { value: 'Wall 34', from: null, to: null , fromDate: null, toDate: null },
     ]);
   });
 
   it('trimmt den Wert (gleiche Trim-Disziplin wie withAddedHofAddr)', () => {
-    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Alt', from: null, to: null }] });
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Alt', from: null, to: null , fromDate: null, toDate: null }] });
     const next = withUpdatedHofAddr(h, 0, '  Neu  ', null, null);
-    expect(next.addrs).toEqual([{ value: 'Neu', from: null, to: null }]);
+    expect(next.addrs).toEqual([{ value: 'Neu', from: null, to: null , fromDate: null, toDate: null }]);
   });
 
   it('ignoriert leere/nur-Whitespace Werte (kein stillschweigendes Löschen)', () => {
-    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] });
     expect(withUpdatedHofAddr(h, 0, '', null, null)).toBe(h);
     expect(withUpdatedHofAddr(h, 0, '   ', null, null)).toBe(h);
   });
 
   it('ignoriert Index außerhalb des Arrays (negativ oder >= length)', () => {
-    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] });
     expect(withUpdatedHofAddr(h, -1, 'X', null, null)).toBe(h);
     expect(withUpdatedHofAddr(h, 1, 'X', null, null)).toBe(h);
     expect(withUpdatedHofAddr(h, 99, 'X', null, null)).toBe(h);
   });
 
   it('lässt die Hof-id in jedem Fall unverändert (id ist deterministisch aus Erstanlage, kein Re-Resolve)', () => {
-    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    const h = hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] });
     expect(withUpdatedHofAddr(h, 0, 'Wall 33a', 1901, 1949).id).toBe('@H1@');
     expect(withUpdatedHofAddr(h, 0, '', null, null).id).toBe('@H1@');
     expect(withUpdatedHofAddr(h, 5, 'X', null, null).id).toBe('@H1@');
@@ -224,7 +224,7 @@ describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [
       place('@P1@', {
         title: 'Ochtrup',
         type: 'Town',
-        enclosedBy: [{ placeId: '@DE@', from: null, to: null }],
+        enclosedBy: [{ placeId: '@DE@', from: null, to: null , fromDate: null, toDate: null }],
       }),
       place('@DE@', { title: 'Deutschland', type: 'Country' }),
     );
@@ -241,7 +241,7 @@ describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [
       place('@S@', {
         title: 'Sassenberg',
         type: 'Town',
-        pnames: [{ value: 'Sassenbergk', from: 1600, to: 1750 }],
+        pnames: [{ value: 'Sassenbergk', from: 1600, to: 1750 , fromDate: null, toDate: null }],
       }),
     );
     const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofMap()) };
@@ -262,7 +262,7 @@ describe('linkEventToPlace — String→PlaceObject verknüpfen (Spec 20 §1.7 [
 describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-Reprojektion)', () => {
   it('setzt ev.hofId UND reprojiziert ev.place sofort (INV-PLACE, Hof-Adresse + Dorf-Hierarchie)', () => {
     const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
-    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
     const e = ev('RESI', { place: 'roher String', date: '1900' });
     linkEventToHof(e, '@H1@', ctx);
@@ -273,7 +273,7 @@ describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-R
 
   it('füllt ev.addr sofort, wenn leer (voller Hof-Adresswert)', () => {
     const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
-    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
     const e = ev('RESI', { place: '', date: '1900' });
     linkEventToHof(e, '@H1@', ctx);
@@ -282,7 +282,7 @@ describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-R
 
   it('lässt eine bereits gesetzte ev.addr byte-identisch (Wire-ADDR-Roundtrip, LP-1)', () => {
     const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
-    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const hofs = hofMap(hof('@H1@', '@V@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
     const e = ev('RESI', { place: '', addr: 'Wall 33, 48607 Ochtrup', date: '1900' });
     linkEventToHof(e, '@H1@', ctx);
@@ -293,7 +293,7 @@ describe('linkEventToHof — String→HofObject verknüpfen (ADR-v9-42, Sofort-R
     const places = placeMap(place('@V@', { title: 'Ochtrup', type: 'Village' }));
     const hofs = hofMap(
       hof('@H1@', '@V@', {
-        addrs: [{ value: 'Alte Str 1', from: 1800, to: 1899 }, { value: 'Neue Str 5', from: 1900, to: null }],
+        addrs: [{ value: 'Alte Str 1', from: 1800, to: 1899 , fromDate: null, toDate: null }, { value: 'Neue Str 5', from: 1900, to: null , fromDate: null, toDate: null }],
       }),
     );
     const ctx = { places: makePlaceRegistry(places), hofs: makeHofRegistry(hofs) };
@@ -323,7 +323,7 @@ describe('mergePlaceObjects — Dubletten-Merge (nur der Gewinner überlebt, ADR
   it('übernimmt WEDER Titel NOCH pnames des zusammengeführten Orts', () => {
     const places = placeMap(
       place('@A@', { title: 'Ochtrup', type: 'Town' }),
-      place('@B@', { title: 'Ochtorp', pnames: [{ value: 'Ochtrupe', from: 1600, to: 1700 }] }),
+      place('@B@', { title: 'Ochtorp', pnames: [{ value: 'Ochtrupe', from: 1600, to: 1700 , fromDate: null, toDate: null }] }),
     );
     const res = mergePlaceObjects(places, hofMap(), '@A@', '@B@');
     expect(places.has('@B@')).toBe(false);
@@ -336,8 +336,8 @@ describe('mergePlaceObjects — Dubletten-Merge (nur der Gewinner überlebt, ADR
 
   it('übernimmt die Zugehörigkeiten (enclosedBy) des Verlierers nicht — keine zweite Kette am Gewinner', () => {
     const places = placeMap(
-      place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_ST@', from: null, to: null }] }),
-      place('@B@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_AH@', from: null, to: null }] }),
+      place('@A@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_ST@', from: null, to: null , fromDate: null, toDate: null }] }),
+      place('@B@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KR_AH@', from: null, to: null , fromDate: null, toDate: null }] }),
       place('@KR_ST@', { title: 'Kreis Steinfurt' }),
       place('@KR_AH@', { title: 'Kreis Ahaus' }),
     );
@@ -368,7 +368,7 @@ describe('mergePlaceObjects — Dubletten-Merge (nur der Gewinner überlebt, ADR
 
   it('repointet hofObjects.villageId vom zusammengeführten auf den Überlebenden Ort', () => {
     const places = placeMap(place('@A@', { title: 'Ochtrup' }), place('@B@', { title: 'Ochtorp' }));
-    const hofs = hofMap(hof('_hof_x', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    const hofs = hofMap(hof('_hof_x', '@B@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     mergePlaceObjects(places, hofs, '@A@', '@B@');
     expect(hofs.get('_hof_x')!.villageId).toBe('@A@');
   });
@@ -377,7 +377,7 @@ describe('mergePlaceObjects — Dubletten-Merge (nur der Gewinner überlebt, ADR
     const places = placeMap(
       place('@A@', { title: 'Ochtrup' }),
       place('@B@', { title: 'Ochtorp' }),
-      place('@C@', { title: 'Bauerschaft', enclosedBy: [{ placeId: '@B@', from: null, to: null }] }),
+      place('@C@', { title: 'Bauerschaft', enclosedBy: [{ placeId: '@B@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     mergePlaceObjects(places, hofMap(), '@A@', '@B@');
     expect(places.get('@C@')!.enclosedBy[0].placeId).toBe('@A@');
@@ -444,15 +444,15 @@ describe('withUpdatedPname — bestehende Namensvariante bearbeiten (ADR-v9-183)
     place('@P1@', {
       title: 'Ochtrup',
       pnames: [
-        { value: 'Ochtorpe', from: null, to: 1400 },
-        { value: 'Ochtrup', from: 1400, to: null },
+        { value: 'Ochtorpe', from: null, to: 1400 , fromDate: null, toDate: null },
+        { value: 'Ochtrup', from: 1400, to: null , fromDate: null, toDate: null },
       ],
     });
 
   it('ersetzt Wert und Zeitraum am angegebenen Index', () => {
     const next = withUpdatedPname(ochtrup(), 0, 'Ochtorp', null, 1380);
 
-    expect(next.pnames[0]).toEqual({ value: 'Ochtorp', from: null, to: 1380 });
+    expect(next.pnames[0]).toEqual({ value: 'Ochtorp', from: null, to: 1380 , fromDate: null, toDate: null });
   });
 
   it('behält die Position im Array — genau der Grund für dieses Kommando', () => {
@@ -489,7 +489,7 @@ describe('withUpdatedPname — bestehende Namensvariante bearbeiten (ADR-v9-183)
     const vorher = ochtrup();
     withUpdatedPname(vorher, 0, 'Ochtorp', null, 1380);
 
-    expect(vorher.pnames[0]).toEqual({ value: 'Ochtorpe', from: null, to: 1400 });
+    expect(vorher.pnames[0]).toEqual({ value: 'Ochtorpe', from: null, to: 1400 , fromDate: null, toDate: null });
   });
 
   it('übernimmt `dateRaw` des ersetzten Eintrags NICHT — der Roh-String belegt die Datei, nicht die Eingabe', () => {
@@ -508,8 +508,8 @@ describe('withUpdatedEnclosedBy — bestehenden Zuordnungs-Zeitraum bearbeiten (
     place('@P1@', {
       title: 'Ochtrup',
       enclosedBy: [
-        { placeId: '@FUERST@', from: null, to: 1806 },
-        { placeId: '@KREIS@', from: 1861, to: null },
+        { placeId: '@FUERST@', from: null, to: 1806 , fromDate: null, toDate: null },
+        { placeId: '@KREIS@', from: 1861, to: null , fromDate: null, toDate: null },
       ],
     });
 
@@ -517,15 +517,15 @@ describe('withUpdatedEnclosedBy — bestehenden Zuordnungs-Zeitraum bearbeiten (
     const next = withUpdatedEnclosedBy(ochtrup(), 1, '@KREIS@', 1816, null);
 
     expect(next.enclosedBy).toEqual([
-      { placeId: '@FUERST@', from: null, to: 1806 },
-      { placeId: '@KREIS@', from: 1816, to: null },
+      { placeId: '@FUERST@', from: null, to: 1806 , fromDate: null, toDate: null },
+      { placeId: '@KREIS@', from: 1816, to: null , fromDate: null, toDate: null },
     ]);
   });
 
   it('macht eine Zuordnung nach unten offen, wenn `from` geleert wird (Spec 11 §1)', () => {
     const next = withUpdatedEnclosedBy(ochtrup(), 1, '@KREIS@', null, 1974);
 
-    expect(next.enclosedBy[1]).toEqual({ placeId: '@KREIS@', from: null, to: 1974 });
+    expect(next.enclosedBy[1]).toEqual({ placeId: '@KREIS@', from: null, to: 1974 , fromDate: null, toDate: null });
   });
 
   it('kann auch den Elternort wechseln', () => {

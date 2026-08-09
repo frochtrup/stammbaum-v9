@@ -19,6 +19,9 @@
     withAddedPname,
     withRemovedPname,
     withUpdatedPname,
+    grenzeAusEingabe,
+    grenzeText,
+    type Grenze,
     withAddedTranslation,
     withRemovedTranslation
   } from '../../../core/places';
@@ -36,17 +39,20 @@
   const translations = $derived(place.translations ?? []);
 
   let newPnameValue = $state('');
-  let newPnameFrom = $state<number | null>(null);
-  let newPnameTo = $state<number | null>(null);
+  // BL-324: EIN Feld je Grenze, das Jahr ODER Stichtag nimmt (1400 oder 8 MAY 1945).
+  // Der Umbenennungs-Stichtag eines Ortes ist oft tagegenau bekannt (Kotzenau wurde am
+  // 9. Mai 1945 zu Chocianow) — bis hierher fiel er auf das Jahr zurueck.
+  let newPnameFrom = $state('');
+  let newPnameTo = $state('');
   let newTransLang = $state('');
   let newTransValue = $state('');
 
   function addPname() {
     if (!newPnameValue.trim()) return;
-    onSave(withAddedPname(place, newPnameValue, newPnameFrom, newPnameTo));
+    onSave(withAddedPname(place, newPnameValue, grenzeAusEingabe(newPnameFrom), grenzeAusEingabe(newPnameTo)));
     newPnameValue = '';
-    newPnameFrom = null;
-    newPnameTo = null;
+    newPnameFrom = '';
+    newPnameTo = '';
   }
 
   function removePname(index: number) {
@@ -56,18 +62,19 @@
   /** Änderung an einer BESTEHENDEN Variante (ADR-v9-183). Committet sofort — gleiches
    *  Timing wie Add/Remove daneben, nicht am globalen „Speichern"-Knopf der Grunddaten
    *  (Vorbild: `updateHofAddr` in der Hof-Sektion, ADR-v9-81). */
-  function updatePname(index: number, value: string, from: number | null, to: number | null) {
+  function updatePname(index: number, value: string, from: Grenze, to: Grenze) {
     onSave(withUpdatedPname(place, index, value, from, to));
   }
 
-  /** `<input type="number">` liefert '' für ein geleertes Feld — das ist „offen" (null),
-   *  nicht 0. Ohne diese Umwandlung würde ein geleertes „bis" als Jahr 0 gespeichert. */
-  function jahrAusEingabe(v: string): number | null {
-    const t = v.trim();
-    if (!t) return null;
-    const n = Number(t);
-    return Number.isFinite(n) ? n : null;
-  }
+  /** Der aktuelle Feldinhalt einer Grenze: der Stichtag, wenn es einen gibt, sonst das Jahr. */
+  const vonText = (v: { from: number | null; fromDate?: string | null }): string =>
+    grenzeText(v.from, v.fromDate);
+  const bisText = (v: { to: number | null; toDate?: string | null }): string =>
+    grenzeText(v.to, v.toDate);
+
+  // Das frühere `jahrAusEingabe` liegt seit BL-324 als `grenzeAusEingabe` im Kern — es
+  // liest jetzt Jahr ODER Stichtag. Die Regel „geleertes Feld heißt offen (null), nicht
+  // 0" (Spec 11 §1) gilt unverändert und steht dort.
 
   /** Übersetzung anhängen (Sprachachse, BL-59) — gleicher Sofort-Speichern-Pfad wie addPname. */
   function addTranslation() {
@@ -114,21 +121,26 @@
               type="text" {...PLAIN_FIELD}
               value={v.value}
               aria-label={`Namensvariante ${i + 1}`}
-              onchange={(e) => updatePname(i, e.currentTarget.value, v.from, v.to)}
+              onchange={(e) =>
+                updatePname(i, e.currentTarget.value, grenzeAusEingabe(vonText(v)), grenzeAusEingabe(bisText(v)))}
             />
             <input
-              type="number"
-              value={v.from ?? ''}
+              type="text" {...PLAIN_FIELD}
+              class="place-detail__grenze"
+              value={vonText(v)}
               placeholder="von"
-              aria-label={`Namensvariante ${i + 1} — gültig von (Jahr)`}
-              onchange={(e) => updatePname(i, v.value, jahrAusEingabe(e.currentTarget.value), v.to)}
+              aria-label={`Namensvariante ${i + 1} — gültig von (Jahr oder Stichtag)`}
+              onchange={(e) =>
+                updatePname(i, v.value, grenzeAusEingabe(e.currentTarget.value), grenzeAusEingabe(bisText(v)))}
             />
             <input
-              type="number"
-              value={v.to ?? ''}
+              type="text" {...PLAIN_FIELD}
+              class="place-detail__grenze"
+              value={bisText(v)}
               placeholder="bis"
-              aria-label={`Namensvariante ${i + 1} — gültig bis (Jahr)`}
-              onchange={(e) => updatePname(i, v.value, v.from, jahrAusEingabe(e.currentTarget.value))}
+              aria-label={`Namensvariante ${i + 1} — gültig bis (Jahr oder Stichtag)`}
+              onchange={(e) =>
+                updatePname(i, v.value, grenzeAusEingabe(vonText(v)), grenzeAusEingabe(e.currentTarget.value))}
             />
             <button type="button" class="stb-icon-btn place-detail__edit-remove" data-variant="danger" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
           </li>
@@ -138,8 +150,20 @@
     {#if editing}
       <div class="place-detail__add-row">
         <input type="text" {...PLAIN_FIELD} placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
-        <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
-        <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
+        <input
+          type="text" {...PLAIN_FIELD}
+          class="place-detail__grenze"
+          placeholder="von"
+          bind:value={newPnameFrom}
+          aria-label="Gültig von (Jahr oder Stichtag)"
+        />
+        <input
+          type="text" {...PLAIN_FIELD}
+          class="place-detail__grenze"
+          placeholder="bis"
+          bind:value={newPnameTo}
+          aria-label="Gültig bis (Jahr oder Stichtag)"
+        />
         <button type="button" onclick={addPname}>+ Hinzufügen</button>
       </div>
     {/if}
@@ -210,8 +234,11 @@
     min-width: 0;
   }
 
-  .place-detail__add-row input[type='number'] {
-    width: 5rem;
+  /* Die Zeitraum-Felder sind seit BL-324 Textfelder (Jahr ODER Stichtag), keine
+     Zahlenfelder mehr — die Breite haengt jetzt an der Klasse. 7rem statt 5rem, weil
+     "8 MAY 1945" mehr braucht als "1945". */
+  .place-detail__add-row .place-detail__grenze {
+    width: 7rem;
   }
 
   .place-detail__add-row button {
@@ -270,8 +297,8 @@
     min-width: 0;
   }
 
-  .place-detail__edit-row input[type='number'] {
-    width: 5rem;
+  .place-detail__edit-row .place-detail__grenze {
+    width: 7rem;
   }
 
   .place-detail__edit-remove {

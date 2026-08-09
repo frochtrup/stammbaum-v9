@@ -3,16 +3,26 @@
 import type { HofId, PlaceId } from '../model/types';
 import type { HofObject, HofObjects, Year } from './types';
 import { normHofAddr, extractHofAddr, placeYear } from './normalize';
+import {
+  alsSpanne,
+  beginnWert,
+  istDatiert,
+  jahrAus,
+  spanneVonDatiert,
+  trifft,
+  type Spanne,
+  type Zeitbezug,
+} from './zeitbezug';
 
 export interface HofRegistry {
   byId: (id: HofId) => HofObject | undefined;
   byVillage: (villageId: PlaceId) => HofId[];
   /** Genau eine eindeutige Auflösung zum Jahr, sonst null (Mehrdeutigkeit → Review). */
-  findByAddr: (addr: string, year: Year, villageId?: PlaceId) => HofId | null;
+  findByAddr: (addr: string, when: Zeitbezug, villageId?: PlaceId) => HofId | null;
   /** Alle Kandidaten mit zum Jahr passender addrs[]-Bezeichnung (Read-Tolerant). */
-  findAllByAddr: (addr: string, year: Year, villageId?: PlaceId) => HofId[];
+  findAllByAddr: (addr: string, when: Zeitbezug, villageId?: PlaceId) => HofId[];
   /** Periodenkorrekte Adress-Bezeichnung (analog placeRegistry.resolveAsOf). */
-  resolveAddrAsOf: (id: HofId, year: Year) => string | null;
+  resolveAddrAsOf: (id: HofId, when: Zeitbezug) => string | null;
   /**
    * Schreibt die Indizes um EINEN neu entstandenen Hof fort (ADR-v9-88).
    *
@@ -53,10 +63,16 @@ function addToIndex(
   }
 }
 
-function dateMatches(from: Year, to: Year, y: number): boolean {
-  // undatiert = jederzeit gültig (Hof-Adressen ohne Datum sind Standard-Bezeichnung)
-  if (from == null && to == null) return true;
-  return (from == null || y >= from) && (to == null || y <= to);
+function adressePasst(
+  a: { from: Year; to: Year; fromDate?: string | null; toDate?: string | null },
+  bezug: Spanne,
+): boolean {
+  // undatiert = jederzeit gültig (Hof-Adressen ohne Datum sind Standard-Bezeichnung) —
+  // das ist der Unterschied zu den `pnames` in place-registry.ts, wo undatiert NUR als
+  // title-Fallback zählt. Seit BL-324 über Spannen statt Jahre; ohne `fromDate`/`toDate`
+  // ist das Ergebnis unverändert.
+  if (!istDatiert(a)) return true;
+  return trifft(spanneVonDatiert(a), bezug);
 }
 
 function hofAliveAt(h: HofObject, y: number | null): boolean {
@@ -74,20 +90,20 @@ export function makeHofRegistry(hofs: HofObjects): HofRegistry {
 
   for (const h of hofs.values()) addToIndex(h, byVillage, byNormAll);
 
-  const lookup = (k: string, year: Year, villageId?: PlaceId): HofId[] => {
+  const lookup = (k: string, when: Zeitbezug, villageId?: PlaceId): HofId[] => {
     const ids = (k && byNormAll.get(k)) || [];
     if (!ids.length) return [];
-    const y = placeYear(year);
+    const bezug = alsSpanne(when);
+    // `existsFrom`/`existsTo` des Hofes bleiben Jahres-Skalare (wie beim Ort, BL-324).
+    const y = bezug == null ? null : jahrAus(bezug);
     const out: HofId[] = [];
     for (const id of ids) {
       const h = hofs.get(id);
       if (!h) continue;
       if (villageId != null && h.villageId !== villageId) continue;
       if (!hofAliveAt(h, y)) continue;
-      if (y != null) {
-        const okAddr = h.addrs.some(
-          (a) => normHofAddr(a.value) === k && dateMatches(placeYear(a.from), placeYear(a.to), y),
-        );
+      if (bezug != null) {
+        const okAddr = h.addrs.some((a) => normHofAddr(a.value) === k && adressePasst(a, bezug));
         if (!okAddr) continue;
       }
       out.push(id);
@@ -99,34 +115,32 @@ export function makeHofRegistry(hofs: HofObjects): HofRegistry {
     byId: (id) => hofs.get(id),
     indexHof: (hof) => addToIndex(hof, byVillage, byNormAll),
     byVillage: (villageId) => byVillage.get(villageId)?.slice() ?? [],
-    findAllByAddr: (addr, year, villageId) => {
+    findAllByAddr: (addr, when, villageId) => {
       // Read-Tolerance: erst Voll-Norm (matcht historische Komma-Höfe wie
       // „Oster 82a, Wester 141"), dann Extract-Fallback (matcht Adressbuch-
       // Übernahmen „Wall 33, 48607 Ochtrup" gegen Hof „Wall 33").
       const fullKey = normHofAddr(addr);
-      const fullHits = lookup(fullKey, year, villageId);
+      const fullHits = lookup(fullKey, when, villageId);
       if (fullHits.length) return fullHits;
       const extractKey = normHofAddr(extractHofAddr(addr));
-      if (extractKey && extractKey !== fullKey) return lookup(extractKey, year, villageId);
+      if (extractKey && extractKey !== fullKey) return lookup(extractKey, when, villageId);
       return [];
     },
-    findByAddr: (addr, year, villageId) => {
-      const all = reg.findAllByAddr(addr, year, villageId);
+    findByAddr: (addr, when, villageId) => {
+      const all = reg.findAllByAddr(addr, when, villageId);
       return all.length === 1 ? all[0] : null; // strikt eindeutig — sonst Review
     },
-    resolveAddrAsOf: (id, year) => {
+    resolveAddrAsOf: (id, when) => {
       const h = hofs.get(id);
       if (!h) return null;
-      const y = placeYear(year);
-      if (y != null) {
+      const bezug = alsSpanne(when);
+      if (bezug != null) {
         let bestFrom = -Infinity;
         let bestVal: string | null = null;
         for (const a of h.addrs) {
-          const from = placeYear(a.from);
-          const to = placeYear(a.to);
-          if (from == null && to == null) continue; // undatiert nur als Fallback
-          if (!dateMatches(from, to, y)) continue;
-          const f = from ?? -Infinity;
+          if (!istDatiert(a)) continue; // undatiert nur als Fallback
+          if (!adressePasst(a, bezug)) continue;
+          const f = beginnWert(spanneVonDatiert(a));
           if (f > bestFrom) {
             bestFrom = f;
             bestVal = a.value;

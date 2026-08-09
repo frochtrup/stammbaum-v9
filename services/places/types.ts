@@ -13,8 +13,20 @@
 
 import type { PlaceObject, HofObject } from '../../core/places/types';
 
-/** Bekannte Schema-Version dieses Programms (Spec 11 §2, Spec 30 §4: Read-Only-Schreibstopp). */
-export const PLACES_SCHEMA_VERSION = 1;
+/**
+ * Bekannte Schema-Version dieses Programms (Spec 11 §2, Spec 30 §4: Read-Only-Schreibstopp).
+ *
+ * **2 seit BL-324** (tagegenaue `fromDate`/`toDate` an `pnames`/`enclosedBy`/`addrs`,
+ * [ADR-v9-243](../../../specs/v9/04-Entscheidungslog.md) Entscheidung 3). Der Sprung ist
+ * NICHT fürs Lesen nötig — die Felder sind optional, eine `1`-Datei bleibt gültig und wird
+ * unverändert verstanden. Er ist fürs SCHREIBEN nötig: ohne ihn liest ein älterer
+ * App-Stand die Tagesangaben weg und verwirft sie beim nächsten Speichern **still**. Über
+ * den Sync zweier Geräte mit verschiedenen Ständen ist das der einzige Datenverlust-Pfad
+ * dieser Änderung; mit `2` greift stattdessen das vorhandene Read-Only-Gate
+ * („schemaVersion zu neu", `places-sync-service.ts`) und der ältere Stand rührt die Datei
+ * nicht an.
+ */
+export const PLACES_SCHEMA_VERSION = 2;
 
 /**
  * Wire-Wrapper von `orte.json` (Spec 14 §6, Spec 30 §2.1). Maps sind als Arrays

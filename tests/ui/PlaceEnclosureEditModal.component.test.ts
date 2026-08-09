@@ -18,7 +18,7 @@ function setup() {
   db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
   db.placeObjects.set(
     '@P1@',
-    place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: 1974 }] }),
+    place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: 1974 , fromDate: null, toDate: null }] }),
   );
   appState.loadDatabase(db, 'test.ged');
   return appState;
@@ -33,8 +33,8 @@ describe('PlaceEnclosureEditModal — Rendering bestehender Zugehörigkeiten', (
     expect(screen.getByText('Kreis Steinfurt')).toBeTruthy();
     // Der Zeitraum steht nicht mehr als Text in Klammern da, sondern editierbar: er ist
     // Auswertungsgrundlage (enclosureWinnerAsOf), nicht bloß Beschriftung.
-    expect((screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr)') as HTMLInputElement).value).toBe('1816');
-    expect((screen.getByLabelText('Kreis Steinfurt — gültig bis (Jahr)') as HTMLInputElement).value).toBe('1974');
+    expect((screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr oder Stichtag)') as HTMLInputElement).value).toBe('1816');
+    expect((screen.getByLabelText('Kreis Steinfurt — gültig bis (Jahr oder Stichtag)') as HTMLInputElement).value).toBe('1974');
   });
 
   it('sortiert die Liste nach Beginn-Jahr, undatierte Einträge ans Ende (v8-Vorbild)', () => {
@@ -49,9 +49,9 @@ describe('PlaceEnclosureEditModal — Rendering bestehender Zugehörigkeiten', (
         title: 'Ochtrup',
         // Bewusst NICHT chronologisch im Array (wie ein Import/Merge es hinterlassen kann).
         enclosedBy: [
-          { placeId: '@A@', from: 1816, to: 1934 },
-          { placeId: '@C@', from: null, to: null },
-          { placeId: '@B@', from: 1300, to: 1813 },
+          { placeId: '@A@', from: 1816, to: 1934 , fromDate: null, toDate: null },
+          { placeId: '@C@', from: null, to: null , fromDate: null, toDate: null },
+          { placeId: '@B@', from: 1300, to: 1813 , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -81,8 +81,8 @@ describe('PlaceEnclosureEditModal — Rendering bestehender Zugehörigkeiten', (
         // zuerst in der Anzeige -- ein Klick auf @B@s Entfernen-Button darf NICHT
         // fälschlich den rohen Index 0 (@A@) treffen.
         enclosedBy: [
-          { placeId: '@A@', from: 1816, to: 1934 },
-          { placeId: '@B@', from: 1300, to: 1813 },
+          { placeId: '@A@', from: 1816, to: 1934 , fromDate: null, toDate: null },
+          { placeId: '@B@', from: 1300, to: 1813 , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -135,10 +135,10 @@ describe('PlaceEnclosureEditModal — Hinzufügen/Entfernen über appState.saveP
     render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
     await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
     await fireEvent.click(screen.getByText('Kreis Steinfurt'));
-    await fireEvent.input(screen.getByLabelText('Gültig von (Jahr)'), { target: { value: '1816' } });
+    await fireEvent.input(screen.getByLabelText('Gültig von (Jahr oder Stichtag)'), { target: { value: '1816' } });
     await fireEvent.click(screen.getByText('+ Hinzufügen'));
 
-    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([{ placeId: '@P2@', from: 1816, to: null }]);
+    expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([{ placeId: '@P2@', from: 1816, to: null , fromDate: null, toDate: null }]);
   });
 
   it('bietet "+ neuen Ort anlegen" im Picker an (ADR-v9-42)', async () => {
@@ -228,9 +228,9 @@ describe('PlaceEnclosureEditModal — drei Datierungs-Zustände in der Sortierun
       place('@P1@', {
         title: 'Ochtrup',
         enclosedBy: [
-          { placeId: '@KREIS@', from: 1816, to: null },
-          { placeId: '@EGAL@', from: null, to: null },
-          { placeId: '@FUERST@', from: null, to: 1806 },
+          { placeId: '@KREIS@', from: 1816, to: null , fromDate: null, toDate: null },
+          { placeId: '@EGAL@', from: null, to: null , fromDate: null, toDate: null },
+          { placeId: '@FUERST@', from: null, to: 1806 , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -268,21 +268,21 @@ describe('PlaceEnclosureEditModal — bestehende Zeiträume änderbar (ADR-v9-18
       place('@P1@', {
         title: 'Ochtrup',
         enclosedBy: [
-          { placeId: '@A@', from: 1700, to: 1815 },
-          { placeId: '@B@', from: 1861, to: null }, // Zahlendreher: soll 1816 heißen
+          { placeId: '@A@', from: 1700, to: 1815 , fromDate: null, toDate: null },
+          { placeId: '@B@', from: 1861, to: null , fromDate: null, toDate: null }, // Zahlendreher: soll 1816 heißen
         ],
       }),
     );
     appState.loadDatabase(db, 'test.ged');
 
     render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
-    await fireEvent.change(screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr)'), {
+    await fireEvent.change(screen.getByLabelText('Kreis Steinfurt — gültig von (Jahr oder Stichtag)'), {
       target: { value: '1816' },
     });
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
-      { placeId: '@A@', from: 1700, to: 1815 },
-      { placeId: '@B@', from: 1816, to: null },
+      { placeId: '@A@', from: 1700, to: 1815 , fromDate: null, toDate: null },
+      { placeId: '@B@', from: 1816, to: null , fromDate: null, toDate: null },
     ]);
   });
 
@@ -292,17 +292,17 @@ describe('PlaceEnclosureEditModal — bestehende Zeiträume änderbar (ADR-v9-18
     db.placeObjects.set('@FUERST@', place('@FUERST@', { title: 'Fürstbistum Münster' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@FUERST@', from: 1500, to: 1806 }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@FUERST@', from: 1500, to: 1806 , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
 
     render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
-    await fireEvent.change(screen.getByLabelText('Fürstbistum Münster — gültig von (Jahr)'), {
+    await fireEvent.change(screen.getByLabelText('Fürstbistum Münster — gültig von (Jahr oder Stichtag)'), {
       target: { value: '' },
     });
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
-      { placeId: '@FUERST@', from: null, to: 1806 },
+      { placeId: '@FUERST@', from: null, to: 1806 , fromDate: null, toDate: null },
     ]);
   });
 
@@ -317,21 +317,21 @@ describe('PlaceEnclosureEditModal — bestehende Zeiträume änderbar (ADR-v9-18
         title: 'Ochtrup',
         // @A@ (1816) steht im ROHEN Array vor @B@ (…–1300), angezeigt wird @B@ zuerst.
         enclosedBy: [
-          { placeId: '@A@', from: 1816, to: null },
-          { placeId: '@B@', from: null, to: 1300 },
+          { placeId: '@A@', from: 1816, to: null , fromDate: null, toDate: null },
+          { placeId: '@B@', from: null, to: 1300 , fromDate: null, toDate: null },
         ],
       }),
     );
     appState.loadDatabase(db, 'test.ged');
 
     render(PlaceEnclosureEditModal, { props: { appState, placeId: '@P1@', onClose: vi.fn() } });
-    await fireEvent.change(screen.getByLabelText('Grafschaft Steinfurt — gültig bis (Jahr)'), {
+    await fireEvent.change(screen.getByLabelText('Grafschaft Steinfurt — gültig bis (Jahr oder Stichtag)'), {
       target: { value: '1350' },
     });
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy).toEqual([
-      { placeId: '@A@', from: 1816, to: null },
-      { placeId: '@B@', from: null, to: 1350 },
+      { placeId: '@A@', from: 1816, to: null , fromDate: null, toDate: null },
+      { placeId: '@B@', from: null, to: 1350 , fromDate: null, toDate: null },
     ]);
   });
 });

@@ -4,6 +4,16 @@
 import type { PlaceId } from '../model/types';
 import type { DatedRef, PlaceObject, PlaceObjects, Year } from './types';
 import { normPlaceName, placeYear, placeTypeRank } from './normalize';
+import {
+  alsSpanne,
+  beginnWert,
+  istDatiert,
+  jahrAus,
+  spanneVonDatiert,
+  trifft,
+  type Spanne,
+  type Zeitbezug,
+} from './zeitbezug';
 
 export interface EnclosureMeta {
   truncated: boolean;
@@ -29,10 +39,10 @@ export interface PlaceRegistry {
   findByName: (name: string) => PlaceId | null;
   /** Alle Kandidaten gleichen Namens, spezifisch→allgemein sortiert (stabil). */
   findAllByName: (name: string) => PlaceId[];
-  /** Periodenkorrekter Name: im Jahr gültige pname, sonst title. */
-  resolveAsOf: (id: PlaceId, year: Year) => string | null;
+  /** Periodenkorrekter Name: im Zeitbezug gültige pname, sonst title. */
+  resolveAsOf: (id: PlaceId, when: Zeitbezug) => string | null;
   /** [Ort, übergeordnet, …] als periodenkorrekte Namen. Optional meta.truncated. */
-  enclosureChainAsOf: (id: PlaceId, year: Year, meta?: EnclosureMeta) => string[];
+  enclosureChainAsOf: (id: PlaceId, when: Zeitbezug, meta?: EnclosureMeta) => string[];
   /**
    * [Ort-Id, übergeordnete Id, …] — dieselbe periodenkorrekte Kettenwahl wie
    * `enclosureChainAsOf`, aber als Knoten-IDs statt Namen. Für Identitäts-/Verträglichkeits-
@@ -40,14 +50,18 @@ export interface PlaceRegistry {
    * pnames) prüfen müssen — ein einzelner periodenkorrekter Name reicht nicht (ein PLAC-Segment
    * „Bayern" ist mit dem Knoten kompatibel, dessen periodenkorrekter Name „Königreich Bayern" ist).
    */
-  enclosureIdsAsOf: (id: PlaceId, year: Year, meta?: EnclosureMeta) => PlaceId[];
+  enclosureIdsAsOf: (id: PlaceId, when: Zeitbezug, meta?: EnclosureMeta) => PlaceId[];
 }
 
 // Undatiert im PlaceObject-pname-Kontext gilt NICHT „jederzeit" — nur der Fallback
 // auf title. Datierte Einträge matchen periodengerecht.
-function dateMatches(from: Year, to: Year, y: number): boolean {
-  if (from == null && to == null) return false;
-  return (from == null || y >= from) && (to == null || y <= to);
+//
+// Seit BL-324 über `zeitbezug.ts` statt über nackte Jahresvergleiche: für eine Angabe
+// ohne `fromDate`/`toDate` ist das Ergebnis nachweislich unverändert (die Jahres-Kanten
+// der Spanne sind genau die alte inklusive Semantik), mit ihnen wird es tagegenau.
+function passtZu(d: { from: Year; to: Year; fromDate?: string | null; toDate?: string | null }, bezug: Spanne): boolean {
+  if (!istDatiert(d)) return false;
+  return trifft(spanneVonDatiert(d), bezug);
 }
 
 /** Volle normalisierte Namensmenge eines Knotens (title + alle pnames). */
@@ -107,17 +121,14 @@ export function chainCompatibleAnyPath(
   byId: (id: PlaceId) => PlaceObject | undefined,
   leafId: PlaceId,
   statedParentsNorm: readonly string[],
-  year: Year = null,
+  when: Zeitbezug = null,
 ): boolean {
-  const y = placeYear(year);
-  /** Im Jahr gültige Zugehörigkeiten eines Knotens (undatiert = jederzeit). */
+  const bezug = alsSpanne(when);
+  const y = bezug == null ? null : jahrAus(bezug);
+  /** Im Zeitbezug gültige Zugehörigkeiten eines Knotens (undatiert = jederzeit). */
   const validEnclosures = (pl: PlaceObject): readonly DatedRef[] => {
-    if (y == null) return pl.enclosedBy;
-    return pl.enclosedBy.filter((e) => {
-      const ef = placeYear(e.from);
-      const et = placeYear(e.to);
-      return (ef == null && et == null) || dateMatches(ef, et, y);
-    });
+    if (bezug == null) return pl.enclosedBy;
+    return pl.enclosedBy.filter((e) => !istDatiert(e) || passtZu(e, bezug));
   };
   /**
    * Existierte der Ort im Ereignisjahr? Spiegelt `enclosureIdsAsOf`, das die Kette an einem
@@ -190,7 +201,7 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
 
   const enclosureWinnerAsOf = (
     id: PlaceId,
-    y: number,
+    bezug: Spanne,
   ): { placeId: PlaceId | null; truncated: boolean; ueberlappt: boolean } => {
     const pl = places.get(id);
     if (!pl) return { placeId: null, truncated: false, ueberlappt: false };
@@ -198,20 +209,20 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
     let bestFrom = -Infinity;
     let bestId: PlaceId | null = null;
     let undated: PlaceId | null = null;
-    // Wie viele DATIERTE Einträge treffen das Jahr? Zwei oder mehr heißt: der Tie-Break
-    // unten hat gewählt, nicht die Datenlage (BL-325). Undatierte zählen NICHT mit — sie
-    // sind der Rückfall („ohne bekannte Datierung"), nicht ein konkurrierender Anspruch.
+    // Wie viele DATIERTE Einträge treffen den Zeitbezug? Zwei oder mehr heißt: der
+    // Tie-Break unten hat gewählt, nicht die Datenlage (BL-325). Undatierte zählen NICHT
+    // mit — sie sind der Rückfall („ohne bekannte Datierung"), kein konkurrierender
+    // Anspruch. Seit BL-324 kann ein tagegenauer Zeitbezug diese Zahl von 2 auf 1 senken:
+    // genau darin besteht der Gewinn.
     let treffer = 0;
     for (const e of encs) {
-      const ef = placeYear(e.from);
-      const et = placeYear(e.to);
-      if (ef == null && et == null) {
+      if (!istDatiert(e)) {
         if (undated == null) undated = e.placeId;
         continue;
       }
-      if (dateMatches(ef, et, y)) {
+      if (passtZu(e, bezug)) {
         treffer += 1;
-        const f = ef ?? -Infinity;
+        const f = beginnWert(spanneVonDatiert(e));
         // `bestId == null` MUSS mitgeprüft werden: eine nach unten offene Zuordnung
         // (`from` fehlt, `to` gesetzt — „seit jeher bis X", Spec 11 §1) trägt
         // `f = -Infinity` und wäre gegen den Startwert `bestFrom = -Infinity` nie „größer".
@@ -228,7 +239,7 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       }
     }
     const chosen = bestId ?? undated;
-    const hasDated = encs.some((e) => placeYear(e.from) != null || placeYear(e.to) != null);
+    const hasDated = encs.some(istDatiert);
     return { placeId: chosen, truncated: chosen == null && hasDated, ueberlappt: treffer > 1 };
   };
 
@@ -239,16 +250,16 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       return c.length ? c[0] : null;
     },
     findAllByName: candidatesByName,
-    resolveAsOf: (id, year) => {
+    resolveAsOf: (id, when) => {
       const pl = places.get(id);
       if (!pl) return null;
-      const y = placeYear(year);
-      if (y != null) {
+      const bezug = alsSpanne(when);
+      if (bezug != null) {
         let bestFrom = -Infinity;
         let bestVal: string | null = null;
         for (const pn of pl.pnames) {
-          if (!dateMatches(placeYear(pn.from), placeYear(pn.to), y)) continue;
-          const f = placeYear(pn.from) ?? -Infinity;
+          if (!passtZu(pn, bezug)) continue;
+          const f = beginnWert(spanneVonDatiert(pn));
           // Gleicher Grund wie in `enclosureWinnerAsOf` (ADR-v9-181): eine nach unten
           // offene Namensvariante („hieß bis 1400 Ochtorpe") trägt `-Infinity` und hätte
           // den Startwert nie überboten — sie fiel durch und der Ort hieß auch 1350 noch
@@ -262,10 +273,14 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       }
       return pl.title || pl.pnames[0]?.value || '';
     },
-    enclosureIdsAsOf: (id, year, meta) => {
+    enclosureIdsAsOf: (id, when, meta) => {
       const out: PlaceId[] = [];
       const seen = new Set<PlaceId>();
-      const y = placeYear(year);
+      const bezug = alsSpanne(when);
+      // `existsFrom`/`existsTo` bleiben Jahres-Skalare (s. `jahrAus`): sie entscheiden, OB
+      // ein Knoten existiert, und tragen keinen Tie-Break — die Randberührung, um die es
+      // bei BL-324 geht, gibt es hier nicht.
+      const y = bezug == null ? null : jahrAus(bezug);
       let cur: PlaceId | null = id;
       while (cur && places.has(cur) && !seen.has(cur)) {
         seen.add(cur);
@@ -276,8 +291,8 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
           if ((ef != null && y < ef) || (et != null && y > et)) break;
         }
         out.push(cur);
-        if (y != null) {
-          const w = enclosureWinnerAsOf(cur, y);
+        if (bezug != null) {
+          const w = enclosureWinnerAsOf(cur, bezug);
           if (w.truncated && meta) meta.truncated = true;
           // Gilt für die GANZE Kette, nicht nur für den Blattknoten: eine mehrdeutige
           // Ebene weiter oben bestimmt den Rest der Kette genauso.
@@ -289,11 +304,11 @@ export function makePlaceRegistry(places: PlaceObjects): PlaceRegistry {
       }
       return out;
     },
-    enclosureChainAsOf: (id, year, meta) => {
+    enclosureChainAsOf: (id, when, meta) => {
       // Namenskette = periodenkorrekter Name JEDES Knotens der ID-Kette (gleiche Auswahl-Logik).
       const out: string[] = [];
-      for (const nid of reg.enclosureIdsAsOf(id, year, meta)) {
-        const name = reg.resolveAsOf(nid, year);
+      for (const nid of reg.enclosureIdsAsOf(id, when, meta)) {
+        const name = reg.resolveAsOf(nid, when);
         if (name != null) out.push(name);
       }
       return out;

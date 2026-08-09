@@ -8,8 +8,9 @@
 // wird bei Performance-Bedarf ein Folge-Schritt, s. Auftrag "Vereinfachen vor Erfinden").
 import type { Citation, Database, Event, HofId, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { eventHofId, eventPlaceId, eventYear, normPlaceName } from '../../../core/places';
+import { eventHofId, eventPlaceId, eventYear, jahresBeginn, normPlaceName, tagesOrdinal } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
+import { formatDateForDisplay } from '../../../core/model/gedcom-date';
 import { displayName, eventYearLabel } from '../../shell/person-display';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 import { eventTypeLabel } from '../../shell/event-labels';
@@ -221,8 +222,22 @@ function buildHierarchyTimeline(
   const encs = place.enclosedBy;
   if (!encs.length) return [];
 
-  // Schlüsseljahre rekursiv aus dem gesamten Eltern-Graphen sammeln (BFS, Zyklen-sicher).
-  const keyYears = new Set<number>();
+  // Schlüsselpunkte rekursiv aus dem gesamten Eltern-Graphen sammeln (BFS, Zyklen-sicher).
+  //
+  // BL-324: ein Punkt ist ein TAGES-Ordinal, kein Jahr. Wo ein Stichtag erfasst ist
+  // („1 OCT 1512"), ist er der Schlüsselpunkt; sonst der 1. Januar des Jahres — dann
+  // verhält sich alles wie zuvor. Erst dadurch wird die Zeile ENTSCHEIDBAR: die Abfrage
+  // unten fragt nach EINEM Tag, nicht nach einem ganzen Jahr, in dem beide Perioden
+  // gelten. Der Rohtext wandert mit, weil nur er die Beschriftung tragen kann.
+  const keyPunkte = new Map<number, string | null>();
+  const merke = (jahr: number | null, roh: string | null | undefined): void => {
+    const tag = tagesOrdinal(roh);
+    if (tag != null) {
+      keyPunkte.set(tag, roh ?? null);
+      return;
+    }
+    if (jahr != null && !keyPunkte.has(jahresBeginn(jahr))) keyPunkte.set(jahresBeginn(jahr), null);
+  };
   const visited = new Set<PlaceId>();
   const collectYears = (pid: PlaceId | null): void => {
     if (!pid || visited.has(pid)) return;
@@ -230,16 +245,17 @@ function buildHierarchyTimeline(
     const p = ctx.places.byId(pid);
     if (!p) return;
     for (const e of p.enclosedBy) {
-      if (e.from != null) keyYears.add(e.from);
-      if (e.to != null) keyYears.add(e.to);
+      merke(e.from, e.fromDate);
+      merke(e.to, e.toDate);
       collectYears(e.placeId);
     }
     for (const pn of p.pnames) {
-      if (pn.from != null) keyYears.add(pn.from);
-      if (pn.to != null) keyYears.add(pn.to);
+      merke(pn.from, pn.fromDate);
+      merke(pn.to, pn.toDate);
     }
-    if (p.existsFrom != null) keyYears.add(p.existsFrom);
-    if (p.existsTo != null) keyYears.add(p.existsTo);
+    // 'existsFrom'/'existsTo' bleiben Jahres-Skalare (BL-324, s. core/places/zeitbezug.ts).
+    merke(p.existsFrom, null);
+    merke(p.existsTo, null);
   };
   collectYears(placeId);
 
@@ -267,29 +283,39 @@ function buildHierarchyTimeline(
   const hasOpenEnd = encs.some((e) => e.to == null);
   const docEnd = hasOpenEnd ? null : encs.length ? Math.max(...encs.map((e) => e.to ?? 0)) : null;
 
-  const sortedKeyYears = [...keyYears]
+  const sortedKeyPunkte = [...keyPunkte.keys()]
     .sort((a, b) => a - b)
-    .filter(
-      (y) =>
+    .filter((punkt) => {
+      const y = Math.trunc(punkt / 10000);
+      return (
         (exFrom == null || y >= exFrom) &&
         (exTo == null || y <= exTo) &&
         (docStart == null || y >= docStart) &&
-        (docEnd == null || y <= docEnd),
-    );
-  if (sortedKeyYears.length < 1) return [];
+        (docEnd == null || y <= docEnd)
+      );
+    });
+  if (sortedKeyPunkte.length < 1) return [];
 
   const rows: HierarchyTimelineRow[] = [];
   let lastKey: string | null = null;
   let inGap = false;
-  for (const year of sortedKeyYears) {
+  for (const punkt of sortedKeyPunkte) {
+    const year = Math.trunc(punkt / 10000);
+    const roh = keyPunkte.get(punkt) ?? null;
+    // EIN Tag, kein Jahr: nur so kann die Antwort eindeutig sein, wo Stichtage erfasst
+    // sind. Ohne Stichtag ist der Punkt der 1. Januar — dann treffen wie bisher beide
+    // Perioden eines geteilten Grenzjahres, und der ⚠-Hinweis (BL-325) bleibt zu Recht.
+    const bezug = { von: punkt, bis: punkt };
+    // Beschriftung: der Stichtag, wo es einen gibt — sonst das Jahr wie zuvor.
+    const beschriftung = roh ? `ab ${formatDateForDisplay(roh)}` : hierarchySpanLabel(year, null);
     const meta = { truncated: false, ueberlappt: false };
     // Dieselbe periodengerechte ID-Kette wie enclosureChainAsOf (das ist intern nichts
     // anderes als enclosureIdsAsOf + resolveAsOf pro Knoten, ADR-v9-78 Punkt 3) — hier
     // direkt über die ID-Variante gebaut, damit jedes Segment eine klickbare Ziel-Id trägt.
-    const ids = ctx.places.enclosureIdsAsOf(placeId, year, meta).slice(1);
+    const ids = ctx.places.enclosureIdsAsOf(placeId, bezug, meta).slice(1);
     if (!ids.length) {
       if (!inGap) {
-        rows.push({ year, label: hierarchySpanLabel(year, null), chain: null, truncated: false, ueberlappt: false });
+        rows.push({ year, label: beschriftung, chain: null, truncated: false, ueberlappt: false });
         inGap = true;
       }
       lastKey = null;
@@ -298,7 +324,7 @@ function buildHierarchyTimeline(
     inGap = false;
     const chain: ChainSegment[] = ids
       .map((id) => {
-        const label = ctx.places.resolveAsOf(id, year);
+        const label = ctx.places.resolveAsOf(id, bezug);
         return label != null ? { id, label } : null;
       })
       .filter((s): s is ChainSegment => s != null);
@@ -308,7 +334,7 @@ function buildHierarchyTimeline(
     const key = chain.map((s) => `${s.id}:${s.label}`).join('|') + (meta.truncated ? '|trunc' : '') + (meta.ueberlappt ? '|ueb' : '');
     if (key === lastKey) continue;
     lastKey = key;
-    rows.push({ year, label: hierarchySpanLabel(year, null), chain, truncated: meta.truncated, ueberlappt: meta.ueberlappt });
+    rows.push({ year, label: beschriftung, chain, truncated: meta.truncated, ueberlappt: meta.ueberlappt });
   }
 
   // Die ERSTE Zeile trägt "bis …", wenn eine nach unten offene Zuordnung sie regiert —
