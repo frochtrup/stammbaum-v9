@@ -22,7 +22,7 @@ import type {
   Media,
   MediaId,
 } from '../../core/model/types';
-import type { PlaceObject, HofObject } from '../../core/places';
+import type { PlaceObject, HofObject, GrenzEingabe } from '../../core/places';
 import { FULL_PLACES_CAPS, type PlacesHost, type PlacesHostCaps } from './places-host';
 import {
   makeDatabase,
@@ -303,7 +303,7 @@ export interface AppState extends PlacesHost {
    * erneut bootstrappen (Pfad B, Spec 11 §4.2). Reine `from`/`to`-Änderungen (Wert bleibt
    * gleich) propagieren NICHT — nur ein tatsächlicher Namenswechsel ist eine Umbenennung.
    */
-  updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
+  updateHofAddr(hofId: HofId, index: number, value: string, from: GrenzEingabe, to: GrenzEingabe): void;
   /**
    * Kommando: hängt einen Hof an ein anderes Dorf (Spec 11 §1, ADR-v9-172). Liefert das
    * Umzugs-Ergebnis zurück — Grundlage für den Hinweis, falls im Zieldorf ein

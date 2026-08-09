@@ -23,7 +23,7 @@
 // Schale zurück — das ist der eigentliche Wert dieser Datei, nicht ihr Typ.
 
 import type { Database, Event, HofId, PlaceId } from '../../core/model/types';
-import type { GovApplyResult, HofObject, MergeResult, MoveHofResult, PlaceContext, PlaceObject } from '../../core/places';
+import type { GovApplyResult, GrenzEingabe, HofObject, MergeResult, MoveHofResult, PlaceContext, PlaceObject } from '../../core/places';
 
 /**
  * Was das Wirtsprogramm über die geteilten Views hinaus kann. JEDE Verhaltensabweichung
@@ -93,7 +93,7 @@ export interface PlacesHost {
   saveHof(model: HofObject): void;
   deleteHof(id: HofId): void;
   mergeHof(survivorId: HofId, mergedIds: HofId | readonly HofId[]): void;
-  updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
+  updateHofAddr(hofId: HofId, index: number, value: string, from: GrenzEingabe, to: GrenzEingabe): void;
   /**
    * Hängt einen Hof an ein anderes Dorf (Spec 11 §1: `villageId` ist Teil der Hof-Identität).
    * Eigenes Kommando statt eines Feldes in `saveHof`, weil zwei Nachläufe daran hängen —

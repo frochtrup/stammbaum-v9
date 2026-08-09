@@ -135,7 +135,12 @@ describe('buildPlaceDetail — pnames-Varianten + enclosedBy-Kette', () => {
 
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
-    expect(detail!.variants).toEqual([{ value: 'Sassenbergk', from: 1600, to: 1750 }]);
+    // Die Zeile trägt seit BL-331 auch die Stichtage — ohne sie zeigte die
+    // Bearbeiten-Zeile den kuratierten Tag nicht und überschrieb ihn beim nächsten Edit
+    // der Gegengrenze.
+    expect(detail!.variants).toEqual([
+      { value: 'Sassenbergk', from: 1600, to: 1750, fromDate: null, toDate: null },
+    ]);
   });
 
   it('liefert die enclosedBy-Kette (Ort, übergeordnet, …)', () => {

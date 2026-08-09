@@ -14,7 +14,7 @@
   // Kommando setzt der Steckbrief ab.
   import type { PlaceObject } from '../../../core/places/types';
   import { PLAIN_FIELD } from '../../shell/plain-input';
-  import { hierarchySpanLabel } from './place-detail-model';
+  import { spanLabelOf, type PlaceVariantRow } from './place-detail-model';
   import { grenzeAusFeld } from '../../shell/grenz-feld';
   import {
     withAddedPname,
@@ -31,7 +31,7 @@
   interface Props {
     place: PlaceObject;
     /** Datierte Namensvarianten, wie der Steckbrief sie berechnet (inkl. Titel-Fold). */
-    variants: readonly { value: string; from: number | null; to: number | null }[];
+    variants: readonly PlaceVariantRow[];
     editing: boolean;
     onSave: (next: PlaceObject) => void;
   }
@@ -121,7 +121,7 @@
           <span class="stb-pill">
             {v.value}
             {#if v.from != null || v.to != null}
-              <span class="place-detail__pname-span">{hierarchySpanLabel(v.from, v.to)}</span>
+              <span class="place-detail__pname-span">{spanLabelOf(v)}</span>
             {/if}
           </span>
         {/each}

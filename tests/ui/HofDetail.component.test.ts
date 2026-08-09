@@ -221,8 +221,8 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
 
     render(HofDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1'), { target: { value: '1850' } });
-    await fireEvent.change(screen.getByLabelText('Gültig bis Zeile 1'), { target: { value: '1900' } });
+    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1850' } });
+    await fireEvent.change(screen.getByLabelText('Gültig bis Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1900' } });
 
     expect(appState.db.hofObjects.get('@H1@')?.addrs[0]).toEqual({ value: 'Wall 33', from: 1850, to: 1900 , fromDate: null, toDate: null });
   });
@@ -268,7 +268,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
 
     render(HofDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1'), { target: { value: '1850' } });
+    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1850' } });
 
     const updatedEvent = appState.db.individuals.get('@I1@')?.events[0];
     expect(updatedEvent?.addr).toBe('Wall 33');
@@ -289,8 +289,8 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     expect(screen.getAllByText('Wall 33').length).toBeGreaterThan(0);
     expect(screen.getByText('(1850–1900)')).toBeTruthy();
     expect(screen.queryByLabelText('Adresswert Zeile 1')).toBeNull();
-    expect(screen.queryByLabelText('Gültig von Zeile 1')).toBeNull();
-    expect(screen.queryByLabelText('Gültig bis Zeile 1')).toBeNull();
+    expect(screen.queryByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)')).toBeNull();
+    expect(screen.queryByLabelText('Gültig bis Zeile 1 (Jahr oder Stichtag)')).toBeNull();
   });
 
   it('setzt Vorgänger-/Nachfolger-Hof über den generischen Picker', async () => {

@@ -8,7 +8,17 @@
 // wird bei Performance-Bedarf ein Folge-Schritt, s. Auftrag "Vereinfachen vor Erfinden").
 import type { Citation, Database, Event, HofId, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject } from '../../../core/places';
-import { eventHofId, eventPlaceId, eventYear, jahresBeginn, normPlaceName, tagesOrdinal } from '../../../core/places';
+import {
+  alsGrenze,
+  eventHofId,
+  eventPlaceId,
+  eventYear,
+  jahresBeginn,
+  normPlaceName,
+  tagesOrdinal,
+  type Grenze,
+  type GrenzEingabe
+} from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { formatDateForDisplay } from '../../../core/model/gedcom-date';
 import { displayName, eventYearLabel } from '../../shell/person-display';
@@ -32,6 +42,12 @@ export interface PlaceVariantRow {
   value: string;
   from: number | null;
   to: number | null;
+  /** Der Stichtag, wo er kuratiert ist (ADR-v9-243). Die Zeile trug bis BL-331 nur die
+   *  Jahre — damit fehlte der Tag nicht nur in der Anzeige: die Bearbeiten-Zeile las die
+   *  GEGENGRENZE aus ihrem eigenen Feldtext zurück und schrieb sie beim nächsten Edit
+   *  ohne Tag ins Modell. */
+  fromDate: string | null;
+  toDate: string | null;
 }
 
 /**
@@ -186,12 +202,39 @@ function collectUnlinked(
  * ("seit jeher bis X"), `von` allein = nach oben offen ("ab X"). Reine Funktion — sie
  * kennt weder Ort noch Kette, damit sie an genau EINER Stelle definiert, wie ein
  * Zeitraum in dieser Ansicht heißt.
+ *
+ * Nimmt seit BL-331 dieselbe `GrenzEingabe` wie die Kommandos (ADR-v9-243/-245): eine
+ * nackte Jahreszahl heißt weiterhin „nur das Jahr bekannt", eine `Grenze` mit Stichtag
+ * wird als VOLLES Datum ausgeschrieben („ab 8. Mai 1945"). Formatiert über
+ * `formatDateForDisplay` — dieselbe Funktion, die die eigenen Ereigniszeilen nutzen
+ * (INV-UI-9); ein zweites Datumsformat für Perioden gäbe es sonst.
  */
-export function hierarchySpanLabel(von: number | null, bis: number | null): string {
-  if (von == null && bis == null) return '';
-  if (von == null) return `bis ${bis}`;
-  if (bis == null) return `ab ${von}`;
-  return von === bis ? String(von) : `${von}–${bis}`;
+export function hierarchySpanLabel(von: GrenzEingabe, bis: GrenzEingabe): string {
+  const text = (g: Grenze): string | null => {
+    if (g.datum) return formatDateForDisplay(g.datum) || String(g.jahr ?? '');
+    return g.jahr == null ? null : String(g.jahr);
+  };
+  const links = text(alsGrenze(von));
+  const rechts = text(alsGrenze(bis));
+  if (links == null && rechts == null) return '';
+  if (links == null) return `bis ${rechts}`;
+  if (rechts == null) return `ab ${links}`;
+  return links === rechts ? links : `${links}–${rechts}`;
+}
+
+/**
+ * Die Beschriftung EINER datierten Angabe (`pnames`/`addrs`/`enclosedBy`) — der Weg von
+ * `Dated` zur Anzeige, damit kein Aufrufer `from`/`fromDate` von Hand zusammensetzt und
+ * dabei den Tag verliert (genau das tat die Hof-Zeile bis BL-331 mit einer eigenen
+ * Inline-Fassung).
+ */
+export function spanLabelOf(d: {
+  from: number | null;
+  to: number | null;
+  fromDate?: string | null;
+  toDate?: string | null;
+}): string {
+  return hierarchySpanLabel({ jahr: d.from, datum: d.fromDate ?? null }, { jahr: d.to, datum: d.toDate ?? null });
 }
 
 /**
@@ -477,7 +520,13 @@ export function buildPlaceDetail(db: Database, ctx: PlaceContext, placeId: Place
     collectCitations([f.engagement, f.marriage, ...f.events]);
   }
 
-  const variants: PlaceVariantRow[] = place.pnames.map((pn) => ({ value: pn.value, from: pn.from, to: pn.to }));
+  const variants: PlaceVariantRow[] = place.pnames.map((pn) => ({
+    value: pn.value,
+    from: pn.from,
+    to: pn.to,
+    fromDate: pn.fromDate ?? null,
+    toDate: pn.toDate ?? null
+  }));
 
   // "Aktuell:"-Kette bewusst zum heutigen Kalenderjahr aufgelöst, NICHT year=null —
   // year=null würde in einer periodenkorrekten Registry lediglich enclosedBy[0] (reine
