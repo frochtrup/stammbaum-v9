@@ -21,6 +21,17 @@
 //      gleichzeitig gültige UNDATIERTE Elternketten an einem Ort, und eine in Wert UND
 //      Zeitraum identische Namensvariante. Beide müssen null sein.
 //
+// WAS DER TEST NICHT BEHAUPTET (BL-318, ADR-v9-232). Geprüft wird der Rundlauf über
+// PLAUSIBLE Kuration — die Automatik unten überspringt die Gruppen, die das Produkt selbst
+// als typwidrig markiert (`typeMismatch`, s. `kuratieren`). Der Grund steht am Realbestand:
+// blind gemergt fiel dort der KREIS Münster in die STADT Münster, und weil der Verlierer
+// seine Namen mitnimmt (ADR-v9-222), legte der Ketten-Seed die Verwaltungsebene im nächsten
+// Ladepass aus zwei unkuratierten Roh-Nennungen neu an (354 → 356, dazu „Amt Wolbeck" unter
+// dem neuen Elter — die Seed-Identität ist Name + Elter). Das ist KEIN Defekt: es
+// konvergiert (Pass 3 und 4 legen nichts nach), der GEDCOM-Text bleibt byte-identisch, und
+// die Datei nennt den Kreis ja weiterhin — der Seed erwirbt ihn also zu Recht. Es ist die
+// Folge einer Zusammenführung, die kein gewarnter Nutzer vornimmt.
+//
 // ZWEI KRITERIEN, DIE HIER BEWUSST NICHT STEHEN — erst erfunden, dann am Bestand widerlegt:
 // eine `\n`-haltige Notiz ist kein Merge-Artefakt, sondern ein ABSATZ (der kuratierte
 // Bestand führt sieben handgeschriebene Ortsgeschichten mit Aufzählungen und Warnhinweisen);
@@ -85,15 +96,30 @@ function pAufloesen(appState: ReturnType<typeof createAppState>): number {
  * Sofort-Reprojektion), dann jede Dubletten-Gruppe zusammenführen, dann noch einmal P.
  * Der zweite P-Lauf ist die eigentliche Aussage: nach dem Dedup soll nichts mehr offen
  * sein — die Mehrdeutigkeit war das Dubletten-Problem (Spec 11 §6).
+ *
+ * **Ein GEWARNTER Nutzer, kein blinder (BL-318, ADR-v9-232).** Gruppen mit `typeMismatch`
+ * werden übersprungen: das ist das Flag, mit dem das Produkt selbst „unterschiedliche
+ * Orts-Typen (z. B. Stadt und Kreis)" markiert (ADR-v9-77, eigenes Badge in
+ * `PlaceDedupView` neben Typ-Pille und voller Kette). Wer es sieht, führt nicht zusammen —
+ * und der Massen-Dedup führt NIE automatisch zusammen (Spec 11 §9.2). Kein erfundenes
+ * Kriterium also, sondern dasselbe, das die Fläche anzeigt. Am Realbestand betrifft es
+ * 2 von 57 Gruppen (`Münster (Westf.)` ⊕ `Münster`/Kreis und `Deutschland` ⊕
+ * `Deutscher Bund` ⊕ `Norddeutscher Bund`); die übrigen 55 bleiben Kurations-Arbeit.
  */
 function kuratieren(appState: ReturnType<typeof createAppState>): {
   gruppen: number;
+  uebersprungen: string[];
   pVorDedup: number;
   pNachDedup: number;
 } {
   const pVorDedup = pAufloesen(appState);
 
-  const gruppen = findPlaceDuplicates(appState.db.placeObjects, 'places');
+  const alle = findPlaceDuplicates(appState.db.placeObjects, 'places');
+  const titelVon = (g: (typeof alle)[number]): string =>
+    (g.ids as PlaceId[]).map((id) => appState.db.placeObjects.get(id)?.title ?? '(weg)').join(' ⊕ ');
+  const uebersprungen = alle.filter((g) => g.typeMismatch).map(titelVon);
+  const gruppen = alle.filter((g) => !g.typeMismatch);
+
   for (const g of gruppen) {
     const ids = g.ids as PlaceId[];
     const [gewinner, ...rest] = ids;
@@ -102,7 +128,7 @@ function kuratieren(appState: ReturnType<typeof createAppState>): {
     if (offen.length > 0) appState.mergePlace(gewinner, offen);
   }
 
-  return { gruppen: gruppen.length, pVorDedup, pNachDedup: pAufloesen(appState) };
+  return { gruppen: gruppen.length, uebersprungen, pVorDedup, pNachDedup: pAufloesen(appState) };
 }
 
 /** Der orte.json-Stand, wie ihn der Persister schreiben würde (derselbe Pfad wie im IDB). */
@@ -163,6 +189,10 @@ describe.skipIf(!vorhanden())('Kurations-Rundlauf am Realbestand (ADR-v9-222)', 
     console.log('Kuration:', JSON.stringify(arbeit), '| Orte danach:', appState.db.placeObjects.size);
     expect(arbeit.gruppen).toBeGreaterThan(0); // sonst prüft der Rundlauf keine Kuration
     expect(arbeit.pVorDedup).toBeGreaterThan(0);
+    // Der Verzicht wird BENANNT, nicht stillschweigend genommen: verschwindet die typwidrige
+    // Gruppe aus dem Bestand, wird der Filter zum No-Op — und diese Zeile stellt die Frage,
+    // statt dass der Test weiter grün „alles kuratiert" behauptet (BL-318/ADR-v9-232).
+    expect(arbeit.uebersprungen.length).toBeGreaterThan(0);
 
     const gedText1 = serializeGedcom(appState.buildGedcomDoc());
     const orte1 = await orteSchreiben(appState.db);

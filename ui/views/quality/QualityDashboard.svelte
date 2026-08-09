@@ -12,6 +12,12 @@
   //
   // Befehlsflächen-Budget (INV-UI-11, Spec 21 §6h): [Filter · N] [✓ Bericht] [⚙] — drei
   // Elemente in EINER Zeile.
+  //
+  // Der Ansichts-Unterzustand (Brennpunkte-Filter, offener Bericht samt Umfang, Ast-
+  // Auswahl) liegt NICHT hier, sondern im mitgegebenen `QualityDashboardState` — sonst
+  // stirbt er beim Wegnavigieren (BL-319, Spec 21 §5; Begründung in
+  // `quality-dashboard-state.svelte.ts`).
+  import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
@@ -36,6 +42,11 @@
   } from '../../../core/validate/index';
   import { loadValConfig } from '../../../services/validate/index';
   import { createValConfigStore } from '../../../services/app-data';
+  import {
+    createQualityDashboardState,
+    DEFAULT_QUALITY_FOCUS,
+    type QualityDashboardState,
+  } from './quality-dashboard-state.svelte';
   import { matchesScope, suggestResearchStep } from '../../../core/research/index';
   import type { ProjectScope } from '../../../core/research/types';
   import type { PersonId } from '../../../core/model/types';
@@ -51,6 +62,13 @@
     onNavigateToHof?: (id: string) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung (alle Personen). */
     scope?: ProjectScope | null;
+    /**
+     * Ansichts-Unterzustand von AUSSEN (BL-319): Filter, offener Bericht und Ast-Auswahl
+     * müssen das Wegnavigieren überleben, diese Fläche wird dabei abgebaut. Optional,
+     * damit Komponententests das Dashboard weiterhin ohne Umgebung montieren können —
+     * dann mit einer eigenen Instanz, die schlicht so lange lebt wie die Komponente.
+     */
+    quality?: QualityDashboardState;
   }
   const {
     appState,
@@ -60,7 +78,13 @@
     onNavigateToPlace,
     onNavigateToHof,
     scope = null,
+    quality: qualityProp,
   }: Props = $props();
+
+  // Einmal beim Aufbau festgelegt: die Instanz wird nie ausgetauscht (das `untrack` sagt
+  // genau das) — der Zustand DARIN ist reaktiv, die Hülle nicht. Muster wie
+  // `MediaGallery.filters` (ADR-v9-192).
+  const quality = untrack(() => qualityProp ?? createQualityDashboardState());
 
   // Personenmenge des aktiven Projekts als Set (Spec 20 §1.11g: „die Personenmenge kommt
   // als Parameter herein"); null = keine Einschränkung. matchesScope ist die Kern-Wahrheit.
@@ -77,29 +101,18 @@
     { key: 'red', label: 'Nur Fehler' },
     { key: 'all', label: 'Alle (inkl. Hinweise)' },
   ];
-  const DEFAULT_FOCUS: FocusFilter = 'attention';
 
-  let focusFilter = $state<FocusFilter>(DEFAULT_FOCUS);
   let valConfig = $state<ValidationConfig>(defaultConfig());
+  // Der ⚙-Sheet bleibt bewusst komponenten-lokal: eine begonnene Interaktion, kein
+  // Ansichtszustand (s. `quality-dashboard-state.svelte.ts`).
   let showValConfig = $state(false);
-  /** Der Prüfbericht (§1.11h): `false` = ausgeblendet. */
-  let showReport = $state(false);
   /**
-   * Umfang des offenen Berichts: `all` = alle Befunde (Knopf „✓ Bericht"), `geo` = nur
-   * Orts-/Hof-Befunde (Öffner ist die „Orte & Höfe"-Kachel). Dieselbe `ValidationPanel`,
-   * nur die übergebene Befundmenge unterscheidet sich (INV-UI-4).
+   * Umfang des offenen Berichts (§1.11h): `all` = alle Befunde (Knopf „✓ Bericht"),
+   * `geo` = nur Orts-/Hof-Befunde (Öffner ist die „Orte & Höfe"-Kachel), `none` =
+   * ausgeblendet. Dieselbe `ValidationPanel`, nur die übergebene Befundmenge
+   * unterscheidet sich (INV-UI-4).
    */
-  let reportScope = $state<'all' | 'geo'>('all');
-
-  /** Öffnet/schließt den Bericht im gewählten Umfang; erneuter Klick auf denselben Umfang schließt. */
-  function toggleReport(scope: 'all' | 'geo') {
-    if (showReport && reportScope === scope) {
-      showReport = false;
-    } else {
-      showReport = true;
-      reportScope = scope;
-    }
-  }
+  const reportOpen = $derived(quality.report !== 'none');
 
   // Die Regel-Konfiguration wohnt im B1-Bündel (app-data.json, BL-180) und reist
   // damit zwischen Geräten; der Vertrag bleibt derselbe (ValConfigStore).
@@ -123,6 +136,10 @@
   // `buildQualityDashboard`-Lauf über die vom Ast bereits mit dem Projekt-Scope
   // UND-verknüpfte Personenmenge (`BranchMaturitySection` liefert sie fertig) —
   // dieselbe Engine, andere Menge, kein zweiter Bewertungsmechanismus.
+  //
+  // Die AUSWAHL selbst liegt als Ebene+Index im `QualityDashboardState` (BL-319, damit
+  // sie das Wegnavigieren überlebt); diese Variable ist nur der daraus berechnete, von
+  // der Sektion gemeldete Personen-Ausschnitt — kein zweiter Auswahl-Zustand.
   let branchSelection = $state<{ label: string; personIds: ReadonlySet<PersonId> } | null>(null);
   const branchFocusDashboard = $derived(
     branchSelection
@@ -139,9 +156,9 @@
   const geoFindings = $derived(findings.filter((f) => f.placeId || f.hofId));
   const geoCounts = $derived(countBySeverity(geoFindings));
   /** Was der offene Bericht zeigt — je nach Umfang alle oder nur die Geo-Befunde. */
-  const reportFindings = $derived(reportScope === 'geo' ? geoFindings : findings);
-  const rows = $derived(filterFocus((branchFocusDashboard ?? dashboard).focus, focusFilter));
-  const activeFilterCount = $derived(focusFilter === DEFAULT_FOCUS ? 0 : 1);
+  const reportFindings = $derived(quality.report === 'geo' ? geoFindings : findings);
+  const rows = $derived(filterFocus((branchFocusDashboard ?? dashboard).focus, quality.focus));
+  const activeFilterCount = $derived(quality.focus === DEFAULT_QUALITY_FOCUS ? 0 : 1);
 
   const scoreClass = $derived(
     dashboard.cleanPct >= 80 ? 'good' : dashboard.cleanPct >= 50 ? 'mid' : 'low',
@@ -226,8 +243,16 @@
       <fieldset class="stb-filter-set">
         <legend>Brennpunkte zeigen</legend>
         {#each FOCUS_FILTERS as f (f.key)}
+          <!-- `checked` + `onchange` statt `bind:group`: der Wert lebt außerhalb der
+               Komponente (BL-319) und ist über den Getter nicht bindbar. -->
           <label class="stb-filter-opt">
-            <input type="radio" bind:group={focusFilter} value={f.key} />
+            <input
+              type="radio"
+              name="quality-focus"
+              value={f.key}
+              checked={quality.focus === f.key}
+              onchange={() => quality.setFocus(f.key)}
+            />
             {f.label}
           </label>
         {/each}
@@ -236,8 +261,8 @@
     <button
       type="button"
       class="quality__report-btn"
-      aria-pressed={showReport && reportScope === 'all'}
-      onclick={() => toggleReport('all')}
+      aria-pressed={quality.report === 'all'}
+      onclick={() => quality.toggleReport('all')}
     >
       ✓ Bericht
     </button>
@@ -263,15 +288,15 @@
   {#if dashboard.total === 0}
     <p class="quality__empty">Keine Personen geladen.</p>
   {:else}
-    {#if showReport}
+    {#if reportOpen}
       <!-- Prüfbericht — Umfang je nach Öffner: „✓ Bericht" zeigt alles, die „Orte &
            Höfe"-Kachel nur die Geo-Befunde. Dieselbe Komponente, gefilterte Befundmenge. -->
       <ValidationPanel
         staStAera={valConfig.thresholds.staStAera}
         {appState}
         findings={reportFindings}
-        scopeLabel={reportScope === 'geo' ? 'Orte & Höfe' : null}
-        onClose={() => (showReport = false)}
+        scopeLabel={quality.report === 'geo' ? 'Orte & Höfe' : null}
+        onClose={() => quality.closeReport()}
         onOpenConfig={() => (showValConfig = true)}
         {onNavigateToPerson}
         {onNavigateToFamily}
@@ -318,8 +343,8 @@
       error={geoCounts.error}
       warn={geoCounts.warn}
       info={geoCounts.info}
-      expanded={showReport && reportScope === 'geo'}
-      onOpen={() => toggleReport('geo')}
+      expanded={quality.report === 'geo'}
+      onOpen={() => quality.toggleReport('geo')}
     />
 
     <h3 class="quality__section">Lückenradar</h3>
@@ -350,13 +375,14 @@
       {appState}
       {viewState}
       {findings}
+      {quality}
       projectScope={scopeSet}
       onSelectBranch={handleSelectBranch}
     />
 
     <FocusPersonList
       {rows}
-      {focusFilter}
+      focusFilter={quality.focus}
       {onNavigateToPerson}
       onPromote={promote}
       onPromoteAll={promoteAll}

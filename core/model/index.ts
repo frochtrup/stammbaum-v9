@@ -24,7 +24,7 @@ export {
   makeMedia,
   makeMediaCitation,
 } from './factory';
-export { isEventPresent, isEventEmpty } from './event';
+export { isEventPresent, isEventEmpty, addrDisplay } from './event';
 export { isPersonEmpty, isSourceEmpty, isRepositoryEmpty } from './empty';
 export {
   classifyMediaFile,

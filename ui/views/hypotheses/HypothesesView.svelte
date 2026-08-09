@@ -16,7 +16,13 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import HypothesisForm, { type HypothesisFormValues } from './HypothesisForm.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import {
+    createHypothesesViewState,
+    DEFAULT_HYPO_FILTER,
+    type HypothesesViewState,
+  } from '../research-segment-state.svelte';
   import {
     collectAllHypotheses,
     filterHypotheses,
@@ -35,13 +41,25 @@
     onNavigateToFamily?: (id: string) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /**
+     * Filterzustand von AUSSEN (BL-320): dieses Segment wird beim Wechsel des Nav-Ziels
+     * abgebaut, ein gesetzter Filter war danach weg (Spec 21 §5).
+     */
+    hypotheses?: HypothesesViewState;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily, scope = null }: Props = $props();
+  const {
+    appState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    scope = null,
+    hypotheses: hypothesesProp,
+  }: Props = $props();
+
+  const hypotheses = untrack(() => hypothesesProp ?? createHypothesesViewState());
 
   /** Status-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
-  const DEFAULT_FILTER: HypothesisFilter = 'all';
+  const DEFAULT_FILTER = DEFAULT_HYPO_FILTER;
 
-  let filter = $state<HypothesisFilter>(DEFAULT_FILTER);
   let showForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
@@ -54,7 +72,7 @@
   let formInitial = $state<HypothesisFormValues>(emptyForm());
 
   const allEntries = $derived(collectAllHypotheses(appState.db, appState.placeContext, scope));
-  const filteredEntries = $derived(filterHypotheses(allEntries, filter));
+  const filteredEntries = $derived(filterHypotheses(allEntries, hypotheses.filter));
 
   const FILTERS: { key: HypothesisFilter; label: string }[] = [
     { key: 'all', label: 'Alle' },
@@ -64,7 +82,7 @@
   ];
 
   const activeFilterCount = $derived(
-    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+    countActiveFilters({ filter: hypotheses.filter }, { filter: DEFAULT_FILTER }),
   );
 
   function openAddForm() {
@@ -122,7 +140,14 @@
         <legend>Status</legend>
         {#each FILTERS as f (f.key)}
           <label class="stb-filter-opt">
-            <input type="radio" bind:group={filter} value={f.key} />
+            <!-- `checked` + `onchange` statt `bind:group`: der Wert lebt außerhalb der
+                 Komponente (BL-320). -->
+            <input
+              type="radio"
+              value={f.key}
+              checked={hypotheses.filter === f.key}
+              onchange={() => (hypotheses.filter = f.key)}
+            />
             {f.label}
           </label>
         {/each}
@@ -137,7 +162,7 @@
 
   {#if filteredEntries.length === 0}
     <p class="hyp-view__empty">
-      {filter === 'all' ? 'Keine Hypothesen vorhanden' : `Keine Hypothesen mit Status "${statusLabel(filter as HypothesisStatus)}"`}
+      {hypotheses.filter === 'all' ? 'Keine Hypothesen vorhanden' : `Keine Hypothesen mit Status "${statusLabel(hypotheses.filter as HypothesisStatus)}"`}
     </p>
   {:else}
     <div class="hyp-view__list">

@@ -185,7 +185,15 @@ function eventNode(ev: Event, media?: MediaLookup): GedNode {
   }
   // ADDR bleibt bewusst byte-identisch (Fill-if-empty-Regel, §7/§4.2 REPROJECT) — NICHT
   // live neu berechnet wie PLAC: die Hof-Adresse ist stärker nutzer-/quellen-eigen.
-  if (ev.addr !== null) kids.push(textNode('ADDR', ev.addr));
+  //
+  // `addrExtra` (ADR-v9-228) hängt HINTER die CONT-Zeilen, die `textNode` erzeugt — das ist
+  // die Reihenfolge der Quelle: erst die Fortsetzungen des Adresstexts, dann die
+  // Index-Tags. Ein Edit hat `addrExtra` bereits geleert (fromEditable), hier steht also
+  // entweder der unveränderte Originalzustand oder nichts.
+  if (ev.addr !== null) {
+    const basis = textNode('ADDR', ev.addr);
+    kids.push(ev.addrExtra.length ? { ...basis, children: [...basis.children, ...ev.addrExtra] } : basis);
+  }
   if (ev.note) kids.push(textNode('NOTE', ev.note));
   for (const c of ev.citations) kids.push(citationNode(c, media));
   for (const m of ev.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
@@ -474,7 +482,12 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
 export function emitRepository(r: Repository): GedNode {
   const kids: GedNode[] = [];
   if (r.name) kids.push(N('NAME', r.name));
-  if (r.address !== null) kids.push(textNode('ADDR', r.address));
+  // Wie beim Ereignis (ADR-v9-228): die Index-Tags kommen aus dem Modell, nicht aus
+  // dem Tiefen-Passthrough — der greift unter ADDR nicht mehr.
+  if (r.address !== null) {
+    const basis = textNode('ADDR', r.address);
+    kids.push(r.addressExtra.length ? { ...basis, children: [...basis.children, ...r.addressExtra] } : basis);
+  }
   if (r.phone) kids.push(N('PHON', r.phone));
   if (r.www) kids.push(N('WWW', r.www));
   if (r.email) kids.push(N('EMAIL', r.email));

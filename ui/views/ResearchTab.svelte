@@ -29,6 +29,12 @@
   import { linkLogToTask } from '../../core/research/index';
   import HypothesesView from './hypotheses/HypothesesView.svelte';
   import QualityDashboard from './quality/QualityDashboard.svelte';
+  import type { QualityDashboardState } from './quality/quality-dashboard-state.svelte';
+  import type {
+    HypothesesViewState,
+    LogViewState,
+    TasksViewState,
+  } from './research-segment-state.svelte';
   import ProjectBar from './research-projects/ProjectBar.svelte';
   import type { ProjectsState } from '../shell/projects-state.svelte';
 
@@ -40,6 +46,20 @@
     viewState: ViewState;
     /** Forschungsprojekte + aktive Auswahl (BL-58) — scopen Aufgaben/Protokoll/Hypothesen. */
     projects: ProjectsState;
+    /**
+     * Ansichts-Unterzustand des Qualitäts-Dashboards (BL-319). Wird nur durchgereicht:
+     * die Instanz gehört der App-Wurzel, weil auch DIESE Fläche beim Wechsel auf eine
+     * Person abgebaut wird — ein hier angelegter Halter hätte nichts gerettet.
+     */
+    quality?: QualityDashboardState;
+    /**
+     * Filterzustand der drei übrigen Segmente (BL-320) — wie `quality` nur
+     * durchgereicht: die Instanzen gehören der App-Wurzel, weil auch diese Fläche beim
+     * Wechsel auf eine Person abgebaut wird.
+     */
+    tasks?: TasksViewState;
+    log?: LogViewState;
+    hypotheses?: HypothesesViewState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -50,6 +70,10 @@
     route,
     viewState,
     projects,
+    quality,
+    tasks,
+    log,
+    hypotheses,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -111,15 +135,24 @@
   {/if}
 
   {#if activeSegment === 'tasks'}
-    <TasksView {appState} {onNavigateToPerson} {onNavigateToFamily} onStartLogFromTask={startLogFromTask} scope={projects.activeScope} />
+    <TasksView
+      {appState}
+      {route}
+      {tasks}
+      {onNavigateToPerson}
+      {onNavigateToFamily}
+      onStartLogFromTask={startLogFromTask}
+      scope={projects.activeScope}
+    />
   {:else if activeSegment === 'log'}
-    <LogView {appState} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
+    <LogView {appState} {route} {log} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
   {:else if activeSegment === 'hypotheses'}
-    <HypothesesView {appState} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
+    <HypothesesView {appState} {hypotheses} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
   {:else if activeSegment === 'quality'}
     <QualityDashboard
       {appState}
       {viewState}
+      {quality}
       scope={projects.activeScope}
       {onNavigateToPerson}
       {onNavigateToFamily}

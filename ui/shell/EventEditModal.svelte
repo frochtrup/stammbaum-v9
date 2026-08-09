@@ -34,6 +34,7 @@
   // war nicht modal, die Navigation blieb darüber bedienbar und verdeckte bei hohem Panel
   // die eigenen Aktionsknöpfe. Nur das Panel bleibt lokal (Breite/Polsterung je Fall).
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from './plain-input';
   import type { AppState } from './app-state.svelte';
   import type { Event, MediaCitation } from '../../core/model/types';
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
@@ -237,7 +238,7 @@
         class="event-edit-modal__day"
       />
       <input
-        type="text"
+        type="text" {...PLAIN_FIELD}
         placeholder="Monat"
         aria-label="Monat"
         value={editable.month ?? ''}
@@ -270,7 +271,7 @@
           class="event-edit-modal__day"
         />
         <input
-          type="text"
+          type="text" {...PLAIN_FIELD}
           placeholder="Monat"
           aria-label="Monat (Ende)"
           value={editable.month2 ?? ''}
@@ -298,7 +299,7 @@
     {#if showTypeText}
       <label>
         Typ-Freitext (TYPE)
-        <input type="text" bind:value={editable.eventType} />
+        <input type="text" {...PLAIN_FIELD} bind:value={editable.eventType} />
       </label>
     {/if}
 
@@ -334,7 +335,7 @@
     <label>
       Wert
       <input
-        type="text"
+        type="text" {...PLAIN_FIELD}
         bind:value={editable.value}
         placeholder={editable.type === 'RELI' ? 'z. B. röm.-kath.' : 'z. B. Beruf bei OCCU'}
         list={editable.type === 'RELI' ? 'event-value-presets' : undefined}
@@ -357,13 +358,13 @@
     {#if cause != null}
       <label>
         Todesursache
-        <input type="text" bind:value={deathCause} />
+        <input type="text" {...PLAIN_FIELD} bind:value={deathCause} />
       </label>
     {/if}
 
     <label>
       Notiz
-      <textarea bind:value={editable.note}></textarea>
+      <textarea {...PROSE_FIELD} bind:value={editable.note}></textarea>
     </label>
 
     <EventCitationsSection

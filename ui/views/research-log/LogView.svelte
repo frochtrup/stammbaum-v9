@@ -31,7 +31,14 @@
     type LogFilter,
     type LogEntryRow,
   } from './log-model';
+  import { untrack } from 'svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
+  import type { Route } from '../../shell/route.svelte';
+  import {
+    createLogViewState,
+    DEFAULT_LOG_FILTER,
+    type LogViewState,
+  } from '../research-segment-state.svelte';
   import { makeLogEntry } from '../../../core/research/index';
   import type { LogResult, ProjectScope } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
@@ -45,16 +52,36 @@
     onNavigateToFamily?: (id: string) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /**
+     * Routen-Quelle — trägt den Anzeige-Modus (gruppiert · Zeitleiste) als Merker, wie sie
+     * es für die Lens-Modi längst tut (BL-320, Spec 21 §5 Heimat ①). PFLICHT wie bei
+     * TasksView: ein zweiter Modus-Zustand daneben wäre eine Doppelquelle (INV-UI-15).
+     */
+    route: Route;
+    /**
+     * Filterzustand von AUSSEN (BL-320): dieses Segment wird beim Wechsel des Nav-Ziels
+     * abgebaut, ein gesetzter Filter war danach weg (Spec 21 §5).
+     */
+    log?: LogViewState;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily, scope = null }: Props = $props();
+  const {
+    appState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    scope = null,
+    route,
+    log: logProp,
+  }: Props = $props();
+
+  const log = untrack(() => logProp ?? createLogViewState());
+  // BL-56: personenweise gruppiert (Spec-Basis) ⇄ chronologische Research-Timeline —
+  // über den geteilten ViewModeToggle, gleiche Daten, reine Darstellungsvariante. Der
+  // Modus liegt seit BL-320 als Merker in der Routen-Quelle, nicht mehr hier.
+  const logMode = $derived(route.logMode);
 
   /** Ergebnis-Auswahl. `all` ist der Default — davon abweichend zeigt FilterBar "· 1". */
-  const DEFAULT_FILTER: LogFilter = 'all';
+  const DEFAULT_FILTER = DEFAULT_LOG_FILTER;
 
-  let filter = $state<LogFilter>(DEFAULT_FILTER);
-  // BL-56: personenweise gruppiert (Spec-Basis) ⇄ chronologische Research-Timeline —
-  // über den geteilten ViewModeToggle, gleiche Daten, reine Darstellungsvariante.
-  let logMode = $state<'grouped' | 'timeline'>('grouped');
   let showForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus. Index-Adressierung (kein id, s. Kopf).
@@ -72,7 +99,7 @@
   let formInitial = $state<LogFormValues>(emptyForm());
 
   const allEntries = $derived(buildResearchTimeline(appState.db, appState.placeContext, scope));
-  const filteredEntries = $derived(filterLogEntries(allEntries, filter));
+  const filteredEntries = $derived(filterLogEntries(allEntries, log.filter));
   const groups = $derived(groupLogByEntity(filteredEntries));
 
   const FILTERS: { key: LogFilter; label: string }[] = [
@@ -84,7 +111,7 @@
   ];
 
   const activeFilterCount = $derived(
-    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+    countActiveFilters({ filter: log.filter }, { filter: DEFAULT_FILTER }),
   );
 
   function openAddForm() {
@@ -135,7 +162,7 @@
 
   function exportMd() {
     const today = new Date().toLocaleDateString('de-DE');
-    const md = exportLogMarkdown(appState.db, filter, today);
+    const md = exportLogMarkdown(appState.db, log.filter, today);
     const adapter = new AnchorDownloadAdapter();
     const dateSlug = new Date().toISOString().slice(0, 10);
     adapter.download(md, `forschungsprotokoll_${dateSlug}.md`, 'text/markdown;charset=utf-8');
@@ -149,7 +176,14 @@
         <legend>Ergebnis</legend>
         {#each FILTERS as f (f.key)}
           <label class="stb-filter-opt">
-            <input type="radio" bind:group={filter} value={f.key} />
+            <!-- `checked` + `onchange` statt `bind:group`: der Wert lebt außerhalb der
+                 Komponente (BL-320). -->
+            <input
+              type="radio"
+              value={f.key}
+              checked={log.filter === f.key}
+              onchange={() => (log.filter = f.key)}
+            />
             {f.label}
           </label>
         {/each}
@@ -164,7 +198,7 @@
         { id: 'timeline', label: '🕒 Timeline' },
       ]}
       value={logMode}
-      onChange={(id) => (logMode = id as 'grouped' | 'timeline')}
+      onChange={(id) => route.setLogMode(id as 'grouped' | 'timeline')}
       ariaLabel="Protokoll-Ansicht wählen"
     />
     <button type="button" class="log-view__add-btn" onclick={openAddForm}>+ Eintrag</button>
@@ -206,7 +240,7 @@
 
   {#if filteredEntries.length === 0}
     <p class="log-view__empty">
-      {filter === 'all' ? 'Keine Protokoll-Einträge vorhanden' : `Keine Einträge mit Ergebnis "${resultLabel(filter as LogResult)}"`}
+      {log.filter === 'all' ? 'Keine Protokoll-Einträge vorhanden' : `Keine Einträge mit Ergebnis "${resultLabel(log.filter as LogResult)}"`}
     </p>
   {:else if logMode === 'timeline'}
     <div class="log-view__list">

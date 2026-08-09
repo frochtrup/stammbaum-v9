@@ -7,6 +7,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import FamilyList from '../../ui/views/family/FamilyList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createFamilyListState } from '../../ui/views/list-view-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makeFamily, makePerson } from '../../core/model';
 import { AnchorDownloadAdapter } from '../../services/file/download-adapter';
@@ -198,5 +199,24 @@ describe('FamilyList — CSV-Export der gefilterten Liste (BL-125, ADR-v9-159, E
     expect(String(csv)).not.toContain('@F2@');
     expect(String(csv)).not.toContain('Karl Adler');
     expect(String(csv).charCodeAt(0)).toBe(0xfeff);
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: dieselbe Zusicherung wie in der Personenliste (Spec 21 §5) — dieselbe Mechanik,
+// deshalb hier knapp: setzen → Unmount → Remount mit demselben Halter → hinsehen.
+describe('FamilyList — Suche und Sortierung überleben das Wegnavigieren (BL-320)', () => {
+  it('kommt mit derselben Suche zurück', async () => {
+    const list = createFamilyListState();
+    const appState = seedAppState();
+    const props = { appState, viewState: createViewState(), list };
+
+    const first = render(FamilyList, { props });
+    await fireEvent.input(screen.getByLabelText('Familien durchsuchen'), { target: { value: 'Bauer' } });
+    first.unmount();
+
+    render(FamilyList, { props: { appState, viewState: createViewState(), list } });
+
+    expect((screen.getByLabelText('Familien durchsuchen') as HTMLInputElement).value).toBe('Bauer');
   });
 });

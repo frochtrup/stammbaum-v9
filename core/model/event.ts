@@ -50,6 +50,11 @@ export function isEventPresent(ev: Event): boolean {
  * OCCU).
  */
 export function isEventEmpty(ev: Event): boolean {
+  // ADR-v9-228: eine strukturierte Adresse lebt in `addrExtra`, während `addr` leer ist.
+  // Ohne diese Zeile gälte ein Ereignis mit „Osterbauernschaft 41, Ochtrup" als leer und
+  // bekäme das folgenlose ✕ statt der Löschabfrage — dieselbe Datenverlust-Vermeidung wie
+  // bei `lati`/`long`/`media` unten.
+  if (ev.addrExtra.length > 0) return false;
   if (ev.value !== '') return false;
   if (ev.date !== null) return false;
   if (ev.place !== null) return false;
@@ -64,4 +69,34 @@ export function isEventEmpty(ev: Event): boolean {
   if (ev.citations.length > 0) return false;
   if (ev.media.length > 0) return false;
   return true;
+}
+
+/**
+ * Anzeige-Text der Adresse (ADR-v9-228) — was in Ereigniszeile und Editor-Feld erscheint.
+ *
+ * Normalfall: `addr` selbst. Ist die `ADDR`-Zeile aber leer und die Adresse steckt nur in
+ * den Index-Tags (an `Testdateien/Unsere Familie 2026.ged` 83× der Fall), wird sie aus
+ * `addrExtra` zusammengesetzt — sonst bliebe das Feld leer, obwohl die Adresse in der
+ * Datei steht.
+ *
+ * Die Reihenfolge `ADR1 · ADR2 · ADR3 · POST CITY · CTRY` ist eine gesetzte Konvention,
+ * KEINE Spec-Vorgabe: GEDCOM 5.5.1 sagt dazu nichts, weil die Adresse dort ohnehin schon
+ * vollständig in `ADDR`/`CONT` stünde. `STAE` steht bewusst hinter `CITY` und vor `CTRY`
+ * (Bundesland zwischen Ort und Land), wie es auf einem Umschlag stünde.
+ *
+ * Reine PROJEKTION, kein Modellwert: der Rückgabewert wird nie gespeichert. Wer die
+ * Adresse ändert, schreibt in `addr` — und leert damit `addrExtra` (fromEditable).
+ */
+export function addrDisplay(ev: Event): string {
+  if (ev.addr) return ev.addr;
+  if (ev.addrExtra.length === 0) return ev.addr ?? '';
+
+  const wert = (tag: string): string => ev.addrExtra.find((c) => c.tag === tag)?.value.trim() ?? '';
+  const ortszeile = [wert('POST'), wert('CITY')].filter(Boolean).join(' ');
+  const teile = [wert('ADR1'), wert('ADR2'), wert('ADR3'), ortszeile, wert('STAE'), wert('CTRY')];
+  const zusammen = teile.filter(Boolean).join(', ');
+  // Kein Treffer unter den bekannten Tags (ein fremdes Programm hängt etwas Eigenes
+  // darunter): dann lieber den rohen `addr`-Wert zurückgeben als eine leere Zeile mit
+  // Kommas — die Knoten bleiben trotzdem erhalten, sie sind nur nicht anzeigbar.
+  return zusammen || (ev.addr ?? '');
 }

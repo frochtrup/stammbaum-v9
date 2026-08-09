@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import HypothesesView from '../../ui/views/hypotheses/HypothesesView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createHypothesesViewState } from '../../ui/views/research-segment-state.svelte';
 import { makeDatabase, makePerson, makeSource } from '../../core/model';
 
 function seedDb() {
@@ -172,5 +173,26 @@ describe('HypothesesView — Klick-Navigation zur Trägerentität', () => {
     const { onNavigateToPerson } = renderView(seedDb());
     await fireEvent.click(screen.getByText(/Otto Bauer ›/));
     expect(onNavigateToPerson).toHaveBeenCalledWith('@I1@');
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: der Status-Filter überlebt das Wegnavigieren (Spec 21 §5).
+describe('HypothesesView — der Filter überlebt das Wegnavigieren (BL-320)', () => {
+  it('kommt mit dem gesetzten Status-Filter zurück, nicht auf „Alle"', async () => {
+    const hypotheses = createHypothesesViewState();
+    const appState = createAppState();
+    appState.loadDatabase(seedDb(), 'test.ged');
+    const props = { appState, hypotheses, onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
+
+    const first = render(HypothesesView, { props });
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await fireEvent.click(screen.getByLabelText('Bestätigt'));
+    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    first.unmount();
+
+    render(HypothesesView, { props: { ...props } });
+
+    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
   });
 });

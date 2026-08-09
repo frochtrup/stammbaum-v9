@@ -685,6 +685,17 @@ textarea::placeholder {
   padding: 0.1em 0.45em;
 }
 
+/* Platzhalter des virtuellen Scrollens (BL-311, ADR-v9-235 Entscheidung 3): ober- und
+   unterhalb des Fensters steht je einer in der Höhe der nicht gerenderten Zeilen. Damit
+   bleiben Scroll-Weg und Position wahr — ohne sie wäre virtuelles Scrollen eine Täuschung
+   über die Datenmenge. EINE Regel für alle acht Index-Flächen (INV-UI-4), nicht acht Kopien
+   mit BEM-Präfix. Die Höhe setzt die Fläche über die `style:height`-DIREKTIVE (CSSOM zur
+   Laufzeit); ein `style=`-Attribut wäre unter der CSP tot (`npm run check:csp`). */
+.stb-window-pad {
+  list-style: none;
+  pointer-events: none;
+}
+
 /* Koordinaten-Indikator (Spec 21 §10l Punkt 2 / §10m Punkt 2, ADR-v9-79/80): DER EINE
    Paar-Zustand-Glyph (◎ vorhanden / ◌ fehlt), von `CoordIndicator.svelte` gerendert.
    Ersetzt `.place-list__coord-indicator`/`.hof-list__coord-indicator` UND den

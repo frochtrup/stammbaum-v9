@@ -11,6 +11,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import BranchMaturitySection from '../../ui/views/quality/BranchMaturitySection.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import {
+  createQualityDashboardState,
+  type QualityDashboardState,
+} from '../../ui/views/quality/quality-dashboard-state.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { runValidation, defaultConfig, type Finding } from '../../core/validate/index';
 import { makeDatabase, makePerson } from '../../core/model';
@@ -215,5 +219,56 @@ describe('BranchMaturitySection — Restzeile (ADR-v9-167 Pkt 4)', () => {
     renderView({ projectScope: new Set(['I4']) });
     const zeile = screen.getByText(REST).closest('button')!;
     expect(within(zeile).getByText('—')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-319: Ebene UND gewählter Ast überleben das Wegnavigieren (Spec 21 §5). Beides
+// zusammen, weil ein Index ohne seine Ebene auf einen ANDEREN Ast zeigt — ein nur zur
+// Hälfte erhaltener Zustand zählt nicht als erhalten.
+describe('BranchMaturitySection — Ebene und Ast-Auswahl überleben das Wegnavigieren (BL-319)', () => {
+  function renderWith(quality: QualityDashboardState) {
+    const db = buildFourGenTree();
+    const appState = createAppState();
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setProband('I1');
+    const onSelectBranch = vi.fn();
+    const utils = render(BranchMaturitySection, {
+      props: {
+        appState,
+        viewState,
+        findings: runValidation(db, defaultConfig()),
+        projectScope: null,
+        quality,
+        onSelectBranch,
+      },
+    });
+    return { ...utils, onSelectBranch };
+  }
+
+  it('kommt auf derselben Ebene mit demselben gewählten Ast zurück — und meldet ihn erneut nach oben', async () => {
+    const quality = createQualityDashboardState();
+    const first = renderWith(quality);
+    await fireEvent.change(screen.getByRole('combobox', { name: /Ebene/ }), { target: { value: '2' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Vater Testperson/ }));
+    expect(screen.getByRole('button', { name: /Vater Testperson/ }).getAttribute('aria-pressed')).toBe('true');
+    first.unmount();
+
+    const second = renderWith(quality);
+
+    // Hinsehen: Ebene 2 (2 Äste + Restzeile), Vater-Ast gedrückt, Hinweiszeile sichtbar.
+    expect(screen.getByRole('combobox', { name: /Ebene/ }).textContent).toContain('Ebene 2');
+    expect(screen.getByRole('button', { name: /Vater Testperson/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText(/Brennpunkte gefiltert nach/)).toBeTruthy();
+    // Und die aufrufende Fläche erfährt die Auswahl auch ohne Klick — sonst wäre die
+    // Brennpunkte-Liste oben trotz gedrückter Zeile ungefiltert (halb erhalten).
+    expect(second.onSelectBranch).toHaveBeenCalledTimes(1);
+    expect(second.onSelectBranch.mock.calls[0][0].label).toContain('Vater Testperson');
+  });
+
+  it('meldet beim Aufbau NICHTS, solange kein Ast gewählt ist (keine überflüssige Null-Meldung)', () => {
+    const { onSelectBranch } = renderWith(createQualityDashboardState());
+    expect(onSelectBranch).not.toHaveBeenCalled();
   });
 });

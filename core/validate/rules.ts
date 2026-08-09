@@ -9,7 +9,7 @@
 // legacy-v8/ui-views-place.js `validatePlaces()` (Geo-Regeln). Spec 20 §3 führt die
 // Geo-Prüfungen bewusst in DIESELBE Engine, nicht als zweites Werkzeug mit eigenem Badge.
 import type { Hit, Rule, RuleContext } from './types';
-import type { Family, Person } from '../model/types';
+import type { Event, Family, Person } from '../model/types';
 import { distanceKm } from './geo';
 import type { CitationFact } from './facts';
 import {
@@ -18,12 +18,14 @@ import {
   deathYear,
   familyCitationFacts,
   familyCitations,
+  familyEvents,
   hasAnyEval,
   hasAnyQuay,
   hasSources,
   openHypotheses,
   personCitationFacts,
   personCitations,
+  personEvents,
   personLabel,
   yearOf,
 } from './facts';
@@ -78,6 +80,28 @@ function konflikte(facts: readonly CitationFact[]): Hit[] {
   return out;
 }
 
+
+/**
+ * Verletzt diese Adresse die GEDCOM-Struktur? (ADR-v9-228, Regel ADDR_INDEX_ONLY)
+ *
+ * Zwei Fälle, beide aus der 5.5.1-Definition:
+ *  (a) die `ADDR`-Zeile trägt keinen Wert, die Adresse steht nur in den Index-Tags —
+ *      `ADDR` ist aber mit {1:1} Pflicht;
+ *  (b) `ADR1`/`ADR2`/`ADR3` weichen von der `ADDR`- bzw. den beiden ersten
+ *      `CONT`-Zeilen ab, deren Kopie sie laut Definition sind.
+ */
+function adressStrukturVerletzt(ev: Event): boolean {
+  if (ev.addrExtra.length === 0) return false;
+  const wert = (tag: string) => ev.addrExtra.find((c) => c.tag === tag)?.value.trim();
+  const traegtInhalt = ev.addrExtra.some((c) => c.value.trim() !== "");
+  if ((ev.addr ?? "").trim() === "" && traegtInhalt) return true; // (a)
+  const zeilen = (ev.addr ?? "").split("\n").map((z) => z.trim());
+  for (const [i, tag] of ['ADR1', 'ADR2', 'ADR3'].entries()) {
+    const v = wert(tag);
+    if (v !== undefined && v !== (zeilen[i] ?? "")) return true; // (b)
+  }
+  return false;
+}
 export const RULES: readonly Rule[] = [
   // ── Logische Fehler ───────────────────────────────────────────────────────
   {
@@ -430,6 +454,33 @@ export const RULES: readonly Rule[] = [
       const { husb, wife } = spouses(f, ctx);
       // Nur wenn BEIDE Gatten bekannt sind — sonst ist die Familie ohnehin unfertig.
       return husb && wife && !f.marriage.date ? hit('Heiratsdatum fehlt', husb.id) : NONE;
+    },
+  },
+  // ── Format (Interop) ───────────────────────────────────────────────
+  {
+    id: 'ADDR_INDEX_ONLY',
+    label: 'Adresse nur in den Index-Tags (ADDR-Zeile leer)',
+    group: 'format',
+    severity: 'info',
+    defaultEnabled: true,
+    threshold: null,
+    category: 'online',
+    // GEDCOM 5.5.1 (S. 31/41): `ADDR` ist Pflicht ({1:1}), und ADR1/ADR2/ADR3 sind
+    // definitionsgemäß Kopien der ADDR- bzw. CONT-Zeilen. Wer den Inhalt NUR unter die
+    // Index-Tags hängt, verstößt gegen beides — ein fremdes Programm liest `ADDR` und
+    // findet nichts. Kein Datenfehler (nichts geht verloren), deshalb `info`.
+    //
+    // Zweiter Auslöser: ein ADR1/ADR2/ADR3, das vom zugehörigen ADDR/CONT-Wert ABWEICHT
+    // — dann ist die „Kopie" keine. Am aktuellen Bestand 0×; die Regel deckt ihn
+    // trotzdem ab, weil eine Datei nur zeigt was vorkommt, nicht was vorkommen kann
+    // (Spec 32 TST-23).
+    person: (p) => {
+      const treffer = personEvents(p).filter(adressStrukturVerletzt);
+      return treffer.length ? hit(`Adresse steht nur in den Index-Tags (${treffer.length}× — ADDR-Zeile ohne Wert)`) : NONE;
+    },
+    family: (f) => {
+      const treffer = familyEvents(f).filter(adressStrukturVerletzt);
+      return treffer.length ? hit(`Adresse steht nur in den Index-Tags (${treffer.length}× — ADDR-Zeile ohne Wert)`) : NONE;
     },
   },
   {

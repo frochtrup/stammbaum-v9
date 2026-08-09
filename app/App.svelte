@@ -68,6 +68,7 @@
   import { createTourState } from '../ui/shell/onboarding-state.svelte';
   import { onlineStatus } from '../ui/shell/online-status.svelte';
   import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
+  import { createViewHolders } from '../ui/shell/view-holders.svelte';
 
   interface Props {
     /** Injizierbar für Tests (analog `createMockAdapterSet`, s. tests/services/file-service.test.ts)
@@ -135,6 +136,17 @@
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
   const clipboard = createEventClipboard();
+  // Ansichts-Halter der Wurzel — Suche, Filter, Anzeige-Modus und Scroll-Position aller
+  // Flächen, die beim Wegnavigieren abgebaut werden (Spec 21 §5). Warum sie hier liegen und
+  // nicht in den Flächen selbst, steht in `view-holders.svelte.ts`.
+  const holders = createViewHolders();
+  const qualityState = holders.quality;
+  const searchState = holders.search;
+  const listStates = holders.lists;
+  const windowStates = holders.windows;
+  const tasksState = holders.tasks;
+  const logState = holders.log;
+  const hypothesesState = holders.hypotheses;
   let placesEditNotice = $state('');
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
@@ -401,6 +413,8 @@
         {mediaResolver}
         {route}
         {navHistory}
+        {listStates}
+        {windowStates}
         onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}
@@ -435,6 +449,8 @@
     {:else if shownTarget === 'search'}
       <GlobalSearchView
         {appState}
+        search={searchState}
+        windowed={windowStates.search}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToSource={openSource}
@@ -447,6 +463,10 @@
         {route}
         {viewState}
         projects={projectsState}
+        quality={qualityState}
+        tasks={tasksState}
+        log={logState}
+        hypotheses={hypothesesState}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToPlace={openPlace}

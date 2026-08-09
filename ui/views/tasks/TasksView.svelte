@@ -35,7 +35,14 @@
   import type { TaskStatus, ProjectScope } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import { untrack } from 'svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
+  import type { Route } from '../../shell/route.svelte';
+  import {
+    createTasksViewState,
+    DEFAULT_TASK_FILTER,
+    type TasksViewState,
+  } from '../research-segment-state.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
 
   interface Props {
@@ -49,19 +56,42 @@
     onStartLogFromTask?: (pf: LogPrefill) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /**
+     * Routen-Quelle — trägt den Anzeige-Modus (Liste · Board) als Merker, wie sie es für
+     * die Lens-Modi längst tut (BL-320, Spec 21 §5 Heimat ①). PFLICHT, nicht optional:
+     * ein zweiter, komponenten-lokaler Modus-Zustand daneben wäre genau die Doppelquelle,
+     * die INV-UI-15 ausschließt — der Compiler stellt die Frage lieber an jedem Aufrufer
+     * (CLAUDE.md: der Zwang statt der Erinnerung).
+     */
+    route: Route;
+    /**
+     * Filterzustand von AUSSEN (BL-320): dieses Segment wird beim Wechsel des Nav-Ziels
+     * abgebaut, ein gesetzter Filter war danach weg (Spec 21 §5).
+     */
+    tasks?: TasksViewState;
   }
-  const { appState, onNavigateToPerson, onNavigateToFamily, onStartLogFromTask, scope = null }: Props = $props();
+  const {
+    appState,
+    onNavigateToPerson,
+    onNavigateToFamily,
+    onStartLogFromTask,
+    scope = null,
+    route,
+    tasks: tasksProp,
+  }: Props = $props();
 
-  /** Status-Auswahl. `open` ist der Default — davon abweichend zählt `FilterBar` "· 1". */
-  const DEFAULT_FILTER: TaskFilter = 'open';
+  const tasks = untrack(() => tasksProp ?? createTasksViewState());
+  const viewMode = $derived(route.tasksMode);
+
+  /** Status-Auswahl. Die Vorgabe (`open`) steht im Halter — davon abweichend zählt
+   *  `FilterBar` "· 1". */
+  const DEFAULT_FILTER = DEFAULT_TASK_FILTER;
   const FILTERS: { key: TaskFilter; label: string }[] = [
     { key: 'all', label: 'Alle' },
     { key: 'open', label: 'Offen' },
     { key: 'done', label: 'Erledigt' },
   ];
 
-  let filter = $state<TaskFilter>(DEFAULT_FILTER);
-  let viewMode = $state<'list' | 'board'>('list');
   let showAddForm = $state(false);
 
   // Bearbeiten-Kontext: null = Hinzufügen-Modus.
@@ -73,11 +103,11 @@
   });
 
   const allTasks = $derived(collectAllTasks(appState.db, appState.placeContext, scope));
-  const filteredTasks = $derived(filterTasks(allTasks, filter));
+  const filteredTasks = $derived(filterTasks(allTasks, tasks.filter));
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
   const activeFilterCount = $derived(
-    countActiveFilters({ filter }, { filter: DEFAULT_FILTER }),
+    countActiveFilters({ filter: tasks.filter }, { filter: DEFAULT_FILTER }),
   );
 
   function openAddForm() {
@@ -138,7 +168,7 @@
 
   function exportMd() {
     const today = new Date().toLocaleDateString('de-DE');
-    const md = exportTasksMarkdown(appState.db, filter, today);
+    const md = exportTasksMarkdown(appState.db, tasks.filter, today);
     const adapter = new AnchorDownloadAdapter();
     const dateSlug = new Date().toISOString().slice(0, 10);
     adapter.download(md, `aufgaben_${dateSlug}.md`, 'text/markdown;charset=utf-8');
@@ -154,7 +184,14 @@
         <legend>Status</legend>
         {#each FILTERS as f (f.key)}
           <label class="stb-filter-opt">
-            <input type="radio" bind:group={filter} value={f.key} />
+            <!-- `checked` + `onchange` statt `bind:group`: der Wert lebt außerhalb der
+                 Komponente (BL-320). -->
+            <input
+              type="radio"
+              value={f.key}
+              checked={tasks.filter === f.key}
+              onchange={() => (tasks.filter = f.key)}
+            />
             {f.label}
           </label>
         {/each}
@@ -169,7 +206,7 @@
         { id: 'board', label: '▦ Board' },
       ]}
       value={viewMode}
-      onChange={(id) => (viewMode = id as 'list' | 'board')}
+      onChange={(id) => route.setTasksMode(id as 'list' | 'board')}
       ariaLabel="Aufgabenansicht wählen"
     />
     <button type="button" class="tasks-view__add-btn" onclick={openAddForm}>+ Aufgabe</button>
@@ -187,7 +224,7 @@
 
   {#if filteredTasks.length === 0}
     <p class="tasks-view__empty">
-      {filter === 'open' ? 'Keine offenen Aufgaben' : filter === 'done' ? 'Keine erledigten Aufgaben' : 'Keine Aufgaben vorhanden'}
+      {tasks.filter === 'open' ? 'Keine offenen Aufgaben' : tasks.filter === 'done' ? 'Keine erledigten Aufgaben' : 'Keine Aufgaben vorhanden'}
     </p>
   {:else if viewMode === 'board'}
     <div class="tasks-view__board">

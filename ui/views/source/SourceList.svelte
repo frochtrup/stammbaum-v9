@@ -12,6 +12,8 @@
   import { buildSourceRows } from './source-list-model';
   import { tooltip } from '../../shell/tooltip';
   import { noDataHint } from '../../shell/nav-model';
+  import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { layout } from '../../shell/layout.svelte';
 
   // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): `Source` hat kein eigenes
@@ -26,10 +28,30 @@
     viewState: ViewState;
     /** Nach dem Anlegen einer neuen Quelle aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
     onCreate?: (sourceId: string) => void;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN: die Scroll-Position soll die
+     * Navigation überleben (Spec 21 §5) — und weil happy-dom kein Layout hat, ist er der
+     * einzige Weg, die gemessenen Höhen für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
-  const { appState, viewState, onCreate }: Props = $props();
+  const { appState, viewState, onCreate, windowed: windowedProp }: Props = $props();
 
   const rows = $derived(buildSourceRows(appState.db));
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // EIN Fenster über die Liste: gerendert wird nur, was im Sichtbereich steht, plus Overscan.
+  // Die Höhe jeder Zeile wird GEMESSEN, sobald sie einmal im Fenster stand; die Höhenklasse
+  // ist nur die Schätzung für alles, was noch nie gerendert wurde (ADR-v9-236). Diese Liste
+  // hat genau EINE Klasse — ihre Zeilen tragen immer beide Zeilen (Name + Meta).
+  // Das Fenster steht als `$derived` IM SKRIPT, nicht als `{@const}` im Template
+  // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('sources');
+  const off = $derived(sec.offsets(rows.length, () => 'zeile'));
+  const win = $derived(sec.slice(off));
+
   const isEmpty = $derived(appState.db.sources.size === 0);
 
   function selectSource(id: string) {
@@ -44,7 +66,7 @@
   }
 </script>
 
-<div class="source-list">
+<div class="source-list" use:w.container>
   {#if isEmpty}
     <p class="source-list__empty">{noDataHint('Quellen', layout.isDesktopLayout)}</p>
     <div class="source-list__toolbar source-list__toolbar--empty">
@@ -54,9 +76,12 @@
     <div class="source-list__toolbar">
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>
-    <ul class="source-list__rows">
-      {#each rows as row (row.id)}
-        <li>
+    <ul class="source-list__rows" use:sec.frame>
+      {#if win.padTop > 0}
+        <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+      {/if}
+      {#each rows.slice(win.start, win.end) as row, i (row.id)}
+        <li use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
           <button type="button" class="source-list__row" onclick={() => selectSource(row.id)}>
             <span class="source-list__label">{row.label}</span>
             <span class="source-list__meta">
@@ -70,6 +95,9 @@
           </button>
         </li>
       {/each}
+      {#if win.padBottom > 0}
+        <li class="stb-window-pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+      {/if}
     </ul>
   {/if}
 </div>

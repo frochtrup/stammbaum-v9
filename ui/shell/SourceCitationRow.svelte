@@ -21,6 +21,7 @@
   // volle Citation-Objekt und rufen appState.savePerson/saveFamily(model) — kein Feld-
   // Setter-Pattern hier).
   import type { AppState } from './app-state.svelte';
+  import { PLAIN_FIELD } from './plain-input';
   import type {
     Source,
     Citation,
@@ -173,7 +174,7 @@
     {displayLabel}
   </button>
   <input
-    type="text"
+    type="text" {...PLAIN_FIELD}
     class="source-citation-row__page"
     placeholder="Seite"
     aria-label={`${labelPrefix} Seite ${index + 1}`}
@@ -214,7 +215,7 @@
     ⚖
   </button>
   <input
-    type="text"
+    type="text" {...PLAIN_FIELD}
     class="source-citation-row__note"
     placeholder="Notiz"
     aria-label={`${labelPrefix} Notiz ${index + 1}`}
@@ -312,7 +313,7 @@
     <label class="source-citation-row__eval-field">
       <span>Informant</span>
       <input
-        type="text"
+        type="text" {...PLAIN_FIELD}
         placeholder="wer hat berichtet?"
         aria-label={`${labelPrefix} Quelle ${index + 1} Informant`}
         value={currentEval.informant ?? ''}

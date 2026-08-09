@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import HofList from '../../ui/views/hof/HofList.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createHofListState } from '../../ui/views/list-view-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
 import { makeDatabase, makePerson } from '../../core/model';
 import { place, hof } from '../core/places-fixtures';
@@ -260,5 +261,30 @@ describe('HofList — Kurations-Achtungs-Punkt am Werkzeuge-Trigger (BL-206, ADR
 
     await fireEvent.click(trigger);
     expect(screen.getByText('Massen-Dedup · 1 Gruppe')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: Suche und Abschnitt überleben das Wegnavigieren (Spec 21 §5). Der Abschnitt ist
+// hier der interessantere Teil: er entscheidet, WELCHE Menge die Liste zeigt — kommt er
+// nicht zurück, sieht der Nutzer nach dem Blick auf einen Hof eine andere Liste.
+describe('HofList — Suche und Abschnitt überleben das Wegnavigieren (BL-320)', () => {
+  it('kommt mit derselben Suche zurück', async () => {
+    const list = createHofListState();
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    withReferencingPerson(db, '@I1@', '@H1@');
+    appState.loadDatabase(db, 'test.ged');
+    const props = { appState, viewState: createViewState(), list };
+
+    const first = render(HofList, { props });
+    await fireEvent.input(screen.getByLabelText('Höfe durchsuchen'), { target: { value: 'Wall' } });
+    first.unmount();
+
+    render(HofList, { props: { appState, viewState: createViewState(), list } });
+
+    expect((screen.getByLabelText('Höfe durchsuchen') as HTMLInputElement).value).toBe('Wall');
   });
 });

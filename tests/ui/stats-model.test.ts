@@ -44,7 +44,7 @@ describe('computeStatistics — Übersicht-Kacheln', () => {
     db.individuals.set('@I2@', p2);
     db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
     db.sources.set('@S1@', { id: '@S1@', abbr: '', title: '', author: '', createdDate: '', publisher: '', text: '', repo: '', callNumber: '', callMedia: '', agnc: '', dataEvents: [], dataExtra: [], externalRefs: [], media: [], lastChanged: '' });
-    db.repositories.set('@R1@', { id: '@R1@', name: '', type: '', address: '', phone: '', www: '', email: '', findingAid: '', lastChanged: '' });
+    db.repositories.set('@R1@', { id: '@R1@', name: '', type: '', address: '', addressExtra: [], phone: '', www: '', email: '', findingAid: '', lastChanged: '' });
 
     const result = computeStatistics(db, emptyContext());
 

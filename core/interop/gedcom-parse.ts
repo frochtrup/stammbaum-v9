@@ -140,6 +140,11 @@ function parseCitation(sourNode: GedNode): Citation {
 // andere (z. B. `_SCBK`) landet verbatim in MediaCitation.extra (INV-PT, edit-sicher).
 const RECOGNIZED_OBJE_SUB = new Set(['FILE', 'TITL', 'NOTE', '_DATE', '_PRIM']);
 
+// ADDR-Kinder, die bereits im Text stecken (collectText). Alles andere — ADR1/ADR2/
+// ADR3/CITY/STAE/POST/CTRY und was ein fremdes Programm sonst darunter hängt — landet
+// verbatim in Event.addrExtra (ADR-v9-228, Form wie MediaCitation.extra).
+const RECOGNIZED_ADDR_SUB = new Set(['CONT', 'CONC']);
+
 /**
  * Projiziert eine OBJE-Referenz in eine referenz-spezifische MediaCitation (ADR-v9-124).
  * Deckt BEIDE vom Standard erlaubten Formen ab:
@@ -276,6 +281,7 @@ function parseEvent(node: GedNode): Event {
   // mit ihr fiele der ganze un-modellierte Teilbaum darunter.
   const addrNode = child(node, 'ADDR');
   ev.addr = addrNode ? collectText(addrNode) : null;
+  ev.addrExtra = addrNode ? addrNode.children.filter((c) => !RECOGNIZED_ADDR_SUB.has(c.tag)) : [];
 
   const noteNode = child(node, 'NOTE');
   if (noteNode) ev.note = collectText(noteNode);
@@ -699,6 +705,7 @@ function parseRepository(rec: GedNode): Repository {
   r.name = childValue(rec, 'NAME');
   const addr = child(rec, 'ADDR');
   r.address = addr ? collectText(addr) : null;
+  r.addressExtra = addr ? addr.children.filter((c) => !RECOGNIZED_ADDR_SUB.has(c.tag)) : [];
   r.phone = childValue(rec, 'PHON');
   r.www = childValue(rec, 'WWW');
   r.email = childValue(rec, 'EMAIL');

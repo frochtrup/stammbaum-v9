@@ -20,6 +20,7 @@ export const GROUP_LABEL: Record<RuleGroup, string> = {
   quellen: 'Quellen',
   vernetzung: 'Vernetzung',
   geo: 'Orte & Höfe',
+  format: 'Dateiformat',
 };
 
 /** Ein Befund, angereichert um die Beschriftungen, die die Zeile darstellen muss. */
@@ -76,16 +77,30 @@ export function subjectLabel(f: Finding, db: Database): string {
   return '—';
 }
 
+/**
+ * Anzeige-Reihenfolge der Gruppen. **Als `Record`, nicht als Array** — und zwar aus einem
+ * belegten Grund: eine neue Gruppe (`format`, ADR-v9-228) wurde in `GROUP_LABEL` vom
+ * Compiler eingefordert, in der damaligen `RuleGroup[]`-Liste aber NICHT. Die Regel war
+ * eingetragen, getestet und grün — und erschien trotzdem nirgends, weil diese Liste sie
+ * stillschweigend herausfilterte. Ein `Record<RuleGroup, number>` stellt die Frage bei
+ * jeder künftigen Gruppe an derselben Stelle, an der sie auffällt (ADR-v9-83-Muster:
+ * Zwang statt Erinnerung).
+ */
+const GROUP_ORDER: Record<RuleGroup, number> = {
+  logik: 1,
+  plausibilitaet: 2,
+  vollstaendigkeit: 3,
+  quellen: 4,
+  vernetzung: 5,
+  geo: 6,
+  format: 7,
+};
+
 /** Regeln für das Konfigurations-Sheet nach Gruppen ordnen (Registry-Reihenfolge bleibt). */
 export function rulesByGroup(): { group: RuleGroup; label: string; rules: Rule[] }[] {
-  const order: RuleGroup[] = [
-    'logik',
-    'plausibilitaet',
-    'vollstaendigkeit',
-    'quellen',
-    'vernetzung',
-    'geo',
-  ];
+  const order = (Object.keys(GROUP_ORDER) as RuleGroup[]).sort(
+    (a, b) => GROUP_ORDER[a] - GROUP_ORDER[b],
+  );
   return order
     .map((group) => ({
       group,

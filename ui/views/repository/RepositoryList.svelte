@@ -10,6 +10,8 @@
   import { makeRepository, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildRepositoryRows } from './repository-list-model';
   import { noDataHint } from '../../shell/nav-model';
+  import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { layout } from '../../shell/layout.svelte';
 
   interface Props {
@@ -17,10 +19,30 @@
     viewState: ViewState;
     /** Nach dem Anlegen eines neuen Archivs aufgerufen (Auswahl + Editor-Öffnung liegt beim Aufrufer). */
     onCreate?: (repoId: string) => void;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN: die Scroll-Position soll die
+     * Navigation überleben (Spec 21 §5) — und weil happy-dom kein Layout hat, ist er der
+     * einzige Weg, die gemessenen Höhen für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
-  const { appState, viewState, onCreate }: Props = $props();
+  const { appState, viewState, onCreate, windowed: windowedProp }: Props = $props();
 
   const rows = $derived(buildRepositoryRows(appState.db));
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // EIN Fenster über die Liste: gerendert wird nur, was im Sichtbereich steht, plus Overscan.
+  // Die Höhe jeder Zeile wird GEMESSEN, sobald sie einmal im Fenster stand; die Höhenklasse
+  // ist nur die Schätzung für alles, was noch nie gerendert wurde (ADR-v9-236). Diese Liste
+  // hat genau EINE Klasse — ihre Zeilen tragen immer beide Zeilen (Name + Meta).
+  // Das Fenster steht als `$derived` IM SKRIPT, nicht als `{@const}` im Template
+  // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('repositories');
+  const off = $derived(sec.offsets(rows.length, () => 'zeile'));
+  const win = $derived(sec.slice(off));
+
   const isEmpty = $derived(appState.db.repositories.size === 0);
 
   function selectRepository(id: string) {
@@ -35,7 +57,7 @@
   }
 </script>
 
-<div class="repository-list">
+<div class="repository-list" use:w.container>
   {#if isEmpty}
     <p class="repository-list__empty">{noDataHint('Archive', layout.isDesktopLayout)}</p>
     <div class="repository-list__toolbar repository-list__toolbar--empty">
@@ -45,9 +67,12 @@
     <div class="repository-list__toolbar">
       <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
     </div>
-    <ul class="repository-list__rows">
-      {#each rows as row (row.id)}
-        <li>
+    <ul class="repository-list__rows" use:sec.frame>
+      {#if win.padTop > 0}
+        <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+      {/if}
+      {#each rows.slice(win.start, win.end) as row, i (row.id)}
+        <li use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
           <button type="button" class="repository-list__row" onclick={() => selectRepository(row.id)}>
             <span class="repository-list__name">{row.name}</span>
             <span class="repository-list__meta">
@@ -57,6 +82,9 @@
           </button>
         </li>
       {/each}
+      {#if win.padBottom > 0}
+        <li class="stb-window-pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+      {/if}
     </ul>
   {/if}
 </div>

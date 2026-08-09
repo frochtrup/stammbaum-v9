@@ -16,6 +16,7 @@
   // Baut analog PlaceDetail.svelte (inline-Editier-Abschnitt, appState.savePerson(model)
   // mit dem KOMPLETTEN Objekt) — kein Feld-Setter-Pattern aus dem DOM.
   import { untrack } from 'svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person } from '../../../core/model/types';
   import { composeGedcomName } from '../../../core/model/name-parts';
@@ -177,11 +178,11 @@
     <div class="person-form__grid">
       <label>
         Vorname
-        <input type="text" bind:value={given} />
+        <input type="text" {...PLAIN_FIELD} bind:value={given} />
       </label>
       <label>
         Nachname
-        <input type="text" bind:value={surname} />
+        <input type="text" {...PLAIN_FIELD} bind:value={surname} />
       </label>
       <label>
         Geschlecht
@@ -194,29 +195,29 @@
       {#if showPrefixSuffix}
         <label>
           Präfix
-          <input type="text" bind:value={prefix} />
+          <input type="text" {...PLAIN_FIELD} bind:value={prefix} />
         </label>
         <label>
           Suffix
-          <input type="text" bind:value={suffix} />
+          <input type="text" {...PLAIN_FIELD} bind:value={suffix} />
         </label>
       {/if}
       {#if showNick}
         <label>
           Rufname
-          <input type="text" bind:value={nick} />
+          <input type="text" {...PLAIN_FIELD} bind:value={nick} />
         </label>
       {/if}
       {#if showTitle}
         <label>
           Titel
-          <input type="text" bind:value={title} />
+          <input type="text" {...PLAIN_FIELD} bind:value={title} />
         </label>
       {/if}
       {#if showRestriction}
         <label>
           RESN (Zugriffsbeschränkung)
-          <input type="text" bind:value={restriction} placeholder="confidential | locked | privacy" />
+          <input type="text" {...PLAIN_FIELD} bind:value={restriction} placeholder="confidential | locked | privacy" />
         </label>
       {/if}
       {#if showEmail}
@@ -234,7 +235,7 @@
     </div>
     <label>
       Notiz
-      <textarea bind:value={noteText}></textarea>
+      <textarea {...PROSE_FIELD} bind:value={noteText}></textarea>
     </label>
     {#if identityPills.length > 0}
       <div class="stb-activation-pill-row" aria-label="Weitere Felder">

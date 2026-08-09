@@ -18,6 +18,7 @@ import type { AppState } from './app-state.svelte';
 import type { Event, Citation } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
 import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../core/model/gedcom-date';
+import { addrDisplay } from '../../core/model/event';
 import { linkEventToPlace, linkEventToHof } from '../../core/places';
 import { eventPlaceLabel } from './person-display';
 
@@ -62,6 +63,9 @@ export interface EditableEvent {
   placeId: string | null;
   hofId: string | null;
   addr: string;
+  /** Der beim Öffnen ANGEZEIGTE Adresstext (ADR-v9-228) — Vergleichsbasis für „angefasst?".
+   *  Bei strukturierter Adresse ist das die aus addrExtra abgeleitete Fassung, nicht ev.addr. */
+  originalAddrText: string;
   note: string;
   citations: Citation[];
 }
@@ -91,7 +95,8 @@ export function toEditable(key: string, ev: Event, ctx: PlaceContext): EditableE
     placeDirty: false,
     placeId: ev.placeId,
     hofId: ev.hofId,
-    addr: ev.addr ?? '',
+    addr: addrDisplay(ev),
+    originalAddrText: addrDisplay(ev),
     note: ev.note,
     citations: ev.citations.map((c) => ({ ...c })),
   };
@@ -132,7 +137,7 @@ export function computeDate(e: EditableEvent): string | null {
 /** Baut ein Event-Objekt aus dem AKTUELLEN Formularzustand (nicht nur dem gespeicherten
  *  Original) — für `linkEventToPlace`/`linkEventToHof`, die den vollen Event-Kontext
  *  (Typ/Datum/Ort/Adresse) für die Jahres-Ableitung + Reprojektion brauchen. Felder ohne
- *  Formular-Entsprechung (lati/long/datePhrase/media/seen/grampsId) sind hier neutral belegt — sie
+ *  Formular-Entsprechung (lati/long/datePhrase/addrExtra/media/seen/grampsId) sind hier neutral belegt — sie
  *  fließen weder in die Jahres-Ableitung noch in buildPlacForGedcom ein. */
 export function liveEventFrom(e: EditableEvent): Event {
   return {
@@ -147,6 +152,7 @@ export function liveEventFrom(e: EditableEvent): Event {
     lati: null,
     long: null,
     addr: e.addr,
+    addrExtra: [],
     note: e.note,
     citations: e.citations,
     media: [],
@@ -191,8 +197,19 @@ export function pickHofFor(appState: AppState, target: EditableEvent, hofId: str
  * Ort auch.
  */
 function addrZurueck(original: Event, e: EditableEvent): string | null {
+  // Save-Time-No-Op (ADR-v9-228): unangetastet heißt unverändert. Verglichen wird gegen den
+  // ANGEZEIGTEN Startwert, nicht gegen `original.addr` — bei einer strukturierten Adresse
+  // ist der Rohwert leer und im Feld steht die aus `addrExtra` abgeleitete Fassung; ein
+  // Vergleich gegen den Rohwert hielte jedes Öffnen-und-Speichern für eine Änderung und
+  // schriebe die abgeleitete Fassung in die Datei.
+  if (!addrGeaendert(e)) return original.addr;
   if (e.addr !== '') return e.addr;
   return original.addr === '' ? '' : null;
+}
+
+/** Hat der Nutzer das Adressfeld angefasst? (ADR-v9-228, s. `addrZurueck`) */
+export function addrGeaendert(e: EditableEvent): boolean {
+  return e.addr !== e.originalAddrText;
 }
 
 /** Baut das strukturierte Formular-Ereignis zurück in ein Event (Tristate beachtet, Spec
@@ -212,6 +229,12 @@ export function fromEditable(original: Event, e: EditableEvent): Event {
     placeId: e.placeId,
     hofId: e.hofId,
     addr: addrZurueck(original, e),
+    // ADR-v9-228 Entscheidung 3: ein Adress-Edit verwirft die Index-Kopien, statt sie zu
+    // raten — `ADR1`/`ADR2`/`ADR3` sind laut Spec Kopien der `ADDR`/`CONT`-Zeilen, und wenn
+    // die sich ändert, ist die Kopie ungültig; `CITY`/`POST`/`CTRY` ließen sich aus einem
+    // Freitext nur erfinden. Bleibt das Feld unangetastet, bleiben auch die Knoten stehen
+    // (über den `...original`-Spread oben) und der Roundtrip ist byte-identisch.
+    addrExtra: addrGeaendert(e) ? [] : original.addrExtra,
     note: e.note,
     citations: e.citations,
   };

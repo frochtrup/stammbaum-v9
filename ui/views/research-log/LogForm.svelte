@@ -9,6 +9,7 @@
   // (LogView) entscheidet zwischen appState.addLogEntry und appState.updateLogEntry
   // (Kommando-Chokepoint, Spec 02 §3 — wie TaskForm/EventEditModal).
   import type { AppState } from '../../shell/app-state.svelte';
+  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyPicker from '../../shell/FamilyPicker.svelte';
   import SourcePicker from '../../shell/SourcePicker.svelte';
@@ -110,12 +111,12 @@
 
   <label class="log-form__field">
     Suchbegriff
-    <input type="text" bind:value={query} placeholder="Wonach wurde gesucht?" />
+    <input type="text" {...PLAIN_FIELD} bind:value={query} placeholder="Wonach wurde gesucht?" />
   </label>
 
   <label class="log-form__field">
     Notiz
-    <textarea bind:value={note} rows="2" placeholder="Ergebnis / Beobachtungen"></textarea>
+    <textarea {...PROSE_FIELD} bind:value={note} rows="2" placeholder="Ergebnis / Beobachtungen"></textarea>
   </label>
 
   {#if !isEditing}

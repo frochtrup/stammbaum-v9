@@ -13,6 +13,7 @@
   // Rolle wie `PlaceEditForm` daneben — die Sektion baut das neue PlaceObject, das
   // Kommando setzt der Steckbrief ab.
   import type { PlaceObject } from '../../../core/places/types';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import { hierarchySpanLabel } from './place-detail-model';
   import {
     withAddedPname,
@@ -110,7 +111,7 @@
         {#each variants as v, i (i)}
           <li class="place-detail__edit-row">
             <input
-              type="text"
+              type="text" {...PLAIN_FIELD}
               value={v.value}
               aria-label={`Namensvariante ${i + 1}`}
               onchange={(e) => updatePname(i, e.currentTarget.value, v.from, v.to)}
@@ -136,7 +137,7 @@
     {/if}
     {#if editing}
       <div class="place-detail__add-row">
-        <input type="text" placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
+        <input type="text" {...PLAIN_FIELD} placeholder="neue Schreibweise…" bind:value={newPnameValue} aria-label="Neue Namensvariante" />
         <input type="number" placeholder="von" bind:value={newPnameFrom} aria-label="Gültig von (Jahr)" />
         <input type="number" placeholder="bis" bind:value={newPnameTo} aria-label="Gültig bis (Jahr)" />
         <button type="button" onclick={addPname}>+ Hinzufügen</button>
@@ -163,8 +164,8 @@
       {/if}
       {#if editing}
         <div class="place-detail__add-row">
-          <input type="text" class="place-detail__trans-lang-input" placeholder="Sprache (z. B. pl)" bind:value={newTransLang} aria-label="Sprachkürzel" />
-          <input type="text" placeholder="Name in dieser Sprache…" bind:value={newTransValue} aria-label="Übersetzter Ortsname" />
+          <input type="text" {...PLAIN_FIELD} class="place-detail__trans-lang-input" placeholder="Sprache (z. B. pl)" bind:value={newTransLang} aria-label="Sprachkürzel" />
+          <input type="text" {...PLAIN_FIELD} placeholder="Name in dieser Sprache…" bind:value={newTransValue} aria-label="Übersetzter Ortsname" />
           <button type="button" onclick={addTranslation}>+ Übersetzung</button>
         </div>
       {/if}

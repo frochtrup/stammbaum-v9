@@ -21,6 +21,7 @@ describe('collectCitationRefs — alle Zitatstellen über Personen und Familien'
       lati: null,
       long: null,
       addr: '',
+      addrExtra: [],
       note: '',
       citations: [makeCitation('@S2@')],
       media: [],

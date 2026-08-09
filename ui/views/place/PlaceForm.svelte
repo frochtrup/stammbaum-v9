@@ -14,6 +14,7 @@
   // wiederverwendet (core/places/normalize.ts, allgemeines String-Utility — kein
   // Duplikat der mintId-Algorithmik).
   import type { PlacesHost } from '../../shell/places-host';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { PlaceObject } from '../../../core/places/types';
   import { slugify } from '../../../core/places';
   import { formEscape, formSubmit } from '../../shell/form-keys';
@@ -89,12 +90,12 @@
     <!-- Eigenes aria-label (nicht schlicht "Name"): PlaceForm wird oft NEBEN einer
          bestehenden PlaceDetail-Bearbeitung eingebettet (z. B. enclosedBy-Picker im
          Bearbeiten-Modus), die selbst ein "Name"-Feld hat — Kollision vermeiden. -->
-    <input type="text" bind:value={title} aria-label="Name (neuer Ort)" />
+    <input type="text" {...PLAIN_FIELD} bind:value={title} aria-label="Name (neuer Ort)" />
   </label>
   <label>
     Typ
     <input
-      type="text"
+      type="text" {...PLAIN_FIELD}
       bind:value={type}
       placeholder="z. B. Village, City, County…"
       aria-label="Typ (neuer Ort)"

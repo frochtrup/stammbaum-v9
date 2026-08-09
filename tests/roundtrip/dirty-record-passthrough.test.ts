@@ -53,9 +53,14 @@ function verloren(src: string, out: string, erwartetWeg: readonly string[]): str
  * emittiert der Writer unverändert wieder (`_SCBK`, `_PRIM_CUTOUT`, `_FILESIZE` … je
  * nach Quelldatei). Solche Tags sind datenabhängig; sie in die Tabelle zu schreiben
  * hieße, den Bestand einer Datei zur Struktur zu erklären.
+ *
+ * `ADDR` ist seit ADR-v9-228 der zweite Container dieser Art (`Event.addrExtra`) — aus
+ * demselben Grund: was der Writer dort ausgibt, hat er vorher genau so gelesen, und die
+ * Tag-Menge (`ADR1`/`ADR2`/`CITY`/`POST`/`CTRY` … oder was ein fremdes Programm sonst
+ * unter eine Adresse hängt) ist eine Eigenschaft der Quelldatei, nicht des Formats.
  */
 function sammleDrift(db: Database, fehlend: string[]): void {
-  const PASSTHROUGH_CONTAINER = new Set(['OBJE']);
+  const PASSTHROUGH_CONTAINER = new Set(['OBJE', 'ADDR']);
   const pruefe = (node: GedNode, tiefe: number) => {
     if (tiefe > 0 && !PASSTHROUGH_CONTAINER.has(node.tag)) {
       const bekannt = new Set(modellierteKinder(node.tag));

@@ -249,3 +249,91 @@ describe('App — History-Navigation (Spec 20 §1.1 [K], BL-07)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Statistik/ })).toBeTruthy());
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// Der ganze Weg — echte Navigation, nicht Unmount-Simulation (BL-319, Spec 21 §5).
+//
+// Die Komponententests der beiden Flächen prüfen „Halter erhält den Zustand"; hier läuft
+// der vom Nutzer gemeldete Pfad selbst: Filter setzen -> zur Person mit dem Hinweis
+// wechseln -> zurück -> HINSEHEN. Nur dieser Test deckt, dass die App-Wurzel die Halter
+// überhaupt durchreicht (ein Halter, der nicht ankommt, rettet nichts).
+describe('App — Ansichts-Unterzustand überlebt echte Navigation (BL-319, Spec 21 §5)', () => {
+  it('Qualitäts-Dashboard: der Brennpunkte-Filter steht nach dem Abstecher zur Person noch', async () => {
+    const { adapters } = createMockAdapterSet({
+      initialWorkingCopy: { text: MINI_GED, name: 'arbeitskopie.ged' },
+    });
+    render(App, {
+      props: { fileService: new FileService(adapters), persister: mockPersister(), layoutEnv: layoutEnvFor(false) },
+    });
+
+    // Forschung -> Dashboard-Segment.
+    await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Forschung/ })));
+    await fireEvent.click(screen.getByRole('tab', { name: 'Dashboard' }));
+    // Max hat nur Hinweise (kein Geburtsdatum, keine Quellen) — die Vorgabe
+    // „Handlungsbedarf" zeigt ihn nicht, „Alle" schon.
+    expect(screen.queryByRole('button', { name: 'Max Muster' })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+    await fireEvent.click(screen.getByLabelText('Alle (inkl. Hinweise)'));
+    const brennpunkt = await waitFor(() => screen.getByRole('button', { name: 'Max Muster' }));
+
+    // Zur Person wechseln (der gemeldete Weg) …
+    await fireEvent.click(brennpunkt);
+    expect(await waitFor(() => screen.getByRole('heading', { name: /Max Muster/ }))).toBeTruthy();
+    // … und zurück in die Forschungsfläche (Merker führt aufs Dashboard, ADR-v9-116).
+    await fireEvent.click(screen.getByRole('button', { name: /Forschung/ }));
+
+    // Hinsehen: der Filter ist noch gesetzt, und die Person, die nur er zeigt, steht da.
+    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Max Muster' })).toBeTruthy();
+  });
+
+  it('Globale Suche: Anfrage und Trefferliste stehen nach dem Sprung auf einen Treffer noch', async () => {
+    const { adapters } = createMockAdapterSet({
+      initialWorkingCopy: { text: MINI_GED, name: 'arbeitskopie.ged' },
+    });
+    render(App, {
+      props: { fileService: new FileService(adapters), persister: mockPersister(), layoutEnv: layoutEnvFor(false) },
+    });
+
+    await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Suche/ })));
+    const feld = screen.getByLabelText('Global suchen');
+    await fireEvent.input(feld, { target: { value: 'Muster' } });
+    const treffer = await waitFor(() => screen.getByText('Max Muster'));
+
+    await fireEvent.click(treffer);
+    expect(await waitFor(() => screen.getByRole('heading', { name: /Max Muster/ }))).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: /Suche/ }));
+
+    expect((screen.getByLabelText('Global suchen') as HTMLInputElement).value).toBe('Muster');
+    expect(screen.getByText('Max Muster')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// BL-320: dieselbe Zusicherung an der Fläche, die ein Nutzer am häufigsten benutzt — die
+// Personenliste. Auf Mobil ERSETZT das Detail die Liste; der Weg ist also derselbe wie
+// beim Dashboard oben, nur eine Ebene alltäglicher. Auch hier mit echter Navigation, weil
+// nur so geprüft ist, dass die App-Wurzel die Halter durchreicht.
+describe('App — Listen-Suche überlebt echte Navigation (BL-320, Spec 21 §5)', () => {
+  it('Personenliste: die Suche steht nach dem Öffnen einer Person und dem Rückweg noch', async () => {
+    const { adapters } = createMockAdapterSet({
+      initialWorkingCopy: { text: MINI_GED, name: 'arbeitskopie.ged' },
+    });
+    render(App, {
+      props: { fileService: new FileService(adapters), persister: mockPersister(), layoutEnv: layoutEnvFor(false) },
+    });
+
+    const feld = await waitFor(() => screen.getByLabelText('Personen durchsuchen'));
+    await fireEvent.input(feld, { target: { value: 'Muster' } });
+    const zeile = await waitFor(() => screen.getByRole('button', { name: /Max Muster/ }));
+
+    // Person öffnen (mobil ersetzt das Detail die Liste) …
+    await fireEvent.click(zeile);
+    expect(await waitFor(() => screen.getByRole('heading', { name: /Max Muster/ }))).toBeTruthy();
+    // … und über „← Zurück" wieder in die Liste.
+    await fireEvent.click(screen.getByRole('button', { name: /Zurück/ }));
+
+    expect((await waitFor(() => screen.getByLabelText('Personen durchsuchen'))) as HTMLInputElement).toBeTruthy();
+    expect((screen.getByLabelText('Personen durchsuchen') as HTMLInputElement).value).toBe('Muster');
+  });
+});

@@ -11,6 +11,7 @@
   // Platzhalter-PlaceObjects an. Dasselbe Timing wie Add/Remove bei Adressvarianten
   // (ADR-v9-81) und wie `PlaceMergeSection`. Rückgängig über den regulären Undo-Stack.
   import type { PlacesHost } from '../../shell/places-host';
+  import { PROSE_FIELD } from '../../shell/plain-input';
 
   interface Props {
     appState: PlacesHost;
@@ -59,7 +60,7 @@
       fremdsprachige als Übersetzung), Typ-Historie und die datierte Verwaltungszugehörigkeit.
       Bereits gepflegte Angaben bleiben unverändert.
     </p>
-    <textarea
+    <textarea {...PROSE_FIELD}
       class="gov-import__text"
       rows="6"
       bind:value={text}

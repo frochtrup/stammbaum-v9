@@ -7,6 +7,7 @@
   // „52,22779° N, 7,17310° O" überhaupt ankommt. Zahlen entstehen erst beim Speichern in
   // der Elternansicht via resolveCoordFields(latText, longText).
   import { parseCoordPair } from '../../core/places';
+  import { PLAIN_FIELD } from './plain-input';
 
   let { latText = $bindable(''), longText = $bindable('') }: { latText: string; longText: string } =
     $props();
@@ -25,7 +26,7 @@
   <label>
     Breitengrad
     <input
-      type="text"
+      type="text" {...PLAIN_FIELD}
       inputmode="decimal"
       bind:value={latText}
       onchange={onFirstField}
@@ -34,7 +35,7 @@
   </label>
   <label>
     Längengrad
-    <input type="text" inputmode="decimal" bind:value={longText} placeholder="7.1845" />
+    <input type="text" {...PLAIN_FIELD} inputmode="decimal" bind:value={longText} placeholder="7.1845" />
   </label>
 </div>
 <p class="coord-fields__hint">

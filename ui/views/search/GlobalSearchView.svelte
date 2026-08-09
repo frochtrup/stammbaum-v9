@@ -10,10 +10,22 @@
   // nach oben gereichten onNavigate*-Callback (analog `onNavigateToTree` in App.svelte)
   // — kein zweiter Navigationspfad neben dem, den EntityTab für seine eigenen
   // Cross-Entitäts-Sprünge nutzt.
+  //
+  // Anfrage, Soundex-Schalter und Typ-Filter liegen NICHT hier, sondern im mitgegebenen
+  // `GlobalSearchState` — sonst ist die Trefferliste nach dem Sprung auf den ersten
+  // Treffer weg (Spec 21 §5, Begründung in `global-search-state.svelte.ts`).
+  import { untrack } from 'svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { globalSearch, totalResultCount, MIN_QUERY_LENGTH } from './global-search-model';
+  import {
+    createGlobalSearchState,
+    type GlobalSearchState,
+    type SearchKind,
+  } from './global-search-state.svelte';
   import { sexSymbol } from '../../shell/person-display';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
 
   /**
    * Soundex-Umschalter der globalen Suche (BL-10, ADR-v9-159): sichtbares Bedienelement
@@ -40,6 +52,21 @@
     onNavigateToPlace: (id: string) => void;
     /** Navigiert zur Hof-Detailseite (EntityTab-Segment "hof", ADR-v9-24). */
     onNavigateToHof: (id: string) => void;
+    /**
+     * Anfrage-/Filterzustand von AUSSEN: er muss den Sprung auf einen Treffer und zurück
+     * überleben, diese Fläche wird dabei abgebaut. Optional, damit Komponententests die
+     * Suche ohne Umgebung montieren können — dann mit einer eigenen Instanz, die schlicht
+     * so lange lebt wie die Komponente.
+     */
+    search?: GlobalSearchState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311). Von AUSSEN, aus demselben Grund wie
+     * `search`: die Scroll-Position soll den Sprung auf einen Treffer überleben (Spec 21
+     * §5) — und weil happy-dom kein Layout hat, ist er der einzige Weg, die gemessenen
+     * Höhen für einen Test zu stellen (`setSectionMetrics`, [32 TST-24](../../../specs/v9/32-Testframework.md)).
+     * Fehlt er, lebt eine eigene Instanz genau so lange wie die Komponente.
+     */
+    windowed?: Windowed;
   }
   const {
     appState,
@@ -48,10 +75,16 @@
     onNavigateToSource,
     onNavigateToPlace,
     onNavigateToHof,
+    search: searchProp,
+    windowed: windowedProp,
   }: Props = $props();
 
-  let query = $state('');
-  let soundexEnabled = $state(false);
+  // Einmal beim Aufbau festgelegt (das `untrack` sagt genau das): die Hülle wird nie
+  // ausgetauscht, der Zustand DARIN ist reaktiv.
+  const search = untrack(() => searchProp ?? createGlobalSearchState());
+
+  const query = $derived(search.query);
+  const soundexEnabled = $derived(search.soundex);
 
   const results = $derived(globalSearch(appState.db, appState.placeContext, query, soundexEnabled));
 
@@ -60,8 +93,7 @@
   // bleibt unverändert vollständig, damit die Command-Palette (⌘K) denselben Kern ohne
   // Filter-Semantik weiternutzt. `.stb-segment-row`/`.stb-segment-btn` (INV-UI-4), kein
   // eigenes Segment-Control.
-  type SearchKind = 'persons' | 'families' | 'sources' | 'places' | 'hofs';
-  let filter = $state<'all' | SearchKind>('all');
+  const filter = $derived(search.filter);
 
   const groupMeta = $derived(
     [
@@ -93,19 +125,81 @@
   const phonCount = $derived(results.persons.filter((r) => r.phonetic).length);
   const phonSplit = $derived(phonCount > 0 && phonCount < results.persons.length);
 
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235 in der Fassung von ADR-v9-236) --------------
+  // EIN Fenster je GRUPPE im gemeinsamen Scroll-Container. Die Zeilen sind NICHT gleich hoch:
+  // eine Trefferzeile misst 34,1px ohne Zweitzeile und 51,1px mit einer, und auf schmalem
+  // Gerät kommen umgebrochene Namen mit 66px dazu. Deshalb trägt jede Zeile ihre eigene
+  // GEMESSENE Höhe; die HÖHENKLASSE (steht in den Daten: hat sie eine Zweitzeile?) ist nur
+  // die Schätzung für Zeilen, die noch nie im Fenster standen. Daraus die Präfixsumme — die
+  // binäre Suche darin ist NFR-1s „O(log n)" wörtlich.
+  // Die Fenster stehen als `$derived` IM SKRIPT, nicht als `{@const}` im Template
+  // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const secPersons = w.section('persons');
+  const secFamilies = w.section('families');
+  const secSources = w.section('sources');
+  const secPlaces = w.section('places');
+  const secHofs = w.section('hofs');
+
+  /** Höhenklasse einer Trefferzeile: mit Zweitzeile („* 1905, Vreden") oder ohne. */
+  const klasseVon = (row: { secondary?: string | null }) => (row.secondary ? 'zwei' : 'eins');
+
+  /**
+   * Die Personen-Gruppe ist die einzige mit Zwischenüberschriften (ADR-v9-169, nur im
+   * Soundex-Modus). Damit die Platzhalter-Zusicherung stimmt, wird sie als EINE flache
+   * Zeilenliste gefenstert — Kopfzeilen sind Einträge darin (Klasse `kopf`), keine
+   * Sonderfälle daneben.
+   */
+  type PersonZeile =
+    | { art: 'kopf'; label: string; count: number }
+    | { art: 'zeile'; row: (typeof results.persons)[number] };
+  const personRows = $derived.by((): PersonZeile[] => {
+    const rows = results.persons;
+    if (!phonSplit) return rows.map((row): PersonZeile => ({ art: 'zeile', row }));
+    const out: PersonZeile[] = [];
+    rows.forEach((row, i) => {
+      if (i === 0) out.push({ art: 'kopf', label: 'Ähnlicher Nachname', count: phonCount });
+      else if (i === phonCount)
+        out.push({ art: 'kopf', label: 'Weitere Treffer', count: rows.length - phonCount });
+      out.push({ art: 'zeile', row });
+    });
+    return out;
+  });
+
+  // Die Präfixsummen. Sie werden neu gebaut, wenn sich die Treffer ändern ODER eine Zeile
+  // gemessen wurde — beides selten, und O(n) ist neben der Suche selbst nichts (gemessen:
+  // Mount 36,6ms bei 2.000 und 32,6ms bei 20.000 Treffern, also unabhängig von n).
+  const offPersons = $derived(
+    secPersons.offsets(personRows.length, (i) => {
+      const e = personRows[i];
+      return e.art === 'kopf' ? 'kopf' : klasseVon(e.row);
+    }),
+  );
+  const offFamilies = $derived(secFamilies.offsets(results.families.length, (i) => klasseVon(results.families[i])));
+  const offSources = $derived(secSources.offsets(results.sources.length, (i) => klasseVon(results.sources[i])));
+  const offPlaces = $derived(secPlaces.offsets(results.places.length, (i) => klasseVon(results.places[i])));
+  const offHofs = $derived(secHofs.offsets(results.hofs.length, (i) => klasseVon(results.hofs[i])));
+
+  const winPersons = $derived(secPersons.slice(offPersons));
+  const winFamilies = $derived(secFamilies.slice(offFamilies));
+  const winSources = $derived(secSources.slice(offSources));
+  const winPlaces = $derived(secPlaces.slice(offPlaces));
+  const winHofs = $derived(secHofs.slice(offHofs));
+
   function clearSearch() {
-    query = '';
+    search.clearQuery();
   }
 </script>
 
-<div class="global-search">
+<div class="global-search" use:w.container>
   <div class="global-search__toolbar">
     <div class="global-search__field">
       <input
-        type="search"
+        type="search" {...PLAIN_FIELD}
         placeholder="Suche über Personen, Familien, Quellen, Orte, Höfe…"
         aria-label="Global suchen"
-        bind:value={query}
+        value={query}
+        oninput={(e) => search.setQuery(e.currentTarget.value)}
       />
       {#if query}
         <button type="button" class="global-search__clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
@@ -117,7 +211,7 @@
       class:stb-segment-btn--active={soundexEnabled}
       aria-pressed={soundexEnabled}
       use:tooltip={'Auch ähnlich klingende Namen finden (Soundex)'}
-      onclick={() => (soundexEnabled = !soundexEnabled)}
+      onclick={() => search.toggleSoundex()}
     >
       ≈ Soundex
     </button>
@@ -135,7 +229,7 @@
           class="stb-segment-btn"
           class:stb-segment-btn--active={activeFilter === 'all'}
           aria-pressed={activeFilter === 'all'}
-          onclick={() => (filter = 'all')}
+          onclick={() => search.setFilter('all')}
         >
           Alle <span class="global-search__filter-count">{totalResultCount(results)}</span>
         </button>
@@ -145,7 +239,7 @@
             class="stb-segment-btn"
             class:stb-segment-btn--active={activeFilter === g.kind}
             aria-pressed={activeFilter === g.kind}
-            onclick={() => (filter = g.kind)}
+            onclick={() => search.setFilter(g.kind)}
           >
             {g.label} <span class="global-search__filter-count">{g.count}</span>
           </button>
@@ -154,51 +248,55 @@
     {/if}
     <div class="global-search__groups">
       {#if showGroup('persons') && results.persons.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secPersons.frame>
           <h2 class="global-search__group-title">Personen</h2>
           <ul class="global-search__rows">
-            {#each results.persons as row, i (row.id)}
+            {#if winPersons.padTop > 0}
+              <li class="stb-window-pad" style:height={winPersons.padTop + 'px'} aria-hidden="true"></li>
+            {/if}
+            {#each personRows.slice(winPersons.start, winPersons.end) as eintrag, i (eintrag.art === 'kopf' ? `k${winPersons.start + i}` : eintrag.row.id)}
               <!-- Zwischenüberschriften wie in der Personenliste (ADR-v9-169): ohne sie
                    stünde die Soundex-Reihenfolge kommentarlos da. Nur im Soundex-Modus,
                    und nur wenn beide Mengen nicht leer sind. -->
               <!-- `role="separator"` am inneren `<span>`, nicht am `<li>` — Begründung
                    wie in `PlaceList.svelte` (BL-66/axe: ein `<ul>` besitzt nur
                    Listeneinträge). -->
-              {#if phonSplit && i === 0}
-                <li class="global-search__subhead">
-                  <span role="separator" aria-label="Ähnlich klingender Nachname">
-                    Ähnlicher Nachname <span class="global-search__subcount">{phonCount}</span>
+              {#if eintrag.art === 'kopf'}
+                <li class="global-search__subhead" use:secPersons.probe={{ klasse: 'kopf', index: winPersons.start + i }}>
+                  <span role="separator" aria-label={eintrag.label === 'Ähnlicher Nachname' ? 'Ähnlich klingender Nachname' : eintrag.label}>
+                    {eintrag.label} <span class="global-search__subcount">{eintrag.count}</span>
                   </span>
                 </li>
-              {:else if phonSplit && i === phonCount}
-                <li class="global-search__subhead">
-                  <span role="separator" aria-label="Weitere Treffer">
-                    Weitere Treffer <span class="global-search__subcount">{results.persons.length - phonCount}</span>
-                  </span>
+              {:else}
+                <li use:secPersons.probe={{ klasse: klasseVon(eintrag.row), index: winPersons.start + i }}>
+                  <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(eintrag.row.id)}>
+                    <span class="global-search__primary">
+                      {#if eintrag.row.sex}<span class="global-search__sex global-search__sex--{eintrag.row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(eintrag.row.sex)}</span>{/if}
+                      {eintrag.row.primary}
+                    </span>
+                    {#if eintrag.row.secondary}
+                      <span class="global-search__secondary" use:tooltip={eintrag.row.secondaryFull || undefined}>{eintrag.row.secondary}</span>
+                    {/if}
+                  </button>
                 </li>
               {/if}
-              <li>
-                <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(row.id)}>
-                  <span class="global-search__primary">
-                    {#if row.sex}<span class="global-search__sex global-search__sex--{row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(row.sex)}</span>{/if}
-                    {row.primary}
-                  </span>
-                  {#if row.secondary}
-                    <span class="global-search__secondary" use:tooltip={row.secondaryFull || undefined}>{row.secondary}</span>
-                  {/if}
-                </button>
-              </li>
             {/each}
+            {#if winPersons.padBottom > 0}
+              <li class="stb-window-pad" style:height={winPersons.padBottom + 'px'} aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('families') && results.families.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secFamilies.frame>
           <h2 class="global-search__group-title">Familien</h2>
           <ul class="global-search__rows">
-            {#each results.families as row (row.id)}
-              <li>
+            {#if winFamilies.padTop > 0}
+              <li class="stb-window-pad" style:height={winFamilies.padTop + 'px'} aria-hidden="true"></li>
+            {/if}
+            {#each results.families.slice(winFamilies.start, winFamilies.end) as row, i (row.id)}
+              <li use:secFamilies.probe={{ klasse: klasseVon(row), index: winFamilies.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToFamily(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}
@@ -207,54 +305,75 @@
                 </button>
               </li>
             {/each}
+            {#if winFamilies.padBottom > 0}
+              <li class="stb-window-pad" style:height={winFamilies.padBottom + 'px'} aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('sources') && results.sources.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secSources.frame>
           <h2 class="global-search__group-title">Quellen</h2>
           <ul class="global-search__rows">
-            {#each results.sources as row (row.id)}
-              <li>
+            {#if winSources.padTop > 0}
+              <li class="stb-window-pad" style:height={winSources.padTop + 'px'} aria-hidden="true"></li>
+            {/if}
+            {#each results.sources.slice(winSources.start, winSources.end) as row, i (row.id)}
+              <li use:secSources.probe={{ klasse: klasseVon(row), index: winSources.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToSource(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winSources.padBottom > 0}
+              <li class="stb-window-pad" style:height={winSources.padBottom + 'px'} aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('places') && results.places.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secPlaces.frame>
           <h2 class="global-search__group-title">Orte</h2>
           <ul class="global-search__rows">
-            {#each results.places as row (row.id)}
-              <li>
+            {#if winPlaces.padTop > 0}
+              <li class="stb-window-pad" style:height={winPlaces.padTop + 'px'} aria-hidden="true"></li>
+            {/if}
+            {#each results.places.slice(winPlaces.start, winPlaces.end) as row, i (row.id)}
+              <li use:secPlaces.probe={{ klasse: klasseVon(row), index: winPlaces.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPlace(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winPlaces.padBottom > 0}
+              <li class="stb-window-pad" style:height={winPlaces.padBottom + 'px'} aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}
 
       {#if showGroup('hofs') && results.hofs.length > 0}
-        <section class="global-search__group">
+        <section class="global-search__group" use:secHofs.frame>
           <h2 class="global-search__group-title">Höfe</h2>
           <ul class="global-search__rows">
-            {#each results.hofs as row (row.id)}
-              <li>
+            {#if winHofs.padTop > 0}
+              <li class="stb-window-pad" style:height={winHofs.padTop + 'px'} aria-hidden="true"></li>
+            {/if}
+            {#each results.hofs.slice(winHofs.start, winHofs.end) as row, i (row.id)}
+              <li use:secHofs.probe={{ klasse: klasseVon(row), index: winHofs.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToHof(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
                 </button>
               </li>
             {/each}
+            {#if winHofs.padBottom > 0}
+              <li class="stb-window-pad" style:height={winHofs.padBottom + 'px'} aria-hidden="true"></li>
+            {/if}
           </ul>
         </section>
       {/if}

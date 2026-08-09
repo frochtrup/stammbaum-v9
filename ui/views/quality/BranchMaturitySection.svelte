@@ -7,12 +7,19 @@
   // anderen Personenmenge (`ancestorBranches`, Kern, framework-frei). Die Ebene wird HIER
   // gewählt, nicht in der Dashboard-Toolbar (die bleibt exakt
   // `[Filter · N] [✓ Bericht] [⚙]`, ADR-v9-98/INV-UI-11).
+  //
+  // Ebene UND gewählter Ast liegen im `QualityDashboardState` der aufrufenden Fläche
+  // (BL-319) — komponenten-lokal wären beide nach dem ersten Blick auf eine Person weg.
+  import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
+  import {
+    createQualityDashboardState,
+    type QualityDashboardState,
+  } from './quality-dashboard-state.svelte';
   import { resolveProband } from '../../shell/proband';
   import {
     ancestorBranches,
-    DEFAULT_BRANCH_LEVEL,
     MIN_BRANCH_LEVEL,
     MAX_BRANCH_LEVEL,
     type AncestorBranch,
@@ -33,8 +40,23 @@
      * scoped die darunterliegenden Brennpunkte"). `null` = Auswahl aufgehoben.
      */
     onSelectBranch: (selection: { label: string; personIds: ReadonlySet<PersonId> } | null) => void;
+    /**
+     * Ansichts-Unterzustand der aufrufenden Dashboard-Fläche (BL-319) — hält Ebene und
+     * gewählten Ast über das Wegnavigieren hinweg. Optional wie bei `QualityDashboard`,
+     * damit diese Sektion allein montierbar bleibt (dann mit eigener Instanz).
+     */
+    quality?: QualityDashboardState;
   }
-  const { appState, viewState, findings, projectScope, onSelectBranch }: Props = $props();
+  const {
+    appState,
+    viewState,
+    findings,
+    projectScope,
+    onSelectBranch,
+    quality: qualityProp,
+  }: Props = $props();
+
+  const quality = untrack(() => qualityProp ?? createQualityDashboardState());
 
   const LEVELS: { value: number; label: string }[] = [
     { value: MIN_BRANCH_LEVEL, label: 'Ebene 2 — Eltern (2 Äste)' },
@@ -43,8 +65,8 @@
     { value: MAX_BRANCH_LEVEL, label: 'Ebene 5 — Ururgroßeltern (16 Äste)' },
   ];
 
-  let level = $state(DEFAULT_BRANCH_LEVEL);
-  let selectedIndex = $state<number | null>(null);
+  const level = $derived(quality.branchLevel);
+  const selectedIndex = $derived(quality.branchIndex);
 
   const probandId = $derived(resolveProband(appState.db, viewState));
   const data = $derived(probandId ? ancestorBranches(appState.db, probandId, level) : null);
@@ -106,20 +128,33 @@
   const selectedRow = $derived(selectedIndex !== null ? (rows[selectedIndex] ?? null) : null);
 
   function selectLevel(newLevel: number) {
-    level = newLevel;
-    selectedIndex = null;
-    onSelectBranch(null);
+    // Hebt die Ast-Auswahl mit auf (im Halter, ein Aufruf) — ein Index ohne seine Ebene
+    // zeigt auf einen ANDEREN Ast.
+    quality.setBranchLevel(newLevel);
   }
 
   function toggleBranch(row: BranchRow) {
-    if (selectedIndex === row.index) {
-      selectedIndex = null;
-      onSelectBranch(null);
-    } else {
-      selectedIndex = row.index;
-      onSelectBranch({ label: row.label, personIds: row.scope });
-    }
+    quality.toggleBranchIndex(row.index);
   }
+
+  /**
+   * EIN Meldepfad nach oben — für den Klick UND für die Wiederherstellung nach dem
+   * Wegnavigieren (BL-319): der wiederhergestellte Index existiert schon beim Aufbau,
+   * ohne dass ein Klick ihn erzeugt hätte. Zwei Pfade (Klick meldet, Mount meldet auch)
+   * wären zwei Stellen, die auseinanderlaufen können.
+   *
+   * Der Merker unterdrückt die Doppelmeldung bei jeder Neuberechnung der Zeilen (`rows`
+   * liefert frische Mengen-Objekte für dieselbe Auswahl) — und die Anfangsmeldung
+   * „nichts gewählt", die es vor BL-319 auch nicht gab.
+   */
+  let reported: string | null = null;
+  $effect(() => {
+    const row = selectedRow;
+    const key = row ? `${row.index} | ${row.label}` : null;
+    if (key === reported) return;
+    reported = key;
+    onSelectBranch(row ? { label: row.label, personIds: row.scope } : null);
+  });
 
   function barClass(pct: number): string {
     return pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low';

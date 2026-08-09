@@ -7,11 +7,15 @@
   // "Ohne Bezug"-Abschnitt — dort bleiben Orte voll editierbar/löschbar (Klick navigiert
   // wie gewohnt zu PlaceDetail), nur die Hauptlisten-Sichtbarkeit ändert sich.
   import type { PlacesHost, PlacesNav } from '../../shell/places-host';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { LensId } from '../../shell/lens-model';
   import { collectAllEvents } from '../../shell/all-events';
   import FilterBar from '../../shell/FilterBar.svelte';
   import CoordIndicator from '../../shell/CoordIndicator.svelte';
+  import { untrack } from 'svelte';
+  import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { createPlaceListState, type PlaceListState } from '../list-view-state.svelte';
   import { placeTypeLabel, enrichmentLabel } from '../../shell/place-labels';
   import { countUnresolvedGovPlaceholders } from '../../../core/places';
   import {
@@ -37,17 +41,35 @@
     /** Cross-Tab-Navigation zur Karte-Lens (ADR-v9-78/80, `CoordIndicator`) — optional,
      *  damit isolierte Tests/Kontexte ohne Lens-Umschalter weiterlaufen. */
     onNavigateLens?: (lens: LensId) => void;
+    /**
+     * Suche, Filter, Varianten-Anzeige und Abschnitt von AUSSEN (BL-320): auf Mobil ersetzt das Detail diese Liste,
+     * komponenten-lokal wäre die Eingrenzung nach jedem Blick auf einen Treffer weg
+     * (Spec 21 §5). Optional, damit Komponententests die Liste ohne Umgebung montieren
+     * können — dann mit einer eigenen, komponenten-langen Instanz.
+     */
+    list?: PlaceListState;
+    /**
+     * Halter des virtuellen Scrollens (BL-311), von AUSSEN — wie `list`, und weil happy-dom
+     * kein Layout hat, ist er der einzige Weg, gemessene Höhen für einen Test zu stellen
+     * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
+     */
+    windowed?: Windowed;
   }
-  const { appState, viewState, onOpenReview, onOpenDedup, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    onOpenReview,
+    onOpenDedup,
+    onNavigateLens,
+    list: listProp,
+    windowed: windowedProp,
+  }: Props = $props();
 
-  let query = $state('');
-  let filters = $state<PlaceFilters>(defaultPlaceFilters());
-  /** Blendet die pnames-Varianten unter dem Titel ein (Anzeige, kein Filter — s. Markup).
-   *  Der v8-Name „Gruppen-Modus" trug noch die string-basierte Liste im Rücken; in v9 ist
-   *  die Liste ID-basiert, die Gruppierung also strukturell schon passiert — sichtbar
-   *  gemacht werden nur noch die Varianten selbst (ADR-v9-149). */
-  let groupMode = $state(false);
-  let section = $state<'referenced' | 'unreferenced'>('referenced');
+  const list = untrack(() => listProp ?? createPlaceListState());
+
+  // `filters` ist ein Alias auf das Filter-Objekt IM Halter — es wird nie ersetzt,
+  // sondern nur in seinen Feldern verändert (`bind:` schreibt durch den $state-Proxy).
+  const filters = list.filters;
   /** Batch-Geocoding-Fortschritt (BL-130): `null` = nicht gelaufen. */
   let batch = $state<{ running: boolean; done: number; total: number; ok: number } | null>(null);
 
@@ -99,7 +121,7 @@
   const placeReviewCount = $derived(buildPlaceReview(appState.db, appState.placeContext).rows.length);
   const govPlaceholderCount = $derived(countUnresolvedGovPlaceholders(appState.db.placeObjects));
   const toolsAttention = $derived(placeDedupCount > 0 || placeReviewCount > 0 || govPlaceholderCount > 0);
-  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, query, filters));
+  const sections = $derived(buildPlaceListSections(appState.db, appState.placeContext, events, list.query, filters));
   // D1 (Spec 22 §3.1): ohne Ereignis-Kontext ist „referenzlos" für JEDES Objekt wahr —
   // die Aufteilung wäre nicht falsch, sondern bedeutungslos, und die Hauptliste stünde
   // leer da. Dann zeigt die Liste alle Orte. Die Verkettung erhält die Sortierung, weil
@@ -108,7 +130,7 @@
   const rows = $derived(
     !appState.caps.hasEventContext
       ? [...sections.referenced, ...sections.unreferenced]
-      : section === 'referenced'
+      : list.section === 'referenced'
         ? sections.referenced
         : sections.unreferenced,
   );
@@ -119,6 +141,32 @@
     const ch = title.trim().charAt(0).toUpperCase();
     return /[A-ZÄÖÜ0-9]/.test(ch) ? ch : '#';
   }
+
+  // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
+  // Diese Fläche wird FLACHGELEGT gefenstert, nicht je Gruppe (ADR-v9-235 Entscheidung 1
+  // nennt sie namentlich): ihre Buchstaben-Trenner sind ohnehin Zeilen IN der Liste, keine
+  // Überschriften mit eigenem Sprungziel. Sie werden deshalb zu Einträgen der gefensterten
+  // Folge — sonst stimmte die Platzhalter-Rechnung nicht, sobald ein Trenner übersprungen
+  // wird. Zwei Höhenklassen: Trenner und Zeile; die WAHRE Höhe misst die Fläche je Zeile
+  // (ADR-v9-236), die Klasse ist nur die Schätzung fürs Ungerenderte.
+  type PlaceEintrag =
+    | { art: 'kopf'; letter: string }
+    | { art: 'zeile'; row: (typeof rows)[number] };
+  const eintraege = $derived.by((): PlaceEintrag[] => {
+    const out: PlaceEintrag[] = [];
+    rows.forEach((row, i) => {
+      if (i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)) {
+        out.push({ art: 'kopf', letter: placeInitial(row.title) });
+      }
+      out.push({ art: 'zeile', row });
+    });
+    return out;
+  });
+  const w = untrack(() => windowedProp ?? createWindowed());
+  const sec = w.section('places');
+  const off = $derived(sec.offsets(eintraege.length, (i: number) => eintraege[i].art));
+  const win = $derived(sec.slice(off));
+
   const isEmpty = $derived(appState.db.placeObjects.size === 0);
 
   function selectPlace(id: string) {
@@ -126,15 +174,15 @@
   }
 
   function clearSearch() {
-    query = '';
+    list.query = '';
   }
 
   function resetFilters() {
-    filters = defaultPlaceFilters();
+    Object.assign(filters, defaultPlaceFilters());
   }
 </script>
 
-<div class="place-list">
+<div class="place-list" use:w.container>
   {#if isEmpty}
     <p class="place-list__empty">
       Noch keine Orte — Orte werden beim Laden einer GEDCOM-Datei automatisch aus den
@@ -143,8 +191,8 @@
   {:else}
     <div class="place-list__toolbar">
       <div class="place-list__search">
-        <input type="search" placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={query} />
-        {#if query}
+        <input type="search" {...PLAIN_FIELD} placeholder="Suche…" aria-label="Orte durchsuchen" bind:value={list.query} />
+        {#if list.query}
           <button type="button" class="place-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
         {/if}
       </div>
@@ -175,7 +223,7 @@
             Anreicherung
             <select
               value={filters.level}
-              onchange={(e) => (filters = { ...filters, level: (e.currentTarget as HTMLSelectElement).value as PlaceFilters['level'] })}
+              onchange={(e) => (filters.level = (e.currentTarget as HTMLSelectElement).value as PlaceFilters['level'])}
             >
               <option value="">alle</option>
               <option value="none">{enrichmentLabel('none')}</option>
@@ -197,7 +245,7 @@
                Sie sitzt trotzdem hier, weil sie als Dauer-Element im Kopf eine dritte
                Toolbar-Zeile erzwang (bei 375px gemessen: 81px/3 Zeilen → INV-UI-11-Bruch). -->
           <label class="stb-filter-opt stb-filter-opt--compact">
-            <input type="checkbox" bind:checked={groupMode} />
+            <input type="checkbox" bind:checked={list.groupMode} />
             Namensvarianten anzeigen
           </label>
           <button type="button" class="place-list__filter-reset" onclick={resetFilters}>Filter zurücksetzen</button>
@@ -244,20 +292,20 @@
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'referenced'}
+        aria-selected={list.section === 'referenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'referenced'}
-        onclick={() => (section = 'referenced')}
+        class:stb-segment-btn--active={list.section === 'referenced'}
+        onclick={() => (list.section = 'referenced')}
       >
         Orte ({sections.referenced.length})
       </button>
       <button
         type="button"
         role="tab"
-        aria-selected={section === 'unreferenced'}
+        aria-selected={list.section === 'unreferenced'}
         class="stb-segment-btn"
-        class:stb-segment-btn--active={section === 'unreferenced'}
-        onclick={() => (section = 'unreferenced')}
+        class:stb-segment-btn--active={list.section === 'unreferenced'}
+        onclick={() => (list.section = 'unreferenced')}
       >
         Ohne Bezug ({sections.unreferenced.length})
       </button>
@@ -266,21 +314,25 @@
 
     {#if rows.length === 0}
       <p class="place-list__empty">
-        {!appState.caps.hasEventContext || section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
+        {!appState.caps.hasEventContext || list.section === 'referenced' ? 'Keine Orte gefunden.' : 'Keine referenzlosen Orte.'}
       </p>
     {:else}
-      <ul class="place-list__rows">
-        {#each rows as row, i (row.id)}
+      <ul class="place-list__rows" use:sec.frame>
+        {#if win.padTop > 0}
+          <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
+        {/if}
+        {#each eintraege.slice(win.start, win.end) as eintrag, i (eintrag.art === 'kopf' ? `k${win.start + i}` : eintrag.row.id)}
           <!-- Alphabetischer Trenner (BL-204): beim ersten Buchstabenwechsel des Titels. -->
-          {#if i === 0 || placeInitial(row.title) !== placeInitial(rows[i - 1].title)}
+          {#if eintrag.art === 'kopf'}
             <!-- `role="separator"` sitzt am inneren `<span>`, nicht am `<li>` (BL-66/axe):
                  ein `<ul>` darf nur Listeneinträge besitzen — ein `<li>`, dessen Rolle auf
                  `separator` umgestellt ist, ist keiner mehr und macht die ganze Liste
                  ungültig. Zugänglicher Name wie in `PersonList` (INV-UI-4). -->
-            <li class="place-list__letter">
-              <span role="separator" aria-label="Buchstabe {placeInitial(row.title)}">{placeInitial(row.title)}</span>
+            <li class="place-list__letter" use:sec.probe={{ klasse: 'kopf', index: win.start + i }}>
+              <span role="separator" aria-label="Buchstabe {eintrag.letter}">{eintrag.letter}</span>
             </li>
-          {/if}
+          {:else}
+            {@const row = eintrag.row}
           <!-- Der Koordinaten-Indikator steht NEBEN der Zeile, nicht darin (BL-66/axe
                `nested-interactive`): er trägt selbst einen Button (Sprung zur Karte) und
                einen Link (OpenStreetMap) — beides in der Zeilen-Schaltfläche verschachtelt
@@ -288,7 +340,7 @@
                Karten-Sprung UND die Zeilenauswahl aus, weil das Ereignis nach oben stieg.
                Dieselbe Regel, aus der `PlaceMiniMap` schon `role="button"` statt `<button>`
                ableitete — dort war nur die HTML-Hälfte gesehen, nicht die ARIA-Hälfte. -->
-          <li class="place-list__item">
+          <li class="place-list__item" use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
             <button type="button" class="place-list__row" onclick={() => selectPlace(row.id)}>
               <span class="place-list__title-line">
                 <span class="place-list__title">{row.title}</span>
@@ -308,7 +360,7 @@
               {#if appState.caps.hasEventContext && row.personCount > 0}
                 <span class="place-list__meta">{row.personCount} {row.personCount === 1 ? 'Person' : 'Personen'}</span>
               {/if}
-              {#if groupMode && row.variants.length > 0}
+              {#if list.groupMode && row.variants.length > 0}
                 <span class="place-list__variants">{row.variants.join(' · ')}</span>
               {/if}
             </button>
@@ -320,7 +372,11 @@
                  Zeilen tragen nur noch POSITIVE Fakten. -->
             <CoordIndicator coords={row.coords} focusId={row.id} {viewState} {onNavigateLens} />
           </li>
+          {/if}
         {/each}
+        {#if win.padBottom > 0}
+          <li class="stb-window-pad" style:height={win.padBottom + 'px'} aria-hidden="true"></li>
+        {/if}
       </ul>
     {/if}
   {/if}
@@ -435,7 +491,6 @@
     border-radius: var(--stb-radius-control);
     padding: 0.3rem 0.5rem;
   }
-
 
   .place-list__rows {
     list-style: none;
