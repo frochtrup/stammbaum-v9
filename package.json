@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "build": "vite build && vite build --config app-orte/vite.config.ts",
     "preview": "vite preview",
