@@ -27,7 +27,7 @@ describe('findOrCreateHof — rein, Extract (Konvention α) bei Neuanlage', () =
 
   it('findet bestehenden Hof idempotent (Read-Tolerance)', () => {
     const existing = hofMap(
-      hof('_hof_wall_33_x', '@OCHTRUP@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }),
+      hof('_hof_wall_33_x', '@OCHTRUP@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     const res = findOrCreateHof('Wall 33, 48607 Ochtrup', '@OCHTRUP@', existing)!;
     expect(res.created).toBeNull();
@@ -36,7 +36,7 @@ describe('findOrCreateHof — rein, Extract (Konvention α) bei Neuanlage', () =
 
   it('historischer Komma-Hof wird via Voll-Norm wiedergefunden', () => {
     const existing = hofMap(
-      hof('_hof_komma', '@OCHTRUP@', { addrs: [{ value: 'Oster 82a, Wester 141', from: null, to: null }] }),
+      hof('_hof_komma', '@OCHTRUP@', { addrs: [{ value: 'Oster 82a, Wester 141', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     const res = findOrCreateHof('Oster 82a, Wester 141', '@OCHTRUP@', existing)!;
     expect(res.created).toBeNull();
@@ -45,7 +45,7 @@ describe('findOrCreateHof — rein, Extract (Konvention α) bei Neuanlage', () =
 
   it('anderes Dorf → eigener Hof', () => {
     const existing = hofMap(
-      hof('_hof_wall_33_a', '@A@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }),
+      hof('_hof_wall_33_a', '@A@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     const res = findOrCreateHof('Wall 33', '@B@', existing)!;
     expect(res.created).not.toBeNull();
@@ -54,7 +54,7 @@ describe('findOrCreateHof — rein, Extract (Konvention α) bei Neuanlage', () =
 
 describe('addHofVariant — Nutzer-Intent, KEIN Extract', () => {
   it('hängt Variante an, ohne Extract; dedupliziert per Norm', () => {
-    const base = hof('_hof_x', '@OCHTRUP@', { addrs: [{ value: 'Wall 33', from: null, to: null }] });
+    const base = hof('_hof_x', '@OCHTRUP@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] });
     const withVariant = addHofVariant(base, 'Wall 33, Hinterhaus');
     // Voller String bleibt erhalten (kein Extract-Cut).
     expect(withVariant.addrs.map((a) => a.value)).toContain('Wall 33, Hinterhaus');

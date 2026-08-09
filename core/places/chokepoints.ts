@@ -3,7 +3,7 @@
 // Feldzugriff auf interne Orts-Strukturen von außen — nur über diese Reads.
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceContext } from './build-plac';
-import { eventYear } from './build-plac';
+import { eventSpanne } from './build-plac';
 
 export interface Coords {
   lat: number;
@@ -28,7 +28,7 @@ export function eventHofId(ev: Event, ctx: PlaceContext): HofId | null {
   if (ev.hofId != null) return ev.hofId;
   if (ev.addr) {
     const villageId = eventPlaceId(ev, ctx) ?? undefined;
-    return ctx.hofs.findByAddr(ev.addr, eventYear(ev), villageId);
+    return ctx.hofs.findByAddr(ev.addr, eventSpanne(ev), villageId);
   }
   return null;
 }

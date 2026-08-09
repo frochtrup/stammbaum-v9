@@ -6,6 +6,7 @@
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
 import type {
+  ChildLink,
   Database,
   Event,
   PlaceId,
@@ -21,13 +22,14 @@ import type {
   Media,
   MediaId,
 } from '../../core/model/types';
-import type { PlaceObject, HofObject } from '../../core/places';
+import type { PlaceObject, HofObject, GrenzEingabe } from '../../core/places';
 import { FULL_PLACES_CAPS, type PlacesHost, type PlacesHostCaps } from './places-host';
 import {
   makeDatabase,
   savePerson as savePersonCmd,
   deletePersonCascade as deletePersonCmd,
   saveFamily as saveFamilyCmd,
+  saveChildLink as saveChildLinkCmd,
   deleteFamilyCascade as deleteFamilyCmd,
   saveSource as saveSourceCmd,
   deleteSourceCascade as deleteSourceCmd,
@@ -239,6 +241,12 @@ export interface AppState extends PlacesHost {
    */
   saveFamily(model: Family): void;
   /**
+   * Kommando: ersetzt EINEN `ChildLink` einer Person (Kind-Verhältnis + Kindschafts-Belege,
+   * BL-329). Die Verknüpfung selbst entsteht über `saveFamily`; dieses Kommando beschreibt
+   * sie nur — es hängt keine Beziehung um (INV-P3 bleibt unberührt).
+   */
+  saveChildLink(personId: PersonId, link: ChildLink): void;
+  /**
    * Kommando: entfernt eine Familie referenz-auflösend (`deleteFamilyCascade`) — die
    * Person-Seite (parentIn/childOf) aller Beteiligten wird gelöst, die Personen selbst
    * bleiben bestehen (kein Kaskaden-Löschen).
@@ -295,7 +303,7 @@ export interface AppState extends PlacesHost {
    * erneut bootstrappen (Pfad B, Spec 11 §4.2). Reine `from`/`to`-Änderungen (Wert bleibt
    * gleich) propagieren NICHT — nur ein tatsächlicher Namenswechsel ist eine Umbenennung.
    */
-  updateHofAddr(hofId: HofId, index: number, value: string, from: number | null, to: number | null): void;
+  updateHofAddr(hofId: HofId, index: number, value: string, from: GrenzEingabe, to: GrenzEingabe): void;
   /**
    * Kommando: hängt einen Hof an ein anderes Dorf (Spec 11 §1, ADR-v9-172). Liefert das
    * Umzugs-Ergebnis zurück — Grundlage für den Hinweis, falls im Zieldorf ein
@@ -663,6 +671,32 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     if (fx.places) persistPlaces();
     if (fx.workingCopy) persistWorkingCopyIfLoaded();
   };
+  /**
+   * DIE Zollgrenze zwischen Oberfläche und Kern: macht aus einem Modell, das ein Formular
+   * gebaut hat, wieder gewöhnliche Daten.
+   *
+   * DER BEFUND (2026-08-09). „Heirat bearbeiten → Speichern" funktionierte EINMAL, beim
+   * zweiten Mal tat der Knopf nichts. Ursache: `EventEditModal` hält seinen Formular-
+   * zustand in `$state`, `fromEditable()` reicht dessen `citations` unverändert zurück —
+   * ein tief-reaktiver Proxy. `saveFamily` legte ihn in die Datenbank; der nächste Save
+   * lief über `editDatabase`→`thaw`→`structuredClone` und warf an genau diesem Proxy
+   * („… bei .marriage.citations[0].media"). Die Ausnahme flog aus dem `onsubmit`-Handler:
+   * kein Speichern, keine Meldung, ein Knopf, der aussieht, als sei er tot.
+   *
+   * WARUM HIER UND NICHT IM MODAL. Das Modal war nur die erste Fundstelle. Jedes Formular,
+   * das ein Teilobjekt (nicht bloß Strings) in `$state` hält, hat dasselbe Leck —
+   * `PersonForm`/`FamilyForm` teilen sich sogar dasselbe `fromEditable`. Eine Regel „bitte
+   * vor dem Speichern entkoppeln" wäre wieder die Erinnerungspflicht, die `commit` oben
+   * ausdrücklich vermeidet. Hier liegt die EINE Stelle, an der jedes Oberflächen-Modell
+   * in ein Kern-Kommando eintritt — also gehört die Umwandlung hierher (ADR-v9-83-Logik:
+   * Zwang schlägt Dokumentation).
+   *
+   * `$state.snapshot` wirft nie: was es nicht kopieren kann, reicht es unverändert durch
+   * (Svelte `clone.js`) — für die flachen Datenmodelle aus Spec 10 ist es eine gewöhnliche
+   * Tiefkopie EINER Entität, nicht der Datenbank. Der Kern selbst darf das nicht tun:
+   * er ist framework-frei (INV-ARCH-1) und kennt Sveltes Proxys nicht.
+   */
+  const roh = <T>(model: T): T => $state.snapshot(model) as T;
   // Übernimmt das Ergebnis eines Forschungsdaten-Kommandos. `null` = nicht angewandt
   // (Zielentität fehlt) — dann bleibt der Zustand unberührt, es wird nicht persistiert
   // UND kein Undo-Eintrag erzeugt (ein wirkungsloses Kommando ist kein Schritt).
@@ -724,7 +758,8 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
         ? { grampsDoc: buildGrampsTreeFromModel(db) }
         : { gedcomDoc: { db, roots: buildGedcomTreeFromModel(db) } };
     },
-    savePlace(model) {
+    savePlace(model_) {
+      const model = roh(model_);
       // Bewusst eine plain Map, keine SvelteMap: db ist $state.raw (nicht tief reaktiv) —
       // Reaktivität läuft ausschließlich über die db-Referenzänderung unten, nicht über
       // Map-interne Reaktivität. Eine SvelteMap hier wäre unnötiger Overhead ohne Nutzen.
@@ -812,7 +847,8 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit(reprojectEventsOfPlace(next, survivorId), { places: true, workingCopy: true });
       return result;
     },
-    saveHof(model) {
+    saveHof(model_) {
+      const model = roh(model_);
       // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const nextHofs = new Map(db.hofObjects);
       saveHofObject(nextHofs, model);
@@ -928,7 +964,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       if (resolution.hofObjectsGrew || resolution.placeObjectsGrew) persistPlaces();
     },
     savePerson(model) {
-      commit({ ...db, individuals: savePersonCmd(db.individuals, model) }, { workingCopy: true });
+      commit({ ...db, individuals: savePersonCmd(db.individuals, roh(model)) }, { workingCopy: true });
     },
     deletePerson(id) {
       // Referenz-auflösend: der Kern hängt die Person aus allen Familien/Assoziationen/
@@ -955,13 +991,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // saveFamilyCmd führt die INDI-Seite (Person.parentIn/childOf) synchron nach
       // (Spec 10 INV-P3) und liefert deshalb ein vollständiges neues Database zurück —
       // beide betroffenen Maps (individuals + families) kommen fertig daraus.
-      commit(saveFamilyCmd(db, model), { workingCopy: true });
+      commit(saveFamilyCmd(db, roh(model)), { workingCopy: true });
+    },
+    saveChildLink(personId, link) {
+      commit(saveChildLinkCmd(db, personId, roh(link)), { workingCopy: true });
     },
     deleteFamily(id) {
       commit(deleteFamilyCmd(db, id), { workingCopy: true });
     },
     saveSource(model) {
-      commit({ ...db, sources: saveSourceCmd(db.sources, model) }, { workingCopy: true });
+      commit({ ...db, sources: saveSourceCmd(db.sources, roh(model)) }, { workingCopy: true });
     },
     deleteSource(id) {
       // Referenz-auflösend: entfernt alle Zitate auf die Quelle an jeder Träger-Stelle
@@ -969,7 +1008,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit(deleteSourceCmd(db, id), { workingCopy: true });
     },
     saveRepository(model) {
-      commit({ ...db, repositories: saveRepositoryCmd(db.repositories, model) }, { workingCopy: true });
+      commit({ ...db, repositories: saveRepositoryCmd(db.repositories, roh(model)) }, { workingCopy: true });
     },
     deleteRepository(id) {
       // Referenz-auflösend: löst den repo-Verweis jeder darauf zeigenden Quelle
@@ -977,7 +1016,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       commit(deleteRepositoryCmd(db, id), { workingCopy: true });
     },
     saveMedia(model) {
-      commit({ ...db, media: saveMediaCmd(db.media, model) }, { workingCopy: true });
+      commit({ ...db, media: saveMediaCmd(db.media, roh(model)) }, { workingCopy: true });
     },
     deleteMedia(id) {
       // Referenz-auflösend (BEWUSST MIT Kaskade, s. core/model/commands.ts) → vollständiges
@@ -1068,19 +1107,19 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       applyEdit(deleteTaskCmd(db, kind, entityId, taskId));
     },
     addLogEntry(kind, entityId, entry) {
-      applyEdit(addLogEntryCmd(db, kind, entityId, entry));
+      applyEdit(addLogEntryCmd(db, kind, entityId, roh(entry)));
     },
     updateLogEntry(kind, entityId, index, entry) {
-      applyEdit(updateLogEntryCmd(db, kind, entityId, index, entry));
+      applyEdit(updateLogEntryCmd(db, kind, entityId, index, roh(entry)));
     },
     deleteLogEntry(kind, entityId, index) {
       applyEdit(deleteLogEntryCmd(db, kind, entityId, index));
     },
     addHypothesis(kind, entityId, id, patch, now) {
-      applyEdit(addHypothesisCmd(db, kind, entityId, id, patch, now));
+      applyEdit(addHypothesisCmd(db, kind, entityId, id, roh(patch), now));
     },
     updateHypothesis(kind, entityId, id, patch) {
-      applyEdit(updateHypothesisCmd(db, kind, entityId, id, patch));
+      applyEdit(updateHypothesisCmd(db, kind, entityId, id, roh(patch)));
     },
     deleteHypothesis(kind, entityId, id) {
       applyEdit(deleteHypothesisCmd(db, kind, entityId, id));

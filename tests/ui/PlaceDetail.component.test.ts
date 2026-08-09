@@ -265,7 +265,7 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
     const db = makeDatabase();
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Sassenberg', pnames: [{ value: 'Sassenbergk', from: null, to: null }] }),
+      place('@P1@', { title: 'Sassenberg', pnames: [{ value: 'Sassenbergk', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -385,7 +385,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege (jetzt i
     await fireEvent.click(screen.getByLabelText('Übergeordneter Ort'));
     await fireEvent.click(screen.getByText('Kreis Steinfurt'));
 
-    const addRow = screen.getByLabelText('Gültig von (Jahr)').closest('.place-enclosure-modal__add-row') as HTMLElement;
+    const addRow = screen.getByLabelText('Gültig von (Jahr oder Stichtag)').closest('.place-enclosure-modal__add-row') as HTMLElement;
     await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual(['@P2@']);
@@ -416,7 +416,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit (enclosedBy) Pflege (jetzt i
     expect(created).toBeTruthy();
     expect(screen.queryByText('Neuer Ort')).toBeNull();
 
-    const addRow = screen.getByLabelText('Gültig von (Jahr)').closest('.place-enclosure-modal__add-row') as HTMLElement;
+    const addRow = screen.getByLabelText('Gültig von (Jahr oder Stichtag)').closest('.place-enclosure-modal__add-row') as HTMLElement;
     await fireEvent.click(within(addRow).getByText('+ Hinzufügen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.enclosedBy.map((e) => e.placeId)).toEqual([created!.id]);
@@ -583,8 +583,8 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
       '@P1@',
       place('@P1@', {
         title: 'Ochtrup',
-        pnames: [{ value: 'Ochtrupp', from: null, to: null }],
-        enclosedBy: [{ placeId: '@P2@', from: null, to: null }],
+        pnames: [{ value: 'Ochtrupp', from: null, to: null , fromDate: null, toDate: null }],
+        enclosedBy: [{ placeId: '@P2@', from: null, to: null , fromDate: null, toDate: null }],
       }),
     );
     appState.loadDatabase(db, 'test.ged');
@@ -621,8 +621,8 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
       '@P1@',
       place('@P1@', {
         title: 'Ochtrup',
-        pnames: [{ value: 'Ochtrupp', from: null, to: null }],
-        enclosedBy: [{ placeId: '@P2@', from: null, to: null }],
+        pnames: [{ value: 'Ochtrupp', from: null, to: null , fromDate: null, toDate: null }],
+        enclosedBy: [{ placeId: '@P2@', from: null, to: null , fromDate: null, toDate: null }],
       }),
     );
     appState.loadDatabase(db, 'test.ged');
@@ -647,7 +647,7 @@ describe('PlaceDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Pu
     db.placeObjects.set('@P2@', place('@P2@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@P2@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@P2@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -684,7 +684,7 @@ describe('PlaceDetail — leere Namens-Varianten verschwinden vollständig (Spec
     const db = makeDatabase();
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Sassenberg', pnames: [{ value: 'Sassenbergk', from: null, to: null }] }),
+      place('@P1@', { title: 'Sassenberg', pnames: [{ value: 'Sassenbergk', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -704,7 +704,7 @@ describe('PlaceDetail — Verwaltungszugehörigkeit: kompakte Labels + Info-Affo
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -746,7 +746,7 @@ describe('PlaceDetail — Ereigniszeilen zeigen NICHT die eigene Ortskette (Spec
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     person.birth.placeId = '@P1@';
@@ -825,7 +825,7 @@ describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -843,7 +843,7 @@ describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -866,7 +866,7 @@ describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
       '@GRAF@',
       place('@GRAF@', {
         title: 'Grafschaft Steinfurt',
-        pnames: [{ value: 'Grafschaft Steinfurt (Spätform)', from: 1814, to: null }],
+        pnames: [{ value: 'Grafschaft Steinfurt (Spätform)', from: 1814, to: null , fromDate: null, toDate: null }],
       }),
     );
     db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ochtrup' }));
@@ -875,8 +875,8 @@ describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
       place('@P1@', {
         title: 'Ochtrup',
         enclosedBy: [
-          { placeId: '@GRAF@', from: 1300, to: 1813 },
-          { placeId: '@AMT@', from: 1816, to: null },
+          { placeId: '@GRAF@', from: 1300, to: 1813 , fromDate: null, toDate: null },
+          { placeId: '@AMT@', from: 1816, to: null , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -901,16 +901,16 @@ describe('PlaceDetail — Kettenglieder klickbar (ADR-v9-78 Punkt 3)', () => {
         // Echte Lücke in der KREIS-eigenen Zugehörigkeit (1851–1852) — die eigene
         // Zuordnung von Ochtrup zum KREIS bleibt davon unberührt (durchgängig offen).
         enclosedBy: [
-          { placeId: '@LAND1@', from: 1816, to: 1850 },
-          { placeId: '@LAND2@', from: 1853, to: null },
+          { placeId: '@LAND1@', from: 1816, to: 1850 , fromDate: null, toDate: null },
+          { placeId: '@LAND2@', from: 1853, to: null , fromDate: null, toDate: null },
         ],
         // Erzeugt ein Schlüsseljahr GENAU in der Lücke, damit eine Zeile dort entsteht.
-        pnames: [{ value: 'Kreis Steinfurt (Var)', from: 1851, to: null }],
+        pnames: [{ value: 'Kreis Steinfurt (Var)', from: 1851, to: null , fromDate: null, toDate: null }],
       }),
     );
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: 1816, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -968,7 +968,7 @@ describe('PlaceDetail — Ortszeitgenossen (Spec 20 §1.7 [S], ADR-v9-78 Punkt 5
   function dbWithPlaceHofAndPeople() {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
 
     const direct = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     direct.birth.placeId = '@P1@';
@@ -1211,8 +1211,8 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
       place('@P1@', {
         title: 'Ochtrup',
         pnames: [
-          { value: 'Ochtorpe', from: null, to: 1400 },
-          { value: 'Ochtrup', from: 1400, to: null },
+          { value: 'Ochtorpe', from: null, to: 1400 , fromDate: null, toDate: null },
+          { value: 'Ochtrup', from: 1400, to: null , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -1244,6 +1244,8 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
       value: 'Ochtorp',
       from: null,
       to: 1400,
+      fromDate: null,
+      toDate: null,
     });
   });
 
@@ -1252,7 +1254,7 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Namensvariante 1 — gültig bis (Jahr)'), {
+    await fireEvent.change(screen.getByLabelText('Namensvariante 1 — gültig bis (Jahr oder Stichtag)'), {
       target: { value: '1380' },
     });
 
@@ -1260,6 +1262,8 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
       value: 'Ochtorpe',
       from: null,
       to: 1380,
+      fromDate: null,
+      toDate: null,
     });
   });
 
@@ -1268,7 +1272,7 @@ describe('PlaceDetail — Gültigkeit der Namensvarianten (ADR-v9-183)', () => {
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Namensvariante 2 — gültig von (Jahr)'), {
+    await fireEvent.change(screen.getByLabelText('Namensvariante 2 — gültig von (Jahr oder Stichtag)'), {
       target: { value: '' },
     });
 
@@ -1303,18 +1307,18 @@ describe('PlaceDetail — geerbte Verwaltungshistorie gehört dem Elternort (ADR
       place('@BAYERN@', {
         title: 'Bayern',
         enclosedBy: [
-          { placeId: '@HRR@', from: 1180, to: 1805 },
-          { placeId: '@REICH@', from: 1871, to: null },
+          { placeId: '@HRR@', from: 1180, to: 1805 , fromDate: null, toDate: null },
+          { placeId: '@REICH@', from: 1871, to: null , fromDate: null, toDate: null },
         ],
       }),
     );
     db.placeObjects.set(
       '@OPF@',
-      place('@OPF@', { title: 'Oberpfalz', enclosedBy: [{ placeId: '@BAYERN@', from: 1180, to: null }] }),
+      place('@OPF@', { title: 'Oberpfalz', enclosedBy: [{ placeId: '@BAYERN@', from: 1180, to: null , fromDate: null, toDate: null }] }),
     );
     db.placeObjects.set(
       '@ERK@',
-      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: null, to: null }] }),
+      place('@ERK@', { title: 'Erkelsdorf', enclosedBy: [{ placeId: '@OPF@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -1349,7 +1353,7 @@ describe('PlaceDetail — geerbte Verwaltungshistorie gehört dem Elternort (ADR
     db.placeObjects.set('@KREIS@', place('@KREIS@', { title: 'Kreis Steinfurt' }));
     db.placeObjects.set(
       '@P1@',
-      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null }] }),
+      place('@P1@', { title: 'Ochtrup', enclosedBy: [{ placeId: '@KREIS@', from: null, to: null , fromDate: null, toDate: null }] }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -1469,5 +1473,68 @@ describe('PlaceDetail — Transaktionsgrenze (INV-UI-16)', () => {
 
     expect(screen.getByText('✎ Bearbeiten')).toBeTruthy();
     expect(screen.queryByText('Speichern')).toBeNull();
+  });
+});
+
+// BL-325 / [ADR-v9-243] — Spec 11 §5 versprach den Warnhinweis seit jeher, gebaut war er
+// nie: alle 433 Überlappungen des maßgeblichen Bestands (`Testdateien/orte-2.json`,
+// rev 277) wurden stumm per Tie-Break aufgelöst. Er sitzt an derselben Stelle wie das
+// „› ?" für die abgebrochene Kette (INV-UI-4 — ein Ort für Kettenbefunde, nicht zwei).
+describe('PlaceDetail — ⚠ bei mehreren gleichzeitig gültigen Zugehörigkeiten (BL-325)', () => {
+  function renderMitRandberuehrung() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Departement Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1810 , fromDate: null, toDate: null },
+          { placeId: '@DEP@', from: 1810, to: 1813 , fromDate: null, toDate: null },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+    return render(PlaceDetail, { props: { appState, viewState } });
+  }
+
+  it('rendert das Zeichen mit einer Erklärung, die die Tie-Break-Regel benennt', () => {
+    const { container } = renderMitRandberuehrung();
+
+    const warn = container.querySelector('.place-detail__chain-warn');
+    expect(warn).toBeTruthy();
+    expect(warn?.textContent?.trim()).toBe('⚠');
+    // Wie beim ⓘ daneben liegt der Text auf aria-label (geteilte tooltip-Action).
+    expect(warn?.getAttribute('aria-label')).toContain('mehrere Zugehörigkeiten');
+    expect(warn?.getAttribute('aria-label')).toContain('späteren Beginn');
+  });
+
+  it('zeigt es NICHT, wenn die Perioden sich nicht überschneiden', () => {
+    // Die Kontrollprobe: ohne sie belegte der Test nur, dass irgendwo ein ⚠ steht.
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@AMT@', place('@AMT@', { title: 'Amt Ilten' }));
+    db.placeObjects.set('@DEP@', place('@DEP@', { title: 'Departement Aller' }));
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Dolgen',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1512, to: 1809 , fromDate: null, toDate: null },
+          { placeId: '@DEP@', from: 1810, to: 1813 , fromDate: null, toDate: null },
+        ],
+      }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    const viewState = createViewState();
+    viewState.setCurrent('place', '@P1@');
+
+    const { container } = render(PlaceDetail, { props: { appState, viewState } });
+
+    expect(container.querySelector('.place-detail__chain-warn')).toBeNull();
   });
 });

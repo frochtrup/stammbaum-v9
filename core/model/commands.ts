@@ -19,6 +19,7 @@
 // erst in den Tests fehl (ADR-v9-92 nahm hier mehr Compiler-Zwang an, als es gibt).
 // Diese Hälfte tragen die Tests, nicht der Typ — deshalb hat jedes Kommando einen.
 import type {
+  ChildLink,
   Citation,
   Database,
   Family,
@@ -146,6 +147,31 @@ export function saveFamily(db: ReadonlyDatabase, next: Family): Database {
  */
 export function deleteFamily(db: ReadonlyDatabase, id: FamilyId): Database {
   return editDatabase(db, (d) => d.removeFamily(id));
+}
+
+/**
+ * Kommando: ersetzt EINEN `ChildLink` einer Person vollständig (Whole-Object, BL-329) —
+ * das Kind-Verhältnis und die Belege der Kindschaft. Der „ChildLink-Editor", auf den
+ * `saveFamily` oben seit BL-199 verweist und den es bis dahin nicht gab.
+ *
+ * BEWUSST OHNE Beziehungs-Seiteneffekte: der Link muss bereits bestehen (er entsteht über
+ * `addChildToFamily`, INV-P3). Fehlt er, ist das ein No-Op — dieses Kommando verknüpft
+ * nichts, es beschreibt eine vorhandene Verknüpfung. `familyId` bleibt unangetastet: er ist
+ * der Schlüssel des Links, kein Feld an ihm; ihn hier zu ändern hieße, die Beziehung
+ * umzuhängen, ohne die FAM-Seite mitzunehmen (genau der INV-P3-Bruch, den saveFamily meidet).
+ */
+export function saveChildLink(
+  db: ReadonlyDatabase,
+  personId: PersonId,
+  next: ChildLink,
+): Database {
+  return editDatabase(db, (d) => {
+    const p = d.person(personId);
+    if (!p) return;
+    const i = p.childOf.findIndex((l) => l.familyId === next.familyId);
+    if (i < 0) return;
+    p.childOf = p.childOf.map((l, k) => (k === i ? { ...next, familyId: l.familyId } : l));
+  });
 }
 
 // --- Quelle / Archiv (Spec 10 §4, Spec 20 §2 Quelle-/Archiv-Formular) ---

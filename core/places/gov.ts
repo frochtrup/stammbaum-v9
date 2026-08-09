@@ -51,6 +51,9 @@ export interface GovNameEntry {
   value: string;
   from: Year;
   to: Year;
+  /** Tagegenauer Stichtag, wo GOV ihn liefert (BL-324). */
+  fromDate?: string| null;
+  toDate?: string| null;
 }
 
 /** Ein `gehört [ab X] [bis Y] zu object_NNNNN`-Eintrag. */
@@ -58,6 +61,9 @@ export interface GovParentEntry {
   govObjId: string;
   from: Year;
   to: Year;
+  /** Tagegenauer Stichtag der Verwaltungsreform, wo GOV ihn liefert (BL-324). */
+  fromDate?: string| null;
+  toDate?: string| null;
 }
 
 export interface GovEntry {
@@ -128,10 +134,35 @@ export const GOV_TYPE_TO_PLACE_TYPE: Readonly<Record<string, string>> = {
 const LANGS_DE = new Set(['deu', 'de']);
 
 /** Erste vierstellige Jahreszahl aus einem GOV-Datum („1885-01-01" → 1885). */
-function govYear(s: string | null | undefined): Year {
+function govYear(s: string| null | undefined): Year {
   if (!s) return null;
   const m = s.match(/(\d{4})/);
   return m ? Number(m[1]) : null;
+}
+
+const GOV_MONATE = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/**
+ * Der TAG eines GOV-Datums als GEDCOM-String („1885-01-01" → „1 JAN 1885"), sonst `null`
+ * (BL-324).
+ *
+ * Bis hierher warf `govYear` Monat und Tag weg — GOV liefert Verwaltungsreformen aber mit
+ * ihrem Stichtag, und genau dieser Stichtag entscheidet die Randberührung, um die es in
+ * [ADR-v9-243] geht. Die Genauigkeit war also die ganze Zeit in der Quelle und wurde beim
+ * Einlesen verworfen; das ist der billigste Teil von BL-324.
+ *
+ * Bewusst STRENG: nur ein vollständiges `YYYY-MM-DD` ergibt einen Tag. GOV schreibt auch
+ * „1885" und „1885-01" — daraus einen 1. Januar zu machen wäre eine erfundene Angabe, und
+ * die Jahres-Stufe trägt diese Fälle unverändert weiter.
+ */
+function govDatum(s: string| null | undefined): string| null {
+  if (!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const monat = Number(m[2]);
+  const tag = Number(m[3]);
+  if (monat < 1 || monat > 12 || tag < 1 || tag > 31) return null;
+  return tag + ' ' + GOV_MONATE[monat - 1] + ' ' + Number(m[1]);
 }
 
 /**
@@ -173,7 +204,8 @@ export function parseGovText(raw: string): GovEntry | null {
     const parentAt = line.match(/^gehört\s+(\d\S*)\s+zu\s+(\S+)/);
     if (parentAt) {
       const y = govYear(parentAt[1]);
-      entry.parents.push({ govObjId: parentAt[2], from: y, to: y });
+      const d = govDatum(parentAt[1]);
+      entry.parents.push({ govObjId: parentAt[2], from: y, to: y, fromDate: d, toDate: d });
       continue;
     }
     // `gehört [ab DATUM] [bis DATUM] [<Zusatzwort>] zu object_NNNNN`. Das optionale
@@ -181,7 +213,13 @@ export function parseGovText(raw: string): GovEntry | null {
     // der v8-UI-Parser kannte es nicht und verlor solche Zeilen still.
     const parent = line.match(/^gehört(?:\s+ab\s+(\S+))?(?:\s+bis\s+(\S+))?\s+(?:\S+\s+)?zu\s+(\S+)/);
     if (parent) {
-      entry.parents.push({ govObjId: parent[3], from: govYear(parent[1]), to: govYear(parent[2]) });
+      entry.parents.push({
+        govObjId: parent[3],
+        from: govYear(parent[1]),
+        to: govYear(parent[2]),
+        fromDate: govDatum(parent[1]),
+        toDate: govDatum(parent[2]),
+      });
       continue;
     }
     // `ist [ab DATUM] [bis DATUM] (auf deu) TYP [sagt …]`
@@ -200,7 +238,8 @@ export function parseGovText(raw: string): GovEntry | null {
     const name = line.match(/^heißt(?:\s+(?!\()(\S+))?\s*\(auf (\w+)\)\s+(.+?)(?:\s+sagt\b.*)?$/);
     if (name) {
       const y = govYear(name[1]);
-      entry.names.push({ lang: name[2], value: name[3].trim(), from: y, to: y });
+      const d = govDatum(name[1]);
+      entry.names.push({ lang: name[2], value: name[3].trim(), from: y, to: y, fromDate: d, toDate: d });
       continue;
     }
     const ext = line.match(/^hat externe Kennung\s+(\w+):(\S+)/);
@@ -334,7 +373,7 @@ export function applyGovEntry(places: PlaceObjects, placeId: PlaceId, entry: Gov
     if (n.value === pl.title && n.from == null && n.to == null) continue; // schon der Titel
     const exists = pl.pnames.some((p) => p.value === n.value && sameYear(p.from, n.from) && sameYear(p.to, n.to));
     if (exists) continue;
-    pl.pnames.push({ value: n.value, from: n.from, to: n.to });
+    pl.pnames.push({ value: n.value, from: n.from, to: n.to, fromDate: n.fromDate ?? null, toDate: n.toDate ?? null });
     addedNames += 1;
   }
   if (addedNames > 0) bump(`${addedNames} Namensvariante${addedNames === 1 ? '' : 'n'}`);
@@ -368,7 +407,13 @@ export function applyGovEntry(places: PlaceObjects, placeId: PlaceId, entry: Gov
       (e) => e.placeId === target!.id && sameYear(e.from, parent.from) && sameYear(e.to, parent.to),
     );
     if (exists) continue;
-    pl.enclosedBy.push({ placeId: target.id, from: parent.from, to: parent.to });
+    pl.enclosedBy.push({
+      placeId: target.id,
+      from: parent.from,
+      to: parent.to,
+      fromDate: parent.fromDate ?? null,
+      toDate: parent.toDate ?? null,
+    });
     addedParents += 1;
   }
   if (addedParents > 0) bump(`${addedParents} Zugehörigkeit${addedParents === 1 ? '' : 'en'}`);

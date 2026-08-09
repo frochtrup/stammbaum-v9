@@ -17,11 +17,13 @@
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
+  import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
   import { eventImages } from '../../shell/entity-media';
   import type { MediaResolver } from '../../../services/media';
   import PersonPicker from '../../shell/PersonPicker.svelte';
+  import FamilyChildrenSection from './FamilyChildrenSection.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { eventTypeLabel } from '../../shell/event-labels';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
@@ -117,6 +119,17 @@
     const next: Family = { ...f, children: f.children.filter((c) => c !== id) };
     appState.saveFamily(next);
   }
+
+  // --- Kindschaft bearbeiten (BL-329): Kind-Verhältnis + Belege der Abstammung. Der
+  // Zustand ist die PersonId des Kindes, dessen Modal offen ist — dieselbe Fläche, die
+  // der Personen-Steckbrief unter „Herkunftsfamilie" öffnet (EINE Komponente, INV-UI-4).
+  let childLinkEdit = $state<PersonId | null>(null);
+  const childLink = $derived(
+    childLinkEdit && detail
+      ? appState.db.individuals.get(childLinkEdit)?.childOf.find((l) => l.familyId === detail.family.id) ?? null
+      : null,
+  );
+  const childLinkName = $derived(children.find((c) => c.personId === childLinkEdit)?.name ?? '');
 
   /** Entfernen einer Ereigniszeile (Spec 20 §2, analog PersonDetail.svelte) für JEDE Zeile
    *  außer MARR. Direktes Kommando, kein Modal — Verlobung wird auf den unbefüllten
@@ -342,45 +355,16 @@
       {/if}
     </section>
 
-    <section class="family-detail__section">
-      {#if children.length > 0}
-        <h3>Kinder</h3>
-        <ul class="family-detail__children">
-          {#each children as child (child.personId)}
-            <li>
-              <button
-                type="button"
-                class="family-detail__child-link"
-                onclick={() => onNavigateToPerson(child.personId)}
-              >
-                {child.name}
-                {#if child.summary}<span class="family-detail__child-summary">({child.summary})</span>{/if}
-                {#if child.pedigree}<span class="family-detail__child-pedigree">· {child.pedigree}</span>{/if}
-              </button>
-              <button
-                type="button"
-                class="stb-icon-btn"
-                data-variant="danger"
-                onclick={() => removeChild(child.personId)}
-                aria-label={`Kind ${child.name} entfernen`}
-              >
-                ✕
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-      <div class="family-detail__add-child">
-        <PersonPicker
-          {appState}
-          value={null}
-          onChange={addChild}
-          excludeIds={detail.family.children}
-          label="Kind hinzufügen"
-          placeholder="Kind hinzufügen…"
-        />
-      </div>
-    </section>
+    <FamilyChildrenSection
+      {appState}
+      {children}
+      excludeIds={detail.family.children}
+      {onNavigateToPerson}
+      {onNavigateToSource}
+      onEditChildLink={(id) => (childLinkEdit = id)}
+      onAddChild={addChild}
+      onRemoveChild={removeChild}
+    />
 
     {#if otherEvents.length > 0}
       <section class="family-detail__section">
@@ -425,6 +409,17 @@
         mode={modal.kind}
         onSave={saveModal}
         onClose={closeModal}
+      />
+    {/if}
+
+    {#if childLinkEdit && childLink}
+      <ChildLinkEditModal
+        {appState}
+        personId={childLinkEdit}
+        personName={childLinkName}
+        familyLabel={detail.label}
+        link={childLink}
+        onClose={() => (childLinkEdit = null)}
       />
     {/if}
   {/if}
@@ -518,54 +513,6 @@
 
   .family-detail__quick-actions {
     margin-bottom: 0.5rem;
-  }
-
-  /* Kinder — kompakte, anklickbare Einzeiler (INV-UI-5): Name + Geburtsjahr in Klammern,
-     kein voller .stb-person-box-Kasten nötig (Nachtrag 2026-07-06 [20 §1.5]). */
-  .family-detail__children {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  .family-detail__children li {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    border-bottom: 1px solid var(--stb-surface-2);
-  }
-
-  .family-detail__child-link {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: baseline;
-    gap: 0.4rem;
-    background: transparent;
-    border: none;
-    color: var(--stb-gold-light);
-    cursor: pointer;
-    padding: 0.4rem 0;
-    font: inherit;
-    text-align: left;
-    text-decoration: underline;
-  }
-
-  .family-detail__child-summary {
-    color: var(--stb-text-dim);
-    font-size: 0.82rem;
-    text-decoration: none;
-  }
-
-  /* Kind-Verhältnis (BL-199) — nur bei abweichendem PEDI, dezent gold hervorgehoben. */
-  .family-detail__child-pedigree {
-    color: var(--stb-gold-light);
-    font-size: 0.78rem;
-    text-decoration: none;
-  }
-
-  .family-detail__add-child {
-    margin-top: 0.5rem;
   }
 
   /* Die generische Ereigniszeile selbst lebt seit ADR-v9-80 in `EventLine.svelte`

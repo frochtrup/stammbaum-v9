@@ -16,7 +16,7 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
   it('sammelt Personen-Ereignisse, die diesen Hof referenzieren (per hofId)', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
 
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     person.birth.hofId = '@H1@';
@@ -64,7 +64,7 @@ describe('buildHofDetail — Bewohner chronologisch', () => {
   it('liefert predecessor/successor-Label über die Adresse des verlinkten Hofs', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H0@', hof('@H0@', '@P1@', { addrs: [{ value: 'Alter Hof', from: null, to: null }] }));
+    db.hofObjects.set('@H0@', hof('@H0@', '@P1@', { addrs: [{ value: 'Alter Hof', from: null, to: null , fromDate: null, toDate: null }] }));
     db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { predecessor: '@H0@' }));
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
@@ -78,9 +78,9 @@ describe('buildHofDetail — Mini-Karten-Kontext (BL-214, ADR-v9-147)', () => {
   it('liefert Dorf- + Geschwisterhof-Koordinaten für den Ausschnitt (nur die mit Koordinaten)', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup', lat: 52.21, long: 7.17 }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.19 }));
-    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 48', from: null, to: null }], lat: 52.19, long: 7.22 }));
-    db.hofObjects.set('@H3@', hof('@H3@', '@P1@', { addrs: [{ value: 'Ohne Koord', from: null, to: null }] })); // lat/long null
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], lat: 52.2, long: 7.19 }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Wall 48', from: null, to: null , fromDate: null, toDate: null }], lat: 52.19, long: 7.22 }));
+    db.hofObjects.set('@H3@', hof('@H3@', '@P1@', { addrs: [{ value: 'Ohne Koord', from: null, to: null , fromDate: null, toDate: null }] })); // lat/long null
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
     expect(detail!.villageCoords).toEqual({ lat: 52.21, long: 7.17 });
@@ -91,7 +91,7 @@ describe('buildHofDetail — Mini-Karten-Kontext (BL-214, ADR-v9-147)', () => {
   it('villageCoords ist null, wenn das Dorf keine Koordinaten trägt', () => {
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' })); // ohne Koordinaten
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.19 }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], lat: 52.2, long: 7.19 }));
 
     const detail = buildHofDetail(db, ctxFor(db), '@H1@');
     expect(detail!.villageCoords).toBeNull();

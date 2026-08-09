@@ -28,6 +28,7 @@ import {
   isCuratedHof,
   buildPlacForGedcom,
   eventYear,
+  eventSpanne,
   normHofAddr,
   normPlaceName,
   type ResolveResult,
@@ -229,7 +230,7 @@ export function renameHofAddrInEvents(
   return mapAllEvents(db, (ev) => {
     if (ev.hofId !== hofId || ev.addr !== oldValue) return null;
     const next: Event = { ...ev, addr: newValue };
-    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    const proj = buildPlacForGedcom(next, eventSpanne(next), ctx);
     if (proj != null) next.place = proj;
     return next;
   });
@@ -267,10 +268,10 @@ export function reprojectHofAddrInEvents(
 
   return mapAllEvents(db, (ev) => {
     if (ev.hofId !== hofId || !ev.addr || !entfallen.has(normHofAddr(ev.addr))) return null;
-    const jetzt = ctx.hofs.resolveAddrAsOf(hofId, eventYear(ev));
+    const jetzt = ctx.hofs.resolveAddrAsOf(hofId, eventSpanne(ev));
     if (!jetzt || jetzt === ev.addr) return null;
     const next: Event = { ...ev, addr: jetzt };
-    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    const proj = buildPlacForGedcom(next, eventSpanne(next), ctx);
     if (proj != null) next.place = proj;
     return next;
   });
@@ -368,7 +369,7 @@ export function reprojectEventsOf(
       (ev.placeId != null && betroffeneOrte.has(ev.placeId)) ||
       (ev.hofId != null && hofsHier.has(ev.hofId));
     if (!betroffen) return null;
-    const proj = buildPlacForGedcom(ev, eventYear(ev), ctx);
+    const proj = buildPlacForGedcom(ev, eventSpanne(ev), ctx);
     // `null` → keine projizierbare Kette (Ort/Hof fehlt): dann den Wire-Wert stehen lassen,
     // statt ihn zu leeren. Gleicher Wert → kein Schreibvorgang, damit der Dirty-Check den
     // Record nicht grundlos als geändert meldet.
@@ -447,7 +448,7 @@ export function relinkHofVillageInEvents(
   return mapAllEvents(db, (ev) => {
     if (ev.hofId == null || !zielIds.has(ev.hofId)) return null;
     const next: Event = { ...ev, hofId: remap.get(ev.hofId) ?? ev.hofId, placeId: villageId };
-    const proj = buildPlacForGedcom(next, eventYear(next), ctx);
+    const proj = buildPlacForGedcom(next, eventSpanne(next), ctx);
     if (proj != null) next.place = proj;
     return next;
   });

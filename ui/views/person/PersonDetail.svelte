@@ -19,6 +19,7 @@
   import { primaryEventMenu, secondaryEventMenu, otherEventMenu } from './person-event-menu';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
+  import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
   import { tooltip } from '../../shell/tooltip';
@@ -92,6 +93,14 @@
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
 
   let editing = $state(untrack(() => startInEdit));
+
+  // Kindschafts-Editor (BL-329): der Zustand ist die familyId der Herkunftsfamilie, deren
+  // Modal offen ist — dieselbe Komponente, die die Familien-Detailseite an ihrer
+  // Kind-Zeile öffnet (EINE Fläche für beide Einstiege, INV-UI-4).
+  let childLinkEdit = $state<string | null>(null);
+  const childLink = $derived(
+    childLinkEdit && detail ? detail.person.childOf.find((l) => l.familyId === childLinkEdit) ?? null : null,
+  );
 
   /**
    * Läuft gerade eine ANLAGE-Sitzung (BL-275)? `startInEdit` setzt nur `entity-tab-
@@ -400,8 +409,26 @@
     {#if detail.families.length > 0}
       <section class="person-detail__section">
         <h3>Familien</h3>
-        <PersonFamilies families={detail.families} onGoToPerson={goToPerson} {onNavigateToFamily} />
+        <PersonFamilies
+          families={detail.families}
+          onGoToPerson={goToPerson}
+          {onNavigateToFamily}
+          {onNavigateToSource}
+          sourceOf={(id) => appState.db.sources.get(id)}
+          onEditChildLink={(familyId) => (childLinkEdit = familyId)}
+        />
       </section>
+    {/if}
+
+    {#if childLinkEdit && childLink}
+      <ChildLinkEditModal
+        {appState}
+        personId={detail.person.id}
+        personName={displayName(detail.person)}
+        familyLabel={detail.families.find((f) => f.familyId === childLinkEdit)?.label ?? ''}
+        link={childLink}
+        onClose={() => (childLinkEdit = null)}
+      />
     {/if}
 
     <PersonAssociations

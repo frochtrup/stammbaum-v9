@@ -31,8 +31,14 @@
     withRemovedEnclosedBy,
     withUpdatedEnclosedBy,
     placeDisplayName,
+    grenzeAusEingabe,
+    grenzeText,
+    OFFENE_GRENZE,
+    type Grenze,
   } from '../../../core/places';
+  import { grenzeAusFeld } from '../../shell/grenz-feld';
   import PlaceForm from './PlaceForm.svelte';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import { portal } from '../../shell/portal';
   import { focusTrap } from '../../shell/focus-trap';
 
@@ -86,8 +92,13 @@
   );
 
   let newEnclosedParent = $state('');
-  let newEnclosedFrom = $state<number | null>(null);
-  let newEnclosedTo = $state<number | null>(null);
+  // BL-324: EIN Feld je Grenze, das Jahr ODER Stichtag nimmt (1810 oder 1 OCT 1810).
+  // Zwei getrennte Felder (Jahr + Tag) hätten sie auseinanderlaufen lassen — genau das
+  // verbietet [ADR-v9-243]: das Jahr MUSS aus dem Tag ableitbar sein und dazu passen.
+  let newEnclosedFrom = $state('');
+  let newEnclosedTo = $state('');
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addEnclosedBy). */
+  let grenzFehler = $state('');
 
   /** Inline-Neuanlage eines übergeordneten Ortes (ADR-v9-42 Punkt 4). */
   let creatingEnclosedParent = $state(false);
@@ -107,11 +118,21 @@
 
   function addEnclosedBy() {
     if (!place || !newEnclosedParent) return;
-    const next = withAddedEnclosedBy(place, newEnclosedParent, newEnclosedFrom, newEnclosedTo);
+    const von = grenzeAusEingabe(newEnclosedFrom);
+    const bis = grenzeAusEingabe(newEnclosedTo);
+    // Kein stiller Abbruch (Spec 21 §5): ein unlesbares Datum legt die Zuordnung NICHT
+    // undatiert an, sondern sagt es. Sonst wäre der Knopf tot — derselbe Fehler wie beim
+    // Speichern-Knopf in ADR-v9-241, nur eine Fläche weiter.
+    if (!von.ok || !bis.ok) {
+      grenzFehler = 'Datum nicht lesbar — Jahr („1810") oder Stichtag („1 OCT 1810").';
+      return;
+    }
+    grenzFehler = '';
+    const next = withAddedEnclosedBy(place, newEnclosedParent, von.grenze, bis.grenze);
     appState.savePlace(next);
     newEnclosedParent = '';
-    newEnclosedFrom = null;
-    newEnclosedTo = null;
+    newEnclosedFrom = '';
+    newEnclosedTo = '';
   }
 
   function removeEnclosedBy(index: number) {
@@ -122,21 +143,31 @@
   /** Ändert den Zeitraum einer BESTEHENDEN Zuordnung (ADR-v9-183). Committet sofort —
    *  gleiches Timing wie Hinzufügen/Entfernen daneben; dieses Modal hat keinen eigenen
    *  Speichern-Knopf, „Fertig" schließt nur. */
-  function updateEnclosedBySpan(index: number, from: number | null, to: number | null) {
+  function updateEnclosedBySpan(index: number, from: Grenze, to: Grenze) {
     if (!place) return;
     const enc = place.enclosedBy[index];
     if (!enc) return;
     appState.savePlace(withUpdatedEnclosedBy(place, index, enc.placeId, from, to));
   }
 
-  /** `<input type="number">` liefert '' für ein geleertes Feld — das ist „offen" (null),
-   *  nicht 0. Ein geleertes „von" macht die Zuordnung nach unten offen (Spec 11 §1). */
-  function jahrAusEingabe(v: string): number | null {
-    const t = v.trim();
-    if (!t) return null;
-    const n = Number(t);
-    return Number.isFinite(n) ? n : null;
-  }
+  /** Die GEGENGRENZE beim Ändern einer Zeile: sie steht bereits gespeichert im Modell,
+   *  ihr Rücklesen kann also nicht fehlschlagen. `OFFENE_GRENZE` ist der korrekte
+   *  Rückfall für eine leere Gegenseite und keine Notlösung. */
+  const grenzeAusEingabeSicher = (text: string): Grenze => {
+    const l = grenzeAusEingabe(text);
+    return l.ok ? l.grenze : OFFENE_GRENZE;
+  };
+
+  /** Der aktuelle Feldinhalt einer Grenze: der Stichtag, wenn es einen gibt, sonst das Jahr. */
+  const grenzeVon = (e: { from: number | null; fromDate?: string | null }): string =>
+    grenzeText(e.from, e.fromDate);
+  const grenzeBis = (e: { to: number | null; toDate?: string | null }): string =>
+    grenzeText(e.to, e.toDate);
+
+  // Das frühere `jahrAusEingabe` ist mit BL-324 in den Kern gewandert und heißt dort
+  // `grenzeAusEingabe` — es liest jetzt nicht mehr nur eine Zahl, sondern auch einen
+  // Stichtag. Die Regel „geleertes Feld heißt offen (null), nicht 0" (Spec 11 §1) gilt
+  // unverändert und steht dort.
 
   const otherPlaces = $derived(
     place ? Array.from(appState.db.placeObjects.values()).filter((p) => p.id !== place.id) : [],
@@ -195,20 +226,26 @@
           <li>
             <span class="place-enclosure-modal__parent">{placeTitleFor(enc.placeId)}</span>
             <input
-              type="number"
+              type="text" {...PLAIN_FIELD}
               class="place-enclosure-modal__year"
-              value={enc.from ?? ''}
+              value={grenzeVon(enc)}
               placeholder="von"
-              aria-label={`${placeTitleFor(enc.placeId)} — gültig von (Jahr)`}
-              onchange={(e) => updateEnclosedBySpan(originalIndex, jahrAusEingabe(e.currentTarget.value), enc.to)}
+              aria-label={`${placeTitleFor(enc.placeId)} — gültig von (Jahr oder Stichtag)`}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, grenzeVon(enc));
+                if (g) updateEnclosedBySpan(originalIndex, g, grenzeAusEingabeSicher(grenzeBis(enc)));
+              }}
             />
             <input
-              type="number"
+              type="text" {...PLAIN_FIELD}
               class="place-enclosure-modal__year"
-              value={enc.to ?? ''}
+              value={grenzeBis(enc)}
               placeholder="bis"
-              aria-label={`${placeTitleFor(enc.placeId)} — gültig bis (Jahr)`}
-              onchange={(e) => updateEnclosedBySpan(originalIndex, enc.from, jahrAusEingabe(e.currentTarget.value))}
+              aria-label={`${placeTitleFor(enc.placeId)} — gültig bis (Jahr oder Stichtag)`}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, grenzeBis(enc));
+                if (g) updateEnclosedBySpan(originalIndex, grenzeAusEingabeSicher(grenzeVon(enc)), g);
+              }}
             />
             <button type="button" class="place-enclosure-modal__remove-btn" onclick={() => removeEnclosedBy(originalIndex)} aria-label="Zugehörigkeit entfernen">✕</button>
           </li>
@@ -236,8 +273,21 @@
             createLabel="+ neuen Ort anlegen …"
             onCreateRequested={beginCreateEnclosedParent}
           />
-          <input type="number" placeholder="von" bind:value={newEnclosedFrom} aria-label="Gültig von (Jahr)" />
-          <input type="number" placeholder="bis" bind:value={newEnclosedTo} aria-label="Gültig bis (Jahr)" />
+          <input
+            type="text" {...PLAIN_FIELD}
+            placeholder="von"
+            bind:value={newEnclosedFrom}
+            aria-label="Gültig von (Jahr oder Stichtag)"
+          />
+          <input
+            type="text" {...PLAIN_FIELD}
+            placeholder="bis"
+            bind:value={newEnclosedTo}
+            aria-label="Gültig bis (Jahr oder Stichtag)"
+          />
+        {#if grenzFehler}
+          <p class="place-enclosure-modal__muted" role="alert">{grenzFehler}</p>
+        {/if}
           <button type="button" onclick={addEnclosedBy}>+ Hinzufügen</button>
         {/if}
       </div>

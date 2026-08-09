@@ -33,7 +33,7 @@
 //
 // Reine Funktionen, DOM-/Plattform-frei (INV-ARCH-1).
 
-import type { Citation, Database, Event, EvidenceEval, Family, Media, Note, Person, Repository, Source } from '../model/types';
+import type { ChildLink, Citation, Database, Event, EvidenceEval, Family, Media, Note, Person, Repository, Source } from '../model/types';
 import { isEvidenceEvalEmpty } from '../research/eval';
 import type { HofObject, PlaceObject } from '../places/types';
 import { isEventPresent } from '../model/event';
@@ -53,7 +53,7 @@ import { buildEnrichContext } from './gramps-enrich';
 import { descriptionIsAddress, projectGrampsEvent, tagToGrampsType } from './gramps-events';
 import { projectBuildingHof, projectPlaceobj } from './gramps-places';
 import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
-import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag, mediToGrampsMedium } from './enum-maps';
+import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag, mediToGrampsMedium, pediToChildrefRel } from './enum-maps';
 import { projectGrampsObject } from './gramps-media';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
 import { parseCoord } from './gedcom-parse';
@@ -66,6 +66,8 @@ const DTD_ORDER: Record<string, string[]> = {
   ],
   name: ['first', 'call', 'surname', 'suffix', 'title', 'nick', 'familynick', 'group', 'noteref', 'citationref'],
   family: ['rel', 'father', 'mother', 'eventref', 'lds_ord', 'objref', 'childref', 'attribute', 'noteref', 'citationref', 'tagref'],
+  // grampsxml.dtd 1.7.2: childref (citationref*, noteref*) — die Kindschafts-Belege (BL-329).
+  childref: ['citationref', 'noteref'],
   source: ['stitle', 'sauthor', 'spubinfo', 'sabbrev', 'noteref', 'objref', 'srcattribute', 'reporef', 'tagref'],
   repository: ['rname', 'type', 'address', 'url', 'noteref', 'tagref'],
   note: ['text', 'style', 'tagref'],
@@ -406,7 +408,41 @@ function personKinder(orig: XmlNode, cur: Person, wb: Wb): XmlNode[] {
   return children;
 }
 
-function familyKinder(orig: XmlNode, cur: Family, wb: Wb): XmlNode[] {
+/** Der `ChildLink` eines Kindes in einer Familie — die INDI-Seite, die GRAMPS am `<childref>` führt. */
+type ChildLinkLookup = (personId: string, familyId: string) => ChildLink | undefined;
+
+/**
+ * Ein `<childref>` aus seinem `ChildLink` nachführen (BL-329): Kind-Verhältnis als
+ * `frel`/`mrel`-Attribut, Kindschafts-Belege als `<citationref>`-Kinder.
+ *
+ * Ohne Link (das Kind steht family-seitig, hat aber keine INDI-Seite — nach einem
+ * `saveFamily`, das die Verknüpfung erst anlegt, ein Übergangszustand) bleibt der Knoten
+ * unangetastet: nichts zu wissen ist kein Anlass, etwas zu löschen.
+ *
+ * `pedigree` wird NUR geschrieben, wenn es einen Wert hat; ein leeres Verhältnis entfernt
+ * das Attribut nicht, sondern lässt einen quell-eigenen Wert (`Stepchild`, `Sponsored`,
+ * Custom — für die es kein PEDI gibt, s. `childrefRelToPedi`) stehen. Sonst räumte das
+ * Speichern still weg, was das Modell nur nicht abbilden kann.
+ */
+function childrefKinder(node: XmlNode, link: ChildLink | undefined, wb: Wb): XmlNode {
+  if (!link) return node;
+  let attrs = node.attrs;
+  const rel = pediToChildrefRel(link.pedigree);
+  if (rel !== '') {
+    for (const name of ['frel', 'mrel'] as const) {
+      if (attr({ ...node, attrs }, name) === rel) continue;
+      attrs = attrs.some(([k]) => k === name)
+        ? attrs.map(([k, v]) => (k === name ? [k, rel] : [k, v]) as [string, string])
+        : [...attrs, [name, rel] as [string, string]];
+    }
+  }
+  const kinder = reconcileRefs(node.children, DTD_ORDER.childref, 'citationref', () => true,
+    link.citations.map((c) => citHandle(wb, c)), citationref);
+  if (attrs === node.attrs && kinder === node.children) return node; // byte-treu
+  return { ...node, attrs, children: kinder };
+}
+
+function familyKinder(orig: XmlNode, cur: Family, wb: Wb, linkOf: ChildLinkLookup): XmlNode[] {
   const index = wb.index;
   let children = setzeAttribut(orig.children, DTD_ORDER.family, 'father', 'hlink', toHandle(cur.husband ?? '', index));
   children = setzeAttribut(children, DTD_ORDER.family, 'mother', 'hlink', toHandle(cur.wife ?? '', index));
@@ -417,7 +453,7 @@ function familyKinder(orig: XmlNode, cur: Family, wb: Wb): XmlNode[] {
   const alteRefs = new Map(childrenByTag(orig, 'childref').map((c) => [attr(c, 'hlink'), c]));
   const neueRefs = cur.children.map((ref) => {
     const h = toHandle(ref, index);
-    return alteRefs.get(h) ?? knoten('childref', '', [['hlink', h]]);
+    return childrefKinder(alteRefs.get(h) ?? knoten('childref', '', [['hlink', h]]), linkOf(ref, cur.id), wb);
   });
   const ersteIdx = children.findIndex((c) => c.tag === 'childref');
   const ohne = children.filter((c) => c.tag !== 'childref');
@@ -665,12 +701,24 @@ function personGleichNode(node: XmlNode, cur: Person, wb: Wb): boolean {
   return sameHandleSet(nameRefs, cur.nameCitations.map((c) => citHandle(wb, c)));
 }
 
-function familyGleichNode(node: XmlNode, cur: Family, wb: Wb): boolean {
+function familyGleichNode(node: XmlNode, cur: Family, wb: Wb, linkOf: ChildLinkLookup): boolean {
   if (!familyGleich(projectFamily(node, wb.index), cur)) return false;
   if (!sameHandleSet(hlinksOf(node.children, 'eventref', familyEventRole),
     familyOwnedEvents(cur).map((e) => evHandle(wb, e)))) return false;
-  return sameHandleSet(hlinksOf(node.children, 'citationref'),
-    cur.citations.map((c) => citHandle(wb, c)));
+  if (!sameHandleSet(hlinksOf(node.children, 'citationref'),
+    cur.citations.map((c) => citHandle(wb, c)))) return false;
+  // Die Kindschaft steht INDI-seitig im Modell, aber FAM-seitig in der Datei (BL-329):
+  // ohne diesen Vergleich bliebe die Familie nach einem Kindschafts-Edit „unverändert"
+  // und der Edit fiele still unter den Tisch — dieselbe Lücke wie bei den Zitat-Refs.
+  const refNach = new Map(childrenByTag(node, 'childref').map((c) => [attr(c, 'hlink'), c]));
+  return cur.children.every((kindId) => {
+    const cr = refNach.get(toHandle(kindId, wb.index));
+    const link = linkOf(kindId, cur.id);
+    if (!cr || !link) return true;
+    const rel = pediToChildrefRel(link.pedigree);
+    if (rel !== '' && (attr(cr, 'frel') !== rel || attr(cr, 'mrel') !== rel)) return false;
+    return sameHandleSet(hlinksOf(cr.children, 'citationref'), link.citations.map((c) => citHandle(wb, c)));
+  });
 }
 
 /** Event unverändert? Felder (BL-142), Zitat-Ref-Menge (BL-144) UND Medien-Ref-Menge (BL-126). */
@@ -881,6 +929,12 @@ function assignNewIds(db: Database, root: XmlNode, index: GrampsRefIndex): Wb {
   for (const p of db.individuals.values()) {
     p.nameCitations.forEach(newCit);
     p.topLevelCitations.forEach(newCit);
+    // Kindschafts-Belege (BL-329): sie haben seit `childrefKinder` einen Owner-Ref in der
+    // Datei (`<childref>`/`<citationref>`) und brauchen deshalb — wie jede andere Zitatliste
+    // mit Owner — eine frische id; sonst hätte `citHandle` nichts nachzuschlagen und ein neu
+    // erfasstes Zitat fiele beim Speichern still weg. `extraNames`/`associations` fehlen hier
+    // weiterhin: sie haben auf dem GRAMPS-Weg gar keinen Owner-Ref (BL-330).
+    for (const l of p.childOf) l.citations.forEach(newCit);
     for (const e of personOwnedEvents(p)) { newEvent(e); e.citations.forEach(newCit); }
   }
   for (const f of db.families.values()) {
@@ -1118,6 +1172,10 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   const personNodes = new Map<string, XmlNode>();
   for (const n of firstChild(root, 'people')?.children ?? []) if (n.tag === 'person') personNodes.set(grampsKey(n), n);
 
+  // Die INDI-Seite der Kindschaft, nachgeschlagen für die FAM-seitigen `<childref>` (BL-329).
+  const childLinkOf: ChildLinkLookup = (personId, familyId) =>
+    db.individuals.get(personId)?.childOf.find((l) => l.familyId === familyId);
+
   const ersetzt = new Map<string, XmlNode | null>();
   ersetzt.set('people', verarbeiteSektion(root, {
     section: 'people', item: 'person', map: db.individuals,
@@ -1132,8 +1190,8 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   ersetzt.set('families', verarbeiteSektion(root, {
     section: 'families', item: 'family', map: db.families,
     project: (n) => projectFamily(n, index), gleich: familyGleich,
-    gleichNode: (n, cur) => familyGleichNode(n, cur, wb),
-    kinder: (orig, cur) => familyKinder(orig, cur, wb),
+    gleichNode: (n, cur) => familyGleichNode(n, cur, wb, childLinkOf),
+    kinder: (orig, cur) => familyKinder(orig, cur, wb, childLinkOf),
   }));
   ersetzt.set('sources', verarbeiteSektion(root, {
     section: 'sources', item: 'source', map: db.sources,

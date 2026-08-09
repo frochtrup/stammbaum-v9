@@ -79,6 +79,10 @@ export interface FamilyNavRow {
    *  PEDI) — leer bei leiblich/leer und bei role==='parentIn'. Spiegelbild zur
    *  Kind-Zeile in `family-detail-model.ts` (INV-UI-4, dieselbe `pedigreeLabel`). */
   pedigree: string;
+  /** Nur bei role==='childOf': die BELEGE DER KINDSCHAFT (`ChildLink.citations`, BL-329) —
+   *  was diese ABSTAMMUNG belegt, nicht was die Ehe der Eltern belegt. Spiegelbild zu
+   *  `FamilyMemberRow.childCitations`; bei role==='parentIn' immer leer. */
+  childCitations: Citation[];
 }
 
 /** Eine eigene Assoziation der Person (ASSO/RELA, [10 §2]) — Zeuge/Pate/Informant ohne
@@ -269,7 +273,7 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
       })
       .filter((c) => c.name);
-    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children, pedigree: '' });
+    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children, pedigree: '', childCitations: [] });
   }
   for (const link of person.childOf) {
     const f = db.families.get(link.familyId);
@@ -288,6 +292,7 @@ export function buildPersonDetail(
       members,
       children: [],
       pedigree: pedigreeLabel(link.pedigree),
+      childCitations: link.citations,
     });
   }
 

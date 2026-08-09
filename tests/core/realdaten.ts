@@ -50,11 +50,18 @@ export const REALBESTAND = {
  * wurden von Hand mit dieser Datei gemessen, nicht von einem Test.
  */
 export const ORTSBESTAND = {
-  datei: 'orte.v9.json',
+  datei: 'orte-2.json',
   /** Erwarteter Umfang — dieselbe Rolle wie `REALBESTAND.erwartet`: eine andere Datei
-   *  ist eine andere Aussage. */
-  erwartet: { placeObjects: 139, hofObjects: 181 },
+   *  ist eine andere Aussage. Seit 2026-08-09 auch WIRKLICH geprüft, s. u. */
+  erwartet: { placeObjects: 402, hofObjects: 185 },
 } as const;
+// WARUM DIE ZAHLEN SICH GEÄNDERT HABEN (2026-08-09, ADR-v9-242): der Symlink zeigte auf
+// `orte.v9.json` — die ÄLTESTE von vier Ortsdateien im Spec-Repo (rev 63, 310 Orte),
+// während der Nutzer längst mit `orte-2.json` arbeitete (rev 277, 402 Orte). Die
+// Deklaration nannte dazu 139/181, also nicht einmal die Zahlen der Datei, auf die sie
+// zeigte. Beides blieb liegen, weil `ORTSBESTAND.erwartet` — anders als
+// `REALBESTAND.erwartet` — von KEINEM Test gelesen wurde: TST-21 war nur zur Hälfte
+// gebaut. Genau die Lage, gegen die TST-21 geschrieben wurde, eine Tür weiter.
 
 export const ortsbestandPfad = (): string => join(__dirname, '../fixtures', ORTSBESTAND.datei);
 

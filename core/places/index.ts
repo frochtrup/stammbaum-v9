@@ -34,8 +34,31 @@ export {
   buildListPlaceName,
   placeDisplayName,
   eventYear,
+  eventSpanne,
   type PlaceContext,
 } from './build-plac';
+
+// Zeitrechnung der Auflösung (BL-324, ADR-v9-243): Jahr ODER Tag, EINE Intervall-Regel.
+export {
+  alsGrenze,
+  alsSpanne,
+  grenzeAusEingabe,
+  grenzeText,
+  istDatiert,
+  jahrAus,
+  jahresBeginn,
+  jahresEnde,
+  jahresSpanne,
+  spanneVonDatiert,
+  spanneVonEreignis,
+  tagesOrdinal,
+  trifft,
+  OFFENE_GRENZE,
+  type Grenze,
+  type GrenzEingabe,
+  type Spanne,
+  type Zeitbezug,
+} from './zeitbezug';
 
 // Chokepoints 1–3 (Spec 11 §5): die einzigen erlaubten Reads.
 export { eventPlaceId, eventHofId, eventCoords, type Coords } from './chokepoints';

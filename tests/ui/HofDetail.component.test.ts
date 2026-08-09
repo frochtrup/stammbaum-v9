@@ -48,7 +48,7 @@ describe('HofDetail — Steckbrief (read-only Teile)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     person.birth.hofId = '@H1@';
     person.birth.date = '1 JAN 1900';
@@ -82,7 +82,7 @@ describe('HofDetail — Mini-Karte (BL-09/BL-214)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], lat: 52.2, long: 7.18 }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], lat: 52.2, long: 7.18 }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -95,7 +95,7 @@ describe('HofDetail — Mini-Karte (BL-09/BL-214)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] })); // lat/long null
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] })); // lat/long null
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -110,7 +110,7 @@ describe('HofDetail — Bewohner/Eigentümer zeitlich integriert (Spec 21 §10j,
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
 
     const resident = makePerson('@I1@', { given: 'Anna', surname: 'Meyer' });
     resident.events.push(makeEvent('RESI', { date: '1900', hofId: '@H1@' }));
@@ -158,7 +158,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -177,7 +177,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -194,7 +194,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -214,24 +214,24 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
 
     render(HofDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1'), { target: { value: '1850' } });
-    await fireEvent.change(screen.getByLabelText('Gültig bis Zeile 1'), { target: { value: '1900' } });
+    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1850' } });
+    await fireEvent.change(screen.getByLabelText('Gültig bis Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1900' } });
 
-    expect(appState.db.hofObjects.get('@H1@')?.addrs[0]).toEqual({ value: 'Wall 33', from: 1850, to: 1900 });
+    expect(appState.db.hofObjects.get('@H1@')?.addrs[0]).toEqual({ value: 'Wall 33', from: 1850, to: 1900 , fromDate: null, toDate: null });
   });
 
   it('Umbenennen einer Adressvariante propagiert auf referenzierende Events (Nutzer-Wunsch: Name durchgängig verwendet)', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     const resi = makeEvent('RESI', { hofId: '@H1@', addr: 'Wall 33', place: 'Wall 33, Ochtrup' });
     person.events.push(resi);
@@ -257,7 +257,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     const resi = makeEvent('RESI', { hofId: '@H1@', addr: 'Wall 33', place: 'Wall 33, Ochtrup' });
     person.events.push(resi);
@@ -268,7 +268,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
 
     render(HofDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1'), { target: { value: '1850' } });
+    await fireEvent.change(screen.getByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)'), { target: { value: '1850' } });
 
     const updatedEvent = appState.db.individuals.get('@I1@')?.events[0];
     expect(updatedEvent?.addr).toBe('Wall 33');
@@ -279,7 +279,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: 1850, to: 1900 }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: 1850, to: 1900 , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -289,16 +289,16 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     expect(screen.getAllByText('Wall 33').length).toBeGreaterThan(0);
     expect(screen.getByText('(1850–1900)')).toBeTruthy();
     expect(screen.queryByLabelText('Adresswert Zeile 1')).toBeNull();
-    expect(screen.queryByLabelText('Gültig von Zeile 1')).toBeNull();
-    expect(screen.queryByLabelText('Gültig bis Zeile 1')).toBeNull();
+    expect(screen.queryByLabelText('Gültig von Zeile 1 (Jahr oder Stichtag)')).toBeNull();
+    expect(screen.queryByLabelText('Gültig bis Zeile 1 (Jahr oder Stichtag)')).toBeNull();
   });
 
   it('setzt Vorgänger-/Nachfolger-Hof über den generischen Picker', async () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
-    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Oster 5', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
+    db.hofObjects.set('@H2@', hof('@H2@', '@P1@', { addrs: [{ value: 'Oster 5', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -316,7 +316,7 @@ describe('HofDetail — Bearbeitung (Adressvarianten, Koordinaten, Notiz, Lebens
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -342,7 +342,7 @@ describe('HofDetail — Bearbeitung (govId/govTypes, TST-9 Feld-Vollständigkeit
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -368,7 +368,7 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     const person = makePerson('@I1@', { given: 'Otto', surname: 'Bauer' });
     person.birth.hofId = '@H1@';
     db.individuals.set('@I1@', person);
@@ -394,7 +394,7 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -418,7 +418,7 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -440,8 +440,8 @@ describe('HofDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Punk
       '@H1@',
       hof('@H1@', '@P1@', {
         addrs: [
-          { value: 'Wall 33', from: null, to: null },
-          { value: 'Wallstraße 33', from: null, to: null },
+          { value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null },
+          { value: 'Wallstraße 33', from: null, to: null , fromDate: null, toDate: null },
         ],
       }),
     );
@@ -464,7 +464,7 @@ describe('HofDetail — Anzeige/Bearbeitung strukturell getrennt (ADR-v9-30 Punk
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -482,7 +482,7 @@ describe('HofDetail — gemeinsame Detail-Kopfzeile (Spec 21 §6b, INV-UI-4)', (
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -507,7 +507,7 @@ describe('HofDetail — Name & Adressvarianten steht am Anfang (Nutzer-Wunsch)',
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -526,7 +526,7 @@ describe('HofDetail — Name & Adressvarianten steht am Anfang (Nutzer-Wunsch)',
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }] }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }] }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
@@ -547,7 +547,7 @@ describe('HofDetail — Prüf-Marker (ADR-v9-191)', () => {
     db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
     db.hofObjects.set(
       '@H1@',
-      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], reviewedAt }),
+      hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], reviewedAt }),
     );
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
@@ -583,7 +583,7 @@ describe('HofDetail — Transaktionsgrenze (INV-UI-16)', () => {
     const appState = createAppState();
     const db = makeDatabase();
     db.placeObjects.set('@P1@', place('@P1@'));
-    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null }], note: 'alt' }));
+    db.hofObjects.set('@H1@', hof('@H1@', '@P1@', { addrs: [{ value: 'Wall 33', from: null, to: null , fromDate: null, toDate: null }], note: 'alt' }));
     appState.loadDatabase(db, 'test.ged');
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');

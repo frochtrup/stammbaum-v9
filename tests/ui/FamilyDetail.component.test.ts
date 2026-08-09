@@ -188,7 +188,11 @@ describe('FamilyDetail — anklickbare Mitglieder + Quellen-Badges (Component)',
 
     const { container } = render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
 
-    const sections = Array.from(container.querySelectorAll('.family-detail__section'));
+    // Über das ELEMENT, nicht die Klasse: die Kinder-Sektion ist seit BL-329 eine eigene
+    // Komponente (`FamilyChildrenSection.svelte`) und trägt deshalb ihre eigene, scoped
+    // Klasse. Zugesichert ist die REIHENFOLGE der Sektionen — die hängt nicht daran, wie
+    // die einzelne Sektion intern heißt.
+    const sections = Array.from(container.querySelectorAll('section'));
     const parentsIdx = sections.findIndex((s) => s.textContent?.includes('Heinrich Winkelmann'));
     const marriageIdx = sections.findIndex((s) => s.textContent?.includes('Heirat'));
     const childrenIdx = sections.findIndex((s) => s.textContent?.includes('Julius Winkelmann'));

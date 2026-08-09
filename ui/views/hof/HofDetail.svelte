@@ -8,7 +8,19 @@
   import type { LensId } from '../../shell/lens-model';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import ReviewedToggle from '../../shell/ReviewedToggle.svelte';
-  import { withAddedHofAddr, withRemovedHofAddr, findOrCreateHof, markHofReviewed } from '../../../core/places';
+  import {
+    withAddedHofAddr,
+    withRemovedHofAddr,
+    findOrCreateHof,
+    markHofReviewed,
+    grenzeAusEingabe,
+    grenzeText,
+    istDatiert,
+    OFFENE_GRENZE,
+    type Grenze
+  } from '../../../core/places';
+  import { grenzeAusFeld } from '../../shell/grenz-feld';
+  import { spanLabelOf } from '../place/place-detail-model';
   import PlaceMiniMap from '../place/PlaceMiniMap.svelte';
   import HofEditForm from './HofEditForm.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
@@ -35,8 +47,13 @@
 
   let editing = $state(false);
   let newAddrValue = $state('');
-  let newAddrFrom = $state<number | null>(null);
-  let newAddrTo = $state<number | null>(null);
+  // BL-331: EIN Feld je Grenze, das Jahr ODER Stichtag nimmt — dieselbe Eingabe wie an den
+  // beiden Orts-Flächen (`PlaceNamesSection`, `PlaceEnclosureEditModal`, INV-UI-4). Eine
+  // Hausnummern-Reform hat ein Datum, kein Jahr; bis hierher fiel sie auf das Jahr zurück.
+  let newAddrFrom = $state('');
+  let newAddrTo = $state('');
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addAddr). */
+  let grenzFehler = $state('');
 
   function startEdit() {
     editing = true;
@@ -79,10 +96,17 @@
 
   function addAddr() {
     if (!detail || !newAddrValue.trim()) return;
-    appState.saveHof(withAddedHofAddr(detail.hof, newAddrValue, newAddrFrom, newAddrTo));
+    const von = grenzeAusEingabe(newAddrFrom);
+    const bis = grenzeAusEingabe(newAddrTo);
+    if (!von.ok || !bis.ok) {
+      grenzFehler = 'Datum nicht lesbar — Jahr („1400") oder Stichtag („8 MAY 1945").';
+      return;
+    }
+    grenzFehler = '';
+    appState.saveHof(withAddedHofAddr(detail.hof, newAddrValue, von.grenze, bis.grenze));
     newAddrValue = '';
-    newAddrFrom = null;
-    newAddrTo = null;
+    newAddrFrom = '';
+    newAddrTo = '';
   }
 
   function removeAddr(index: number) {
@@ -105,24 +129,40 @@
     if (!detail) return;
     const a = detail.hof.addrs[index];
     if (!a) return;
-    appState.updateHofAddr(detail.hof.id, index, value, a.from, a.to);
+    appState.updateHofAddr(detail.hof.id, index, value, sicher(vonText(a)), sicher(bisText(a)));
   }
 
-  function updateAddrFrom(index: number, raw: string) {
+  /** Ein Grenz-Feld nach dem `change`: bei Unlesbarem bleibt das Modell unangetastet und
+   *  das Feld springt sichtbar zurück (s. `grenz-feld.ts`) — eine Periode ist
+   *  Auswertungsgrundlage, „nichts tun" ist dort die einzige Antwort ohne Behauptung. */
+  function updateAddrFrom(feld: HTMLInputElement, index: number) {
     if (!detail) return;
     const a = detail.hof.addrs[index];
     if (!a) return;
-    const from = raw.trim() === '' ? null : Number(raw);
-    appState.updateHofAddr(detail.hof.id, index, a.value, from, a.to);
+    const g = grenzeAusFeld(feld, vonText(a));
+    if (g) appState.updateHofAddr(detail.hof.id, index, a.value, g, sicher(bisText(a)));
   }
 
-  function updateAddrTo(index: number, raw: string) {
+  function updateAddrTo(feld: HTMLInputElement, index: number) {
     if (!detail) return;
     const a = detail.hof.addrs[index];
     if (!a) return;
-    const to = raw.trim() === '' ? null : Number(raw);
-    appState.updateHofAddr(detail.hof.id, index, a.value, a.from, to);
+    const g = grenzeAusFeld(feld, bisText(a));
+    if (g) appState.updateHofAddr(detail.hof.id, index, a.value, sicher(vonText(a)), g);
   }
+
+  /** Die Gegengrenze steht bereits gespeichert im Modell — ihr Rücklesen kann nicht
+   *  fehlschlagen (gleiche Bauform wie in `PlaceNamesSection`). */
+  const sicher = (text: string): Grenze => {
+    const l = grenzeAusEingabe(text);
+    return l.ok ? l.grenze : OFFENE_GRENZE;
+  };
+
+  /** Der aktuelle Feldinhalt einer Grenze: der Stichtag, wenn es einen gibt, sonst das Jahr. */
+  const vonText = (a: { from: number | null; fromDate?: string | null }): string =>
+    grenzeText(a.from, a.fromDate);
+  const bisText = (a: { to: number | null; toDate?: string | null }): string =>
+    grenzeText(a.to, a.toDate);
 
   /** Dorf-Kandidaten: alle PlaceObjects — welcher Ort ein „Dorf" ist, entscheidet der
    *  Nutzer, nicht der Typ (ein Hof kann an einer Bauerschaft, einem Kirchspiel oder einer
@@ -210,25 +250,29 @@
                 aria-label={`Adresswert Zeile ${i + 1}`}
               />
               <input
-                type="number"
-                class="hof-detail__addr-edit-year"
-                value={a.from ?? ''}
-                onchange={(e) => updateAddrFrom(i, e.currentTarget.value)}
-                aria-label={`Gültig von Zeile ${i + 1}`}
+                type="text" {...PLAIN_FIELD}
+                class="hof-detail__addr-edit-grenze"
+                value={vonText(a)}
+                onchange={(e) => updateAddrFrom(e.currentTarget, i)}
+                aria-label={`Gültig von Zeile ${i + 1} (Jahr oder Stichtag)`}
                 placeholder="von"
               />
               <input
-                type="number"
-                class="hof-detail__addr-edit-year"
-                value={a.to ?? ''}
-                onchange={(e) => updateAddrTo(i, e.currentTarget.value)}
-                aria-label={`Gültig bis Zeile ${i + 1}`}
+                type="text" {...PLAIN_FIELD}
+                class="hof-detail__addr-edit-grenze"
+                value={bisText(a)}
+                onchange={(e) => updateAddrTo(e.currentTarget, i)}
+                aria-label={`Gültig bis Zeile ${i + 1} (Jahr oder Stichtag)`}
                 placeholder="bis"
               />
               <button type="button" class="stb-icon-btn hof-detail__remove-btn" data-variant="danger" onclick={() => removeAddr(i)} aria-label="Adressvariante entfernen">✕</button>
             {:else}
               <span>{a.value}</span>
-              {#if a.from || a.to}<span class="hof-detail__muted">({a.from ?? '…'}–{a.to ?? '…'})</span>{/if}
+              <!-- Wortlaut über `spanLabelOf`, dieselbe Funktion wie an den Orts-Flächen
+                   (INV-UI-4): die frühere Inline-Fassung `(1800–…)` war eine zweite
+                   Formulierung desselben Zeitraums — und zeigte den kuratierten Stichtag
+                   nicht (BL-331). -->
+              {#if istDatiert(a)}<span class="hof-detail__muted">({spanLabelOf(a)})</span>{/if}
             {/if}
           </li>
         {/each}
@@ -236,8 +280,11 @@
       {#if editing}
         <div class="hof-detail__add-row">
           <input type="text" {...PLAIN_FIELD} placeholder="neue Adresse…" bind:value={newAddrValue} aria-label="Neue Adressvariante" />
-          <input type="number" placeholder="von" bind:value={newAddrFrom} aria-label="Gültig von (Jahr)" />
-          <input type="number" placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr)" />
+          <input type="text" {...PLAIN_FIELD} placeholder="von" bind:value={newAddrFrom} aria-label="Gültig von (Jahr oder Stichtag)" />
+          <input type="text" {...PLAIN_FIELD} placeholder="bis" bind:value={newAddrTo} aria-label="Gültig bis (Jahr oder Stichtag)" />
+          {#if grenzFehler}
+            <p class="hof-detail__muted" role="alert">{grenzFehler}</p>
+          {/if}
           <button type="button" onclick={addAddr}>+ Hinzufügen</button>
         </div>
 
@@ -389,7 +436,7 @@
   /* Editierbare bestehende Adresszeile (gleiche Feld-Optik wie .hof-detail__add-row
      input, INV-UI-4 — kein eigener Input-Stil). */
   .hof-detail__addr-edit-value,
-  .hof-detail__addr-edit-year {
+  .hof-detail__addr-edit-grenze {
     background: var(--stb-surface-2);
     color: var(--stb-text);
     border: 1px solid var(--stb-gold-dim);
@@ -403,8 +450,12 @@
     min-width: 8rem;
   }
 
-  .hof-detail__addr-edit-year {
-    width: 4.5rem;
+  /* 7rem, nicht 4.5rem: seit BL-331 nimmt das Feld einen Stichtag („8 MAY 1945"), nicht
+     mehr nur ein Jahr — dieselbe Breite und derselbe Grund wie an der Orts-Fläche
+     (`.place-detail__grenze`, BL-324). Eine schmalere Fassung zeigte den kuratierten
+     Stichtag angeschnitten. */
+  .hof-detail__addr-edit-grenze {
+    width: 7rem;
   }
 
   .hof-detail__remove-btn {

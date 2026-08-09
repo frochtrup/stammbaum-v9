@@ -6,9 +6,10 @@
 // über ein AppState-Kommando auf, das die Reaktivität auslöst (Svelte-Reassign obliegt
 // der Schale, s. ui/shell/app-state.svelte.ts).
 import type { Event, PlaceId, HofId } from '../model/types';
-import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation } from './types';
-import { buildPlacForGedcom, eventYear, type PlaceContext } from './build-plac';
+import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation, Year } from './types';
+import { buildPlacForGedcom, eventYear, eventSpanne, type PlaceContext } from './build-plac';
 import { normPlaceName, normHofAddr } from './normalize';
+import { alsGrenze, type GrenzEingabe } from './zeitbezug';
 import { klonen } from '../clone-diagnose';
 
 /**
@@ -60,14 +61,31 @@ export function markHofReviewed(h: HofObject, at: number | null): HofObject {
 }
 
 /**
+ * Setzt beide Datierungs-Hälften EINER Grenze zugleich (BL-324): `from`/`to` als Jahr und
+ * `fromDate`/`toDate` als Tag. Ein gemeinsamer Helfer, damit die von [ADR-v9-243]
+ * verlangte Kongruenz („das Jahr ist aus dem Tag ableitbar") nicht an vier Stellen
+ * einzeln hergestellt — und an einer vergessen — werden kann.
+ */
+function datiert<T>(basis: T, fromEin: GrenzEingabe, toEin: GrenzEingabe): T & {
+  from: Year;
+  to: Year;
+  fromDate: string | null;
+  toDate: string | null;
+} {
+  const from = alsGrenze(fromEin);
+  const to = alsGrenze(toEin);
+  return { ...basis, from: from.jahr, to: to.jahr, fromDate: from.datum, toDate: to.datum };
+}
+
+/**
  * Hängt eine Namensvariante (`pnames`) mit optionalem Zeitraum an ein bestehendes
  * PlaceObject an. Reine Kopie — der Aufrufer speichert das Ergebnis über
  * savePlaceObject(). Keine Dedup-Logik hier (Nutzer-Intent bleibt erhalten, analog
  * addHofVariant in hof-id.ts).
  */
-export function withAddedPname(pl: PlaceObject, value: string, from: number | null, to: number | null): PlaceObject {
+export function withAddedPname(pl: PlaceObject, value: string, from: GrenzEingabe, to: GrenzEingabe): PlaceObject {
   if (!value.trim()) return pl;
-  const entry: DatedName = { value: value.trim(), from, to };
+  const entry: DatedName = datiert({ value: value.trim() }, from, to);
   return { ...pl, pnames: [...pl.pnames, entry] };
 }
 
@@ -94,12 +112,12 @@ export function withUpdatedPname(
   pl: PlaceObject,
   index: number,
   value: string,
-  from: number | null,
-  to: number | null,
+  from: GrenzEingabe,
+  to: GrenzEingabe,
 ): PlaceObject {
   if (!value.trim()) return pl;
   if (index < 0 || index >= pl.pnames.length) return pl;
-  const entry: DatedName = { value: value.trim(), from, to };
+  const entry: DatedName = datiert({ value: value.trim() }, from, to);
   return { ...pl, pnames: pl.pnames.map((p, i) => (i === index ? entry : p)) };
 }
 
@@ -126,11 +144,11 @@ export function withRemovedTranslation(pl: PlaceObject, index: number): PlaceObj
 export function withAddedEnclosedBy(
   pl: PlaceObject,
   parentId: PlaceId,
-  from: number | null,
-  to: number | null,
+  from: GrenzEingabe,
+  to: GrenzEingabe,
 ): PlaceObject {
   if (!parentId) return pl;
-  const entry: DatedRef = { placeId: parentId, from, to };
+  const entry: DatedRef = datiert({ placeId: parentId }, from, to);
   return { ...pl, enclosedBy: [...pl.enclosedBy, entry] };
 }
 
@@ -157,12 +175,12 @@ export function withUpdatedEnclosedBy(
   pl: PlaceObject,
   index: number,
   parentId: PlaceId,
-  from: number | null,
-  to: number | null,
+  from: GrenzEingabe,
+  to: GrenzEingabe,
 ): PlaceObject {
   if (!parentId) return pl;
   if (index < 0 || index >= pl.enclosedBy.length) return pl;
-  const entry: DatedRef = { placeId: parentId, from, to };
+  const entry: DatedRef = datiert({ placeId: parentId }, from, to);
   return { ...pl, enclosedBy: pl.enclosedBy.map((e, i) => (i === index ? entry : e)) };
 }
 
@@ -174,11 +192,11 @@ export function withUpdatedEnclosedBy(
 export function withAddedHofAddr(
   hof: HofObject,
   value: string,
-  from: number | null,
-  to: number | null,
+  from: GrenzEingabe,
+  to: GrenzEingabe,
 ): HofObject {
   if (!value.trim()) return hof;
-  const entry: DatedAddress = { value: value.trim(), from, to };
+  const entry: DatedAddress = datiert({ value: value.trim() }, from, to);
   return { ...hof, addrs: [...hof.addrs, entry] };
 }
 
@@ -207,12 +225,12 @@ export function withUpdatedHofAddr(
   hof: HofObject,
   index: number,
   value: string,
-  from: number | null,
-  to: number | null,
+  from: GrenzEingabe,
+  to: GrenzEingabe,
 ): HofObject {
   if (!value.trim()) return hof;
   if (index < 0 || index >= hof.addrs.length) return hof;
-  const entry: DatedAddress = { value: value.trim(), from, to };
+  const entry: DatedAddress = datiert({ value: value.trim() }, from, to);
   return { ...hof, addrs: hof.addrs.map((a, i) => (i === index ? entry : a)) };
 }
 
@@ -231,7 +249,7 @@ export function withUpdatedHofAddr(
  */
 export function linkEventToPlace(ev: Event, placeId: PlaceId, ctx: PlaceContext): void {
   ev.placeId = placeId;
-  const proj = buildPlacForGedcom(ev, eventYear(ev), ctx);
+  const proj = buildPlacForGedcom(ev, eventSpanne(ev), ctx);
   if (proj != null) ev.place = proj;
 }
 
