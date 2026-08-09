@@ -142,6 +142,41 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
   const classHeights = new Map<string, number>();
   /** Zählt jede geänderte Gruppen-Position; `slice` hängt daran. */
   let geometrie = $state(0);
+
+  // --- DER KASKADEN-RIEGEL ----------------------------------------------------------------
+  // Eine Messung läuft in einer Svelte-ACTION, also INNERHALB des Render-Takts. Schreibt sie
+  // direkt in den reaktiven Zähler, rendert Svelte im selben Takt erneut, misst erneut,
+  // schreibt erneut — eine Kette, die Svelte nach ~100 Runden mit
+  // `effect_update_depth_exceeded` abbricht. Zweimal real passiert (Listen mit ungleich hohen
+  // Zeilen, danach das Kachelraster).
+  //
+  // Monotonie allein schützt NICHT davor. Sie verhindert die Oszillation (A→B→A), nicht die
+  // KASKADE (A→B→C→…, jeder Schritt korrekt und endgültig, aber die Kette ist lang). Bis
+  // hierher hing der Schutz allein daran, dass die Schätzung nahe an der Wahrheit liegt — eine
+  // Näherung, kein Riegel.
+  //
+  // Der Riegel: Messungen landen sofort in den Maps (nicht reaktiv), aber der ZÄHLER wird
+  // höchstens EINMAL JE FRAME erhöht. Damit ist die Zahl der reaktiven Runden je Render-Takt
+  // strukturell auf eins begrenzt — eine lange Korrektur-Folge kostet Frames, nicht Tiefe,
+  // und kann den Effektbaum nicht mehr sprengen. Terminierung bleibt wie zuvor: je Zeile eine
+  // Höhe, je Klasse ein Höchstwert, beides endlich.
+  let ungemeldet = false;
+  let meldungGeplant = false;
+  function messungMelden() {
+    ungemeldet = true;
+    if (meldungGeplant) return;
+    meldungGeplant = true;
+    const melden = () => {
+      meldungGeplant = false;
+      if (!ungemeldet) return;
+      ungemeldet = false;
+      messungen++;
+    };
+    // `requestAnimationFrame`, wo es ihn gibt (Browser) — sonst ein Makrotask (Node im Test).
+    // Beides erfüllt den Zweck: den laufenden Render-Takt beenden, bevor neu gerechnet wird.
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(melden);
+    else setTimeout(melden, 0);
+  }
   // Gemessene Höhe je Zeile, ein `Float64Array` je Gruppe (0 = noch nie gerendert) — die
   // WAHRHEIT. Bewusst kein `$state`: ein Proxy über 20.000 Zahlen wäre teuer und brächte
   // nichts, weil ohnehin die ganze Präfixsumme neu gebaut wird. Die Reaktivität trägt
@@ -198,14 +233,14 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         const feld = `${key}::${zeile.klasse}`;
         if (h > (classHeights.get(feld) ?? 0)) {
           classHeights.set(feld, h);
-          messungen++;
+          messungMelden();
         }
         // (b) Wahrheit für diese eine Zeile. Bei gegebener Breite konstant, die Folge endet
         // also nach dem ersten Schreiben; ein Breitenwechsel schreibt einmal neu.
         const arr = rowHeights.get(key);
         if (arr && zeile.index >= 0 && zeile.index < arr.length && arr[zeile.index] !== h) {
           arr[zeile.index] = h;
-          messungen++;
+          messungMelden();
         }
       };
 

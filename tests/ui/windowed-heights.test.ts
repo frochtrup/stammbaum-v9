@@ -175,3 +175,42 @@ describe('Scroll-Position überlebt den Abbau der Fläche (Spec 21 §5, BL-311)'
     expect(node.scrollTop).toBe(0);
   });
 });
+
+describe('Kaskaden-Riegel: höchstens EINE reaktive Runde je Frame (ADR-v9-238)', () => {
+  it('50 Messungen in einem Takt planen zusammen EINE Neuberechnung', () => {
+    // Geprüft wird der Mechanismus des Riegels: die Meldung an den reaktiven Zähler wird
+    // gebündelt und genau einmal eingeplant. Ohne ihn schriebe jede Messung sofort in den
+    // Zähler — Svelte rendert dann im selben Takt erneut, misst erneut, und die Kette bricht
+    // nach ~100 Runden ab (`effect_update_depth_exceeded`, zweimal real passiert).
+    // Dass daraus im Browser auch tatsächlich ein Takt statt einer Kette wird, kann eine
+    // Testumgebung ohne Layout nicht zeigen — das belegt der Browser-Lauf (32 TST-24).
+    const w = createWindowed();
+    const sec = w.section('g');
+    sec.offsets(200, () => 'zeile');
+
+    const geplant: unknown[] = [];
+    const echterTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = ((fn: () => void, ms?: number) => {
+      geplant.push(fn);
+      return echterTimeout(fn, ms);
+    }) as typeof globalThis.setTimeout;
+    try {
+      for (let i = 0; i < 50; i++) sec.probe(zeile(40 + i), { klasse: 'zeile', index: i });
+    } finally {
+      globalThis.setTimeout = echterTimeout;
+    }
+
+    expect(geplant.length, '50 Messungen, eine eingeplante Meldung').toBe(1);
+  });
+
+  it('die Messwerte stehen trotzdem sofort — nur die Neuberechnung wartet', () => {
+    const w = createWindowed();
+    const sec = w.section('g');
+    sec.offsets(10, () => 'zeile');
+    sec.probe(zeile(51.1), { klasse: 'zeile', index: 0 });
+    // Der Riegel verzögert die REAKTION, nicht die Messung: wer direkt fragt, bekommt den
+    // frischen Wert. Sonst wäre aus einem Riegel ein Datenverlust geworden.
+    expect(sec.height('zeile')).toBe(51.1);
+    expect(sec.offsets(10, () => 'zeile')[1]).toBeCloseTo(51.1, 6);
+  });
+});
