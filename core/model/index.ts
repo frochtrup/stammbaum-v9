@@ -63,7 +63,7 @@ export {
   type OrphanRef,
   type ConsistencyIssue,
 } from './integrity';
-export { saveFamily, deleteFamily } from './commands';
+export { saveFamily, deleteFamily, saveChildLink } from './commands';
 export {
   saveSource,
   deleteSource,

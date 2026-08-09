@@ -526,7 +526,11 @@ function parsePerson(rec: GedNode): Person {
           motherRel: childValue(c, '_MREL'),
           fatherRelSeen: child(c, '_FREL') != null,
           motherRelSeen: child(c, '_MREL') != null,
-          citations: [],
+          // Die Belege der KINDSCHAFT selbst (SOUR unter FAMC) — dieselbe Zitatstruktur
+          // wie unter NAME/ASSO/Ereignis, nur mit der Abstammung als Gegenstand. Sie
+          // standen bis BL-328 in `MODELLIERTE_KINDER` NICHT und reisten als Passthrough
+          // durch die Datei: erhalten, aber im Modell unsichtbar (ADR-v9-244).
+          citations: children(c, 'SOUR').map(parseCitation),
         });
         break;
       }

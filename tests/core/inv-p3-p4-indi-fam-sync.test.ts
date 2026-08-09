@@ -19,6 +19,8 @@ import {
   removeChildFromFamily,
   removeParentFromFamily,
   checkIndiFamConsistency,
+  saveChildLink,
+  makeCitation,
 } from '../../core/model/index';
 import { editDatabase, type DatabaseDraft } from '../../core/model/draft';
 import type { Database } from '../../core/model/types';
@@ -140,5 +142,47 @@ describe('INV-P4: Kind-Beziehungstyp ausschließlich INDI-seitig', () => {
     const next = edit(once, (d) => addChildToFamily(d, fam.id, child.id)); // ohne pedigree
     const link = personOf(next, child.id).childOf.find((c) => c.familyId === fam.id);
     expect(link?.pedigree).toBe('foster');
+  });
+});
+
+// `saveChildLink` (BL-329) ist das erste Kommando, das einen ChildLink BESCHREIBT statt
+// ihn zu verknüpfen. Geprüft wird genau diese Grenze: es ändert den Link — und die
+// Beziehungsstruktur nicht (die bleibt, wo sie ist: bei `saveFamily`, INV-P3).
+describe('saveChildLink: beschreibt den ChildLink, ohne die Beziehung anzufassen', () => {
+  const mitKind = () => {
+    const { db, child, fam } = seed();
+    return { db: edit(db, (d) => addChildToFamily(d, fam.id, child.id)), child, fam };
+  };
+
+  it('setzt Kind-Verhältnis und Belege am bestehenden Link', () => {
+    const { db, child } = mitKind();
+    const link = personOf(db, child.id).childOf[0];
+    const next = saveChildLink(db, child.id, {
+      ...link,
+      pedigree: 'adopted',
+      citations: [makeCitation('@S1@')],
+    });
+    const neu = personOf(next, child.id).childOf[0];
+    expect(neu.pedigree).toBe('adopted');
+    expect(neu.citations.map((c) => c.sourceId)).toEqual(['@S1@']);
+    // INV-P3 unberührt: beide Seiten stehen unverändert.
+    expect(famOf(next).children).toEqual([child.id]);
+    expect(checkIndiFamConsistency(next)).toEqual([]);
+  });
+
+  it('hängt die Beziehung NICHT um: eine fremde familyId bleibt wirkungslos', () => {
+    const { db, child } = mitKind();
+    const link = personOf(db, child.id).childOf[0];
+    const next = saveChildLink(db, child.id, { ...link, familyId: '@F9@', pedigree: 'foster' });
+    expect(personOf(next, child.id).childOf.map((l) => l.familyId)).toEqual(['@F1@']);
+    expect(personOf(next, child.id).childOf[0].pedigree).toBe('');
+  });
+
+  it('ohne Person oder ohne Link passiert nichts', () => {
+    const { db, child, fam } = mitKind();
+    const link = personOf(db, child.id).childOf[0];
+    expect(personOf(saveChildLink(db, '@IX@', link), child.id).childOf[0].pedigree).toBe('');
+    const ohneLink = edit(db, (d) => removeChildFromFamily(d, fam.id, child.id));
+    expect(personOf(saveChildLink(ohneLink, child.id, link), child.id).childOf).toEqual([]);
   });
 });

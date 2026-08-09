@@ -17,8 +17,10 @@ import { parseXml, serializeXml, attr, firstChild, childrenByTag } from './xml-t
 import type { XmlDocument, XmlNode } from './xml-tree';
 import { applyDatabaseToXml } from './gramps-write-back';
 import { buildEnrichContext, enrichPerson, enrichFamily } from './gramps-enrich';
+import type { EnrichContext } from './gramps-enrich';
 import { collectGrampsMedia, grampsMediaRefs } from './gramps-media';
-import { grampsMediumToMedi } from './enum-maps';
+import { collectCitations } from './gramps-citations';
+import { grampsMediumToMedi, childrefRelToPedi } from './enum-maps';
 import { projectPlaces } from './gramps-places';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
@@ -126,6 +128,33 @@ export function projectFamily(family: XmlNode, index: GrampsRefIndex): Family {
   return f;
 }
 
+/**
+ * Die INDI-Seite einer `<childref>`-Beziehung (BL-329): GRAMPS führt Kind-Verhältnis und
+ * Kindschafts-Belege AM `<childref>` der Familie, das Modell führt beides INDI-seitig am
+ * `ChildLink` ([10 §3] — „beim Lesen einer FAM-seitigen Beziehung wird sie in die INDI-Seite
+ * gemergt"). Ohne diese Projektion blieb `Person.childOf` auf dem GRAMPS-Weg LEER (gemessen
+ * an `Unsere Familie.gramps`: 2013 `<childref>`, 0 `childOf`) — die Herkunftsfamilie war im
+ * Personen-Steckbrief unsichtbar und ein Kindschafts-Edit hatte nichts, woran er hängt.
+ *
+ * `frel`/`mrel` sind die GRAMPS-Form von `_FREL`/`_MREL`; sind beide gleich, ist das die
+ * Aussage, die GEDCOM als `PEDI` schreibt (Umkehrung von `pediToChildrefRel`). Sind sie
+ * verschieden, bleibt `pedigree` leer und die beiden Rohwerte tragen die Aussage — dieselbe
+ * Regel wie auf der GEDCOM-Seite ([10 §2]).
+ */
+export function projectChildLink(childref: XmlNode, familyId: string, ctx: EnrichContext): Person['childOf'][number] {
+  const frel = attr(childref, 'frel');
+  const mrel = attr(childref, 'mrel');
+  return {
+    familyId,
+    pedigree: frel === mrel ? childrefRelToPedi(frel) : '',
+    fatherRel: frel,
+    motherRel: mrel,
+    fatherRelSeen: frel !== '',
+    motherRelSeen: mrel !== '',
+    citations: collectCitations(childref, ctx.citationOf, ctx.resolveSourceId, ctx.handleToId),
+  };
+}
+
 export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   const s = makeSource(grampsKey(source));
   s.title = firstChild(source, 'stitle')?.text ?? '';
@@ -212,6 +241,14 @@ export function parseXMLText(xml: string): GrampsParsed {
       const f = projectFamily(family, index);
       enrichFamily(f, family, enrich);
       db.families.set(f.id, f);
+      // INDI-Seite der Kindschaft nachziehen (BL-329). Die Personen sind oben bereits
+      // gelesen, der Link hängt also an einem vorhandenen Objekt; ein `<childref>` auf
+      // eine unbekannte Person wird ÜBERSPRUNGEN (kein erfundener Datensatz — dieselbe
+      // Regel wie bei hängenden Zitat-Handles).
+      for (const cr of childrenByTag(family, 'childref')) {
+        const kind = db.individuals.get(resolveRef(attr(cr, 'hlink'), index));
+        if (kind) kind.childOf.push(projectChildLink(cr, f.id, enrich));
+      }
     }
   }
 

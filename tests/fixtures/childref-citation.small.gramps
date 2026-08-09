@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE database PUBLIC "-//Gramps//DTD Gramps XML 1.7.2//EN"
+"http://gramps-project.org/xml/1.7.2/grampsxml.dtd">
+<database xmlns="http://gramps-project.org/xml/1.7.2/">
+  <header>
+    <created date="2026-08-09" version="6.0.6"/>
+    <researcher>
+      <resname>Franz Decker</resname>
+    </researcher>
+  </header>
+  <people>
+    <person handle="_p1" change="1" id="I0001">
+      <gender>M</gender>
+      <name type="Birth Name">
+        <first>Hinrich</first>
+        <surname>Ohle</surname>
+      </name>
+    </person>
+    <person handle="_p2" change="1" id="I0002">
+      <gender>F</gender>
+      <name type="Birth Name">
+        <first>Gesche</first>
+        <surname>Ohle</surname>
+      </name>
+    </person>
+  </people>
+  <families>
+    <family handle="_f1" change="1" id="F0001">
+      <rel type="Married"/>
+      <mother hlink="_p2"/>
+      <childref hlink="_p1" frel="Birth" mrel="Birth">
+        <citationref hlink="_c1"/>
+      </childref>
+    </family>
+  </families>
+  <citations>
+    <citation handle="_c1" change="1" id="C0001">
+      <page>Bl. 11</page>
+      <confidence>2</confidence>
+      <sourceref hlink="_s1"/>
+    </citation>
+  </citations>
+  <sources>
+    <source handle="_s1" change="1" id="S0001">
+      <stitle>Kirchenbuch Ochtrup</stitle>
+    </source>
+  </sources>
+</database>

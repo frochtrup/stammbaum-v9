@@ -358,6 +358,10 @@ export function emitPerson(p: Person, media?: MediaLookup): GedNode {
     if (link.pedigree) fkids.push(N('PEDI', link.pedigree));
     if (link.fatherRelSeen) fkids.push(N('_FREL', link.fatherRel));
     if (link.motherRelSeen) fkids.push(N('_MREL', link.motherRel));
+    // Kindschafts-Belege NACH den Verhältnis-Tags — die Stellung, die der Bestand
+    // führt (`Testdateien/Unsere Familie 2026.ged`: 812× `PEDI` dann `SOUR`), damit ein
+    // unberührter Record byte-gleich bleibt (BL-328).
+    for (const c of link.citations) fkids.push(citationNode(c, media));
     kids.push(N('FAMC', link.familyId, fkids));
   }
   for (const fid of p.parentIn) kids.push(N('FAMS', fid));

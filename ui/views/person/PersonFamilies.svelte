@@ -8,14 +8,25 @@
   // in PersonDetailModel bereits berechnet (yearPlaceSummary). INV-UI-12: die Navigation
   // zur Familien-Detailseite hängt am Rollen-Label selbst, nicht an einem Extra-Link.
   import { tooltip } from '../../shell/tooltip';
+  import SourceBadge from '../../shell/SourceBadge.svelte';
+  import type { Source } from '../../../core/model/types';
   import type { FamilyNavRow } from './person-detail-model';
 
   interface Props {
     families: FamilyNavRow[];
     onGoToPerson: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
+    /** Quellen-Auflösung für die Kindschafts-Pillen (BL-329) — nur lesend; ohne sie zeigt
+     *  die Pille den nackten Quellen-Schlüssel, wie überall sonst bei fehlender Quelle. */
+    sourceOf?: (sourceId: string) => Source | undefined;
+    /** Quellen-Detailseite öffnen (optional — Kontexte/Tests ohne Quellen-Tab). */
+    onNavigateToSource?: (sourceId: string) => void;
+    /** „Kindschaft bearbeiten" (BL-329) — öffnet den geteilten `ChildLinkEditModal` beim
+     *  Aufrufer. Nur an Herkunftsfamilien-Zeilen sichtbar; ohne Callback bleibt die Zeile
+     *  reine Anzeige (INV-UI-2: kein zweiter Bedienweg daneben). */
+    onEditChildLink?: (familyId: string) => void;
   }
-  const { families, onGoToPerson, onNavigateToFamily }: Props = $props();
+  const { families, onGoToPerson, onNavigateToFamily, sourceOf, onNavigateToSource, onEditChildLink }: Props = $props();
 </script>
 
 <ul class="person-families">
@@ -54,6 +65,25 @@
             </button>{#if i < fam.children.length - 1}<span class="person-families__sep">,</span>{/if}
           {/each}
         </span>
+      {/if}
+      <!-- Belege der eigenen Abstammung (BL-329) + Einstieg in den geteilten Kindschafts-
+           Editor. Nur an der Herkunftsfamilie: an der eigenen Familie gibt es keine
+           Kindschaft dieser Person. -->
+      {#if fam.role === 'childOf'}
+        {#each fam.childCitations as cit, i (i)}
+          <SourceBadge citation={cit} source={sourceOf?.(cit.sourceId)} onSelect={onNavigateToSource} />
+        {/each}
+        {#if onEditChildLink}
+          <button
+            type="button"
+            class="stb-icon-btn"
+            onclick={() => onEditChildLink(fam.familyId)}
+            aria-label="Kindschaft bearbeiten"
+            use:tooltip={'Kind-Verhältnis und Quellen der Kindschaft'}
+          >
+            ✎
+          </button>
+        {/if}
       {/if}
     </li>
   {/each}

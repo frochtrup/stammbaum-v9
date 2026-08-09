@@ -6,6 +6,7 @@
 // reaktive Referenz. Ein Kommando (hier: Import) → Chokepoints neu lesen → Views
 // aktualisieren sich automatisch (ein Pfad, kein zweiter Render-Trigger nötig).
 import type {
+  ChildLink,
   Database,
   Event,
   PlaceId,
@@ -28,6 +29,7 @@ import {
   savePerson as savePersonCmd,
   deletePersonCascade as deletePersonCmd,
   saveFamily as saveFamilyCmd,
+  saveChildLink as saveChildLinkCmd,
   deleteFamilyCascade as deleteFamilyCmd,
   saveSource as saveSourceCmd,
   deleteSourceCascade as deleteSourceCmd,
@@ -238,6 +240,12 @@ export interface AppState extends PlacesHost {
    * Reaktivität an beiden betroffenen Aggregaten greift (analog addTask/updateTask unten).
    */
   saveFamily(model: Family): void;
+  /**
+   * Kommando: ersetzt EINEN `ChildLink` einer Person (Kind-Verhältnis + Kindschafts-Belege,
+   * BL-329). Die Verknüpfung selbst entsteht über `saveFamily`; dieses Kommando beschreibt
+   * sie nur — es hängt keine Beziehung um (INV-P3 bleibt unberührt).
+   */
+  saveChildLink(personId: PersonId, link: ChildLink): void;
   /**
    * Kommando: entfernt eine Familie referenz-auflösend (`deleteFamilyCascade`) — die
    * Person-Seite (parentIn/childOf) aller Beteiligten wird gelöst, die Personen selbst
@@ -984,6 +992,9 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // (Spec 10 INV-P3) und liefert deshalb ein vollständiges neues Database zurück —
       // beide betroffenen Maps (individuals + families) kommen fertig daraus.
       commit(saveFamilyCmd(db, roh(model)), { workingCopy: true });
+    },
+    saveChildLink(personId, link) {
+      commit(saveChildLinkCmd(db, personId, roh(link)), { workingCopy: true });
     },
     deleteFamily(id) {
       commit(deleteFamilyCmd(db, id), { workingCopy: true });

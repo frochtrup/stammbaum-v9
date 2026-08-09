@@ -22,6 +22,10 @@ export interface FamilyMemberRow {
    *  ABWEICHENDEN Verhältnis gesetzt (adoptiert/Pflege/gesiegelt); leer bei leiblich/leer
    *  und für Eltern (`pedigreeLabel`, INV-UI-4 mit dem Personen-Detail-Eltern-Suffix). */
   pedigree: string;
+  /** Die BELEGE DER KINDSCHAFT (`ChildLink.citations`, BL-329) — nur bei `role === 'child'`.
+   *  Getrennt von den Familien-Zitaten (`FamilyDetailModel.citations`, die die Ehe belegen):
+   *  diese hier belegen, dass DIESE Person Kind DIESER Eltern ist. */
+  childCitations: Citation[];
 }
 
 export interface FamilyEventRow {
@@ -77,12 +81,17 @@ function memberRow(
   if (!id) return null;
   const p = db.individuals.get(id);
   if (!p) return null;
-  // Kind-Verhältnis aus DIESER Familie (INV-P4: Beziehungstyp lebt INDI-seitig, ChildLink).
-  const pedigree =
-    role === 'child' && familyId
-      ? pedigreeLabel(p.childOf.find((cl) => cl.familyId === familyId)?.pedigree ?? '')
-      : '';
-  return { personId: id, name: displayName(p), role, summary: yearPlaceSummary(p.birth, ctx), pedigree };
+  // Kind-Verhältnis UND Kindschafts-Belege aus DIESER Familie (INV-P4: beides lebt
+  // INDI-seitig am ChildLink, nicht an der Familie).
+  const link = role === 'child' && familyId ? p.childOf.find((cl) => cl.familyId === familyId) : undefined;
+  return {
+    personId: id,
+    name: displayName(p),
+    role,
+    summary: yearPlaceSummary(p.birth, ctx),
+    pedigree: pedigreeLabel(link?.pedigree ?? ''),
+    childCitations: link?.citations ?? [],
+  };
 }
 
 /** `tag` ist der reale GEDCOM-Tag — Label-Fallback via `eventTypeLabel` (`ui/shell/

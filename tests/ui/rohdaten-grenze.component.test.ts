@@ -124,6 +124,19 @@ const UPSERTS: { name: string; ausfuehren: (a: AppState) => void; ergebnis: (a: 
     ergebnis: (a) => a.db.families.get('@F1@'),
   },
   {
+    // BL-329: der Link muss BESTEHEN, bevor er beschrieben werden kann (das Kommando
+    // verknüpft nicht, es beschreibt) — deshalb erst Person + Familie mit dem Kind, dann
+    // der Link mit einem reaktiv gemachten Zitat darin.
+    name: 'saveChildLink',
+    ausfuehren: (a) => {
+      a.savePerson(makePerson('@I1@', { given: 'Julius' }));
+      a.saveFamily(makeFamily('@F1@', { children: ['@I1@'] }));
+      const link = a.db.individuals.get('@I1@')!.childOf[0];
+      a.saveChildLink('@I1@', reaktiv({ ...link, pedigree: 'adopted', citations: [makeCitation('@S1@')] }));
+    },
+    ergebnis: (a) => a.db.individuals.get('@I1@'),
+  },
+  {
     name: 'saveSource',
     ausfuehren: (a) => a.saveSource(reaktiv(makeSource('@S1@', { title: 'Kirchenbuch' }))),
     ergebnis: (a) => a.db.sources.get('@S1@'),

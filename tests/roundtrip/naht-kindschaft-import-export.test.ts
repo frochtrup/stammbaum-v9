@@ -1,5 +1,7 @@
 // tests/roundtrip/naht-kindschaft-import-export.test.ts — die Naht „Datei → Kommando →
-// Datei" für den Kind-Beziehungstyp (INV-P4, Spec 10; BL-293).
+// Datei" für den Kind-Beziehungstyp (INV-P4, Spec 10; BL-293) UND für die BELEGE der
+// Kindschaft (`ChildLink.citations`, BL-328/329, ADR-v9-244) — dieselbe Naht, dieselbe
+// Fixture: beide Aussagen hängen am selben `1 FAMC`-Knoten.
 //
 // WARUM DIESE DATEI. INV-P4 („der Kind-Beziehungstyp wird ausschließlich INDI-seitig
 // geführt") war bis hierher von GENAU EINER Testdatei verteidigt — gemessen mit
@@ -18,7 +20,8 @@
 // EINGECHECKTE FIXTURE, KEIN REALBESTAND (TST-23): die Zusicherung muss in CI gelten.
 import { describe, it, expect } from 'vitest';
 import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/interop';
-import { addChildToFamily } from '../../core/model/index';
+import { addChildToFamily, saveChildLink } from '../../core/model/index';
+import { makeCitation } from '../../core/model/factory';
 import { editDatabase } from '../../core/model/draft';
 import type { Database } from '../../core/model/types';
 
@@ -37,16 +40,25 @@ const SRC = [
   '0 @F1@ FAM',
   '1 WIFE @I2@',
   '1 CHIL @I1@',
+  '0 @S1@ SOUR',
+  '1 TITL Kirchenbuch Ochtrup',
   '0 TRLR',
   '',
 ].join('\n');
+
+/** Dieselbe Fixture MIT einem Kindschafts-Beleg in der Quelle (die Form des Realbestands:
+ *  `PEDI` dann `SOUR`, mit `PAGE`/`QUAY` darunter). */
+const SRC_MIT_BELEG = SRC.replace(
+  '1 FAMC @F1@\n',
+  '1 FAMC @F1@\n2 PEDI birth\n2 SOUR @S1@\n3 PAGE 11\n3 QUAY 3\n',
+);
 
 const speichern = (db: Database, roots: Parameters<typeof applyDatabaseToRoots>[1]): string =>
   serializeGedcom({ db, roots: applyDatabaseToRoots(db, roots) });
 
 /** Ein Durchgang der Naht: laden → Kommando → speichern → neu laden. */
-function durchNaht(kommando: (db: Database) => Database) {
-  const erst = parseGedcom(SRC);
+function durchNaht(kommando: (db: Database) => Database, quelle = SRC) {
+  const erst = parseGedcom(quelle);
   const nach = kommando(erst.db);
   const datei = speichern(nach, erst.roots);
   const zweit = parseGedcom(datei);
@@ -93,5 +105,58 @@ describe('Naht Datei → Kommando → Datei: der Kind-Beziehungstyp (INV-P4)', (
     );
 
     expect(record(datei, '0 @I1@ INDI').some((l) => /PEDI/.test(l))).toBe(false);
+  });
+});
+
+describe('Naht Datei → Kommando → Datei: die Belege der Kindschaft (BL-328/329)', () => {
+  it('ein Beleg aus der Quelle steht im Modell und kommt unverändert zurück', () => {
+    const { erst, datei } = durchNaht((db) => db, SRC_MIT_BELEG);
+
+    // (1) Er ist gelesen — vor BL-328 stand hier hart `citations: []`, und der Wert reiste
+    //     nur als un-modellierter Passthrough durch die Datei.
+    const link = erst.db.individuals.get('@I1@')!.childOf.find((l) => l.familyId === '@F1@')!;
+    expect(link.citations).toHaveLength(1);
+    expect(link.citations[0].sourceId).toBe('@S1@');
+    expect(link.citations[0].page).toBe('11');
+    expect(link.citations[0].quay).toBe(3);
+
+    // (2) Und er kommt Zeile für Zeile so zurück, wie er kam (LP-1).
+    const indi = record(datei, '0 @I1@ INDI');
+    const famc = indi.indexOf('1 FAMC @F1@');
+    expect(indi.slice(famc + 1, famc + 5)).toEqual(['2 PEDI birth', '2 SOUR @S1@', '3 PAGE 11', '3 QUAY 3']);
+  });
+
+  it('saveChildLink schreibt einen NEUEN Beleg INDI-seitig — und nur dort', () => {
+    const { datei, zweit } = durchNaht((db) => {
+      const link = db.individuals.get('@I1@')!.childOf[0];
+      const cit = makeCitation('@S1@');
+      cit.page = 'Bl. 7';
+      cit.quay = 2;
+      return saveChildLink(db, '@I1@', { ...link, citations: [cit] });
+    });
+
+    const indi = record(datei, '0 @I1@ INDI');
+    const famc = indi.indexOf('1 FAMC @F1@');
+    expect(indi.slice(famc + 1, famc + 4)).toEqual(['2 SOUR @S1@', '3 PAGE Bl. 7', '3 QUAY 2']);
+    // Die Familie bleibt unberührt: der Beleg gehört der Kindschaft, nicht der Ehe (INV-P4).
+    expect(record(datei, '0 @F1@ FAM').some((l) => /SOUR/.test(l))).toBe(false);
+
+    const link = zweit.db.individuals.get('@I1@')!.childOf[0];
+    expect(link.citations.map((c) => [c.sourceId, c.page, c.quay])).toEqual([['@S1@', 'Bl. 7', 2]]);
+  });
+
+  it('ein ENTFERNTER Beleg kommt nicht als Passthrough zurück', () => {
+    // Der eigentliche Grund für den Eintrag `FAMC: [… 'SOUR']` in `MODELLIERTE_KINDER`
+    // (write-back.ts): ohne ihn gälte die gelöschte `2 SOUR`-Zeile als un-modelliert und
+    // würde beim Neubau des Records gerettet — die Löschung wäre wirkungslos.
+    const { datei } = durchNaht((db) => {
+      const link = db.individuals.get('@I1@')!.childOf[0];
+      return saveChildLink(db, '@I1@', { ...link, citations: [] });
+    }, SRC_MIT_BELEG);
+
+    const indi = record(datei, '0 @I1@ INDI');
+    expect(indi).toContain('1 FAMC @F1@');
+    expect(indi).toContain('2 PEDI birth'); // das Verhältnis bleibt, nur der Beleg ging
+    expect(indi.some((l) => /SOUR|PAGE|QUAY/.test(l))).toBe(false);
   });
 });

@@ -284,7 +284,7 @@ const EREIGNIS_KINDER = ['TYPE', 'DATE', 'PLAC', 'ADDR', 'NOTE', 'SOUR', 'OBJE',
 const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
   // Person/Familie
   NAME: ['GIVN', 'SURN', 'NPFX', 'NSFX', 'NICK', 'TYPE', 'SOUR'],
-  FAMC: ['PEDI', '_FREL', '_MREL'],
+  FAMC: ['PEDI', '_FREL', '_MREL', 'SOUR'],
   ASSO: ['RELA', 'NOTE', 'SOUR'],
   REFN: ['TYPE'],
   CHAN: ['DATE'],
@@ -803,7 +803,11 @@ function childOfEqual(a: Person['childOf'], b: Person['childOf']): boolean {
     if (
       x.familyId !== y.familyId || x.pedigree !== y.pedigree ||
       x.fatherRel !== y.fatherRel || x.motherRel !== y.motherRel ||
-      x.fatherRelSeen !== y.fatherRelSeen || x.motherRelSeen !== y.motherRelSeen
+      x.fatherRelSeen !== y.fatherRelSeen || x.motherRelSeen !== y.motherRelSeen ||
+      // Seit BL-328 modelliert: ohne diesen Vergleich bliebe ein Zitat-Edit an der
+      // Kindschaft „sauber", der Record käme unverändert aus dem Passthrough zurück
+      // und die Bearbeitung wäre still verloren (dieselbe Zeile wie in `associationsEqual`).
+      !citationsEqual(x.citations, y.citations)
     ) return false;
   }
   return true;
