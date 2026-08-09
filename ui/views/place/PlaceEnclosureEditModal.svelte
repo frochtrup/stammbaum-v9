@@ -33,8 +33,10 @@
     placeDisplayName,
     grenzeAusEingabe,
     grenzeText,
+    OFFENE_GRENZE,
     type Grenze,
   } from '../../../core/places';
+  import { grenzeAusFeld } from '../../shell/grenz-feld';
   import PlaceForm from './PlaceForm.svelte';
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import { portal } from '../../shell/portal';
@@ -95,6 +97,8 @@
   // verbietet [ADR-v9-243]: das Jahr MUSS aus dem Tag ableitbar sein und dazu passen.
   let newEnclosedFrom = $state('');
   let newEnclosedTo = $state('');
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addEnclosedBy). */
+  let grenzFehler = $state('');
 
   /** Inline-Neuanlage eines übergeordneten Ortes (ADR-v9-42 Punkt 4). */
   let creatingEnclosedParent = $state(false);
@@ -114,12 +118,17 @@
 
   function addEnclosedBy() {
     if (!place || !newEnclosedParent) return;
-    const next = withAddedEnclosedBy(
-      place,
-      newEnclosedParent,
-      grenzeAusEingabe(newEnclosedFrom),
-      grenzeAusEingabe(newEnclosedTo),
-    );
+    const von = grenzeAusEingabe(newEnclosedFrom);
+    const bis = grenzeAusEingabe(newEnclosedTo);
+    // Kein stiller Abbruch (Spec 21 §5): ein unlesbares Datum legt die Zuordnung NICHT
+    // undatiert an, sondern sagt es. Sonst wäre der Knopf tot — derselbe Fehler wie beim
+    // Speichern-Knopf in ADR-v9-241, nur eine Fläche weiter.
+    if (!von.ok || !bis.ok) {
+      grenzFehler = 'Datum nicht lesbar — Jahr („1810") oder Stichtag („1 OCT 1810").';
+      return;
+    }
+    grenzFehler = '';
+    const next = withAddedEnclosedBy(place, newEnclosedParent, von.grenze, bis.grenze);
     appState.savePlace(next);
     newEnclosedParent = '';
     newEnclosedFrom = '';
@@ -140,6 +149,14 @@
     if (!enc) return;
     appState.savePlace(withUpdatedEnclosedBy(place, index, enc.placeId, from, to));
   }
+
+  /** Die GEGENGRENZE beim Ändern einer Zeile: sie steht bereits gespeichert im Modell,
+   *  ihr Rücklesen kann also nicht fehlschlagen. `OFFENE_GRENZE` ist der korrekte
+   *  Rückfall für eine leere Gegenseite und keine Notlösung. */
+  const grenzeAusEingabeSicher = (text: string): Grenze => {
+    const l = grenzeAusEingabe(text);
+    return l.ok ? l.grenze : OFFENE_GRENZE;
+  };
 
   /** Der aktuelle Feldinhalt einer Grenze: der Stichtag, wenn es einen gibt, sonst das Jahr. */
   const grenzeVon = (e: { from: number | null; fromDate?: string | null }): string =>
@@ -214,12 +231,10 @@
               value={grenzeVon(enc)}
               placeholder="von"
               aria-label={`${placeTitleFor(enc.placeId)} — gültig von (Jahr oder Stichtag)`}
-              onchange={(e) =>
-                updateEnclosedBySpan(
-                  originalIndex,
-                  grenzeAusEingabe(e.currentTarget.value),
-                  grenzeAusEingabe(grenzeBis(enc)),
-                )}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, grenzeVon(enc));
+                if (g) updateEnclosedBySpan(originalIndex, g, grenzeAusEingabeSicher(grenzeBis(enc)));
+              }}
             />
             <input
               type="text" {...PLAIN_FIELD}
@@ -227,12 +242,10 @@
               value={grenzeBis(enc)}
               placeholder="bis"
               aria-label={`${placeTitleFor(enc.placeId)} — gültig bis (Jahr oder Stichtag)`}
-              onchange={(e) =>
-                updateEnclosedBySpan(
-                  originalIndex,
-                  grenzeAusEingabe(grenzeVon(enc)),
-                  grenzeAusEingabe(e.currentTarget.value),
-                )}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, grenzeBis(enc));
+                if (g) updateEnclosedBySpan(originalIndex, grenzeAusEingabeSicher(grenzeVon(enc)), g);
+              }}
             />
             <button type="button" class="place-enclosure-modal__remove-btn" onclick={() => removeEnclosedBy(originalIndex)} aria-label="Zugehörigkeit entfernen">✕</button>
           </li>
@@ -272,6 +285,9 @@
             bind:value={newEnclosedTo}
             aria-label="Gültig bis (Jahr oder Stichtag)"
           />
+        {#if grenzFehler}
+          <p class="place-enclosure-modal__muted" role="alert">{grenzFehler}</p>
+        {/if}
           <button type="button" onclick={addEnclosedBy}>+ Hinzufügen</button>
         {/if}
       </div>

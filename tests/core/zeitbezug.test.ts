@@ -11,6 +11,7 @@ import type { PlaceObject } from '../../core/places/types';
 import { place } from './places-fixtures';
 import {
   alsSpanne,
+  grenzeAusEingabe,
   istDatiert,
   jahresSpanne,
   spanneVonDatiert,
@@ -212,5 +213,55 @@ describe('PlaceRegistry — die Randberührung wird durch Tagesangaben entscheid
     expect(reg.resolveAsOf('@P1@', spanneVonEreignis('20 JUN 1945'))).toBe('Chocianów');
     // Jahrgenau: der Tie-Break gewinnt weiterhin (späterer Beginn).
     expect(reg.resolveAsOf('@P1@', spanneVonEreignis('1945'))).toBe('Chocianów');
+  });
+});
+
+// Nacharbeit zu BL-324 (Bewertung gegen die Spec, 2026-08-09). Die erste Fassung riet
+// selbst, statt den vorhandenen Datums-Mechanismus zu benutzen — gemessen am laufenden
+// System: „1. Oktober 1810" wurde still zu „1810" (der Nutzer sieht ein Datum, gespeichert
+// wird ein Jahr) und „xyz" leerte die Periode. Beides sind stille Verluste an einem Feld,
+// das die PLAC-Projektion speist.
+describe('grenzeAusEingabe — Ablehnen statt Raten (BL-324-Nachtrag)', () => {
+  const grenze = (roh: string) => {
+    const l = grenzeAusEingabe(roh);
+    return l.ok ? l.grenze : null;
+  };
+
+  it('liest die deutsche Schreibweise und kanonisiert sie', () => {
+    // Der Alltagsfall. `normalizeMonth` (dieselbe Funktion wie im Ereignis-Formular)
+    // kennt „Oktober"/„Okt" — die erste Fassung kannte sie nicht.
+    expect(grenze('1. Oktober 1810')).toEqual({ jahr: 1810, datum: '1 OCT 1810' });
+    expect(grenze('1 Okt 1810')).toEqual({ jahr: 1810, datum: '1 OCT 1810' });
+    expect(grenze('1.10.1810')).toEqual({ jahr: 1810, datum: '1 OCT 1810' });
+    expect(grenze('01.10.1810')).toEqual({ jahr: 1810, datum: '1 OCT 1810' });
+  });
+
+  it('nimmt die kanonische Form unverändert an', () => {
+    expect(grenze('1 OCT 1810')).toEqual({ jahr: 1810, datum: '1 OCT 1810' });
+  });
+
+  it('leer heißt offen — der reguläre Weg zu einer offenen Grenze (Spec 11 §1)', () => {
+    expect(grenze('')).toEqual({ jahr: null, datum: null });
+    expect(grenze('   ')).toEqual({ jahr: null, datum: null });
+  });
+
+  it('ein Jahr bleibt ein Jahr, auch mit Qualifier — ein Qualifier ist keine Tagesangabe', () => {
+    expect(grenze('1810')).toEqual({ jahr: 1810, datum: null });
+    expect(grenze('ABT 1810')).toEqual({ jahr: 1810, datum: null });
+  });
+
+  it('LEHNT Unlesbares AB, statt die Periode zu leeren', () => {
+    // Der eigentliche Fix: `ok: false` ist etwas anderes als „offen". Ein durchgereichtes
+    // `null` hätte gelöscht — deshalb ein Ergebnisobjekt, das der Compiler auspacken lässt.
+    expect(grenzeAusEingabe('xyz').ok).toBe(false);
+    expect(grenzeAusEingabe('Anfang des Jahrhunderts').ok).toBe(false);
+    // Gegenprobe, damit der Test nicht bloß „alles ist unlesbar" behauptet.
+    expect(grenzeAusEingabe('1810').ok).toBe(true);
+  });
+
+  it('ein unmöglicher Tag wird nicht zum Stichtag erhoben', () => {
+    const l = grenzeAusEingabe('32. Oktober 1810');
+    // Kein Tagesdatum — aber das Jahr ist erkennbar und bleibt erhalten.
+    expect(l.ok && l.grenze).toEqual({ jahr: 1810, datum: null });
   });
 });

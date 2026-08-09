@@ -37,7 +37,7 @@
 // ändert für sie nichts.
 import type { Year } from './types';
 import { placeYear } from './normalize';
-import { parseDateValue } from '../model/gedcom-date';
+import { formatDateValue, normalizeMonth, parseDateValue } from '../model/gedcom-date';
 
 const MONATE = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -168,15 +168,90 @@ export function alsGrenze(g: GrenzEingabe): Grenze {
 }
 
 /**
- * Liest EIN Eingabefeld: leer → offen, „1810" → nur Jahr, „1 OCT 1810" → Jahr + Tag.
- * Unlesbares wird zu „offen" statt zu einem stillen 0 — dieselbe Haltung wie beim
- * bisherigen `<input type="number">`, das ein geleertes Feld als `null` las.
+ * Das Ergebnis EINER Feld-Eingabe. Bewusst ein eigener Typ und nicht `Grenze | null`:
+ * `null` ist als `GrenzEingabe` gültig und bedeutet dort „offen" — ein Aufrufer, der die
+ * Prüfung vergisst und den Rückgabewert durchreicht, LÖSCHTE damit die Periode. Genau
+ * dieser Fehler ist beim Bau von BL-324 aufgetreten (Nutzer tippt Unsinn, Zuordnung ist
+ * still leer, Zeile springt in der Sortierung nach vorn, die nächste Korrektur trifft eine
+ * andere Zeile). Ein Ergebnisobjekt lässt sich nicht versehentlich weiterreichen: der
+ * Compiler verlangt das Auspacken.
  */
-export function grenzeAusEingabe(roh: string | null | undefined): Grenze {
+export type Lesung = { ok: true; grenze: Grenze } | { ok: false };
+
+/**
+ * Deutsch/locker getipptes Datum → kanonische GEDCOM-Teile. `null` = kein Tagesdatum
+ * (der Aufrufer fällt dann auf die Jahresstufe zurück, statt zu verwerfen).
+ *
+ * Der Tagesbereich wird geprüft: „32. Oktober 1810" wäre sonst als Stichtag `32 OCT 1810`
+ * durchgegangen (beim Bau am Test aufgefallen). Bewusst 1–31 und nicht monatsgenau —
+ * ein 31. Februar ist als OBERE/UNTERE Schranke einer Periode harmlos, ein 32. ist es
+ * nicht, weil er die Ordinal-Ordnung verlässt.
+ */
+function teileAusEingabe(t: string): { tag: number; monat: string; jahr: number } | null {
+  // „1. Oktober 1810", „1 Okt 1810", „1 OCT 1810" — Trennzeichen Punkt und/oder Leerraum.
+  const tagOk = (n: number): boolean => n >= 1 && n <= 31;
+  const wort = t.match(/^(\d{1,2})\s*\.?\s+([A-Za-zÄÖÜäöü.]+)\s+(\d{3,4})$/);
+  if (wort) {
+    const monat = normalizeMonth(wort[2].replace(/\.$/, ''));
+    const tag = Number(wort[1]);
+    if (monat && tagOk(tag)) return { tag, monat, jahr: Number(wort[3]) };
+    return null;
+  }
+  // „1.10.1810" / „01.10.1810" — die im deutschsprachigen Raum übliche Ziffernform.
+  const ziffern = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{3,4})$/);
+  if (ziffern) {
+    const monat = normalizeMonth(ziffern[2]);
+    const tag = Number(ziffern[1]);
+    if (monat && tagOk(tag)) return { tag, monat, jahr: Number(ziffern[3]) };
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Liest EIN Eingabefeld einer Perioden-Grenze.
+ *
+ *   ""                  → offen (der reguläre Weg zu einer offenen Grenze, Spec 11 §1)
+ *   "1810"              → nur Jahr
+ *   "1 OCT 1810"        → Jahr + Stichtag
+ *   "1. Oktober 1810"   → dasselbe, kanonisiert zu „1 OCT 1810"
+ *   "1.10.1810"         → dasselbe
+ *   "ABT 1810"          → nur Jahr (ein Qualifier ist keine Tagesangabe)
+ *   "xyz"               → NICHT lesbar
+ *
+ * DIE MONATSNAMEN KOMMEN AUS `normalizeMonth` (core/model/gedcom-date.ts) — derselben
+ * Funktion, die das Ereignis-Formular benutzt. Das ist kein Zufall, sondern die Korrektur
+ * eines Fehlers: die erste Fassung dieser Funktion riet selbst und verwarf „1. Oktober
+ * 1810" still zu „1810" — der Nutzer sah ein Datum und bekam ein Jahr. Für „Datum eingeben"
+ * gab es längst einen Mechanismus (INV-UI-4); ihn nicht zu benutzen war der Fehler.
+ */
+export function grenzeAusEingabe(roh: string | null | undefined): Lesung {
   const t = (roh ?? '').trim();
-  if (!t) return OFFENE_GRENZE;
-  const datum = tagesOrdinal(t) != null ? t : null;
-  return { jahr: placeYear(t), datum };
+  if (!t) return { ok: true, grenze: OFFENE_GRENZE };
+
+  // Bereits kanonische bzw. GEDCOM-förmige Eingabe (inkl. Qualifier) — der Vorrangfall.
+  const tag = tagesOrdinal(t);
+  if (tag != null) return { ok: true, grenze: { jahr: placeYear(t), datum: t } };
+
+  const teile = teileAusEingabe(t);
+  if (teile) {
+    const datum = formatDateValue({
+      qualifier: 'EXACT',
+      day: teile.tag,
+      month: teile.monat,
+      year: teile.jahr,
+      day2: null,
+      month2: null,
+      year2: null,
+    });
+    return { ok: true, grenze: { jahr: teile.jahr, datum } };
+  }
+
+  // Kein Tag erkennbar: eine reine Jahresangabe (auch mit Qualifier) ist gültig, alles
+  // andere wird ABGELEHNT statt zu „offen" zu werden — Ablehnen ist sichtbar, Leeren nicht.
+  const jahr = placeYear(t);
+  if (jahr == null) return { ok: false };
+  return { ok: true, grenze: { jahr, datum: null } };
 }
 
 /** Was in einem Eingabefeld stehen soll: der Tag, wenn es einen gibt, sonst das Jahr. */

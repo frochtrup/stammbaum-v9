@@ -15,12 +15,14 @@
   import type { PlaceObject } from '../../../core/places/types';
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import { hierarchySpanLabel } from './place-detail-model';
+  import { grenzeAusFeld } from '../../shell/grenz-feld';
   import {
     withAddedPname,
     withRemovedPname,
     withUpdatedPname,
     grenzeAusEingabe,
     grenzeText,
+    OFFENE_GRENZE,
     type Grenze,
     withAddedTranslation,
     withRemovedTranslation
@@ -44,12 +46,21 @@
   // 9. Mai 1945 zu Chocianow) — bis hierher fiel er auf das Jahr zurueck.
   let newPnameFrom = $state('');
   let newPnameTo = $state('');
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addPname). */
+  let grenzFehler = $state('');
   let newTransLang = $state('');
   let newTransValue = $state('');
 
   function addPname() {
     if (!newPnameValue.trim()) return;
-    onSave(withAddedPname(place, newPnameValue, grenzeAusEingabe(newPnameFrom), grenzeAusEingabe(newPnameTo)));
+    const von = grenzeAusEingabe(newPnameFrom);
+    const bis = grenzeAusEingabe(newPnameTo);
+    if (!von.ok || !bis.ok) {
+      grenzFehler = 'Datum nicht lesbar — Jahr („1400") oder Stichtag („8 MAY 1945").';
+      return;
+    }
+    grenzFehler = '';
+    onSave(withAddedPname(place, newPnameValue, von.grenze, bis.grenze));
     newPnameValue = '';
     newPnameFrom = '';
     newPnameTo = '';
@@ -65,6 +76,13 @@
   function updatePname(index: number, value: string, from: Grenze, to: Grenze) {
     onSave(withUpdatedPname(place, index, value, from, to));
   }
+
+  /** Die Gegengrenze steht bereits gespeichert im Modell — ihr Rücklesen kann nicht
+   *  fehlschlagen (s. grenz-feld.ts). */
+  const sicher = (text: string): Grenze => {
+    const l = grenzeAusEingabe(text);
+    return l.ok ? l.grenze : OFFENE_GRENZE;
+  };
 
   /** Der aktuelle Feldinhalt einer Grenze: der Stichtag, wenn es einen gibt, sonst das Jahr. */
   const vonText = (v: { from: number | null; fromDate?: string | null }): string =>
@@ -121,8 +139,7 @@
               type="text" {...PLAIN_FIELD}
               value={v.value}
               aria-label={`Namensvariante ${i + 1}`}
-              onchange={(e) =>
-                updatePname(i, e.currentTarget.value, grenzeAusEingabe(vonText(v)), grenzeAusEingabe(bisText(v)))}
+              onchange={(e) => updatePname(i, e.currentTarget.value, sicher(vonText(v)), sicher(bisText(v)))}
             />
             <input
               type="text" {...PLAIN_FIELD}
@@ -130,8 +147,10 @@
               value={vonText(v)}
               placeholder="von"
               aria-label={`Namensvariante ${i + 1} — gültig von (Jahr oder Stichtag)`}
-              onchange={(e) =>
-                updatePname(i, v.value, grenzeAusEingabe(e.currentTarget.value), grenzeAusEingabe(bisText(v)))}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, vonText(v));
+                if (g) updatePname(i, v.value, g, sicher(bisText(v)));
+              }}
             />
             <input
               type="text" {...PLAIN_FIELD}
@@ -139,8 +158,10 @@
               value={bisText(v)}
               placeholder="bis"
               aria-label={`Namensvariante ${i + 1} — gültig bis (Jahr oder Stichtag)`}
-              onchange={(e) =>
-                updatePname(i, v.value, grenzeAusEingabe(vonText(v)), grenzeAusEingabe(e.currentTarget.value))}
+              onchange={(e) => {
+                const g = grenzeAusFeld(e.currentTarget, bisText(v));
+                if (g) updatePname(i, v.value, sicher(vonText(v)), g);
+              }}
             />
             <button type="button" class="stb-icon-btn place-detail__edit-remove" data-variant="danger" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
           </li>
@@ -164,6 +185,9 @@
           bind:value={newPnameTo}
           aria-label="Gültig bis (Jahr oder Stichtag)"
         />
+      {#if grenzFehler}
+        <p class="place-detail__muted" role="alert">{grenzFehler}</p>
+      {/if}
         <button type="button" onclick={addPname}>+ Hinzufügen</button>
       </div>
     {/if}
