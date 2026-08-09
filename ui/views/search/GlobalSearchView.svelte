@@ -26,7 +26,6 @@
   } from './global-search-state.svelte';
   import { sexSymbol } from '../../shell/person-display';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
-  import { buildOffsets } from '../../shell/window-slice';
 
   /**
    * Soundex-Umschalter der globalen Suche (BL-10, ADR-v9-159): sichtbares Bedienelement
@@ -128,10 +127,11 @@
 
   // --- Virtuelles Scrollen (BL-311, ADR-v9-235 in der Fassung von ADR-v9-236) --------------
   // EIN Fenster je GRUPPE im gemeinsamen Scroll-Container. Die Zeilen sind NICHT gleich hoch:
-  // eine Trefferzeile misst 34,1px ohne Zweitzeile und 51,1px mit einer (am Realbestand
-  // gemessen). Welche von beiden, steht in den DATEN (`row.secondary`), also wird je Zeile
-  // eine HÖHENKLASSE gemeldet, je Klasse EINE Musterhöhe gemessen und daraus eine
-  // Höhen-Präfixsumme gebaut — die binäre Suche darin ist NFR-1s „O(log n)" wörtlich.
+  // eine Trefferzeile misst 34,1px ohne Zweitzeile und 51,1px mit einer, und auf schmalem
+  // Gerät kommen umgebrochene Namen mit 66px dazu. Deshalb trägt jede Zeile ihre eigene
+  // GEMESSENE Höhe; die HÖHENKLASSE (steht in den Daten: hat sie eine Zweitzeile?) ist nur
+  // die Schätzung für Zeilen, die noch nie im Fenster standen. Daraus die Präfixsumme — die
+  // binäre Suche darin ist NFR-1s „O(log n)" wörtlich.
   // Die Fenster stehen als `$derived` IM SKRIPT, nicht als `{@const}` im Template
   // (ADR-v9-235 Entscheidung 5, normativ und nicht Stilfrage).
   const KLASSEN = ['eins', 'zwei', 'kopf'] as const;
@@ -167,17 +167,19 @@
     return out;
   });
 
-  // Die Präfixsummen. Sie werden neu gebaut, wenn sich die Treffer ändern ODER eine
-  // Musterhöhe dazukommt — beides selten, und O(n) ist neben der Suche selbst nichts.
-  const offPersons = $derived.by(() =>
-    buildOffsets(
-      personRows.map((e) => (e.art === 'kopf' ? secPersons.height('kopf') : secPersons.height(klasseVon(e.row)))),
-    ),
+  // Die Präfixsummen. Sie werden neu gebaut, wenn sich die Treffer ändern ODER eine Zeile
+  // gemessen wurde — beides selten, und O(n) ist neben der Suche selbst nichts (gemessen:
+  // Mount 36,6ms bei 2.000 und 32,6ms bei 20.000 Treffern, also unabhängig von n).
+  const offPersons = $derived(
+    secPersons.offsets(personRows.length, (i) => {
+      const e = personRows[i];
+      return e.art === 'kopf' ? 'kopf' : klasseVon(e.row);
+    }),
   );
-  const offFamilies = $derived.by(() => buildOffsets(results.families.map((r) => secFamilies.height(klasseVon(r)))));
-  const offSources = $derived.by(() => buildOffsets(results.sources.map((r) => secSources.height(klasseVon(r)))));
-  const offPlaces = $derived.by(() => buildOffsets(results.places.map((r) => secPlaces.height(klasseVon(r)))));
-  const offHofs = $derived.by(() => buildOffsets(results.hofs.map((r) => secHofs.height(klasseVon(r)))));
+  const offFamilies = $derived(secFamilies.offsets(results.families.length, (i) => klasseVon(results.families[i])));
+  const offSources = $derived(secSources.offsets(results.sources.length, (i) => klasseVon(results.sources[i])));
+  const offPlaces = $derived(secPlaces.offsets(results.places.length, (i) => klasseVon(results.places[i])));
+  const offHofs = $derived(secHofs.offsets(results.hofs.length, (i) => klasseVon(results.hofs[i])));
 
   const winPersons = $derived(secPersons.slice(offPersons));
   const winFamilies = $derived(secFamilies.slice(offFamilies));
@@ -261,13 +263,13 @@
                    wie in `PlaceList.svelte` (BL-66/axe: ein `<ul>` besitzt nur
                    Listeneinträge). -->
               {#if eintrag.art === 'kopf'}
-                <li class="global-search__subhead" use:secPersons.probe={'kopf'}>
+                <li class="global-search__subhead" use:secPersons.probe={{ klasse: 'kopf', index: winPersons.start + i }}>
                   <span role="separator" aria-label={eintrag.label === 'Ähnlicher Nachname' ? 'Ähnlich klingender Nachname' : eintrag.label}>
                     {eintrag.label} <span class="global-search__subcount">{eintrag.count}</span>
                   </span>
                 </li>
               {:else}
-                <li use:secPersons.probe={klasseVon(eintrag.row)}>
+                <li use:secPersons.probe={{ klasse: klasseVon(eintrag.row), index: winPersons.start + i }}>
                   <button type="button" class="global-search__row" onclick={() => onNavigateToPerson(eintrag.row.id)}>
                     <span class="global-search__primary">
                       {#if eintrag.row.sex}<span class="global-search__sex global-search__sex--{eintrag.row.sex.toLowerCase()}" aria-hidden="true">{sexSymbol(eintrag.row.sex)}</span>{/if}
@@ -294,8 +296,8 @@
             {#if winFamilies.padTop > 0}
               <li class="global-search__pad" style:height={winFamilies.padTop + 'px'} aria-hidden="true"></li>
             {/if}
-            {#each results.families.slice(winFamilies.start, winFamilies.end) as row (row.id)}
-              <li use:secFamilies.probe={klasseVon(row)}>
+            {#each results.families.slice(winFamilies.start, winFamilies.end) as row, i (row.id)}
+              <li use:secFamilies.probe={{ klasse: klasseVon(row), index: winFamilies.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToFamily(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}
@@ -318,8 +320,8 @@
             {#if winSources.padTop > 0}
               <li class="global-search__pad" style:height={winSources.padTop + 'px'} aria-hidden="true"></li>
             {/if}
-            {#each results.sources.slice(winSources.start, winSources.end) as row (row.id)}
-              <li use:secSources.probe={klasseVon(row)}>
+            {#each results.sources.slice(winSources.start, winSources.end) as row, i (row.id)}
+              <li use:secSources.probe={{ klasse: klasseVon(row), index: winSources.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToSource(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
@@ -340,8 +342,8 @@
             {#if winPlaces.padTop > 0}
               <li class="global-search__pad" style:height={winPlaces.padTop + 'px'} aria-hidden="true"></li>
             {/if}
-            {#each results.places.slice(winPlaces.start, winPlaces.end) as row (row.id)}
-              <li use:secPlaces.probe={klasseVon(row)}>
+            {#each results.places.slice(winPlaces.start, winPlaces.end) as row, i (row.id)}
+              <li use:secPlaces.probe={{ klasse: klasseVon(row), index: winPlaces.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToPlace(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}
@@ -362,8 +364,8 @@
             {#if winHofs.padTop > 0}
               <li class="global-search__pad" style:height={winHofs.padTop + 'px'} aria-hidden="true"></li>
             {/if}
-            {#each results.hofs.slice(winHofs.start, winHofs.end) as row (row.id)}
-              <li use:secHofs.probe={klasseVon(row)}>
+            {#each results.hofs.slice(winHofs.start, winHofs.end) as row, i (row.id)}
+              <li use:secHofs.probe={{ klasse: klasseVon(row), index: winHofs.start + i }}>
                 <button type="button" class="global-search__row" onclick={() => onNavigateToHof(row.id)}>
                   <span class="global-search__primary">{row.primary}</span>
                   {#if row.secondary}<span class="global-search__secondary">{row.secondary}</span>{/if}

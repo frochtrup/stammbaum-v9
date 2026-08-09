@@ -28,6 +28,12 @@ import { windowSlice, windowSliceOffsets, type WindowSlice } from './window-slic
  * meldet deshalb je Zeile ihre KLASSE (`probe`), bekommt je Klasse EINE gemessene Musterhöhe
  * zurück (`height`) und baut daraus ihre Präfixsumme.
  */
+/** Was die Fläche über eine gerenderte Zeile meldet: ihre Höhenklasse und ihr Index. */
+export interface ZeilenMass {
+  klasse: string;
+  index: number;
+}
+
 export interface WindowedSection {
   /**
    * Action für das `<section>`-Element: hält fest, wo die Gruppe im Scroll-Inhalt beginnt.
@@ -36,20 +42,32 @@ export interface WindowedSection {
    */
   frame(node: HTMLElement): { destroy(): void };
   /**
-   * Action für JEDE gerenderte Zeile dieser Gruppe, mit ihrer Höhenklasse als Parameter.
+   * Action für JEDE gerenderte Zeile dieser Gruppe, mit ihrer Höhenklasse UND ihrem Index in
+   * der Gesamtliste.
    *
-   * DER RIEGEL GEGEN DIE SCHAUKEL: übernommen wird nur ein GRÖSSERER Wert. Monotone Schreiber
-   * können nicht endlos kreisen — genau daran ist der zweite Anlauf gestorben (Messung an der
-   * echten Zeile → neue Höhe → neues Fenster → andere Zeile gemessen → …, bis Svelte mit
-   * `effect_update_depth_exceeded` den Effektbaum abbrach und die Fläche einfror). Ein
-   * Höchstwert je Klasse terminiert nach höchstens so vielen Takten, wie es verschiedene
-   * Höhen gibt, und irrt im Zweifel nach oben — ein etwas zu langer Scrollbalken statt einer
-   * toten Fläche.
+   * ZWEI SPEICHER, ZWEI ZWECKE. Die gemessene Höhe wird (a) unter ihrem Index abgelegt — das
+   * ist die WAHRHEIT für diese eine Zeile — und (b) als Höchstwert ihrer Klasse gemerkt — das
+   * ist die SCHÄTZUNG für alle Zeilen, die noch nie gerendert wurden. Eine Klassenschätzung
+   * allein genügt nicht: bricht EIN langer Name um, sind Zeilen derselben Klasse verschieden
+   * hoch, und ein Höchstwert legt die Höhe der umgebrochenen Zeile unter jede andere ihrer
+   * Klasse (Fehler = Höhendifferenz × Zeilenzahl der Klasse — bei 1.958 Personenzeilen
+   * ~31.000px, kein Rundungsproblem).
+   *
+   * DER RIEGEL GEGEN DIE SCHAUKEL bleibt und wirkt in beiden Speichern: die Klassenschätzung
+   * wächst monoton, die Zeilenhöhe wird nur bei echter Änderung geschrieben und ist bei
+   * gegebener Breite konstant. Beide Folgen sind endlich — daran war der zweite Anlauf
+   * gestorben (Messung → neues Fenster → andere Zeile gemessen → …, bis Svelte mit
+   * `effect_update_depth_exceeded` den Effektbaum abbrach und die Fläche einfror).
    */
-  probe(node: HTMLElement, klasse: string): { destroy(): void; update(klasse: string): void };
+  probe(node: HTMLElement, zeile: ZeilenMass): { destroy(): void; update(zeile: ZeilenMass): void };
   /** Gemessene Musterhöhe einer Klasse, `0` solange keine Zeile dieser Klasse stand. */
   height(klasse: string): number;
-  /** Der Ausschnitt dieser Gruppe aus ihrer Höhen-Präfixsumme (`buildOffsets`). */
+  /**
+   * Die Höhen-Präfixsumme dieser Gruppe: gemessene Höhe je Zeile, wo vorhanden, sonst die
+   * Klassenschätzung. `klasseVon(i)` liefert die Höhenklasse der Zeile `i`.
+   */
+  offsets(count: number, klasseVon: (i: number) => string): Float64Array;
+  /** Der Ausschnitt dieser Gruppe aus ihrer Höhen-Präfixsumme. */
   slice(offsets: ArrayLike<number>): WindowSlice;
   /** Position der Gruppe im Scroll-Inhalt (für Tests und die Browser-Prüfung lesbar). */
   readonly top: number;
@@ -112,8 +130,16 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
   // erst später angelegter Feldname eines `$state`-Objekts ist eine Wette auf das
   // Proxy-Verhalten, und Wetten sind genau das, was diese Zeile zweimal gekostet hat.
   const tops = $state<Record<string, number>>({});
-  // Musterhöhe je Gruppe UND Höhenklasse, Schlüssel `gruppe::klasse`.
+  // Musterhöhe je Gruppe UND Höhenklasse, Schlüssel `gruppe::klasse` — die SCHÄTZUNG für noch
+  // nie gerenderte Zeilen.
   const classHeights = $state<Record<string, number>>({});
+  // Gemessene Höhe je Zeile, ein `Float64Array` je Gruppe (0 = noch nie gerendert) — die
+  // WAHRHEIT. Bewusst kein `$state`: ein Proxy über 20.000 Zahlen wäre teuer und brächte
+  // nichts, weil ohnehin die ganze Präfixsumme neu gebaut wird. Die Reaktivität trägt
+  // stattdessen `messungen`, ein Zähler.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const rowHeights = new Map<string, Float64Array>();
+  let messungen = $state(0);
   // Bewusst KEINE `SvelteMap`: beide halten Identitäten, keine Anzeigewerte — `frames` die
   // DOM-Knoten für die Messung, `sections` die memoisierten Gruppen-Objekte, damit die
   // Actions über die Lebenszeit der Fläche dieselben bleiben. Reaktiv gemacht, würde jedes
@@ -155,14 +181,22 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
         if (!(feld in classHeights)) classHeights[feld] = 0;
       }
 
-      /** Monotone Übernahme — s. `WindowedSection.probe`: nur größer, nie kleiner. */
-      const messe = (node: HTMLElement, klasse: string) => {
+      const messe = (node: HTMLElement, zeile: ZeilenMass) => {
         // `getBoundingClientRect().height`, nicht `offsetHeight`: letzteres rundet auf ganze
         // Pixel, und 0,1px mal 1.958 Zeilen sind 196px falsche Gesamthöhe — die
         // Platzhalter-Zusicherung (ADR-v9-235 Entscheidung 3) wäre verletzt.
         const h = node.getBoundingClientRect().height;
-        const feld = `${key}::${klasse}`;
-        if (h > 0 && h > (classHeights[feld] ?? 0)) classHeights[feld] = h;
+        if (h <= 0) return; // happy-dom/kein Layout: keine Messung ist besser als eine 0
+        // (a) Schätzung für ungerenderte Zeilen — monoton, damit die Folge endlich bleibt.
+        const feld = `${key}::${zeile.klasse}`;
+        if (h > (classHeights[feld] ?? 0)) classHeights[feld] = h;
+        // (b) Wahrheit für diese eine Zeile. Bei gegebener Breite konstant, die Folge endet
+        // also nach dem ersten Schreiben; ein Breitenwechsel schreibt einmal neu.
+        const arr = rowHeights.get(key);
+        if (arr && zeile.index >= 0 && zeile.index < arr.length && arr[zeile.index] !== h) {
+          arr[zeile.index] = h;
+          messungen++;
+        }
       };
 
       const s: WindowedSection = {
@@ -180,10 +214,10 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
           };
         },
 
-        probe(node: HTMLElement, klasse: string) {
-          messe(node, klasse);
+        probe(node: HTMLElement, zeile: ZeilenMass) {
+          messe(node, zeile);
           return {
-            update(neu: string) {
+            update(neu: ZeilenMass) {
               messe(node, neu);
             },
             destroy() {},
@@ -192,6 +226,30 @@ export function createWindowed(options: WindowedOptions = {}): Windowed {
 
         height(klasse: string) {
           return classHeights[`${key}::${klasse}`] ?? 0;
+        },
+
+        offsets(count: number, klasseVon: (i: number) => string): Float64Array {
+          void messungen; // Abhängigkeit von der Messung — sonst friert die Präfixsumme ein
+          let arr = rowHeights.get(key);
+          if (!arr || arr.length !== count) {
+            // Andere Zeilenzahl heißt andere Zeilen: die alten Höhen gehören nicht mehr zu
+            // diesen Indizes. Verwerfen ist richtig, die Klassenschätzung trägt derweil.
+            arr = new Float64Array(count);
+            rowHeights.set(key, arr);
+          }
+          // Klassenhöhen einmal auflösen statt je Zeile: `classHeights` ist ein
+          // `$state`-Proxy, und 20.000 Proxy-Zugriffe wären der teuerste Teil der Schleife.
+          const schaetzung: Record<string, number> = {};
+          const out = new Float64Array(count + 1);
+          for (let i = 0; i < count; i++) {
+            let h = arr[i];
+            if (h <= 0) {
+              const k = klasseVon(i);
+              h = schaetzung[k] ?? (schaetzung[k] = classHeights[`${key}::${k}`] ?? 0);
+            }
+            out[i + 1] = out[i] + h;
+          }
+          return out;
         },
 
         slice(offsets) {

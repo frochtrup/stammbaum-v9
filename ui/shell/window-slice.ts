@@ -52,6 +52,19 @@ export interface WindowInput {
 export const DEFAULT_OVERSCAN = 8;
 
 /**
+ * Wie viele Zeilen gerendert werden, solange keine einzige Höhe gemessen ist — der erste
+ * Takt, und nur er.
+ *
+ * Die Zahl ist bewusst KEINE Höhenschätzung: sie beantwortet nur „wie viele Zeilen müssen
+ * dastehen, damit (a) der Sichtbereich für einen Takt plausibel gefüllt ist und (b) die
+ * Messsonden überhaupt etwas zu messen haben". Selbst wenn sie zu klein wäre, ist die Folge
+ * ein einziger Takt mit zu wenig Inhalt, kein falsches Ergebnis — die Korrektheit hängt
+ * nicht an ihr. 60 Zeilen decken auch bei einer sehr flachen Zeile (24px) einen 1.400px
+ * hohen Sichtbereich ab.
+ */
+export const ERSTES_FENSTER = 60;
+
+/**
  * Berechnet das zu rendernde Fenster. Robust gegen die Werte, die im echten Betrieb
  * vorkommen: `viewportHeight === 0` (Container noch nicht gemessen — dann wird ein
  * Mindestfenster gerendert, damit die erste Zeile ihre Höhe überhaupt hergeben kann),
@@ -115,8 +128,12 @@ export function windowSliceOffsets(input: OffsetWindowInput): WindowSlice {
   if (count <= 0) return { start: 0, end: 0, padTop: 0, padBottom: 0 };
   const gesamt = offsets[count];
   if (!Number.isFinite(gesamt) || gesamt <= 0) {
-    // Noch keine Höhe gemessen — alles rendern, nicht nichts (ADR-v9-235 Entscheidung 4).
-    return { start: 0, end: count, padTop: 0, padBottom: 0 };
+    // Noch keine Höhe gemessen. NICHT nichts rendern (das sähe aus wie Datenverlust) — aber
+    // auch nicht alles: „alles" hieß am Realbestand 3.203 Zeilen im ersten Takt und bei der
+    // 20.000er-Zusicherung ~140.000 Knoten, also genau die Spitze, gegen die es das Fenster
+    // gibt. Ein ANFANGSFENSTER löst beides: es füllt den Sichtbereich, gibt den Messsonden
+    // etwas zu messen, und im nächsten Takt steht die echte Höhe.
+    return { start: 0, end: Math.min(count, ERSTES_FENSTER), padTop: 0, padBottom: 0 };
   }
 
   const oben = Math.min(Math.max(scrollTop, 0), gesamt);

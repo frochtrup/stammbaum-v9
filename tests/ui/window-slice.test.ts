@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_OVERSCAN,
+  ERSTES_FENSTER,
   buildOffsets,
   windowSlice,
   windowSliceOffsets,
@@ -130,11 +131,21 @@ describe('windowSliceOffsets — ungleich hohe Zeilen (die Fassung, die NFR-1 wo
     expect(s.end - ohne.end).toBe(DEFAULT_OVERSCAN);
   });
 
-  it('noch keine Hoehe gemessen (alle 0): ALLES rendern, nicht nichts', () => {
+  it('noch keine Hoehe gemessen: ein ANFANGSFENSTER — nicht nichts und nicht alles', () => {
+    // Nicht nichts: eine leere Liste sieht aus wie Datenverlust. Nicht alles: das waren am
+    // Realbestand 3.203 Zeilen im ersten Takt und bei der 20.000er-Zusicherung ~140.000
+    // Knoten, also genau die Spitze, gegen die es das Fenster gibt (ADR-v9-236).
     const leer = buildOffsets(new Array(500).fill(0));
     const s = windowSliceOffsets({ offsets: leer, scrollTop: 0, viewportHeight: 800 });
     expect(s.start).toBe(0);
-    expect(s.end).toBe(500);
+    expect(s.end).toBe(ERSTES_FENSTER);
+    expect(s.padTop + s.padBottom).toBe(0); // ohne Hoehen gibt es nichts zu polstern
+  });
+
+  it('kuerzere Liste als das Anfangsfenster: alles, aber nicht mehr als da ist', () => {
+    const leer = buildOffsets(new Array(12).fill(0));
+    const s = windowSliceOffsets({ offsets: leer, scrollTop: 0, viewportHeight: 800 });
+    expect(s.end).toBe(12);
   });
 
   it('leere Liste: nichts zu rendern, keine Platzhalter', () => {

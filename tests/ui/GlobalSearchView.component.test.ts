@@ -13,6 +13,7 @@ import {
   type GlobalSearchState,
 } from '../../ui/views/search/global-search-state.svelte';
 import { createWindowed } from '../../ui/shell/windowed.svelte';
+import { ERSTES_FENSTER } from '../../ui/shell/window-slice';
 
 function seedDb() {
   const db = makeDatabase();
@@ -365,7 +366,7 @@ describe('GlobalSearchView — virtuelles Scrollen (BL-311, ADR-v9-236)', () => 
     }
   });
 
-  it('ohne gemessene Höhe rendert die Fläche ALLES, nicht nichts (ADR-v9-235 Entscheidung 4)', () => {
+  it('ohne gemessene Höhe rendert die Fläche ein Anfangsfenster — nicht nichts, nicht alles (ADR-v9-236)', () => {
     const appState = createAppState();
     appState.loadDatabase(vieleDb(120), 'test.ged');
     const search = createGlobalSearchState();
@@ -382,7 +383,12 @@ describe('GlobalSearchView — virtuelles Scrollen (BL-311, ADR-v9-236)', () => 
         onNavigateToHof: vi.fn(),
       },
     });
-    expect(container.querySelectorAll('.global-search__row').length).toBe(120);
+    // happy-dom hat kein Layout, die Sonden messen 0 — genau der Zustand, in dem die Fläche
+    // im Browser den ERSTEN Takt verbringt. Sie zeigt dann ein Anfangsfenster: nicht leer
+    // (das sähe aus wie Datenverlust) und nicht die ganze Liste (das war die Spitze, gegen
+    // die es das Fenster gibt).
+    const zeilen = container.querySelectorAll('.global-search__row').length;
+    expect(zeilen).toBe(ERSTES_FENSTER);
   });
 
   it('das Fenster wandert mit der Scroll-Position — andere Namen, gleiche Zeilenzahl', () => {
