@@ -81,6 +81,20 @@ export function ortsbestandLaden(): { placeObjects: PlaceObjects; hofObjects: Ho
   };
 }
 
+/**
+ * Der Bestand, wie er auf der PLATTE steht — ohne die Normalisierungen des Ladepfads
+ * (BL-332, [ADR-v9-248]). Bewusst `JSON.parse` statt `parsePlacesFileWrapper`: seit der
+ * Grenzjahr-Ableitung ist Letzteres nicht mehr neutral, und ein Test, der die Kuration
+ * beurteilen will, darf nicht die geheilte Fassung ansehen — er prüfte sonst die
+ * Ableitung gegen sich selbst.
+ *
+ * Nur für Aussagen ÜBER die Datei (Kurations-Wächter). Für alles, was das Verhalten des
+ * Programms misst, ist `ortsbestandLaden()` das Richtige: die App sieht nie die Rohform.
+ */
+export function ortsbestandRohLaden(): { placeObjects: unknown[]; hofObjects: unknown[] } {
+  return JSON.parse(readFileSync(ortsbestandPfad(), 'utf8'));
+}
+
 /** Der eingefrorene Orakel-Snapshot. Gültig für Roundtrip/Parser — NICHT für Bestandszahlen. */
 export const ORAKEL_SNAPSHOT = {
   datei: 'MeineDaten_ancestris.ged',
