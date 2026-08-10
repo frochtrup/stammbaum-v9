@@ -89,6 +89,7 @@ export function buildContext(db: Database, config: ValidationConfig): RuleContex
     reachable,
     rootId,
     knownSourceIds: new Set<SourceId>(db.sources.keys()),
+    places: placeCtx,
     hofsWithResidence: hofsWithResidence(db, placeCtx),
   };
 }

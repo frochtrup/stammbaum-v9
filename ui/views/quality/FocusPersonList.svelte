@@ -60,7 +60,11 @@
         + alle
       </button>
     </div>
-    {#each row.findings as f (f.rule + f.text)}
+    <!-- Der Index gehört in den Key: zwei Befunde EINER Person können denselben Text
+         tragen (dieselbe Regel, zwei Ereignisse). Ohne ihn kollidierte der Key, Svelte
+         brach den Zweig ab, und die Liste blieb leer, während die Überschrift ihre Zahl
+         behielt (Nutzer-Befund 2026-08-10, `tests/ui/FocusPersonList.component.test.ts`). -->
+    {#each row.findings as f, fi (f.rule + '\u0000' + fi)}
       <div class="quality__finding quality__finding--{SEVERITY_CLASS[f.severity]}">
         <span class="quality__finding-icon" aria-hidden="true">{SEVERITY_ICON[f.severity]}</span>
         <span class="quality__finding-text">{f.text}</span>

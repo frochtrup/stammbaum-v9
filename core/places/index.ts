@@ -35,6 +35,7 @@ export {
   placeDisplayName,
   eventYear,
   eventSpanne,
+  unbekannteEbenen,
   type PlaceContext,
 } from './build-plac';
 

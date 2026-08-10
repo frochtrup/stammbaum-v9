@@ -27,10 +27,9 @@ import {
   isCuratedPlace,
   isCuratedHof,
   buildPlacForGedcom,
-  eventYear,
   eventSpanne,
+  unbekannteEbenen,
   normHofAddr,
-  normPlaceName,
   type ResolveResult,
   type PlaceContext,
 } from '../../core/places';
@@ -472,47 +471,6 @@ export interface AngleichErgebnis {
   luecken: AngleichLuecke[];
 }
 
-/** Segmente eines PLAC-Strings in Norm-Form — leere Template-Felder fallen weg. */
-function placSegmente(s: string | null | undefined): string[] {
-  return (s ?? '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .map((x) => normPlaceName(x));
-}
-
-/**
- * ALLE Namen, unter denen die projizierte Kette bekannt ist — Titel und `pnames` jedes
- * Knotens (periodenunabhängig), dazu die Adressvarianten des Hofs.
- *
- * WOZU: um eine UMBENENNUNG von einem VERLUST zu unterscheiden. Beide sehen im Text gleich
- * aus — ein Segment der Quelle taucht in der Projektion nicht auf. „Kreis X" -> „Amt X" ist
- * aber derselbe Knoten unter seinem periodengerechten Namen (nichts geht verloren), während
- * „…, NRW, Deutschland" -> „…, Nordrhein-Westfalen" eine Ebene WEGLÄSST, die der Bestand
- * nicht kennt. Auf Zeichenketten-Ebene ist das nicht zu trennen, auf Knoten-Ebene schon:
- * gehört das Segment zu irgendeinem Knoten der Kette, ist es abgedeckt; gehört es zu
- * keinem, fehlt die Ebene.
- */
-function ketteNamen(
-  kette: readonly PlaceId[],
-  hofId: HofId | null,
-  places: Database['placeObjects'],
-  hofs: Database['hofObjects'],
-): Set<string> {
-  const namen = new Set<string>();
-  for (const id of kette) {
-    const po = places.get(id);
-    if (!po) continue;
-    namen.add(normPlaceName(po.title));
-    for (const pn of po.pnames ?? []) namen.add(normPlaceName(pn.value));
-    if (po.shortName) namen.add(normPlaceName(po.shortName));
-  }
-  const hof = hofId != null ? hofs.get(hofId) : undefined;
-  for (const a of hof?.addrs ?? []) namen.add(normHofAddr(a.value));
-  namen.delete('');
-  return namen;
-}
-
 /**
  * Gleicht den Dateitext an das kuratierte Ortswissen an (ADR-v9-224).
  *
@@ -565,8 +523,14 @@ export function alignCuratedEventTexts(db: ReadonlyDatabase): AngleichErgebnis {
     // Elternglied); ein Test hat es sofort gezeigt.
     const hof = ev.hofId != null ? base.hofObjects.get(ev.hofId) : undefined;
     const ankerId = hof ? hof.villageId : ev.placeId;
-    const jahr = eventYear(ev);
-    const kette = ankerId != null ? ctx.places.enclosureIdsAsOf(ankerId, jahr) : [];
+    // Der ZEITBEZUG, nicht das Jahr (ADR-v9-245): die Registry ist seit BL-324 tagegenau,
+    // und wer ihr hier nur das Jahr reicht, holt für zwei Perioden desselben Jahres den
+    // Tie-Break zurück, den die Kuration gerade aufgelöst hat — mit zwei sichtbaren Folgen:
+    // die tagegenau gepflegte Kette kommt nicht im Text an, UND die Verarmungs-Sperre
+    // meldet die vom Ereignis genannte Ebene als „kennt der Bestand nicht", weil die
+    // jahresweise Kette sie nicht enthält.
+    const bezug = eventSpanne(ev);
+    const kette = ankerId != null ? ctx.places.enclosureIdsAsOf(ankerId, bezug) : [];
     const kuratiert =
       (hof != null && isCuratedHof(hof)) ||
       kette.some((id) => {
@@ -575,16 +539,18 @@ export function alignCuratedEventTexts(db: ReadonlyDatabase): AngleichErgebnis {
       });
     if (!kuratiert) return null;
 
-    const proj = buildPlacForGedcom(ev, jahr, ctx);
+    const proj = buildPlacForGedcom(ev, bezug, ctx);
     if (proj == null || proj === ev.place) return null;
 
-    // Verarmungs-Sperre auf KNOTEN-Ebene (s. `ketteNamen`): jedes Segment der Quelle muss
-    // von einem Knoten der Kette getragen werden — unter irgendeinem seiner Namen. Ein
-    // Segment, das zu keinem Knoten gehört, ist eine Ebene, die der Bestand nicht kennt;
-    // sie zu überschreiben hieße, Wissen der Quelle zu löschen (LP-1).
-    const abgedeckt = ketteNamen(kette, ev.hofId, base.placeObjects, base.hofObjects);
-    const quelle = placSegmente(ev.place);
-    if (!quelle.every((seg) => abgedeckt.has(seg))) {
+    // Verarmungs-Sperre auf KNOTEN-Ebene: jedes Segment der Quelle muss von einem Knoten
+    // der Kette getragen werden — unter irgendeinem seiner Namen. Ein Segment, das zu
+    // keinem Knoten gehört, ist eine Ebene, die der Bestand nicht kennt; sie zu
+    // überschreiben hieße, Wissen der Quelle zu löschen (LP-1).
+    //
+    // Die Prüfung selbst liegt im Kern (`unbekannteEbenen`) und wird von der Qualitätsregel
+    // `PLAC_EBENE_UNBEKANNT` mitbenutzt (ADR-v9-247): dieselbe Frage, dieselbe Antwort —
+    // was hier das Schreiben verhindert, ist im Dashboard der Befund dazu.
+    if (unbekannteEbenen(ev, ctx).length > 0) {
       luecken.push({
         placeId: ev.placeId,
         hofId: ev.hofId,

@@ -12,6 +12,7 @@ import type { Hit, Rule, RuleContext } from './types';
 import type { Event, Family, Person } from '../model/types';
 import { distanceKm } from './geo';
 import type { CitationFact } from './facts';
+import { unbekannteEbenen } from '../places';
 import {
   birthYear,
   citedSourceIds,
@@ -102,6 +103,31 @@ function adressStrukturVerletzt(ev: Event): boolean {
   }
   return false;
 }
+/**
+ * Befund für PLAC_EBENE_UNBEKANNT: EIN Treffer je Entität, der die betroffenen Ereignisse
+ * zählt und die unbekannten Ebenen benennt. Personen- und Familien-Prädikat teilen ihn.
+ *
+ * WARUM GEBÜNDELT UND NICHT JE EREIGNIS (Nutzer-Befund 2026-08-10): zwei Ereignisse
+ * derselben Person tragen oft denselben Ortstext (Geburt und Tod am selben Ort) — je
+ * Ereignis ein Befund hieße zweimal derselbe Satz an derselben Person. Das ist nicht nur
+ * redundant, es kollidierte im Brennpunkte-Key (`rule + text`) und ließ die ganze Liste
+ * ausfallen. Dieselbe Bauform wie `ADDR_INDEX_ONLY` daneben: zählen, nicht wiederholen.
+ */
+function ebenenBefunde(evs: readonly Event[], ctx: RuleContext): readonly Hit[] {
+  const fehlend = new Set<string>();
+  let betroffen = 0;
+  for (const ev of evs) {
+    const ebenen = unbekannteEbenen(ev, ctx.places);
+    if (!ebenen.length) continue;
+    betroffen++;
+    for (const e of ebenen) fehlend.add(e);
+  }
+  if (!betroffen) return NONE;
+  const wo = betroffen === 1 ? 'Eine Ortsangabe nennt' : `${betroffen} Ortsangaben nennen`;
+  const was = fehlend.size === 1 ? 'eine Ebene' : `${fehlend.size} Ebenen`;
+  return [{ text: `${wo} ${was}, die die Ortskette nicht kennt: ${[...fehlend].join(', ')}` }];
+}
+
 export const RULES: readonly Rule[] = [
   // ── Logische Fehler ───────────────────────────────────────────────────────
   {
@@ -482,6 +508,32 @@ export const RULES: readonly Rule[] = [
       const treffer = familyEvents(f).filter(adressStrukturVerletzt);
       return treffer.length ? hit(`Adresse steht nur in den Index-Tags (${treffer.length}× — ADDR-Zeile ohne Wert)`) : NONE;
     },
+  },
+  {
+    id: 'PLAC_EBENE_UNBEKANNT',
+    label: 'Ortsangabe nennt eine Ebene, die die Ortskette nicht kennt',
+    group: 'format',
+    severity: 'info',
+    defaultEnabled: true,
+    threshold: null,
+    category: 'online',
+    // DIE GEGENSEITE DER VERARMUNGS-SPERRE (ADR-v9-224/-247). Beim Laden gleicht
+    // `alignCuratedEventTexts` den Dateitext an das kuratierte Ortswissen an — und lässt
+    // ein Ereignis unangetastet, wenn die Projektion ein Segment der Quelle nicht trägt
+    // (sonst löschte sie Wissen der Quelle, LP-1). Bis hierher war das Ergebnis eine Zahl
+    // in einer Statuszeile: „N Ereignisse unverändert gelassen" — ohne Weg zu den N.
+    //
+    // Als Regel ist derselbe Zustand ein Befund: zählbar, im Dashboard anklickbar,
+    // abschaltbar. Die PRÜFUNG selbst kommt aus dem Kern (`unbekannteEbenen`) und ist
+    // damit dieselbe, die beim Laden das Schreiben verhindert hat — zwei Fassungen wären
+    // zwei Wahrheiten darüber, was „unbekannte Ebene" heißt (INV-UI-4 auf Logik-Ebene).
+    //
+    // `info`, nicht `warn`: der Befund kann drei Ursachen haben, und nur eine ist ein
+    // Fehler — eine Lücke im Ortsbestand (dann fehlt Kuration), eine Ebene, die zum
+    // Ereigniszeitpunkt gar nicht existierte (dann irrt die Quelle), oder ein Ortstitel,
+    // der selbst ein Komma trägt und beim Kettenbau abgeschnitten wird.
+    person: (p, ctx) => ebenenBefunde(personEvents(p), ctx),
+    family: (f, ctx) => ebenenBefunde(familyEvents(f), ctx),
   },
   {
     id: 'MISSING_QUAY',

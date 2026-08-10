@@ -29,11 +29,11 @@ import type { PlaceObjects, HofObjects } from '../../core/places/types';
 
 /** Der maßgebliche Bestand — Ancestris-Export, Stand 25 JUN 2026. */
 export const REALBESTAND = {
-  datei: 'Unsere Familie 2026.ged',
+  datei: 'Unsere Familie 2026-4.ged',
   exportiert: '25 JUN 2026',
   /** Erwartete Satzzahlen. Weicht die vorhandene Datei ab, ist sie eine andere (oder eine
    *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch. */
-  erwartet: { individuals: 3180, families: 987, sources: 152, repositories: 7 },
+  erwartet: { individuals: 3180, families: 987, sources: 153, repositories: 7 },
 } as const;
 
 /**
@@ -50,10 +50,10 @@ export const REALBESTAND = {
  * wurden von Hand mit dieser Datei gemessen, nicht von einem Test.
  */
 export const ORTSBESTAND = {
-  datei: 'orte-2.json',
+  datei: 'orte-5.json',
   /** Erwarteter Umfang — dieselbe Rolle wie `REALBESTAND.erwartet`: eine andere Datei
    *  ist eine andere Aussage. Seit 2026-08-09 auch WIRKLICH geprüft, s. u. */
-  erwartet: { placeObjects: 402, hofObjects: 185 },
+  erwartet: { placeObjects: 416, hofObjects: 184 },
 } as const;
 // WARUM DIE ZAHLEN SICH GEÄNDERT HABEN (2026-08-09, ADR-v9-242): der Symlink zeigte auf
 // `orte.v9.json` — die ÄLTESTE von vier Ortsdateien im Spec-Repo (rev 63, 310 Orte),
