@@ -9,10 +9,11 @@
 // placeId/hofId ist ev.place ausschließlich buildPlacForGedcom(ev, year). Es gibt
 // keinen Pfad ohne Reprojektion → Stale-Cache strukturell ausgeschlossen.
 import type { Event, PlaceId, HofId } from '../model/types';
-import type { HofObject, HofObjects, PlaceObjects, Year } from './types';
+import type { HofObject, HofObjects, PlaceObjects } from './types';
+import type { Zeitbezug } from './zeitbezug';
 import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
-import { buildFormString, eventYear, type PlaceContext } from './build-plac';
+import { buildFormString, eventSpanne, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
 import { normPlaceName, extractHofAddr, normHofAddr } from './normalize';
 
@@ -109,7 +110,7 @@ function chainCompatible(
   reg: PlaceContext['places'],
   candidateId: PlaceId,
   placParents: readonly string[],
-  year: Year,
+  when: Zeitbezug,
 ): boolean {
   // Knoten-ID-Kette, pro Knoten gegen die VOLLE Namensmenge (title + alle pnames) prüfen —
   // NICHT nur gegen den einen periodenkorrekten Namen: ein PLAC-Segment „Bayern" (Titel-Form)
@@ -127,7 +128,7 @@ function chainCompatible(
   // nimmt das Jahr jetzt selbst entgegen und bleibt periodentreu — die Zwei-Zweig-Struktur,
   // in der eine Hälfte nachgezogen werden konnte und die andere stehen blieb, entfällt.
   const stated = placParents.map(normPlaceName);
-  return chainCompatibleAnyPath(reg.byId, candidateId, stated, year);
+  return chainCompatibleAnyPath(reg.byId, candidateId, stated, when);
 }
 
 /**
@@ -151,7 +152,10 @@ function resolveOne(
   // Village-Seed, Spec 11 §4.2 Schritt 0, läuft VOR resolveEvents), die Orts-Registry
   // ist also ohnehin über den ganzen Lauf konstant.
   const ev: Event = { ...input };
-  const year = eventYear(ev);
+  // Der ZEITBEZUG, nicht das Jahr (ADR-v9-245): dieselbe Naht wie im Angleich — alle vier
+  // Konsumenten unten (Hof-Adressen, Verträglichkeit, Projektion) nehmen laut Signatur
+  // einen `Zeitbezug`; ein Jahr hier oben hätte ihre Tagesauflösung stillgelegt.
+  const bezug = eventSpanne(ev);
   const type = ev.type;
   const hofTypeAllowed = HOF_EVENT_TYPES.has(type);
   let review: ReviewItem | null = null;
@@ -176,7 +180,7 @@ function resolveOne(
     // Datei steht, bleibt seine Quelle.
     // ev.addr NUR füllen wenn leer — Wire-ADDR bleibt byte-identisch (ADDR-Roundtrip).
     if (ev.hofId != null && !ev.addr) {
-      const a = ctx.hofs.resolveAddrAsOf(ev.hofId, year);
+      const a = ctx.hofs.resolveAddrAsOf(ev.hofId, bezug);
       if (a) ev.addr = a;
     }
     return { event: ev, path };
@@ -219,7 +223,7 @@ function resolveOne(
   //    der ADDR (B/B'). Für den regulären Fluss ist der Guard ein No-op (Schritt 1 hätte bei
   //    gesetzter placeId längst returniert), er ändert nur den neuen Durchfall-Pfad.
   if (hofTypeAllowed && ev.placeId == null && isRich && leadSeg && anchorVillageId != null) {
-    const hid = ctx.hofs.findByAddr(leadSeg, year, anchorVillageId);
+    const hid = ctx.hofs.findByAddr(leadSeg, bezug, anchorVillageId);
     if (hid != null) {
       ev.hofId = hid;
       ev.placeId = anchorVillageId;
@@ -248,7 +252,7 @@ function resolveOne(
   }
   // 3b. Hierarchie-PLAC matcht voll-projektions-exakt.
   if (ev.placeId == null && isRich && anchorVillageId != null) {
-    const proj = buildFormString(ctx.places, anchorVillageId, year);
+    const proj = buildFormString(ctx.places, anchorVillageId, bezug);
     if (proj != null && normPlaceName(proj) === normPlaceName(plac)) {
       ev.placeId = anchorVillageId;
       villageOnlyPath = 'hierarchy-exact';
@@ -264,7 +268,7 @@ function resolveOne(
   if (ev.placeId == null && isRich && leadSeg) {
     const plsParents = segs.slice(1);
     const leadIds = ctx.places.findAllByName(leadSeg);
-    const compatible = leadIds.filter((id) => chainCompatible(ctx.places, id, plsParents, year));
+    const compatible = leadIds.filter((id) => chainCompatible(ctx.places, id, plsParents, bezug));
     if (compatible.length === 1) {
       ev.placeId = compatible[0];
       villageOnlyPath = 'hierarchy-lead';
@@ -280,7 +284,7 @@ function resolveOne(
 
   // 4. Pfad A' — atomare PLAC ohne PO-Match → globaler Hof-Lookup.
   if (hofTypeAllowed && isAtomic && leadSeg && !ev.addr && ev.placeId == null) {
-    const hid = ctx.hofs.findByAddr(leadSeg, year);
+    const hid = ctx.hofs.findByAddr(leadSeg, bezug);
     if (hid != null) {
       const hof = ctx.hofs.byId(hid)!;
       ev.hofId = hid;
@@ -314,7 +318,7 @@ function resolveOne(
 
   // 6. Pfad B — event.addr matcht Hof im Dorf-Scope (existierender Hof).
   if (ev.addr && villageForAddr != null && !isAddrJustVillage(ev.addr, villageForAddr, ctx)) {
-    const all = ctx.hofs.findAllByAddr(ev.addr, year, villageForAddr);
+    const all = ctx.hofs.findAllByAddr(ev.addr, bezug, villageForAddr);
     if (all.length === 1) {
       ev.hofId = all[0];
       ev.placeId = villageForAddr;

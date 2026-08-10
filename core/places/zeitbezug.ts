@@ -35,7 +35,7 @@
 // (`Testdateien/Unsere Familie 2026.ged`) betrifft das 747 von 9377 Datumszeilen. Sie
 // behalten exakt ihr bisheriges Verhalten (ganzes Jahr aus `placeYear`) — diese Datei
 // ändert für sie nichts.
-import type { Year } from './types';
+import type { HofObject, PlaceObject, Year } from './types';
 import { placeYear } from './normalize';
 import { formatDateValue, normalizeMonth, parseDateValue } from '../model/gedcom-date';
 
@@ -123,6 +123,57 @@ export function spanneVonDatiert(d: {
     von: vonTag ?? (vonJahr != null ? jahresBeginn(vonJahr) : null),
     bis: bisTag ?? (bisJahr != null ? jahresEnde(bisJahr) : null),
   };
+}
+
+/**
+ * Zieht `from`/`to` an den Stichtag, wo einer tagegenau vorliegt (BL-332, [ADR-v9-248]).
+ *
+ * WARUM ABLEITEN STATT PRÜFEN. Spec 11 §1 sagt: „`from`/`to` sind aus `fromDate`/`toDate`
+ * ABLEITBAR und müssen dazu passen — das Jahr ist nie eine zweite, unabhängige Angabe."
+ * Das ist eine Richtungsangabe: der Tag ist die Aussage, das Jahr ihre gröbere Fassung.
+ * Solange beide Hälften nur nebeneinander im Bestand liegen und ein Test ihre Gleichheit
+ * BEHAUPTET, hängt die Zusage an der Sorgfalt dessen, der die Datei schreibt. Hier wird
+ * sie hergestellt.
+ *
+ * DASS DAS NICHT KOSMETIK IST, ZEIGT DIE ZWEITE HÄLFTE DES SYSTEMS. Die Auflösung liest
+ * ausschließlich `spanneVonDatiert` — dort GEWINNT der Tag, das Jahr ist tote Last.
+ * Anzeige, Prüfregeln, Sortierung und Dedup lesen dagegen `from`/`to` direkt
+ * (`place-gazetteer.ts`, `validate/rules.ts` PNAME-Überlappungen, `place-detail-model.ts`
+ * Zeitachse, `PlaceEnclosureEditModal` Sortierung, `commands.ts` `encKey`). Läuft die
+ * Jahres-Hälfte weg, antwortet dasselbe Objekt je nach Frage verschieden — genau die
+ * „doppelte Wahrheit", die [ADR-v9-246](../../specs/v9/04-Entscheidungslog.md) E3 an 16
+ * Einträgen von Hand aufgelöst hat.
+ *
+ * NUR TAGEGENAUE DATEN ZIEHEN. `tagesOrdinal` liefert `null`, sobald irgendetwas ungenau
+ * ist (`ABT 1810`, fehlender Tag/Monat) — dann bleibt das Jahr, wie es steht. Ein Jahr
+ * ohne Tag ist keine schlechtere Angabe, sondern eine andere.
+ *
+ * Gibt bei nichts zu tun die EINGABE zurück (identische Referenz), damit der Aufrufer
+ * zählen kann und Copy-on-Write (ADR-v9-92) nicht ohne Anlass kopiert.
+ */
+export function leiteGrenzjahrAb<
+  T extends { from: Year; to: Year; fromDate?: string | null; toDate?: string | null },
+>(d: T): T {
+  const vonTag = tagesOrdinal(d.fromDate);
+  const bisTag = tagesOrdinal(d.toDate);
+  const von = vonTag == null ? d.from : Math.trunc(vonTag / 10000);
+  const bis = bisTag == null ? d.to : Math.trunc(bisTag / 10000);
+  return von === d.from && bis === d.to ? d : { ...d, from: von, to: bis };
+}
+
+/** `leiteGrenzjahrAb` über beide datierten Achsen eines Ortes (`pnames`, `enclosedBy`). */
+export function leiteGrenzjahreAbImOrt(po: PlaceObject): PlaceObject {
+  const pnames = po.pnames.map(leiteGrenzjahrAb);
+  const enclosedBy = po.enclosedBy.map(leiteGrenzjahrAb);
+  const gleich =
+    pnames.every((p, i) => p === po.pnames[i]) && enclosedBy.every((e, i) => e === po.enclosedBy[i]);
+  return gleich ? po : { ...po, pnames, enclosedBy };
+}
+
+/** `leiteGrenzjahrAb` über die datierte Achse eines Hofes (`addrs`). */
+export function leiteGrenzjahreAbImHof(ho: HofObject): HofObject {
+  const addrs = ho.addrs.map(leiteGrenzjahrAb);
+  return addrs.every((a, i) => a === ho.addrs[i]) ? ho : { ...ho, addrs };
 }
 
 /** Trägt die Angabe überhaupt eine Datierung? (Spec 11 §1: beide `null` = jederzeit.) */

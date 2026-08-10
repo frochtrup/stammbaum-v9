@@ -26,6 +26,7 @@
 //   nicht: sie beantworten nicht, WER sich geändert hat. Der Vorfahre beantwortet genau das.
 
 import type { PlaceObject, HofObject } from '../../core/places/types';
+import { leiteGrenzjahreAbImHof, leiteGrenzjahreAbImOrt } from '../../core/places';
 import type { Clock, DeviceIdProvider, PlacesFileWrapper, PlacesStore } from './types';
 // Der Union-Merge lebt seit BL-239 EINMAL für alle id-gekeyten Sammlungen (services/union-merge.ts):
 // die Forschungsprojekte im B1-Bündel brauchen dieselbe Konfliktpolitik. Die Policy-Beschreibung
@@ -98,9 +99,29 @@ export class PlacesSyncService {
     private readonly clock: Clock
   ) {}
 
+  /**
+   * Die ZWEITE Tür, durch die fremde Bytes zu Orten werden (BL-332, [ADR-v9-248]) — die
+   * erste ist `parsePlacesFileWrapper` (gewählte Datei). Der IDB-Spiegel ist zwar vom
+   * Programm selbst geschrieben, aber nicht notwendig von DIESER Fassung: ein Stand, den
+   * eine ältere Version vor der Ableitung abgelegt hat, trägt die Inkongruenz weiter.
+   * Deshalb geht JEDER Lesezugriff auf den Store hier durch — `loadPlaces` wie der
+   * Remote-Lesezugriff in `reconcileAndSave`. Liefe nur einer der beiden durch die
+   * Ableitung, sähe der Union-Merge einen Unterschied, den es nicht gibt, und die
+   * abgeleitete Seite könnte von der rohen überschrieben werden.
+   */
+  private async ladeSpiegel(): Promise<PlacesFileWrapper | null> {
+    const wrapper = await this.store.load();
+    if (!wrapper) return null;
+    return {
+      ...wrapper,
+      placeObjects: wrapper.placeObjects.map(leiteGrenzjahreAbImOrt),
+      hofObjects: wrapper.hofObjects.map(leiteGrenzjahreAbImHof),
+    };
+  }
+
   /** Lädt den gespeicherten Stand (Arrays → Maps entpackt). Kein Schreiben, keine Merges. */
   async loadPlaces(): Promise<LoadedPlaces> {
-    const wrapper = await this.store.load();
+    const wrapper = await this.ladeSpiegel();
     if (!wrapper) {
       return { placeObjects: new Map(), hofObjects: new Map(), rev: 0, ts: 0, isEmpty: true };
     }
@@ -135,7 +156,7 @@ export class PlacesSyncService {
     base: SyncBase
   ): Promise<ReconcileResult> {
     const baseRev = base.rev;
-    const remoteWrapper = await this.store.load();
+    const remoteWrapper = await this.ladeSpiegel();
 
     if (remoteWrapper && remoteWrapper.schemaVersion > PLACES_SCHEMA_VERSION) {
       return {

@@ -113,3 +113,64 @@ describe('alignCuratedEventTexts — kuratiertes Wissen gewinnt (ADR-v9-224)', (
     expect(textVon(res.db)).not.toBe(vorher);
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// Der Zeitbezug: der Stichtag entscheidet, nicht das Jahr (ADR-v9-243/-245).
+//
+// WARUM DIESE FÄLLE. Die Registry ist seit BL-324 tagegenau — der Angleich reichte ihr aber
+// weiterhin nur das JAHR (`eventYear`), und damit greift für zwei Perioden im selben Jahr
+// wieder der Tie-Break „höchstes `from`". Am Realbestand
+// (`Unsere Familie 2026-4.ged` + `orte-5.json`, rev 314, 139 tagegenaue Einträge) war das
+// die Ursache für BEIDE Nutzer-Befunde: 19 Ereignisse wurden jahresweise anders projiziert
+// als tagegenau, und bei 10 davon nannte die Quelle eine Ebene, die in der jahresweisen
+// Projektion fehlt — die Verarmungs-Sperre meldete sie als „Ebene, die der Bestand nicht
+// kennt", obwohl der Bestand sie kennt und der Tag sie trifft.
+describe('alignCuratedEventTexts — der Stichtag entscheidet, nicht das Jahr', () => {
+  /** Zwei Elternperioden IM SELBEN JAHR, tagegenau abgegrenzt (Vechta 1813). */
+  function bestandMitStichtag(text: string, datum: string): Database {
+    const db = makeDatabase();
+    db.placeObjects.set('@FR@', place('@FR@', { title: "Département de l'Ems-Supérieur", note: 'kuratiert' }));
+    db.placeObjects.set('@OL@', place('@OL@', { title: 'Herzogtum Oldenburg', note: 'kuratiert' }));
+    db.placeObjects.set(
+      '@DORF@',
+      place('@DORF@', {
+        title: 'Vechta',
+        note: 'kuratiert',
+        enclosedBy: [
+          { placeId: '@FR@', from: 1810, to: 1813, fromDate: null, toDate: '12 NOV 1813' },
+          { placeId: '@OL@', from: 1813, to: null, fromDate: '13 NOV 1813', toDate: null },
+        ],
+      }),
+    );
+    db.individuals.set(
+      '@I1@',
+      makePerson('@I1@', { birth: makeEvent('BIRT', { place: text, date: datum, placeId: '@DORF@' }) }),
+    );
+    return db;
+  }
+
+  it('wählt VOR dem Stichtag die alte Zugehörigkeit — jahresweise gewönne der Nachfolger', () => {
+    const db = bestandMitStichtag('Vechta', '26 JUN 1813');
+    const res = alignCuratedEventTexts(db);
+    expect(textVon(res.db)).toBe("Vechta, Département de l'Ems-Supérieur");
+  });
+
+  it('wählt NACH dem Stichtag die neue', () => {
+    const db = bestandMitStichtag('Vechta', '20 DEC 1813');
+    const res = alignCuratedEventTexts(db);
+    expect(textVon(res.db)).toBe('Vechta, Herzogtum Oldenburg');
+  });
+
+  it('meldet keine Verarmungs-Lücke, wenn die Quelle die tagegenau gültige Ebene nennt', () => {
+    const db = bestandMitStichtag("Vechta, Département de l'Ems-Supérieur", '26 JUN 1813');
+    const res = alignCuratedEventTexts(db);
+    expect(res.luecken).toEqual([]);
+  });
+
+  it('fällt ohne Tagesangabe im Ereignis auf das Jahr zurück (kein Zwang zur Scheingenauigkeit)', () => {
+    const db = bestandMitStichtag('Vechta', '1813');
+    const res = alignCuratedEventTexts(db);
+    // Jahresstufe: beide Perioden treffen 1813, der Tie-Break wählt das höhere `from`.
+    expect(textVon(res.db)).toBe('Vechta, Herzogtum Oldenburg');
+  });
+});

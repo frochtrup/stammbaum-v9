@@ -8,12 +8,15 @@
 import { describe, expect, it } from 'vitest';
 import { makePlaceRegistry } from '../../core/places/place-registry';
 import type { PlaceObject } from '../../core/places/types';
-import { place } from './places-fixtures';
+import { hof, place } from './places-fixtures';
 import {
   alsSpanne,
   grenzeAusEingabe,
   istDatiert,
   jahresSpanne,
+  leiteGrenzjahrAb,
+  leiteGrenzjahreAbImHof,
+  leiteGrenzjahreAbImOrt,
   spanneVonDatiert,
   spanneVonEreignis,
   tagesOrdinal,
@@ -263,5 +266,96 @@ describe('grenzeAusEingabe — Ablehnen statt Raten (BL-324-Nachtrag)', () => {
     const l = grenzeAusEingabe('32. Oktober 1810');
     // Kein Tagesdatum — aber das Jahr ist erkennbar und bleibt erhalten.
     expect(l.ok && l.grenze).toEqual({ jahr: 1810, datum: null });
+  });
+});
+
+// ---------------------------------------------------------------------------------------
+// leiteGrenzjahrAb — die Richtung der Zusage (BL-332, [ADR-v9-248])
+//
+// Spec 11 §1 sagt nicht „Jahr und Tag müssen übereinstimmen" (eine symmetrische Aussage),
+// sondern „`from`/`to` sind aus `fromDate`/`toDate` ABLEITBAR". Der Tag ist die Angabe,
+// das Jahr ihre gröbere Fassung. Diese Tests halten fest, dass die Ableitung genau in
+// diese Richtung läuft — und dass sie NUR läuft, wo ein Tag wirklich tagegenau ist.
+// ---------------------------------------------------------------------------------------
+describe('leiteGrenzjahrAb — der Stichtag zieht das Jahr, nie umgekehrt', () => {
+  it('zieht ein auseinandergelaufenes Jahr an den Stichtag', () => {
+    // Der Realfall aus [ADR-v9-246] E3: die Periode wurde tagegenau entzerrt
+    // („31 DEC 1810"), die abgeleitete Jahreszahl blieb auf der alten Randberührung
+    // stehen (1811). Zehn Oldenburger Orte trugen genau das.
+    expect(leiteGrenzjahrAb({ from: 1803, to: 1811, fromDate: null, toDate: '31 DEC 1810' })).toEqual({
+      from: 1803,
+      to: 1810,
+      fromDate: null,
+      toDate: '31 DEC 1810',
+    });
+  });
+
+  it('füllt ein FEHLENDES Jahr aus dem Stichtag', () => {
+    // Kein Auseinanderlaufen, sondern eine halbe Angabe — dieselbe Zusage, dieselbe Antwort.
+    expect(leiteGrenzjahrAb({ from: null, to: null, fromDate: '1 OCT 1810', toDate: null })).toEqual({
+      from: 1810,
+      to: null,
+      fromDate: '1 OCT 1810',
+      toDate: null,
+    });
+  });
+
+  it('lässt eine ungenaue Tagesangabe das Jahr NICHT ziehen', () => {
+    // `ABT 1700` trägt ein Jahr, aber keine Tagesgenauigkeit — `tagesOrdinal` liefert
+    // `null`, und ein Jahr ohne Tag ist keine schlechtere Angabe, sondern eine andere.
+    // Ohne diesen Fall würde die Ableitung Scheingenauigkeit in den Bestand schreiben.
+    const d = { from: 1750, to: null, fromDate: 'ABT 1700', toDate: null };
+    expect(leiteGrenzjahrAb(d)).toBe(d);
+  });
+
+  it('gibt bei nichts zu tun die EINGABE zurück (identische Referenz)', () => {
+    // Der Aufrufer zählt daran, was er geändert hat — und Copy-on-Write (ADR-v9-92)
+    // kopiert nur mit Anlass. 1367 der 1506 datierten Einträge des Bestands tragen
+    // gar keinen Tag; für sie muss diese Funktion nachweislich nichts tun.
+    const kongruent = { from: 1810, to: 1969, fromDate: '1 OCT 1810', toDate: null };
+    expect(leiteGrenzjahrAb(kongruent)).toBe(kongruent);
+    const ohneTag = { from: 1810, to: 1969, fromDate: null, toDate: null };
+    expect(leiteGrenzjahrAb(ohneTag)).toBe(ohneTag);
+  });
+
+  it('lässt Felder neben den Grenzen unangetastet', () => {
+    // `value`/`dateRaw` sind Quelltext-Bewahrung (LP-1) — die Ableitung fasst genau zwei
+    // Zahlen an, sonst nichts.
+    expect(
+      leiteGrenzjahrAb({ value: 'Amt Vechta', from: 1811, to: null, fromDate: '1 JAN 1810', toDate: null, dateRaw: 'FROM 1810' }),
+    ).toEqual({ value: 'Amt Vechta', from: 1810, to: null, fromDate: '1 JAN 1810', toDate: null, dateRaw: 'FROM 1810' });
+  });
+
+  it('greift auf BEIDEN datierten Achsen eines Ortes', () => {
+    // pnames und enclosedBy sind im Bestand beide betroffen (36 bzw. 103 Einträge mit
+    // Stichtag) — eine Ableitung, die nur eine Achse kennt, wäre halb gebaut.
+    const po = leiteGrenzjahreAbImOrt(
+      place('P1', {
+        pnames: [{ value: 'Herzogtum Oldenburg', from: 1774, to: 1815, fromDate: null, toDate: '31 DEC 1814' }],
+        enclosedBy: [{ placeId: '@P9@', from: 1804, to: null, fromDate: '1 JAN 1803', toDate: null }],
+      }),
+    );
+    expect(po.pnames[0].to).toBe(1814);
+    expect(po.enclosedBy[0].from).toBe(1803);
+  });
+
+  it('lässt einen bereits kongruenten Ort/Hof unverändert (identische Referenz)', () => {
+    const po = place('P1', {
+      pnames: [{ value: 'Ochtrup', from: 1969, to: null, fromDate: '1 JUL 1969', toDate: null }],
+    });
+    expect(leiteGrenzjahreAbImOrt(po)).toBe(po);
+    const ho = hof('_hof_a_b', 'P1', {
+      addrs: [{ value: 'Hof Meyer 1', from: 1800, to: null, fromDate: null, toDate: null }],
+    });
+    expect(leiteGrenzjahreAbImHof(ho)).toBe(ho);
+  });
+
+  it('zieht auch die Hof-Adressachse', () => {
+    const ho = leiteGrenzjahreAbImHof(
+      hof('_hof_a_b', 'P1', {
+        addrs: [{ value: 'Hof Meyer 1', from: 1800, to: 1976, fromDate: null, toDate: '31 DEC 1975' }],
+      }),
+    );
+    expect(ho.addrs[0].to).toBe(1975);
   });
 });

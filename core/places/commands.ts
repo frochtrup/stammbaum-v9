@@ -7,7 +7,7 @@
 // der Schale, s. ui/shell/app-state.svelte.ts).
 import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation, Year } from './types';
-import { buildPlacForGedcom, eventYear, eventSpanne, type PlaceContext } from './build-plac';
+import { buildPlacForGedcom, eventSpanne, type PlaceContext } from './build-plac';
 import { normPlaceName, normHofAddr } from './normalize';
 import { alsGrenze, type GrenzEingabe } from './zeitbezug';
 import { klonen } from '../clone-diagnose';
@@ -275,11 +275,13 @@ export function linkEventToPlace(ev: Event, placeId: PlaceId, ctx: PlaceContext)
  */
 export function linkEventToHof(ev: Event, hofId: HofId, ctx: PlaceContext): void {
   ev.hofId = hofId;
-  const year = eventYear(ev);
-  const proj = buildPlacForGedcom(ev, year, ctx);
+  // Zeitbezug wie im Zwilling `linkEventToPlace` darüber (ADR-v9-245) — die beiden
+  // Sofort-Reprojektionen unterschieden sich hier, obwohl sie dieselbe Frage stellen.
+  const bezug = eventSpanne(ev);
+  const proj = buildPlacForGedcom(ev, bezug, ctx);
   if (proj != null) ev.place = proj;
   if (!ev.addr) {
-    const a = ctx.hofs.resolveAddrAsOf(hofId, year);
+    const a = ctx.hofs.resolveAddrAsOf(hofId, bezug);
     if (a) ev.addr = a;
   }
 }

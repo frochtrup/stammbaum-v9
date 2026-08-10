@@ -11,7 +11,7 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { Year, PlaceObject } from './types';
 import type { PlaceRegistry } from './place-registry';
 import type { HofRegistry } from './hof-registry';
-import { extractHofAddr, placeYear } from './normalize';
+import { extractHofAddr, normHofAddr, normPlaceName, placeYear } from './normalize';
 import { spanneVonEreignis, type Spanne, type Zeitbezug } from './zeitbezug';
 
 /** Erstes Komma-Segment eines Namens (atomarer Ortsname ohne Hierarchie). */
@@ -151,6 +151,48 @@ export function buildPlacForGedcom(ev: Event, when: Zeitbezug, ctx: PlaceContext
 /** Jahr des Events aus seinem DATE-Feld (Chokepoint-intern; null wenn undatiert). */
 export function eventYear(ev: Event): Year {
   return placeYear(ev.date);
+}
+
+/**
+ * Die Ebenen, die der PLAC-Text des Ereignisses nennt und die KEIN Knoten seiner
+ * periodengerechten Kette trägt — leer, wenn alles abgedeckt ist.
+ *
+ * WOZU: eine UMBENENNUNG von einem VERLUST unterscheiden. Beide sehen im Text gleich aus
+ * (ein Segment der Quelle fehlt in der Projektion). „Kreis X" → „Amt X" ist derselbe
+ * Knoten unter seinem periodengerechten Namen; „…, NRW, Deutschland" → „…,
+ * Nordrhein-Westfalen" lässt eine Ebene weg, die der Bestand nicht kennt. Auf
+ * Zeichenketten-Ebene ist das nicht zu trennen, auf Knoten-Ebene schon: gehört das Segment
+ * zu irgendeinem Knoten der Kette (unter Titel, `shortName`, einer `pname` oder — beim Hof
+ * — einer Adressvariante), ist es abgedeckt.
+ *
+ * EINE Fundstelle für zwei Konsumenten (INV-UI-4): die Verarmungs-Sperre des Textangleichs
+ * (`alignCuratedEventTexts`, ADR-v9-224) entscheidet damit, ob sie schreiben darf, und die
+ * Qualitätsregel `PLAC_EBENE_UNBEKANNT` meldet damit denselben Zustand als Befund. Zwei
+ * Fassungen derselben Prüfung wären zwei Wahrheiten darüber, was „unbekannte Ebene" heißt.
+ */
+export function unbekannteEbenen(ev: Event, ctx: PlaceContext): string[] {
+  const roh = (ev?.place ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!roh.length) return [];
+
+  const hof = ev.hofId != null ? ctx.hofs.byId(ev.hofId) : undefined;
+  const ankerId = hof ? hof.villageId : ev.placeId;
+  if (ankerId == null) return [];
+
+  const abgedeckt = new Set<string>();
+  for (const id of ctx.places.enclosureIdsAsOf(ankerId, eventSpanne(ev))) {
+    const po = ctx.places.byId(id);
+    if (!po) continue;
+    abgedeckt.add(normPlaceName(po.title));
+    for (const pn of po.pnames ?? []) abgedeckt.add(normPlaceName(pn.value));
+    if (po.shortName) abgedeckt.add(normPlaceName(po.shortName));
+  }
+  for (const a of hof?.addrs ?? []) abgedeckt.add(normHofAddr(a.value));
+  abgedeckt.delete('');
+
+  return roh.filter((seg) => !abgedeckt.has(normPlaceName(seg)));
 }
 
 /**

@@ -627,3 +627,52 @@ describe('EVIDENCE_CONFLICT (Widersprüchliche Evidenz)', () => {
     expect(findings.find((f) => f.rule === 'EVIDENCE_CONFLICT')!.severity).toBe('warn');
   });
 });
+
+describe('PLAC_EBENE_UNBEKANNT — die Gegenseite der Verarmungs-Sperre (ADR-v9-247)', () => {
+  /** Dorf unter Elter; das Ereignis hängt am Dorf und trägt den Text der Quelle. */
+  function bestand(text: string, elterTitel = 'Kreis Steinfurt'): Database {
+    const places = new Map([
+      ['@ELTER@', place('@ELTER@', { title: elterTitel })],
+      [
+        '@DORF@',
+        place('@DORF@', {
+          title: 'Ochtrup',
+          pnames: [{ value: 'Ochtorf', from: 1400, to: 1700, fromDate: null, toDate: null }],
+          enclosedBy: [{ placeId: '@ELTER@', from: null, to: null, fromDate: null, toDate: null }],
+        }),
+      ],
+    ]);
+    const p = personWith('@I1@');
+    p.birth = makeEvent('BIRT', { date: '3 MAR 1750', place: text, placeId: '@DORF@', seen: true });
+    return dbWith([p], [], { placeObjects: places });
+  }
+
+  it('meldet ein Segment, das zu keinem Knoten der Kette gehört', () => {
+    expect(texts(bestand('Ochtrup, Kreis Steinfurt, Deutschland'), 'PLAC_EBENE_UNBEKANNT')).toEqual([
+      'Eine Ortsangabe nennt eine Ebene, die die Ortskette nicht kennt: Deutschland',
+    ]);
+  });
+
+  it('schweigt bei einer UMBENENNUNG — derselbe Knoten unter einer seiner `pnames`', () => {
+    // „Ochtorf" ist eine Zeitvariante des Dorfes, kein fremdes Segment: die Kette trägt es.
+    expect(texts(bestand('Ochtorf, Kreis Steinfurt'), 'PLAC_EBENE_UNBEKANNT')).toEqual([]);
+  });
+
+  it('schweigt, wenn die Quelle genau die modellierte Kette nennt', () => {
+    expect(texts(bestand('Ochtrup, Kreis Steinfurt'), 'PLAC_EBENE_UNBEKANNT')).toEqual([]);
+  });
+
+  it('nennt mehrere fehlende Ebenen in EINEM Befund', () => {
+    const t = texts(bestand('Ochtrup, Kreis Steinfurt, Preußen, Deutschland'), 'PLAC_EBENE_UNBEKANNT');
+    expect(t).toHaveLength(1);
+    expect(t[0]).toContain('2 Ebenen');
+    expect(t[0]).toContain('Preußen, Deutschland');
+  });
+
+  it('ist ab Werk eingeschaltet und meldet als Hinweis, nicht als Fehler', () => {
+    const findings = runValidation(bestand('Ochtrup, Kreis Steinfurt, Deutschland'), defaultConfig());
+    const treffer = findings.find((f) => f.rule === 'PLAC_EBENE_UNBEKANNT');
+    expect(treffer?.severity).toBe('info');
+    expect(treffer?.personId).toBe('@I1@');
+  });
+});

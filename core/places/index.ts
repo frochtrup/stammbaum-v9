@@ -35,6 +35,7 @@ export {
   placeDisplayName,
   eventYear,
   eventSpanne,
+  unbekannteEbenen,
   type PlaceContext,
 } from './build-plac';
 
@@ -49,6 +50,9 @@ export {
   jahresBeginn,
   jahresEnde,
   jahresSpanne,
+  leiteGrenzjahrAb,
+  leiteGrenzjahreAbImHof,
+  leiteGrenzjahreAbImOrt,
   spanneVonDatiert,
   spanneVonEreignis,
   tagesOrdinal,

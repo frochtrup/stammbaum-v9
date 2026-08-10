@@ -15,6 +15,7 @@ import type {
   SourceId,
 } from '../model/types';
 import type { HofObject, PlaceObject } from '../places/types';
+import type { PlaceContext } from '../places';
 
 /** Schweregrade der Spec-Skala: ✗ Fehler · ⚠ Warnung · ℹ Hinweis. */
 export type Severity = 'error' | 'warn' | 'info';
@@ -122,6 +123,10 @@ export interface StoredValidationConfig {
  */
 export interface RuleContext {
   db: Database;
+  /** Orts-/Hof-Registries (Chokepoints, Spec 11 §5) — `buildContext` baut sie ohnehin für
+   *  `hofsWithResidence`; Regeln, die eine periodengerechte Kette brauchen, lesen sie hier,
+   *  statt sich eine zweite zu bauen. */
+  places: PlaceContext;
   thresholds: Thresholds;
   /** Vom Probanden aus über Eltern-/Ehe-Kanten erreichbare Personen. */
   reachable: ReadonlySet<PersonId>;
@@ -232,4 +237,5 @@ export type RuleId =
   | 'HOF_NO_COORD'
   | 'HOF_FAR'
   // Format (Interop)
-  | 'ADDR_INDEX_ONLY';
+  | 'ADDR_INDEX_ONLY'
+  | 'PLAC_EBENE_UNBEKANNT';

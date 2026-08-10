@@ -29,11 +29,11 @@ import type { PlaceObjects, HofObjects } from '../../core/places/types';
 
 /** Der maßgebliche Bestand — Ancestris-Export, Stand 25 JUN 2026. */
 export const REALBESTAND = {
-  datei: 'Unsere Familie 2026.ged',
+  datei: 'Unsere Familie 2026-4.ged',
   exportiert: '25 JUN 2026',
   /** Erwartete Satzzahlen. Weicht die vorhandene Datei ab, ist sie eine andere (oder eine
    *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch. */
-  erwartet: { individuals: 3180, families: 987, sources: 152, repositories: 7 },
+  erwartet: { individuals: 3180, families: 987, sources: 153, repositories: 7 },
 } as const;
 
 /**
@@ -50,10 +50,10 @@ export const REALBESTAND = {
  * wurden von Hand mit dieser Datei gemessen, nicht von einem Test.
  */
 export const ORTSBESTAND = {
-  datei: 'orte-2.json',
+  datei: 'orte-5.json',
   /** Erwarteter Umfang — dieselbe Rolle wie `REALBESTAND.erwartet`: eine andere Datei
    *  ist eine andere Aussage. Seit 2026-08-09 auch WIRKLICH geprüft, s. u. */
-  erwartet: { placeObjects: 402, hofObjects: 185 },
+  erwartet: { placeObjects: 416, hofObjects: 184 },
 } as const;
 // WARUM DIE ZAHLEN SICH GEÄNDERT HABEN (2026-08-09, ADR-v9-242): der Symlink zeigte auf
 // `orte.v9.json` — die ÄLTESTE von vier Ortsdateien im Spec-Repo (rev 63, 310 Orte),
@@ -79,6 +79,20 @@ export function ortsbestandLaden(): { placeObjects: PlaceObjects; hofObjects: Ho
     placeObjects: new Map(w.placeObjects.map((p) => [p.id, p])),
     hofObjects: new Map(w.hofObjects.map((h) => [h.id, h])),
   };
+}
+
+/**
+ * Der Bestand, wie er auf der PLATTE steht — ohne die Normalisierungen des Ladepfads
+ * (BL-332, [ADR-v9-248]). Bewusst `JSON.parse` statt `parsePlacesFileWrapper`: seit der
+ * Grenzjahr-Ableitung ist Letzteres nicht mehr neutral, und ein Test, der die Kuration
+ * beurteilen will, darf nicht die geheilte Fassung ansehen — er prüfte sonst die
+ * Ableitung gegen sich selbst.
+ *
+ * Nur für Aussagen ÜBER die Datei (Kurations-Wächter). Für alles, was das Verhalten des
+ * Programms misst, ist `ortsbestandLaden()` das Richtige: die App sieht nie die Rohform.
+ */
+export function ortsbestandRohLaden(): { placeObjects: unknown[]; hofObjects: unknown[] } {
+  return JSON.parse(readFileSync(ortsbestandPfad(), 'utf8'));
 }
 
 /** Der eingefrorene Orakel-Snapshot. Gültig für Roundtrip/Parser — NICHT für Bestandszahlen. */

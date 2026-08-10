@@ -58,6 +58,68 @@ describe('loadPlaces', () => {
     expect(loaded.placeObjects.get('P1')?.title).toBe('Ochtrup');
     expect(loaded.hofObjects.get('H1')?.villageId).toBe('P1');
   });
+
+  // BL-332 / [ADR-v9-248] — die ZWEITE Tür. Der IDB-Spiegel ist vom Programm selbst
+  // geschrieben, aber nicht notwendig von DIESER Fassung: ein Stand, den eine Version vor
+  // der Ableitung abgelegt hat, trägt die Inkongruenz weiter. Ohne diesen Fall wäre der
+  // Fix auf die Datei-Tür beschränkt — die auffällige Stelle geschlossen, die
+  // strukturgleiche Geschwister-Stelle offen.
+  it('leitet das Grenzjahr auch aus dem GESPEICHERTEN Spiegel ab', async () => {
+    const store = createMockPlacesStore({
+      schemaVersion: PLACES_SCHEMA_VERSION,
+      rev: 3,
+      device: 'dev-A',
+      ts: 5000,
+      placeObjects: [
+        place('P1', {
+          enclosedBy: [{ placeId: '@P9@', from: 1811, to: null, fromDate: '1 JAN 1810', toDate: null }],
+        }),
+      ],
+      hofObjects: [
+        hof('H1', 'P1', {
+          addrs: [{ value: 'Wall 33', from: 1800, to: 1976, fromDate: null, toDate: '31 DEC 1975' }],
+        }),
+      ],
+    });
+    const svc = new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000));
+
+    const loaded = await svc.loadPlaces();
+
+    expect(loaded.placeObjects.get('P1')?.enclosedBy[0].from).toBe(1810);
+    expect(loaded.hofObjects.get('H1')?.addrs[0].to).toBe(1975);
+  });
+
+  it('vergleicht beim Speichern die ABGELEITETE Gegenseite — kein Scheinkonflikt', async () => {
+    // Liefe nur `loadPlaces` durch die Ableitung und der Remote-Lesezugriff in
+    // `reconcileAndSave` nicht, sähe der Union-Merge einen Unterschied, den es nicht gibt:
+    // lokal 1810 (abgeleitet) gegen remote 1811 (roh) — und die rohe Seite könnte die
+    // abgeleitete überschreiben.
+    const drift = {
+      schemaVersion: PLACES_SCHEMA_VERSION,
+      rev: 3,
+      device: 'dev-B',
+      ts: 5000,
+      placeObjects: [
+        place('P1', {
+          enclosedBy: [{ placeId: '@P9@', from: 1811, to: null, fromDate: '1 JAN 1810', toDate: null }],
+        }),
+      ],
+      hofObjects: [],
+    };
+    const store = createMockPlacesStore(drift);
+    const svc = new PlacesSyncService(store, createMockDeviceId('dev-A'), createMockClock(1000));
+
+    const geladen = await svc.loadPlaces();
+    const result = await svc.reconcileAndSave(
+      geladen.placeObjects,
+      geladen.hofObjects,
+      { rev: geladen.rev, placeObjects: geladen.placeObjects, hofObjects: geladen.hofObjects },
+    );
+
+    expect(result.warning).toBeNull();
+    expect(result.placeObjects.get('P1')?.enclosedBy[0].from).toBe(1810);
+    expect(store._peek()?.placeObjects[0].enclosedBy[0].from).toBe(1810);
+  });
 });
 
 describe('reconcileAndSave — kein Konflikt (Normalfall)', () => {

@@ -56,6 +56,7 @@
   } from '../services/media';
   import { openTaskCount, formatBadgeCount } from '../ui/views/tasks/tasks-model';
   import UndoControls from '../ui/shell/UndoControls.svelte';
+  import StatusNotice from '../ui/shell/StatusNotice.svelte';
   import { createShortcutHandler } from '../ui/shell/shortcuts';
   import CommandPalette from '../ui/shell/CommandPalette.svelte';
   import { createAppNavigation } from '../ui/shell/app-navigation.svelte';
@@ -147,7 +148,12 @@
   const tasksState = holders.tasks;
   const logState = holders.log;
   const hypothesesState = holders.hypotheses;
+  // Der Hinweis-Kanal der Schale. Frist und Schließen trägt `StatusNotice` (BL-333) —
+  // hier steht nur, WAS gemeldet wird, nicht wie lange.
   let placesEditNotice = $state('');
+  const zeigeNotiz = (text: string): void => {
+    placesEditNotice = text;
+  };
   // FS-Handle der zuletzt geladenen/gespeicherten Datei (Tier-1-Export, Spec 14 §4) — lebt
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
   let fileHandle: unknown = $state(undefined);
@@ -161,10 +167,10 @@
           // fire-and-forget neben den Kommandos und meldet im Normalfall '' — es kam
           // dadurch regelmäßig NACH einer anderen Meldung an und löschte sie (bei der
           // Angleichung aus ADR-v9-224 im Browser beobachtet: der Hinweis erschien nie).
-          if (r.notice) placesEditNotice = r.notice;
+          if (r.notice) zeigeNotiz(r.notice);
         })
         .catch((err) => {
-          placesEditNotice = 'Speichern des Orts-/Hofwissens fehlgeschlagen.';
+          zeigeNotiz('Speichern des Orts-/Hofwissens fehlgeschlagen.');
           console.error('persistPlaces', err);
         });
     },
@@ -180,10 +186,10 @@
       }
       if (luecken > 0) {
         teile.push(
-          `${luecken} ${luecken === 1 ? 'Ereignis' : 'Ereignisse'} unverändert gelassen — der Bestand kennt eine dort genannte Ebene nicht`,
+          `${luecken} ${luecken === 1 ? 'Ereignis' : 'Ereignisse'} unverändert gelassen — eine genannte Ebene kennt der Bestand nicht; Einzelfälle im Qualitäts-Dashboard`,
         );
       }
-      placesEditNotice = teile.join(' · ') + '.';
+      zeigeNotiz(teile.join(' · ') + '.');
     },
     persistWorkingCopy: (text) => {
       // Stilles Auto-Save der Genealogie-Arbeitskopie (Spec 14 §3.1) — fire-and-forget,
@@ -206,7 +212,7 @@
       if (!copy) return;
       fileHandle = copy.handle;
       const result = await loadDocText(copy.format ?? 'gedcom', copy.text, copy.name, appState, persister);
-      placesEditNotice = result.placesNotice;
+      zeigeNotiz(result.placesNotice);
     })();
 
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
@@ -330,7 +336,7 @@
   async function runSave() {
     if (!appState.fileName) return;
     const outcome = await saveCurrentDoc(appState, fileService, fileHandle);
-    placesEditNotice = outcome.notice;
+    zeigeNotiz(outcome.notice);
     // „Speichern unter" (Tier 1b) hat ein Handle erworben — ab jetzt schreibt ⌘S still
     // in dieselbe Datei. In der Arbeitskopie liegt es schon (save-action.ts).
     if (outcome.handle !== undefined) fileHandle = outcome.handle;
@@ -400,9 +406,7 @@
 
   <UpdateBanner visible={swUpdate.ready} onApply={applyUpdate} />
 
-  {#if placesEditNotice}
-    <p class="app-shell__notice" role="status">{placesEditNotice}</p>
-  {/if}
+  <StatusNotice text={placesEditNotice} onDismiss={() => zeigeNotiz('')} />
 
   <main class="app-shell__main">
     {#if isEntityTarget(shownTarget)}
@@ -545,14 +549,6 @@
     font-size: 1.1rem;
     margin: 0;
     color: var(--stb-gold-light);
-  }
-
-  .app-shell__notice {
-    margin: 0;
-    padding: 0.4rem 1rem;
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
   }
 
   .app-shell__main {

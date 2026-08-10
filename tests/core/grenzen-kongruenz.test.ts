@@ -12,6 +12,20 @@
 // direkt (`gov.ts`) — heute kongruent, aber weil derselbe String zufällig zweimal geparst
 // wird, nicht weil ein Mechanismus es garantiert. Genau die Sorte Regel, die
 // [ADR-v9-239](../../specs/v9/04-Entscheidungslog.md) als „ohne Durchsetzung" verwirft.
+//
+// WAS SICH MIT BL-332 GEÄNDERT HAT ([ADR-v9-248]). Der Ladepfad LEITET das Jahr jetzt aus
+// dem Stichtag ab (`leiteGrenzjahrAb`, an beiden Türen). Damit ist die Frage, ob das
+// laufende Programm eine inkongruente Grenze sehen kann, beantwortet — und dieser Wächter
+// hätte, gegen den Ladepfad gemessen, nichts mehr zu melden: er prüfte die Ableitung
+// gegen sich selbst. Er behält deshalb GENAU die Arbeit, die die Ableitung nicht tut:
+//
+//   * die beiden SCHREIBPFADE (GOV, `with…`-Kommandos) erzeugen im Programm entstandene
+//     Grenzen — dort gibt es keinen Ladepfad, der etwas geradeziehen könnte;
+//   * der Realbestand wird ROH gelesen (`ortsbestandRohLaden`, kein
+//     `parsePlacesFileWrapper`), damit eine von Hand eingetragene Drift in der KURATION
+//     weiterhin in CI auffällt, bevor der nächste Speichervorgang sie stillschweigend
+//     heilt. Das ist die Sichtbarkeit, deren Verlust [ADR-v9-246](../../specs/v9/04-Entscheidungslog.md)
+//     Verworfen (c) als Preis der Ableitung benannt hat — sie kostet hier eine Zeile.
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { applyGovEntry, parseGovText, placeYear, tagesOrdinal } from '../../core/places';
@@ -23,7 +37,7 @@ import {
 } from '../../core/places';
 import type { PlaceObject } from '../../core/places/types';
 import { place } from './places-fixtures';
-import { ORTSBESTAND, ortsbestandLaden, ortsbestandPfad } from './realdaten';
+import { ORTSBESTAND, ortsbestandLaden, ortsbestandPfad, ortsbestandRohLaden } from './realdaten';
 
 /** Alle datierten Angaben eines Ortes als flache Liste (pnames + enclosedBy). */
 function datierteAngaben(pl: PlaceObject): { was: string; from: number | null; to: number | null; fromDate?: string | null; toDate?: string | null }[] {
@@ -98,11 +112,37 @@ describe('Kongruenz von Jahr und Stichtag (Spec 11 §1)', () => {
   });
 
   it.skipIf(!existsSync(ortsbestandPfad()))(
-    `${ORTSBESTAND.datei}: kein Ort trägt eine auseinandergelaufene Grenze`,
+    `${ORTSBESTAND.datei}: die KURATION trägt keine auseinandergelaufene Grenze (roh gelesen)`,
     () => {
-      const { placeObjects } = ortsbestandLaden();
-      const alle = [...placeObjects.values()].flatMap(datierteAngaben);
+      // Roh, nicht über den Ladepfad — s. Kopf. Gemessen an rev 314: 1506 datierte
+      // Angaben, davon 139 mit Stichtag (36 pnames, 103 enclosedBy); die 16 aus
+      // [ADR-v9-246] E3 sind korrigiert.
+      const { placeObjects, hofObjects } = ortsbestandRohLaden();
+      const alle = [
+        ...(placeObjects as PlaceObject[]).flatMap(datierteAngaben),
+        ...(hofObjects as { id: string; addrs: PlaceObject['pnames'] }[]).flatMap((h) =>
+          h.addrs.map((a) => ({ was: `${h.id} addr „${a.value}"`, ...a })),
+        ),
+      ];
+      const mitTag = alle.filter((a) => a.fromDate || a.toDate);
       expect(alle.length, 'der Bestand muss datierte Angaben haben, sonst prüft der Fall nichts').toBeGreaterThan(0);
+      expect(mitTag.length, 'ohne kuratierte Stichtage prüft dieser Fall nichts (TST-26)').toBeGreaterThan(0);
+      expect(verstoesse(alle)).toEqual([]);
+    },
+  );
+
+  // Die Ableitung ist die andere Hälfte derselben Zusage: was hier ROH noch drin sein
+  // könnte, kommt durch den Ladepfad nicht mehr heraus. Ohne diesen Fall stünde die
+  // Schreibpfad-Prüfung oben allein und die Datei-Tür wäre nur in tests/services belegt.
+  it.skipIf(!existsSync(ortsbestandPfad()))(
+    `${ORTSBESTAND.datei}: über den LADEPFAD ist Inkongruenz strukturell ausgeschlossen`,
+    () => {
+      const { placeObjects, hofObjects } = ortsbestandLaden();
+      const alle = [
+        ...[...placeObjects.values()].flatMap(datierteAngaben),
+        ...[...hofObjects.values()].flatMap((h) => h.addrs.map((a) => ({ was: `${h.id} addr`, ...a }))),
+      ];
+      expect(alle.length).toBeGreaterThan(0);
       expect(verstoesse(alle)).toEqual([]);
     },
   );
