@@ -159,7 +159,7 @@
 
 {#if hasCoords}
   <section class="place-detail__section mini-map">
-    <h3>Karte</h3>
+    <h3 class="stb-section-title">Karte</h3>
     <!-- Die Karte IST der Sprung zur Karte-Lens (ADR-v9-150 / INV-UI-12a: die Aktion hängt
          am Element, das ihre Bedeutung ohnehin trägt — kein separater „→ zur Karte"-Link
          daneben). `role="button"` statt `<button>`, weil die Leaflet-Attribution eigene

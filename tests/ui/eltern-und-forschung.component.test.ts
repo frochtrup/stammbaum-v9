@@ -32,12 +32,15 @@ function aufbau(mitFamilie = false) {
 }
 
 describe('Herkunftsfamilie zuordnen und anlegen (BL-341)', () => {
-  it('die Pille steht auch an einer Person ganz ohne Familien', () => {
+  it('beide Rollen tragen ihr + auch an einer Person ganz ohne Familien', () => {
     // Der eigentliche Befund: vorher hing die GANZE Sektion an `families.length > 0` —
     // ausgerechnet wer keine Eltern hat, hatte keinen Ort, welche einzutragen.
     const { appState, viewState } = aufbau(false);
     render(PersonDetail, { props: { appState, viewState } });
-    expect(screen.getByRole('button', { name: '+ Herkunftsfamilie' })).toBeTruthy();
+    // Das `+` sitzt seit BL-344 hinter dem Rollen-Label und trägt seinen Zweck im
+    // aria-label statt im sichtbaren Text (INV-UI-12).
+    expect(screen.getByRole('button', { name: 'Herkunftsfamilie zuordnen oder anlegen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Eigene Familie zuordnen oder anlegen' }), 'auch die eigene Familie ist anlegbar').toBeTruthy();
   });
 
   it('eine bestehende Familie zuordnen hängt die Person als Kind ein — auf BEIDEN Seiten', () => {

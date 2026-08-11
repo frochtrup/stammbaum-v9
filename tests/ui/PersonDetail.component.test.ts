@@ -788,7 +788,10 @@ describe('PersonDetail — leerer "Familien"-Abschnitt: Header + Affordanz, kein
     render(PersonDetail, { props: { appState, viewState } });
 
     expect(screen.getByText('Familien')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '+ Herkunftsfamilie' })).toBeTruthy();
+    // Das `+` sitzt seit BL-344 hinter dem Rollen-Label und trägt seinen Zweck im
+    // aria-label statt im sichtbaren Text (INV-UI-12).
+    expect(screen.getByRole('button', { name: 'Herkunftsfamilie zuordnen oder anlegen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Eigene Familie zuordnen oder anlegen' }), 'auch die eigene Familie ist anlegbar').toBeTruthy();
     // Der Kern von §10f bleibt: die Affordanz sagt bereits, dass hier nichts steht —
     // ein zusätzlicher „Keine X"-Satz wäre die Verdopplung, die die Regel abschafft.
     expect(screen.queryByText(/Keine Familienverknüpfung/)).toBeNull();

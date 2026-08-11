@@ -288,7 +288,7 @@
     {/if}
 
     <section class="media-detail__section">
-      <h3>Referenzen ({detail.references.length})</h3>
+      <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>
       <div class="media-detail__add-row">
         <button type="button" class="media-detail__add-btn" onclick={() => (adding = 'person')}>+ Person</button>
         <button type="button" class="media-detail__add-btn" onclick={() => (adding = 'family')}>+ Familie</button>
@@ -422,12 +422,6 @@
 
   .media-detail__section {
     margin-top: 1.25rem;
-  }
-
-  .media-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .media-detail__add-row {

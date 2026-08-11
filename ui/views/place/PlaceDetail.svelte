@@ -230,7 +230,7 @@
     {/if}
 
     <section class="place-detail__section">
-      <h3>
+      <h3 class="stb-section-title">
         Verwaltungszugehörigkeit
         <span class="place-detail__info-icon" role="note" aria-label={ENCLOSURE_INFO} use:tooltip={ENCLOSURE_INFO}>ⓘ</span>
       </h3>
@@ -303,7 +303,7 @@
          Abschnitt: dort steht das Feld selbst (keine doppelte Fundstelle). -->
     {#if !editing && detail.place.note}
       <section class="place-detail__section">
-        <h3>Notiz</h3>
+        <h3 class="stb-section-title">Notiz</h3>
         <p class="place-detail__note">{detail.place.note}</p>
       </section>
     {/if}
@@ -329,7 +329,7 @@
 
     {#if detail.unlinkedEvents.length > 0}
       <section class="place-detail__section place-detail__unlinked">
-        <h3>Nicht verknüpfte Ereignisse ({detail.unlinkedEvents.length})</h3>
+        <h3 class="stb-section-title">Nicht verknüpfte Ereignisse ({detail.unlinkedEvents.length})</h3>
         <p class="place-detail__muted">
           Diese Ereignisse nennen „{detail.place.title}" nur als Text — noch ohne Verknüpfung zu diesem Ort.
         </p>
@@ -352,7 +352,7 @@
          also eine Aussage über die Daten, wo in Wahrheit die Grundlage fehlt. -->
     {#if appState.caps.hasEventContext}
     <section class="place-detail__section">
-      <h3>Ereignisse nach Typ</h3>
+      <h3 class="stb-section-title">Ereignisse nach Typ</h3>
       {#if detail.eventsByType.length === 0}
         <p class="place-detail__muted">Keine Ereignisse an diesem Ort erfasst.</p>
       {:else}
@@ -373,7 +373,7 @@
 
     {#if detail.citations.length > 0}
       <section class="place-detail__section">
-        <h3>Quellen ({detail.citations.length})</h3>
+        <h3 class="stb-section-title">Quellen ({detail.citations.length})</h3>
         <div class="place-detail__citations">
           {#each detail.citations as cit (cit.sourceId)}
             <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
@@ -426,12 +426,6 @@
 
   .place-detail__section {
     margin-top: 1.25rem;
-  }
-
-  .place-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .place-detail__muted {

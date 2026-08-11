@@ -109,7 +109,7 @@
 
 {#if variants.length > 0 || translations.length > 0 || editing}
   <section class="place-detail__section">
-    <h3>Namens-Varianten</h3>
+    <h3 class="stb-section-title">Namens-Varianten</h3>
     <!-- Lesefläche: die Gültigkeit steht im sichtbaren Text der Pille, nicht (mehr) allein
          in einem `use:tooltip` (ADR-v9-183) — ein Kanal, den es auf einem Touchgerät nicht
          gibt, ist keine Anzeige. Wortlaut über `hierarchySpanLabel`, dieselbe Funktion, die
@@ -226,12 +226,6 @@
      Steckbriefs, und ein eigener Namensraum hätte hier nur die Herkunft verschleiert. */
   .place-detail__section {
     padding: 0 1rem 1rem;
-  }
-
-  .place-detail__section h3 {
-    margin: 0 0 0.5rem;
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
   }
 
   .place-detail__hint {

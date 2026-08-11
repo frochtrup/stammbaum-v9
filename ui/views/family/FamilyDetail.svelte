@@ -281,7 +281,7 @@
     </DetailHeader>
 
     <section class="family-detail__section">
-      <h3>Eltern</h3>
+      <h3 class="stb-section-title">Eltern</h3>
       <div class="family-detail__parents">
         {#each (['husband', 'wife'] as const) as role (role)}
           {@const member = parents.find((p) => p.role === role)}
@@ -372,7 +372,7 @@
 
     {#if otherEvents.length > 0}
       <section class="family-detail__section">
-        <h3>Weitere Ereignisse</h3>
+        <h3 class="stb-section-title">Weitere Ereignisse</h3>
         <ul class="family-detail__events">
           {#each otherEvents as ev (ev.key)}
             {@render eventRow(ev)}
@@ -383,7 +383,7 @@
 
     {#if detail.citations.length > 0}
       <section class="family-detail__section">
-        <h3>Quellen (Familie)</h3>
+        <h3 class="stb-section-title">Quellen (Familie)</h3>
         <div class="family-detail__citations">
           {#each detail.citations as cit, i (i)}
             <SourceBadge
@@ -460,12 +460,6 @@
 
   .family-detail__section {
     margin-bottom: 1.25rem;
-  }
-
-  .family-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   /* Eltern-Boxen (Nachtrag 2026-07-06 [20 §1.5]): nebeneinander, gemeinsame Box-Optik

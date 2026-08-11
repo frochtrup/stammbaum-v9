@@ -45,7 +45,7 @@
 </script>
 
 <section class="merge">
-  <h3>Dubletten-Merge</h3>
+  <h3 class="stb-section-title">Dubletten-Merge</h3>
   <p class="merge__muted">
     Diesen Ort verlustfrei in einen anderen Ort zusammenführen — Titel und Namensvarianten
     von „{place.title || place.id}" erscheinen danach als Herkunfts-Pillen beim Ziel-Ort.
@@ -78,12 +78,6 @@
 <style>
   .merge {
     margin-top: 1.25rem;
-  }
-
-  .merge h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .merge__muted {

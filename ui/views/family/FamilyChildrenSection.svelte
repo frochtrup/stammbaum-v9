@@ -42,7 +42,7 @@
 
 <section class="family-children">
   {#if children.length > 0}
-    <h3>Kinder</h3>
+    <h3 class="stb-section-title">Kinder</h3>
     <ul class="family-children__list">
       {#each children as child (child.personId)}
         <li>
@@ -106,12 +106,6 @@
      (`.family-detail__section`, INV-UI-4) — die Extraktion ändert die Optik nicht. */
   .family-children {
     margin-bottom: 1.25rem;
-  }
-
-  .family-children h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   /* Kinder — kompakte, anklickbare Einzeiler (INV-UI-5): Name + Geburtsjahr in Klammern,

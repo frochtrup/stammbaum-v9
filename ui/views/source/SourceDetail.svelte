@@ -223,7 +223,7 @@
     {/if}
 
     <section class="source-detail__section">
-      <h3>Referenzen ({detail.references.length})</h3>
+      <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>
       {#if detail.references.length === 0}
         <p class="source-detail__muted">Keine Zitatstelle referenziert diese Quelle.</p>
       {:else}
@@ -294,12 +294,6 @@
 
   .source-detail__section {
     margin-top: 1.25rem;
-  }
-
-  .source-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .source-detail__muted {

@@ -107,7 +107,7 @@
 </script>
 
 <section class="forschung">
-  <p class="stb-role-label">Forschung</p>
+  <h3 class="stb-section-title">Forschung</h3>
 
   {#if zeilen.length > 0}
     <ul class="forschung__liste">

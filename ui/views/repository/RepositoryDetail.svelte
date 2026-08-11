@@ -121,7 +121,7 @@
     </dl>
 
     <section class="repository-detail__section">
-      <h3>Verlinkte Quellen ({detail.sources.length})</h3>
+      <h3 class="stb-section-title">Verlinkte Quellen ({detail.sources.length})</h3>
       {#if detail.sources.length === 0}
         <p class="repository-detail__muted">Keine Quelle verweist auf dieses Archiv.</p>
       {:else}
@@ -183,12 +183,6 @@
 
   .repository-detail__section {
     margin-top: 1.25rem;
-  }
-
-  .repository-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .repository-detail__muted {

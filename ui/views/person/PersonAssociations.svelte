@@ -65,7 +65,7 @@
      (Design-Kritik 2026-07-31). Der Code-Name bleibt `associations` — das ist der
      GEDCOM-Begriff. -->
 <section class="person-detail__section person-assoc" class:person-assoc--empty={rows.length === 0 && godchildren.length === 0}>
-  <h3>Personenbezüge <span class="person-assoc__subtitle">Paten · Zeugen · Informanten</span></h3>
+  <h3 class="stb-section-title">Personenbezüge <span class="person-assoc__subtitle">Paten · Zeugen · Informanten</span></h3>
 
   {#if rows.length > 0}
     <ul class="person-assoc__list">
@@ -166,8 +166,11 @@
      keine ASSO-Einträge), und eine Überschrift in „Familien"-Stärke für null Inhalt zog
      mehr Aufmerksamkeit als sie verdient (Design-Kritik 2026-07-31). Sie bleibt sichtbar —
      sie trägt die einzige Anlege-Affordanz —, aber leiser. */
+  /* Nur die FARBE tritt im Leerzustand zurück (BL-342) — Größe und Abstand kommen jetzt
+     aus `.stb-section-title`. Vorher stand hier die volle Regel, und sie galt AUSSCHLIESSLICH
+     im leeren Zustand: eine befüllte Sektion fiel damit auf den Browser-Default zurück und
+     war größer und heller als ihre Geschwister daneben. */
   .person-assoc--empty :global(h3) {
-    font-size: 0.95rem;
     color: var(--stb-text-dim);
   }
 

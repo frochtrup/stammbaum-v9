@@ -149,6 +149,31 @@ h3 {
   font-family: var(--stb-font-title);
 }
 
+/* Sektions-Überschrift EINER Detail-Ansicht (INV-UI-4, BL-342) — „Ereignisse",
+   „Familien", „Referenzen", „Namens-Varianten", „Forschung".
+
+   DER BEFUND (Nutzer-Screenshot 2026-08-11: „viele verschiedene Ebenen und Styles").
+   Genau diese drei Deklarationen standen SECHSFACH kopiert — je einmal scoped in
+   `PersonDetail`, `FamilyDetail`, `SourceDetail`, `HofDetail`, `PlaceNamesSection`,
+   `PlaceContemporaries`. Solange jede Sektion in ihrer Ansicht lag, fiel das nicht auf.
+   Es fällt in dem Moment auf, in dem eine Sektion in eine EIGENE Komponente umzieht:
+   Sveltes Scoped CSS bleibt beim alten Elternteil zurück, die Überschrift verliert ihren
+   Stil und rendert im Browser-Default — größer und heller als ihre Geschwister daneben.
+   Genau das ist beim Herauslösen von `PersonFamilySection` (BL-341) passiert.
+
+   Eine kopierte Regel ist damit nicht nur Redundanz, sondern eine ZEITBOMBE: sie hält,
+   bis jemand Markup verschiebt, und bricht dann still. Als geteilte Klasse kann das nicht
+   passieren — sie zieht mit dem Markup mit.
+
+   Nicht als Element-Selektor (`h3`): Modal- und Formular-Titel sind ebenfalls `h3` und
+   sollen ausdrücklich anders aussehen. Die Klasse sagt „ich bin eine Sektions-Überschrift",
+   nicht „ich bin die dritte Ebene". */
+.stb-section-title {
+  font-size: 0.95rem;
+  color: var(--stb-gold-light);
+  margin: 0 0 0.4rem;
+}
+
 a {
   color: var(--stb-gold-light);
 }
