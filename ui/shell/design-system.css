@@ -237,6 +237,22 @@ textarea::placeholder {
   border: 1px solid transparent;
   border-radius: var(--stb-radius-control);
   padding: 0.5rem 0.9rem;
+  /* GEWÄHLT, nicht geerbt (BL-347) — dieselbe Lücke wie bei `.stb-icon-btn` (BL-345):
+     hier stand keine `font-size`, und ein `<button>` erbt seine nicht. Alle 78 Fundstellen
+     lagen damit auf dem User-Agent-Wert (13,333px in Chromium).
+
+     WARUM 0.85rem UND NICHT GRÖSSER: der Wert ist an die 36px oben gebunden. Gemessen an
+     vier Flächen (Kopfzeile, Formular-Knopfreihe, Modal-Fuß, Gefahrenzone): 0,85rem hält
+     jeden Knopf bei exakt 36px; ab 0,9rem wachsen die Knöpfe MIT GLYPHE („☆ Als Proband",
+     „✎ Identität") auf 39px, bei 1rem alle auf 37–41px. Die gezeichnete Höhe ist aber
+     keine Nebenwirkung, sondern die Aussage dieser Primitive — also bestimmt sie den Wert.
+     0,85rem ist zugleich die kompakte Textgröße, die die App an ihren Zeilen ohnehin
+     führt; der Knopf hängt damit an der Typo-Skala statt an einer Browser-Konstante.
+
+     Anders als bei der Glyphe geht es hier NICHT um Sichtbarkeit: dieser Knopf trägt sein
+     Gewicht über `font-weight: 600`, Polsterung und Rahmen. Es geht darum, dass die Zahl
+     gewählt ist. */
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
 }

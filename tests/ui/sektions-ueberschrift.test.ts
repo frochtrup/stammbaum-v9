@@ -104,6 +104,37 @@ describe('Sektions-Überschrift (BL-342)', () => {
     expect(regel![1], 'ohne font-size gilt der UA-Wert 13,333px — gemessen, nicht gewählt').toMatch(/font-size/);
   });
 
+  // BL-347: dieselbe Lücke an der zweiten Primitive. `.stb-btn` setzte ebenfalls keine
+  // `font-size` — 78 Fundstellen auf dem UA-Wert. Der Wert ist hier an die gezeichneten
+  // 36px gebunden (0,85rem hält sie; ab 0,9rem wachsen Knöpfe mit Glyphe auf 39px), also
+  // steht die Zahl nicht zur freien Wahl und gehört umso mehr festgehalten.
+  it('die beschriftete Knopf-Primitive setzt ihre Schriftgröße selbst', () => {
+    const css = readFileSync(join(UI, 'shell/design-system.css'), 'utf8');
+    const regel = /\.stb-btn\s*\{([^}]*)\}/.exec(css);
+    expect(regel, '.stb-btn fehlt in design-system.css').toBeTruthy();
+    expect(regel![1], 'ohne font-size gilt der UA-Wert 13,333px — gemessen, nicht gewählt').toMatch(/font-size/);
+  });
+
+  // Kein lokaler Nachbau einer VORHANDENEN Variante. Die Gefahrenzone tat genau das bis
+  // BL-347: `.delete-entity__btn` war transparent + Danger-Farbe + Rahmen + Radius — Zug
+  // um Zug die `danger`-Variante, nur außerhalb der Primitive, und damit der einzige
+  // beschriftete Knopf, den eine Änderung an ihr nicht erreicht hätte.
+  //
+  // Die Signatur ist bewusst die DANGER-Variante und nicht „irgendein lokaler Knopf mit
+  // Radius-Token": vier Komponenten (`PersonMergeModal`, `PlaceMergeSection`,
+  // `EventAgeHelper` u. a.) führen einen gefüllten `surface-3`-Knopf mit `gold-dim`-Rahmen
+  // — einen VIERTEN Look, den die Primitive gar nicht anbietet. Sie zu erfassen hieße,
+  // eine Design-Frage zu stellen, die dieser Test nicht beantwortet (BL-348). Der erste,
+  // zu weite Anlauf tat es und meldete sie mit — derselbe Fehler wie zweimal zuvor in
+  // dieser Datei.
+  it('kein lokaler Nachbau einer vorhandenen Knopf-Variante', () => {
+    const treffer = dateien.filter(({ text }) => {
+      const regeln = text.match(/__btn\s*\{[^}]*\}/g) ?? [];
+      return regeln.some((r) => /--stb-danger/.test(r) && /border-radius/.test(r));
+    });
+    expect(treffer.map((t) => t.pfad), 'nutze `.stb-btn` samt `data-variant`').toEqual([]);
+  });
+
   it('jede Detail-Sektion beschriftet ihre Überschrift mit der Klasse', () => {
     // Die Gegenrichtung: ein `<h3>` OHNE Klasse in einer Datei, die Detail-Sektionen führt,
     // ist genau der Zustand, aus dem der Befund entstand. Modal- und Formular-Titel sind
