@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.14 · Stand 2026-08-09</div>
+  <div class="version">Benutzerhandbuch · Version 9.15 · Stand 2026-08-11</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -596,6 +596,27 @@
       ergänzen neue Einträge.
     </p>
     <p>
+      <strong>Die Geburtszeile steht immer.</strong> Auch wenn zu einer Person weder Datum
+      noch Ort der Geburt bekannt sind, führt der Steckbrief die Zeile — leer, aber
+      vorhanden. Sonst wäre die häufigste Angabe der Genealogie ausgerechnet dort nicht
+      einzutragen, wo sie fehlt. Dasselbe gilt für Taufe, Tod und Bestattung.
+    </p>
+    <p>
+      <strong>Eltern und eigene Familien direkt am Steckbrief.</strong> Unter
+      <em>Herkunftsfamilie</em> und <em>Eigene Familie</em> steht hinter jeder Rolle
+      (Vater, Mutter, Partner) eine <strong>+</strong>-Pille. Ein Tipp öffnet die Suche:
+      Sie ordnen eine vorhandene Person zu — oder legen sie gleich neu an, wenn die Suche
+      nichts findet. Ist noch gar keine Familie da, entsteht sie dabei mit. Sie müssen für
+      einen fehlenden Vater also nicht mehr erst in den Familien-Bereich wechseln.
+    </p>
+    <p>
+      <strong>Forschung an Ort und Stelle.</strong> Ein eigener Abschnitt
+      <em>Forschung</em> nimmt Aufgaben, Hypothesen und Protokoll-Einträge direkt an der
+      Person auf — dieselben Einträge, die <a href="#k12">Kapitel 12</a> beschreibt, nur
+      ohne Umweg über den Forschungs-Bereich. Ab vier Einträgen klappt der Abschnitt
+      zusammen, damit er den Steckbrief nicht überwächst.
+    </p>
+    <p>
       Ist ein <a href="#k9">Medium</a> als <strong>Primärbild</strong> gekennzeichnet und
       der Medien-Ordner verbunden, steht es als <strong>Porträt</strong> im Steckbrief;
       Ereignisse mit eigenem Medium tragen eine kleine <strong>Miniatur</strong> in ihrer
@@ -874,6 +895,16 @@
           „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder.</li>
       <li>Ein <strong>Kind neu anlegen</strong> geht direkt aus der Familie heraus: die
           neue Person ist sofort zugeordnet, Sie füllen nur noch den Steckbrief.</li>
+      <li><strong>Wie sicher ist die Kindschaft?</strong> Zu jedem Kind lässt sich
+          festhalten, <em>worauf</em> die Zuordnung beruht — leiblich, adoptiert,
+          Pflegekind, Stiefkind — und das je Elternteil getrennt. Ein Kind kann leiblich
+          zur Mutter und adoptiert zum Vater gehören; genau das ist der Fall, den eine
+          einzige Angabe verschweigen würde. Die Angabe wird als
+          <code>PEDI</code>/<code>_FREL</code>/<code>_MREL</code> geschrieben und beim
+          Laden wieder gelesen.</li>
+      <li>Auch die Familie führt einen Abschnitt <strong>Forschung</strong> — Aufgaben,
+          Hypothesen und Protokoll-Einträge zur Verbindung selbst, nicht zu einem der
+          Partner.</li>
       <li>Auch <strong>ohne Trauung</strong> ist eine Familie gültig — eine Verbindung mit
           gemeinsamen Kindern und ohne Heiratseintrag ist genealogischer Alltag, kein
           Sonderfall.</li>
@@ -941,6 +972,13 @@
       <li><strong>Erfasst am</strong> — wann <em>Sie</em> (oder Ihr voriges Programm)
           diese Quelle angelegt haben. Nicht zu verwechseln mit dem Alter der Quelle
           selbst.</li>
+      <li><strong>Wortlaut</strong> und <strong>Notiz</strong> — zwei getrennte
+          Textflächen, weil es zwei verschiedene Dinge sind: der <em>Wortlaut</em> ist das
+          Zitat <em>aus</em> der Quelle (die Transkription), die <em>Notiz</em> Ihre
+          Anmerkung <em>über</em> sie („Film schlecht lesbar", „zweite Hand, spätere
+          Nachtragung"). Früher gab es nur ein Feld, es hieß „Notiz" und speicherte in
+          Wahrheit die Transkription — wer eine Bemerkung erfasste, schrieb sie an die
+          falsche Stelle.</li>
     </ul>
     <h3>Evidenzbewertung</h3>
     <p>
@@ -1176,6 +1214,33 @@
       lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
       der Geschichte, nur weil kein Anfangsjahr bekannt ist.
+    </p>
+    <h3>Jahr oder Stichtag — beides im selben Feld</h3>
+    <p>
+      Grenzen von Zugehörigkeiten <em>und</em> von Ortsnamen nehmen wahlweise ein Jahr
+      (<code>1810</code>) oder ein tagegenaues Datum (<code>1 OCT 1810</code>). Beides
+      steht im <em>selben</em> Feld; die App erkennt, was Sie getippt haben. Das ist kein
+      Detailluxus: Gebietsreformen und Umbenennungen haben oft ein bekanntes Datum
+      (Kotzenau wurde am 8.&nbsp;Mai 1945 zu Chocianów), und ein Ereignis vom Januar
+      desselben Jahres gehört dann noch zum alten Namen. Was die App <em>nicht</em> tut,
+      ist raten: Eine Eingabe, die weder als Jahr noch als Datum lesbar ist, wird
+      abgelehnt statt still auf ein Jahr gerundet.
+    </p>
+    <p>
+      <strong>Wenn zwei Zugehörigkeiten sich überschneiden</strong>, muss die App für ein
+      Ereignisjahr eine wählen — und sagt das, statt es zu verschweigen: ein
+      <strong>⚠</strong> am Ende der betroffenen Kettenzeile weist darauf hin, dass hier
+      mehr als eine Angabe gilt. Die Auflösung ist eine Korrektur der Zeiträume, kein
+      Klick: Meist ist ein Anfangs- oder Endjahr zu eng oder zu weit gefasst.
+    </p>
+    <p>
+      <strong>Tag und Jahr bleiben von selbst deckungsgleich.</strong> Ein datierter
+      Eintrag trägt intern beides — das Jahr und, wo bekannt, den Stichtag. Wer die
+      <code>orte.json</code> einmal von Hand bearbeitet hat, kann die beiden auseinander
+      laufen lassen; dann zeigte die Zeitachse ein anderes Jahr an, als die Ortsauflösung
+      benutzt. Beim Laden zieht die App das Jahr deshalb an den Stichtag nach — aber nur,
+      wo wirklich ein tagegenaues Datum vorliegt. Ein <code>ABT 1700</code> bleibt
+      unangetastet; eine Schätzung wird nicht in Scheingenauigkeit verwandelt.
     </p>
     <p>
       <strong>„Ort löschen"</strong> steht nicht in der Knopfreihe neben
@@ -2561,6 +2626,34 @@
   0 umgeschriebene Werte, 0 erfundene Zeilen, 0 zu lange Zeilen.</strong>
 </p>
 
+<h3>Welche Ereignisarten die App als Ereignis führt</h3>
+<p>
+  Neben den Lebensdaten (Geburt, Taufe, Tod, Bestattung) und den Familien-Ereignissen
+  (Verlobung, Heirat, Scheidung) liest und schreibt Stammbaum die übrigen
+  Standard-Ereignisse als vollwertige Zeilen mit Datum, Ort und Quellen — darunter Beruf,
+  Wohnsitz, Ausbildung, Aus- und Einwanderung, Einbürgerung, Volkszählung, Besitz,
+  Militärdienst, Konfirmation, Religion, Priester-/Ordensweihe (<code>ORDN</code>),
+  Bar/Bat Mitzwa, Segnung, Erwachsenentaufe, Feuerbestattung, Erstkommunion,
+  Testamentseröffnung, Testament und Ruhestand.
+</p>
+<div class="practice">
+  Die Priesterweihe eines Vorfahren war eine Weile in der Datei vorhanden, aber im
+  Steckbrief unsichtbar: Die Übersetzung des Tags existierte, nur erzeugte sie beim Lesen
+  niemand. Wer nach einem Umzug aus einem anderen Programm etwas vermisst, das er sicher
+  eingetragen hatte, sollte es melden — die Datei behält es in solchen Fällen, die
+  Anzeige nicht.
+</div>
+
+<h3><code>CHAN</code> — wann ein Datensatz zuletzt geändert wurde</h3>
+<p>
+  GEDCOM sieht je Datensatz einen Änderungsstempel vor. Stammbaum liest ihn bei allen
+  Datensatzarten (Person, Familie, Quelle, Archiv, Medium) und <em>pflegt</em> ihn: Wer
+  einen Datensatz ändert, bekommt beim nächsten Speichern das aktuelle Datum samt Uhrzeit
+  eingetragen — und nur dieser Datensatz, nicht die ganze Datei. Unberührte Datensätze
+  behalten den Stempel, den Ihr voriges Programm gesetzt hat. Im Steckbrief steht er als
+  <em>„Geändert …"</em> unter dem Namen.
+</p>
+
 <h2>Export-Formate</h2>
 <table class="ref">
   <tr><th>Format</th><th>Zweck</th></tr>
@@ -2841,7 +2934,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.14 · Stand 2026-08-09<br>
+  Stammbaum · Benutzerhandbuch Version 9.15 · Stand 2026-08-11<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
