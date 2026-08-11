@@ -10,13 +10,23 @@ function emptyContext(): PlaceContext {
   return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
 }
 
+// Seit BL-339 steht die GEBURTSZEILE immer — auch leer (ADR-v9-62 Punkt 1 „Geburt: bleibt
+// immer offen"). Ein Positions-Zugriff (`events[0]`) sagt damit nichts mehr über die
+// gemeinte Zeile: fünf Tests hier griffen auf `[0]` zu und meinten das generische Ereignis,
+// das sie selbst angelegt hatten. Sie fragen jetzt nach dem TAG statt nach dem Platz — das
+// ist auch gegen jede künftige Zeile robust, die vorne dazukommt.
+type Detail = NonNullable<ReturnType<typeof buildPersonDetail>>;
+const zeile = (d: Detail, tag: string): Detail['events'][number] => d.events.find((e) => e.tag === tag)!;
+/** Alles außer der immer vorhandenen Geburtszeile. */
+const ohneGeburt = (d: Detail): Detail['events'] => d.events.filter((e) => e.tag !== 'BIRT');
+
 describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
   it('gibt null zurück, wenn die id im aktuellen Datenbestand fehlt (definierter Fallback)', () => {
     const db = makeDatabase();
     expect(buildPersonDetail(db, emptyContext(), '@I999@')).toBeNull();
   });
 
-  it('listet nur tatsächlich vorhandene Sonder-Ereignisse (Geburt/Tod), keine leeren Platzhalter', () => {
+  it('zeigt CHR/DEAT/BURI nur wenn belegt — die Geburt dagegen immer (ADR-v9-62 Punkt 1)', () => {
     const db = makeDatabase();
     const p = makePerson('@I1@', { given: 'Anna', surname: 'Bauer' });
     p.birth.date = '1 JAN 1900';
@@ -183,7 +193,7 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
+    expect(zeile(detail, 'RESI').dateLabel).toBe('5. Juni 1950');
   });
 
   it('liefert placeLabel getrennt vom Datum (ADR-v9-80 Punkt 1) — EventLine rendert "Datum, Ort" statt eines vorverknüpften Strings', () => {
@@ -194,8 +204,8 @@ describe('buildPersonDetail — Ereignisse/Quellen/Familien-Navigation', () => {
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
-    expect(detail.events[0].placeLabel).toBe('Ochtrup');
+    expect(zeile(detail, 'RESI').dateLabel).toBe('5. Juni 1950');
+    expect(zeile(detail, 'RESI').placeLabel).toBe('Ochtrup');
   });
 
   it('Kinder-Zeile (Disambiguierung, INV-UI-6) bleibt bei Jahr-only, auch wenn das Geburtsdatum Tag+Monat trägt', () => {
@@ -257,7 +267,7 @@ describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.events.map((e) => e.label)).toEqual(['Abschluss', 'Ausbildung', 'Beruf']);
+    expect(ohneGeburt(detail).map((e) => e.label)).toEqual(['Abschluss', 'Ausbildung', 'Beruf']);
   });
 
   it('bevorzugt einen freien TYPE-Text (ev.eventType) vor der generischen Übersetzung', () => {
@@ -270,7 +280,7 @@ describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.events[0].label).toBe('Schule');
+    expect(zeile(detail, 'EDUC').label).toBe('Schule');
   });
 
   it('gruppiert Ereignisse in feste Kategorien (Lebensdaten → Bildung → Beruf → Wohnen & Eigentum → Weitere)', () => {
@@ -325,7 +335,8 @@ describe('buildPersonDetail — deutsche Labels + Kategorie-Gruppierung (Nutzer-
 
     const detail = buildPersonDetail(db, emptyContext(), '@I1@')!;
 
-    expect(detail.eventGroups.map((g) => g.type)).toEqual(['Beruf']);
+    // 'Lebensdaten' steht seit BL-339 auch ohne Geburtsdaten da (die Zeile ist immer offen).
+    expect(detail.eventGroups.map((g) => g.type)).toEqual(['Lebensdaten', 'Beruf']);
     const beruf = detail.eventGroups.find((g) => g.type === 'Beruf')!;
     expect(beruf.rows.map((r) => r.label)).toEqual(['Beruf', 'Beschäftigung']);
   });
