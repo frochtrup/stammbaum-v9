@@ -322,9 +322,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.media-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .media-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .media-detail__empty,
@@ -420,9 +432,6 @@
 
 
 
-  .media-detail__section {
-    margin-top: 1.25rem;
-  }
 
   .media-detail__add-row {
     display: flex;

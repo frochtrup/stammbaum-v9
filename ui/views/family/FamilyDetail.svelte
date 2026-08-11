@@ -437,9 +437,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.family-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .family-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   /* Optik wie PersonDetails „⧖ Im Baum anzeigen"/„📖 Story" (INV-UI-4-Muster). */
@@ -458,9 +470,6 @@
     color: var(--stb-text-dim);
   }
 
-  .family-detail__section {
-    margin-bottom: 1.25rem;
-  }
 
   /* Eltern-Boxen (Nachtrag 2026-07-06 [20 §1.5]): nebeneinander, gemeinsame Box-Optik
      aus .stb-person-box (design-system.css, INV-UI-4) — nur Layout (Grid) + die

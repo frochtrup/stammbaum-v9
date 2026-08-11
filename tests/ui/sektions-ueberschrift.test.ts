@@ -63,6 +63,34 @@ describe('Sektions-Überschrift (BL-342)', () => {
     expect(regel![1]).toMatch(/margin/);
   });
 
+  // BL-343: dieselbe Kopier-Klasse eine Ebene höher. Der Abstand zwischen Abschnitten
+  // stand achtfach als `margin` — fünfmal `margin-top`, zweimal `margin-bottom`, also
+  // nicht einmal einheitlich —, und eine extrahierte Komponente verlor ihn genauso still
+  // wie die Überschrift (`FamilyChildrenSection` zog ihn von Hand nach; der Kommentar
+  // daneben sagte es wörtlich). Jetzt trägt ihn `gap` am Container: er gilt für jedes
+  // Kind, unabhängig davon, welche Komponente es rendert.
+  //
+  // DIE RATSCHE STEHT AUF 0, nicht auf „ein paar sind erlaubt": es gibt keinen Grund,
+  // warum eine Detail-Sektion ihren Außenabstand selbst mitbringen sollte. Bewusst als
+  // Zahl formuliert und nicht als `toEqual([])` — so ist beim nächsten Anstieg sofort
+  // sichtbar, ob EINE Fundstelle dazukam oder das Muster zurückgekehrt ist.
+  const abschnittsAbstandRatsche = 0;
+
+  it(`kein Detail-Abschnitt bringt seinen Außenabstand selbst mit (Ratsche ${abschnittsAbstandRatsche})`, () => {
+    // `-detail__section`, nicht irgendein `__section`: ein FORMULAR-Abschnitt
+    // (`person-form__section`) sitzt in einem anderen Container mit eigener Rhythmik und
+    // ist von dieser Entscheidung nicht berührt. Der erste, zu weite Anlauf meldete ihn
+    // mit — dieselbe Verwechslung wie beim Überschriften-Wächter oben, wo Modal-Titel
+    // mitkamen.
+    const treffer = dateien.filter(({ text }) => {
+      const regeln = text.match(/-detail__section\s*\{[^}]*\}/g) ?? [];
+      return regeln.some((r) => /margin(-top|-bottom)?:\s*1\.25rem/.test(r));
+    });
+    expect(treffer.map((t) => t.pfad), 'Abstand gehört als `gap` an den Container').toHaveLength(
+      abschnittsAbstandRatsche,
+    );
+  });
+
   it('jede Detail-Sektion beschriftet ihre Überschrift mit der Klasse', () => {
     // Die Gegenrichtung: ein `<h3>` OHNE Klasse in einer Datei, die Detail-Sektionen führt,
     // ist genau der Zustand, aus dem der Befund entstand. Modal- und Formular-Titel sind

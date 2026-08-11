@@ -155,9 +155,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.repository-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .repository-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .repository-detail__empty {
@@ -181,9 +193,6 @@
     margin: 0;
   }
 
-  .repository-detail__section {
-    margin-top: 1.25rem;
-  }
 
   .repository-detail__muted {
     color: var(--stb-text-dim);

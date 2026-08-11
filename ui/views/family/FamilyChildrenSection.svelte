@@ -102,11 +102,12 @@
 </section>
 
 <style>
-  /* Abstände/Überschrift wie jede andere Sektion der Familien-Detailseite
-     (`.family-detail__section`, INV-UI-4) — die Extraktion ändert die Optik nicht. */
-  .family-children {
-    margin-bottom: 1.25rem;
-  }
+  /* KEIN eigener Abstand mehr (BL-343). Hier stand `margin-bottom: 1.25rem` — von Hand
+     nachgezogen, weil die Extraktion aus `FamilyDetail` die scoped Regel zurückließ; der
+     Kommentar daneben sagte es wörtlich („die Extraktion ändert die Optik nicht").
+     Genau diese Hand-Kompensation ist der Grund, warum der Abstand jetzt als `gap` am
+     Container liegt: er gilt für jedes Kind, ohne dass eine extrahierte Komponente ihn
+     nachbauen muss — und ohne dass sich beide addieren, wenn sie es doch tut. */
 
   /* Kinder — kompakte, anklickbare Einzeiler (INV-UI-5): Name + Geburtsjahr in Klammern,
      kein voller .stb-person-box-Kasten nötig (Nachtrag 2026-07-06 [20 §1.5]). */
