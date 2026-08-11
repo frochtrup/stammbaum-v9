@@ -27,8 +27,11 @@
 //      person-seitig zurück (die Wahrheit steht family-seitig in father/mother/childref und
 //      round-trippt).
 //   E. person.suffix — vom GRAMPS-Parser nicht in die Projektion gelesen.
-//   F. person.noteText / family.noteText — GRAMPS hält Notizen als eigene Records (noteref),
-//      nicht als Inline-Text; der Parser projiziert sie nicht zurück in den Owner-Text.
+//   F. person.noteText / family.noteText / source.noteText — GRAMPS hält Notizen als eigene
+//      Records (noteref), nicht als Inline-Text; der Parser projiziert sie nicht zurück in
+//      den Owner-Text. `source.noteText` kam mit BL-336 dazu und teilt exakt das Schicksal
+//      der beiden anderen — es reißt keine neue Lücke auf, es füllt die dritte Stelle
+//      derselben bereits benannten.
 //   G. source.date / source.text — kein direktes `<source>`-Gegenstück.
 //      `callNumber`/`callMedia` standen bis BL-245 hier — falsch: `<reporef>` trägt sie
 //      als native Attribute `callno`/`medium` (grampsxml.dtd). Das Gegenstück lag nicht
@@ -90,7 +93,7 @@ function neutralize(db: Database): void {
     f.noteText = ''; // F
     for (const e of [f.marriage, f.engagement, ...f.events]) neutralizeEvent(e);
   }
-  for (const s of db.sources.values()) { s.createdDate = ''; s.text = ''; } // G
+  for (const s of db.sources.values()) { s.createdDate = ''; s.text = ''; s.noteText = ''; } // G / F
   for (const r of db.repositories.values()) { r.address = ''; r.email = ''; } // H
 }
 

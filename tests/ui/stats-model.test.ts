@@ -3,7 +3,7 @@
 // deshalb Unit- statt Component-Test (Testpyramide, Spec 32 §6). Ein Test pro Sektion:
 // leere DB, zu wenig Datenpunkte -> Sektion fehlt, genug Datenpunkte -> korrekte Werte.
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makeFamily, makePerson, makeCitation, makeMediaCitation } from '../../core/model';
+import { makeDatabase, makeFamily, makePerson, makeCitation, makeMediaCitation, makeSource, makeRepository } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, savePlaceObject, type PlaceContext } from '../../core/places';
 import { computeStatistics } from '../../ui/views/stats/stats-model';
 // Geteilte Datenfabrik statt Inline-Literal (TST-REUSE, s. app-state.test.ts).
@@ -43,8 +43,9 @@ describe('computeStatistics — Übersicht-Kacheln', () => {
     db.individuals.set('@I1@', p1);
     db.individuals.set('@I2@', p2);
     db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' }));
-    db.sources.set('@S1@', { id: '@S1@', abbr: '', title: '', author: '', createdDate: '', publisher: '', text: '', repo: '', callNumber: '', callMedia: '', agnc: '', dataEvents: [], dataExtra: [], externalRefs: [], media: [], lastChanged: '' });
-    db.repositories.set('@R1@', { id: '@R1@', name: '', type: '', address: '', addressExtra: [], phone: '', www: '', email: '', findingAid: '', lastChanged: '' });
+    // Über die Fabriken, nicht als Literale (BL-336) — s. validate-rules.test.ts.
+    db.sources.set('@S1@', makeSource('@S1@'));
+    db.repositories.set('@R1@', makeRepository('@R1@', { address: '' }));
 
     const result = computeStatistics(db, emptyContext());
 

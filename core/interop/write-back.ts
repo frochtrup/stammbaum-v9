@@ -71,11 +71,20 @@ const RECOGNIZED_PERSON = new Set([
   'NOTE', 'SOUR', 'CHAN', 'REFN', 'EXID', 'CREA', '_DATE', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'MARR', 'ENGA', 'DIV',
+  'ORDN', 'BARM', 'BASM', 'BLES', 'CHRA', 'CREM', 'FCOM', 'PROB', 'RETI', 'WILL',
 ]);
+// `RELI` steht hier seit BL-335 — und war vorher eine latente Dublette, keine Auslassung:
+// `parseFamily` legt jeden `EVENT_TAGS`-Treffer in `f.events` ab (auch RELI), `emitFamily`
+// schreibt `f.events` wieder heraus. Fehlt der Tag DIESER Menge, gilt der Original-Knoten
+// zugleich als Passthrough — eine geänderte Familie mit `1 RELI` hätte ihn doppelt
+// bekommen. Aufgefallen beim Nachziehen der zehn neuen Tags, nicht durch einen Test: im
+// Bestand trägt keine FAM ein RELI. Genau deshalb prüft `event-tag-drift.test.ts` jetzt
+// `EVENT_TAGS ⊆ RECOGNIZED_PERSON ∩ RECOGNIZED_FAMILY` statt auf den nächsten Zufall zu warten.
 const RECOGNIZED_FAMILY = new Set([
-  'HUSB', 'WIFE', 'CHIL', 'MARR', 'ENGA', 'NOTE', 'SOUR', '_TASK', '_RLOG', '_HYPO',
+  'HUSB', 'WIFE', 'CHIL', 'MARR', 'ENGA', 'NOTE', 'SOUR', 'CHAN', '_TASK', '_RLOG', '_HYPO',
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
-  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'DIV',
+  'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI', 'DIV',
+  'ORDN', 'BARM', 'BASM', 'BLES', 'CHRA', 'CREM', 'FCOM', 'PROB', 'RETI', 'WILL',
 ]);
 // `DATE` ist BEWUSST NICHT dabei (BL-243): ein `1 DATE` direkt unter `SOUR` kennt weder
 // 5.5.1 noch 7.0 — es wird nie geschrieben und bleibt als Passthrough erhalten, falls eine
@@ -83,13 +92,16 @@ const RECOGNIZED_FAMILY = new Set([
 // `DATA` als Ganzes erkannt (BL-217): der Container wird beim Neu-Emittieren komplett aus
 // dem Modell gebaut — deshalb hält `Source.dataExtra` jedes nicht modellierte DATA-Kind
 // (NOTE/SNOTE …), das sonst still verschwände.
+// `NOTE` seit BL-336: die Notiz AM Quellen-Record (nicht die unter `DATA`) hat jetzt ein
+// Modellfeld und wird deshalb aus dem Modell geschrieben — vorher fiel sie in den
+// Passthrough und war weder sichtbar noch editierbar.
 const RECOGNIZED_SOURCE = new Set([
   'ABBR', 'TITL', 'AUTH', 'PUBL', 'TEXT', 'REPO', 'REFN', 'EXID', 'OBJE',
-  'CREA', '_DATE', 'DATA',
+  'CREA', '_DATE', 'DATA', 'NOTE', 'CHAN',
 ]);
-const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL']);
+const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL', 'CHAN']);
 // Medien-Record `0 @M@ OBJE` (ADR-v9-125): FILE (+FORM/MEDI darunter) + globaler TITL.
-const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL']);
+const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL', 'CHAN']);
 
 /**
  * Projiziert ein editiertes `db` zurück in den Passthrough-Baum. Liefert einen NEUEN
@@ -276,6 +288,7 @@ const EREIGNIS_TAGS = [
   'BIRT', 'CHR', 'DEAT', 'BURI', 'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU',
   'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI',
   'MARR', 'ENGA', 'DIV',
+  'ORDN', 'BARM', 'BASM', 'BLES', 'CHRA', 'CREM', 'FCOM', 'PROB', 'RETI', 'WILL',
 ] as const;
 
 /** Was `eventNode` unter einem Ereignis schreibt (`CAUS` nur bei DEAT, schadet sonst nicht). */
@@ -319,6 +332,19 @@ const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
 export function modellierteKinder(tag: string): readonly string[] {
   return MODELLIERTE_KINDER[tag] ?? [];
 }
+
+/** Die vier Erkennungsmengen für den Drift-Wächter (BL-335). Bewusst als `ReadonlySet`
+ *  herausgegeben, nicht als kopiertes Array: der Test soll DIESE Mengen prüfen, nicht eine
+ *  Momentaufnahme davon. */
+export const ERKANNTE_TAGS: Readonly<Record<'person' | 'family' | 'source' | 'repo', ReadonlySet<string>>> = {
+  person: RECOGNIZED_PERSON,
+  family: RECOGNIZED_FAMILY,
+  source: RECOGNIZED_SOURCE,
+  repo: RECOGNIZED_REPO,
+};
+
+/** Die Ereignis-Tags, für die `MODELLIERTE_KINDER` einen Eintrag führen muss (BL-335). */
+export const EREIGNIS_TAGS_PUBLIC: readonly string[] = EREIGNIS_TAGS;
 
 /**
  * Paart alte und frische Knoten desselben Tags (BL-285).
@@ -779,7 +805,7 @@ function personEqual(a: Person, b: Person): boolean {
     arrEqual(a.aliases, b.aliases) && arrEqual(a.aliaNames, b.aliaNames) &&
     associationsEqual(a.associations, b.associations) &&
     mediaEqual(a.media, b.media) &&
-    a.noteText === b.noteText && arrEqual(a.noteRefs, b.noteRefs) &&
+    a.noteText === b.noteText && arrEqual(a.extraNotes, b.extraNotes) && arrEqual(a.noteRefs, b.noteRefs) &&
     citationsEqual(a.topLevelCitations, b.topLevelCitations) &&
     citationsEqual(a.nameCitations, b.nameCitations) &&
     exidsEqual(a.exids, b.exids) &&
@@ -837,7 +863,7 @@ function familyEqual(a: Family, b: Family): boolean {
     arrEqual(a.children, b.children) &&
     eventEqual(a.marriage, b.marriage) && eventEqual(a.engagement, b.engagement) &&
     eventsEqual(a.events, b.events) &&
-    a.noteText === b.noteText &&
+    a.noteText === b.noteText && arrEqual(a.extraNotes, b.extraNotes) &&
     citationsEqual(a.citations, b.citations) &&
     tasksEqual(a.tasks, b.tasks) &&
     researchLogEqual(a.researchLog, b.researchLog) &&
@@ -859,6 +885,7 @@ function sourceEqual(a: Source, b: Source): boolean {
     a.createdDate === b.createdDate && a.publisher === b.publisher && a.text === b.text &&
     a.repo === b.repo && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
     a.agnc === b.agnc && dataEventsEqual(a.dataEvents, b.dataEvents) &&
+    a.noteText === b.noteText && arrEqual(a.extraNotes, b.extraNotes) && arrEqual(a.noteRefs, b.noteRefs) &&
     exidsEqual(a.externalRefs, b.externalRefs) &&
     mediaEqual(a.media, b.media) && a.lastChanged === b.lastChanged
   );
@@ -876,7 +903,11 @@ function repoEqual(a: Repository, b: Repository): boolean {
 // Datei/Format/Typ/Titel erkannt (die natürliche Stelle, EIN Record statt jeder Referenz).
 function mediaRecordEqual(a: Media, b: Media): boolean {
   return a.file === b.file && a.form === b.form && a.formWire === b.formWire
-    && a.type === b.type && a.typeWire === b.typeWire && a.title === b.title;
+    && a.type === b.type && a.typeWire === b.typeWire && a.title === b.title
+    // `lastChanged` seit BL-337 mit im Vergleich — es entscheidet ab jetzt mit, welche
+    // Zeilen der Writer erzeugt, und ist damit ein Unterschied in der AUSGABE (dieselbe
+    // Begründung wie bei `sexSeen`/den Herkunfts-Flags in `personEqual`).
+    && a.lastChanged === b.lastChanged;
 }
 
 /**

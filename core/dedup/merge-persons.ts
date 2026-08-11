@@ -189,6 +189,10 @@ export function mergePersons(
     winner.nameCitations = unionCitations(winner.nameCitations, loser.nameCitations);
     winner.noEvents = new Set([...winner.noEvents, ...loser.noEvents]);
     winner.noteText = [winner.noteText, loser.noteText].filter(Boolean).join('\n');
+    // BL-338: die weiteren Notizen beider Seiten bleiben EIGENSTÄNDIG erhalten — sie in
+    // `noteText` mitzufalten wäre genau die Vermischung, die BL-338 auflöst. Form wie
+    // `extraNames` eine Zeile weiter oben.
+    winner.extraNotes = [...winner.extraNotes, ...loser.extraNotes];
     winner.aliases = [...winner.aliases, ...loser.aliases];
     if (isEmpty(winner.createdDate)) winner.createdDate = loser.createdDate;
 

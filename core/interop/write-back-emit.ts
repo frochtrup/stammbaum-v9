@@ -111,6 +111,7 @@ export function emitMediaRecord(m: Media): GedNode {
   if (form) fileKids.push(N('FORM', form, m.type ? [N('MEDI', m.type)] : []));
   const kids: GedNode[] = [N('FILE', m.file, fileKids)];
   if (m.title) kids.push(N('TITL', m.title));
+  if (m.lastChanged) kids.push(chanNode(m.lastChanged));
   return N('OBJE', '', kids, m.id);
 }
 
@@ -380,6 +381,9 @@ export function emitPerson(p: Person, media?: MediaLookup): GedNode {
   for (const m of p.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
 
   if (p.noteText) kids.push(textNode('NOTE', p.noteText));
+  // BL-338: jede weitere eigenständige Notiz als EIGENE `1 NOTE`-Zeile — nicht als `CONT`
+  // an die erste angehängt. `NOTE_STRUCTURE` ist `{0:M}`: zwei Notizen sind zwei Aussagen.
+  for (const n of p.extraNotes) kids.push(textNode('NOTE', n));
   for (const nr of p.noteRefs) kids.push(N('NOTE', nr));
 
   for (const c of p.topLevelCitations) kids.push(citationNode(c, media));
@@ -425,6 +429,9 @@ export function emitFamily(f: Family, media?: MediaLookup): GedNode {
   if (f.engagement.seen) kids.push(eventNode(f.engagement, media));
   for (const ev of f.events) kids.push(eventNode(ev, media));
   if (f.noteText) kids.push(textNode('NOTE', f.noteText));
+  // BL-338: jede weitere eigenständige Notiz als EIGENE `1 NOTE`-Zeile — nicht als `CONT`
+  // an die erste angehängt. `NOTE_STRUCTURE` ist `{0:M}`: zwei Notizen sind zwei Aussagen.
+  for (const n of f.extraNotes) kids.push(textNode('NOTE', n));
   for (const c of f.citations) kids.push(citationNode(c, media));
   if (f.lastChanged) kids.push(chanNode(f.lastChanged));
   for (const t of f.tasks) kids.push(taskNode(t));
@@ -477,6 +484,15 @@ export function emitSource(s: Source, media?: MediaLookup): GedNode {
     const ekids = ex.type ? [N('TYPE', ex.type)] : [];
     kids.push(N('REFN', ex.value, ekids));
   }
+  // Position nach der 5.5.1-Grammatik des SOURCE_RECORD: `REFN, RIN, CHANGE_DATE,
+  // NOTE_STRUCTURE, MULTIMEDIA_LINK` — die Notiz steht also hinter REFN/CHAN und vor OBJE
+  // (BL-336). `textNode` faltet mehrzeilige Notizen wieder in CONT-Zeilen.
+  if (s.lastChanged) kids.push(chanNode(s.lastChanged));
+  if (s.noteText) kids.push(textNode('NOTE', s.noteText));
+  // BL-338: jede weitere eigenständige Notiz als EIGENE `1 NOTE`-Zeile — nicht als `CONT`
+  // an die erste angehängt. `NOTE_STRUCTURE` ist `{0:M}`: zwei Notizen sind zwei Aussagen.
+  for (const n of s.extraNotes) kids.push(textNode('NOTE', n));
+  for (const nr of s.noteRefs) kids.push(N('NOTE', nr));
   for (const m of s.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
   return N('SOUR', '', kids, s.id);
 }
@@ -497,5 +513,6 @@ export function emitRepository(r: Repository): GedNode {
   if (r.email) kids.push(N('EMAIL', r.email));
   if (r.type) kids.push(N('_RTYPE', r.type));
   if (r.findingAid) kids.push(N('_FAURL', r.findingAid));
+  if (r.lastChanged) kids.push(chanNode(r.lastChanged));
   return N('REPO', '', kids, r.id);
 }

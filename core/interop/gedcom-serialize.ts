@@ -16,6 +16,9 @@ import type { GedNode } from './gedcom-tree';
 import type { ParsedGedcom, GedFormat, Clock } from './types';
 import { transformGed7, g7Schma } from './ged7-adapter';
 import { stripStrict } from './strict-adapter';
+// Datums-/Zeitform (HEAD-DATE-Rewrite unten UND der CHAN-Stempel, BL-337) — EINE
+// Monatstabelle, in `change-stamp-wire.ts`.
+import { gedcomDate, gedcomTime } from './change-stamp-wire';
 
 const EOL = '\r\n';
 
@@ -24,15 +27,6 @@ export interface SerializeOptions {
   /** Bei true: HEAD-DATE/TIME auf clock.now() setzen (mutierendes Speichern). */
   updateHeadDate?: boolean;
   clock?: Clock;
-}
-
-function gedcomDate(d: Date): string {
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-function gedcomTime(d: Date): string {
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
 /**

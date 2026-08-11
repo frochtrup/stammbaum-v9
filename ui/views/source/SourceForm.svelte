@@ -64,6 +64,10 @@
   let callNumber = $state(untrack(() => source.callNumber));
   let callMedia = $state(untrack(() => source.callMedia));
   let text = $state(untrack(() => source.text));
+  // BL-336: bis dahin trug das Feld darüber die Beschriftung „Notiz", band aber `text`
+  // (SOUR>TEXT, den zitierten Wortlaut) — es gab schlicht kein Notizfeld. Jetzt sind es
+  // zwei, und beide heißen, was sie sind (Nutzer-Entscheidung 2026-08-11).
+  let noteText = $state(untrack(() => source.noteText));
 
   let repo = $state(untrack(() => source.repo));
 
@@ -114,6 +118,7 @@
     callNumber = source.callNumber;
     callMedia = source.callMedia;
     text = source.text;
+    noteText = source.noteText;
     repo = source.repo;
   }
 
@@ -129,6 +134,7 @@
       callNumber: callNumber.trim(),
       callMedia: callMedia.trim(),
       text,
+      noteText,
     };
     appState.saveSource(next);
     onSaved?.(next.id);
@@ -232,9 +238,18 @@
     </div>
   </div>
 
+  <!-- Zwei Textflächen, zwei GEDCOM-Tags (BL-336). `SOUR>TEXT` ist der zitierte Wortlaut
+       AUS der Quelle (Transkription), `SOUR>NOTE` die Anmerkung ÜBER sie. Vorher hieß das
+       erste Feld „Notiz" und war das einzige — wer eine Bemerkung erfasste, schrieb sie in
+       die Transkription. -->
+  <label>
+    Wortlaut (Zitat aus der Quelle)
+    <textarea {...PROSE_FIELD} bind:value={text}></textarea>
+  </label>
+
   <label>
     Notiz
-    <textarea {...PROSE_FIELD} bind:value={text}></textarea>
+    <textarea {...PROSE_FIELD} bind:value={noteText}></textarea>
   </label>
 
   <div class="source-form__actions">

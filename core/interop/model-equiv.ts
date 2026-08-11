@@ -409,6 +409,13 @@ function compareSource(sa: Source, sb: Source, diffs: Diff[]): void {
   // NICHT verglichen; es hier zu prüfen brächte cross-family lauter Schein-Diffs.
   pushScalar(diffs, 'source', key, 'agnc', norm(sa.agnc), norm(sb.agnc));
   pushScalar(diffs, 'source', key, 'text', norm(sa.text), norm(sb.text));
+  // `noteText` (BL-336) gehört in dieselbe Reihe wie `family.noteText` — es ist Inhalt der
+  // Quelle, nicht Metadatum über den Datensatz (anders als `createdDate`/`lastChanged`
+  // darüber). Cross-family teilt es das Schicksal von `text`: GRAMPS führt Notizen
+  // ausschließlich als eigene `<note>`-Records mit `noteref`, und der Modell-Slot für die
+  // INLINE-Notiz hat dort kein Gegenstück — für `person.noteText` gilt das seit jeher, das
+  // ist keine mit BL-336 neu aufgerissene Lücke.
+  pushScalar(diffs, 'source', key, 'noteText', norm(sa.noteText), norm(sb.noteText));
   pushScalar(diffs, 'source', key, 'callNumber', norm(sa.callNumber), norm(sb.callNumber));
 }
 

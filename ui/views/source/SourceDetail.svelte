@@ -209,7 +209,18 @@
       {/each}
     </dl>
 
-    {#if detail.source.text}<p class="source-detail__text">{detail.source.text}</p>{/if}
+    <!-- Zwei getrennte Textblöcke seit BL-336, und die Beschriftung sagt jetzt, welcher
+         welcher ist: `text` (SOUR>TEXT) ist der ZITIERTE Wortlaut aus der Quelle,
+         `noteText` (SOUR>NOTE) die Anmerkung ÜBER sie. Bis dahin gab es nur den ersten,
+         unbeschriftet, und er trug beide Bedeutungen. -->
+    {#if detail.source.text}
+      <p class="stb-role-label">Wortlaut</p>
+      <p class="source-detail__text">{detail.source.text}</p>
+    {/if}
+    {#if detail.source.noteText}
+      <p class="stb-role-label">Notiz</p>
+      <p class="source-detail__text">{detail.source.noteText}</p>
+    {/if}
 
     <section class="source-detail__section">
       <h3>Referenzen ({detail.references.length})</h3>

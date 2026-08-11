@@ -5,7 +5,7 @@
 // einem reinen Treffer-Test genauso grün.
 import { describe, expect, it } from 'vitest';
 import { runValidation, defaultConfig, RULES, type RuleId } from '../../core/validate/index';
-import { makeEvent } from '../../core/model/index';
+import { makeEvent, makeSource } from '../../core/model/index';
 import { makeHypothesis, makeTask } from '../../core/research/index';
 import {
   cite,
@@ -281,11 +281,9 @@ describe('Quellen', () => {
   it('ORPHAN_CITATION schweigt, wenn die Quelle existiert', () => {
     const p = personWith('@I1@', { topLevelCitations: [cite('@S1@')] });
     const db = dbWith([p]);
-    db.sources.set('@S1@', {
-      id: '@S1@', abbr: '', title: 'Kirchenbuch', author: '', createdDate: '', publisher: '',
-      text: '', repo: '', callNumber: '', callMedia: '', agnc: '', dataEvents: [], dataExtra: [], externalRefs: [],
-      media: [], lastChanged: '',
-    });
+    // Über die Fabrik, nicht als Literal (BL-336): ein handgebautes Objekt bricht bei
+    // jedem neuen Modellfeld, und der Test sagt nichts über Felder aus, die er nicht meint.
+    db.sources.set('@S1@', makeSource('@S1@', { title: 'Kirchenbuch' }));
     expect(texts(db, 'ORPHAN_CITATION')).toEqual([]);
   });
 

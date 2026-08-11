@@ -148,7 +148,7 @@
   const tasksState = holders.tasks;
   const logState = holders.log;
   const hypothesesState = holders.hypotheses;
-  // Der Hinweis-Kanal der Schale. Frist und Schließen trägt `StatusNotice` (BL-333) —
+  // Der Hinweis-Kanal der Schale. Frist und Schließen trägt `StatusNotice` (BL-335) —
   // hier steht nur, WAS gemeldet wird, nicht wie lange.
   let placesEditNotice = $state('');
   const zeigeNotiz = (text: string): void => {
@@ -158,6 +158,10 @@
   // außerhalb von AppState (reines Dateihandling-Detail, kein Genealogie-Domänenwissen).
   let fileHandle: unknown = $state(undefined);
   const appState = createAppState({
+    // Der Takt für den `CHAN`-Änderungsstempel (BL-337). Die echte Wall-Clock lebt HIER,
+    // in der äußersten Schale — Kern und AppState bekommen sie injiziert (TST-3), damit
+    // Tests eine feste Zeit setzen können statt der Systemuhr ausgeliefert zu sein.
+    clock: { now: () => new Date() },
     persistPlaces: (places, hofs) => {
       // Fire-and-forget: die Edit-Kommandos bleiben synchron; die Persistenz läuft daneben.
       persister

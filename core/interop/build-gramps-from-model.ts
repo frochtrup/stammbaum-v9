@@ -52,6 +52,7 @@ import { EVAL_TAGS, evalAxisValue, mediToGrampsMedium, nameTypeToGramps, quayToC
 import { isEvidenceEvalEmpty } from '../research/eval';
 import { descriptionIsAddress } from './gramps-events';
 import { gedcomToGramps } from './gramps-date';
+import { changeStampToEpoch } from './change-stamp-wire';
 
 const PROLOG =
   '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -70,9 +71,17 @@ function textEl(tag: string, value: string): XmlNode {
   return { tag, attrs: [], children: [], text: value };
 }
 
-/** Standard-Attribut-Gerüst eines GRAMPS-Records: handle, change, id (native Reihenfolge). */
-function recordAttrs(handle: string, id: string): [string, string][] {
-  return [['handle', handle], ['change', '0'], ['id', id]];
+/**
+ * Standard-Attribut-Gerüst eines GRAMPS-Records: handle, change, id (native Reihenfolge).
+ *
+ * `change` trägt seit BL-337 den echten Änderungszeitpunkt, sofern der Datensatz einen hat.
+ * Vorher stand dort für JEDEN Record hart `'0'` — Epoch, also 1.1.1970: eine Falschaussage
+ * an jedes empfangende Programm, und zwar in einem PFLICHT-Attribut. Records ohne Stempel
+ * (Ereignisse, Zitate, Orte — sie haben im Modell kein `lastChanged`) bekommen weiterhin
+ * `'0'`, was GRAMPS' eigener Wert für „unbekannt" ist.
+ */
+function recordAttrs(handle: string, id: string, lastChanged = ''): [string, string][] {
+  return [['handle', handle], ['change', changeStampToEpoch(lastChanged)], ['id', id]];
 }
 
 // ── Referenz-Auflösung über die Remap-Abbildung ────────────────────────────────────────────
@@ -338,7 +347,7 @@ function personRecord(id: string, p: Person, refs: Refs): XmlNode {
     const h = refs.citationHandle(c);
     if (h) children.push(el('citationref', [['hlink', h]]));
   }
-  return el('person', recordAttrs(handle, id), children);
+  return el('person', recordAttrs(handle, id, p.lastChanged), children);
 }
 
 function familyRecord(id: string, f: Family, refs: Refs): XmlNode {
@@ -360,7 +369,7 @@ function familyRecord(id: string, f: Family, refs: Refs): XmlNode {
     const h = refs.citationHandle(c);
     if (h) children.push(el('citationref', [['hlink', h]]));
   }
-  return el('family', recordAttrs(handle, id), children);
+  return el('family', recordAttrs(handle, id, f.lastChanged), children);
 }
 
 function sourceRecord(id: string, s: Source, refs: Refs): XmlNode {
@@ -399,7 +408,7 @@ function sourceRecord(id: string, s: Source, refs: Refs): XmlNode {
     if (medium) a.push(['medium', medium]);
     children.push(el('reporef', a));
   }
-  return el('source', recordAttrs(handle, id), children);
+  return el('source', recordAttrs(handle, id, s.lastChanged), children);
 }
 
 function repositoryRecord(id: string, r: Repository, refs: Refs): XmlNode {
@@ -408,7 +417,7 @@ function repositoryRecord(id: string, r: Repository, refs: Refs): XmlNode {
   if (r.name) children.push(textEl('rname', r.name));
   if (r.type) children.push(textEl('type', r.type));
   if (r.www) children.push(el('url', [['href', r.www]]));
-  return el('repository', recordAttrs(handle, id), children);
+  return el('repository', recordAttrs(handle, id, r.lastChanged), children);
 }
 
 function noteRecord(id: string, n: Note, refs: Refs): XmlNode {
@@ -425,7 +434,7 @@ function objectRecord(id: string, m: Media, _refs: Refs): XmlNode {
   if (m.form) fileAttrs.push(['mime', m.form]);
   if (m.title) fileAttrs.push(['description', m.title]);
   const handle = _refs.remap.handle.get(id)!;
-  return el('object', recordAttrs(handle, id), [el('file', fileAttrs)]);
+  return el('object', recordAttrs(handle, id, m.lastChanged), [el('file', fileAttrs)]);
 }
 
 // ── Orchestrierung ─────────────────────────────────────────────────────────────────────────

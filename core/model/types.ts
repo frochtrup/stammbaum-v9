@@ -335,6 +335,20 @@ export interface Person {
 
   media: MediaCitation[];
   noteText: string;
+  /**
+   * Die ZWEITE und jede weitere eigenständige Inline-Notiz (BL-338).
+   *
+   * `NOTE_STRUCTURE` ist in 5.5.1 `{0:M}` — zwei `1 NOTE`-Zeilen sind zwei UNABHÄNGIGE
+   * Notizen, nicht eine zweizeilige. Bis BL-338 faltete der Parser sie in `noteText`
+   * zusammen; der Emitter schrieb daraus eine `NOTE` mit `CONT`, und der Überschuss
+   * (ADR-v9-208) hängte den zweiten Original-Knoten zusätzlich an — der Text stand danach
+   * zweimal in der Datei. Ein Slot je Wire-Zeile löst das an der Wurzel ([13 §2]); die
+   * Form ist die von `extraNames` für mehrere `NAME`-Zeilen, die dort dasselbe Problem hat.
+   *
+   * Wie `extraNames` NICHT über das Formular editierbar: der Editor führt `noteText`,
+   * alles Weitere reist unverändert mit (LP-1).
+   */
+  extraNotes: string[];
   noteRefs: NoteId[];
 
   noEvents: Set<string>;
@@ -369,6 +383,8 @@ export interface Family {
   engagement: Event;
   events: Event[];
   noteText: string;
+  /** Zweite und weitere eigenständige Inline-Notiz — s. `Person.extraNotes` (BL-338). */
+  extraNotes: string[];
   citations: Citation[];
   tasks: ResearchTask[];
   researchLog: LogEntry[];
@@ -404,6 +420,22 @@ export interface Source {
   callMedia: string;
   /** `SOUR.DATA.AGNC` — verantwortliche Stelle („Behörde"). */
   agnc: string;
+  /**
+   * `SOUR>NOTE` — die Notiz am Quellen-Record selbst (BL-336).
+   *
+   * NICHT zu verwechseln mit `text` (`SOUR>TEXT`): das ist der ZITIERTE Wortlaut aus der
+   * Quelle, dies hier die BEMERKUNG des Forschers ÜBER sie („Register unvollständig ab
+   * 1920", „Sterbeurkunde: Standesamt Cloppenburg 212/1991"). `SOURCE_RECORD → NOTE` ist
+   * Kern-Grammatik in 5.5.1; Person und Familie führen die Notiz längst, die Quelle war die
+   * Lücke — jede Fremddatei kann eine tragen, und sie fiel bis dahin nur in den Passthrough.
+   */
+  noteText: string;
+  /** Zweite und weitere eigenständige Inline-Notiz — s. `Person.extraNotes` (BL-338). */
+  extraNotes: string[];
+  /** `SOUR>NOTE @N1@` — Zeiger auf einen NOTE-Record, getrennt vom Inline-Text gehalten
+   *  (BL-336, exakt wie `Person.noteRefs`). Ohne diese Trennung landete der rohe Zeiger
+   *  „@N1@" als Notiz-TEXT in der Anzeige. */
+  noteRefs: NoteId[];
   dataEvents: SourceDataEvent[];
   /** Übrige `DATA`-Kinder (NOTE/SNOTE …) verbatim — `DATA` ist als Ganzes erkannt, ohne
    *  diesen Rest fiele alles Un-modellierte darunter aus dem Passthrough (INV-PT). */
