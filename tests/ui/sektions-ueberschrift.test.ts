@@ -91,6 +91,19 @@ describe('Sektions-Überschrift (BL-342)', () => {
     );
   });
 
+  // BL-345: dieselbe Klasse von Befund an einer anderen Primitive. `.stb-icon-btn` setzte
+  // KEINE `font-size` — und ein `<button>` erbt seine nicht, er fällt auf den
+  // User-Agent-Wert (13,333px). Alle 16 Fundstellen maßen exakt diesen Wert: einheitlich,
+  // aber durch Zufall, und je nach Zeile (0,7–0,95rem) mal größer, mal kleiner als der
+  // Text daneben. Der Wert steht jetzt in der Primitive; dieser Test hält fest, DASS er
+  // dort steht — verschwindet er, ist der UA-Default sofort und unbemerkt zurück.
+  it('die Glyphen-Primitive setzt ihre Schriftgröße selbst (kein User-Agent-Default)', () => {
+    const css = readFileSync(join(UI, 'shell/design-system.css'), 'utf8');
+    const regel = /\.stb-icon-btn\s*\{([^}]*)\}/.exec(css);
+    expect(regel, '.stb-icon-btn fehlt in design-system.css').toBeTruthy();
+    expect(regel![1], 'ohne font-size gilt der UA-Wert 13,333px — gemessen, nicht gewählt').toMatch(/font-size/);
+  });
+
   it('jede Detail-Sektion beschriftet ihre Überschrift mit der Klasse', () => {
     // Die Gegenrichtung: ein `<h3>` OHNE Klasse in einer Datei, die Detail-Sektionen führt,
     // ist genau der Zustand, aus dem der Befund entstand. Modal- und Formular-Titel sind

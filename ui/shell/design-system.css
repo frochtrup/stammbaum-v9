@@ -319,6 +319,32 @@ textarea::placeholder {
   background: transparent;
   border: none;
   padding: 0;
+  /* GEWÄHLT, nicht geerbt (BL-345). Vorher stand hier NICHTS — und ein `<button>` erbt
+     seine Schriftgröße nicht, er fällt auf den User-Agent-Wert (13,333px in Chromium).
+     Alle 16 Fundstellen maßen exakt diesen Wert: einheitlich, aber durch Zufall.
+
+     WARUM DAS EIN PROBLEM WAR, obwohl alle gleich waren: die Zeilen, in denen die Glyphe
+     steht, laufen zwischen 0,7rem und 0,95rem (11,2–15,2px). Ein starrer Absolutwert
+     dazwischen kippt das Verhältnis je Kontext — in der Namensvarianten-Zeile war die
+     Glyphe 19 % GRÖSSER als ihr Text, im Personen-Steckbrief 17 % kleiner. Die Doktrin
+     der Trefferzone unten verlangt aber, dass die sichtbare Größe die Hierarchie
+     ausdrückt; eine Größe, die je nach Nachbarschaft eine andere Aussage macht, kann das
+     nicht.
+
+     WARUM 1rem UND NICHT `inherit`: `inherit` vereinheitlicht das VERHÄLTNIS und
+     zerstreut die Größe (11,2–15,2px) — der Nutzer sieht dann in kompakten Zeilen einen
+     Haarstrich. 1rem ist ≥ jeder Zeile, in der die Glyphe vorkommt, und damit überall
+     gleich gut zu treffen. Gemessen am Realbestand: 12×13px → 15×16px; die Zeilenhöhen
+     wachsen um 0–3px, bei 375px bricht KEINE Zeile um (die verworfene Fassung im
+     Trefferzonen-Kommentar unten sprang von 47,3 auf 68,6 — das ist die Grenze, nicht
+     ein paar Pixel).
+
+     ZUR HIERARCHIE „Aktion > Navigation > Inline-Glyphe": sie meint das wahrgenommene
+     GEWICHT, nicht die Schriftgröße allein. Eine Pille bei 0,78rem trägt Rahmen, Fläche
+     und Polsterung; die Glyphe ist ein nackter Strich und braucht mehr Typgröße für
+     dieselbe Präsenz. Der Nutzer-Befund vom 2026-08-11 hat genau das gezeigt: derselbe
+     `+` wirkte bei 13,3px ohne Rahmen zu klein und bei 12,5px in einer Pille richtig. */
+  font-size: 1rem;
   line-height: 1;
   color: var(--stb-text-dim);
   cursor: pointer;
