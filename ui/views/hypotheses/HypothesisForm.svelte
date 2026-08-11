@@ -29,12 +29,25 @@
   interface Props {
     appState: AppState;
     initial: HypothesisFormValues;
-    /** true = Bearbeiten (Ziel-Entität steht fest und wird nicht mehr angeboten). */
+    /** true = Bearbeiten (Titel + Kommando-Wahl beim Aufrufer). */
     isEditing: boolean;
+    /**
+     * Steht die Ziel-Entität schon fest? Dann entfällt der Entitäts-Picker (BL-341).
+     *
+     * Bis dahin beantwortete  BEIDE Fragen zugleich — Titel UND Zielwahl. Das
+     * trug, solange Forschungseinträge ausschließlich in den drei Forschungsansichten
+     * entstanden, wo man das Ziel erst wählen muss. Wer sie am Personen-/Familien-
+     * Steckbrief anlegt, legt NEU an (kein Bearbeiten) und hat das Ziel trotzdem schon:
+     * die Person, auf deren Seite er steht. Ohne die Trennung böte das Formular dort
+     * einen Picker an, der nur wieder dasselbe auswählen könnte.
+     *
+     * Vorgabe  — für die drei Ansichten ändert sich damit nichts.
+     */
+    zielFest?: boolean;
     onSubmit: (values: HypothesisFormValues) => void;
     onCancel: () => void;
   }
-  const { appState, initial, isEditing, onSubmit, onCancel }: Props = $props();
+  const { appState, initial, isEditing, zielFest = isEditing, onSubmit, onCancel }: Props = $props();
 
   // Arbeitskopie: einmal aus `initial` gelesen (analog TaskForm/LogForm).
   // svelte-ignore state_referenced_locally
@@ -137,7 +150,7 @@
     <textarea {...PROSE_FIELD} bind:value={conclusion} rows="2" placeholder="Wie wurde die Hypothese geklärt?"></textarea>
   </label>
 
-  {#if !isEditing}
+  {#if !zielFest}
     <fieldset class="hyp-form__field hyp-form__entity-picker">
       <legend>Ziel</legend>
       <div class="hyp-form__kind-toggle">

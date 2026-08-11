@@ -31,12 +31,25 @@
     appState: AppState;
     /** Startwerte; im Anlege-Modus die leere Vorbelegung. */
     initial: TaskFormValues;
-    /** true = Bearbeiten (Ziel-Entität steht fest und wird nicht mehr angeboten). */
+    /** true = Bearbeiten (Titel + Kommando-Wahl beim Aufrufer). */
     isEditing: boolean;
+    /**
+     * Steht die Ziel-Entität schon fest? Dann entfällt der Entitäts-Picker (BL-341).
+     *
+     * Bis dahin beantwortete  BEIDE Fragen zugleich — Titel UND Zielwahl. Das
+     * trug, solange Forschungseinträge ausschließlich in den drei Forschungsansichten
+     * entstanden, wo man das Ziel erst wählen muss. Wer sie am Personen-/Familien-
+     * Steckbrief anlegt, legt NEU an (kein Bearbeiten) und hat das Ziel trotzdem schon:
+     * die Person, auf deren Seite er steht. Ohne die Trennung böte das Formular dort
+     * einen Picker an, der nur wieder dasselbe auswählen könnte.
+     *
+     * Vorgabe  — für die drei Ansichten ändert sich damit nichts.
+     */
+    zielFest?: boolean;
     onSubmit: (values: TaskFormValues) => void;
     onCancel: () => void;
   }
-  const { appState, initial, isEditing, onSubmit, onCancel }: Props = $props();
+  const { appState, initial, isEditing, zielFest = isEditing, onSubmit, onCancel }: Props = $props();
 
   // v8-Presets als Vorschläge: KEIN geschlossenes Enum — Freitext bleibt immer möglich,
   // die drei Labels sind nur eine <datalist>-Hilfe (Spec 12 §1 hält `category` frei).
@@ -67,7 +80,9 @@
     if (!text.trim()) return;
     // Im Anlege-Modus ist die Zielentität Pflicht — ohne sie hätte die Aufgabe keinen
     // Träger und ginge beim Speichern still verloren.
-    if (!isEditing && !entityId) return;
+    // `zielFest`, nicht `isEditing` (BL-341): steht das Ziel fest, kommt `entityId` aus
+    // `initial` und es gibt keinen Picker, über den es leer werden könnte.
+    if (!zielFest && !entityId) return;
     onSubmit({ text, category, sourceRef, kind, entityId });
   }
 </script>
@@ -111,7 +126,7 @@
     />
   </div>
 
-  {#if !isEditing}
+  {#if !zielFest}
     <fieldset class="task-form__field task-form__entity-picker">
       <legend>Ziel</legend>
       <div class="task-form__kind-toggle">

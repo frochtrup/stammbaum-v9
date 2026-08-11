@@ -16,6 +16,7 @@
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
+  import ResearchSection from '../../shell/ResearchSection.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
@@ -66,6 +67,9 @@
 
   const familyId = $derived(viewState.getCurrent('family'));
   const detail = $derived(familyId ? buildFamilyDetail(appState.db, appState.placeContext, familyId) : null);
+
+  /** Heutiges Datum für neu angelegte Forschungseinträge (BL-341) — s. PersonDetail. */
+  const heute = (): string => new Date().toISOString().slice(0, 10);
 
   const roleLabel: Record<'husband' | 'wife' | 'child', string> = {
     husband: 'Ehemann',
@@ -391,6 +395,13 @@
         </div>
       </section>
     {/if}
+
+    <!-- Dieselbe Sektion wie am Personen-Steckbrief (BL-341, INV-UI-4) — nur `kind`
+         unterscheidet sich. Eine Familie trägt Aufgaben/Protokoll/Hypothesen genauso, und
+         die Kommandos waren seit jeher auf beide Träger adressiert. -->
+    <section class="family-detail__section">
+      <ResearchSection {appState} kind="family" entityId={detail.family.id} heute={heute()} />
+    </section>
 
     <DeleteEntityButton
       label="Familie löschen"

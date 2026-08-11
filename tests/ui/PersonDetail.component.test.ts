@@ -768,8 +768,16 @@ describe('PersonDetail — "+ Ereignis"-Sammel-Menü (ADR-v9-62/63)', () => {
   });
 });
 
-describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig (Spec 21 §10f)', () => {
-  it('zeigt WEDER "Familien"-Überschrift NOCH eine "Keine Familienverknüpfung"-Zeile ohne Familienbezug', () => {
+// SEIT BL-341 GILT HIER DIE ANDERE HÄLFTE VON §10f. Die Regel unterscheidet zwei Fälle:
+// eine strukturell OPTIONALE Sektion verschwindet leer vollständig; eine strukturell
+// ERWARTBARE behält ihren Header, „aber ohne redundante ‚Keine X erfasst'-Zeile, wenn eine
+// vorhandene Aktions-Affordanz die Leere bereits impliziert". Bis BL-341 hatte die
+// Familien-Sektion keine Affordanz und fiel damit unter die erste Hälfte. Jetzt trägt sie
+// den einzigen Weg, einer Person Eltern zu geben — verschwände sie leer, hätte
+// ausgerechnet die Person OHNE Eltern keinen Ort, an dem sie welche bekommt (dieselbe
+// Falle wie bei der Geburtszeile, BL-339). Also: Header + Pille, kein „Keine X"-Satz.
+describe('PersonDetail — leerer "Familien"-Abschnitt: Header + Affordanz, kein Leersatz (Spec 21 §10f)', () => {
+  it('zeigt die Überschrift samt "+ Herkunftsfamilie", aber KEINE "Keine Familienverknüpfung"-Zeile', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const db = makeDatabase();
@@ -779,7 +787,10 @@ describe('PersonDetail — leerer "Familien"-Abschnitt verschwindet vollständig
 
     render(PersonDetail, { props: { appState, viewState } });
 
-    expect(screen.queryByText('Familien')).toBeNull();
+    expect(screen.getByText('Familien')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Herkunftsfamilie' })).toBeTruthy();
+    // Der Kern von §10f bleibt: die Affordanz sagt bereits, dass hier nichts steht —
+    // ein zusätzlicher „Keine X"-Satz wäre die Verdopplung, die die Regel abschafft.
     expect(screen.queryByText(/Keine Familienverknüpfung/)).toBeNull();
   });
 });
