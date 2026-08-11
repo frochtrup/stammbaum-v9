@@ -237,7 +237,7 @@
          IST addrs[0].value — steht deshalb als erste Sektion direkt unter dem Titel, VOR
          den Grunddaten, in BEIDEN Modi (Lese- wie Bearbeiten-Modus). -->
     <section class="hof-detail__section">
-      <h3>Name &amp; Adressvarianten</h3>
+      <h3 class="stb-section-title">Name &amp; Adressvarianten</h3>
       <ul class="hof-detail__addr-list">
         {#each detail.hof.addrs as a, i (i)}
           <li>
@@ -318,7 +318,7 @@
 
     {#if detail.predecessorLabel || detail.successorLabel}
       <section class="hof-detail__section">
-        <h3>Lebenszyklus</h3>
+        <h3 class="stb-section-title">Lebenszyklus</h3>
         {#if detail.predecessorLabel}<p>Vorgänger: {detail.predecessorLabel}</p>{/if}
         {#if detail.successorLabel}<p>Nachfolger: {detail.successorLabel}</p>{/if}
       </section>
@@ -342,7 +342,7 @@
          Inhalt je zu sehen war. -->
     {#if !editing && detail.hof.note}
       <section class="hof-detail__section">
-        <h3>Notiz</h3>
+        <h3 class="stb-section-title">Notiz</h3>
         <p class="hof-detail__note">{detail.hof.note}</p>
       </section>
     {/if}
@@ -351,7 +351,7 @@
          Ereignis-Kontext gibt es keine Bewohner-Auskunft, also auch keinen Abschnitt. -->
     {#if appState.caps.hasEventContext}
     <section class="hof-detail__section">
-      <h3>Bewohner &amp; Eigentümer</h3>
+      <h3 class="stb-section-title">Bewohner &amp; Eigentümer</h3>
       {#if detail.residents.length === 0}
         <p class="hof-detail__muted">Keine Bewohner-/Eigentümer-Ereignisse an diesem Hof erfasst.</p>
       {:else}
@@ -388,9 +388,21 @@
     line-height: 1.45;
   }
 
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.hof-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .hof-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .hof-detail__empty {
@@ -403,15 +415,6 @@
   }
 
 
-  .hof-detail__section {
-    margin-top: 1.25rem;
-  }
-
-  .hof-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
-  }
 
   .hof-detail__muted {
     color: var(--stb-text-dim);

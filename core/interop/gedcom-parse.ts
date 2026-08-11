@@ -58,6 +58,25 @@ import type { ParsedGedcom } from './types';
 // Sonder-Ereignisse mit festem Modell-Slot (Spec 10 §5.1).
 const SPECIAL_EVENT_TAGS = new Set(['BIRT', 'CHR', 'DEAT', 'BURI']);
 
+/**
+ * `CHAN` → `lastChanged` als ein String: `DATE` plus, wenn vorhanden, `TIME` (BL-337).
+ *
+ * WARUM EIN HELFER UND NICHT VIER KOPIEN: bis BL-337 las nur die Person ihr `CHAN`,
+ * Familie/Quelle/Archiv/Medium hatten das Modellfeld, aber keinen Parser dafür — der
+ * Zeitstempel dieser 1091 Records im Realbestand existierte im Modell schlicht nicht. Beim
+ * Nachziehen wäre die Zeile viermal abgeschrieben worden; `chanNode` in write-back-emit.ts
+ * ist die Umkehrfunktion und steht ebenfalls genau einmal da.
+ *
+ * Die Form (`3 APR 2026 12:03:12`) ist bewusst dieselbe wie bisher — sie ist der Eingang
+ * der `chanNode`-Heuristik, die den Zeit-Token hinten wieder abtrennt.
+ */
+function parseChan(node: GedNode): string {
+  const dateNode = child(node, 'DATE');
+  const zeit = childValue(dateNode ?? node, 'TIME');
+  const datum = childValue(node, 'DATE');
+  return zeit ? datum + ' ' + zeit : datum;
+}
+
 /** Sammelt reinen Text aus value + CONC/CONT-Kindern (GEDCOM-Textmodell §5). */
 function collectText(node: GedNode): string {
   let out = node.value;
@@ -220,6 +239,9 @@ export function projectMediaRecord(node: GedNode): Media | null {
     typeWire: type,
     title: titleNode ? collectText(titleNode) : '',
     wireOrigin: isRecord ? 'record' : 'inline',
+    // Nur der RECORD trägt ein `CHAN` (BL-337) — eine Inline-/Pointer-Referenz ist eine
+    // Fundstelle, kein Datensatz mit eigener Änderungsgeschichte.
+    lastChanged: isRecord ? (child(node, 'CHAN') ? parseChan(child(node, 'CHAN')!) : '') : '',
   });
 }
 
@@ -559,15 +581,14 @@ function parsePerson(rec: GedNode): Person {
         break;
       case 'NOTE':
         if (c.value.startsWith('@')) p.noteRefs.push(unescapeAt(c.value));
-        else p.noteText = p.noteText ? p.noteText + '\n' + collectText(c) : collectText(c);
+        else if (p.noteText === '') p.noteText = collectText(c);
+        else p.extraNotes.push(collectText(c)); // BL-338: zwei NOTE = zwei Notizen
         break;
       case 'SOUR':
         p.topLevelCitations.push(parseCitation(c));
         break;
       case 'CHAN':
-        p.lastChanged = childValue(child(c, 'DATE') ?? c, 'TIME')
-          ? childValue(c, 'DATE') + ' ' + childValue(child(c, 'DATE')!, 'TIME')
-          : childValue(c, 'DATE');
+        p.lastChanged = parseChan(c);
         break;
       case 'REFN':
       case 'EXID':
@@ -602,9 +623,18 @@ function parsePerson(rec: GedNode): Person {
 // `Unsere Familie 2026.ged`) — ein String konnte davon nur die Konfession halten, der Rest
 // ueberlebte bloss als Passthrough und war weder sichtbar noch editierbar (ADR-v9-156
 // hatte die Diagnose bereits gestellt, ohne die Konsequenz zu ziehen).
+// Die zweite Zeile kam mit BL-335: zehn Standard-Ereignistags, die `EVENT_TYPE_LABELS`
+// (ui/shell/event-labels.ts) laengst uebersetzt, `timeline-model.ts` einer Spur zuordnet und
+// `story-templates.ts` in einen Satz giesst — die der Parser aber nie erzeugte. Der Befund
+// kam vom Nutzer („Priesterweihe wird nicht angezeigt"): `1 ORDN Priester` mit TYPE, DATE,
+// PLAC samt Koordinaten und SOUR stand vollstaendig in der Datei und war unsichtbar. ORDN war
+// die gemeldete Stelle, neun weitere waren strukturgleich (CLAUDE.md „ALLE Geschwister-
+// Stellen"). Gegen ein Wiederauseinanderlaufen steht jetzt der Zwang statt der Erinnerung:
+// `tests/core/event-tag-drift.test.ts` haelt Labelliste und Parser gegeneinander.
 const EVENT_TAGS = new Set([
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP',
   'MILI', 'FACT', 'CENS', 'PROP', 'BAPM', 'CONF', 'RELI', 'MARR', 'ENGA', 'DIV',
+  'ORDN', 'BARM', 'BASM', 'BLES', 'CHRA', 'CREM', 'FCOM', 'PROB', 'RETI', 'WILL',
 ]);
 function isEventTag(tag: string): boolean {
   return EVENT_TAGS.has(tag);
@@ -631,7 +661,8 @@ function parseFamily(rec: GedNode): Family {
         f.engagement = parseEvent(c);
         break;
       case 'NOTE':
-        f.noteText = f.noteText ? f.noteText + '\n' + collectText(c) : collectText(c);
+        if (f.noteText === '') f.noteText = collectText(c);
+        else f.extraNotes.push(collectText(c)); // BL-338
         break;
       case 'SOUR':
         f.citations.push(parseCitation(c));
@@ -644,6 +675,9 @@ function parseFamily(rec: GedNode): Family {
         break;
       case '_HYPO':
         f.hypotheses.push(parseHypothesis(c));
+        break;
+      case 'CHAN':
+        f.lastChanged = parseChan(c);
         break;
       default:
         if (isEventTag(c.tag)) f.events.push(parseEvent(c));
@@ -696,6 +730,19 @@ function parseSource(rec: GedNode): Source {
     }
     s.dataExtra = data.children.filter((c) => c.tag !== 'AGNC' && c.tag !== 'EVEN');
   }
+  // `SOUR>NOTE` (BL-336) — Zeiger und Inline-Text getrennt, exakt wie in `parsePerson`.
+  // Die Unterscheidung ist nicht kosmetisch: `collectText` auf `1 NOTE @N1@` lieferte den
+  // rohen Zeiger als Notiztext und zeigte „@N1@" in der Quellen-Ansicht an. Mehrere
+  // NOTE-Zeilen werden wie bei Person/Familie zu einem Text gefaltet; die überzähligen
+  // Knoten hält ohnehin der `ueberschuss` (write-back.ts), falls das Modell weniger
+  // erzeugt als die Datei trägt.
+  for (const n of children(rec, 'NOTE')) {
+    if (n.value.startsWith('@')) s.noteRefs.push(unescapeAt(n.value));
+    else if (s.noteText === '') s.noteText = collectText(n);
+    else s.extraNotes.push(collectText(n)); // BL-338
+  }
+  const chan = child(rec, 'CHAN');
+  if (chan) s.lastChanged = parseChan(chan);
   for (const refn of [...children(rec, 'REFN'), ...children(rec, 'EXID')]) {
     s.externalRefs.push({ value: refn.value, type: childValue(refn, 'TYPE') });
   }
@@ -715,6 +762,8 @@ function parseRepository(rec: GedNode): Repository {
   r.email = childValue(rec, 'EMAIL');
   r.type = childValue(rec, '_RTYPE');
   r.findingAid = childValue(rec, '_FAURL');
+  const chan = child(rec, 'CHAN');
+  if (chan) r.lastChanged = parseChan(chan);
   return r;
 }
 
@@ -795,6 +844,10 @@ function headLinesOf(node: GedNode, depth: number, out: string[]): void {
 }
 
 export { SPECIAL_EVENT_TAGS };
+// Für den Drift-Wächter (BL-335, tests/core/event-tag-drift.test.ts): welche generischen
+// Ereignistags erzeugt der Parser überhaupt? Ohne diesen Export müsste der Test die Liste
+// abschreiben — und eine abgeschriebene Liste driftet genauso wie die, die sie bewacht.
+export { EVENT_TAGS };
 
 // --- Öffentliche Per-Record-Projektion (für write-back.ts) ---------------------
 // Der Write-Back-Pfad (Spec 13 §2.1) braucht dieselbe Projektion pro Record, um zu

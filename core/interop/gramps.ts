@@ -21,6 +21,9 @@ import type { EnrichContext } from './gramps-enrich';
 import { collectGrampsMedia, grampsMediaRefs } from './gramps-media';
 import { collectCitations } from './gramps-citations';
 import { grampsMediumToMedi, childrefRelToPedi } from './enum-maps';
+// BL-337: GRAMPS' `change`-Pflichtattribut (Epochensekunden) ist das Gegenstück zu
+// GEDCOMs `CHAN` — beide landen im selben Modellfeld `lastChanged`.
+import { epochToChangeStamp } from './change-stamp-wire';
 import { projectPlaces } from './gramps-places';
 
 /** Ergebnis von parseXMLText: Modell + verbatim erhaltener XML-Baum (Passthrough). */
@@ -104,6 +107,7 @@ function resolveRef(hlink: string, index: GrampsRefIndex): string {
 
 export function projectPerson(person: XmlNode): Person {
   const p = makePerson(grampsKey(person));
+  p.lastChanged = epochToChangeStamp(attr(person, 'change'));
   const gender = firstChild(person, 'gender');
   p.sex = grampsSex(gender ? gender.text : 'U');
   const nameNode = firstChild(person, 'name');
@@ -120,6 +124,7 @@ export function projectPerson(person: XmlNode): Person {
 
 export function projectFamily(family: XmlNode, index: GrampsRefIndex): Family {
   const f = makeFamily(grampsKey(family));
+  f.lastChanged = epochToChangeStamp(attr(family, 'change'));
   const father = firstChild(family, 'father');
   const mother = firstChild(family, 'mother');
   f.husband = father ? resolveRef(attr(father, 'hlink'), index) : null;
@@ -157,6 +162,7 @@ export function projectChildLink(childref: XmlNode, familyId: string, ctx: Enric
 
 export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
   const s = makeSource(grampsKey(source));
+  s.lastChanged = epochToChangeStamp(attr(source, 'change'));
   s.title = firstChild(source, 'stitle')?.text ?? '';
   s.author = firstChild(source, 'sauthor')?.text ?? '';
   s.abbr = firstChild(source, 'sabbrev')?.text ?? '';
@@ -189,6 +195,7 @@ export function projectSource(source: XmlNode, index: GrampsRefIndex): Source {
 
 export function projectRepository(repo: XmlNode): Repository {
   const r = makeRepository(grampsKey(repo));
+  r.lastChanged = epochToChangeStamp(attr(repo, 'change'));
   r.name = firstChild(repo, 'rname')?.text ?? '';
   r.type = firstChild(repo, 'type')?.text ?? '';
   const url = firstChild(repo, 'url');

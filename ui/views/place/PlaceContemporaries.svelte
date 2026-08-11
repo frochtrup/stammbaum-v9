@@ -61,7 +61,7 @@
 {/snippet}
 
 <section class="contemporaries">
-  <h3>Ortszeitgenossen</h3>
+  <h3 class="stb-section-title">Ortszeitgenossen</h3>
   <button
     type="button"
     class="contemporaries__toggle"
@@ -120,12 +120,6 @@
 <style>
   .contemporaries {
     margin-top: 1.25rem;
-  }
-
-  .contemporaries h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .contemporaries__toggle {

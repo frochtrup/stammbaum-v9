@@ -28,7 +28,8 @@
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import { createPersonEventModal, eventForKey } from './person-event-modal.svelte';
   import PersonForm from './PersonForm.svelte';
-  import PersonFamilies from './PersonFamilies.svelte';
+  import PersonFamilySection from './PersonFamilySection.svelte';
+  import ResearchSection from '../../shell/ResearchSection.svelte';
   import PersonAssociations from './PersonAssociations.svelte';
   import ProofSummaryNote from './ProofSummaryNote.svelte';
   import { makeEvent, makeAssociation } from '../../../core/model/factory';
@@ -272,6 +273,11 @@
     appState.savePerson({ ...p, associations: p.associations.filter((_, i) => i !== index) });
   }
 
+  /** Heutiges Datum für neu angelegte Forschungseinträge (BL-341). Hier gebildet und
+   *  hineingereicht, nicht in `ResearchSection`: dieselbe Form wie in TasksView/
+   *  HypothesesView, und die Sektion selbst bleibt damit ohne Wall-Clock testbar (TST-3). */
+  const heute = (): string => new Date().toISOString().slice(0, 10);
+
 </script>
 
 {#snippet eventRow(ev: EventRow)}
@@ -324,7 +330,7 @@
     <!-- BL-274/INV-UI-16: der Editor ERSETZT die Seite nicht mehr. Vorher stand hier ein
          `{:else if editing}`-Zweig VOR der Kopfzeile — damit verschwanden Titel und
          Rückweg genau in dem Moment, in dem der Nutzer den Namen ändert, und es blieb
-         nur ein `<h3>Person bearbeiten` ohne die Person. Jetzt wie bei Ort/Hof: Kopfzeile
+         nur ein `<h3 class="stb-section-title">Person bearbeiten` ohne die Person. Jetzt wie bei Ort/Hof: Kopfzeile
          bleibt, das Formular erscheint darunter. -->
     <PersonDetailHeader
       person={detail.person}
@@ -357,7 +363,7 @@
     {/if}
 
     <section class="person-detail__section">
-      <h3>Ereignisse</h3>
+      <h3 class="stb-section-title">Ereignisse</h3>
 
       {#if lebensdatenGroup}
         <h4 class="person-detail__event-category">{lebensdatenGroup.type}</h4>
@@ -406,19 +412,16 @@
       />
     {/if}
 
-    {#if detail.families.length > 0}
-      <section class="person-detail__section">
-        <h3>Familien</h3>
-        <PersonFamilies
-          families={detail.families}
-          onGoToPerson={goToPerson}
-          {onNavigateToFamily}
-          {onNavigateToSource}
-          sourceOf={(id) => appState.db.sources.get(id)}
-          onEditChildLink={(familyId) => (childLinkEdit = familyId)}
-        />
-      </section>
-    {/if}
+    <PersonFamilySection
+      {appState}
+      personId={detail.person.id}
+      families={detail.families}
+      onGoToPerson={goToPerson}
+      {onNavigateToFamily}
+      {onNavigateToSource}
+      sourceOf={(id) => appState.db.sources.get(id)}
+      onEditChildLink={(familyId) => (childLinkEdit = familyId)}
+    />
 
     {#if childLinkEdit && childLink}
       <ChildLinkEditModal
@@ -440,6 +443,14 @@
       onAdd={addAssociation}
       onRemove={removeAssociation}
     />
+
+    <!-- Forschung an DIESER Person (BL-341) — Aufgaben, Protokoll, Hypothesen anlegen und
+         sehen, ohne den Umweg über die drei Forschungsansichten und das dortige
+         Heraussuchen derselben Person. Steht hinter den Beziehungen und vor der
+         Beweis-Zusammenfassung: erst die Daten, dann die Arbeit daran. -->
+    <section class="person-detail__section">
+      <ResearchSection {appState} kind="person" entityId={detail.person.id} heute={heute()} />
+    </section>
 
     {#if detail.person.hypotheses.length > 0}
       <ProofSummaryNote person={detail.person} />
@@ -463,24 +474,27 @@
     margin: 0.5rem 1rem 0;
   }
 
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-342). Vorher trug ihn `.person-detail__section { margin-bottom }` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt
+     (`PersonAssociations`, `PersonFamilySection`, `ResearchSection`). Im Screenshot des
+     Nutzers standen die drei sichtbar enger beieinander als der Rest.
+
+     `gap` statt `margin` ist zugleich die robustere Form: es kollabiert nicht, verdoppelt
+     sich nicht, und es gilt für JEDES Kind — unabhängig davon, welche Komponente es
+     rendert. Eine Extraktion kann den Rhythmus damit nicht mehr aus Versehen verlieren. */
   .person-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .person-detail__empty {
     color: var(--stb-text-dim);
   }
 
-  .person-detail__section {
-    margin-bottom: 1.25rem;
-  }
-
-  .person-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
-  }
 
   .person-detail__events {
     list-style: none;

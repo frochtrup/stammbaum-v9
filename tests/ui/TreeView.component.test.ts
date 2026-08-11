@@ -8,7 +8,7 @@ import { render, fireEvent } from '@testing-library/svelte';
 import TreeView from '../../ui/views/tree/TreeView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily } from '../../core/model';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
 
@@ -138,21 +138,15 @@ describe('TreeView — Mount/Unmount der imperativen Insel', () => {
     db.individuals.set('@I1@', makePerson('@I1@', { given: 'Kind', surname: 'Bauer' }));
     db.individuals.set('@I2@', makePerson('@I2@', { given: 'Vater', surname: 'Bauer' }));
     db.individuals.set('@I3@', makePerson('@I3@', { given: 'Mutter', surname: 'Bauer' }));
-    db.families.set('@F1@', {
-      id: '@F1@',
+    // Über die Fabrik, nicht als Literal (BL-338): ein handgebautes Objekt bricht bei jedem
+    // neuen Modellfeld, und dieser Test sagt nichts über Felder aus, die er nicht meint.
+    db.families.set('@F1@', makeFamily('@F1@', {
       husband: '@I2@',
       wife: '@I3@',
       children: ['@I1@'],
       marriage: db.individuals.get('@I1@')!.birth,
       engagement: db.individuals.get('@I1@')!.birth,
-      events: [],
-      noteText: '',
-      citations: [],
-      tasks: [],
-      researchLog: [],
-      hypotheses: [],
-      lastChanged: '',
-    });
+    }));
     db.individuals.get('@I1@')!.childOf.push({
       familyId: '@F1@',
       pedigree: 'birth',

@@ -288,7 +288,7 @@
     {/if}
 
     <section class="media-detail__section">
-      <h3>Referenzen ({detail.references.length})</h3>
+      <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>
       <div class="media-detail__add-row">
         <button type="button" class="media-detail__add-btn" onclick={() => (adding = 'person')}>+ Person</button>
         <button type="button" class="media-detail__add-btn" onclick={() => (adding = 'family')}>+ Familie</button>
@@ -322,9 +322,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.media-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .media-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .media-detail__empty,
@@ -420,15 +432,6 @@
 
 
 
-  .media-detail__section {
-    margin-top: 1.25rem;
-  }
-
-  .media-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
-  }
 
   .media-detail__add-row {
     display: flex;

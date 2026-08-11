@@ -25,6 +25,7 @@ export type { GedFormat, SerializeFormat, ParsedGedcom, Clock } from './types';
 
 export { parseGedcom, parseCoord } from './gedcom-parse';
 export { serializeGedcom, type SerializeOptions } from './gedcom-serialize';
+export { gedcomChangeStamp, changeStampToEpoch, epochToChangeStamp } from './change-stamp-wire';
 
 export { applyDatabaseToRoots } from './write-back';
 export {

@@ -209,10 +209,21 @@
       {/each}
     </dl>
 
-    {#if detail.source.text}<p class="source-detail__text">{detail.source.text}</p>{/if}
+    <!-- Zwei getrennte Textblöcke seit BL-336, und die Beschriftung sagt jetzt, welcher
+         welcher ist: `text` (SOUR>TEXT) ist der ZITIERTE Wortlaut aus der Quelle,
+         `noteText` (SOUR>NOTE) die Anmerkung ÜBER sie. Bis dahin gab es nur den ersten,
+         unbeschriftet, und er trug beide Bedeutungen. -->
+    {#if detail.source.text}
+      <p class="stb-role-label">Wortlaut</p>
+      <p class="source-detail__text">{detail.source.text}</p>
+    {/if}
+    {#if detail.source.noteText}
+      <p class="stb-role-label">Notiz</p>
+      <p class="source-detail__text">{detail.source.noteText}</p>
+    {/if}
 
     <section class="source-detail__section">
-      <h3>Referenzen ({detail.references.length})</h3>
+      <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>
       {#if detail.references.length === 0}
         <p class="source-detail__muted">Keine Zitatstelle referenziert diese Quelle.</p>
       {:else}
@@ -233,9 +244,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.source-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .source-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   .source-detail__empty {
@@ -281,15 +304,6 @@
     white-space: pre-wrap;
   }
 
-  .source-detail__section {
-    margin-top: 1.25rem;
-  }
-
-  .source-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
-  }
 
   .source-detail__muted {
     color: var(--stb-text-dim);

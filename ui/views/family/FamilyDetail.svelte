@@ -16,6 +16,7 @@
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
+  import ResearchSection from '../../shell/ResearchSection.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
   import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
@@ -66,6 +67,9 @@
 
   const familyId = $derived(viewState.getCurrent('family'));
   const detail = $derived(familyId ? buildFamilyDetail(appState.db, appState.placeContext, familyId) : null);
+
+  /** Heutiges Datum für neu angelegte Forschungseinträge (BL-341) — s. PersonDetail. */
+  const heute = (): string => new Date().toISOString().slice(0, 10);
 
   const roleLabel: Record<'husband' | 'wife' | 'child', string> = {
     husband: 'Ehemann',
@@ -277,7 +281,7 @@
     </DetailHeader>
 
     <section class="family-detail__section">
-      <h3>Eltern</h3>
+      <h3 class="stb-section-title">Eltern</h3>
       <div class="family-detail__parents">
         {#each (['husband', 'wife'] as const) as role (role)}
           {@const member = parents.find((p) => p.role === role)}
@@ -368,7 +372,7 @@
 
     {#if otherEvents.length > 0}
       <section class="family-detail__section">
-        <h3>Weitere Ereignisse</h3>
+        <h3 class="stb-section-title">Weitere Ereignisse</h3>
         <ul class="family-detail__events">
           {#each otherEvents as ev (ev.key)}
             {@render eventRow(ev)}
@@ -379,7 +383,7 @@
 
     {#if detail.citations.length > 0}
       <section class="family-detail__section">
-        <h3>Quellen (Familie)</h3>
+        <h3 class="stb-section-title">Quellen (Familie)</h3>
         <div class="family-detail__citations">
           {#each detail.citations as cit, i (i)}
             <SourceBadge
@@ -391,6 +395,13 @@
         </div>
       </section>
     {/if}
+
+    <!-- Dieselbe Sektion wie am Personen-Steckbrief (BL-341, INV-UI-4) — nur `kind`
+         unterscheidet sich. Eine Familie trägt Aufgaben/Protokoll/Hypothesen genauso, und
+         die Kommandos waren seit jeher auf beide Träger adressiert. -->
+    <section class="family-detail__section">
+      <ResearchSection {appState} kind="family" entityId={detail.family.id} heute={heute()} />
+    </section>
 
     <DeleteEntityButton
       label="Familie löschen"
@@ -426,9 +437,21 @@
 </div>
 
 <style>
+  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
+     (BL-343, ADR-v9-255). Vorher trug ihn `.family-detail__section` als `margin` — scoped, und
+     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
+     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
+     wurde (BL-342).
+
+     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
+     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
+     mehr aus Versehen verlieren. */
   .family-detail {
     padding: 1rem;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
   }
 
   /* Optik wie PersonDetails „⧖ Im Baum anzeigen"/„📖 Story" (INV-UI-4-Muster). */
@@ -447,15 +470,6 @@
     color: var(--stb-text-dim);
   }
 
-  .family-detail__section {
-    margin-bottom: 1.25rem;
-  }
-
-  .family-detail__section h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
-  }
 
   /* Eltern-Boxen (Nachtrag 2026-07-06 [20 §1.5]): nebeneinander, gemeinsame Box-Optik
      aus .stb-person-box (design-system.css, INV-UI-4) — nur Layout (Grid) + die

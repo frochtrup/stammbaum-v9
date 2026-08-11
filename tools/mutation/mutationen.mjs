@@ -233,8 +233,18 @@ export const STELLEN = [
     datei: 'services/places/apply-resolution.ts',
     // `===` → `!==`: geschrieben wird nur noch, wenn sich nichts ändert — das Kommando
     // wird zum No-Op, ohne dass eine Zeile fehlt.
-    suche: 'if (proj == null || proj === ev.place) return null;',
-    ersetze: 'if (proj == null || proj !== ev.place) return null;',
+    //
+    // DER ANKER TRÄGT DIE FOLGEZEILE MIT, weil die Bedingung allein seit
+    // [ADR-v9-224] nicht mehr eindeutig ist: `alignCuratedEventTexts` hat dieselbe
+    // Zeile (Ladepfad-Textangleich, s. LP-5b). Der Drift-Wächter hat das am
+    // 2026-08-10 gemeldet und den Lauf abgebrochen, statt eine der beiden Stellen zu
+    // raten — genau seine Aufgabe. Gemeint ist hier die REPROJEKTION nach einer
+    // Ortskorrektur (`reprojectEventsForTargets`), also die Stelle, die `place`
+    // anschließend schreibt.
+    suche:
+      'if (proj == null || proj === ev.place) return null;\n    return { ...ev, place: proj };',
+    ersetze:
+      'if (proj == null || proj !== ev.place) return null;\n    return { ...ev, place: proj };',
     schwelle: 5,
   },
   {

@@ -38,6 +38,18 @@
     /** Mountet die Shell direkt offen (Picker.svelte's `startOpen`, wie PersonPicker) —
      *  für Aufrufer, die den Picker hinter einem eigenen "+"-Trigger einblenden. */
     startOpen?: boolean;
+    /**
+     * Übernimmt die Neuanlage (BL-341). Ohne diesen Haken legt der Picker selbst eine leere
+     * Familie an und meldet ihre id über `onChange` — das ist der Weg, den die
+     * Forschungsformulare seit jeher nehmen. Ein Aufrufer, der MEHR tun muss als nur
+     * auszuwählen (der Personen-Steckbrief hängt die Person als Kind ein und springt
+     * hin), braucht die Anlage jedoch als UNTERSCHEIDBARES Ereignis: über `onChange`
+     * allein ist eine frisch angelegte Familie von einer ausgewählten leeren nicht zu
+     * trennen.
+     */
+    onCreateRequested?: () => void;
+    /** Beschriftung der Anlege-Zeile — nur nötig, wenn sie etwas anderes tut als anlegen. */
+    createLabel?: string;
     /** Reicht Picker.svelte's `onClose` durch (Aufrufer blenden den Picker per `{#if}` ein). */
     onClose?: () => void;
   }
@@ -50,6 +62,8 @@
     placeholder = 'Familie wählen…',
     label = 'Familie auswählen',
     startOpen = false,
+    onCreateRequested,
+    createLabel = '+ Neue Familie anlegen …',
     onClose,
   }: Props = $props();
 
@@ -87,8 +101,8 @@
     {noneLabel}
     {placeholder}
     {label}
-    createLabel="+ Neue Familie anlegen …"
-    onCreateRequested={beginCreate}
+    {createLabel}
+    onCreateRequested={onCreateRequested ?? beginCreate}
     {startOpen}
     {onClose}
   />

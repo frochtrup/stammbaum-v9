@@ -85,7 +85,9 @@ function isDocumented(d: Diff): boolean {
   if (/^events\[/.test(p) && (d.kind === 'missing' || d.kind === 'extra')) return true;
   if (/^events\[.*\]\.(place|value)$/.test(p)) return true;
   // Ereignistyp-Refinement (`2 TYPE …`) ohne GRAMPS-Gegenstück; source-Freitextfelder.
-  if (d.entity === 'source' && (p === 'text' || p === 'date' || p === 'callNumber')) return true;
+  // `noteText` (BL-336) steht hier aus demselben Grund wie `person.noteText` seit jeher:
+  // GRAMPS kennt nur `<note>`-Records + `noteref`, keine Inline-Notiz am Record.
+  if (d.entity === 'source' && (p === 'text' || p === 'noteText' || p === 'date' || p === 'callNumber')) return true;
   // Kinder-Signatur-Multiset einer Familie: erhaltungspflichtig ist die MENGE (durch die
   // globale children-Zähl-Invariante in (1) + die injektive ID-Remap konstruktiv gesichert);
   // ein `changed` hier rührt von der Datums-QUALIFIER-Re-Expression im Kind-Geburtsdatum her

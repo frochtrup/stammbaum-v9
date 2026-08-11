@@ -35,12 +35,25 @@
     appState: AppState;
     /** Startwerte; im Anlege-Modus die (ggf. aus einer Aufgabe vorbelegte) Vorbelegung. */
     initial: LogFormValues;
-    /** true = Bearbeiten (Ziel-Entität steht fest und wird nicht mehr angeboten). */
+    /** true = Bearbeiten (Titel + Kommando-Wahl beim Aufrufer). */
     isEditing: boolean;
+    /**
+     * Steht die Ziel-Entität schon fest? Dann entfällt der Entitäts-Picker (BL-341).
+     *
+     * Bis dahin beantwortete  BEIDE Fragen zugleich — Titel UND Zielwahl. Das
+     * trug, solange Forschungseinträge ausschließlich in den drei Forschungsansichten
+     * entstanden, wo man das Ziel erst wählen muss. Wer sie am Personen-/Familien-
+     * Steckbrief anlegt, legt NEU an (kein Bearbeiten) und hat das Ziel trotzdem schon:
+     * die Person, auf deren Seite er steht. Ohne die Trennung böte das Formular dort
+     * einen Picker an, der nur wieder dasselbe auswählen könnte.
+     *
+     * Vorgabe  — für die drei Ansichten ändert sich damit nichts.
+     */
+    zielFest?: boolean;
     onSubmit: (values: LogFormValues) => void;
     onCancel: () => void;
   }
-  const { appState, initial, isEditing, onSubmit, onCancel }: Props = $props();
+  const { appState, initial, isEditing, zielFest = isEditing, onSubmit, onCancel }: Props = $props();
 
   // Arbeitskopie: das Formular wird bei jedem Öffnen neu montiert, der Startwert wird
   // deshalb bewusst nur einmal gelesen (analog TaskForm.svelte).
@@ -119,7 +132,7 @@
     <textarea {...PROSE_FIELD} bind:value={note} rows="2" placeholder="Ergebnis / Beobachtungen"></textarea>
   </label>
 
-  {#if !isEditing}
+  {#if !zielFest}
     <fieldset class="log-form__field log-form__entity-picker">
       <legend>Ziel</legend>
       <div class="log-form__kind-toggle">

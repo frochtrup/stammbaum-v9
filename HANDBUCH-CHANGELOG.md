@@ -22,6 +22,27 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.15] — 2026-08-11
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`e903a85`…HEAD) erzeugt._
+
+- fix(design-system): auch der beschriftete Knopf bekommt eine gewaehlte Groesse (BL-347) (`1463ee1`)
+- fix(design-system): die Glyphengroesse wird gewaehlt statt geerbt, die Kopfzeile wird eine Einheit (`2fec084`)
+- fix(ui): eine Sektions-Ueberschrift statt vier — und das + gehoert ans Rollen-Label (`66242bf`)
+- feat(person): Eltern zuordnen und anlegen, Forschungseintraege am Steckbrief (BL-341) (`186ac48`)
+- fix(person): die Geburtszeile steht immer — und ein neu erfasstes Sonder-Ereignis kommt in der Datei an (`17ad161`)
+- feat(interop): die Priesterweihe wird sichtbar, die Quelle bekommt eine Notiz, CHAN wird gepflegt (`ca9caae`)
+- feat(orte): das Grenzjahr wird beim Laden abgeleitet, nicht nur geprüft (BL-332) (`3a5dcec`)
+- fix(orte): der Zeitbezug wird durchgereicht — und der Befund bekommt einen Weg (`f5a04c0`)
+- feat(orte): Stichtag an der dritten datierten Liste — Eingabe und Anzeige (BL-331) (`09344d2`)
+- feat(v9): BL-328/329 — Kindschafts-Belege lesen, schreiben und bearbeiten (ADR-v9-244) (`a590151`)
+- fix(v9): Grenz-Eingabe lehnt ab statt zu raten, Kongruenz bekommt einen Wächter (`888600b`)
+- feat(v9): BL-324 — tagegenaue Gültigkeitsdaten für Orte (ADR-v9-243) (`e064b2a`)
+- feat(v9): BL-325 — überlappende Zugehörigkeiten sichtbar machen statt still zu wählen (`1fc1e4a`)
+- fix(v9): Speichern-Knopf ab dem zweiten Mal tot — Proxys an der Kommando-Grenze entkoppeln (ADR-v9-241) (`d6ad954`)
+
+---
+
 ## [9.14] — 2026-08-09
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`284ea57`…HEAD) erzeugt._

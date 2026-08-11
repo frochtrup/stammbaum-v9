@@ -48,7 +48,7 @@
 </script>
 
 <section class="gov-import">
-  <h3>GOV-Eintrag übernehmen</h3>
+  <h3 class="stb-section-title">GOV-Eintrag übernehmen</h3>
   <button type="button" class="gov-import__toggle" aria-expanded={open} onclick={() => (open = !open)}>
     {open ? 'GOV-Import schließen' : 'GOV-Import öffnen'}
   </button>
@@ -77,12 +77,6 @@
 <style>
   .gov-import {
     margin: 1rem 0;
-  }
-
-  .gov-import h3 {
-    margin: 0 0 0.4rem;
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
   }
 
   .gov-import__toggle,

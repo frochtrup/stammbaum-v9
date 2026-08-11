@@ -21,7 +21,7 @@
 </script>
 
 <section class="delete-entity">
-  <button type="button" class="delete-entity__btn" onclick={handleClick}>{label}</button>
+  <button type="button" class="stb-btn" data-variant="danger" onclick={handleClick}>{label}</button>
 </section>
 
 <style>
@@ -31,12 +31,14 @@
     border-top: 1px solid var(--stb-surface-2);
   }
 
-  .delete-entity__btn {
-    background: transparent;
-    color: var(--stb-danger);
-    border: 1px solid var(--stb-danger);
-    border-radius: var(--stb-radius-control);
-    padding: 0.35rem 0.8rem;
-    cursor: pointer;
-  }
+  /* KEIN eigener Knopf-Stil mehr (BL-347). Hier stand eine vierte, lokale
+     Knopf-Implementierung: transparent + Danger-Farbe + Rahmen + Radius — also genau das,
+     was `.stb-btn[data-variant='danger']` seit BL-273 liefert. Der Kommentar an jener
+     Variante lud ausdrücklich dazu ein, sie zu übernehmen, „sobald es ohnehin angefasst
+     wird"; beim Nachmessen der Schriftgrößen war das der Fall.
+
+     GEMESSEN, was sich dabei ändert: der Knopf war 108×29px und als einziger beschriftete
+     Knopf nicht an die Primitive gebunden — nach dem Wechsel 36px hoch wie jeder andere.
+     Dass er trotzdem nicht wie die Primäraktion aussieht, leistet die Outline-Variante
+     (Rahmen statt Füllung), nicht seine geringere Höhe. */
 </style>

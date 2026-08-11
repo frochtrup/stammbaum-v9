@@ -56,6 +56,7 @@ import { confidenceToQuay, projectGrampsCitation } from './gramps-citations';
 import { EVAL_TAGS, evalAxisValue, evidenceEvalEqual, isEvalTag, mediToGrampsMedium, pediToChildrefRel } from './enum-maps';
 import { projectGrampsObject } from './gramps-media';
 import { gedcomToGramps, grampsDateOf } from './gramps-date';
+import { changeStampToEpoch } from './change-stamp-wire';
 import { parseCoord } from './gedcom-parse';
 
 /** Kind-Reihenfolge laut grampsxml.dtd 1.7.2 — maßgeblich für das EINFÜGEN neuer Elemente. */
@@ -625,7 +626,8 @@ function setzeEvidenzAchsen(children: XmlNode[], ev: EvidenceEval | null): XmlNo
 // ── Gleichheit: nur die projizierten Felder zählen ──────────────────────────────────────
 
 const personGleich = (a: Person, b: Person): boolean =>
-  a.sex === b.sex && a.given === b.given && a.surname === b.surname && a.prefix === b.prefix && a.nick === b.nick;
+  a.sex === b.sex && a.given === b.given && a.surname === b.surname && a.prefix === b.prefix && a.nick === b.nick &&
+  a.lastChanged === b.lastChanged;
 
 // Beide Seiten halten seit BL-136 die Modell-id (a projiziert über denselben Index wie beim
 // Parsen, b aus dem Modell) — direkter id-Vergleich, kein Handle-Umweg mehr nötig.
@@ -633,7 +635,8 @@ const familyGleich = (a: Family, b: Family): boolean =>
   (a.husband ?? '') === (b.husband ?? '') &&
   (a.wife ?? '') === (b.wife ?? '') &&
   a.children.length === b.children.length &&
-  a.children.every((h, i) => h === b.children[i]);
+  a.children.every((h, i) => h === b.children[i]) &&
+  a.lastChanged === b.lastChanged;
 
 /** Medien-Ref-Mengen zweier Owner gleich (mediaId-Menge, Reihenfolge egal — Add/Remove). */
 const sameMediaSet = (a: readonly { mediaId: string }[], b: readonly { mediaId: string }[]): boolean =>
@@ -648,10 +651,10 @@ const sameMediaSet = (a: readonly { mediaId: string }[], b: readonly { mediaId: 
 const sourceGleich = (a: Source, b: Source): boolean =>
   a.title === b.title && a.author === b.author && a.abbr === b.abbr && a.publisher === b.publisher &&
   (a.repo ?? '') === (b.repo ?? '') && a.callNumber === b.callNumber && a.callMedia === b.callMedia &&
-  sameMediaSet(a.media, b.media);
+  sameMediaSet(a.media, b.media) && a.lastChanged === b.lastChanged;
 
 const repoGleich = (a: Repository, b: Repository): boolean =>
-  a.name === b.name && a.type === b.type && a.www === b.www;
+  a.name === b.name && a.type === b.type && a.www === b.www && a.lastChanged === b.lastChanged;
 
 const noteGleich = (a: Note, b: Note): boolean => a.text === b.text;
 
@@ -659,7 +662,7 @@ const noteGleich = (a: Note, b: Note): boolean => a.text === b.text;
 // file/form/title. `type` (MEDI) hat kein `<file>`-Pendant und zählt daher nicht mit (er
 // round-trippt in GRAMPS ohnehin nicht — projectGrampsObject liefert immer '').
 const mediaGleich = (a: Media, b: Media): boolean =>
-  a.file === b.file && a.form === b.form && a.title === b.title;
+  a.file === b.file && a.form === b.form && a.title === b.title && a.lastChanged === b.lastChanged;
 
 // Der `<description>`-Wert eines Events: bei RESI/PROP die Adresse (event.addr), sonst der
 // Freitext-Wert (BL-143). Genau die Umkehrung von `projectGrampsEvent`.
@@ -761,6 +764,31 @@ interface Sektion<T> {
    */
   gleichNode?: (node: XmlNode, aktuell: T) => boolean;
   kinder: (orig: XmlNode, cur: T) => XmlNode[];
+  /**
+   * Der Änderungsstempel des Modells (BL-337) — gesetzt für die fünf Record-Arten, die
+   * `lastChanged` führen (Person/Familie/Quelle/Archiv/Medium), leer gelassen für Notizen.
+   *
+   * Er landet im `change`-ATTRIBUT, nicht in einem Kind: GRAMPS führt den Zeitpunkt als
+   * Pflichtattribut am Record. Deshalb reicht `kinder` hier nicht — der geänderte Knoten
+   * bekommt zusätzlich seine Attributzeile neu.
+   */
+  stempel?: (aktuell: T) => string;
+}
+
+/**
+ * Setzt `change` an einem Record-Knoten, ohne die Attributreihenfolge zu stören (BL-337):
+ * das Attribut existiert in jedem GRAMPS-Record bereits (Pflicht laut DTD), es wird also
+ * ersetzt, nicht angehängt. Leerer Stempel = Knoten unangetastet.
+ */
+function mitChangeAttribut(node: XmlNode, stempel: string): XmlNode {
+  if (!stempel) return node;
+  const epoch = changeStampToEpoch(stempel);
+  if (epoch === '0') return node;
+  const vorhanden = node.attrs.some(([k]) => k === 'change');
+  const attrs: [string, string][] = vorhanden
+    ? node.attrs.map(([k, v]): [string, string] => (k === 'change' ? [k, epoch] : [k, v]))
+    : [...node.attrs, ['change', epoch]];
+  return { ...node, attrs };
 }
 
 function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
@@ -782,12 +810,14 @@ function verarbeiteSektion<T>(root: XmlNode, s: Sektion<T>): XmlNode | null {
       kinder.push(node); // IDENTISCHER Knoten — byte-treu
       continue;
     }
-    kinder.push({ ...node, children: s.kinder(node, cur) });
+    const aktualisiert = { ...node, children: s.kinder(node, cur) };
+    kinder.push(s.stempel ? mitChangeAttribut(aktualisiert, s.stempel(cur)) : aktualisiert);
   }
 
   for (const [key, cur] of s.map) {
     if (gesehen.has(key)) continue;
-    kinder.push(neuerRecord(s.item, key, (geruest) => s.kinder(geruest, cur)));
+    const neu = neuerRecord(s.item, key, (geruest) => s.kinder(geruest, cur));
+    kinder.push(s.stempel ? mitChangeAttribut(neu, s.stempel(cur)) : neu);
   }
 
   if (!sec) return kinder.length ? knoten(s.section, '', [], kinder) : null;
@@ -1180,6 +1210,7 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   ersetzt.set('people', verarbeiteSektion(root, {
     section: 'people', item: 'person', map: db.individuals,
     project: projectPerson, gleich: personGleich,
+    stempel: (p) => p.lastChanged,
     // Bei ECHTEM Carry (Verlierer-Passthrough vorhanden) den Identitäts-Fast-Path überspringen,
     // damit der Passthrough angehängt wird; sonst byte-treu wie bisher.
     gleichNode: (n, cur) =>
@@ -1190,17 +1221,20 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   ersetzt.set('families', verarbeiteSektion(root, {
     section: 'families', item: 'family', map: db.families,
     project: (n) => projectFamily(n, index), gleich: familyGleich,
+    stempel: (f) => f.lastChanged,
     gleichNode: (n, cur) => familyGleichNode(n, cur, wb, childLinkOf),
     kinder: (orig, cur) => familyKinder(orig, cur, wb, childLinkOf),
   }));
   ersetzt.set('sources', verarbeiteSektion(root, {
     section: 'sources', item: 'source', map: db.sources,
     project: (n) => projectSource(n, index), gleich: sourceGleich,
+    stempel: (s) => s.lastChanged,
     kinder: (orig, cur) => sourceKinder(orig, cur, index),
   }));
   ersetzt.set('repositories', verarbeiteSektion(root, {
     section: 'repositories', item: 'repository', map: db.repositories,
     project: projectRepository, gleich: repoGleich, kinder: repoKinder,
+    stempel: (r) => r.lastChanged,
   }));
   ersetzt.set('notes', verarbeiteSektion(root, {
     section: 'notes', item: 'note', map: db.notes,
@@ -1213,6 +1247,7 @@ export function applyDatabaseToXml(db: Database, doc: XmlDocument): XmlDocument 
   ersetzt.set('objects', verarbeiteSektion(root, {
     section: 'objects', item: 'object', map: db.media,
     project: projectGrampsObject, gleich: mediaGleich, kinder: objectKinder,
+    stempel: (m) => m.lastChanged,
   }));
 
   // GETEILTE Records (Events/Zitate): Feld-Edits an Vorhandenen (BL-142) + Synthese Neuer

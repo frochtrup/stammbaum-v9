@@ -12,6 +12,14 @@
 // „← Zurück". BEWUSSTE GRENZE: wer die Anlage stehenlässt und über Bottom-Nav/⌘K
 // woanders hin springt, behält sie — dort hat er nichts entschieden, und die Auswahl
 // bleibt auf dem Datensatz stehen, zu dem er zurückkehrt.
+//
+// WARUM JEDER `createAppState` HIER EINE UHR BEKOMMT (BL-337). Ohne sie stempelt `commit`
+// nicht — und dann prüft dieser Wächter eine Konfiguration, die es in der echten App
+// (`App.svelte` reicht eine Wall-Clock herein) nirgends gibt. Genau daran ist er beim Bau
+// des `CHAN`-Stempels vorbeigelaufen: der Stempel setzte `lastChanged` auch am leer
+// angelegten Datensatz, `isPersonEmpty` verglich gegen den Fabrik-Default und lieferte ab
+// da immer `false` — die Rücknahme war tot, alle fünf Fälle hier blieben grün. Ein
+// Wächter, der eine andere Konfiguration prüft als die ausgelieferte, bewacht nichts.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
@@ -19,6 +27,9 @@ import SourceDetail from '../../ui/views/source/SourceDetail.svelte';
 import RepositoryDetail from '../../ui/views/repository/RepositoryDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+
+/** Die Konfiguration, mit der die App wirklich läuft — feste Zeit statt Systemuhr (TST-3). */
+const UHR = { clock: { now: () => new Date(Date.UTC(2026, 7, 11, 7, 30, 0)) } };
 import {
   makeDatabase,
   makePerson,
@@ -70,7 +81,7 @@ describe('BL-275 — das Leer-Prädikat des Kerns', () => {
 
 describe('BL-275 — Person: „＋ Neu" und wieder weg', () => {
   function neueAnlage() {
-    const appState = createAppState();
+    const appState = createAppState(UHR);
     appState.loadDatabase(makeDatabase(), 'test.ged');
     appState.savePerson(makePerson('@I1@'));
     const viewState = createViewState();
@@ -135,7 +146,7 @@ describe('BL-275 — Person: „＋ Neu" und wieder weg', () => {
 
 describe('BL-275 — Quelle und Archiv folgen derselben Regel', () => {
   it('Quelle: leer gebliebene Neuanlage verschwindet mit „Fertig"', async () => {
-    const appState = createAppState();
+    const appState = createAppState(UHR);
     appState.loadDatabase(makeDatabase(), 'test.ged');
     appState.saveSource(makeSource('@S1@'));
     const viewState = createViewState();
@@ -161,7 +172,7 @@ describe('BL-275 — Quelle und Archiv folgen derselben Regel', () => {
   });
 
   it('Quelle: mit Titel bleibt sie stehen', async () => {
-    const appState = createAppState();
+    const appState = createAppState(UHR);
     appState.loadDatabase(makeDatabase(), 'test.ged');
     appState.saveSource(makeSource('@S1@'));
     const viewState = createViewState();
@@ -187,7 +198,7 @@ describe('BL-275 — Quelle und Archiv folgen derselben Regel', () => {
   });
 
   it('Archiv: leer gebliebene Neuanlage verschwindet mit „Fertig"', async () => {
-    const appState = createAppState();
+    const appState = createAppState(UHR);
     appState.loadDatabase(makeDatabase(), 'test.ged');
     appState.saveRepository(makeRepository('@R1@'));
     const viewState = createViewState();
@@ -205,7 +216,7 @@ describe('BL-275 — Quelle und Archiv folgen derselben Regel', () => {
   });
 
   it('Archiv: mit Namen bleibt es stehen', async () => {
-    const appState = createAppState();
+    const appState = createAppState(UHR);
     appState.loadDatabase(makeDatabase(), 'test.ged');
     appState.saveRepository(makeRepository('@R1@'));
     const viewState = createViewState();

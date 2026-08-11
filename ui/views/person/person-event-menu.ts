@@ -38,10 +38,17 @@ export function secondaryEventMenu(person: Person | null): EventMenuItem[] {
 
 /** Generischer „beliebiger Typ"-Fallback — bleibt für ALLE übrigen GEDCOM-Typen (inkl.
  *  der sechs, die ihren eigenen Pill-Platz verloren haben) UND für Duplikate bereits
- *  benannter Typen erreichbar (z. B. Berufswechsel). */
+ *  benannter Typen erreichbar (z. B. Berufswechsel).
+ *
+ *  Die zweite Gruppe kam mit BL-335 dazu: dieselben zehn Tags, die der Parser seitdem liest.
+ *  Ein Typ, den die App aus der Datei ANZEIGEN kann, muss sie auch ANLEGEN können — sonst
+ *  wäre eine importierte Priesterweihe sichtbar, eine neu erfasste unmöglich. Bewusst
+ *  hierher und nicht in `secondaryEventMenu`: das ist die Häufigkeits-Vorauswahl (ADR-v9-62),
+ *  und diese zehn sind selten. */
 const OTHER_EVENT_TYPES = [
   'OCCU', 'RESI', 'EDUC', 'EMIG', 'IMMI', 'NATU', 'EVEN', 'GRAD', 'ADOP', 'MILI', 'FACT', 'CENS', 'PROP',
   'RELI',
+  'ORDN', 'BAPM', 'CONF', 'FCOM', 'BLES', 'CHRA', 'BARM', 'BASM', 'CREM', 'PROB', 'RETI', 'WILL',
 ] as const;
 
 export const otherEventMenu: EventMenuItem[] = OTHER_EVENT_TYPES.map((t) => ({

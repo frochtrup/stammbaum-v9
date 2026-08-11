@@ -133,7 +133,7 @@
      Falschaussage. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <form class="place-edit-form" data-no-swipe onsubmit={formSubmit(save)} onkeydown={formEscape(discard)}>
-  <h3>Grunddaten</h3>
+  <h3 class="stb-section-title">Grunddaten</h3>
   <label>
     Name
     <input type="text" {...PLAIN_FIELD} bind:value={title} />
@@ -187,12 +187,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-
-  .place-edit-form h3 {
-    font-size: 0.95rem;
-    color: var(--stb-gold-light);
-    margin-bottom: 0.4rem;
   }
 
   .place-edit-form label {

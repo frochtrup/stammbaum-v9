@@ -16,12 +16,9 @@
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import { layout } from '../../shell/layout.svelte';
 
-  // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): `Source` hat kein eigenes
-  // `noteRefs`/`noteText` (anders als Person/Family) — `text` (GEDCOM SOUR.TEXT,
-  // zitierter Urtext) ist die einzige vorhandene Textablage und wurde als "Notizen"-
-  // Abbildung gewählt (bewusst offen gelassene Feld-Frage, s. ADR-v9-79 Punkt 4/Spec
-  // 20 §1.6). Falls eigentlich Zitat-Notizen (Citation.note) gemeint waren, gehört das
-  // stattdessen zu SourceCitationRow (Spec 21 §10d), nicht zur Quellen-Liste.
+  // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): hängt seit BL-336 an `text`
+  // (SOUR>TEXT, zitierter Wortlaut) UND `noteText` (SOUR>NOTE, Anmerkung) — die vormals
+  // offene Feld-Frage ist damit beantwortet, s. `source-list-model.ts`.
 
   interface Props {
     appState: AppState;

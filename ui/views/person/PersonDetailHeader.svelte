@@ -28,6 +28,15 @@
   const { person, isProband, onBack, editing, onToggleEdit, onSetProband, onOpenLens }: Props = $props();
 </script>
 
+<!-- EINE Einheit, nicht drei Geschwister (BL-346). Titelzeile, Untertitel und
+     Lens-Reihe gehoeren zusammen; ohne diese Klammer werden sie zu drei direkten
+     Kindern des Steckbrief-Containers — und seit dessen Abstand als `gap` liegt
+     (BL-342/343), bekam JEDE Fuge die vollen 1,25rem, zusaetzlich zu den eigenen
+     Raendern der Teile. Gemessen: 16px + 20px unter "Geaendert", 6,4px + 20px unter
+     der Lens-Reihe. Nutzer-Befund: "der abstand oben ueber ereignis scheint sehr
+     gross". Mit der Klammer sieht das `gap` EIN Kind, und die inneren Raender behalten
+     ihren engeren Rhythmus. -->
+<header class="person-detail-header">
 <DetailHeader title={displayName(person)} {onBack}>
   {#snippet titlePrefix()}
     <!-- Nur ♂/♀ am Titel; ◇ (unbekannt) wäre nur Rauschen (Design-Kritik). -->
@@ -94,8 +103,18 @@
     />
   </div>
 {/if}
+</header>
 
 <style>
+  /* Die Klammer setzt KEINE eigenen Abstände — sie existiert allein, damit der `gap` des
+     Containers die Kopfzeile als EINE Einheit sieht (BL-346). Bewusst KEIN
+     `display: contents`: das löste die Box wieder auf, die Teile würden erneut zu
+     einzelnen Flex-Kindern, und die Klammer hätte gar keine Wirkung — beim ersten Anlauf
+     genau so gebaut und im Browser gemessen wieder verworfen. */
+  .person-detail-header {
+    display: block;
+  }
+
   /* Die Reihe selbst bringt kein Padding mit — `.stb-segment-row` (design-system.css)
      trägt seines, sonst läge die Einrückung doppelt (dieselbe Lehre wie in
      LensViewHeader.svelte). Nur der Abstand nach unten ist hier zu setzen. */

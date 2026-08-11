@@ -342,6 +342,7 @@ function findeOderLegeAn(
     engagement: leeresEreignis('ENGA'),
     events: [],
     noteText: '',
+    extraNotes: [],
     citations: [],
     tasks: [],
     researchLog: [],

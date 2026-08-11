@@ -37,6 +37,7 @@ import {
   deleteRepositoryCascade as deleteRepositoryCmd,
   saveMedia as saveMediaCmd,
   deleteMedia as deleteMediaCmd,
+  withChangeStamps,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -70,10 +71,11 @@ import {
   type ApplyImportResult,
 } from '../../core/dedup';
 import { createUndoStack } from '../../services/undo';
-import type { GedNode, GrampsParsed, XmlDocument, ParsedGedcom } from '../../core/interop';
+import type { GedNode, GrampsParsed, XmlDocument, ParsedGedcom, Clock } from '../../core/interop';
 import {
   applyDatabaseToRoots,
   serializeGedcom,
+  gedcomChangeStamp,
   applyDatabaseToXml,
   buildXMLText,
   buildGedcomTreeFromModel,
@@ -506,6 +508,18 @@ export interface CreateAppStateOptions {
    * gefangen, nicht von einem Test).
    */
   onPlaceTextsAligned?: (geaendert: number, luecken: number) => void;
+  /**
+   * Der Takt für den `CHAN`-Änderungsstempel (BL-337, TST-3). Jede Entität, die ein
+   * Kommando anfasst, bekommt in `commit` `lastChanged = clock.now()` — daher hier und
+   * nicht im Kern: `core/model` ist uhrfrei (INV-ARCH-1), und ein Test braucht eine feste
+   * Zeit, kein `new Date()`.
+   *
+   * Fehlt der Takt (Kern-/Komponententests, die ihn nicht brauchen), wird NICHT gestempelt
+   * — die Datensätze behalten den Zeitstempel aus der Datei. Bewusst kein `new Date()` als
+   * Vorgabe: das wäre eine Wall-Clock im Standardpfad und machte jeden Test, der eine
+   * Ausgabe vergleicht, von der Uhrzeit abhängig.
+   */
+  clock?: Clock;
 }
 
 export function createAppState(opts: CreateAppStateOptions = {}): AppState {
@@ -664,10 +678,18 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
    */
   const commit = (
     next: Database,
-    fx: { places?: boolean; workingCopy?: boolean } = {},
+    fx: { places?: boolean; workingCopy?: boolean; stamp?: boolean } = {},
   ): void => {
     stackPush(db); // Referenz auf den Vorzustand, keine Kopie (ADR-v9-92)
-    db = next;
+    // Änderungsstempel (BL-337): jede Entität, die dieses Kommando ausgetauscht hat,
+    // bekommt das aktuelle Datum — hier, weil dies die EINE Stelle ist, durch die jede
+    // Änderung läuft (dieselbe Begründung wie für den Undo-Snapshot eine Zeile darüber).
+    // `stamp: false` schaltet ihn ab, wo eine Änderung keine Bearbeitung IST: „Revert to
+    // Saved" stellt den geladenen Stand wieder her — das ist eine Rücknahme, kein Edit,
+    // und gehört damit zu Undo/Redo (die `commit` ohnehin umgehen).
+    db = opts.clock && fx.stamp !== false
+      ? withChangeStamps(db, next, gedcomChangeStamp(opts.clock.now()))
+      : next;
     if (fx.places) persistPlaces();
     if (fx.workingCopy) persistWorkingCopyIfLoaded();
   };
@@ -1086,7 +1108,7 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       if (savedState === null) return false;
       // Ein ganz normales Kommando auf den Speicherzustand (ADR-v9-92 Punkt 6) — es ist
       // damit selbst rücknehmbar, falls der Nutzer es versehentlich auslöst.
-      commit(savedState, { places: true, workingCopy: true });
+      commit(savedState, { places: true, workingCopy: true, stamp: false });
       return true;
     },
     // --- Forschungsdaten (Aufgaben/Protokoll/Hypothesen) ---------------------------

@@ -248,7 +248,18 @@ export function buildPersonDetail(
     ['BURI', person.buri],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, tag, ev, ctx, false, person.birth);
+    // BIRT immer, die übrigen drei nur wenn belegt (BL-339). [ADR-v9-62](…#adr-v9-62)
+    // Punkt 1 entschied wörtlich „Geburt: bleibt immer offen" — umgesetzt war das nie: die
+    // Zeile lief durch dieselbe Präsenz-Schranke wie CHR/DEAT/BURI. Eine ohne Geburtsdaten
+    // importierte Person hatte damit keine Geburtszeile UND keinen Weg, eine anzulegen
+    // (`primaryEventMenu` führt Taufe/Beruf/Bestattung, nicht BIRT; `PersonForm` fasst
+    // Ereignisse grundsätzlich nicht an). Nutzer-Befund „Kann Geburt nicht ergänzen".
+    //
+    // CHR/BURI bleiben gated — sie haben ihren Anlegepfad im „+ Ereignis"-Menü. DEAT
+    // ebenfalls: sein Weg ist die Standing-Pill „☠ Verstorben markieren", die ADR-v9-62
+    // bewusst von der Datums-Erfassung getrennt hat (81 % der Sterbeeinträge im Bestand
+    // sind nur `DEAT Y`).
+    const row = toEventRow(tag, tag, ev, ctx, tag === 'BIRT', person.birth);
     if (row) events.push(row);
   }
   person.events.forEach((ev, i) => {

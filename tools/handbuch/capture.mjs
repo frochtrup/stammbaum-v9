@@ -184,6 +184,63 @@ async function scrollToEl(selector, settleMs = 1200) {
   return true;
 }
 async function fill(ph, val) { const ok = await page.evaluate((ph) => { const i = [...document.querySelectorAll('input,textarea')].find((x) => x.placeholder === ph && x.offsetParent); if (i) { i.focus(); return true; } return false; }, ph); if (ok) await page.keyboard.type(val, { delay: 8 }); await sleep(200); return ok; }
+// ALLE Index-Listen sind GEFENSTERT (`createWindowed`: Person, Familie, Quelle, Archiv,
+// Ort, Medien, globale Suche): nur die gerade sichtbaren Zeilen stehen im DOM. Ein Eintrag
+// weiter hinten im Alphabet ist deshalb per Text überhaupt nicht anklickbar — `click(…)`
+// fand nichts, meldete brav „! nicht gefunden" und der Lauf machte trotzdem weiter.
+//
+// WAS DAS ANGERICHTET HAT, über mehrere ausgelieferte Fassungen: `04-person-detail` und
+// `30-desktop-liste` zeigten die LISTE statt des Steckbriefs, der Proband wurde nie gesetzt
+// (und damit fielen Sanduhr, Beziehungsrechner und Story auf ihre Vorbelegung zurück),
+// `09-quelle-detail` und `11-ort-steckbrief` — Letzteres auch im Editor-Handbuch — zeigten
+// ebenfalls ihre Liste. 15 Fehlklicks in einem Lauf, jeder einzeln geloggt, keiner laut.
+// `Engelbert Bendfeld` lag unter „B" zufällig im ersten Fenster und ging durch; genau
+// deshalb sah es nach einem Einzelfall aus.
+//
+// Also: erst filtern, dann klicken, dann das Feld wieder leeren. Das Leeren VOR und NACH
+// dem Klick ist Absicht — die Listensuche überlebt die Navigation (ADR-v9-230), und eine
+// spätere Listen-Aufnahme zeigte sonst eine gefilterte Liste. Alle Index-Listen benutzen
+// denselben Platzhalter `Suche…`, deshalb genügt EIN Helfer (INV-UI-4).
+async function clearListSearch() {
+  const had = await page.evaluate(() => {
+    const i = [...document.querySelectorAll('input')].find((x) => x.placeholder === 'Suche…' && x.offsetParent);
+    if (!i || !i.value) return false;
+    i.focus(); i.select(); return true;
+  });
+  if (had) { await page.keyboard.press('Backspace'); await sleep(300); }
+}
+// Die Quellenliste hat KEIN Suchfeld (am Code geprüft: `SourceList.svelte` führt keines) —
+// filtern geht dort also nicht, gefenstert ist sie trotzdem. Deshalb der zweite Weg: den
+// Scroll-Container schrittweise weiterfahren, bis der Eintrag ins Fenster nachrückt. Beide
+// Wege enden im selben `click`, damit es EINE Aufrufform für alle Listen gibt.
+async function scrollUntilVisible(text, maxSteps = 24) {
+  for (let i = 0; i < maxSteps; i++) {
+    const da = await page.evaluate((t) => [...document.querySelectorAll('li,button,a,div')]
+      .some((el) => (el.textContent || '').replace(/\s+/g, ' ').includes(t)), text);
+    if (da) return true;
+    const bewegt = await page.evaluate(() => {
+      const c = [...document.querySelectorAll('*')]
+        .filter((el) => el.scrollHeight > el.clientHeight + 40)
+        .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+      if (!c) { const v = window.scrollY; window.scrollBy(0, 600); return window.scrollY !== v; }
+      const v = c.scrollTop; c.scrollTop = v + c.clientHeight * 0.8; return c.scrollTop !== v;
+    });
+    await sleep(250);
+    if (!bewegt) return false;
+  }
+  return false;
+}
+async function openInList(name) {
+  await clearListSearch();
+  const gefiltert = await fill('Suche…', name);
+  if (gefiltert) await sleep(600);
+  else await scrollUntilVisible(name);
+  const hit = await click(name, { contains: true });
+  if (!hit) console.log('  ! Eintrag weder gefiltert noch gescrollt erreichbar:', name);
+  await sleep(400);
+  if (gefiltert) await clearListSearch();
+  return hit;
+}
 async function pickTarget(term) {
   await page.evaluate(() => { const c = [...document.querySelectorAll('input[role=combobox]')].find((x) => /Person/.test(x.placeholder || '') && x.offsetParent); if (c) c.focus(); });
   await page.keyboard.type(term, { delay: 20 }); await sleep(800);
@@ -344,7 +401,7 @@ await click('Duplikate suchen'); await sleep(500);
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__scan-btn'); if (b) b.click(); }); await sleep(1800);
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
-await bottomNav('person'); await scrollTop(); await click(RICH_PERSON, { contains: true }); await shot('04-person-detail');
+await bottomNav('person'); await scrollTop(); await openInList(RICH_PERSON); await shot('04-person-detail');
 // Bearbeiten-Modus (BL-273/274): der Editor ERSETZT die Seite nicht mehr — Kopfzeile,
 // Name und Rückweg bleiben stehen, das Identitäts-Formular klappt darunter auf, der
 // Schalter heißt jetzt „Fertig". Genau das soll der Screenshot zeigen, also am KOPF
@@ -358,10 +415,10 @@ await click('Fertig'); await sleep(450); await scrollAllTop();
 // zurück zur Liste ist der Klick auf das BEREITS AKTIVE Segment (BL-298) — derselbe
 // Griff, den Kapitel 3 beschreibt.
 await click('Personen'); await sleep(500); await scrollAllTop();
-await click(SHORT_PERSON, { contains: true }); await sleep(600);
+await openInList(SHORT_PERSON); await sleep(600);
 await scrollToEl('.delete-entity'); await shot('04c-loeschzone');
 await click('Personen'); await sleep(500); await scrollAllTop();
-await click(RICH_PERSON, { contains: true }); await sleep(600); await scrollAllTop();
+await openInList(RICH_PERSON); await sleep(600); await scrollAllTop();
 // Kaspar als Session-Proband setzen (BL-120): die effektive Referenzperson der Sitzung.
 // Davon erben gleich Beziehungsrechner (Person A), Ausgaben-Bezugsperson und Story-Modus
 // ihre Vorbelegung — der Screenshot des „★ Proband"-Zustands liegt im Steckbrief-Kopf.
@@ -382,9 +439,9 @@ await click('↓ Export'); await sleep(500); await shot('14d-export');
 await bottomNav('person'); await click('Familien'); await scrollTop(); await shot('06-familienliste');
 await bottomNav('person'); await click('Familien'); await scrollTop(); await click(RICH_SURNAME, { contains: true }); await shot('07-familie-detail');
 await bottomNav('person'); await click('Quellen'); await scrollTop(); await shot('08-quellenliste');
-await bottomNav('person'); await click('Quellen'); await scrollTop(); await click('KB', { contains: true }); await shot('09-quelle-detail');
+await bottomNav('person'); await click('Quellen'); await scrollTop(); await openInList('KB'); await shot('09-quelle-detail');
 await bottomNav('person'); await click('Orte'); await scrollTop(); await shot('10-ortsliste');
-await bottomNav('person'); await click('Orte'); await scrollTop(); await click('Ochtrup (Westf', { contains: true }); await shot('11-ort-steckbrief');
+await bottomNav('person'); await click('Orte'); await scrollTop(); await openInList('Ochtrup (Westf'); await shot('11-ort-steckbrief');
 // Orts-Review (BL-267/268): die Kandidatenzeilen tragen Verwaltungsebene, Anreicherungs-
 // Grad und ggf. „✓ geprüft" — die Angaben, an denen sich die Zuordnung entscheidet. Der
 // Steckbrief von eben ist noch offen; erst zurück auf die Liste, sonst rendert die
@@ -469,7 +526,7 @@ await bottomNav('more'); await click('Ausgaben'); await sleep(500); await scroll
 // deshalb gleich neu gesetzt — er füllt „Person A" im Rechner vor.
 await page.goto(URL, { waitUntil: 'networkidle2' }); await sleep(4000);
 await bottomNav('person'); await click('Personen'); await scrollTop();
-await click(RICH_PERSON, { contains: true }); await sleep(700);
+await openInList(RICH_PERSON); await sleep(700);
 await click('☆ Als Proband'); await sleep(400);
 // Jetzt IST die Liste die Herkunft — ein Klick genügt.
 await page.evaluate(() => { const b = document.querySelector('.detail-header__back'); if (b) b.click(); }); await sleep(500);
@@ -482,7 +539,7 @@ await page.evaluate(() => { const b = document.querySelector('.rel-tool__close-b
 console.log('Screenshots (Desktop) …');
 await page.setViewport({ width: 1280, height: 850, deviceScaleFactor: 2 }); await sleep(600);
 await page.evaluate(() => { const b = [...document.querySelectorAll('button,a,[role=button]')].find((x) => /Personen/.test(x.textContent || '')); if (b) b.click(); }); await sleep(500);
-await click(RICH_PERSON, { contains: true }); await sleep(600); await shot('30-desktop-liste');
+await openInList(RICH_PERSON); await sleep(600); await shot('30-desktop-liste');
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
 await page.keyboard.press('Escape'); await sleep(300);

@@ -186,7 +186,7 @@
 <header class="cover">
   <h1>Orte-Editor — Handbuch</h1>
   <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
-  <p class="stamp">Version 9.14 · Stand 2026-08-09</p>
+  <p class="stamp">Version 9.15 · Stand 2026-08-11</p>
 </header>
 
 <nav id="toc">
@@ -460,6 +460,33 @@
       lassen sich korrigieren, statt gelöscht und neu angelegt werden zu müssen. Zeiträume
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
       der Geschichte, nur weil kein Anfangsjahr bekannt ist.
+    </p>
+    <h3>Jahr oder Stichtag — beides im selben Feld</h3>
+    <p>
+      Grenzen von Zugehörigkeiten <em>und</em> von Ortsnamen nehmen wahlweise ein Jahr
+      (<code>1810</code>) oder ein tagegenaues Datum (<code>1 OCT 1810</code>). Beides
+      steht im <em>selben</em> Feld; die App erkennt, was Sie getippt haben. Das ist kein
+      Detailluxus: Gebietsreformen und Umbenennungen haben oft ein bekanntes Datum
+      (Kotzenau wurde am 8.&nbsp;Mai 1945 zu Chocianów), und ein Ereignis vom Januar
+      desselben Jahres gehört dann noch zum alten Namen. Was die App <em>nicht</em> tut,
+      ist raten: Eine Eingabe, die weder als Jahr noch als Datum lesbar ist, wird
+      abgelehnt statt still auf ein Jahr gerundet.
+    </p>
+    <p>
+      <strong>Wenn zwei Zugehörigkeiten sich überschneiden</strong>, muss die App für ein
+      Ereignisjahr eine wählen — und sagt das, statt es zu verschweigen: ein
+      <strong>⚠</strong> am Ende der betroffenen Kettenzeile weist darauf hin, dass hier
+      mehr als eine Angabe gilt. Die Auflösung ist eine Korrektur der Zeiträume, kein
+      Klick: Meist ist ein Anfangs- oder Endjahr zu eng oder zu weit gefasst.
+    </p>
+    <p>
+      <strong>Tag und Jahr bleiben von selbst deckungsgleich.</strong> Ein datierter
+      Eintrag trägt intern beides — das Jahr und, wo bekannt, den Stichtag. Wer die
+      <code>orte.json</code> einmal von Hand bearbeitet hat, kann die beiden auseinander
+      laufen lassen; dann zeigte die Zeitachse ein anderes Jahr an, als die Ortsauflösung
+      benutzt. Beim Laden zieht die App das Jahr deshalb an den Stichtag nach — aber nur,
+      wo wirklich ein tagegenaues Datum vorliegt. Ein <code>ABT 1700</code> bleibt
+      unangetastet; eine Schätzung wird nicht in Scheingenauigkeit verwandelt.
     </p>
     <p>
       <strong>„Ort löschen"</strong> steht nicht in der Knopfreihe neben

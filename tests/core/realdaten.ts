@@ -52,8 +52,17 @@ export const REALBESTAND = {
 export const ORTSBESTAND = {
   datei: 'orte-5.json',
   /** Erwarteter Umfang — dieselbe Rolle wie `REALBESTAND.erwartet`: eine andere Datei
-   *  ist eine andere Aussage. Seit 2026-08-09 auch WIRKLICH geprüft, s. u. */
-  erwartet: { placeObjects: 416, hofObjects: 184 },
+   *  ist eine andere Aussage. Seit 2026-08-09 auch WIRKLICH geprüft, s. u.
+   *
+   *  STAND rev 329 (erneuert 2026-08-11). Davor rev 314 mit 416/**184** — der Stand, gegen
+   *  den ADR-v9-242/246/248 gemessen haben; deren Zahlen bleiben also auf rev 314 bezogen
+   *  und sind hier nachlesbar, statt beim Nachziehen des Pins verlorenzugehen. Zwischen
+   *  beiden Ständen hat die Kuration einen Hof zusammengeführt oder entfernt; die Orte
+   *  sind unverändert. Der Pin wird bewusst NUR auf Ansage erneuert, nicht automatisch:
+   *  eine Abweichung soll erst einmal AUFFALLEN — sie kann auch heißen, dass eine andere
+   *  Kopie unter dem richtigen Namen liegt (der Fall, aus dem ADR-v9-151 sechs falsche
+   *  Zahlen zog). */
+  erwartet: { placeObjects: 416, hofObjects: 183 },
 } as const;
 // WARUM DIE ZAHLEN SICH GEÄNDERT HABEN (2026-08-09, ADR-v9-242): der Symlink zeigte auf
 // `orte.v9.json` — die ÄLTESTE von vier Ortsdateien im Spec-Repo (rev 63, 310 Orte),

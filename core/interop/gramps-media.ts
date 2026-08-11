@@ -7,6 +7,7 @@ import type { XmlNode } from './xml-tree';
 import { attr, childrenByTag, firstChild } from './xml-tree';
 import { makeMedia, makeMediaCitation } from '../model/factory';
 import type { Media, MediaCitation, MediaId } from '../model/types';
+import { epochToChangeStamp } from './change-stamp-wire';
 
 /** `<objref hlink>`-Kinder eines Owners → `MediaCitation[]` (mediaId via handle→id). */
 export function grampsMediaRefs(node: XmlNode, handleToId: Map<string, string>): MediaCitation[] {
@@ -36,6 +37,10 @@ export function projectGrampsObject(obj: XmlNode): Media {
     title: file ? attr(file, 'description') : '',
     type: '',
     wireOrigin: 'record',
+    // BL-337: MUSS hier gelesen werden, seit `mediaGleich` (gramps-write-back.ts) den Wert
+    // vergleicht — sonst gälte jeder Medien-Record mit Stempel dauerhaft als geändert und
+    // würde bei JEDEM Speichern neu geschrieben.
+    lastChanged: epochToChangeStamp(attr(obj, 'change')),
   });
 }
 

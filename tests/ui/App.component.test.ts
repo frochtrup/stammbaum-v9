@@ -267,7 +267,7 @@ describe('App — Ansichts-Unterzustand überlebt echte Navigation (BL-319, Spec
     });
 
     // Forschung -> Dashboard-Segment.
-    await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Forschung/ })));
+    await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Forschung' })));
     await fireEvent.click(screen.getByRole('tab', { name: 'Dashboard' }));
     // Max hat nur Hinweise (kein Geburtsdatum, keine Quellen) — die Vorgabe
     // „Handlungsbedarf" zeigt ihn nicht, „Alle" schon.
@@ -280,7 +280,7 @@ describe('App — Ansichts-Unterzustand überlebt echte Navigation (BL-319, Spec
     await fireEvent.click(brennpunkt);
     expect(await waitFor(() => screen.getByRole('heading', { name: /Max Muster/ }))).toBeTruthy();
     // … und zurück in die Forschungsfläche (Merker führt aufs Dashboard, ADR-v9-116).
-    await fireEvent.click(screen.getByRole('button', { name: /Forschung/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Forschung' }));
 
     // Hinsehen: der Filter ist noch gesetzt, und die Person, die nur er zeigt, steht da.
     expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();

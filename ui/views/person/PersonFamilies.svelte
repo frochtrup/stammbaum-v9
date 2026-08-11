@@ -25,8 +25,33 @@
      *  Aufrufer. Nur an Herkunftsfamilien-Zeilen sichtbar; ohne Callback bleibt die Zeile
      *  reine Anzeige (INV-UI-2: kein zweiter Bedienweg daneben). */
     onEditChildLink?: (familyId: string) => void;
+    /**
+     * Öffnet den Familien-Picker für DIESE Rolle (BL-344). Ohne Callback bleibt die
+     * Liste reine Anzeige — Tests und die Familien-Detailseite ändern sich nicht.
+     *
+     * Das `+` sitzt hinter dem Rollen-Label, weil das Label sagt, worauf es sich bezieht
+     * (INV-UI-12) — so braucht der Knopf keinen eigenen Text. An einer vorhandenen Zeile
+     * heißt es „noch eine davon" (Wiederheirat, zweite Herkunftsfamilie); fehlt die Rolle
+     * ganz, steht sie unten als Label-Zeile nur mit dem `+`.
+     */
+    onAdd?: (rolle: 'parentIn' | 'childOf') => void;
+    /** Tooltip/aria-label je Rolle — der Text lebt beim Aufrufer, nicht hier. */
+    addHinweis?: (rolle: 'parentIn' | 'childOf') => string;
   }
-  const { families, onGoToPerson, onNavigateToFamily, sourceOf, onNavigateToSource, onEditChildLink }: Props = $props();
+  const {
+    families, onGoToPerson, onNavigateToFamily, sourceOf, onNavigateToSource, onEditChildLink,
+    onAdd, addHinweis,
+  }: Props = $props();
+
+  /** Rollen, die KEINE Zeile haben — sie bekommen unten eine Label-Zeile nur mit dem `+`,
+   *  damit auch die fehlende Beziehung einen Einstieg hat (BL-344). Nur wenn überhaupt
+   *  angelegt werden kann. */
+  const ROLLEN = ['parentIn', 'childOf'] as const;
+  const fehlend = $derived(
+    onAdd ? ROLLEN.filter((r) => !families.some((f) => f.role === r)) : [],
+  );
+  const rollenLabel = (r: 'parentIn' | 'childOf'): string =>
+    r === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie';
 </script>
 
 <ul class="person-families">
@@ -45,6 +70,17 @@
         <span class="stb-role-label">
           {fam.role === 'parentIn' ? 'Eigene Familie' : 'Herkunftsfamilie'}
         </span>
+      {/if}
+      {#if onAdd}
+        <button
+          type="button"
+          class="stb-activation-pill person-families__add"
+          onclick={() => onAdd(fam.role)}
+          aria-label={addHinweis?.(fam.role) ?? 'Weitere Familie'}
+          use:tooltip={addHinweis?.(fam.role) ?? 'Weitere Familie'}
+        >
+          +
+        </button>
       {/if}
       {#if fam.pedigree}<span class="person-families__pedigree" use:tooltip={'Kind-Verhältnis'}>· {fam.pedigree}</span>{/if}
       {#if fam.members.length === 0}
@@ -87,6 +123,25 @@
       {/if}
     </li>
   {/each}
+
+  <!-- Die fehlende Rolle bekommt eine Zeile aus Label und `+` (BL-344). Ohne sie hätte
+       ausgerechnet die Person OHNE eigene Familie bzw. OHNE Eltern keinen Einstieg — und
+       das ist die Person, die ihn am dringendsten braucht. Kein Rollen-LINK hier: es gibt
+       noch nichts, wohin er führen könnte. -->
+  {#each fehlend as rolle (rolle)}
+    <li class="person-families__leer">
+      <span class="stb-role-label">{rollenLabel(rolle)}</span>
+      <button
+        type="button"
+        class="stb-activation-pill person-families__add"
+        onclick={() => onAdd?.(rolle)}
+        aria-label={addHinweis?.(rolle) ?? rollenLabel(rolle)}
+        use:tooltip={addHinweis?.(rolle) ?? rollenLabel(rolle)}
+      >
+        +
+      </button>
+    </li>
+  {/each}
 </ul>
 
 <style>
@@ -107,6 +162,13 @@
 
   .person-families__label {
     color: var(--stb-text-dim);
+  }
+
+  /* Das `+` schließt direkt ans Label an, statt in der Zeile zu schwimmen — es gehört zu
+     ihm, nicht zur Zeile (INV-UI-12). */
+  .person-families__add {
+    margin-left: -0.25rem;
+    line-height: 1;
   }
 
   .person-families__link {
