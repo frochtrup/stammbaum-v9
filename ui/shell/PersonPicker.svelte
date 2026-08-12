@@ -33,6 +33,11 @@
     noneLabel?: string;
     /** Personen, die als Kandidat NICHT angeboten werden (z. B. bereits zugeordnete Kinder). */
     excludeIds?: readonly PersonId[];
+    /** Beschränkt die Auswahl auf genau diese Personen (Weiß-Liste, Gegenstück zu
+     *  `excludeIds`). Für Aufrufer, die eine bereits ermittelte Kandidatenmenge zur Wahl
+     *  stellen — die Erfassungs-Vorlagen zeigen so ihre Dubletten-Vorschläge (BL-352).
+     *  Weglassen = die ganze Liste, wie bei allen bestehenden Aufrufern. */
+    onlyIds?: readonly PersonId[];
     /** Platzhaltertext, wenn nichts ausgewählt ist und allowNone=false. */
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
@@ -62,6 +67,7 @@
     allowNone = false,
     noneLabel = '— keine Auswahl —',
     excludeIds = [],
+    onlyIds,
     placeholder = 'Person wählen…',
     label = 'Person auswählen',
     startOpen = false,
@@ -120,6 +126,7 @@
       {allowNone}
       {noneLabel}
       {excludeIds}
+      {onlyIds}
       {placeholder}
       {label}
       createLabel={allowCreate ? '+ Neue Person anlegen …' : undefined}

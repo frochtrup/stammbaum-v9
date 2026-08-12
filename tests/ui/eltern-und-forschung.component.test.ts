@@ -12,12 +12,14 @@
 // eigenen Tests), sondern die VERDRAHTUNG: kommt der Einstieg an der richtigen Stelle an,
 // landet das Ergebnis am richtigen Träger, und passiert es über die Kommandos, die INV-P3
 // einhalten.
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource } from '../../core/model';
+import { makeLogEntry } from '../../core/research/index';
 
 function aufbau(mitFamilie = false) {
   const appState = createAppState();
@@ -127,5 +129,118 @@ describe('Forschungseinträge an der Person (BL-341)', () => {
 
     expect(await screen.findByText('Aufgabe 3')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /weitere anzeigen/ })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------
+// BL-350: die Zeile sagt, was sie weiß — und lässt sich anfassen
+// ---------------------------------------------------------------------------------
+//
+// NUTZER-BEFUND 2026-08-12 (Bildschirmfoto): eine Protokollzeile am Steckbrief zeigte
+// „PROTOKOLL · Taufe · 2026-08-12" — „braucht nicht nur die Überschrift, sondern auch
+// Status und Quelle", und „ausserdem sollte es editier- und löschbar sein". Beides sind
+// Lücken derselben Art wie BL-341 selbst: die Anzeige war da, die ARBEIT daran fehlte,
+// und wer etwas ändern wollte, musste den Umweg über die Forschungsansicht nehmen und
+// die Person dort wieder heraussuchen.
+describe('Forschungszeile: Zusatzangaben, Bearbeiten, Löschen (BL-350)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function mitProtokoll() {
+    const { appState, viewState } = aufbau();
+    const db = appState.db;
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Ochtrup', title: 'Kirchenbuch St. Lamberti' }));
+    const p = db.individuals.get('@I1@')!;
+    p.researchLog.push(
+      makeLogEntry({ date: '2026-08-12', query: 'Taufe', result: 'pending', sourceRef: '@S1@' }),
+    );
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    return { appState, viewState };
+  }
+
+  it('die Protokollzeile nennt Ergebnis UND Quelle, nicht nur Suchbegriff und Datum', async () => {
+    const { appState, viewState } = mitProtokoll();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    expect(await screen.findByText('Taufe')).toBeTruthy();
+    // Ein Text-Knoten, drei Angaben: Ergebnis · Quelle · Datum. Geprüft wird der
+    // ZUSAMMENGESETZTE Zusatz — die Reihenfolge ist die Aussage („was kam dabei heraus"
+    // vor „worin gesucht" vor „wann").
+    expect(screen.getByText('· Ausstehend · KB Ochtrup · 2026-08-12')).toBeTruthy();
+  });
+
+  it('ohne Suchbegriff steht dort kein roher Enum-Wert', async () => {
+    const { appState, viewState } = aufbau();
+    const p = appState.db.individuals.get('@I1@')!;
+    p.researchLog.push(makeLogEntry({ date: '2026-08-12', query: '', result: 'pending' }));
+    appState.loadDatabase(appState.db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+    render(PersonDetail, { props: { appState, viewState } });
+
+    // Vorher zeigte die Überschrift `l.query || l.result` — ohne Suchbegriff also
+    // wörtlich „pending".
+    expect(await screen.findByText('(kein Suchbegriff)')).toBeTruthy();
+    expect(screen.queryByText('pending')).toBeNull();
+  });
+
+  it('die Hypothesenzeile zeigt den übersetzten Status, nicht „open"', async () => {
+    const { appState, viewState } = aufbau();
+    render(PersonDetail, { props: { appState, viewState } });
+    appState.addHypothesis('person', '@I1@', 'h1', { text: 'Zwei Ottos sind einer' }, '2026-08-12');
+
+    // `findAllBy…`: die Beweis-Zusammenfassung (`ProofSummaryNote`) zeigt denselben Satz
+    // weiter unten noch einmal — hier zählt die Zeile in der Forschungsliste.
+    expect((await screen.findAllByText('Zwei Ottos sind einer')).length).toBeGreaterThan(0);
+    expect(screen.getByText('· Offen')).toBeTruthy();
+  });
+
+  it('✎ öffnet das vorbelegte Formular und ÄNDERT den Eintrag, statt einen zweiten anzulegen', async () => {
+    const { appState, viewState } = mitProtokoll();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    await fireEvent.click(await screen.findByLabelText('Protokoll „Taufe“ bearbeiten'));
+    const feld = screen.getByPlaceholderText('Wonach wurde gesucht?') as HTMLInputElement;
+    expect(feld.value, 'vorbelegt aus dem Eintrag').toBe('Taufe');
+
+    await fireEvent.input(feld, { target: { value: 'Taufe (Zweitschrift)' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    const log = appState.db.individuals.get('@I1@')!.researchLog;
+    expect(log, 'kein zweiter Eintrag').toHaveLength(1);
+    expect(log[0]!.query).toBe('Taufe (Zweitschrift)');
+    expect(log[0]!.sourceRef, 'die übrigen Angaben überleben die Änderung').toBe('@S1@');
+  });
+
+  it('🗑 löscht die Zeile — aber erst nach Bestätigung', async () => {
+    const { appState, viewState } = mitProtokoll();
+    render(PersonDetail, { props: { appState, viewState } });
+
+    // Abgelehnte Rückfrage: nichts passiert. Ohne diesen Fall prüfte der Test nur, DASS
+    // gelöscht wird, nicht dass die Bestätigung wirkt. Beantwortet wird der ECHTE Dialog
+    // (BL-351) — die frühere Fassung ersetzte `window.confirm` durch einen Stub und
+    // hätte damit genau den Mechanismus übersprungen, der in der Vorschau versagte.
+    await fireEvent.click(await screen.findByLabelText('Protokoll „Taufe“ löschen'));
+    await brichAb();
+    expect(appState.db.individuals.get('@I1@')!.researchLog).toHaveLength(1);
+
+    await fireEvent.click(screen.getByLabelText('Protokoll „Taufe“ löschen'));
+    await bestaetige();
+    expect(appState.db.individuals.get('@I1@')!.researchLog).toHaveLength(0);
+  });
+
+  it('eine bearbeitete Aufgabe bleibt EINE Aufgabe', async () => {
+    const { appState, viewState } = aufbau();
+    render(PersonDetail, { props: { appState, viewState } });
+    appState.addTask('person', '@I1@', 't1', 'Taufeintrag prüfen', 'Kirchenbuch', '2026-08-11', '');
+
+    await fireEvent.click(await screen.findByLabelText('Aufgabe „Taufeintrag prüfen“ bearbeiten'));
+    const feld = screen.getByDisplayValue('Taufeintrag prüfen');
+    await fireEvent.input(feld, { target: { value: 'Taufeintrag geprüft' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    const tasks = appState.db.individuals.get('@I1@')!.tasks;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.text).toBe('Taufeintrag geprüft');
+    expect(tasks[0]!.category, 'die übrigen Felder überleben').toBe('Kirchenbuch');
   });
 });

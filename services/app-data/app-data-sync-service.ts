@@ -15,10 +15,14 @@
 //     Kein stilles Überschreiben und keine Feld-Verschmelzung (dieselbe bewusste Grenze
 //     wie ADR-v9-116 beim shortName).
 //
-// AUSNAHME `projects` (BL-239): der einzige Abschnitt, der eine SAMMLUNG trägt. Dort
-// greift die id-gekeyte Politik von `orte.json` (`mergeProjects` unten) — nicht als
-// Sonderweg, sondern weil die Singleton-Begründung oben auf eine Sammlung nicht zutrifft.
-import type { Project } from '../../core/research/index';
+// SAMMLUNGS-ABSCHNITTE (`projects` seit BL-239, `entryTemplates` seit BL-232): Abschnitte,
+// die eine SAMMLUNG statt eines Singletons tragen. Dort greift die id-gekeyte Politik von
+// `orte.json` (`mergeCollection` unten) — nicht als Sonderweg, sondern weil die
+// Singleton-Begründung oben auf eine Sammlung nicht zutrifft: zwei Geräte, die je ein
+// eigenes Projekt (bzw. eine eigene Vorlage) anlegen, haben keinen Konflikt, sondern zwei
+// davon. Bis BL-232 stand die Regel als `if (key === 'projects')` in der Merge-Schleife;
+// mit dem zweiten Fall ist sie eine EIGENSCHAFT DES ABSCHNITTS geworden (`COLLECTION_SECTIONS`),
+// keine zweite Kopie derselben Politik (Spec 30 §2.3).
 import { toList, toMap, unionMerge } from '../union-merge';
 import type {
   AppDataReconcileResult,
@@ -62,27 +66,49 @@ const SECTION_FLAGS = {
   projects: true,
   media: true,
   tour: true,
+  entryTemplates: true,
 } satisfies Record<keyof AppDataSections, true>;
 
 const SECTION_KEYS = Object.keys(SECTION_FLAGS) as (keyof AppDataSections)[];
 type SectionKey = keyof AppDataSections;
 
+/** Ein Element einer Sammlung — mehr braucht der Merge nicht zu wissen (id + Wire-Form). */
+type CollectionItem = { id: string };
+
 /**
- * Der eine Abschnitt, der je OBJEKT vereinigt wird statt je Abschnitt (BL-239).
+ * Die Abschnitte, die je OBJEKT vereinigt werden statt je Abschnitt.
  *
- * Die Abschnitts-Regel (Spec 30 §2.3) ist aus der SINGLETON-Natur von B1 abgeleitet:
- * bei einer Regel-Konfiguration gibt es kein „beide Seiten bleiben erhalten", es stehen
- * keine zwei Objekte nebeneinander. Bei einer Sammlung gibt es das sehr wohl — zwei
- * Geräte, die je ein eigenes Projekt anlegen, haben keinen Konflikt, sondern zwei
- * Projekte. Die Begründung der Abschnitts-Regel trägt hier also nicht, und statt sie
- * über ihre Reichweite hinaus anzuwenden, greift die bereits vorhandene id-gekeyte
- * Politik von `orte.json` (`services/union-merge.ts`, LP-9).
+ * Die Abschnitts-Regel (Spec 30 §2.3) ist aus der SINGLETON-Natur von B1 abgeleitet: bei
+ * einer Regel-Konfiguration gibt es kein „beide Seiten bleiben erhalten", es stehen keine
+ * zwei Objekte nebeneinander. Bei einer Sammlung gibt es das sehr wohl. Die Begründung der
+ * Abschnitts-Regel trägt dort also nicht, und statt sie über ihre Reichweite hinaus
+ * anzuwenden, greift die bereits vorhandene id-gekeyte Politik von `orte.json`
+ * (`services/union-merge.ts`, LP-9).
+ *
+ * Der `satisfies`-Ausdruck ist die Härtung: die Schlüssel-Umbenennung im Mapped Type lässt
+ * NUR Abschnitte zu, deren Typ tatsächlich eine id-gekeyte Sammlung ist. Wer hier einen
+ * Singleton einträgt, bekommt einen Compiler-Fehler statt eines Merges, der zur Laufzeit
+ * über `undefined.id` stolpert (dieselbe Zwang-statt-Erinnerung-Logik wie bei
+ * `SECTION_FLAGS` darüber).
  */
-function mergeProjects(
-  local: Project[] | undefined,
-  remote: Project[] | undefined,
-  base: Project[] | undefined,
-): { value: Project[] | undefined; conflict: boolean } {
+const COLLECTION_SECTIONS = {
+  projects: true,
+  entryTemplates: true,
+} satisfies {
+  [K in keyof AppDataSections as NonNullable<AppDataSections[K]> extends readonly CollectionItem[]
+    ? K
+    : never]?: true;
+};
+
+function isCollectionSection(key: SectionKey): boolean {
+  return Object.prototype.hasOwnProperty.call(COLLECTION_SECTIONS, key);
+}
+
+function mergeCollection(
+  local: readonly CollectionItem[] | undefined,
+  remote: readonly CollectionItem[] | undefined,
+  base: readonly CollectionItem[] | undefined,
+): { value: CollectionItem[] | undefined; conflict: boolean } {
   if (local === undefined && remote === undefined) return { value: undefined, conflict: false };
   const res = unionMerge(toMap(local ?? []), toMap(remote ?? []), toMap(base ?? []));
   return { value: toList(res.merged), conflict: res.conflictIds.length > 0 };
@@ -158,14 +184,14 @@ export class AppDataSyncService {
         const l = localSections[key];
         const r = remote.sections[key];
         const b = base.sections[key];
-        if (key === 'projects') {
-          const { value, conflict } = mergeProjects(
-            l as Project[] | undefined,
-            r as Project[] | undefined,
-            b as Project[] | undefined,
+        if (isCollectionSection(key)) {
+          const { value, conflict } = mergeCollection(
+            l as readonly CollectionItem[] | undefined,
+            r as readonly CollectionItem[] | undefined,
+            b as readonly CollectionItem[] | undefined,
           );
-          if (value !== undefined) merged.projects = value;
-          if (conflict) conflicts.push(key);
+          if (value !== undefined) merged[key] = value as never;
+          if (conflict) conflicts.push(key satisfies SectionKey);
           continue;
         }
         if (sameSection(l, r)) {

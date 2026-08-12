@@ -215,7 +215,7 @@
   {/if}
 {/snippet}
 
-<div class="media-detail">
+<div class="stb-detail-root media-detail">
   {#if !mediaId}
     <p class="media-detail__empty">Kein Medium ausgewählt.</p>
   {:else if !detail}
@@ -322,22 +322,10 @@
 </div>
 
 <style>
-  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
-     (BL-343, ADR-v9-255). Vorher trug ihn `.media-detail__section` als `margin` — scoped, und
-     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
-     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
-     wurde (BL-342).
-
-     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
-     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
-     mehr aus Versehen verlieren. */
-  .media-detail {
-    padding: 1rem;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-  }
+  /* Wurzel-Layout (Polsterung, Scrollen, Spalte, Abschnitts-Abstand) kommt aus
+     `.stb-detail-root` (design-system.css, INV-UI-4) — dort steht auch, warum die Kinder
+     dieses Containers nicht schrumpfen dürfen (BL-349). Hier stand dieselbe Regel als
+     eine von sieben byte-gleichen Kopien. */
 
   .media-detail__empty,
   .media-detail__muted {

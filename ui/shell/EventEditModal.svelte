@@ -12,6 +12,10 @@
   // Klassen `.event-edit-modal__*` statt `.person-form__*`/`.family-form__*`, analog wie
   // PersonForm/FamilyForm bereits je eigene, sehr ähnliche CSS-Blöcke pflegen).
   //
+  // Die Datumszeile selbst ist seit BL-352 `EventDateFields.svelte` (ADR-v9-264 „die eine
+  // echte Baustein-Lücke") — zweiter Konsument ist `EntryTemplateCapture.svelte`. Ohne
+  // `ariaPrefix` bleiben die aria-labels byte-gleich zur vorherigen Inline-Fassung.
+  //
   // Speichert NICHT selbst — ruft `onSave(updatedEvent, cause)` mit dem VOLLSTÄNDIGEN
   // Event-Objekt auf; der Aufrufer (PersonDetail/FamilyDetail) kennt, in welchem Feld
   // des Person-/Family-Objekts dieses Event lebt (birth/chr/death/buri/marriage/
@@ -40,22 +44,21 @@
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { HOF_EVENT_TYPES } from '../../core/places';
   import EventCitationsSection from './EventCitationsSection.svelte';
+  import type { CitationClipboard } from './citation-clipboard.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
   import EventAgeHelper from './EventAgeHelper.svelte';
+  import EventDateFields from './EventDateFields.svelte';
   import { formSubmit } from './form-keys';
   import { portal } from './portal';
   import { focusTrap } from './focus-trap';
   import {
     toEditable,
-    markDateDirty,
     fromEditable,
     pickPlaceFor as sharedPickPlaceFor,
     pickHofFor as sharedPickHofFor,
-    onMonthBlur,
     computeDate,
     liveEventFrom,
-    QUALIFIER_OPTIONS,
     type EditableEvent,
   } from './event-edit';
 
@@ -88,13 +91,15 @@
     /** „⧉ Kopieren" — legt dieses Ereignis in die Sitzungs-Zwischenablage (BL-212).
      *  Weglassen blendet den Knopf aus (Kontexte ohne Zwischenablage, z. B. FamilyDetail). */
     onCopy?: (ev: Event) => void;
+    /** Quellreferenz-Ablage der Sitzung (BL-234) — durchgereicht an die Quellen-Sektion. */
+    citationClipboard?: CitationClipboard;
     /** Nur sinnvoll am Sterbe-Ereignis (BL-212): schaltet die Alters-Eingabehilfe frei.
      *  Das errechnete Geburtsdatum wird VORGEMERKT und über `onSave` übergeben — der
      *  Aufrufer besitzt die Person und entscheidet, ob er ein vorhandenes Datum
      *  überschreibt. Dieses Modal kennt nur EIN Ereignis. */
     allowDeriveBirth?: boolean;
   }
-  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, allowDeriveBirth = false }: Props = $props();
+  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, citationClipboard, allowDeriveBirth = false }: Props = $props();
   const headingVerb = $derived(mode === 'create' ? 'anlegen' : 'bearbeiten');
 
   // Formular-Zustand wird NUR beim Mount aus dem übergebenen Event initialisiert (analog
@@ -212,85 +217,7 @@
       <button type="button" class="event-edit-modal__close-btn" onclick={onClose} aria-label="Schließen">✕</button>
     </div>
 
-    <div class="event-edit-modal__date-row">
-      <select
-        aria-label="Datums-Qualifier"
-        value={editable.dateQualifier}
-        onchange={(e) => {
-          editable.dateQualifier = (e.currentTarget as HTMLSelectElement).value as EditableEvent['dateQualifier'];
-          markDateDirty(editable);
-        }}
-      >
-        {#each QUALIFIER_OPTIONS as q (q.value)}
-          <option value={q.value}>{q.label}</option>
-        {/each}
-      </select>
-      <input
-        type="number"
-        placeholder="Tag"
-        aria-label="Tag"
-        value={editable.day ?? ''}
-        onchange={(e) => {
-          const v = (e.currentTarget as HTMLInputElement).value;
-          editable.day = v === '' ? null : Number(v);
-          markDateDirty(editable);
-        }}
-        class="event-edit-modal__day"
-      />
-      <input
-        type="text" {...PLAIN_FIELD}
-        placeholder="Monat"
-        aria-label="Monat"
-        value={editable.month ?? ''}
-        onchange={(e) => onMonthBlur(editable, 'month', (e.currentTarget as HTMLInputElement).value)}
-      />
-      <input
-        type="number"
-        placeholder="Jahr"
-        aria-label="Jahr"
-        value={editable.year ?? ''}
-        onchange={(e) => {
-          const v = (e.currentTarget as HTMLInputElement).value;
-          editable.year = v === '' ? null : Number(v);
-          markDateDirty(editable);
-        }}
-        class="event-edit-modal__year"
-      />
-      {#if editable.dateQualifier === 'BET' || editable.dateQualifier === 'FROM'}
-        <span class="event-edit-modal__muted">{editable.dateQualifier === 'BET' ? 'und' : 'bis'}</span>
-        <input
-          type="number"
-          placeholder="Tag"
-          aria-label="Tag (Ende)"
-          value={editable.day2 ?? ''}
-          onchange={(e) => {
-            const v = (e.currentTarget as HTMLInputElement).value;
-            editable.day2 = v === '' ? null : Number(v);
-            markDateDirty(editable);
-          }}
-          class="event-edit-modal__day"
-        />
-        <input
-          type="text" {...PLAIN_FIELD}
-          placeholder="Monat"
-          aria-label="Monat (Ende)"
-          value={editable.month2 ?? ''}
-          onchange={(e) => onMonthBlur(editable, 'month2', (e.currentTarget as HTMLInputElement).value)}
-        />
-        <input
-          type="number"
-          placeholder="Jahr"
-          aria-label="Jahr (Ende)"
-          value={editable.year2 ?? ''}
-          onchange={(e) => {
-            const v = (e.currentTarget as HTMLInputElement).value;
-            editable.year2 = v === '' ? null : Number(v);
-            markDateDirty(editable);
-          }}
-          class="event-edit-modal__year"
-        />
-      {/if}
-    </div>
+    <EventDateFields {editable} />
 
     {#if showAgeHelper}
       <EventAgeHelper deathDate={computeDate(editable)} onStage={(d) => (stagedBirth = d)} staged={stagedBirth} />
@@ -371,6 +298,7 @@
       {appState}
       citations={editable.citations}
       labelPrefix={label}
+      {citationClipboard}
       onChange={(next) => (editable.citations = next)}
     />
 
@@ -452,47 +380,6 @@
     font-size: 0.8rem;
     color: var(--stb-text-dim);
     margin-top: 0.5rem;
-  }
-
-  .event-edit-modal__date-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-    margin-top: 0.6rem;
-  }
-
-  /* Feste/begrenzte Feldbreiten (INV-UI-5, ADR-v9-30 Punkt 4 Nachtrag — identische Werte
-     wie PersonForm.svelte/FamilyForm.svelte, dort ausführlich per preview_resize(mobile)
-     auf 375px verifiziert): Qualifier(5.5rem)+Tag(3.2rem)+Monat(3.6rem)+Jahr(3.2rem) + 3
-     Gaps passen auf die primäre Mobile-Zielbreite in eine Zeile. */
-  .event-edit-modal__date-row select {
-    flex: 0 1 5.5rem;
-    min-width: 0;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .event-edit-modal__date-row input[type='text'] {
-    width: 3.6rem;
-    flex: 0 0 auto;
-  }
-
-  .event-edit-modal__day,
-  .event-edit-modal__year {
-    width: 3.2rem;
-    flex: 0 0 auto;
-  }
-
-  .event-edit-modal__date-row input[type='number'] {
-    padding-left: 0.3rem;
-    padding-right: 0.2rem;
-  }
-
-  .event-edit-modal__muted {
-    color: var(--stb-text-dim);
-    font-size: 0.82rem;
   }
 
   .event-edit-modal__media {

@@ -4,6 +4,7 @@
 // PersonDetail.svelte/FamilyDetail.svelte — hier isoliert getestet (INV-UI-4).
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb, rueckfrageOffen } from './confirm-helper';
 import EventLine from '../../ui/shell/EventLine.svelte';
 import { dedupeAddrNote, displayEventValue, type EventLineRow } from '../../ui/shell/event-line-row';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -333,17 +334,14 @@ describe('EventLine — ✕-Rücknahme + ✎-Bearbeiten', () => {
     const appState = createAppState();
     const viewState = createViewState();
     const onRetract = vi.fn();
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
 
     renderEventLine( {
       props: { ev: row({ empty: true }), appState, viewState, onRetract, onEdit: vi.fn() },
     });
     await fireEvent.click(screen.getByLabelText('Geburt zurücknehmen'));
 
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(rueckfrageOffen(), 'kein Dialog beim leeren Fall').toBe(false);
     expect(onRetract).toHaveBeenCalledWith('BIRT');
-    vi.unstubAllGlobals();
   });
 });
 
@@ -370,12 +368,10 @@ describe('EventLine — 🗑-Löschen befüllter Ereignisse (Spec 20 §2)', () =
     expect(screen.queryByLabelText('Beruf zurücknehmen')).toBeNull();
   });
 
-  it('ruft onRetract erst nach bestätigtem confirm auf', async () => {
+  it('ruft onRetract erst nach bestätigter Rückfrage auf', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const onRetract = vi.fn();
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
 
     renderEventLine( {
       props: {
@@ -388,17 +384,16 @@ describe('EventLine — 🗑-Löschen befüllter Ereignisse (Spec 20 §2)', () =
     });
     await fireEvent.click(screen.getByLabelText('Beruf löschen'));
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
+    // Der Klick allein löscht NICHT — erst die Antwort im Dialog (BL-351).
+    expect(onRetract, 'die Rückfrage steht noch offen').not.toHaveBeenCalled();
+    await bestaetige();
     expect(onRetract).toHaveBeenCalledWith('ev-3');
-    vi.unstubAllGlobals();
   });
 
-  it('abgebrochenes confirm lässt das Ereignis unangetastet', async () => {
+  it('abgebrochene Rückfrage lässt das Ereignis unangetastet', async () => {
     const appState = createAppState();
     const viewState = createViewState();
     const onRetract = vi.fn();
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal('confirm', confirmSpy);
 
     renderEventLine( {
       props: {
@@ -410,10 +405,10 @@ describe('EventLine — 🗑-Löschen befüllter Ereignisse (Spec 20 §2)', () =
       },
     });
     await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+    await brichAb();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(onRetract).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
+    expect(rueckfrageOffen(), 'der Dialog ist wieder zu').toBe(false);
   });
 
   it('ohne onRetract bleibt die Zeile ganz ohne Entfernen-Control (Geburt/Heirat)', () => {

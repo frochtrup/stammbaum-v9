@@ -75,6 +75,11 @@
     noneLabel?: string;
     /** Kandidaten, die NICHT angeboten werden (z. B. bereits zugeordnete Kinder). */
     excludeIds?: readonly string[];
+    /** Gegenstück zu `excludeIds` (BL-352): NUR diese Kandidaten anbieten — für einen
+     *  bereits eingegrenzten Kreis (z. B. die ≥2 Familien-Kandidaten einer offenen
+     *  Vorlagen-Mehrdeutigkeit, ADR-v9-264 E6). `undefined` = unbeschränkt (Default,
+     *  alle bestehenden Aufrufer unverändert). */
+    onlyIds?: readonly string[];
     /** Platzhaltertext, wenn nichts ausgewählt ist und allowNone=false. */
     placeholder?: string;
     /** Für Formular-Labels (aria-label auf dem Such-/Anzeigefeld). */
@@ -120,6 +125,7 @@
     allowNone = false,
     noneLabel = '— keine Auswahl —',
     excludeIds = [],
+    onlyIds,
     placeholder = 'Auswählen…',
     label = 'Auswahl',
     createLabel,
@@ -183,8 +189,9 @@
 
   const filteredAll = $derived.by<T[]>(() => {
     const excluded = new Set(excludeIds);
+    const only = onlyIds ? new Set(onlyIds) : null;
     const q = query.trim();
-    const base = items.filter((it) => !excluded.has(getId(it)));
+    const base = items.filter((it) => !excluded.has(getId(it)) && (!only || only.has(getId(it))));
     return q ? base.filter((it) => matches(it, q)) : base;
   });
 

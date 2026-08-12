@@ -99,7 +99,8 @@ export type NavTargetId =
   | 'quality'
   | 'file'
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'entry';
 
 export interface NavTargetDef {
   id: NavTargetId;
@@ -156,6 +157,11 @@ export const NAV_TARGETS: readonly NavTargetDef[] = [
   { id: 'search', role: 'work', icon: '🔍', label: 'Suche', implemented: true },
   { id: 'file', role: 'work', icon: '📁', label: 'Datei', implemented: true },
   { id: 'reports', role: 'work', icon: '🖨', label: 'Ausgaben', implemented: true },
+  // Erfassung (BL-353, ADR-v9-265): eigenes Arbeits-Ziel statt eines Werkzeugs INNERHALB
+  // der Personenliste (ADR-v9-264 E9, dort überholt) — eine Vorlage legt Personen UND
+  // Familien in einem Zug an, gehört also nicht in eine Entitäts-Fläche. Vor
+  // „Einstellungen": Erfassen ist die tägliche Handlung, Einstellungen die seltenste.
+  { id: 'entry', role: 'work', icon: '⚡', label: 'Erfassung', implemented: true },
   { id: 'settings', role: 'work', icon: '⚙', label: 'Einstellungen', implemented: true },
 ];
 
@@ -272,6 +278,7 @@ export const MORE_HUB_ORDER: readonly NavTargetId[] = [
   'map',
   'timeline',
   'file',
+  'entry',
   'stats',
   'story',
   'reports',

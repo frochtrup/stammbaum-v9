@@ -36,6 +36,7 @@
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
+  import { createCitationClipboard } from '../ui/shell/citation-clipboard.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -43,7 +44,15 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
-  import { createAppDataIO, createProjectsStore, createTourStore, type AppDataIO, type TourStore } from '../services/app-data';
+  import {
+    createAppDataIO,
+    createProjectsStore,
+    createTourStore,
+    createEntryTemplatesStore,
+    type AppDataIO,
+    type TourStore,
+  } from '../services/app-data';
+  import { createEntryTemplatesState } from '../ui/shell/entry-templates-state.svelte';
   import {
     createMediaResolver,
     FsMediaFolderAdapter,
@@ -133,10 +142,15 @@
   // kein Wert, der sich ändert) — sonst warnt der Compiler zu Recht, dass hier nur der
   // Anfangswert eines Props gelesen wird.
   const projectsState = createProjectsState(untrack(() => createProjectsStore(appDataIO)));
+  // Erfassungs-Vorlagen (BL-353, ADR-v9-265) — dieselbe Bauform/derselbe Grund wie `projectsState` darüber.
+  const entryTemplatesState = createEntryTemplatesState(untrack(() => createEntryTemplatesStore(appDataIO)));
   // Ereignis-Zwischenablage (BL-212): EINMAL hier erzeugt, damit sie den Wechsel zwischen
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
   const clipboard = createEventClipboard();
+  // Quellreferenz-Ablage (BL-234) — dieselbe Kategorie A, eigene Instanz: sie hält Quelle
+  // + Seite, nicht ein ganzes Ereignis.
+  const citationClipboard = createCitationClipboard();
   // Ansichts-Halter der Wurzel — Suche, Filter, Anzeige-Modus und Scroll-Position aller
   // Flächen, die beim Wegnavigieren abgebaut werden (Spec 21 §5). Warum sie hier liegen und
   // nicht in den Flächen selbst, steht in `view-holders.svelte.ts`.
@@ -221,6 +235,9 @@
 
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
     void projectsState.load();
+
+    // Erfassungs-Vorlagen laden (BL-353) — ein Speicherfehler blockiert nicht, die drei mitgelieferten bleiben sichtbar.
+    void entryTemplatesState.load();
 
     // Merker des Erstnutzer-Rundgangs (BL-213) — bis er gelesen ist, zeigt der Rundgang
     // nichts; ein Speicherfehler gilt als „schon gesehen".
@@ -416,6 +433,7 @@
     {#if isEntityTarget(shownTarget)}
       <EntityTab
         {clipboard}
+        {citationClipboard}
         {appState}
         {viewState}
         {mediaResolver}
@@ -491,6 +509,7 @@
         {fileHandle}
         {route}
         {viewState}
+        entryTemplates={entryTemplatesState}
         onFileHandleChanged={(handle) => (fileHandle = handle)}
       />
     {/if}

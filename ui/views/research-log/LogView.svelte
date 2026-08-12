@@ -43,7 +43,9 @@
   import type { LogResult, ProjectScope } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
+  import { sourceLabel } from '../../shell/source-label';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
 
   interface Props {
@@ -142,8 +144,14 @@
     closeForm();
   }
 
+  // Rückfrage vor dem Löschen (BL-351) — dieselbe Form wie am Steckbrief, wo derselbe
+  // Eintrag ebenfalls löschbar ist: ein Eintrag darf nicht an zwei Stellen verschieden
+  // verschwinden.
+  let frage = $state<LogEntryRow | null>(null);
+
   function remove(row: LogEntryRow) {
     appState.deleteLogEntry(row.kind, row.entityId, row.index);
+    frage = null;
   }
 
   function goToEntity(row: LogEntryRow) {
@@ -153,11 +161,6 @@
 
   function repoName(repoId: string): string {
     return appState.db.repositories.get(repoId)?.name ?? repoId;
-  }
-
-  function sourceLabel(sourceId: string): string {
-    const s = appState.db.sources.get(sourceId);
-    return s ? s.abbr || s.title || s.id : sourceId;
   }
 
   function exportMd() {
@@ -229,11 +232,11 @@
       {#if row.entry.note}<p class="log-view__row-note">{row.entry.note}</p>{/if}
       <div class="log-view__row-meta">
         {#if row.entry.repoRef}<span class="stb-pill">{repoName(row.entry.repoRef)}</span>{/if}
-        {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(row.entry.sourceRef)}</span>{/if}
+        {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(appState.db, row.entry.sourceRef)}</span>{/if}
       </div>
       <div class="log-view__row-actions">
-        <button type="button" class="log-view__row-btn" onclick={() => openEditForm(row)} aria-label="Eintrag bearbeiten">✎</button>
-        <button type="button" class="log-view__row-btn" onclick={() => remove(row)} aria-label="Eintrag löschen">×</button>
+        <button type="button" class="stb-icon-btn" onclick={() => openEditForm(row)} aria-label="Eintrag bearbeiten">✎</button>
+        <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => (frage = row)} aria-label="Eintrag löschen">🗑</button>
       </div>
     </div>
   {/snippet}
@@ -262,6 +265,16 @@
     </div>
   {/if}
 </div>
+
+
+{#if frage}
+  <ConfirmDialog
+    titel="Protokolleintrag löschen?"
+    text={`„${frage.entry.query || '(kein Suchbegriff)'}" geht mit allen Angaben verloren.`}
+    onConfirm={() => frage && remove(frage)}
+    onCancel={() => (frage = null)}
+  />
+{/if}
 
 <style>
   .log-view {
@@ -432,11 +445,7 @@
     right: 1rem;
   }
 
-  .log-view__row-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
+  /* KEIN eigener Knopf-Stil mehr (BL-351): hier stand die dritte Kopie derselben
+     lokalen Implementierung (transparent + gedimmt + 0,95rem) — also das, was
+     `.stb-icon-btn` samt Trefferzone und Gefahren-Variante liefert. */
 </style>

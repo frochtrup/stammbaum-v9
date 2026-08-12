@@ -515,6 +515,40 @@ textarea::placeholder {
   font-size: 0.68rem;
 }
 
+/* DIE WURZEL EINER DETAILANSICHT (BL-349) — sieben byte-gleiche Kopien, jetzt eine
+   Quelle. Person, Familie, Quelle, Archiv, Ort, Hof, Medium: alle sieben sind derselbe
+   scrollende Spalten-Container, und alle sieben trugen dieselben fünf Zeilen lokal.
+
+   DER DEFEKT, den die letzte Zeile behebt. Mit BL-342/343 wurde der Abschnitts-Abstand
+   vom `margin` der Abschnitte auf `gap` am Container umgestellt — richtig, aber damit
+   wurde die Wurzel ein FLEX-Container, und ihre Kinder wurden schrumpfbare Flex-Items.
+   Ein Kind mit eigenem `overflow` hat als automatische Mindesthöhe 0 (CSS-Flexbox §4.5,
+   dieselbe Falle wie bei `.stb-segment-row` weiter unten), und weil der Inhalt einer
+   Detailseite regelmäßig höher ist als der Bildschirm, absorbierte GENAU DIESES Kind die
+   gesamte Überlänge. Gemessen am 12.08.2026: das eingeblendete Identitäts-Formular im
+   Personen-Steckbrief war 32px hoch statt 276 — sichtbar blieb eine einzige Zeile
+   (Nutzer-Befund mit Bildschirmfoto). Dieselbe Kopie traf `SourceForm` (32 statt 350)
+   und `RepositoryForm`; betroffen war jedes Kind mit eigenem `overflow`.
+
+   `flex-shrink: 0` ist hier nicht Reparatur, sondern die richtige Paarung: in einem
+   SCROLLENDEN Spalten-Container soll kein Kind unter seine Inhaltshöhe gedrückt werden —
+   dafür scrollt der Container. Am Container statt in den Formularen, weil Sveltes Scoped
+   CSS die Wurzel einer Kind-Komponente nicht erreicht (`.person-detail > *` bliebe an
+   `PersonForm` wirkungslos): eine Regel hier gilt für JEDES Kind, egal wer es rendert —
+   genau das Argument, mit dem BL-343 den Abstand hierher geholt hat.
+   Wächter: `tests/ui/detail-wurzel.test.ts`. */
+.stb-detail-root {
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.stb-detail-root > * {
+  flex-shrink: 0;
+}
+
 /* Segment-Control (Spec 21 §6/§2): DER EINE Stil für Reihen klickbarer Tabs/Pillen
    zum Umschalten — EntityTab-Segmente/-Subsegmente war der ältere, bereits an zwei
    Stellen etablierte Kanon (individuell umrandete Pillen, aktiv = volle Gold-Füllung

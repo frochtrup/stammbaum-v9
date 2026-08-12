@@ -30,6 +30,7 @@
   import type { Windowed } from '../shell/windowed.svelte';
   import EntityTabTools from './EntityTabTools.svelte';
   import type { EventClipboard } from '../shell/event-clipboard.svelte';
+  import type { CitationClipboard } from '../shell/citation-clipboard.svelte';
   import { layout } from '../shell/layout.svelte';
   import PersonList from './person/PersonList.svelte';
   import PersonDetail from './person/PersonDetail.svelte';
@@ -52,6 +53,9 @@
     viewState: ViewState;
     /** Ereignis-Zwischenablage der Sitzung (BL-212) — nur durchgereicht, s. PersonDetail. */
     clipboard?: EventClipboard;
+    /** Quellreferenz-Zwischenablage der Sitzung (BL-234) — nur durchgereicht an
+     *  PersonDetail/FamilyDetail und von dort an die Quellen-Sektionen der Modale. */
+    citationClipboard?: CitationClipboard;
     /** Medien-Auflösung (BL-258) — nur durchgereicht an Galerie und Medium-Detail. */
     mediaResolver?: MediaResolver;
     /**
@@ -108,6 +112,7 @@
     onOpenStoryForFamily,
     onNavigateLens,
     clipboard,
+    citationClipboard,
     mediaResolver,
     listStates,
     windowStates,
@@ -387,6 +392,7 @@
         {onNavigateLens}
         onBack={goBack}
         {clipboard}
+        {citationClipboard}
         {mediaResolver}
         startInEdit={panes.selectedPersonId === nav.createdPersonId}
       />
@@ -401,6 +407,7 @@
         {onNavigateLens}
         onOpenStory={onOpenStoryForFamily}
         onBack={goBack}
+        {citationClipboard}
         {mediaResolver}
       />
     {:else if activeSegment === 'source' && sourceSubView === 'repositories' && panes.selectedRepositoryId}

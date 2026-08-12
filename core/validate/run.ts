@@ -8,7 +8,7 @@
 // Datenänderungen") — sie liest die Datenbank und gibt ein Array zurück.
 import { buildContext } from './context';
 import { RULES } from './rules';
-import type { Database } from '../model/types';
+import type { Database, FamilyId, PersonId } from '../model/types';
 import type { Finding, Rule, ValidationConfig } from './types';
 
 /** Reihenfolge der Schweregrade im Bericht: Fehler zuerst. */
@@ -54,6 +54,54 @@ export function runValidation(db: Database, config: ValidationConfig): Finding[]
       for (const h0 of db.hofObjects.values()) {
         for (const h of rule.hof(h0, ctx)) {
           findings.push(finding(rule, h.text, { hofId: h0.id }));
+        }
+      }
+    }
+  }
+
+  return sortFindings(findings);
+}
+
+/**
+ * Führt die aktiven Regeln NUR über die genannten Personen/Familien aus — die
+ * Sofort-Plausibilitätsprüfung nach einem Einzel-Kommando (Spec 20 §2 „Erfassungs-
+ * Vorlagen", ADR-v9-264 Entscheidung 10), NICHT `runValidation` über den gesamten
+ * Bestand. v8 rief nach jeder Vorlagen-Anwendung die volle Prüfung über ALLE Personen auf
+ * (`legacy-v8/ui-quicktpl.js` Z. 868) — bei wiederholter Serienerfassung O(n · |Bestand|)
+ * statt O(n). Der Kontext (`buildContext`) bleibt ein einmaliger Bestands-weiter Aufbau
+ * (BFS-Erreichbarkeit, Hof-Zuordnung) — das ist unvermeidlich, um überhaupt EIN Prädikat
+ * auszuwerten; vermieden wird die Vervielfachung über ALLE Entitäten je Regel.
+ *
+ * Regeln ohne Personen-/Familien-Prädikat (Orts-/Hof-/Format-Regeln) laufen hier nicht
+ * mit — eine Vorlagen-Anwendung berührt nie Orte/Höfe direkt (Freitext, s.
+ * `apply-entry-template.ts`), sie zu prüfen wäre eine Prüfung über Daten, die dieses
+ * Kommando gar nicht angefasst hat.
+ */
+export function runValidationOn(
+  db: Database,
+  config: ValidationConfig,
+  touched: { personIds?: readonly PersonId[]; familyIds?: readonly FamilyId[] },
+): Finding[] {
+  const ctx = buildContext(db, config);
+  const active = RULES.filter((r) => !config.disabled.has(r.id));
+  const findings: Finding[] = [];
+
+  for (const rule of active) {
+    if (rule.person) {
+      for (const id of touched.personIds ?? []) {
+        const p = db.individuals.get(id);
+        if (!p) continue;
+        for (const h of rule.person(p, ctx)) {
+          findings.push(finding(rule, h.text, { personId: h.personId ?? p.id }));
+        }
+      }
+    }
+    if (rule.family) {
+      for (const id of touched.familyIds ?? []) {
+        const f = db.families.get(id);
+        if (!f) continue;
+        for (const h of rule.family(f, ctx)) {
+          findings.push(finding(rule, h.text, { personId: h.personId ?? null, familyId: f.id }));
         }
       }
     }

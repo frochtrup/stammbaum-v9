@@ -33,6 +33,43 @@ export const QUALIFIER_OPTIONS: { value: DateQualifier; label: string }[] = [
   { value: 'FROM', label: 'Zeitraum (FROM…TO…)' },
 ];
 
+/**
+ * Nur der Datums-TEIL eines EditableEvent — das, was `EventDateFields.svelte` braucht
+ * (BL-352, Extraktion aus EventEditModal.svelte). `EditableEvent` erfüllt diesen Typ
+ * strukturell (es ist ein Obertyp, kein separates Objekt) — ein Aufrufer ohne volles
+ * Ereignis (die Erfassungs-Vorlagen-Fläche hat vor dem Speichern kein Event, nur einen
+ * Entwurfswert je Slot) hält sich genau dieses schmalere Gerüst.
+ */
+export interface EditableDate {
+  dateQualifier: DateQualifier;
+  day: number | null;
+  month: string | null;
+  year: number | null;
+  day2: number | null;
+  month2: string | null;
+  year2: number | null;
+  originalDate: string | null;
+  dateDirty: boolean;
+}
+
+/** Frisches, unangetastetes Datums-Gerüst — Startzustand für einen Slot ohne Ereignis
+ *  dahinter (EntryTemplateCapture.svelte). `dateDirty: false` + `originalDate: null`
+ *  macht `computeDate` bis zur ersten Eingabe zu `null` (= "kein Datum"), genau wie ein
+ *  frisch angelegtes Ereignis es täte. */
+export function makeEditableDate(): EditableDate {
+  return {
+    dateQualifier: 'EXACT',
+    day: null,
+    month: null,
+    year: null,
+    day2: null,
+    month2: null,
+    year2: null,
+    originalDate: null,
+    dateDirty: false,
+  };
+}
+
 /** Editierbarer Ereignis-Zustand: strukturiertes Datum statt roher Raw-String, damit
  *  die Qualifier/Tag/Monat/Jahr-Felder direkt daran binden können. ADR-v9-30 Punkt 1:
  *  KEIN hasDate/hasPlace-Gate mehr — stattdessen originalDate/originalPlace (roher
@@ -103,14 +140,16 @@ export function toEditable(key: string, ev: Event, ctx: PlaceContext): EditableE
 }
 
 /** Markiert das Datums-Teilformular als angefasst — von JEDEM Qualifier/Tag/Monat/Jahr
- *  (inkl. der zweiten BET/FROM-Grenze)-Change-Handler aufgerufen (ADR-v9-30 Punkt 1). */
-export function markDateDirty(ev: EditableEvent): void {
+ *  (inkl. der zweiten BET/FROM-Grenze)-Change-Handler aufgerufen (ADR-v9-30 Punkt 1).
+ *  Nimmt `EditableDate` (nicht das volle `EditableEvent`) — `EventDateFields.svelte` ist
+ *  der einzige Aufrufer und kennt kein Ereignis, nur diesen Ausschnitt (BL-352). */
+export function markDateDirty(ev: EditableDate): void {
   ev.dateDirty = true;
 }
 
 /** Normalisiert eine Monat-Eingabe UND markiert das Datumsformular als angefasst — ein
  *  Aufruf pro Monat-Blur-Handler statt zwei getrennter (dateFields-Snippet, beide Formen). */
-export function onMonthBlur(target: EditableEvent, field: 'month' | 'month2', raw: string): void {
+export function onMonthBlur(target: EditableDate, field: 'month' | 'month2', raw: string): void {
   target[field] = normalizeMonth(raw);
   markDateDirty(target);
 }
@@ -119,8 +158,9 @@ export function onMonthBlur(target: EditableEvent, field: 'month' | 'month2', ra
  *  ADR-v9-30 Punkt 1): unberührt (`!dateDirty`) -> Rohwert unverändert; sonst neu
  *  zusammengesetzt (leer -> null = "kein Datum"). Gemeinsam genutzt von `fromEditable`
  *  (Speichern) UND `liveEventFrom` (Picker-Verknüpfung braucht das aktuell angezeigte
- *  Datum für die Jahres-Ableitung). */
-export function computeDate(e: EditableEvent): string | null {
+ *  Datum für die Jahres-Ableitung) UND `EntryTemplateCapture` (baut aus dem Ergebnis den
+ *  Slot-Wert, ohne je ein volles `EditableEvent` zu besitzen). */
+export function computeDate(e: EditableDate): string | null {
   if (!e.dateDirty) return e.originalDate;
   const formatted = formatDateValue({
     qualifier: e.dateQualifier,

@@ -10,6 +10,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { LensId } from '../../shell/lens-model';
   import type { EventClipboard } from '../../shell/event-clipboard.svelte';
+  import type { CitationClipboard } from '../../shell/citation-clipboard.svelte';
   import type { MediaResolver } from '../../../services/media';
   import type { Person } from '../../../core/model/types';
   import { untrack } from 'svelte';
@@ -19,6 +20,7 @@
   import { primaryEventMenu, secondaryEventMenu, otherEventMenu } from './person-event-menu';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
@@ -63,6 +65,8 @@
     /** Ereignis-Zwischenablage der Sitzung (BL-212) — optional: ohne sie entfallen
      *  „⧉ Kopieren" und „⧉ Übernehmen" ersatzlos (Tests/Kontexte ohne Schale). */
     clipboard?: EventClipboard;
+    /** Quellreferenz-Zwischenablage der Sitzung (BL-234) — optional, wie `clipboard`. */
+    citationClipboard?: CitationClipboard;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -78,6 +82,7 @@
     onNavigateLens,
     onBack,
     clipboard,
+    citationClipboard,
     mediaResolver,
     startInEdit = false,
   }: Props = $props();
@@ -321,7 +326,7 @@
   {/if}
 {/snippet}
 
-<div class="person-detail">
+<div class="stb-detail-root person-detail">
   {#if !personId}
     <p class="person-detail__empty">Keine Person ausgewählt.</p>
   {:else if !detail}
@@ -383,8 +388,8 @@
           groups={[menuPrimary, menuSecondary]}
           otherItems={menuOther}
           onSelect={(tag) => eventModal.startCreate(tag)}
-          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: () => eventModal.paste() } : undefined}
-          clearItem={clipboard?.event ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
+          pasteItem={clipboard?.value ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: () => eventModal.paste() } : undefined}
+          clearItem={clipboard?.value ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
         />
       </div>
 
@@ -408,7 +413,22 @@
         onSave={(ev, cause, derivedBirth) => eventModal.save(ev, cause, derivedBirth)}
         onClose={() => eventModal.close()}
         onCopy={clipboard && eventModal.copyable ? (ev) => eventModal.copy(ev) : undefined}
+        {citationClipboard}
         allowDeriveBirth={true}
+      />
+    {/if}
+
+    <!-- Rückfrage beim Speichern (BL-351): der Modal-Zustand hält sie, die Fläche zeigt
+         sie. Vorher stand an dieser Stelle ein `window.confirm` mitten im Speicher-Pfad —
+         in der Vorschau-Fläche unsichtbar und mit „nein" beantwortet, die Vorbelegung
+         verschwand also still. -->
+    {#if eventModal.frage}
+      <ConfirmDialog
+        titel={eventModal.frage.titel}
+        text={eventModal.frage.text}
+        bestaetigen={eventModal.frage.bestaetigen}
+        onConfirm={() => eventModal.beantworte(true)}
+        onCancel={() => eventModal.beantworte(false)}
       />
     {/if}
 
@@ -430,6 +450,7 @@
         personName={displayName(detail.person)}
         familyLabel={detail.families.find((f) => f.familyId === childLinkEdit)?.label ?? ''}
         link={childLink}
+        {citationClipboard}
         onClose={() => (childLinkEdit = null)}
       />
     {/if}
@@ -474,22 +495,10 @@
     margin: 0.5rem 1rem 0;
   }
 
-  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
-     (BL-342). Vorher trug ihn `.person-detail__section { margin-bottom }` — scoped, und
-     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt
-     (`PersonAssociations`, `PersonFamilySection`, `ResearchSection`). Im Screenshot des
-     Nutzers standen die drei sichtbar enger beieinander als der Rest.
-
-     `gap` statt `margin` ist zugleich die robustere Form: es kollabiert nicht, verdoppelt
-     sich nicht, und es gilt für JEDES Kind — unabhängig davon, welche Komponente es
-     rendert. Eine Extraktion kann den Rhythmus damit nicht mehr aus Versehen verlieren. */
-  .person-detail {
-    padding: 1rem;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-  }
+  /* Wurzel-Layout (Polsterung, Scrollen, Spalte, Abschnitts-Abstand) kommt aus
+     `.stb-detail-root` (design-system.css, INV-UI-4) — dort steht auch, warum die Kinder
+     dieses Containers nicht schrumpfen dürfen (BL-349). Hier stand dieselbe Regel als
+     eine von sieben byte-gleichen Kopien. */
 
   .person-detail__empty {
     color: var(--stb-text-dim);

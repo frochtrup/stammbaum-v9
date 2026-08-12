@@ -5,6 +5,7 @@
 // person-detail-model.test.ts (reine Projektion) nicht prüft.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -1002,34 +1003,28 @@ describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
   }
 
   it('entfernt ein befülltes generisches Ereignis aus events[] — nach bestätigtem confirm', async () => {
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
     const { appState } = seedPerson((p) => {
       p.events.push(makeEvent('OCCU', { value: 'Landwirt', date: '1920', seen: true }));
       p.events.push(makeEvent('CENS', { value: 'Zählung', date: '1925', seen: true }));
     });
 
     await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+    await bestaetige();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     const saved = appState.db.individuals.get('@I1@')!;
     expect(saved.events).toHaveLength(1);
     expect(saved.events[0].type).toBe('CENS'); // Nachbar unangetastet
-    vi.unstubAllGlobals();
   });
 
   it('abgebrochenes confirm lässt events[] unverändert', async () => {
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal('confirm', confirmSpy);
     const { appState } = seedPerson((p) => {
       p.events.push(makeEvent('OCCU', { value: 'Landwirt', date: '1920', seen: true }));
     });
 
     await fireEvent.click(screen.getByLabelText('Beruf löschen'));
+    await brichAb();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(appState.db.individuals.get('@I1@')!.events).toHaveLength(1);
-    vi.unstubAllGlobals();
   });
 
   // Der eigentliche Auslöser: `lati`/`long` (aus `2 MAP` beim Import) und Medien lassen
@@ -1037,19 +1032,17 @@ describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
   // waren damit unentfernbar. Genau dieser Fall muss jetzt gehen (TST-16-Geist: bewusst
   // das unbequeme, importierte Beispiel statt des frisch angelegten).
   it('entfernt auch ein Ereignis, das NUR über nicht-editierbare Felder befüllt ist (lati/long aus 2 MAP)', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
     const { appState } = seedPerson((p) => {
       p.events.push(makeEvent('RESI', { lati: 52.2, long: 7.4, seen: true }));
     });
 
     await fireEvent.click(screen.getByLabelText('Wohnort löschen'));
+    await bestaetige();
 
     expect(appState.db.individuals.get('@I1@')!.events).toHaveLength(0);
-    vi.unstubAllGlobals();
   });
 
   it('setzt ein befülltes Sonder-Ereignis (Taufe) auf den unbefüllten Ausgangszustand zurück, statt es aus einem Array zu streichen', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
     const { appState } = seedPerson((p) => {
       p.chr.date = '3 FEB 1890';
       p.chr.place = 'Ochtrup';
@@ -1057,6 +1050,7 @@ describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
     });
 
     await fireEvent.click(screen.getByLabelText('Taufe löschen'));
+    await bestaetige();
 
     const saved = appState.db.individuals.get('@I1@')!;
     expect(isEventPresent(saved.chr)).toBe(false);
@@ -1064,13 +1058,11 @@ describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
     expect(saved.chr.place).toBeNull();
     // Die Zeile ist damit auch aus der Fläche verschwunden (isEventPresent-Gate).
     expect(screen.queryByLabelText('Taufe löschen')).toBeNull();
-    vi.unstubAllGlobals();
   });
 
   // DEAT trägt `cause` AUSSERHALB des Events (Person.cause) — ein Reset, der nur `death`
   // anfasst, ließe die Todesursache als Waise zurück.
   it('räumt beim Löschen der befüllten Tod-Zeile auch Person.cause mit ab und bringt den "☠ Verstorben markieren"-Pill zurück', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
     const { appState } = seedPerson((p) => {
       p.death.date = '7 MAI 1953';
       p.death.seen = true;
@@ -1078,12 +1070,12 @@ describe('PersonDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
     });
 
     await fireEvent.click(screen.getByLabelText('Tod löschen'));
+    await bestaetige();
 
     const saved = appState.db.individuals.get('@I1@')!;
     expect(isEventPresent(saved.death)).toBe(false);
     expect(saved.cause).toBe('');
     expect(screen.getByRole('button', { name: /Verstorben markieren/ })).toBeTruthy();
-    vi.unstubAllGlobals();
   });
 
   // Geburt ist `isEventPresent`-gegatet und hat KEINEN "+ Geburt"-Pill: gelöscht wäre die
@@ -1152,16 +1144,14 @@ describe('PersonDetail — Assoziationen (BL-127, Spec 20 §1.4 [S])', () => {
   it('Entfernen schreibt über den Kommando-Chokepoint und lässt andere Felder unberührt', async () => {
     const { appState, viewState } = seedAssoc();
     viewState.setCurrent('person', '@I1@');
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
     render(PersonDetail, { props: { appState, viewState } });
 
     await fireEvent.click(screen.getByRole('button', { name: 'Assoziation entfernen' }));
+    await bestaetige('Entfernen');
 
     const saved = appState.db.individuals.get('@I1@')!;
     expect(saved.associations).toEqual([]);
     expect(saved.given).toBe('Anna');
-    expect(confirmSpy).toHaveBeenCalledOnce();
   });
 
   it('eine unauflösbare Referenz wird als Platzhalter gezeigt, nicht verschluckt', () => {
@@ -1252,8 +1242,6 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
   it('ein VORHANDENES Geburtsdatum wird nur nach Rückfrage ersetzt — der Rest wird trotzdem gespeichert', async () => {
     const { appState, viewState } = seedMitTod();
     appState.savePerson({ ...appState.db.individuals.get('@I1@')!, birth: { ...appState.db.individuals.get('@I1@')!.birth, date: '1 JAN 1806' } });
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal('confirm', confirmSpy);
     render(PersonDetail, { props: { appState, viewState } });
 
     await fireEvent.click(screen.getByRole('button', { name: /Tod bearbeiten/i }));
@@ -1262,8 +1250,8 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     // `bind:value` reagiert auf `input`, nicht auf `change` (happy-dom-Falle, TST-12-Nachbarschaft).
     await fireEvent.input(screen.getByLabelText('Todesursache'), { target: { value: 'Altersschwäche' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await brichAb();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     const p = appState.db.individuals.get('@I1@')!;
     expect(p.birth.date).toBe('1 JAN 1806');
     // Die Ablehnung betrifft NUR das Geburtsdatum, nicht die übrige Bearbeitung.
@@ -1300,7 +1288,7 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     const view = render(PersonDetail, { props: { appState, viewState, clipboard } });
     await fireEvent.click(screen.getByRole('button', { name: /Wohnort bearbeiten/i }));
     await fireEvent.click(screen.getByRole('button', { name: /Kopieren/ }));
-    expect(clipboard.event?.place).toBe('Ochtrup');
+    expect(clipboard.value?.place).toBe('Ochtrup');
 
     // Zur zweiten Person wechseln — die Ablage überlebt den Wechsel (sie lebt oberhalb).
     viewState.setCurrent('person', '@I2@');

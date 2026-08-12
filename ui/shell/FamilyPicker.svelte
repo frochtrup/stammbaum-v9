@@ -52,6 +52,17 @@
     createLabel?: string;
     /** Reicht Picker.svelte's `onClose` durch (Aufrufer blenden den Picker per `{#if}` ein). */
     onClose?: () => void;
+    /** Blendet die "+ Neue Familie anlegen"-Zeile aus (BL-352, PersonPicker-Geschwister-
+     *  Prop). Für Kontexte, in denen eine Neuanlage einen ZWEITEN Commit erzeugte, wo nur
+     *  EINER erlaubt ist — z. B. die Familien-Mehrdeutigkeits-Rückfrage einer Erfassungs-
+     *  Vorlage (ADR-v9-264 E4/E6): `FamilyPicker`s Default-Neuanlage speichert SOFORT
+     *  (`appState.saveFamily`), das wäre ein zweiter Undo-Schritt neben dem einen, den
+     *  `applyEntryTemplate` erzeugt. Default true (alle bestehenden Aufrufer unverändert). */
+    allowCreate?: boolean;
+    /** Nur diese Familien anbieten (BL-352, generalisiert `PersonPicker.excludeIds`
+     *  gegensinnig über `Picker.onlyIds`) — für einen bereits eingegrenzten Kandidatenkreis
+     *  (die ≥2 Kandidaten einer offenen Vorlagen-Mehrdeutigkeit). `undefined` = alle. */
+    candidateIds?: readonly FamilyId[];
   }
   const {
     appState,
@@ -65,6 +76,8 @@
     onCreateRequested,
     createLabel = '+ Neue Familie anlegen …',
     onClose,
+    allowCreate = true,
+    candidateIds,
   }: Props = $props();
 
   const items = $derived(Array.from(appState.db.families.values()));
@@ -101,8 +114,9 @@
     {noneLabel}
     {placeholder}
     {label}
-    {createLabel}
-    onCreateRequested={onCreateRequested ?? beginCreate}
+    onlyIds={candidateIds}
+    createLabel={allowCreate ? createLabel : undefined}
+    onCreateRequested={allowCreate ? (onCreateRequested ?? beginCreate) : undefined}
     {startOpen}
     {onClose}
   />

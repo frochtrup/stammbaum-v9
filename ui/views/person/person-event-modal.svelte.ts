@@ -35,6 +35,18 @@ export interface PersonEventModal {
   readonly cause: string | null;
   /** Darf das Ereignis in die Ablage kopiert werden? (s. Begründung unten) */
   readonly copyable: boolean;
+  /**
+   * Offene Rückfrage beim Speichern — `null`, wenn keine ansteht (BL-351).
+   *
+   * Warum sie hier liegt und nicht als `window.confirm` im Speicher-Pfad: das native
+   * Fenster erscheint in der Vorschau-Fläche gar nicht und liefert sofort „nein" — die
+   * Vorbelegung wurde dort also still verworfen. Der Zustand wandert deshalb heraus, die
+   * Komponente rendert `ConfirmDialog`, und `beantworte()` führt das Speichern zu Ende.
+   */
+  readonly frage: { titel: string; text: string; bestaetigen: string } | null;
+  /** Antwort auf `frage` — speichert in JEDEM Fall; `ja` entscheidet nur, ob das
+   *  abgeleitete Geburtsdatum das vorhandene ersetzt. */
+  beantworte(ja: boolean): void;
   openEdit(key: string): void;
   startCreate(tag: string): void;
   close(): void;
@@ -63,6 +75,10 @@ export function createPersonEventModal(deps: {
   const { appState, detail, clipboard } = deps;
 
   let modal = $state<ModalState | null>(null);
+
+  /** Der halbfertige Speicher-Vorgang, während die Rückfrage offen ist (BL-351). */
+  let offen = $state<{ next: Person; derivedBirth: string } | null>(null);
+  let frage = $state<{ titel: string; text: string; bestaetigen: string } | null>(null);
 
   const event = $derived.by<Event | null>(() => {
     const d = detail();
@@ -112,6 +128,9 @@ export function createPersonEventModal(deps: {
     },
     get copyable() {
       return copyable;
+    },
+    get frage() {
+      return frage;
     },
 
     openEdit(key) {
@@ -188,16 +207,37 @@ export function createPersonEventModal(deps: {
       // überschrieben; sagt der Nutzer hier Nein, bleibt der Rest der Änderung trotzdem.
       if (derivedBirth) {
         const vorhanden = next.birth.date;
-        const beschriftung = formatDateForDisplay(derivedBirth);
-        if (
-          !vorhanden ||
-          window.confirm(
-            `Geburtsdatum ist bereits „${formatDateForDisplay(vorhanden)}". Durch „${beschriftung}" ersetzen?`,
-          )
-        ) {
+        if (!vorhanden) {
           next.birth = { ...next.birth, date: derivedBirth };
+        } else {
+          // Kollision: erst fragen, dann speichern. Der halbfertige Stand wartet in
+          // `offen` — `beantworte()` schreibt ihn in beiden Fällen, nur mit oder ohne
+          // das ersetzte Datum (ein vorhandenes Datum wird nie still überschrieben,
+          // und ein „Nein" verwirft nicht die übrige Änderung).
+          offen = { next, derivedBirth };
+          frage = {
+            titel: 'Geburtsdatum ersetzen?',
+            text:
+              `Geburtsdatum ist bereits „${formatDateForDisplay(vorhanden)}". ` +
+              `Durch „${formatDateForDisplay(derivedBirth)}" ersetzen? Die übrige Änderung ` +
+              `wird in beiden Fällen gespeichert.`,
+            bestaetigen: 'Ersetzen',
+          };
+          return;
         }
       }
+      appState.savePerson(next);
+      modal = null;
+    },
+
+    beantworte(ja) {
+      const wartend = offen;
+      frage = null;
+      offen = null;
+      if (!wartend) return;
+      const next = ja
+        ? { ...wartend.next, birth: { ...wartend.next.birth, date: wartend.derivedBirth } }
+        : wartend.next;
       appState.savePerson(next);
       modal = null;
     },

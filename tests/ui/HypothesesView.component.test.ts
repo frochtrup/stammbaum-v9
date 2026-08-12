@@ -4,6 +4,7 @@
 // Bearbeiten/Löschen (id-adressiert) ab. KEIN MD-Export (Spec verlangt es hier nicht).
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige } from './confirm-helper';
 import HypothesesView from '../../ui/views/hypotheses/HypothesesView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createHypothesesViewState } from '../../ui/views/research-segment-state.svelte';
@@ -125,9 +126,12 @@ describe('HypothesesView — Bearbeiten/Löschen', () => {
     expect(appState.db.individuals.get('@I1@')!.hypotheses[0]!.status).toBe('confirmed');
   });
 
-  it('löscht eine Hypothese über den ×-Button', async () => {
+  it('löscht eine Hypothese über den 🗑-Knopf — nach bestätigter Rückfrage (BL-351)', async () => {
     const { appState } = renderView(seedDb());
     await fireEvent.click(screen.getByLabelText('Hypothese löschen'));
+    expect(appState.db.individuals.get('@I1@')!.hypotheses, 'erst fragen').toHaveLength(1);
+
+    await bestaetige();
     expect(appState.db.individuals.get('@I1@')!.hypotheses).toHaveLength(0);
   });
 });

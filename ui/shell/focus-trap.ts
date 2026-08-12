@@ -55,7 +55,11 @@ export function focusTrap(node: HTMLElement) {
   // stiller Kopplung, die beim nächsten Umsortieren niemand bemerkt.
   queueMicrotask(() => {
     if (!node.isConnected) return;
-    const dialog = node.querySelector<HTMLElement>('[role="dialog"]') ?? node;
+    // `alertdialog` zählt mit (BL-351): die Rückfrage vor einer destruktiven Aktion trägt
+    // genau diese Rolle — sie unterbricht, statt nur zu erscheinen. Ohne sie fiele die
+    // Suche auf den Backdrop zurück, der keinen Fokus annehmen kann, und der Fokus bliebe
+    // still hinter dem Overlay stehen.
+    const dialog = node.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]') ?? node;
     dialog.focus();
   });
 
