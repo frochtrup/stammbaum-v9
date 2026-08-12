@@ -38,6 +38,10 @@ import {
   saveMedia as saveMediaCmd,
   deleteMedia as deleteMediaCmd,
   withChangeStamps,
+  applyEntryTemplate as applyEntryTemplateCmd,
+  type ApplyEntryTemplateResult,
+  type EntryTemplate,
+  type EntryTemplateDraft,
 } from '../../core/model';
 import {
   makePlaceRegistry,
@@ -222,6 +226,16 @@ export interface AppState extends PlacesHost {
    * regulären Undo-Stack, weil es wie jedes andere Kommando über `commit` läuft.
    */
   mergePerson(winnerId: PersonId, loserId: PersonId, selections?: MergeSelections): void;
+  /**
+   * Kommando: wendet eine Erfassungs-Vorlage an (BL-352, ADR-v9-264 Entscheidung 4/5).
+   * EIN `editDatabase`-Durchlauf im Kern (`core/model/apply-entry-template.ts`), EIN
+   * `commit` hier — Personen, Familien, Bindungen, Ereignisse und Zitation entstehen als
+   * EIN Undo-Schritt. Meldet das Ergebnis `ambiguous` (≥2 passende Familien-Kandidaten):
+   * dann wurde NICHTS geschrieben (kein `commit`) — die Fläche fragt über
+   * `FamilyPicker.svelte` nach und ruft mit demselben Entwurf + `draft.families[role]`
+   * gesetzt erneut auf.
+   */
+  applyEntryTemplate(tpl: EntryTemplate, draft: EntryTemplateDraft): ApplyEntryTemplateResult;
   /**
    * Kommando: übernimmt die Auswahl eines Import-Vergleichs (BL-106/BL-107,
    * Spec 20 §1.12). Der Kern liefert einen fertigen neuen Stand samt mitgezogenen
@@ -1008,6 +1022,16 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
       // gibt es keine Merge-Logik, nur den Commit. Nur `workingCopy`: Orte/Höfe bleiben
       // unberührt, ein Personen-Merge fasst `placeObjects` nicht an.
       commit(mergePersonsCmd(db, winnerId, loserId, selections), { workingCopy: true });
+    },
+    applyEntryTemplate(tpl, draft) {
+      const result = applyEntryTemplateCmd(db, tpl, draft);
+      // Bei offener Mehrdeutigkeit hat der Kern NICHTS geschrieben (s. Interface-Doku) —
+      // dann auch hier kein `commit`: ein Undo-Eintrag für einen Zustand, der mit dem
+      // Vorzustand identisch ist, wäre ein Leer-Schritt im Stack.
+      if (result.ambiguous.length === 0) {
+        commit(result.db, { workingCopy: true });
+      }
+      return result;
     },
     saveFamily(model) {
       // saveFamilyCmd führt die INDI-Seite (Person.parentIn/childOf) synchron nach

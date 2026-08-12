@@ -78,6 +78,11 @@ export default tseslint.config(
     // `KeyboardEvent` ergänzt für EventEditModal.svelte (Escape-Taste schließt das Modal,
     // `svelte:window onkeydown` — analog der bereits erlaubten HTMLInputElement/-Select-
     // Element-Ergänzung).
+    // `HTMLTextAreaElement` ergänzt für EntryTemplateRoleSection.svelte (BL-352): die
+    // Notiz-Slots binden über `value`/`onchange` auf einen Entwurfs-Callback (`setText`),
+    // nicht über `bind:value` wie die übrigen Textareas — der Entwurf gehört ausschließlich
+    // `EntryTemplateCapture.svelte` (Svelte 5 `ownership_invalid_mutation`, s. dortiger
+    // Kommentar), ein lokal gebundener Zwischenwert wäre die zweite Wahrheit.
     files: ['**/*.svelte'],
     languageOptions: {
       globals: {
@@ -91,6 +96,7 @@ export default tseslint.config(
         HTMLElement: 'readonly',
         HTMLSelectElement: 'readonly',
         HTMLInputElement: 'readonly',
+        HTMLTextAreaElement: 'readonly',
         KeyboardEvent: 'readonly',
         // Für die Picker-Combobox (ADR-v9-103): `Event`/`FocusEvent`/`Node` in den
         // Handler-Signaturen, `crypto.randomUUID` für die instanz-eindeutige Listen-id

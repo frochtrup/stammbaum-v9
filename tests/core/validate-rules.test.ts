@@ -4,7 +4,7 @@
 // Der Nicht-Treffer ist der wichtigere Teil: eine Regel, die immer anschlägt, wäre in
 // einem reinen Treffer-Test genauso grün.
 import { describe, expect, it } from 'vitest';
-import { runValidation, defaultConfig, RULES, type RuleId } from '../../core/validate/index';
+import { runValidation, runValidationOn, defaultConfig, RULES, type RuleId } from '../../core/validate/index';
 import { makeEvent, makeSource } from '../../core/model/index';
 import { makeHypothesis, makeTask } from '../../core/research/index';
 import {
@@ -672,5 +672,43 @@ describe('PLAC_EBENE_UNBEKANNT — die Gegenseite der Verarmungs-Sperre (ADR-v9-
     const treffer = findings.find((f) => f.rule === 'PLAC_EBENE_UNBEKANNT');
     expect(treffer?.severity).toBe('info');
     expect(treffer?.personId).toBe('@I1@');
+  });
+});
+
+describe('runValidationOn — Sofort-Plausibilitätsprüfung auf BERÜHRTEN Datensätzen (ADR-v9-264 E10, BL-352)', () => {
+  // Die Erfassungs-Vorlagen-Fläche ruft NICHT `runValidation` über den ganzen Bestand
+  // (v8-Form, `legacy-v8/ui-quicktpl.js` Z. 868) — sie prüft nur die Personen/Familien,
+  // die das jeweilige Kommando tatsächlich angefasst hat.
+  it('meldet einen Treffer NUR für die genannte Person, nicht für eine gleich fehlerhafte andere', () => {
+    const betroffen = personWith('@I1@', { birthDate: '1900', deathDate: '1880' });
+    const unbeteiligt = personWith('@I2@', { birthDate: '1900', deathDate: '1880' });
+    const db = dbWith([betroffen, unbeteiligt]);
+
+    const findings = runValidationOn(db, defaultConfig(), { personIds: ['@I1@'] });
+
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.every((f) => f.personId === '@I1@')).toBe(true);
+  });
+
+  it('läuft auch über Familien-Regeln, wenn familyIds übergeben werden', () => {
+    const { db, family } = familyTriple({ fatherBirth: '1900', marrDate: '1850' });
+    const findings = runValidationOn(db, only('MARR_BEFORE_BIRTH'), { familyIds: [family.id] });
+    expect(findings.some((f) => f.rule === 'MARR_BEFORE_BIRTH')).toBe(true);
+  });
+
+  it('ohne genannte ids gibt es keine Befunde — kein stiller Rückfall auf den ganzen Bestand', () => {
+    const db = dbWith([personWith('@I1@', { birthDate: '1900', deathDate: '1880' })]);
+    expect(runValidationOn(db, defaultConfig(), {})).toEqual([]);
+  });
+
+  it('liefert dieselben Befund-Texte wie runValidation für dieselbe Person (keine zweite Regel-Logik)', () => {
+    const p = personWith('@I1@', { birthDate: '1900', deathDate: '1880' });
+    const db = dbWith([p]);
+    const config = only('DEATH_BEFORE_BIRTH');
+
+    const voll = runValidation(db, config).filter((f) => f.personId === '@I1@');
+    const gezielt = runValidationOn(db, config, { personIds: ['@I1@'] });
+
+    expect(gezielt).toEqual(voll);
   });
 });

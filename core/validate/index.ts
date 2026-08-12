@@ -24,7 +24,7 @@ export {
   defaultDisabled,
   defaultThresholds,
 } from './config';
-export { runValidation, countBySeverity, sortFindings, withoutAlreadyTasked } from './run';
+export { runValidation, runValidationOn, countBySeverity, sortFindings, withoutAlreadyTasked } from './run';
 export { buildContext, reachableFrom, hofsWithResidence } from './context';
 export { distanceKm } from './geo';
 export { buildQualityDashboard, filterFocus } from './dashboard';

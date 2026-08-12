@@ -98,3 +98,28 @@ describe('FamilyPicker — sofortige Neuanlage ("+ Neue Familie anlegen …", AD
     expect(screen.queryByLabelText('Ehemann')).toBeNull();
   });
 });
+
+describe('FamilyPicker — candidateIds/allowCreate (BL-352, Vorlagen-Mehrdeutigkeit)', () => {
+  it('candidateIds engt die Trefferliste auf genau diese Familien ein', async () => {
+    const appState = seedTwoFamilies();
+    render(FamilyPicker, {
+      props: { appState, value: null, onChange: vi.fn(), label: 'Familie', candidateIds: ['@F1@'] },
+    });
+
+    await fireEvent.click(screen.getByLabelText('Familie'));
+
+    expect(screen.getByText('Otto Bauer ⚭ Anna Klein')).toBeTruthy();
+    expect(screen.queryByText('Karl Meyer ⚭ Grete Schulz')).toBeNull();
+  });
+
+  it('allowCreate=false blendet die "+ Neue Familie anlegen"-Zeile aus (kein zweiter Commit)', async () => {
+    const appState = seedTwoFamilies();
+    render(FamilyPicker, {
+      props: { appState, value: null, onChange: vi.fn(), label: 'Familie', allowCreate: false },
+    });
+
+    await fireEvent.click(screen.getByLabelText('Familie'));
+
+    expect(screen.queryByText('+ Neue Familie anlegen …')).toBeNull();
+  });
+});
