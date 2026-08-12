@@ -408,3 +408,80 @@ describe('applyImportPatch — mitgebrachte Zitate', () => {
     expect([...r.db.sources.values()].find((q) => q.title === 'Kirchenbuch')!.repo).toBe('Pfarrarchiv, Karton 3');
   });
 });
+
+// --- Record-Identität der Fremddatei ------------------------------------------------
+
+describe('applyImportPatch — die `grampsId` der Fremddatei kommt NICHT mit (ADR-v9-260)', () => {
+  // Eine `grampsId` benennt einen `<event>`/`<citation>`-Record EINER Datei. Übernimmt der
+  // Import sie mit, beansprucht der Datensatz im Zielbestand eine id aus einem fremden
+  // id-Raum: das Write-Back findet nichts nachzuschlagen — und trifft im schlimmsten Fall
+  // eine gleichnamige, inhaltlich fremde id des Zielbestands. Der `sourceId` wird seit je
+  // umgeschrieben; diese zweite Hälfte fehlte.
+  function fremdePerson(id: PersonId): Person {
+    return makePerson(id, {
+      given: 'Anna',
+      surname: 'Decker',
+      birth: makeEvent('BIRT', {
+        seen: true,
+        date: '1880',
+        grampsId: 'E9001',
+        citations: [makeCitation('@S9@', { page: '7', grampsId: 'C9001' })],
+      }),
+      events: [
+        makeEvent('RESI', {
+          seen: true,
+          date: '1900',
+          grampsId: 'E9002',
+          citations: [makeCitation('@S9@', { page: '8', grampsId: 'C9002' })],
+        }),
+      ],
+    });
+  }
+
+  function fremdGraph(id: PersonId) {
+    return {
+      ...graph([fremdePerson(id)]),
+      sources: new Map([['@S9@', makeSource('@S9@', { abbr: 'KB Fremd' })]]),
+    };
+  }
+
+  it('streicht sie an einer NEU übernommenen Person — Ereignisse UND Zitate', () => {
+    const r = applyImportPatch(
+      db([]),
+      fremdGraph('@N1@'),
+      [{ importId: '@N1@', baseId: null, score: 0, reasons: [], status: 'new' as const }],
+      { fields: {}, importNew: ['@N1@'] },
+      QUELLE,
+    );
+
+    const neu = [...r.db.individuals.values()][0];
+    // Zählung vor der Prüfung (ADR-v9-200): eine Zusicherung über ein leeres Array wäre
+    // grün und wertlos.
+    expect(neu.birth.citations.length).toBeGreaterThan(0);
+    expect(neu.events[0].citations.length).toBeGreaterThan(0);
+
+    expect(neu.birth.grampsId).toBeNull();
+    expect(neu.birth.citations[0].grampsId).toBeNull();
+    expect(neu.events[0].grampsId).toBeNull();
+    expect(neu.events[0].citations[0].grampsId).toBeNull();
+    // Die Zuordnung selbst bleibt intakt: die Quelle ist in den Ziel-id-Raum übernommen.
+    expect(r.db.sources.get(neu.birth.citations[0].sourceId)).toBeTruthy();
+    expect(findOrphanRefs(r.db)).toEqual([]);
+  });
+
+  it('streicht sie an einem einzeln übernommenen Ereignis', () => {
+    const r = applyImportPatch(
+      db([makePerson('@B1@', { given: 'Anna', surname: 'Decker' })]),
+      fremdGraph('@N1@'),
+      [{ importId: '@N1@', baseId: '@B1@', score: 100, reasons: [], status: 'matched' as const }],
+      wahl('@N1@', { 'event|RESI|1900': 'take' }),
+      QUELLE,
+    );
+
+    const ziel = r.db.individuals.get('@B1@')!;
+    expect(ziel.events).toHaveLength(1);
+    expect(ziel.events[0].citations.length).toBeGreaterThan(0);
+    expect(ziel.events[0].grampsId).toBeNull();
+    expect(ziel.events[0].citations.every((c) => c.grampsId === null)).toBe(true);
+  });
+});

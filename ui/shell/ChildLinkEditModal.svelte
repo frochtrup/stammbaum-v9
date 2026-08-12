@@ -28,6 +28,7 @@
   import type { AppState } from './app-state.svelte';
   import type { ChildLink, Citation, PersonId } from '../../core/model/types';
   import EventCitationsSection from './EventCitationsSection.svelte';
+  import type { CitationClipboard } from './citation-clipboard.svelte';
   import { formSubmit } from './form-keys';
   import { portal } from './portal';
   import { focusTrap } from './focus-trap';
@@ -42,9 +43,11 @@
     familyLabel: string;
     /** Der zu bearbeitende Link (roh aus dem Modell). */
     link: ChildLink;
+    /** Quellreferenz-Ablage der Sitzung (BL-234) — durchgereicht an die Quellen-Sektion. */
+    citationClipboard?: CitationClipboard;
     onClose: () => void;
   }
-  const { appState, personId, personName, familyLabel, link, onClose }: Props = $props();
+  const { appState, personId, personName, familyLabel, link, citationClipboard, onClose }: Props = $props();
 
   /** Kind-Verhältnis-Vokabular (PEDI, [10 §2]). Der leere Wert ist die Aussage „nicht
    *  angegeben" — NICHT „leiblich": ein leeres PEDI schreibt keine Zeile in die Datei, und
@@ -115,6 +118,7 @@
         {appState}
         {citations}
         labelPrefix="Kindschaft"
+        {citationClipboard}
         onChange={(next) => (citations = next)}
       />
 

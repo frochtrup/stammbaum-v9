@@ -204,7 +204,11 @@ export function applyImportPatch(
           sourceMap.set(c.sourceId, ziel);
           carriedSources++;
         }
-        out.push({ ...c, sourceId: ziel });
+        // `grampsId` fällt weg (ADR-v9-260): sie benennt einen `<citation>`-Record der
+        // FREMDDATEI. Im Zielbestand gibt es diesen Record nicht — das übernommene Zitat
+        // beanspruchte sonst eine id aus einem anderen id-Raum, und das Write-Back fände
+        // nichts nachzuschlagen. `null` heißt „neu", also frische id + Handle.
+        out.push({ ...c, sourceId: ziel, grampsId: null });
       }
       return out;
     };
@@ -243,6 +247,7 @@ export function applyImportPatch(
           const quelle = importPerson.events.find((ev) => `event|${ev.type}|${ev.date ?? ''}` === key);
           if (!quelle) continue;
           const kopie = klonen(quelle, 'Übernahme eines Datensatzes aus der zweiten Datei');
+          kopie.grampsId = null; // Record der Fremddatei, s. `mapCitations` (ADR-v9-260)
           mapEventCitations(kopie);
           if (sourceId) citeEvent(kopie, sourceId);
           ziel.events.push(kopie);
@@ -285,6 +290,10 @@ export function applyImportPatch(
       // Familien der Fremddatei neu aufgebaut, soweit die Gegenstücke mitkommen.
       kopie.childOf = [];
       kopie.parentIn = [];
+      // Wie bei den Zitaten: die `<event>`-Records der Fremddatei gibt es hier nicht
+      // (ADR-v9-260). Betrifft die vier Sonder-Slots UND `events[]`.
+      for (const slot of ['birth', 'chr', 'death', 'buri'] as const) kopie[slot].grampsId = null;
+      for (const ev of kopie.events) ev.grampsId = null;
       mapPersonCitations(kopie);
       if (sourceId && !kopie.topLevelCitations.some((c) => c.sourceId === sourceId)) {
         kopie.topLevelCitations.push(makeCitation(sourceId));

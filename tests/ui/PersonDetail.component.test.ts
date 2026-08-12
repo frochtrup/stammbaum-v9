@@ -1300,7 +1300,7 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     const view = render(PersonDetail, { props: { appState, viewState, clipboard } });
     await fireEvent.click(screen.getByRole('button', { name: /Wohnort bearbeiten/i }));
     await fireEvent.click(screen.getByRole('button', { name: /Kopieren/ }));
-    expect(clipboard.event?.place).toBe('Ochtrup');
+    expect(clipboard.value?.place).toBe('Ochtrup');
 
     // Zur zweiten Person wechseln — die Ablage überlebt den Wechsel (sie lebt oberhalb).
     viewState.setCurrent('person', '@I2@');

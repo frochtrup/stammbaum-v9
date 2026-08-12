@@ -40,6 +40,7 @@
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
   import { HOF_EVENT_TYPES } from '../../core/places';
   import EventCitationsSection from './EventCitationsSection.svelte';
+  import type { CitationClipboard } from './citation-clipboard.svelte';
   import EventPlaceField from './EventPlaceField.svelte';
   import EventAddrField from './EventAddrField.svelte';
   import EventAgeHelper from './EventAgeHelper.svelte';
@@ -88,13 +89,15 @@
     /** „⧉ Kopieren" — legt dieses Ereignis in die Sitzungs-Zwischenablage (BL-212).
      *  Weglassen blendet den Knopf aus (Kontexte ohne Zwischenablage, z. B. FamilyDetail). */
     onCopy?: (ev: Event) => void;
+    /** Quellreferenz-Ablage der Sitzung (BL-234) — durchgereicht an die Quellen-Sektion. */
+    citationClipboard?: CitationClipboard;
     /** Nur sinnvoll am Sterbe-Ereignis (BL-212): schaltet die Alters-Eingabehilfe frei.
      *  Das errechnete Geburtsdatum wird VORGEMERKT und über `onSave` übergeben — der
      *  Aufrufer besitzt die Person und entscheidet, ob er ein vorhandenes Datum
      *  überschreibt. Dieses Modal kennt nur EIN Ereignis. */
     allowDeriveBirth?: boolean;
   }
-  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, allowDeriveBirth = false }: Props = $props();
+  const { appState, event, label, cause = null, mode = 'edit', onSave, onClose, onCopy, citationClipboard, allowDeriveBirth = false }: Props = $props();
   const headingVerb = $derived(mode === 'create' ? 'anlegen' : 'bearbeiten');
 
   // Formular-Zustand wird NUR beim Mount aus dem übergebenen Event initialisiert (analog
@@ -371,6 +374,7 @@
       {appState}
       citations={editable.citations}
       labelPrefix={label}
+      {citationClipboard}
       onChange={(next) => (editable.citations = next)}
     />
 

@@ -59,6 +59,13 @@
      * Chokepoint — kein Feld-Setter hier, exakt wie die übrigen onX-Callbacks.
      */
     onEvalChange: (evaluation: EvidenceEval | null) => void;
+    /**
+     * Quelle + Seite dieser Zeile in die Sitzungs-Ablage legen (BL-234, ⧉). Weglassen =
+     * kein Knopf — die Zeile bekommt genau EINE zusätzliche Fläche, die Einfüge-Seite
+     * liegt bewusst NICHT hier (sonst wüchse je Zeile das v8-Glyphenpaar ⧉/📋 nach,
+     * Altlast §10/ADR-v9-148), sondern einmal an der Sektion (`EventCitationsSection`).
+     */
+    onCopy?: () => void;
     onRemove: () => void;
   }
   const {
@@ -72,6 +79,7 @@
     onNoteChange,
     onUrlChange,
     onEvalChange,
+    onCopy,
     onRemove,
   }: Props = $props();
 
@@ -230,6 +238,20 @@
     value={url}
     onchange={(e) => onUrlChange((e.currentTarget as HTMLInputElement).value)}
   />
+  <!-- Quellreferenz-Ablage (BL-234): NUR die Kopier-Seite steht je Zeile — sie ist die
+       einzige, die wissen muss, WELCHE Zitation gemeint ist. Das Einfügen hängt einmal
+       an der Sektion, nicht ein zweites Mal an jeder Zeile (Altlast §10). -->
+  {#if onCopy}
+    <button
+      type="button"
+      class="source-citation-row__copy-btn"
+      aria-label={`${labelPrefix} Quelle ${index + 1} in die Ablage kopieren`}
+      use:tooltip={'Quelle + Seite in die Ablage kopieren'}
+      onclick={onCopy}
+    >
+      ⧉
+    </button>
+  {/if}
   <button
     type="button"
     class="source-citation-row__remove-btn"
@@ -396,6 +418,28 @@
   .source-citation-row__url {
     flex: 1 1 9rem;
     min-width: 6rem;
+  }
+
+  /* Kopieren in die Ablage (BL-234) — dieselbe Knopf-Form wie der Evidenz-Auslöser
+     daneben (INV-UI-4), inkl. explizit gesetzter Trefferfläche (ADR-v9-169: der Wächter
+     fängt nur zu kleine EXPLIZITE Werte, nicht fehlende). */
+  .source-citation-row__copy-btn {
+    background: transparent;
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    flex: 0 0 auto;
+    min-width: var(--stb-touch-target);
+    min-height: var(--stb-touch-target);
+  }
+
+  .source-citation-row__copy-btn:hover,
+  .source-citation-row__copy-btn:focus-visible {
+    color: var(--stb-gold-light);
+    border-color: var(--stb-gold-light);
   }
 
   .source-citation-row__remove-btn {

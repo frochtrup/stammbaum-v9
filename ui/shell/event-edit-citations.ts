@@ -12,6 +12,31 @@ export function addCitationFor(citations: Citation[], sourceId: string): Citatio
   return [...citations, makeCitation(sourceId)];
 }
 
+/** Einfügen aus der Quellreferenz-Ablage (BL-234): die abgelegte Zitation mit ALLEN
+ *  Angaben (Quelle, Seite, QUAY, Notiz, Weblink, Evidenz-Achsen) — s. Kopfkommentar von
+ *  `citation-clipboard.svelte.ts`. Die Ablage liefert bereits eine tiefe Kopie.
+ *
+ *  **`grampsId` bleibt erhalten.** Ein `<citation>` ist in GRAMPS ein GETEILTER Record;
+ *  dieselbe Fundstelle an einem zweiten Ereignis ist dort EIN Record mit zwei
+ *  `<citationref>`-Besitzern, nicht ein zweiter Record mit gleichem Inhalt. Eine frische
+ *  id zu vergeben wäre also keine Vorsicht, sondern eine Dublette in der Datei — der
+ *  Roundtrip wäre nicht mehr GRAMPS-konform (Nutzer-Vorgabe 2026-08-12).
+ *
+ *  Die Kehrseite trägt `abgeloest()`: sobald der Nutzer die eingefügte Zeile ÄNDERT, ist
+ *  sie nicht mehr dieselbe Fundstelle und darf den geteilten Record nicht mehr für sich
+ *  beanspruchen. */
+export function addCitationFrom(citations: Citation[], cit: Citation): Citation[] {
+  return [...citations, { ...cit }];
+}
+
+/** Löst eine eingefügte Zitation von dem GRAMPS-Record, aus dem sie stammt (s.
+ *  `addCitationFrom`): `grampsId: null` heißt „neu", das Write-Back vergibt eine frische
+ *  id. Ohne das schriebe ein Seiten-Edit an der EINGEFÜGTEN Zeile den geteilten Record um
+ *  — und damit auch die Zeile, aus der kopiert wurde. */
+export function abgeloest(c: Citation): Citation {
+  return c.grampsId === null ? c : { ...c, grampsId: null };
+}
+
 export function removeCitationAt(citations: Citation[], index: number): Citation[] {
   return citations.filter((_, i) => i !== index);
 }

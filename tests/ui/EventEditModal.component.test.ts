@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import EventEditModal from '../../ui/shell/EventEditModal.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
+import { createCitationClipboard } from '../../ui/shell/citation-clipboard.svelte';
 import { makeDatabase, makeEvent, makeSource, makeCitation } from '../../core/model';
 import { place } from '../core/places-fixtures';
 
@@ -362,5 +363,75 @@ describe('EventEditModal — Modal-Schale (Backdrop/Escape)', () => {
     await fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalledOnce();
+  });
+});
+
+describe('EventEditModal — Quellreferenz-Ablage über den ECHTEN Editor (BL-234)', () => {
+  // Bewusst NICHT gegen `EventCitationsSection` allein: dort reicht der Test ein
+  // einfaches Array durch, im Programm kommen die Zitate als `$state`-Proxy aus
+  // `editable` herein. Eine Ablösung, die an der Objekt-Identität hängt, wäre in der
+  // isolierten Sektion grün und hier tot (TST-8: über den echten Pfad prüfen).
+  function seed() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'KB Musterdorf' }));
+    appState.loadDatabase(db, 'test.ged');
+    return appState;
+  }
+
+  it('übernimmt aus der Ablage MIT `grampsId` und speichert sie unverändert mit', async () => {
+    const appState = seed();
+    const citationClipboard = createCitationClipboard();
+    citationClipboard.copy(makeCitation('@S1@', { page: '17', grampsId: 'C0042' }), 'KB · 17');
+    const onSave = vi.fn();
+
+    render(EventEditModal, {
+      props: {
+        appState,
+        event: makeEvent('DEAT'),
+        label: 'Tod',
+        citationClipboard,
+        onSave,
+        onClose: vi.fn(),
+      },
+    });
+
+    await fireEvent.click(screen.getByText(/📋 Übernehmen/));
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const gespeichert = onSave.mock.calls[0][0];
+    expect(gespeichert.citations).toHaveLength(1);
+    expect(gespeichert.citations[0].page).toBe('17');
+    // Ein `<citation>` ist in GRAMPS ein GETEILTER Record — dieselbe Fundstelle an einem
+    // zweiten Ereignis ist EIN Record mit zwei Besitzern, keine Dublette.
+    expect(gespeichert.citations[0].grampsId).toBe('C0042');
+  });
+
+  it('löst die übernommene Zeile vom geteilten Record, sobald sie geändert wird', async () => {
+    const appState = seed();
+    const citationClipboard = createCitationClipboard();
+    citationClipboard.copy(makeCitation('@S1@', { page: '17', grampsId: 'C0042' }), 'KB · 17');
+    const onSave = vi.fn();
+
+    render(EventEditModal, {
+      props: {
+        appState,
+        event: makeEvent('DEAT'),
+        label: 'Tod',
+        citationClipboard,
+        onSave,
+        onClose: vi.fn(),
+      },
+    });
+
+    await fireEvent.click(screen.getByText(/📋 Übernehmen/));
+    await fireEvent.change(screen.getByLabelText('Tod Seite 1'), { target: { value: '18' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const gespeichert = onSave.mock.calls[0][0];
+    expect(gespeichert.citations[0].page).toBe('18');
+    // Ohne die Ablösung schriebe dieser Seiten-Edit den geteilten Record um — und damit
+    // die Zeile, aus der kopiert wurde.
+    expect(gespeichert.citations[0].grampsId).toBeNull();
   });
 });

@@ -23,6 +23,7 @@
   import EventLine from '../../shell/EventLine.svelte';
   import { eventImages } from '../../shell/entity-media';
   import type { MediaResolver } from '../../../services/media';
+  import type { CitationClipboard } from '../../shell/citation-clipboard.svelte';
   import PersonPicker from '../../shell/PersonPicker.svelte';
   import FamilyChildrenSection from './FamilyChildrenSection.svelte';
   import { tooltip } from '../../shell/tooltip';
@@ -48,6 +49,9 @@
     /** "📖 Story" — Familien-Biografie in der Story-Lens öffnen (BL-186, Spec 20 §1.10).
      *  Optional, damit isolierte Tests/Kontexte ohne Story-Lens weiterlaufen. */
     onOpenStory?: (familyId: string) => void;
+    /** Quellreferenz-Zwischenablage der Sitzung (BL-234) — optional; ohne sie entfallen
+     *  „⧉" und „📋 Übernehmen" in den Quellen-Sektionen der beiden Modale. */
+    citationClipboard?: CitationClipboard;
     /** "← Zur Liste" (Spec 21 §6b: EINE gemeinsame Kopfzeile statt EntityTabs eigener
      *  Zeile) — optional, damit isolierte Tests/Kontexte ohne EntityTab weiterlaufen. */
     onBack?: () => void;
@@ -61,6 +65,7 @@
     onNavigateToHof,
     onNavigateLens,
     onOpenStory,
+    citationClipboard,
     onBack,
     mediaResolver,
   }: Props = $props();
@@ -418,6 +423,7 @@
         event={modalEvent}
         label={modalLabel}
         mode={modal.kind}
+        {citationClipboard}
         onSave={saveModal}
         onClose={closeModal}
       />
@@ -430,6 +436,7 @@
         personName={childLinkName}
         familyLabel={detail.label}
         link={childLink}
+        {citationClipboard}
         onClose={() => (childLinkEdit = null)}
       />
     {/if}

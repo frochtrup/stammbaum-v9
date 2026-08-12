@@ -36,6 +36,7 @@
   import type { RouteTarget } from '../ui/shell/nav-model';
   import EntityTab from '../ui/views/EntityTab.svelte';
   import { createEventClipboard } from '../ui/shell/event-clipboard.svelte';
+  import { createCitationClipboard } from '../ui/shell/citation-clipboard.svelte';
   import TreeView from '../ui/views/tree/TreeView.svelte';
   import MapLensView from '../ui/views/map/MapLensView.svelte';
   import TimelineLensView from '../ui/views/timeline/TimelineLensView.svelte';
@@ -137,6 +138,9 @@
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
   const clipboard = createEventClipboard();
+  // Quellreferenz-Ablage (BL-234) — dieselbe Kategorie A, eigene Instanz: sie hält Quelle
+  // + Seite, nicht ein ganzes Ereignis.
+  const citationClipboard = createCitationClipboard();
   // Ansichts-Halter der Wurzel — Suche, Filter, Anzeige-Modus und Scroll-Position aller
   // Flächen, die beim Wegnavigieren abgebaut werden (Spec 21 §5). Warum sie hier liegen und
   // nicht in den Flächen selbst, steht in `view-holders.svelte.ts`.
@@ -416,6 +420,7 @@
     {#if isEntityTarget(shownTarget)}
       <EntityTab
         {clipboard}
+        {citationClipboard}
         {appState}
         {viewState}
         {mediaResolver}

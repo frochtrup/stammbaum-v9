@@ -10,6 +10,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import type { LensId } from '../../shell/lens-model';
   import type { EventClipboard } from '../../shell/event-clipboard.svelte';
+  import type { CitationClipboard } from '../../shell/citation-clipboard.svelte';
   import type { MediaResolver } from '../../../services/media';
   import type { Person } from '../../../core/model/types';
   import { untrack } from 'svelte';
@@ -63,6 +64,8 @@
     /** Ereignis-Zwischenablage der Sitzung (BL-212) — optional: ohne sie entfallen
      *  „⧉ Kopieren" und „⧉ Übernehmen" ersatzlos (Tests/Kontexte ohne Schale). */
     clipboard?: EventClipboard;
+    /** Quellreferenz-Zwischenablage der Sitzung (BL-234) — optional, wie `clipboard`. */
+    citationClipboard?: CitationClipboard;
     /** Öffnet den Editor sofort beim Mount (z. B. direkt nach "＋ Neue Person", Spec 20 §2).
      *  Nur der Startwert zählt (untrack) — kein fortlaufendes Re-Öffnen bei jedem Re-Render. */
     startInEdit?: boolean;
@@ -78,6 +81,7 @@
     onNavigateLens,
     onBack,
     clipboard,
+    citationClipboard,
     mediaResolver,
     startInEdit = false,
   }: Props = $props();
@@ -383,8 +387,8 @@
           groups={[menuPrimary, menuSecondary]}
           otherItems={menuOther}
           onSelect={(tag) => eventModal.startCreate(tag)}
-          pasteItem={clipboard?.event ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: () => eventModal.paste() } : undefined}
-          clearItem={clipboard?.event ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
+          pasteItem={clipboard?.value ? { label: `⧉ Übernehmen: ${clipboard.label}`, onSelect: () => eventModal.paste() } : undefined}
+          clearItem={clipboard?.value ? { label: '⧉ Ablage leeren', onSelect: () => clipboard.clear() } : undefined}
         />
       </div>
 
@@ -408,6 +412,7 @@
         onSave={(ev, cause, derivedBirth) => eventModal.save(ev, cause, derivedBirth)}
         onClose={() => eventModal.close()}
         onCopy={clipboard && eventModal.copyable ? (ev) => eventModal.copy(ev) : undefined}
+        {citationClipboard}
         allowDeriveBirth={true}
       />
     {/if}
@@ -430,6 +435,7 @@
         personName={displayName(detail.person)}
         familyLabel={detail.families.find((f) => f.familyId === childLinkEdit)?.label ?? ''}
         link={childLink}
+        {citationClipboard}
         onClose={() => (childLinkEdit = null)}
       />
     {/if}
