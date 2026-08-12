@@ -265,7 +265,7 @@
   />
 {/snippet}
 
-<div class="family-detail">
+<div class="stb-detail-root family-detail">
   {#if !familyId}
     <p class="family-detail__empty">Keine Familie ausgewählt.</p>
   {:else if !detail}
@@ -444,22 +444,10 @@
 </div>
 
 <style>
-  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
-     (BL-343, ADR-v9-255). Vorher trug ihn `.family-detail__section` als `margin` — scoped, und
-     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt. Genau so
-     hat der Personen-Steckbrief seinen Rhythmus verloren, als eine Sektion herausgelöst
-     wurde (BL-342).
-
-     `gap` kollabiert nicht, verdoppelt sich nicht und gilt für JEDES Kind — unabhängig
-     davon, welche Komponente es rendert. Eine Extraktion kann den Rhythmus damit nicht
-     mehr aus Versehen verlieren. */
-  .family-detail {
-    padding: 1rem;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-  }
+  /* Wurzel-Layout (Polsterung, Scrollen, Spalte, Abschnitts-Abstand) kommt aus
+     `.stb-detail-root` (design-system.css, INV-UI-4) — dort steht auch, warum die Kinder
+     dieses Containers nicht schrumpfen dürfen (BL-349). Hier stand dieselbe Regel als
+     eine von sieben byte-gleichen Kopien. */
 
   /* Optik wie PersonDetails „⧖ Im Baum anzeigen"/„📖 Story" (INV-UI-4-Muster). */
   .family-detail__story-link {

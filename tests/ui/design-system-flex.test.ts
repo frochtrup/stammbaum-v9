@@ -66,6 +66,13 @@ describe('design-system.css — Flexbox-Schrumpf-Falle bei scrollenden Reihen', 
       // Deklaration einzufügen, nur damit ein Prüfer schweigt, macht den Prüfer
       // unglaubwürdig und die CSS-Datei unklarer.
       .filter(([, , body]) => !/position:\s*(fixed|absolute)/.test(body))
+      // Eine SCROLL-FLÄCHE soll schrumpfen — das ist ihr Zweck, nicht die Falle
+      // (BL-309/BL-349). `.stb-detail-root` bekommt ihre Höhe genau dadurch, dass sie als
+      // Flex-Kind des Tabs nachgibt; bekäme sie `flex-shrink: 0`, wüchse sie auf
+      // Inhaltshöhe und die Detailfläche scrollte gar nicht mehr — der Defekt, den BL-309
+      // behoben hat. Erkennbar ist sie daran, dass sie den Schutz eine Ebene TIEFER
+      // ausspricht: ihre Kinder dürfen nicht schrumpfen, sie selbst muss.
+      .filter(([, selector]) => !new RegExp(`\\${selector} > \\*\\s*\\{[^}]*flex-shrink:\\s*0`).test(css))
       .filter(([, , body]) => !/flex-shrink:\s*0/.test(body) && !/flex:\s*0 0/.test(body))
       .map(([, selector]) => selector);
 

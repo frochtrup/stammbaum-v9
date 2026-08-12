@@ -68,15 +68,25 @@ describe('BL-309: jede Detail-Wurzel ist ihr eigener Scroll-Container', () => {
   });
 
   it('jede rendert ihre Wurzel mit `overflow-y: auto`', () => {
+    // Seit BL-349 steht das Wurzel-Layout als GETEILTE Klasse in design-system.css statt
+    // siebenfach kopiert in den Ansichten. Die Zusicherung ist dieselbe geblieben — die
+    // Wurzel ist ihr eigener Scroll-Container —, nur ihre Fundstelle darf jetzt beides
+    // sein: die geteilte Klasse oder eine eigene Regel. Was NICHT zulässig bleibt: gar
+    // keine von beiden (der Defektzustand von BL-309).
+    const geteilt = quelle(join(UI_DIR, 'shell', 'design-system.css'));
+    const geteilteWurzel = /\.stb-detail-root\s*\{([^}]*)\}/.exec(geteilt)?.[1] ?? '';
     const verstoesse = detailKomponenten()
       .filter(({ pfad }) => {
         // Die Wurzelklasse ist die Datei-eigene Kebab-Form (.person-detail & Co.) — der
         // Selektor, der im `<style>`-Block die Wurzel trägt. Gesucht wird die Regel, die
         // GENAU diese Klasse setzt, nicht eine ihrer `__`-Unterklassen.
         const src = quelle(pfad);
-        const wurzel = /<div class="([a-z-]+)"/.exec(src)?.[1];
-        if (!wurzel) return true;
-        const regel = new RegExp(`\\.${wurzel}\\s*\\{([^}]*)\\}`).exec(src)?.[1] ?? '';
+        const klassen = /<div class="([a-z- ]+)"/.exec(src)?.[1];
+        if (!klassen) return true;
+        if (klassen.split(/\s+/).includes('stb-detail-root')) {
+          return !/overflow-y:\s*auto/.test(geteilteWurzel);
+        }
+        const regel = new RegExp(`\\.${klassen.trim()}\\s*\\{([^}]*)\\}`).exec(src)?.[1] ?? '';
         return !/overflow-y:\s*auto/.test(regel);
       })
       .map(({ name }) => name);

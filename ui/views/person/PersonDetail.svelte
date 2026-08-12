@@ -325,7 +325,7 @@
   {/if}
 {/snippet}
 
-<div class="person-detail">
+<div class="stb-detail-root person-detail">
   {#if !personId}
     <p class="person-detail__empty">Keine Person ausgewählt.</p>
   {:else if !detail}
@@ -480,22 +480,10 @@
     margin: 0.5rem 1rem 0;
   }
 
-  /* Der Abstand zwischen den Abschnitten gehört dem CONTAINER, nicht den Abschnitten
-     (BL-342). Vorher trug ihn `.person-detail__section { margin-bottom }` — scoped, und
-     damit wirkungslos für jeden Abschnitt, der in einer eigenen Komponente lebt
-     (`PersonAssociations`, `PersonFamilySection`, `ResearchSection`). Im Screenshot des
-     Nutzers standen die drei sichtbar enger beieinander als der Rest.
-
-     `gap` statt `margin` ist zugleich die robustere Form: es kollabiert nicht, verdoppelt
-     sich nicht, und es gilt für JEDES Kind — unabhängig davon, welche Komponente es
-     rendert. Eine Extraktion kann den Rhythmus damit nicht mehr aus Versehen verlieren. */
-  .person-detail {
-    padding: 1rem;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-  }
+  /* Wurzel-Layout (Polsterung, Scrollen, Spalte, Abschnitts-Abstand) kommt aus
+     `.stb-detail-root` (design-system.css, INV-UI-4) — dort steht auch, warum die Kinder
+     dieses Containers nicht schrumpfen dürfen (BL-349). Hier stand dieselbe Regel als
+     eine von sieben byte-gleichen Kopien. */
 
   .person-detail__empty {
     color: var(--stb-text-dim);
