@@ -41,6 +41,7 @@
   import ExportView from '../export/ExportView.svelte';
   import ReportsView from '../reports/ReportsView.svelte';
   import SettingsView from '../settings/SettingsView.svelte';
+  import EntryView from '../entry/EntryView.svelte';
   import { moreHubItems, type NavTargetId } from '../../shell/nav-model';
   import type { Route } from '../../shell/route.svelte';
   import { layout } from '../../shell/layout.svelte';
@@ -48,6 +49,7 @@
   import type { PlacesPersister } from '../../shell/places-persister';
   import type { PlacesFileIO } from '../../../services/places';
   import type { MediaResolver } from '../../../services/media';
+  import type { EntryTemplatesState } from '../../shell/entry-templates-state.svelte';
 
   interface Props {
     appState: AppState;
@@ -80,8 +82,24 @@
     /** Für die Proband-Vorbelegung der Report-Bezugsperson (BL-120), an ReportsView
      *  durchgereicht. Optional, damit bestehende Tests unverändert laufen. */
     viewState?: ViewState;
+    /** Geteilter Halter der Erfassungs-Vorlagen (BL-353, wie `projectsState`/`tourStore`
+     *  in App.svelte verdrahtet) — durchgereicht an `EntryView`. Optional: ohne ihn legt
+     *  sich die Fläche selbst einen an (Rückwärtskompatibilität wie `appDataIO`). */
+    entryTemplates?: EntryTemplatesState;
   }
-  const { appState, fileService, persister, placesFileIO, appDataIO, mediaResolver, fileHandle, onFileHandleChanged, route, viewState }: Props = $props();
+  const {
+    appState,
+    fileService,
+    persister,
+    placesFileIO,
+    appDataIO,
+    mediaResolver,
+    fileHandle,
+    onFileHandleChanged,
+    route,
+    viewState,
+    entryTemplates,
+  }: Props = $props();
 
   // Die Menü-Liste steht seit BL-90 NICHT mehr hier, sondern kommt als Projektion aus
   // dem einen Ziel-Register (nav-model.ts `MORE_HUB_ORDER`, INV-UI-15) — inklusive der
@@ -132,6 +150,8 @@
       <ReportsView {appState} {viewState} {mediaResolver} />
     {:else if openEntry.id === 'settings'}
       <SettingsView {appState} {fileService} {appDataIO} {mediaResolver} onNavigate={(t) => route.setTarget(t)} />
+    {:else if openEntry.id === 'entry'}
+      <EntryView {appState} templates={entryTemplates} />
     {:else if openEntry.id === 'file'}
       <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen

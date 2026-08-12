@@ -136,6 +136,7 @@
           <button
             type="button"
             class="stb-btn entry-template-role__hint"
+            data-variant="secondary"
             onclick={() => {
               nurVorschlaege = true;
               pickerOffen = true;
@@ -147,6 +148,7 @@
           <button
             type="button"
             class="stb-btn"
+            data-variant="secondary"
             onclick={() => {
               nurVorschlaege = false;
               pickerOffen = true;
@@ -170,7 +172,12 @@
             onClose={() => (pickerOffen = false)}
           />
           {#if nurVorschlaege}
-            <button type="button" class="stb-btn" onclick={() => (nurVorschlaege = false)}>
+            <button
+              type="button"
+              class="stb-btn"
+              data-variant="secondary"
+              onclick={() => (nurVorschlaege = false)}
+            >
               Alle Personen durchsuchen
             </button>
           {/if}

@@ -44,7 +44,15 @@
   import GlobalSearchView from '../ui/views/search/GlobalSearchView.svelte';
   import ResearchTab from '../ui/views/ResearchTab.svelte';
   import MoreView from '../ui/views/more/MoreView.svelte';
-  import { createAppDataIO, createProjectsStore, createTourStore, type AppDataIO, type TourStore } from '../services/app-data';
+  import {
+    createAppDataIO,
+    createProjectsStore,
+    createTourStore,
+    createEntryTemplatesStore,
+    type AppDataIO,
+    type TourStore,
+  } from '../services/app-data';
+  import { createEntryTemplatesState } from '../ui/shell/entry-templates-state.svelte';
   import {
     createMediaResolver,
     FsMediaFolderAdapter,
@@ -134,6 +142,8 @@
   // kein Wert, der sich ändert) — sonst warnt der Compiler zu Recht, dass hier nur der
   // Anfangswert eines Props gelesen wird.
   const projectsState = createProjectsState(untrack(() => createProjectsStore(appDataIO)));
+  // Erfassungs-Vorlagen (BL-353, ADR-v9-265) — dieselbe Bauform/derselbe Grund wie `projectsState` darüber.
+  const entryTemplatesState = createEntryTemplatesState(untrack(() => createEntryTemplatesStore(appDataIO)));
   // Ereignis-Zwischenablage (BL-212): EINMAL hier erzeugt, damit sie den Wechsel zwischen
   // Personen überlebt — genau das ist ihr Zweck („bei der nächsten Person übernehmen").
   // Transient, nicht persistiert (Kategorie A, s. event-clipboard.svelte.ts).
@@ -225,6 +235,9 @@
 
     // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
     void projectsState.load();
+
+    // Erfassungs-Vorlagen laden (BL-353) — ein Speicherfehler blockiert nicht, die drei mitgelieferten bleiben sichtbar.
+    void entryTemplatesState.load();
 
     // Merker des Erstnutzer-Rundgangs (BL-213) — bis er gelesen ist, zeigt der Rundgang
     // nichts; ein Speicherfehler gilt als „schon gesehen".
@@ -496,6 +509,7 @@
         {fileHandle}
         {route}
         {viewState}
+        entryTemplates={entryTemplatesState}
         onFileHandleChanged={(handle) => (fileHandle = handle)}
       />
     {/if}
