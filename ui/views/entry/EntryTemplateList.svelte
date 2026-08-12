@@ -20,8 +20,16 @@
     onCopy: (tpl: EntryTemplate) => void;
     onDelete: (tpl: EntryTemplate) => void;
     onNew: () => void;
+    /** Eine Vorlage aus einer Datei übernehmen (BL-354). Optional: ohne Datei-Rohr
+     *  (isolierter Komponententest) bleibt der Knopf unsichtbar statt tot — dieselbe
+     *  Haltung wie bei „Orte importieren" in MoreView. Das Gegenstück (eine Vorlage ALS
+     *  Datei sichern) sitzt im Builder, nicht hier: die Zeile führt die etablierten drei
+     *  Glyphen ✎ ⧉ 🗑 (ADR-v9-263 E4), und eine vierte ohne Bedeutung im Haus-Vokabular
+     *  ([21 §7](21-UI-UX.md)) wäre die verstreute Glyphenreihe aus Altlast §10. Export ist
+     *  in dieser App überall ein WORT (Datei-Fläche, Orte, app-data.json). */
+    onImport?: () => void;
   }
-  const { templates, onCapture, onEdit, onCopy, onDelete, onNew }: Props = $props();
+  const { templates, onCapture, onEdit, onCopy, onDelete, onNew, onImport }: Props = $props();
 
   let toDelete = $state<EntryTemplate | null>(null);
 </script>
@@ -29,7 +37,12 @@
 <div class="entry-list">
   <div class="entry-list__head">
     <h2>Erfassung</h2>
-    <button type="button" class="stb-btn" data-variant="primary" onclick={onNew}>＋ Neue Vorlage</button>
+    <div class="entry-list__head-actions">
+      {#if onImport}
+        <button type="button" class="stb-btn" data-variant="secondary" onclick={onImport}>Vorlage laden</button>
+      {/if}
+      <button type="button" class="stb-btn" data-variant="primary" onclick={onNew}>＋ Neue Vorlage</button>
+    </div>
   </div>
 
   {#if templates.length === 0}
@@ -98,6 +111,13 @@
 
   .entry-list__head h2 {
     margin: 0;
+  }
+
+  .entry-list__head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
   }
 
   .entry-list__empty {

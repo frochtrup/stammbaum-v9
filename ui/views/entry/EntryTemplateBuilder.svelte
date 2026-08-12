@@ -28,8 +28,11 @@
     template: EntryTemplate;
     onSave: (tpl: EntryTemplate) => void;
     onCancel: () => void;
+    /** Diese eine Vorlage als Datei weitergeben (BL-354). Optional: ohne Datei-Rohr
+     *  bleibt der Knopf unsichtbar statt tot. */
+    onExport?: (tpl: EntryTemplate) => void;
   }
-  const { appState, template, onSave, onCancel }: Props = $props();
+  const { appState, template, onSave, onCancel, onExport }: Props = $props();
 
   let label = $state(untrack(() => template.label));
   let slots = $state<EntrySlot[]>(untrack(() => template.slots.map((s) => ({ ...s }))));
@@ -148,6 +151,16 @@
       Vorlage speichern
     </button>
     <button type="button" class="stb-btn" data-variant="secondary" onclick={onCancel}>Abbrechen</button>
+    {#if onExport}
+      <!-- BL-354: EINE Vorlage weitergeben. Steht hier statt in der Liste, weil man an
+           dieser Stelle ohnehin an genau dieser Vorlage arbeitet — und weil die Zeile
+           drüben keine vierte Glyphe bekommt ([21 §7](21-UI-UX.md)/Altlast §10). Eine
+           MITGELIEFERTE Vorlage hat den Knopf damit gar nicht; sie weiterzugeben wäre
+           ohnehin sinnlos, der Empfänger hat sie schon. -->
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={() => onExport($state.snapshot(draft))}>
+        Als Datei sichern
+      </button>
+    {/if}
   </div>
 </div>
 

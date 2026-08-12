@@ -25,3 +25,13 @@ export {
   APP_DATA_FILENAME,
   type ImportAppDataResult,
 } from './export-app-data-file';
+export {
+  exportEntryTemplates,
+  importEntryTemplates,
+  mergeImportedTemplates,
+  serializeEntryTemplates,
+  parseEntryTemplates,
+  ENTRY_TEMPLATES_FILENAME,
+  ENTRY_TEMPLATES_SCHEMA_VERSION,
+  type EntryTemplateFile,
+} from './export-entry-template-file';

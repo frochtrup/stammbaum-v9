@@ -151,7 +151,7 @@
     {:else if openEntry.id === 'settings'}
       <SettingsView {appState} {fileService} {appDataIO} {mediaResolver} onNavigate={(t) => route.setTarget(t)} />
     {:else if openEntry.id === 'entry'}
-      <EntryView {appState} templates={entryTemplates} />
+      <EntryView {appState} templates={entryTemplates} {fileService} picker={appDataIO?.picker} />
     {:else if openEntry.id === 'file'}
       <!-- Nach Funktion gruppiert mit leisen Überschriften (ADR-v9-128): Laden · Sichern ·
            Orts-Bestand · Austausch. Genau EINE gefüllte Primäraktion je Zustand — Öffnen
