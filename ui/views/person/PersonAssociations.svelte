@@ -17,6 +17,7 @@
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { AssociationRow, GodchildRow } from './person-detail-model';
   import PersonPicker from '../../shell/PersonPicker.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { formEscape, formSubmit } from '../../shell/form-keys';
 
@@ -53,10 +54,13 @@
     reset();
   }
 
+  // Rückfrage aus `ConfirmDialog` (BL-351) statt `window.confirm` — eine Form für alle
+  // destruktiven Aktionen; das native Fenster erschien in der Vorschau-Fläche gar nicht.
+  let frage = $state<AssociationRow | null>(null);
+
   function remove(row: AssociationRow) {
-    const wen = row.name || 'diesen Eintrag';
-    if (!window.confirm(`Assoziation zu „${wen}" entfernen?`)) return;
     onRemove(row.index);
+    frage = null;
   }
 </script>
 
@@ -87,7 +91,7 @@
             type="button"
             class="stb-icon-btn person-assoc__remove"
             data-variant="danger"
-            onclick={() => remove(row)}
+            onclick={() => (frage = row)}
             aria-label="Assoziation entfernen"
             use:tooltip={'Entfernen'}
           >✕</button>
@@ -158,6 +162,16 @@
         </button>
       {/each}
     </div>
+  {/if}
+
+  {#if frage}
+    <ConfirmDialog
+      titel="Assoziation entfernen?"
+      text={`Der Personenbezug zu „${frage.name || 'diesem Eintrag'}“ wird entfernt. Die Person selbst bleibt bestehen.`}
+      bestaetigen="Entfernen"
+      onConfirm={() => frage && remove(frage)}
+      onCancel={() => (frage = null)}
+    />
   {/if}
 </section>
 

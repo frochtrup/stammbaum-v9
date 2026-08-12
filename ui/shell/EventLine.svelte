@@ -30,6 +30,7 @@
   import type { LensId } from './lens-model';
   import { dedupeAddrNote, displayEventValue, type EventLineRow } from './event-line-row';
   import SourceBadge from './SourceBadge.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import CoordIndicator from './CoordIndicator.svelte';
   import MediaThumb from './MediaThumb.svelte';
   import type { MediaResolver } from '../../services/media';
@@ -126,18 +127,15 @@
   // (displayEventValue, event-line-row.ts) statt in jedem *-detail-model einzeln.
   const shownValue = $derived(displayEventValue(ev.value));
 
-  // Destruktives Entfernen eines BEFÜLLTEN Ereignisses — natives `confirm()` wie in
-  // `DeleteEntityButton.svelte` (kein eigenes Dialog-Muster im Projekt). Der Text nennt,
-  // was verloren geht, nicht bloß „wirklich?": Medien-VERKNÜPFUNGEN fallen weg, die
-  // Medien-Datensätze selbst bleiben (referenz-auflösend wie jedes andere Löschen hier).
-  function handleDelete() {
-    if (!onRetract) return;
-    const msg =
-      `Ereignis „${ev.label}" wirklich löschen? Datum, Ort, Wert, Notiz, Quellenzitate und ` +
-      `Medien-Verknüpfungen dieses Ereignisses gehen verloren. Die zitierten Quellen und die ` +
-      `verknüpften Medien selbst bleiben bestehen.`;
-    if (window.confirm(msg)) onRetract(ev.key);
-  }
+  // Destruktives Entfernen eines BEFÜLLTEN Ereignisses — die Rückfrage kommt aus
+  // `ConfirmDialog` (BL-351, geteilt mit `DeleteEntityButton` und der Forschungszeile).
+  // Der Text nennt, was verloren geht, nicht bloß „wirklich?": Medien-VERKNÜPFUNGEN
+  // fallen weg, die Medien-Datensätze selbst bleiben (referenz-auflösend wie jedes
+  // andere Löschen hier).
+  let fragt = $state(false);
+  const loeschFrage =
+    `Datum, Ort, Wert, Notiz, Quellenzitate und Medien-Verknüpfungen dieses Ereignisses ` +
+    `gehen verloren. Die zitierten Quellen und die verknüpften Medien selbst bleiben bestehen.`;
 </script>
 
 <li class="event-line">
@@ -178,7 +176,18 @@
     {#each ev.citations as cit, i (i)}
       <SourceBadge citation={cit} source={appState.db.sources.get(cit.sourceId)} onSelect={onNavigateToSource} />
     {/each}
+    <!-- Reihenfolge ✎ dann Löschen (BL-351): eine Reihenfolge in der ganzen App, und die
+         destruktive Aktion steht außen — sie ist die, die man NICHT versehentlich treffen
+         soll. Diese Zeile war zuletzt die einzige mit der umgekehrten Anordnung. -->
     <span class="event-line__actions">
+      <button
+        type="button"
+        class="stb-icon-btn"
+        onclick={() => onEdit(ev.key)}
+        aria-label={`${ev.label} bearbeiten`}
+      >
+        ✎
+      </button>
       {#if onRetract}
         {#if ev.empty}
           <button
@@ -196,7 +205,7 @@
             type="button"
             class="stb-icon-btn"
             data-variant="danger"
-            onclick={handleDelete}
+            onclick={() => (fragt = true)}
             aria-label={`${ev.label} löschen`}
             use:tooltip={'Löschen'}
           >
@@ -204,18 +213,22 @@
           </button>
         {/if}
       {/if}
-      <button
-        type="button"
-        class="stb-icon-btn"
-        onclick={() => onEdit(ev.key)}
-        aria-label={`${ev.label} bearbeiten`}
-      >
-        ✎
-      </button>
     </span>
   </div>
   {#if displayNote}<p class="event-line__note">{displayNote}</p>{/if}
 </li>
+
+{#if fragt}
+  <ConfirmDialog
+    titel={`${ev.label} löschen?`}
+    text={loeschFrage}
+    onConfirm={() => {
+      fragt = false;
+      onRetract?.(ev.key);
+    }}
+    onCancel={() => (fragt = false)}
+  />
+{/if}
 
 <style>
   /* Kleine, begleitende Miniaturen — bewusst klein: die Zeile ist eine LISTE, kein

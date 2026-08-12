@@ -14,6 +14,7 @@
 // einhalten.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import PersonDetail from '../../ui/views/person/PersonDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -215,13 +216,15 @@ describe('Forschungszeile: Zusatzangaben, Bearbeiten, Löschen (BL-350)', () => 
     render(PersonDetail, { props: { appState, viewState } });
 
     // Abgelehnte Rückfrage: nichts passiert. Ohne diesen Fall prüfte der Test nur, DASS
-    // gelöscht wird, nicht dass die Bestätigung wirkt.
-    vi.stubGlobal('confirm', vi.fn(() => false));
+    // gelöscht wird, nicht dass die Bestätigung wirkt. Beantwortet wird der ECHTE Dialog
+    // (BL-351) — die frühere Fassung ersetzte `window.confirm` durch einen Stub und
+    // hätte damit genau den Mechanismus übersprungen, der in der Vorschau versagte.
     await fireEvent.click(await screen.findByLabelText('Protokoll „Taufe“ löschen'));
+    await brichAb();
     expect(appState.db.individuals.get('@I1@')!.researchLog).toHaveLength(1);
 
-    vi.stubGlobal('confirm', vi.fn(() => true));
     await fireEvent.click(screen.getByLabelText('Protokoll „Taufe“ löschen'));
+    await bestaetige();
     expect(appState.db.individuals.get('@I1@')!.researchLog).toHaveLength(0);
   });
 

@@ -1,28 +1,44 @@
 <script lang="ts">
   // ui/shell/DeleteEntityButton.svelte — geteilte „Danger-Zone" für das referenz-auflösende
   // Löschen einer Detail-Entität (Person/Familie/Quelle/Archiv, Spec 20 §2). EIN Mechanismus
-  // statt pro View neu erfunden (INV-UI-4): destruktiver Button unten im Detail-Body, mit
-  // nativem `confirm()` (kein eigenes Dialog-Muster im Projekt — Vereinfachen-vor-Erfinden,
-  // wie „Ort löschen" in PlaceDetail.svelte). Der Aufrufer liefert Beschriftung, Warntext und
-  // die eigentliche Lösch-/Navigations-Aktion.
+  // statt pro View neu erfunden (INV-UI-4): destruktiver Button unten im Detail-Body. Der
+  // Aufrufer liefert Beschriftung, Warntext und die eigentliche Lösch-/Navigations-Aktion.
+  //
+  // Die Rückfrage kommt seit BL-351 aus `ConfirmDialog` statt aus `window.confirm`. Hier
+  // stand der Satz „kein eigenes Dialog-Muster im Projekt — Vereinfachen vor Erfinden";
+  // er stimmte, bis gemessen war, was die Vereinfachung kostet: in der Vorschau-Fläche
+  // liefert `confirm()` sofort `false`, der Knopf war dort wirkungslos.
+  import ConfirmDialog from './ConfirmDialog.svelte';
+
   interface Props {
     /** Button-Beschriftung, z. B. "Person löschen". */
     label: string;
-    /** Warntext für `window.confirm` — benennt die Referenz-Folge. */
+    /** Warntext der Rückfrage — benennt die Referenz-Folge. */
     message: string;
-    /** Wird nur bei bestätigtem `confirm()` aufgerufen (Kommando + Zurück-Navigation). */
+    /** Wird nur bei bestätigter Rückfrage aufgerufen (Kommando + Zurück-Navigation). */
     onConfirm: () => void;
   }
   const { label, message, onConfirm }: Props = $props();
 
-  function handleClick() {
-    if (window.confirm(message)) onConfirm();
-  }
+  let fragt = $state(false);
 </script>
 
 <section class="delete-entity">
-  <button type="button" class="stb-btn" data-variant="danger" onclick={handleClick}>{label}</button>
+  <button type="button" class="stb-btn" data-variant="danger" onclick={() => (fragt = true)}>{label}</button>
 </section>
+
+{#if fragt}
+  <ConfirmDialog
+    titel={`${label}?`}
+    text={message}
+    bestaetigen="Löschen"
+    onConfirm={() => {
+      fragt = false;
+      onConfirm();
+    }}
+    onCancel={() => (fragt = false)}
+  />
+{/if}
 
 <style>
   .delete-entity {

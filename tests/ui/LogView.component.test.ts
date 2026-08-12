@@ -4,6 +4,7 @@
 // LogEntry hat keine eigene id) und den Export-Button ab.
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import LogView from '../../ui/views/research-log/LogView.svelte';
 import { createRoute } from '../../ui/shell/route.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -134,14 +135,26 @@ describe('LogView — Bearbeiten/Löschen (index-adressiert)', () => {
     expect(allQueries).toContain('Geänderter Suchbegriff');
   });
 
-  it('löscht einen Eintrag über den ×-Button', async () => {
+  it('löscht einen Eintrag über den 🗑-Knopf — nach bestätigter Rückfrage (BL-351)', async () => {
     const { appState } = renderView(seedDb());
     const before = appState.db.individuals.get('@I1@')!.researchLog.length;
 
     const deleteButtons = screen.getAllByLabelText('Eintrag löschen');
     await fireEvent.click(deleteButtons[0]!);
+    expect(appState.db.individuals.get('@I1@')!.researchLog.length, 'erst fragen').toBe(before);
 
+    await bestaetige();
     expect(appState.db.individuals.get('@I1@')!.researchLog.length).toBe(before - 1);
+  });
+
+  it('eine abgebrochene Rückfrage lässt den Eintrag stehen', async () => {
+    const { appState } = renderView(seedDb());
+    const before = appState.db.individuals.get('@I1@')!.researchLog.length;
+
+    await fireEvent.click(screen.getAllByLabelText('Eintrag löschen')[0]!);
+    await brichAb();
+
+    expect(appState.db.individuals.get('@I1@')!.researchLog.length).toBe(before);
   });
 });
 

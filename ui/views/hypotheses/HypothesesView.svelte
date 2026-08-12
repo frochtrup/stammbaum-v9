@@ -16,6 +16,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import HypothesisForm, { type HypothesisFormValues } from './HypothesisForm.svelte';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { sourceLabel } from '../../shell/source-label';
@@ -119,8 +120,13 @@
     closeForm();
   }
 
+  // Rückfrage vor dem Löschen (BL-351) — dieselbe Form wie am Steckbrief, wo dieselbe
+  // Hypothese ebenfalls löschbar ist.
+  let frage = $state<HypothesisEntry | null>(null);
+
   function remove(entry: HypothesisEntry) {
     appState.deleteHypothesis(entry.kind, entry.entityId, entry.hypothesis.id);
+    frage = null;
   }
 
   function goToEntity(entry: HypothesisEntry) {
@@ -189,14 +195,24 @@
           {#if entry.hypothesis.rationale}<p class="hyp-view__row-rationale">{entry.hypothesis.rationale}</p>{/if}
           {#if entry.hypothesis.conclusion}<p class="hyp-view__row-conclusion">{entry.hypothesis.conclusion}</p>{/if}
           <div class="hyp-view__row-actions">
-            <button type="button" class="hyp-view__row-btn" onclick={() => openEditForm(entry)} aria-label="Hypothese bearbeiten">✎</button>
-            <button type="button" class="hyp-view__row-btn" onclick={() => remove(entry)} aria-label="Hypothese löschen">×</button>
+            <button type="button" class="stb-icon-btn" onclick={() => openEditForm(entry)} aria-label="Hypothese bearbeiten">✎</button>
+            <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => (frage = entry)} aria-label="Hypothese löschen">🗑</button>
           </div>
         </div>
       {/each}
     </div>
   {/if}
 </div>
+
+
+{#if frage}
+  <ConfirmDialog
+    titel="Hypothese löschen?"
+    text={`„${frage.hypothesis.text}" geht mit Begründung, Belegen und Schluss verloren.`}
+    onConfirm={() => frage && remove(frage)}
+    onCancel={() => (frage = null)}
+  />
+{/if}
 
 <style>
   .hyp-view {
@@ -318,11 +334,7 @@
     right: 1rem;
   }
 
-  .hyp-view__row-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
+  /* KEIN eigener Knopf-Stil mehr (BL-351): hier stand eine weitere lokale
+     Knopf-Implementierung (transparent + gedimmt + 0,95rem) — also das, was
+     `.stb-icon-btn` samt Trefferzone und Gefahren-Variante ohnehin liefert. */
 </style>

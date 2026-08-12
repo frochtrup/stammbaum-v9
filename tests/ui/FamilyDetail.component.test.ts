@@ -4,6 +4,7 @@
 // DOM-Rendering + Cross-Navigation zu Personen ab.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import FamilyDetail from '../../ui/views/family/FamilyDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -701,44 +702,39 @@ describe('FamilyDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
   }
 
   it('entfernt ein befülltes generisches Ereignis aus events[] — nach bestätigtem confirm', async () => {
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
     const { appState } = seedFamily((f) => {
       f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900', seen: true }));
     });
 
     await fireEvent.click(screen.getByLabelText('Volkszählung löschen'));
+    await bestaetige();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(appState.db.families.get('@F1@')!.events).toHaveLength(0);
-    vi.unstubAllGlobals();
   });
 
   it('abgebrochenes confirm lässt events[] unverändert', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => false));
     const { appState } = seedFamily((f) => {
       f.events.push(makeEvent('CENS', { value: 'Zählung 1900', date: '1900', seen: true }));
     });
 
     await fireEvent.click(screen.getByLabelText('Volkszählung löschen'));
+    await brichAb();
 
     expect(appState.db.families.get('@F1@')!.events).toHaveLength(1);
-    vi.unstubAllGlobals();
   });
 
   it('setzt eine befüllte Verlobung auf den unbefüllten Ausgangszustand zurück', async () => {
-    vi.stubGlobal('confirm', vi.fn(() => true));
     const { appState } = seedFamily((f) => {
       f.engagement.date = '12 MAR 1920';
       f.engagement.seen = true;
     });
 
     await fireEvent.click(screen.getByLabelText('Verlobung löschen'));
+    await bestaetige();
 
     const saved = appState.db.families.get('@F1@')!;
     expect(isEventPresent(saved.engagement)).toBe(false);
     expect(saved.engagement.date).toBeNull();
-    vi.unstubAllGlobals();
   });
 
   it('bietet für die Heiratszeile KEIN Entfernen-Control — Spiegelbild zu Geburt bei Person', () => {

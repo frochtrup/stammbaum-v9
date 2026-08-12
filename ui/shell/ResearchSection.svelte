@@ -25,6 +25,7 @@
   // 2026-08-11): die Steckbriefseite ist ohnehin lang, und wer viel Forschung an einer
   // Person hat, arbeitet in den Forschungsansichten weiter.
   import EventTypeMenu from './EventTypeMenu.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import TaskForm, { type TaskFormValues } from '../views/tasks/TaskForm.svelte';
   import LogForm, { type LogFormValues } from '../views/research-log/LogForm.svelte';
   import HypothesisForm, { type HypothesisFormValues } from '../views/hypotheses/HypothesisForm.svelte';
@@ -194,18 +195,20 @@
     }
   }
 
-  /** „🗑" an einer Zeile. Bestätigt wie jedes andere destruktive Entfernen hier
-   *  (natives `confirm()`, EventLine/DeleteEntityButton) — der Text nennt, WAS
-   *  verschwindet, nicht bloß „wirklich?". */
+  /** „🗑" an einer Zeile — die Rückfrage kommt aus `ConfirmDialog` (BL-351), wie an der
+   *  Ereigniszeile daneben. Der Text nennt, WAS verschwindet, nicht bloß „wirklich?". */
+  let frage = $state<Zeile | null>(null);
+  const artName = (z: Zeile) =>
+    z.art === 'task' ? 'Aufgabe' : z.art === 'log' ? 'Protokolleintrag' : 'Hypothese';
+
   function loesche(z: Zeile) {
-    const was = z.art === 'task' ? 'Aufgabe' : z.art === 'log' ? 'Protokolleintrag' : 'Hypothese';
-    if (!window.confirm(`${was} „${z.text}" wirklich löschen? Der Eintrag geht mit allen seinen Angaben verloren.`)) return;
     if (z.art === 'task') appState.deleteTask(kind, entityId, z.task.id);
     else if (z.art === 'log') appState.deleteLogEntry(kind, entityId, z.index);
     else appState.deleteHypothesis(kind, entityId, z.hypo.id);
     // Ein offenes Formular kann sich auf genau diesen Eintrag beziehen — und ein
     // Protokoll-Ziel ist ein INDEX, der nach dem Löschen auf den Nachbarn zeigt.
     offen = null;
+    frage = null;
   }
 
   function speichereAufgabe(v: TaskFormValues) {
@@ -258,7 +261,7 @@
               type="button"
               class="stb-icon-btn"
               data-variant="danger"
-              onclick={() => loesche(z)}
+              onclick={() => (frage = z)}
               aria-label={`${z.rolle} „${z.text}“ löschen`}
             >
               🗑
@@ -313,6 +316,15 @@
       zielFest={true}
       onSubmit={speichereHypothese}
       onCancel={() => (offen = null)}
+    />
+  {/if}
+
+  {#if frage}
+    <ConfirmDialog
+      titel={`${artName(frage)} löschen?`}
+      text={`„${frage.text}“ geht mit allen Angaben verloren.`}
+      onConfirm={() => frage && loesche(frage)}
+      onCancel={() => (frage = null)}
     />
   {/if}
 </section>

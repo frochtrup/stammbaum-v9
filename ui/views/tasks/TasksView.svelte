@@ -35,6 +35,7 @@
   import type { TaskStatus, ProjectScope } from '../../../core/research/types';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
   import FilterBar from '../../shell/FilterBar.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import { untrack } from 'svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
   import type { Route } from '../../shell/route.svelte';
@@ -151,8 +152,13 @@
     appState.setTaskStatus(entry.kind, entry.entityId, entry.task.id, status);
   }
 
+  // Rückfrage vor dem Löschen (BL-351) — dieselbe Form wie am Steckbrief, wo dieselbe
+  // Aufgabe ebenfalls löschbar ist.
+  let frage = $state<TaskEntry | null>(null);
+
   function remove(entry: TaskEntry) {
     appState.deleteTask(entry.kind, entry.entityId, entry.task.id);
+    frage = null;
   }
 
   function goToEntity(entry: TaskEntry) {
@@ -283,10 +289,10 @@
             </div>
             <div class="tasks-view__row-actions">
               {#if onStartLogFromTask}
-                <button type="button" class="tasks-view__row-btn" onclick={() => startLog(entry)} aria-label="Protokolleintrag aus dieser Aufgabe anlegen" title="→ Protokoll">🔍</button>
+                <button type="button" class="stb-icon-btn" onclick={() => startLog(entry)} aria-label="Protokolleintrag aus dieser Aufgabe anlegen" title="→ Protokoll">🔍</button>
               {/if}
-              <button type="button" class="tasks-view__row-btn" onclick={() => openEditForm(entry)} aria-label="Aufgabe bearbeiten">✎</button>
-              <button type="button" class="tasks-view__row-btn" onclick={() => remove(entry)} aria-label="Aufgabe löschen">×</button>
+              <button type="button" class="stb-icon-btn" onclick={() => openEditForm(entry)} aria-label="Aufgabe bearbeiten">✎</button>
+              <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => (frage = entry)} aria-label="Aufgabe löschen">🗑</button>
             </div>
           </div>
         {/each}
@@ -294,6 +300,16 @@
     </div>
   {/if}
 </div>
+
+
+{#if frage}
+  <ConfirmDialog
+    titel="Aufgabe löschen?"
+    text={`„${frage.task.text}" geht mit allen Angaben verloren.`}
+    onConfirm={() => frage && remove(frage)}
+    onCancel={() => (frage = null)}
+  />
+{/if}
 
 <style>
   .tasks-view {
@@ -404,13 +420,9 @@
     gap: 0.3rem;
   }
 
-  .tasks-view__row-btn {
-    background: transparent;
-    border: none;
-    color: var(--stb-text-dim);
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
+  /* KEIN eigener Knopf-Stil mehr (BL-351): hier stand eine weitere lokale
+     Knopf-Implementierung (transparent + gedimmt + 0,95rem) — also das, was
+     `.stb-icon-btn` samt Trefferzone und Gefahren-Variante ohnehin liefert. */
 
   .tasks-view__board {
     display: flex;

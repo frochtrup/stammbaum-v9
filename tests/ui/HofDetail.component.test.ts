@@ -3,6 +3,7 @@
 // Spec 20 §1.8 [K]).
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import HofDetail from '../../ui/views/hof/HofDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
@@ -376,18 +377,15 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
     const onBack = vi.fn();
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
 
     render(HofDetail, { props: { appState, viewState, onBack } });
     await fireEvent.click(screen.getByText('Hof löschen'));
+    await bestaetige();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(appState.db.hofObjects.has('@H1@')).toBe(false);
     expect(appState.db.individuals.get('@I1@')?.birth.hofId).toBeNull();
     expect(onBack).toHaveBeenCalledOnce();
 
-    vi.unstubAllGlobals();
   });
 
   it('löscht NICHT, wenn die Bestätigung abgebrochen wird', async () => {
@@ -399,16 +397,14 @@ describe('HofDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const viewState = createViewState();
     viewState.setCurrent('hof', '@H1@');
     const onBack = vi.fn();
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal('confirm', confirmSpy);
 
     render(HofDetail, { props: { appState, viewState, onBack } });
     await fireEvent.click(screen.getByText('Hof löschen'));
+    await brichAb();
 
     expect(appState.db.hofObjects.has('@H1@')).toBe(true);
     expect(onBack).not.toHaveBeenCalled();
 
-    vi.unstubAllGlobals();
   });
 
   // GEDREHT mit BL-277/ADR-v9-217 — Begründung s. `PlaceDetail.component.test.ts`

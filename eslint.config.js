@@ -160,6 +160,49 @@ export default tseslint.config(
     }
   },
   {
+    // TST-27 (Spec 32, ADR-v9-263, BL-351): keine nativen Browser-Dialoge in der Haupt-App.
+    //
+    // DER BEFUND: `window.confirm` liefert in der Vorschau-Fläche SOFORT `false`, ohne je
+    // ein Fenster zu zeigen — jede bestätigungspflichtige Aktion war dort wirkungslos
+    // (Nutzer-Befund „im dev funktioniert der Löschen-Knopf nicht", 2026-08-12). Kein Test
+    // konnte es sehen: alle 16 ersetzten `confirm` durch einen Stub und prüften damit
+    // alles AUSSER dem Mechanismus, der versagte.
+    //
+    // Als Lint-Regel und nicht als Kommentar, weil die vorige Fassung genau ein Kommentar
+    // war („kein eigenes Dialog-Muster im Projekt") und sich über fünf Aufrufstellen
+    // fortgepflanzt hat. Ersatz: `ConfirmDialog.svelte` (ui/shell) — Teil des gerenderten
+    // Baums, im Test anklickbar, in jeder Umgebung sichtbar.
+    //
+    // NICHT für `app-orte/` und `ui/views/orte/`: der Standalone-Orte-Editor (Spec 22)
+    // läuft als eigene, minimale Seite ohne die Shell-Primitiven — dort bleibt `confirm`
+    // das etablierte Muster (s. globals-Block oben).
+    files: ['ui/**/*.ts', 'ui/**/*.svelte', 'services/**/*.ts'],
+    ignores: ['ui/views/orte/**'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'confirm',
+          message:
+            'Native Dialoge sind in der Vorschau-Fläche wirkungslos (TST-27, BL-351): window.confirm liefert dort sofort `false`. Nutze ConfirmDialog.svelte aus ui/shell.',
+        },
+        {
+          object: 'window',
+          property: 'alert',
+          message:
+            'Native Dialoge sind in der Vorschau-Fläche wirkungslos (TST-27, BL-351). Nutze eine Fläche der App (StatusNotice/ConfirmDialog) statt window.alert.',
+        },
+        {
+          object: 'window',
+          property: 'prompt',
+          message:
+            'Native Dialoge sind in der Vorschau-Fläche wirkungslos (TST-27, BL-351). Ein Eingabefeld gehört in ein Formular der App, nicht in window.prompt.',
+        },
+      ],
+    },
+  },
+  {
     // TST-19 (Spec 32, ADR-v9-112): Personennamen werden NICHT von Hand zusammengesetzt.
     //
     // Bewusst ENG gefasst — verboten ist die Komposition (`${p.given} ${p.surname}`), nicht

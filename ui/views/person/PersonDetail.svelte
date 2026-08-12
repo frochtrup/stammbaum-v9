@@ -20,6 +20,7 @@
   import { primaryEventMenu, secondaryEventMenu, otherEventMenu } from './person-event-menu';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
   import ChildLinkEditModal from '../../shell/ChildLinkEditModal.svelte';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
   import EventLine from '../../shell/EventLine.svelte';
@@ -414,6 +415,20 @@
         onCopy={clipboard && eventModal.copyable ? (ev) => eventModal.copy(ev) : undefined}
         {citationClipboard}
         allowDeriveBirth={true}
+      />
+    {/if}
+
+    <!-- Rückfrage beim Speichern (BL-351): der Modal-Zustand hält sie, die Fläche zeigt
+         sie. Vorher stand an dieser Stelle ein `window.confirm` mitten im Speicher-Pfad —
+         in der Vorschau-Fläche unsichtbar und mit „nein" beantwortet, die Vorbelegung
+         verschwand also still. -->
+    {#if eventModal.frage}
+      <ConfirmDialog
+        titel={eventModal.frage.titel}
+        text={eventModal.frage.text}
+        bestaetigen={eventModal.frage.bestaetigen}
+        onConfirm={() => eventModal.beantworte(true)}
+        onCancel={() => eventModal.beantworte(false)}
       />
     {/if}
 

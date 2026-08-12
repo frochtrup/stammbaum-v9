@@ -4,6 +4,7 @@
 // String→PlaceObject-Verknüpfung als tatsächliches DOM-Rendering ab.
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
+import { bestaetige, brichAb } from './confirm-helper';
 import { tick } from 'svelte';
 import PlaceDetail from '../../ui/views/place/PlaceDetail.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
@@ -182,19 +183,16 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const viewState = createViewState();
     viewState.setCurrent('place', '@P1@');
     const onBack = vi.fn();
-    const confirmSpy = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirmSpy);
 
     render(PlaceDetail, { props: { appState, viewState, onBack } });
     await fireEvent.click(screen.getByText('Ort löschen'));
+    await bestaetige();
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
     expect(appState.db.placeObjects.has('@P1@')).toBe(false);
     // Kaskadierende Referenz-Bereinigung (deletePlaceCascade) — keine hängende placeId.
     expect(appState.db.individuals.get('@I1@')?.birth.placeId).toBeNull();
     expect(onBack).toHaveBeenCalledOnce();
 
-    vi.unstubAllGlobals();
   });
 
   it('löscht NICHT, wenn die Bestätigung abgebrochen wird', async () => {
@@ -205,16 +203,14 @@ describe('PlaceDetail — Löschen (ADR-v9-78 Punkt 1)', () => {
     const viewState = createViewState();
     viewState.setCurrent('place', '@P1@');
     const onBack = vi.fn();
-    const confirmSpy = vi.fn(() => false);
-    vi.stubGlobal('confirm', confirmSpy);
 
     render(PlaceDetail, { props: { appState, viewState, onBack } });
     await fireEvent.click(screen.getByText('Ort löschen'));
+    await brichAb();
 
     expect(appState.db.placeObjects.has('@P1@')).toBe(true);
     expect(onBack).not.toHaveBeenCalled();
 
-    vi.unstubAllGlobals();
   });
 
   // GEDREHT mit BL-277/ADR-v9-217 (vorher: „zeigt Ort löschen NICHT außerhalb des
