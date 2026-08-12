@@ -32,8 +32,16 @@ export const REALBESTAND = {
   datei: 'Unsere Familie 2026-4.ged',
   exportiert: '25 JUN 2026',
   /** Erwartete Satzzahlen. Weicht die vorhandene Datei ab, ist sie eine andere (oder eine
-   *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch. */
-  erwartet: { individuals: 3180, families: 987, sources: 153, repositories: 7 },
+   *  veraltete Kopie) — und jede daran gemessene Zahl ist es auch.
+   *
+   *  ERNEUERT 2026-08-12 auf Ansage: 3180/987 → **3182/988** (Quellen und Archive
+   *  unverändert). Der Bestand ist um zwei Personen und eine Familie gewachsen; die
+   *  `HEAD`-Zeile nennt weiterhin den 25 JUN 2026, es ist also dieselbe Export-Reihe und
+   *  keine fremde Kopie. Zahlen aus ADRs vor diesem Datum beziehen sich auf 3180/987 —
+   *  hier nachlesbar, statt beim Nachziehen des Pins verlorenzugehen. Wie beim
+   *  Orts-Bestand darunter gilt: der Pin wird NUR auf Ansage erneuert, nicht automatisch
+   *  — eine Abweichung soll erst einmal AUFFALLEN (ADR-v9-151/178). */
+  erwartet: { individuals: 3182, families: 988, sources: 153, repositories: 7 },
 } as const;
 
 /**
