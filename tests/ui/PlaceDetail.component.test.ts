@@ -273,7 +273,7 @@ describe('PlaceDetail — Namens-Varianten (pnames) Pflege', () => {
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.click(screen.getByLabelText('Namensvariante „Sassenbergk" entfernen'));
+    await fireEvent.click(screen.getByLabelText('Namensvariante „Sassenbergk“ entfernen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.pnames).toEqual([]);
   });
@@ -307,7 +307,7 @@ describe('PlaceDetail — Übersetzungen (Sprachachse, BL-59)', () => {
 
     render(PlaceDetail, { props: { appState, viewState } });
     await fireEvent.click(screen.getByText('✎ Bearbeiten'));
-    await fireEvent.click(screen.getByLabelText('Übersetzung „Wrocław" entfernen'));
+    await fireEvent.click(screen.getByLabelText('Übersetzung „Wrocław“ entfernen'));
 
     expect(appState.db.placeObjects.get('@P1@')?.translations).toEqual([]);
   });

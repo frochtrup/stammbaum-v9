@@ -16,6 +16,7 @@
   import type { CitationClipboard } from './citation-clipboard.svelte';
   import { citationUrl } from '../../core/model';
   import SourceCitationRow from './SourceCitationRow.svelte';
+  import { sourceLabel } from './source-label';
   import {
     abgeloest,
     addCitationFor,
@@ -53,13 +54,9 @@
   // Ablage überlebt den Wechsel in einen anderen Datensatz, dort ist der Kontext der
   // Herkunft nicht mehr da (dieselbe Lehre wie bei der Ereignis-Ablage, deren erstes
   // „⧉ Übernehmen: Beruf" weder verriet, WELCHER noch VON WEM).
-  function sourceLabelFor(sourceId: string): string {
-    const s = appState.db.sources.get(sourceId);
-    return s ? s.abbr || s.title || s.id : sourceId;
-  }
 
   function copyCitation(cit: Citation) {
-    const name = sourceLabelFor(cit.sourceId);
+    const name = sourceLabel(appState.db, cit.sourceId);
     // Die Beschriftung nennt, was die Fundstelle IDENTIFIZIERT (Quelle + Seite) — nicht
     // alles, was mitreist; eine Zeile mit QUAY, Notiz und drei Achsen wäre unlesbar.
     // Kein „S. "-Präfix: `PAGE` ist Freitext und trägt seine Einheit oft selbst

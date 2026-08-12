@@ -18,6 +18,7 @@
   import FilterBar from '../../shell/FilterBar.svelte';
   import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { sourceLabel } from '../../shell/source-label';
   import {
     createHypothesesViewState,
     DEFAULT_HYPO_FILTER,
@@ -127,10 +128,6 @@
     else onNavigateToFamily?.(entry.entityId);
   }
 
-  function sourceLabel(sourceId: string): string {
-    const s = appState.db.sources.get(sourceId);
-    return s ? s.abbr || s.title || s.id : sourceId;
-  }
 </script>
 
 <div class="hyp-view">
@@ -185,7 +182,7 @@
           {#if entry.hypothesis.evidence.length > 0}
             <div class="hyp-view__row-meta">
               {#each entry.hypothesis.evidence as e (e.sourceId + e.page)}
-                <span class="stb-pill">{sourceLabel(e.sourceId)}{e.page ? `, ${e.page}` : ''}</span>
+                <span class="stb-pill">{sourceLabel(appState.db, e.sourceId)}{e.page ? `, ${e.page}` : ''}</span>
               {/each}
             </div>
           {/if}

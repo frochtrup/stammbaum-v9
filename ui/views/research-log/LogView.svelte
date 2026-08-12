@@ -43,6 +43,7 @@
   import type { LogResult, ProjectScope } from '../../../core/research/types';
   import type { TaskEntityKind } from '../tasks/tasks-model';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
+  import { sourceLabel } from '../../shell/source-label';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
 
@@ -155,11 +156,6 @@
     return appState.db.repositories.get(repoId)?.name ?? repoId;
   }
 
-  function sourceLabel(sourceId: string): string {
-    const s = appState.db.sources.get(sourceId);
-    return s ? s.abbr || s.title || s.id : sourceId;
-  }
-
   function exportMd() {
     const today = new Date().toLocaleDateString('de-DE');
     const md = exportLogMarkdown(appState.db, log.filter, today);
@@ -229,7 +225,7 @@
       {#if row.entry.note}<p class="log-view__row-note">{row.entry.note}</p>{/if}
       <div class="log-view__row-meta">
         {#if row.entry.repoRef}<span class="stb-pill">{repoName(row.entry.repoRef)}</span>{/if}
-        {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(row.entry.sourceRef)}</span>{/if}
+        {#if row.entry.sourceRef}<span class="stb-pill">{sourceLabel(appState.db, row.entry.sourceRef)}</span>{/if}
       </div>
       <div class="log-view__row-actions">
         <button type="button" class="log-view__row-btn" onclick={() => openEditForm(row)} aria-label="Eintrag bearbeiten">✎</button>

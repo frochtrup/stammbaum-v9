@@ -163,7 +163,7 @@
                 if (g) updatePname(i, v.value, sicher(vonText(v)), g);
               }}
             />
-            <button type="button" class="stb-icon-btn place-detail__edit-remove" data-variant="danger" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}" entfernen`}>✕</button>
+            <button type="button" class="stb-icon-btn place-detail__edit-remove" data-variant="danger" onclick={() => removePname(i)} aria-label={`Namensvariante „${v.value}“ entfernen`}>✕</button>
           </li>
         {/each}
       </ul>
@@ -204,7 +204,7 @@
             <span class="stb-pill">
               <span class="place-detail__trans-lang">{t.lang}</span> {t.value}
               {#if editing}
-                <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}" entfernen`}>✕</button>
+                <button type="button" class="stb-icon-btn" data-variant="danger" onclick={() => removeTranslation(i)} aria-label={`Übersetzung „${t.value}“ entfernen`}>✕</button>
               {/if}
             </span>
           {/each}
