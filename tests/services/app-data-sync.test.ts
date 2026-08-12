@@ -10,6 +10,7 @@ import { AppDataSyncService } from '../../services/app-data/index';
 import type { AppDataStore, AppDataWrapper, AppDataSections } from '../../services/app-data/index';
 import { APP_DATA_SCHEMA_VERSION } from '../../services/app-data/index';
 import { makeProject, type Project } from '../../core/research/index';
+import { makeEntryTemplate, type EntryTemplate } from '../../core/model/index';
 
 class MemoryAppDataStore implements AppDataStore {
   constructor(public wrapper: AppDataWrapper | null = null) {}
@@ -160,6 +161,83 @@ describe('BL-239: die Projekte reisen mit — je Objekt vereinigt, nicht je Absc
   });
 });
 
+describe('BL-232: die Sammlungs-Politik ist ein Mechanismus, kein Sonderweg der Projekte', () => {
+  // Die Erfassungs-Vorlagen sind der ZWEITE Sammlungs-Abschnitt (Spec 30 §2.3: „zugleich
+  // die Probe darauf, dass die Sammlungs-Politik ein geteilter Mechanismus ist"). Sie
+  // müssen sich deshalb Zeile für Zeile wie die Projekte verhalten, ohne eine zweite Kopie
+  // derselben Regel im Dienst.
+  const tpl = (id: string, label: string): EntryTemplate =>
+    makeEntryTemplate(id, { label, slots: [{ role: 'main', field: 'given' }] });
+
+  it('zwei Geräte legen je eine eigene Vorlage an → BEIDE bleiben erhalten', async () => {
+    const store = new MemoryAppDataStore(
+      wrapperOf(1, 'geraet-B', { entryTemplates: [tpl('v2', 'Sterbefall Rheine')] }),
+    );
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { entryTemplates: [tpl('v1', 'Trauregister Ochtrup')] },
+      { rev: 1, sections: {} },
+    );
+
+    expect(res.sections.entryTemplates?.map((t) => t.id).sort()).toEqual(['v1', 'v2']);
+    expect(res.warning).toBeNull();
+  });
+
+  it('dieselbe Vorlage beidseitig unterschiedlich geändert → lokal gewinnt, benannt', async () => {
+    const basis = tpl('v1', 'Trauregister');
+    const store = new MemoryAppDataStore(
+      wrapperOf(1, 'geraet-B', { entryTemplates: [tpl('v1', 'Fremd umbenannt')] }),
+    );
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { entryTemplates: [tpl('v1', 'Lokal umbenannt')] },
+      { rev: 1, sections: { entryTemplates: [basis] } },
+    );
+
+    expect(res.sections.entryTemplates?.[0].label).toBe('Lokal umbenannt');
+    expect(res.warning).toEqual({ kind: 'section-conflict', conflictSections: ['entryTemplates'] });
+  });
+
+  it('nur die Gegenseite hat geändert → ihre Fassung übernehmen (disjunkt)', async () => {
+    const basis = tpl('v1', 'Trauregister');
+    const store = new MemoryAppDataStore(
+      wrapperOf(1, 'geraet-B', { entryTemplates: [tpl('v1', 'Dort umbenannt')] }),
+    );
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { entryTemplates: [basis] },
+      { rev: 1, sections: { entryTemplates: [basis] } },
+    );
+
+    expect(res.sections.entryTemplates?.[0].label).toBe('Dort umbenannt');
+    expect(res.warning).toBeNull();
+  });
+
+  it('Vorlagen und Projekte werden im SELBEN Abgleich je Objekt vereinigt', async () => {
+    // Der eigentliche Punkt der Verallgemeinerung: kein `if (key === 'projects')` mehr,
+    // sondern eine Politik, die für jeden als Sammlung deklarierten Abschnitt greift.
+    const store = new MemoryAppDataStore(
+      wrapperOf(1, 'geraet-B', {
+        projects: [makeProject('p2', { name: 'Höfe Rheine' })],
+        entryTemplates: [tpl('v2', 'Sterbefall')],
+      }),
+    );
+    const svc = new AppDataSyncService(store, hier, clock);
+
+    const res = await svc.reconcileAndSave(
+      { projects: [makeProject('p1', { name: 'Linie Decker' })], entryTemplates: [tpl('v1', 'Heirat')] },
+      { rev: 1, sections: {} },
+    );
+
+    expect(res.sections.projects?.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
+    expect(res.sections.entryTemplates?.map((t) => t.id).sort()).toEqual(['v1', 'v2']);
+    expect(res.warning).toBeNull();
+  });
+});
+
 describe('INV: `app-data.json` trägt keine UNGEPRÜFTEN GEDCOM-Ids (ADR-v9-173/-176)', () => {
   it('die Abschnitts-Liste ist geschlossen — der Dublettenausschluss gehört nicht hierher', () => {
     // Der Schutz ist strukturell: die Abschnitts-Liste ist geschlossen. Bis ADR-v9-176 war
@@ -168,7 +246,7 @@ describe('INV: `app-data.json` trägt keine UNGEPRÜFTEN GEDCOM-Ids (ADR-v9-173/
     // Personenbezüge einen Fingerabdruck tragen (BL-238) und am Referenten geprüft werden.
     // Der Dublettenausschluss bleibt draußen — er ist seit ADR-v9-174 gar kein app-privater
     // Zustand mehr, sondern eine abgelehnte Identitäts-Hypothese in der Genealogie-Datei.
-    const erlaubt: (keyof AppDataSections)[] = ['valConfig', 'exportPrefs', 'projects'];
+    const erlaubt: (keyof AppDataSections)[] = ['valConfig', 'exportPrefs', 'projects', 'entryTemplates'];
     expect(erlaubt).not.toContain('dedupIgnored' as keyof AppDataSections);
   });
 

@@ -14,6 +14,10 @@ import type { ValConfigStore } from '../validate';
 import { IdbAppDataStore } from './idb-app-data-store';
 import { AppDataSyncService } from './app-data-sync-service';
 import { AppDataProjectsStore } from './app-data-projects-store';
+import {
+  AppDataEntryTemplatesStore,
+  type EntryTemplatesStore,
+} from './app-data-entry-templates-store';
 import { AppDataValConfigStore } from './app-data-val-config-store';
 import { AppDataTourStore, type TourStore } from './app-data-tour-store';
 import type { AppDataStore } from './types';
@@ -62,4 +66,13 @@ export function createProjectsStore(io: AppDataIO = createAppDataIO()): Projects
  */
 export function createTourStore(io: AppDataIO = createAppDataIO()): TourStore {
   return new AppDataTourStore(io.sync);
+}
+
+/**
+ * Die Erfassungs-Vorlagen aus dem B1-Bündel (BL-232) — wie der Rundgang-Merker ohne
+ * Altspeicher: v8s `quick_templates` trug ein anderes Vorlagen-Format und wird nicht
+ * migriert (s. Kopfkommentar des Adapters).
+ */
+export function createEntryTemplatesStore(io: AppDataIO = createAppDataIO()): EntryTemplatesStore {
+  return new AppDataEntryTemplatesStore(io.sync);
 }

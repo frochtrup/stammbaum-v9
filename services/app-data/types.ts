@@ -15,6 +15,7 @@
 // Bauart bewusst wie `orte.json` (services/places): derselbe `_rev`/`_device`/`_ts`-
 // Wrapper, derselbe IDB-Spiegel als Laufzeit-Wahrheit, derselbe explizite Datei-Ein-/
 // Ausgang über `FileService` — kein zweiter Sync-Mechanismus (INV-FILE-3).
+import type { EntryTemplate } from '../../core/model/entry-templates';
 import type { Project } from '../../core/research/index';
 import type { StoredValidationConfig } from '../../core/validate/index';
 
@@ -73,8 +74,23 @@ export interface AppDataSections {
    * dieselbe Bauform wie das Hof-Sidecar aus Altlast §7, und gerätelokal ohne Not.
    */
   tour?: TourPrefs;
-  // Später (eigene Backlog-Zeilen, kein Platzhalter-Code):
-  //   quickTemplates (BL-232) · mapLayer (BL-230)
+  /**
+   * Erfassungs-Vorlagen (BL-232, ADR-v9-264). B1 nach dem Kriterium aus ADR-v9-173: eine
+   * Vorlage ist über Rollen und Feldnamen des MODELLS identifiziert und zeigt damit in
+   * keinen Bestand — sie gilt auf jedem Gerät und in jeder Datei.
+   *
+   * Die EINE Ausnahme davon ist ihre optionale Quellen-Vorbelegung (`source.sourceId`, eine
+   * datei-lokale GEDCOM-Id). Sie steht hier aus demselben Grund wie die Projekt-Scopes:
+   * sie trägt einen Fingerabdruck (Kurzname/Titel) und wird beim Anwenden am Referenten
+   * geprüft (`resolveEntrySourcePrefill`) — in einem fremden Bestand ist sie damit
+   * **wirkungslos statt falsch**, und die Vorlage funktioniert ohne sie weiter.
+   *
+   * Zweiter SAMMLUNGS-Abschnitt neben `projects` — und damit die Probe darauf, dass die
+   * id-gekeyte Merge-Politik ein geteilter Mechanismus ist und kein Sonderweg des ersten
+   * (Spec 30 §2.3, s. `COLLECTION_SECTIONS` in `app-data-sync-service.ts`).
+   */
+  entryTemplates?: EntryTemplate[];
+  // Später (eigene Backlog-Zeile, kein Platzhalter-Code): mapLayer (BL-230)
 }
 
 /** B1-Anteil des Erstnutzer-Rundgangs — bewusst ein Feld, kein Fortschritts-Zustand:

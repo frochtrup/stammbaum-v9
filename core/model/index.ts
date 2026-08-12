@@ -82,4 +82,43 @@ export {
   deleteRepositoryCascade,
 } from './delete-cascade';
 export { SOURCE_TEMPLATES, type SourceTemplate } from './source-templates';
+export {
+  BUILTIN_ENTRY_TEMPLATES,
+  ENTRY_FAMILY_ROLES,
+  ENTRY_PERSON_ROLES,
+  EVENT_FIELDS,
+  FAMILY_EVENT_TAGS,
+  IDENTITY_FIELDS,
+  isBuiltinEntryTemplate,
+  isEventSlot,
+  isFamilyRole,
+  isIdentitySlot,
+  makeEntryTemplate,
+  normalizeEntryTemplate,
+  resolveEntrySourcePrefill,
+  slotKey,
+  type EntryFamilyRole,
+  type EntryPersonRole,
+  type EntryRole,
+  type EntrySlot,
+  type EntrySourcePrefill,
+  type EntryTemplate,
+  type EventFieldName,
+  type FamilyEventSlot,
+  type FamilyEventTag,
+  type IdentityFieldName,
+  type IdentitySlot,
+  type PersonEventSlot,
+  type PrefillMode,
+} from './entry-templates';
+export {
+  applyEntryTemplate,
+  findFamilyFor,
+  makeEntryDraft,
+  type ApplyEntryTemplateResult,
+  type EntryTemplateAmbiguity,
+  type EntryTemplateDraft,
+  type FamilyWish,
+  type ParentWish,
+} from './apply-entry-template';
 export { withChangeStamps } from './change-stamp';
