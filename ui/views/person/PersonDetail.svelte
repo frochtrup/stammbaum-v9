@@ -27,6 +27,7 @@
   import { tooltip } from '../../shell/tooltip';
   import { displayName } from '../../shell/person-display';
   import { resolveProband } from '../../shell/proband';
+  import { findRelationshipPath, relationToProbandLabel } from '../tools/relationship';
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import { createPersonEventModal, eventForKey } from './person-event-modal.svelte';
   import PersonForm from './PersonForm.svelte';
@@ -97,6 +98,17 @@
   // sonst kleinste ID)? Steuert die Proband-Aktion im Kopf (BL-120, ADR-v9-135/139).
   const isProband = $derived(!!personId && resolveProband(appState.db, viewState) === personId);
   const detail = $derived(personId ? buildPersonDetail(appState.db, appState.placeContext, personId) : null);
+
+  // Verwandtschaft zum Probanden (Nutzer-Wunsch 2026-08-13) — dieselbe Berechnung wie der
+  // Beziehungsrechner (`findRelationshipPath`, INV-UI-4), nur kompakt beschriftet. Ist die
+  // Person SELBST der Proband, liefert die Funktion `null`: die Kopfzeile sagt das bereits
+  // über „★ Proband", eine zweite Aussage daneben wäre Rauschen.
+  const relationToProband = $derived.by(() => {
+    const proband = resolveProband(appState.db, viewState);
+    if (!personId || !proband || proband === personId) return '';
+    const p = appState.db.individuals.get(proband);
+    return relationToProbandLabel(findRelationshipPath(appState.db, personId, proband), p ? displayName(p) : '');
+  });
 
   let editing = $state(untrack(() => startInEdit));
 
@@ -340,6 +352,7 @@
     <PersonDetailHeader
       person={detail.person}
       {isProband}
+      relationToProband={relationToProband}
       {editing}
       onBack={handleBack}
       onToggleEdit={toggleEdit}

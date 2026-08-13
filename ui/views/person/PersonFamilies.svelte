@@ -92,6 +92,12 @@
           </button>
         {/each}
       {/if}
+      <!-- Hochzeitsdatum der Familie (Nutzer-Wunsch 2026-08-13). Steht NACH den Personen:
+           erst wer, dann wann. Das ⚭ trägt die Bedeutung, deshalb kein zusätzliches Wort
+           (INV-UI-5) — den Klartext gibt der Tooltip. -->
+      {#if fam.marriage}
+        <span class="person-families__marriage" use:tooltip={'Hochzeitsdatum'}>⚭ {fam.marriage}</span>
+      {/if}
       {#if fam.children.length > 0}
         <span class="person-families__children">
           <span class="person-families__children-label">Kinder:</span>
@@ -179,6 +185,11 @@
     padding: 0;
     font: inherit;
     text-decoration: underline;
+  }
+
+  .person-families__marriage {
+    color: var(--stb-text-dim);
+    white-space: nowrap;
   }
 
   .person-families__children {

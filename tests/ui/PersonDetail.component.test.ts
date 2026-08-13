@@ -1304,3 +1304,61 @@ describe('PersonDetail — Eingabekomfort (BL-212, ADR-v9-156)', () => {
     expect(berta.events[0]).not.toBe(appState.db.individuals.get('@I1@')!.events[0]);
   });
 });
+
+describe('Kopf und Familien-Zeile: Verwandtschaft, Hochzeitsdatum, Kinder-Reihenfolge (Nutzer-Wunsch 2026-08-13)', () => {
+  /** Opa → Vater → angezeigte Person; Vater hat drei Kinder in unsortierter Dateireihenfolge. */
+  function stammbaum() {
+    const db = makeDatabase();
+    const link = (familyId: string) => ({
+      familyId, pedigree: 'birth' as const, fatherRel: '', motherRel: '',
+      fatherRelSeen: false, motherRelSeen: false, citations: [],
+    });
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Alt', sex: 'M', parentIn: ['@F1@'] }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Vater', surname: 'Alt', sex: 'M', parentIn: ['@F2@'], childOf: [link('@F1@')] }));
+    for (const [id, given, datum] of [
+      ['@I10@', 'Spaet', '1888'],
+      ['@I11@', 'Frueh', '1880'],
+      ['@I12@', 'Mitte', '1884'],
+    ] as [string, string, string][]) {
+      const k = makePerson(id, { given, surname: 'Alt', childOf: [link('@F2@')] });
+      k.birth.date = datum;
+      db.individuals.set(id, k);
+    }
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', children: ['@I2@'] }));
+    const f2 = makeFamily('@F2@', { husband: '@I2@', children: ['@I10@', '@I11@', '@I12@'] });
+    f2.marriage.date = '5 MAY 1879';
+    db.families.set('@F2@', f2);
+    return db;
+  }
+
+  function zeige(personId: string, probandId: string) {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(stammbaum(), 'test.ged');
+    viewState.setProband(probandId);
+    viewState.setCurrent('person', personId);
+    return render(PersonDetail, { props: { appState, viewState } });
+  }
+
+  it('nennt im Kopf die Verwandtschaft zum Probanden', () => {
+    zeige('@I10@', '@I1@'); // Enkel von Otto
+    expect(screen.getByText('Enkel von Otto Alt')).toBeTruthy();
+  });
+
+  it('sagt am Probanden selbst nichts über eine Verwandtschaft zu sich', () => {
+    zeige('@I1@', '@I1@');
+    expect(screen.queryByText(/von Otto Alt$/)).toBeNull();
+  });
+
+  it('zeigt das Hochzeitsdatum an der Familien-Zeile', () => {
+    zeige('@I2@', '@I1@');
+    expect(screen.getByText('⚭ 5. Mai 1879')).toBeTruthy();
+  });
+
+  it('listet die Kinder chronologisch, nicht in Dateireihenfolge', () => {
+    const { container } = zeige('@I2@', '@I1@');
+    const kinder = [...container.querySelectorAll('.person-families__children .person-families__link')]
+      .map((el) => (el.textContent ?? '').trim().split('(')[0].trim());
+    expect(kinder).toEqual(['Frueh Alt', 'Mitte Alt', 'Spaet Alt']);
+  });
+});

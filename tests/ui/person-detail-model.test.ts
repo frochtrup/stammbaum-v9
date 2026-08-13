@@ -469,3 +469,75 @@ describe('BL-196/197 — Alter + datePhrase in der Ereigniszeile', () => {
     expect(death.datePhrase).toBe('kurz vor Weihnachten');
   });
 });
+
+describe('Familien-Zeile: Hochzeitsdatum und Kinder-Reihenfolge (Nutzer-Befund 2026-08-13)', () => {
+  function ctx(): PlaceContext {
+    return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+  }
+
+  /** Vater mit eigener Familie; die Kinder stehen in der Datei BEWUSST unsortiert. */
+  function familieMitKindern() {
+    const db = makeDatabase();
+    const vater = makePerson('@I1@', { given: 'Anton', surname: 'Meyer', parentIn: ['@F1@'] });
+    db.individuals.set('@I1@', vater);
+    const kinder: [string, string, string][] = [
+      ['@I10@', 'Clara', '1885'],
+      ['@I11@', 'Anna', '1880'],
+      ['@I12@', 'Bertha', '12 MAR 1882'],
+      ['@I13@', 'Dora', ''],
+      ['@I14@', 'Emil', '3 JAN 1882'],
+    ];
+    for (const [id, given, datum] of kinder) {
+      const k = makePerson(id, { given, surname: 'Meyer' });
+      k.birth.date = datum;
+      db.individuals.set(id, k);
+    }
+    const fam = makeFamily('@F1@', { husband: '@I1@', children: kinder.map(([id]) => id) });
+    fam.marriage.date = '5 MAY 1879';
+    db.families.set('@F1@', fam);
+    return db;
+  }
+
+  it('die eigene Familie nennt ihr Hochzeitsdatum', () => {
+    const model = buildPersonDetail(familieMitKindern(), ctx(), '@I1@')!;
+    const eigene = model.families.find((f) => f.role === 'parentIn')!;
+    expect(eigene.marriage).toBe('5. Mai 1879');
+  });
+
+  it('ohne Heiratsdatum bleibt das Feld leer (kein „unbekannt“-Text)', () => {
+    const db = familieMitKindern();
+    db.families.get('@F1@')!.marriage.date = '';
+    const model = buildPersonDetail(db, ctx(), '@I1@')!;
+    expect(model.families.find((f) => f.role === 'parentIn')!.marriage).toBe('');
+  });
+
+  it('auch die Herkunftsfamilie nennt das Hochzeitsdatum der Eltern', () => {
+    const db = familieMitKindern();
+    // Das erste Kind aus Sicht des KINDES betrachten.
+    db.individuals.get('@I10@')!.childOf.push({
+      familyId: '@F1@', pedigree: 'birth', fatherRel: '', motherRel: '',
+      fatherRelSeen: false, motherRelSeen: false, citations: [],
+    });
+    const model = buildPersonDetail(db, ctx(), '@I10@')!;
+    expect(model.families.find((f) => f.role === 'childOf')!.marriage).toBe('5. Mai 1879');
+  });
+
+  it('Kinder stehen nach Geburtsdatum, nicht in Dateireihenfolge — taggenau innerhalb desselben Jahres', () => {
+    const model = buildPersonDetail(familieMitKindern(), ctx(), '@I1@')!;
+    const kinder = model.families.find((f) => f.role === 'parentIn')!.children.map((c) => c.name);
+    expect(kinder).toEqual([
+      'Anna Meyer',   // 1880
+      'Emil Meyer',   // 3 JAN 1882
+      'Bertha Meyer', // 12 MAR 1882
+      'Clara Meyer',  // 1885
+      'Dora Meyer',   // ohne Datum → ans Ende
+    ]);
+  });
+
+  it('sortiert eine KOPIE — die Kinderliste der Familie selbst bleibt unangetastet (LP-1)', () => {
+    const db = familieMitKindern();
+    const vorher = [...db.families.get('@F1@')!.children];
+    buildPersonDetail(db, ctx(), '@I1@');
+    expect(db.families.get('@F1@')!.children).toEqual(vorher);
+  });
+});

@@ -141,3 +141,25 @@ export function findRelationshipPath(
     multiPath: multiCount > 1,
   };
 }
+
+/**
+ * Die kompakte Verwandtschafts-Zeile am Personen-Steckbrief (Nutzer-Wunsch 2026-08-13):
+ * „Enkelin von Otto Alt" bzw. „nicht mit Otto Alt verwandt".
+ *
+ * KEIN zweiter Rechenweg und keine zweite Benennung — das Etikett kommt unverändert aus
+ * `relationshipLabel` (über `findRelationshipPath`), hier wird nur die Bezugsperson
+ * angehängt. Der Beziehungsrechner formuliert daraus seinen eigenen ganzen Satz mit BEIDEN
+ * Namen; das ist eine andere Fläche, dieselbe Quelle.
+ *
+ * `null`/leerer Name → leere Zeile: `findRelationshipPath` liefert `null`, wenn die Person
+ * der Proband SELBST ist (Beziehung zu sich selbst), und dann sagt die Kopfzeile das
+ * bereits über „★ Proband".
+ *
+ * „Geschwister" bleibt „Geschwister von X": die geteilte Benennung kennt für diesen Fall
+ * bewusst kein Geschlecht (v8-Orakel `_relLabel`), und sie hier zu Bruder/Schwester
+ * aufzulösen wäre eine zweite Benennungsregel neben der einen.
+ */
+export function relationToProbandLabel(rel: RelationshipResult | null, probandName: string): string {
+  if (!rel || !probandName) return '';
+  return rel.related ? `${rel.label} von ${probandName}` : `nicht mit ${probandName} verwandt`;
+}

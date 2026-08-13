@@ -178,3 +178,46 @@ describe('BL-199 — Kind-Verhältnis (PEDI) an der Kind-Zeile', () => {
     expect(kids.find((k) => k.personId === '@I2@')?.pedigree).toBe('');
   });
 })
+
+describe('Kinder-Reihenfolge (Nutzer-Befund 2026-08-13)', () => {
+  function ctx(): PlaceContext {
+    return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
+  }
+
+  it('Kinder stehen nach Geburtsdatum, Eltern bleiben davor', () => {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Vater', surname: 'M', parentIn: ['@F1@'] }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Mutter', surname: 'M', parentIn: ['@F1@'] }));
+    for (const [id, given, datum] of [
+      ['@I10@', 'Zweit', '1884'],
+      ['@I11@', 'Erst', '1881'],
+      ['@I12@', 'Ohne', ''],
+      ['@I13@', 'Dritt', '1889'],
+    ] as [string, string, string][]) {
+      const k = makePerson(id, { given, surname: 'M' });
+      k.birth.date = datum;
+      db.individuals.set(id, k);
+    }
+    db.families.set('@F1@', makeFamily('@F1@', {
+      husband: '@I1@', wife: '@I2@', children: ['@I10@', '@I11@', '@I12@', '@I13@'],
+    }));
+
+    const model = buildFamilyDetail(db, ctx(), '@F1@')!;
+    expect(model.members.map((m) => m.role)).toEqual(['husband', 'wife', 'child', 'child', 'child', 'child']);
+    expect(model.members.filter((m) => m.role === 'child').map((m) => m.name)).toEqual([
+      'Erst M', 'Zweit M', 'Dritt M', 'Ohne M',
+    ]);
+  });
+
+  it('rührt die gespeicherte Kinderliste nicht an (LP-1)', () => {
+    const db = makeDatabase();
+    for (const [id, datum] of [['@I10@', '1890'], ['@I11@', '1880']] as [string, string][]) {
+      const k = makePerson(id, { given: id, surname: 'M' });
+      k.birth.date = datum;
+      db.individuals.set(id, k);
+    }
+    db.families.set('@F1@', makeFamily('@F1@', { children: ['@I10@', '@I11@'] }));
+    buildFamilyDetail(db, ctx(), '@F1@');
+    expect(db.families.get('@F1@')!.children).toEqual(['@I10@', '@I11@']);
+  });
+});

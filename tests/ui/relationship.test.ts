@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeDatabase, makePerson, makeFamily } from '../../core/model';
 import type { ChildLink, Database } from '../../core/model/types';
-import { findRelationshipPath, relationshipLabel } from '../../ui/views/tools/relationship';
+import { findRelationshipPath, relationshipLabel, relationToProbandLabel } from '../../ui/views/tools/relationship';
 
 function childLink(familyId: string): ChildLink {
   return { familyId, pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] };
@@ -106,5 +106,33 @@ describe('findRelationshipPath (BFS)', () => {
     expect(r.related).toBe(false);
     expect(r.label).toBe('Nicht verwandt');
     expect(r.path).toEqual([]);
+  });
+});
+
+describe('relationToProbandLabel — die kompakte Zeile am Steckbrief (Nutzer-Befund 2026-08-13)', () => {
+  it('nennt Verhältnis und Bezugsperson in einer Zeile', () => {
+    const db = makeTree();
+    const rel = findRelationshipPath(db, 'I6', 'I1')!; // Carla → Opa Otto
+    expect(relationToProbandLabel(rel, 'Otto Alt')).toBe('Enkelin von Otto Alt');
+  });
+
+  it('sagt es auch, wenn niemand verwandt ist — statt zu schweigen', () => {
+    const db = makeTree();
+    const rel = findRelationshipPath(db, 'I5', 'I7')!;
+    expect(relationToProbandLabel(rel, 'Otto Alt')).toBe('nicht mit Otto Alt verwandt');
+  });
+
+  it('Geschwister lesen sich als Verhältnis, nicht als Aufzählung', () => {
+    const db = makeTree();
+    const rel = findRelationshipPath(db, 'I3', 'I4')!;
+    expect(rel.label).toBe('Geschwister'); // die geteilte Benennung bleibt unverändert
+    expect(relationToProbandLabel(rel, 'Bernd Alt')).toBe('Geschwister von Bernd Alt');
+  });
+
+  it('ohne Bezugsperson (kein Proband auflösbar) gibt es keine Zeile', () => {
+    const db = makeTree();
+    const rel = findRelationshipPath(db, 'I6', 'I1')!;
+    expect(relationToProbandLabel(rel, '')).toBe('');
+    expect(relationToProbandLabel(null, 'Otto Alt')).toBe('');
   });
 });

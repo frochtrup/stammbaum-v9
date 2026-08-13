@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { PlaceContext, Coords } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
 import { isEventPresent, isEventEmpty, addrDisplay } from '../../../core/model';
-import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent, sortPersonIdsByBirth } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
 import { groupByKey, type EventGroup } from '../../shell/event-grouping';
 
@@ -75,6 +75,12 @@ export interface FamilyNavRow {
    *  Nachtrag 2026-07-06 [20 §1.5]) zur eindeutigen Identifikation bei Namensgleichheit —
    *  fehlte hier bisher, obwohl FamilyDetail dieselben Kinder bereits so anzeigt. */
   children: { personId: string; name: string; summary: string }[];
+  /** Hochzeitsdatum dieser Familie, voll ausgeschrieben (`fullDateLabel`, INV-UI-9) —
+   *  leer, wenn keines bekannt ist (kein „unbekannt"-Ersatztext). Steht an BEIDEN Rollen:
+   *  an der eigenen Familie ist es die eigene Ehe, an der Herkunftsfamilie die der Eltern —
+   *  dieselbe Angabe, und für die Datierung der Kindheit ebenso einschlägig
+   *  (Nutzer-Wunsch 2026-08-13). */
+  marriage: string;
   /** Nur bei role==='childOf': das Kind-Verhältnis DIESER Person zu diesen Eltern (BL-199,
    *  PEDI) — leer bei leiblich/leer und bei role==='parentIn'. Spiegelbild zur
    *  Kind-Zeile in `family-detail-model.ts` (INV-UI-4, dieselbe `pedigreeLabel`). */
@@ -278,13 +284,25 @@ export function buildPersonDetail(
         return { personId: id, name: displayName(m), summary: yearPlaceSummary(m.birth, ctx) };
       })
       .filter((m) => m.name);
-    const children = f.children
+    // Chronologisch, nicht in Dateireihenfolge (Nutzer-Wunsch 2026-08-13) — über denselben
+    // Helfer wie die Kinderzeile in `family-detail-model.ts`; er sortiert eine Kopie und
+    // lässt die gespeicherte Reihenfolge unangetastet (LP-1).
+    const children = sortPersonIdsByBirth(db, f.children)
       .map((id) => {
         const child = db.individuals.get(id)!;
         return { personId: id, name: displayName(child), summary: yearPlaceSummary(child.birth, ctx) };
       })
       .filter((c) => c.name);
-    families.push({ familyId, role: 'parentIn', label: familyLabel(f, db), members, children, pedigree: '', childCitations: [] });
+    families.push({
+      familyId,
+      role: 'parentIn',
+      label: familyLabel(f, db),
+      members,
+      children,
+      marriage: fullDateLabel(f.marriage),
+      pedigree: '',
+      childCitations: [],
+    });
   }
   for (const link of person.childOf) {
     const f = db.families.get(link.familyId);
@@ -302,6 +320,7 @@ export function buildPersonDetail(
       label: familyLabel(f, db),
       members,
       children: [],
+      marriage: fullDateLabel(f.marriage),
       pedigree: pedigreeLabel(link.pedigree),
       childCitations: link.citations,
     });
