@@ -205,9 +205,55 @@ describe('Vorbelegt und änderbar — der dritte Modus (ADR-v9-268 E6)', () => {
     expect(taufe.value).toBe('fest');
   });
 
-  it('ein Startwert allein legt NICHTS an (die Regel aus [20 §2] gilt für alle drei Modi)', () => {
+  // Ob ein unangetasteter Startwert einen Datensatz ANLEGT, hängt an seiner Sichtbarkeit —
+  // Nutzer-Rückfrage „würde aber trotzdem ein Objekt mit den Startwerten angelegt, oder?".
+  it('ein SICHTBARER, löschbarer Startwert legt an — er steht im Feld wie eine Eingabe', () => {
+    const nurStartwert = makeEntryTemplate('t-nur-start', {
+      label: 'Vorbelegt',
+      slots: [
+        { role: 'main', field: 'given', prefill: 'Maria', prefillMode: 'prefilled' },
+        { role: 'main', field: 'surname', prefill: 'Wolters', prefillMode: 'prefilled' },
+      ],
+    });
+
+    const res = applyEntryTemplate(makeDatabase(), nurStartwert, makeEntryDraft({ values: {} }));
+
+    expect(res.db.individuals.size).toBe(1);
+    const p = [...res.db.individuals.values()][0];
+    expect(p.given).toBe('Maria');
+    expect(p.surname).toBe('Wolters');
+  });
+
+  it('ein VERSTECKTER oder gesperrter Startwert legt nichts an', () => {
+    // Der Grund für die Regel: die Heirats-Vorlage belegt das Geschlecht versteckt vor —
+    // ohne diese Grenze entstünden bei jedem leeren Speichern zwei Personen.
+    for (const modus of ['hidden', 'locked'] as const) {
+      const tpl = makeEntryTemplate(`t-${modus}`, {
+        label: modus,
+        slots: [
+          { role: 'main', field: 'given', prefill: 'Maria', prefillMode: modus },
+          { role: 'main', field: 'surname', prefill: 'Wolters', prefillMode: modus },
+        ],
+      });
+
+      const res = applyEntryTemplate(makeDatabase(), tpl, makeEntryDraft({ values: {} }));
+
+      expect(res.db.individuals.size, modus).toBe(0);
+    }
+  });
+
+  it('die Regel gilt auch, wenn der sichtbare Startwert kein Name ist — mit Folge', () => {
+    // `mitStartwert` belegt nur Ereignis-Felder vor: der Ort ist `prefilled`, also sichtbar
+    // und löschbar. Leeres Speichern legt deshalb eine Person an — eine NAMENLOSE, mit
+    // einer Taufe in Ochtrup. Das ist die ehrliche Konsequenz derselben Regel, die dem
+    // vorbelegten Namen zu seinem Datensatz verhilft, und keine Sonderbehandlung wert:
+    // wer nur einen Ort stehen lässt und speichert, bekommt genau das — sichtbar in der
+    // Liste und mit EINEM Undo-Schritt zurückzunehmen.
     const res = applyEntryTemplate(makeDatabase(), mitStartwert, makeEntryDraft({ values: {} }));
 
-    expect(res.db.individuals.size).toBe(0);
+    expect(res.db.individuals.size).toBe(1);
+    const p = [...res.db.individuals.values()][0];
+    expect(p.given).toBe('');
+    expect(p.chr.place).toBe('Ochtrup');
   });
 });

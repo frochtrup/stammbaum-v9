@@ -155,6 +155,14 @@
     const familyIds = Object.values(res.families).filter((v): v is FamilyId => v !== undefined);
     // Sofort-Plausibilitätsprüfung NUR über die berührten Datensätze (ADR-v9-264 E10) —
     // nicht `runValidation` über den ganzen Bestand.
+    // Ein leerer Entwurf legt nichts an (eine Vorbelegung, die der Nutzer nicht sieht oder
+    // nicht ändern kann, ist keine Eingabe — core/model/apply-entry-template.ts). Das ist
+    // richtig, darf aber NICHT als „gespeichert" gemeldet werden: eine Erfolgsmeldung über
+    // einen Nicht-Vorgang ist die schlechteste Sorte Rückmeldung.
+    if (personIds.length === 0 && familyIds.length === 0) {
+      notice = 'Nichts erfasst — es war kein Feld ausgefüllt.';
+      return;
+    }
     const findings = runValidationOn(appState.db, defaultConfig(), { personIds, familyIds });
     notice =
       findings.length === 0

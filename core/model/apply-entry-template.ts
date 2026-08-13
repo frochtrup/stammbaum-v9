@@ -201,11 +201,21 @@ function aufloesen(tpl: EntryTemplate, draft: EntryTemplateDraft): AufgeloesterS
       return { slot, value: slot.prefill.trim(), eingabe: false };
     }
     if (eigen !== '') return { slot, value: eigen, eingabe: true };
-    // Unangetasteter Startwert: er GILT (er fließt in den Datensatz), zählt aber NICHT als
-    // Eingabe — sonst legte allein das Öffnen einer Vorlage mit vorbelegtem Namen eine
-    // Person an. Das ist dieselbe Regel wie für die anderen beiden Modi: eine Vorbelegung
-    // füllt, sie legt nichts an ([20 §2](20-Funktionen.md)).
-    if (slot.prefill !== undefined) return { slot, value: slot.prefill.trim(), eingabe: false };
+    // Unangetasteter Startwert. Ob er einen Datensatz ANLEGT, entscheidet die Sichtbarkeit
+    // — und zwar in beide Richtungen begründet:
+    //
+    //  · `prefilled` ZÄHLT als Eingabe. Der Wert steht sichtbar im Feld, und der Nutzer
+    //    kann ihn löschen, wenn er ihn nicht will. Ein Formular, das sichtbar „Maria"
+    //    zeigt und beim Speichern nichts anlegt, wäre für den Nutzer nicht erklärbar.
+    //  · `hidden`/`locked` zählen NICHT. Versteckt sieht der Nutzer den Wert gar nicht,
+    //    gesperrt kann er ihn nicht entfernen — beides ergäbe eine Vorlage, die bei JEDEM
+    //    Öffnen und leerem Speichern Datensätze produziert (genau der Fehler, den die
+    //    Regel „eine Vorbelegung füllt, sie legt nichts an" verhindern soll: die
+    //    Heirats-Vorlage mit verstecktem Geschlecht legte sonst zwei Personen an).
+    if (slot.prefill !== undefined) {
+      const start = slot.prefill.trim();
+      return { slot, value: start, eingabe: slot.prefillMode === 'prefilled' && start !== '' };
+    }
     return { slot, value: '', eingabe: false };
   });
 }
