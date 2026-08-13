@@ -136,12 +136,33 @@
   function resetForSeries(): void {
     // Vorbelegungen bleiben stehen (E3: sie sind Eigenschaft der VORLAGE, nicht des
     // Entwurfs) — nur der Nutzer-Entwurf wird geleert.
-    textValues = freshTextValues();
-    dateStates = freshDateStates();
+    //
+    // AUSSER, wo die Vorlage `carry` gesetzt hat (ADR-v9-271): dort überlebt der
+    // EINGETIPPTE Wert den Reset. Der Fall, der das verlangt hat, ist ein Hofregister —
+    // derselbe Nachname über zwanzig Einträge, ohne Vorbelegung, weil er von Bestand zu
+    // Bestand ein anderer ist. Die Entscheidung fällt je FELD in der Vorlage, nicht
+    // pauschal und nicht je Rollen-Block.
+    //
+    // WARUM DAS KEINE STILLE ÜBERNAHME IST: der mitgeführte Wert steht sichtbar und
+    // änderbar im Feld — genau der Modus, den ADR-v9-268 E7 erlaubt. Was dort verboten
+    // ist, ist ein Wert, den niemand zu Gesicht bekommt; `carry` gibt es deshalb nur an
+    // änderbaren Feldern (der Typ erzwingt es, `SlotPrefill`).
+    const mitgefuehrt = new Set(template.slots.filter((s) => s.carry).map(slotKey));
+    const frischeTexte = freshTextValues();
+    const frischeDaten = freshDateStates();
+    for (const key of mitgefuehrt) {
+      if (key in textValues) frischeTexte[key] = textValues[key];
+      if (key in dateStates) frischeDaten[key] = dateStates[key];
+    }
+    textValues = frischeTexte;
+    dateStates = frischeDaten;
+    // Die GEWÄHLTE Person/Familie läuft NICHT mit: sie ist keine Eingabe, sondern eine
+    // Zuordnung an genau diesen einen Eintrag — der nächste Taufeintrag betrifft ein
+    // anderes Kind, auch wenn der Nachname derselbe bleibt.
     persons = {};
     families = {};
-    page = '';
-    url = '';
+    if (!template.source?.pageCarry) page = '';
+    if (!template.source?.urlCarry) url = '';
   }
 
   function trySave(): void {

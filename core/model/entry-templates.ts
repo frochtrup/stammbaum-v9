@@ -106,10 +106,22 @@ export type PrefillMode = 'hidden' | 'locked' | 'prefilled';
  * `prefillMode` ohne Wert wäre eine Anzeige-Anweisung über nichts, ein `prefill` ohne
  * Modus eine Vorbelegung ohne Aussage darüber, ob der Nutzer sie sehen soll. Der Compiler
  * stellt die Frage, nicht ein Kommentar.
+ *
+ * `carry` ist eine ZWEITE, unabhängige Achse und bewusst KEIN vierter `prefillMode`
+ * (ADR-v9-271). Die beiden Fragen sind verschieden:
+ *   - `prefillMode` — wie wird ein in der VORLAGE gespeicherter Wert angezeigt?
+ *   - `carry`       — was passiert mit dem vom NUTZER eingegebenen Wert beim Serien-Reset?
+ * Der entscheidende Fall ist der Nachname in einem Hofregister: er hat GAR KEINE
+ * Vorbelegung und soll trotzdem mitlaufen. Als vierter Modus wäre er die Anzeige-Anweisung
+ * einer Vorbelegung, die es nicht gibt — genau das, was die Paar-Union oben verhindert.
+ *
+ * Die dritte Alternative unten hält fest, dass `carry` nur zu einem ÄNDERBAREN Feld passt:
+ * `hidden` zeigt gar kein Feld, `locked` ist `readonly` — dort gibt es nichts mitzuführen.
  */
 type SlotPrefill =
-  | { prefill?: undefined; prefillMode?: undefined }
-  | { prefill: string; prefillMode: PrefillMode };
+  | { prefill?: undefined; prefillMode?: undefined; carry?: boolean }
+  | { prefill: string; prefillMode: 'prefilled'; carry?: boolean }
+  | { prefill: string; prefillMode: 'hidden' | 'locked'; carry?: undefined };
 
 /** Identitätsfeld an einer Personen-Rolle — trägt KEINEN Ereignistyp. */
 export type IdentitySlot = { role: EntryPersonRole; field: IdentityFieldName } & SlotPrefill;
@@ -180,6 +192,17 @@ export interface EntrySourcePrefill {
   pagePattern: string;
   /** Muster für den Weblink der Zitation. */
   urlPattern: string;
+  /**
+   * Läuft die EINGETIPPTE Seitenangabe in den nächsten Eintrag der Serie mit? (ADR-v9-271.)
+   *
+   * Dasselbe wie `carry` an einem Slot — aber Seite und Weblink sind keine Slots: sie
+   * gehören der Zitation, nicht einer Rolle, und `EntrySlot` bedeutet seit ADR-v9-264 E2
+   * genau `(Rolle, Feld[, Ereignistyp])`. Sie zu Pseudo-Slots einer erfundenen
+   * Zitations-Rolle zu machen, wäre eine Bedeutung mehr, nicht eine Struktur weniger.
+   */
+  pageCarry: boolean;
+  /** Geschwister von `pageCarry` für den Weblink — s. dort. */
+  urlCarry: boolean;
 }
 
 function norm(s: string): string {
@@ -322,12 +345,20 @@ function quayOf(v: unknown): Quay | null {
 }
 
 function prefillOf(o: Record<string, unknown>): SlotPrefill {
-  if (typeof o.prefill !== 'string') return {};
+  // `carry` ist unabhängig von der Vorbelegung (s. `SlotPrefill`) — deshalb VOR der
+  // Modus-Frage gelesen. Fehlt es, läuft nichts mit: die Fassung vor ADR-v9-271 hat sich
+  // genau so verhalten, eine ältere Datei ändert also ihr Verhalten nicht.
+  const carry = o.carry === true;
+  if (typeof o.prefill !== 'string') return carry ? { carry } : {};
   // Unbekannter/fehlender Modus → `locked`: die vorsichtigste Lesart einer fremden Datei
   // (der Wert gilt und ist sichtbar, aber niemand ändert ihn versehentlich).
   const mode: PrefillMode =
     o.prefillMode === 'hidden' || o.prefillMode === 'prefilled' ? o.prefillMode : 'locked';
-  return { prefill: o.prefill, prefillMode: mode };
+  // Ein `carry` an einem nicht änderbaren Feld fällt weg statt zu gelten — dieselbe
+  // Lesart wie oben: aus einer fremden Datei wird die harmlosere Deutung genommen.
+  return mode === 'prefilled'
+    ? { prefill: o.prefill, prefillMode: mode, carry }
+    : { prefill: o.prefill, prefillMode: mode };
 }
 
 function slotOf(raw: unknown): EntrySlot | null {
@@ -367,6 +398,8 @@ function sourceOf(raw: unknown): EntrySourcePrefill | undefined {
     quay: quayOf(o.quay),
     pagePattern: str(o.pagePattern),
     urlPattern: str(o.urlPattern),
+    pageCarry: o.pageCarry === true,
+    urlCarry: o.urlCarry === true,
   };
 }
 

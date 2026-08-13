@@ -392,6 +392,8 @@ describe('Quellen-Vorbelegung am Ereignis (ADR-v9-264 E7)', () => {
       quay: 3,
       pagePattern: '',
       urlPattern: '',
+      pageCarry: false,
+      urlCarry: false,
     },
   });
   const werte = { 'main.given': 'Anna', 'main.CHR.date': '1801' };
@@ -422,7 +424,7 @@ describe('Quellen-Vorbelegung am Ereignis (ADR-v9-264 E7)', () => {
         { role: 'main', field: 'date', event: 'DEAT' },
         { role: 'main', field: 'date', event: 'BURI' },
       ],
-      source: { sourceId: '@S1@', abbr: 'KB Taufen', title: '', quay: null, pagePattern: '', urlPattern: '' },
+      source: { sourceId: '@S1@', abbr: 'KB Taufen', title: '', quay: null, pagePattern: '', urlPattern: '', pageCarry: false, urlCarry: false },
     });
     const res = applyEntryTemplate(mitBestand('KB Taufen'), zwei, draft({
       values: { 'main.given': 'Anna', 'main.DEAT.date': '1870', 'main.BURI.date': '1870' },

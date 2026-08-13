@@ -169,6 +169,8 @@ describe('Quellen-Vorbelegung: Fingerabdruck statt nackter Id (ADR-v9-264 E7)', 
     quay: 3 as const,
     pagePattern: 'Nr. […]',
     urlPattern: '',
+    pageCarry: false,
+    urlCarry: false,
   };
 
   it('passt der Fingerabdruck, gilt die Vorbelegung', () => {
@@ -221,5 +223,36 @@ describe('Gespeicherte Vorlagen kommen als `unknown` an (BL-239-Muster)', () => 
     expect(tpl.id).toBe('');
     expect(tpl.slots).toEqual([]);
     expect(tpl.source).toBeUndefined();
+  });
+
+  // ADR-v9-271: `carry` ist eine ZWEITE Achse, unabhängig von der Vorbelegung — ein Feld
+  // OHNE Vorbelegung kann mitlaufen (der Nachname im Hofregister), und an einem nicht
+  // änderbaren Feld fällt das Flag weg, statt einen ungültigen Zustand zu erzeugen.
+  it('liest `carry` unabhängig von der Vorbelegung — und wirft es an gesperrten/versteckten Feldern weg', () => {
+    const tpl = normalizeEntryTemplate({
+      id: 'hof',
+      label: 'Hofregister',
+      slots: [
+        { role: 'main', field: 'surname', carry: true },
+        { role: 'main', field: 'given', prefill: 'A', prefillMode: 'prefilled', carry: true },
+        { role: 'main', field: 'place', event: 'CHR', prefill: 'B', prefillMode: 'locked', carry: true },
+        { role: 'main', field: 'sex', prefill: 'C', prefillMode: 'hidden', carry: true },
+      ],
+    });
+    expect(tpl.slots.map((s) => s.carry)).toEqual([true, true, undefined, undefined]);
+    // Die Vorbelegungen selbst bleiben davon unberührt.
+    expect(tpl.slots.map((s) => s.prefillMode)).toEqual([undefined, 'prefilled', 'locked', 'hidden']);
+  });
+
+  it('ohne `carry` in der Datei läuft nichts mit — eine ältere Vorlage verhält sich unverändert', () => {
+    const tpl = normalizeEntryTemplate({
+      id: 'alt',
+      label: 'Alt',
+      slots: [{ role: 'main', field: 'given' }],
+      source: { sourceId: '@S1@', abbr: 'KB', title: '', quay: null, pagePattern: '', urlPattern: '' },
+    });
+    expect(tpl.slots[0].carry).toBeUndefined();
+    expect(tpl.source?.pageCarry).toBe(false);
+    expect(tpl.source?.urlCarry).toBe(false);
   });
 });

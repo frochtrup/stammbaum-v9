@@ -29,6 +29,7 @@
     eventTypeChoicesFor,
     removeSlot,
     setSlotPrefill,
+    setSlotCarry,
     swapSlots,
   } from './entry-template-builder-model';
   import EventTypeMenu from '../../shell/EventTypeMenu.svelte';
@@ -51,6 +52,10 @@
 
   function prefillModeOf(slot: EntrySlot): 'none' | 'hidden' | 'locked' | 'prefilled' {
     return slot.prefillMode ?? 'none';
+  }
+
+  function onCarryChange(key: string, carry: boolean) {
+    onSlotsChange(setSlotCarry(slots, key, carry));
   }
 
   function onPrefillChange(key: string, prefill: string, mode: 'none' | 'hidden' | 'locked' | 'prefilled') {
@@ -117,6 +122,8 @@
           prefill={slot.prefill ?? ''}
           prefillMode={prefillModeOf(slot)}
           onPrefillChange={(v, m) => onPrefillChange(key, v, m)}
+          carry={slot.carry === true}
+          onCarryChange={(c) => onCarryChange(key, c)}
         />
       {/each}
     </div>
@@ -150,6 +157,8 @@
             prefill={slot.prefill ?? ''}
             prefillMode={prefillModeOf(slot)}
             onPrefillChange={(v, m) => onPrefillChange(key, v, m)}
+            carry={slot.carry === true}
+            onCarryChange={(c) => onCarryChange(key, c)}
           />
         {/each}
       </div>

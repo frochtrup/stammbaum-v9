@@ -41,6 +41,8 @@ const EIGEN: EntryTemplate = makeEntryTemplate('eigene-1', {
     quay: 3,
     pagePattern: 'Nr. […]',
     urlPattern: '',
+    pageCarry: false,
+    urlCarry: false,
   },
 });
 

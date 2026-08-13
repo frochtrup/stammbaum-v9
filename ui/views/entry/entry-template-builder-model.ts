@@ -112,7 +112,33 @@ export function setSlotPrefill(
       delete copy.prefillMode;
       return copy as EntrySlot;
     }
-    return { ...s, prefill: patch.prefill, prefillMode: patch.prefillMode } as EntrySlot;
+    // `hidden`/`locked` zeigen kein änderbares Feld — ein `carry` daran hätte nichts
+    // mitzuführen und ist im Typ verboten (ADR-v9-271). Wer den Modus dorthin schaltet,
+    // verliert das Häkchen still statt einen ungültigen Zustand zu erzeugen.
+    const carry = patch.prefillMode === 'prefilled' ? (s as { carry?: boolean }).carry : undefined;
+    const naechster = { ...s, prefill: patch.prefill, prefillMode: patch.prefillMode } as EntrySlot & {
+      carry?: boolean;
+    };
+    if (carry) naechster.carry = true;
+    else delete naechster.carry;
+    return naechster as EntrySlot;
+  });
+}
+
+/**
+ * Setzt/löscht das Mitführen an EINEM Feld (ADR-v9-271, BL-360).
+ *
+ * Je Feld, nicht je Rollen-Block: in einem Hofregister läuft der Nachname mit, der Vorname
+ * nicht — das ist der Fall, der die Eigenschaft ausgelöst hat. `false` entfernt das Feld
+ * ganz, statt es auf `false` zu setzen: eine Vorlage soll nicht mit toten Flags wachsen.
+ */
+export function setSlotCarry(slots: EntrySlot[], key: string, carry: boolean): EntrySlot[] {
+  return slots.map((s) => {
+    if (slotKey(s) !== key) return s;
+    const copy = { ...s } as EntrySlot & { carry?: boolean };
+    if (carry) copy.carry = true;
+    else delete copy.carry;
+    return copy as EntrySlot;
   });
 }
 
@@ -198,6 +224,8 @@ export function draftSourcePrefill(patch: Partial<EntrySourcePrefill> & Pick<Ent
     quay: patch.quay ?? null,
     pagePattern: patch.pagePattern ?? '',
     urlPattern: patch.urlPattern ?? '',
+    pageCarry: patch.pageCarry ?? false,
+    urlCarry: patch.urlCarry ?? false,
   };
 }
 

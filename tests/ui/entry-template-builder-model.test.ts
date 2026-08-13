@@ -67,7 +67,7 @@ describe('copyEntryTemplate — Fertig-Zustand BL-353: eine Kopie ist eine eigen
     const tpl = makeEntryTemplate('heirat', {
       label: 'Heirat (Heiratsbuch)',
       slots: [{ role: 'main', field: 'given' }],
-      source: { sourceId: 'S1', abbr: 'KB', title: 'Kirchenbuch', quay: 2, pagePattern: 'Nr. ', urlPattern: '' },
+      source: { sourceId: 'S1', abbr: 'KB', title: 'Kirchenbuch', quay: 2, pagePattern: 'Nr. ', urlPattern: '', pageCarry: false, urlCarry: false },
     });
     const copy = copyEntryTemplate(tpl, 'et_copy');
 

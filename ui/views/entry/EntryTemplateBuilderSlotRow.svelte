@@ -38,8 +38,27 @@
     prefill: string;
     prefillMode: 'none' | 'hidden' | 'locked' | 'prefilled';
     onPrefillChange: (prefill: string, mode: 'none' | 'hidden' | 'locked' | 'prefilled') => void;
+    /** Läuft der EINGETIPPTE Wert in den nächsten Eintrag der Serie mit (ADR-v9-271)? */
+    carry: boolean;
+    onCarryChange: (carry: boolean) => void;
   }
-  const { appState, slot, rowLabel, onMoveUp, onMoveDown, onRemove, prefill, prefillMode, onPrefillChange }: Props = $props();
+  const {
+    appState,
+    slot,
+    rowLabel,
+    onMoveUp,
+    onMoveDown,
+    onRemove,
+    prefill,
+    prefillMode,
+    onPrefillChange,
+    carry,
+    onCarryChange,
+  }: Props = $props();
+
+  /** Mitführen gibt es nur an einem ÄNDERBAREN Feld: `hidden` zeigt gar keines,
+   *  `locked` ist `readonly` — dort gibt es nichts mitzuführen (ADR-v9-271). */
+  const aenderbar = $derived(prefillMode === 'none' || prefillMode === 'prefilled');
 
   /** Ein gesetzter Wert ohne gewählten Modus wäre eine Vorbelegung ohne Aussage darüber,
    *  ob der Nutzer sie sehen soll. Vorgabe ist `prefilled` (sichtbar UND änderbar): der
@@ -167,6 +186,20 @@
         <option value="hidden">Versteckt</option>
       </select>
     </label>
+    <!-- JE FELD, nicht je Rollen-Block (Nutzer-Entscheidung): in einem Hofregister läuft
+         der Nachname mit, der Vorname nicht. Das Haekchen steht neben dem Modus, weil
+         beides dieselbe Frage in zwei Richtungen ist — was die VORLAGE mitbringt und was
+         der EINTRAG behält. -->
+    <label class="entry-builder-slot__carry">
+      <input
+        type="checkbox"
+        checked={carry && aenderbar}
+        disabled={!aenderbar}
+        aria-label={`${rowLabel}: Wert in den nächsten Eintrag mitführen`}
+        onchange={(e) => onCarryChange((e.currentTarget as HTMLInputElement).checked)}
+      />
+      <span>Mitführen</span>
+    </label>
   </div>
 </div>
 
@@ -211,5 +244,15 @@
     font-size: 0.78rem;
     color: var(--stb-text-dim);
     flex: 1 1 10rem;
+  }
+
+  /* Das Häkchen steht NEBEN seiner Beschriftung, nicht darueber — es ist kein Feld mit
+     Caption, sondern ein Schalter mit Wort. Deshalb die Zeilen-Richtung zurück. */
+  .entry-builder-slot__prefill label.entry-builder-slot__carry {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    align-self: flex-end;
   }
 </style>

@@ -48,13 +48,26 @@
   let quay = $state<Quay | null>(untrack(() => template.source?.quay ?? null));
   let pagePattern = $state(untrack(() => template.source?.pagePattern ?? ''));
   let urlPattern = $state(untrack(() => template.source?.urlPattern ?? ''));
+  // Seite und Weblink sind KEINE Slots (sie gehören der Zitation, nicht einer Rolle) und
+  // tragen ihr Mitführen deshalb hier statt an einem Slot — ADR-v9-271.
+  let pageCarry = $state(untrack(() => template.source?.pageCarry ?? false));
+  let urlCarry = $state(untrack(() => template.source?.urlCarry ?? false));
 
   function buildSource() {
     if (!sourceEnabled || !sourceId) return undefined;
     // Der Fingerabdruck wird FRISCH aus dem aktuellen Bestand gezogen (ADR-v9-264 E7) —
     // dieselbe Quelle, wie sie JETZT heißt, nicht ein eingefrorener Altwert.
     const src = appState.db.sources.get(sourceId);
-    return draftSourcePrefill({ sourceId, abbr: src?.abbr ?? '', title: src?.title ?? '', quay, pagePattern, urlPattern });
+    return draftSourcePrefill({
+      sourceId,
+      abbr: src?.abbr ?? '',
+      title: src?.title ?? '',
+      quay,
+      pagePattern,
+      urlPattern,
+      pageCarry,
+      urlCarry,
+    });
   }
 
   const draft = $derived<EntryTemplate>({ id: template.id, label, slots, source: buildSource() });
@@ -144,9 +157,20 @@
         Seiten-Muster
         <input type="text" {...PLAIN_FIELD} bind:value={pagePattern} aria-label="Seiten-Muster" placeholder="Nr. …" />
       </label>
+      <!-- Beim Abschreiben eines Kirchenbuchs ist die Seite die Angabe, die sich am
+           wenigsten ändert — mitgeführt steht sie sichtbar im Feld und wird korrigiert
+           statt neu getippt (ADR-v9-271). -->
+      <label class="entry-builder__source-carry">
+        <input type="checkbox" bind:checked={pageCarry} aria-label="Seite in den nächsten Eintrag mitführen" />
+        <span>Seite mitführen</span>
+      </label>
       <label class="entry-builder__source-field">
         Weblink-Muster
         <input type="text" {...PLAIN_FIELD} bind:value={urlPattern} aria-label="Weblink-Muster" />
+      </label>
+      <label class="entry-builder__source-carry">
+        <input type="checkbox" bind:checked={urlCarry} aria-label="Weblink in den nächsten Eintrag mitführen" />
+        <span>Weblink mitführen</span>
       </label>
     {/if}
   </section>
@@ -242,6 +266,16 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--stb-text-dim);
+  }
+
+  /* Schalter mit Wort, kein Feld mit Beschriftung darüber — deshalb in der Zeile. */
+  .entry-builder__source-carry {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.8rem;
     color: var(--stb-text-dim);
   }
