@@ -184,6 +184,18 @@ async function scrollToEl(selector, settleMs = 1200) {
   return true;
 }
 async function fill(ph, val) { const ok = await page.evaluate((ph) => { const i = [...document.querySelectorAll('input,textarea')].find((x) => x.placeholder === ph && x.offsetParent); if (i) { i.focus(); return true; } return false; }, ph); if (ok) await page.keyboard.type(val, { delay: 8 }); await sleep(200); return ok; }
+// Wie fill(), aber über das `aria-label` statt den Platzhalter — die Erfassungs-Fläche
+// beschriftet ihre Felder mit einem sichtbaren <label> (Rolle + Feldname) und trägt den
+// zusammengesetzten Namen nur im aria-label; einen Platzhalter hat sie nicht.
+async function fillAria(label, val) {
+  const ok = await page.evaluate((label) => {
+    const i = [...document.querySelectorAll('input,textarea')].find((x) => (x.getAttribute('aria-label') || '') === label && x.offsetParent);
+    if (i) { i.focus(); return true; } return false;
+  }, label);
+  if (!ok) console.log('  ! Feld nicht gefunden (aria-label):', label);
+  if (ok) await page.keyboard.type(val, { delay: 12 });
+  await sleep(200); return ok;
+}
 // ALLE Index-Listen sind GEFENSTERT (`createWindowed`: Person, Familie, Quelle, Archiv,
 // Ort, Medien, globale Suche): nur die gerade sichtbaren Zeilen stehen im DOM. Ein Eintrag
 // weiter hinten im Alphabet ist deshalb per Text überhaupt nicht anklickbar — `click(…)`
@@ -402,6 +414,24 @@ await page.evaluate(() => { const b = document.querySelector('.person-dedup__sca
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
 await bottomNav('person'); await scrollTop(); await openInList(RICH_PERSON); await shot('04-person-detail');
+// Forschung AM Steckbrief (BL-341/350): Aufgabe, Protokolleintrag und Hypothese entstehen
+// dort, wo die Person steht — ohne den Umweg über die drei Forschungsansichten und das
+// dortige Heraussuchen derselben Person. Die Sektion wird hier über GENAU DIESEN Weg
+// gefüllt (nicht per Seed): die oben geseedeten Einträge hängen an irgendeiner Person
+// namens Hörstmann — `pickTarget` nimmt den ersten Treffer, und „Kaspar Hörstmann" ist im
+// Bestand 4× vergeben (Lesson 6). Der Shot zeigt danach die Zeilen MIT Zusatzangabe und
+// den ✎/🗑 je Zeile — das war der Befund hinter BL-350.
+await scrollToEl('.forschung');
+await click('+ Forschungseintrag'); await click('Aufgabe');
+await fill('Was ist zu tun?', 'Firmungsregister St. Lamberti 1735–1745 durchsehen');
+await save();
+await scrollToEl('.forschung');
+await click('+ Forschungseintrag'); await click('Protokolleintrag');
+await fill('Wonach wurde gesucht?', 'Trauregister Ochtrup 1729, Eintrag Nr. 14');
+await fill('Ergebnis / Beobachtungen', 'Eintrag gefunden; zwei Trauzeugen genannt, Herkunftsort der Braut abgekürzt.');
+await save();
+await scrollToEl('.forschung'); await shot('04d-forschung-person');
+await scrollAllTop();
 // Bearbeiten-Modus (BL-273/274): der Editor ERSETZT die Seite nicht mehr — Kopfzeile,
 // Name und Rückweg bleiben stehen, das Identitäts-Formular klappt darunter auf, der
 // Schalter heißt jetzt „Fertig". Genau das soll der Screenshot zeigen, also am KOPF
@@ -509,6 +539,40 @@ await bottomNav('more'); await click('Einstellungen'); await sleep(600); await s
 // gesetzten Proband (Kaspar) vorbelegt → die personen-bezogenen Reports sind sofort erzeugbar.
 await bottomNav('more'); await click('Ausgaben'); await sleep(500); await scrollTop(); await shot('27-ausgaben');
 
+// Erfassung (BL-232/352/353/354, ADR-v9-264/265/268/271): ein eigenes Arbeits-Ziel, mobil
+// im Mehr-Hub, auf dem Desktop in der Sidebar-Gruppe „Arbeit". Die Liste ist der Einstieg
+// (drei mitgelieferte Vorlagen — kopierbar, nicht überschreibbar), der Builder ihr Editor
+// (Desktop-Shot unten, er braucht Breite).
+await bottomNav('more'); await click('Erfassung'); await sleep(800); await scrollAllTop();
+await shot('33-erfassung-liste');
+// Die Erfassungs-Fläche EINER Vorlage. „Heirat (Heiratsbuch)" steht zuerst und trägt drei
+// Rollen (Ehefamilie + beide Partner) sowie zwei VERSTECKTE Vorbelegungen (Geschlecht),
+// die als Chips im Kopf stehen statt als Feld — genau die Aussage des Shots.
+await click('▶ Erfassen'); await sleep(800); await scrollAllTop();
+// Die Identitätsfelder hören auf `change`, nicht auf jeden Tastenanschlag → tippen, dann
+// den Fokus weiterreichen; erst danach läuft die (entprellte) Dubletten-Suche an.
+//
+// BEIDE Namensteile, nicht nur der Nachname: die Schwelle (45) ist bewusst so gelegt, dass
+// ein Nachname allein NICHT feuert (28 Punkte, s. entry-template-dedup.ts) — mit leerem
+// Vornamen zeigte der Shot also zwangsläufig den Zustand „kein Treffer".
+await fillAria('Hauptperson Nachname', 'Hörstmann');
+await fillAria('Hauptperson Vorname', 'Kaspar');
+await page.keyboard.press('Tab'); await sleep(1400);
+await scrollAllTop(); await shot('34-erfassung-flaeche');
+// Zweiter Shot, eine Handlung weiter: der Vorschlag wird geöffnet. Die Live-Dubletten-
+// Suche SCHLÄGT VOR, sie bindet nicht — gewählt wird im gewohnten Personen-Picker, der
+// hier auf die Kandidaten beschränkt ist („Alle Personen durchsuchen" hebt das auf).
+// NICHT über click('… mögliche Treffer …'): der Vorschlags-Knopf ist das EINZIGE Kind
+// seines `.entry-template-role__link`-Wrappers, beide tragen also denselben (gleich langen)
+// Text — bei `contains` entscheidet dann die Dokumentreihenfolge, und die gewinnt der
+// Wrapper. Ein Klick auf ihn löst den Button-onclick nicht aus (Propagation geht nach oben,
+// nicht nach unten; s. click()-Kopfkommentar), und zwar STILL: der Helfer meldet „gefunden".
+// Erlebt am 34b-Shot, der zweimal denselben Zustand wie 34 zeigte.
+await page.evaluate(() => { const b = document.querySelector('.entry-template-role__hint'); if (b) b.click(); }); await sleep(900);
+await scrollToEl('.entry-template-role__link', 400); await shot('34b-erfassung-dublette');
+// Nichts gespeichert (kein „Speichern"-Klick): vor dem Speichern existiert kein Datensatz,
+// der Entwurf verfällt mit dem Verlassen der Fläche — die Folge-Shots bleiben unberührt.
+
 // Beziehungsrechner (BL-134/175): Personen-Segment → Werkzeuge → „Verwandtschaft berechnen".
 // Person A ist der Proband (Kaspar), Person B = seine Schwester „Styna Hörstmann" (@I9@,
 // im Bestand eindeutig — „Styna" allein ist bei vielen ein Zweitname) → „Geschwister",
@@ -543,6 +607,17 @@ await openInList(RICH_PERSON); await sleep(600); await shot('30-desktop-liste');
 await page.keyboard.down('Meta'); await page.keyboard.press('KeyK'); await page.keyboard.up('Meta'); await sleep(500);
 await page.keyboard.type('Karte', { delay: 25 }); await sleep(500); await shot('32-command-palette');
 await page.keyboard.press('Escape'); await sleep(300);
+
+// Der Vorlagen-Builder im DESKTOP-Layout (BL-353/357, ADR-v9-268): die Feldzeilen tragen je
+// Rolle Vorbelegung, Vorbelegungs-Modus und „Mitführen" nebeneinander — mobil stapelt sich
+// das zu einer Kolonne, hier steht eine Zeile als Zeile. Mitgelieferte Vorlagen sind nicht
+// überschreibbar, der Weg in den Builder führt deshalb über „kopieren" (⧉) — genau so, wie
+// ein Nutzer eine eigene Fassung anlegt. Der contains-Treffer nimmt das kürzeste Element
+// mit passendem aria-label, das ist der ⧉-Knopf der ERSTEN Zeile (Heirat).
+await click('Erfassung'); await sleep(900);
+await click('kopieren', { contains: true }); await sleep(900); await scrollAllTop();
+await shot('35-erfassung-builder');
+await click('Builder schließen'); await sleep(400);
 
 // Medien-Galerie im DESKTOP-Layout (BL-269, ADR-v9-192): das eigentliche Argument dieses
 // Shots ist die Fläche — die Galerie belegt das ganze Fenster (mehrspaltiges Raster)
