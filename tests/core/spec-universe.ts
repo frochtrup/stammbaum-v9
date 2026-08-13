@@ -95,8 +95,16 @@ export const GRAMPS_MODELED: readonly string[] = [
 //   (_coverage-audit.census.test.ts) UND coverage-spec.test.ts (BL-162) importieren sie hier.
 //   Nicht-`_` und nicht in 5.5.1: SNOTE/EXID/EMAIL/CREA (→ GEDCOM_70_TAGS) sowie MILI
 //   (verbreitete, nicht-standardisierte Militärdienst-Erweiterung — bewusst als solche geführt).
+//   NACHGEZOGEN (BL-356, ADR-v9-267): die zehn Ereignistags aus [ADR-v9-249](BL-335) und
+//   `DATA`. Sie standen seit dem 11.08. in Parser, Erkennungsmenge und Emitter, aber nicht
+//   hier — der Coverage-Report meldete 76/135 statt 87/135, weil er nur die eine Richtung
+//   prüfte („ist jeder modellierte Tag im Nenner verortet?"). Die Gegenrichtung („ist jeder
+//   im Code beanspruchte Tag hier geführt?") steht jetzt in coverage-spec.test.ts und hält
+//   diese Liste an die Erkennungsmengen — sie ist die einzige Wahrheitsquelle für Coverage,
+//   aber nicht mehr die einzige Instanz, die sich erinnern muss.
 export const MODELED_GEDCOM_TAGS: ReadonlySet<string> = new Set(
   ('ABBR ADDR ADOP ALIA ASSO AUTH BAPM BIRT BURI CALN CAUS CENS CHAN CHIL CHR CONC CONF CONT CREA DATE DEAT DIV EDUC EMAIL EMIG ENGA EVEN EXID FACT FAM FAMC FAMS FILE FORM GEDC GIVN GRAD HEAD HUSB IMMI INDI LATI LONG MAP MARR MEDI MILI NAME NATU NICK NOTE NPFX NSFX OBJE OCCU PAGE PEDI PHON PLAC PROP PUBL QUAY REFN RELA RELI REPO RESI RESN ROLE SEX SNOTE SOUR SURN TEXT TIME TITL TRLR TYPE VERS WIFE WWW ' +
+    'BARM BASM BLES CHRA CREM DATA FCOM ORDN PROB RETI WILL ' +
     '_CAT _CONCL _DATE _FAURL _FREL _HSTAT _HWGT _HYPO _ID _MREL _PRIM _QUERY _RATIO _RESULT _RLOG _RTYPE _TASK _TASKID _TSTAT _UID')
     .split(/\s+/),
 );

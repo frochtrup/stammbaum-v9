@@ -9,6 +9,8 @@
 // im Universum verortet sein, sonst ist er unerklärte Drift.
 
 import { describe, it, expect } from 'vitest';
+import { EVENT_TAGS, SPECIAL_EVENT_TAGS } from '../../core/interop/gedcom-parse';
+import { ERKANNTE_TAGS } from '../../core/interop/write-back';
 import {
   GEDCOM_551_TAGS,
   GEDCOM_70_TAGS,
@@ -37,6 +39,41 @@ describe('Coverage gegen die öffentliche Spec (BL-162) — GEDCOM', () => {
     const universe = new Set([...GEDCOM_551_TAGS, ...GEDCOM_70_TAGS, ...GEDCOM_NONSTANDARD_MODELED]);
     const unplaced = [...MODELED_GEDCOM_TAGS].filter((t) => !t.startsWith('_') && !universe.has(t));
     expect(unplaced).toEqual([]);
+  });
+
+  // Die GEGENRICHTUNG (BL-356, ADR-v9-267) — die teurere, und die, die zwei Monate fehlte.
+  //
+  // Der Test darüber fragt „ist jeder MODELLIERTE Tag im Universum verortet?" und fängt damit
+  // Tippfehler und verkappte Erweiterungen. Er kann nicht fangen, dass die Liste selbst
+  // HINTERHERHINKT: ein Tag, den der Parser projiziert, der aber hier fehlt, sieht für den
+  // Report wie ein passthrough-only Tag aus — also wie eine bewusste Lücke. Genau das ist
+  // passiert: [ADR-v9-249](BL-335) nahm zehn Ereignistags (ORDN BARM BASM BLES CHRA CREM FCOM
+  // PROB RETI WILL) in Parser, Erkennungsmenge und Emitter auf, `MODELED_GEDCOM_TAGS` blieb
+  // unverändert, und der Report meldete weiter 76/135 statt 87/135. Die Zahl war um elf
+  // Positionen zu pessimistisch — eine Coverage-Aussage, die ein halbes Jahr Bauarbeit
+  // unterschlägt, verstellt gerade die Priorisierung, für die sie da ist.
+  //
+  // WARUM CONTAINMENT UND NICHT ABLEITUNG. Die Liste ließe sich nicht aus den
+  // Erkennungsmengen erzeugen: sie ist deren Obermenge, weil auch KINDER modelliert sind
+  // (`GIVN`/`SURN`/`LATI`/`PAGE`/`QUAY`/`MEDI` … stehen in keiner Record-Erkennungsmenge).
+  // Und der blinde String-Literal-Match über den Projektions-Code liefert Falsch-Positive —
+  // aus genau diesem Grund ist `GRAMPS_MODELED` kuratiert (s. Kopf von spec-universe.ts).
+  // Prüfbar ist deshalb die Richtung, die eindeutig ist: was der Code BEANSPRUCHT, muss hier
+  // geführt sein. Ein neuer Tag in einer Erkennungsmenge macht diesen Test rot, und die
+  // Coverage-Zahl bewegt sich mit dem Bau statt mit der Erinnerung.
+  it('die Gegenrichtung: jeder im Code beanspruchte Tag ist als modelliert geführt', () => {
+    const beansprucht = new Set<string>([
+      ...ERKANNTE_TAGS.person, ...ERKANNTE_TAGS.family, ...ERKANNTE_TAGS.source, ...ERKANNTE_TAGS.repo,
+      ...EVENT_TAGS, ...SPECIAL_EVENT_TAGS,
+    ]);
+    // Zählung VOR der Zusicherung (ADR-v9-200): eine leere Menge wäre grün und wertlos.
+    expect(beansprucht.size).toBeGreaterThan(60);
+    const fehlt = [...beansprucht].filter((t) => !MODELED_GEDCOM_TAGS.has(t)).sort();
+    expect(
+      fehlt,
+      'in einer Erkennungsmenge (core/interop/write-back.ts) oder in EVENT_TAGS (gedcom-parse.ts), ' +
+        'aber nicht in MODELED_GEDCOM_TAGS — der Coverage-Report zählt den Tag fälschlich als passthrough-only',
+    ).toEqual([]);
   });
 
   it('Coverage-Report: modellierte vs. passthrough-only Tags, je 5.5.1 UND 7.0 (At-Risk bei Cross-Family)', () => {
