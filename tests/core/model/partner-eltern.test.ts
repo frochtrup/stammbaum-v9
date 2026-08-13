@@ -156,3 +156,58 @@ describe('Anwenden mit beiden Elternpaaren', () => {
     expect(elternSpouse.children).toEqual(['@I9@']);
   });
 });
+
+describe('Vorbelegt und änderbar — der dritte Modus (ADR-v9-268 E6)', () => {
+  const mitStartwert = makeEntryTemplate('t-start', {
+    label: 'Taufe Ochtrup',
+    slots: [
+      { role: 'main', field: 'given' },
+      { role: 'main', field: 'surname' },
+      // Ein Datum OHNE Vorbelegung: es ist die Eingabe, die das Ereignis überhaupt
+      // entstehen lässt (eine Vorbelegung allein legt nichts an, [20 §2]).
+      { role: 'main', field: 'date', event: 'CHR' },
+      { role: 'main', field: 'place', event: 'CHR', prefill: 'Ochtrup', prefillMode: 'prefilled' },
+      { role: 'main', field: 'value', event: 'CHR', prefill: 'fest', prefillMode: 'locked' },
+    ],
+  });
+  const basis = {
+    'main.given': 'Bernhard',
+    'main.surname': 'Kortmann',
+    'main.CHR.date': '1885',
+  };
+
+  it('unangetastet gilt der Startwert', () => {
+    const res = applyEntryTemplate(makeDatabase(), mitStartwert, makeEntryDraft({ values: basis }));
+
+    const taufe = personMit(res.db, 'Bernhard').chr;
+    expect(taufe.place).toBe('Ochtrup');
+  });
+
+  it('geändert gewinnt die EINGABE — sonst wäre „änderbar" eine Anzeige-Lüge', () => {
+    const res = applyEntryTemplate(
+      makeDatabase(),
+      mitStartwert,
+      makeEntryDraft({ values: { ...basis, 'main.CHR.place': 'Metelen' } }),
+    );
+
+    const taufe = personMit(res.db, 'Bernhard').chr;
+    expect(taufe.place).toBe('Metelen');
+  });
+
+  it('bei `locked` bleibt es umgekehrt: die Vorbelegung schlägt die Eingabe', () => {
+    const res = applyEntryTemplate(
+      makeDatabase(),
+      mitStartwert,
+      makeEntryDraft({ values: { ...basis, 'main.CHR.value': 'ignoriert' } }),
+    );
+
+    const taufe = personMit(res.db, 'Bernhard').chr;
+    expect(taufe.value).toBe('fest');
+  });
+
+  it('ein Startwert allein legt NICHTS an (die Regel aus [20 §2] gilt für alle drei Modi)', () => {
+    const res = applyEntryTemplate(makeDatabase(), mitStartwert, makeEntryDraft({ values: {} }));
+
+    expect(res.db.individuals.size).toBe(0);
+  });
+});

@@ -49,11 +49,11 @@
 
   const isFamily = $derived(isFamilyRole(role));
 
-  function prefillModeOf(slot: EntrySlot): 'none' | 'hidden' | 'locked' {
+  function prefillModeOf(slot: EntrySlot): 'none' | 'hidden' | 'locked' | 'prefilled' {
     return slot.prefillMode ?? 'none';
   }
 
-  function onPrefillChange(key: string, prefill: string, mode: 'none' | 'hidden' | 'locked') {
+  function onPrefillChange(key: string, prefill: string, mode: 'none' | 'hidden' | 'locked' | 'prefilled') {
     onSlotsChange(
       mode === 'none' || prefill.trim() === ''
         ? setSlotPrefill(slots, key, null)

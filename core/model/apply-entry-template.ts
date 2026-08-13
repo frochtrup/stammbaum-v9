@@ -193,8 +193,20 @@ interface AufgeloesterSlot {
 function aufloesen(tpl: EntryTemplate, draft: EntryTemplateDraft): AufgeloesterSlot[] {
   return tpl.slots.map((slot) => {
     const eigen = (draft.values[slotKey(slot)] ?? '').trim();
+    // Die Vorrang-Regel der drei Modi (ADR-v9-268 E6): `hidden`/`locked` sind Vorgaben —
+    // dort schlägt die Vorbelegung die Eingabe. `prefilled` ist ein STARTPUNKT — dort
+    // schlägt die Eingabe die Vorbelegung, sonst wäre „änderbar" eine Anzeige-Lüge: das
+    // Feld ließe sich bearbeiten, und beim Speichern fiele die Änderung unter den Tisch.
+    if (slot.prefill !== undefined && slot.prefillMode !== 'prefilled') {
+      return { slot, value: slot.prefill.trim(), eingabe: false };
+    }
+    if (eigen !== '') return { slot, value: eigen, eingabe: true };
+    // Unangetasteter Startwert: er GILT (er fließt in den Datensatz), zählt aber NICHT als
+    // Eingabe — sonst legte allein das Öffnen einer Vorlage mit vorbelegtem Namen eine
+    // Person an. Das ist dieselbe Regel wie für die anderen beiden Modi: eine Vorbelegung
+    // füllt, sie legt nichts an ([20 §2](20-Funktionen.md)).
     if (slot.prefill !== undefined) return { slot, value: slot.prefill.trim(), eingabe: false };
-    return { slot, value: eigen, eingabe: eigen !== '' };
+    return { slot, value: '', eingabe: false };
   });
 }
 

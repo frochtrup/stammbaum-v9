@@ -36,14 +36,16 @@
     onMoveDown?: () => void;
     onRemove: () => void;
     prefill: string;
-    prefillMode: 'none' | 'hidden' | 'locked';
-    onPrefillChange: (prefill: string, mode: 'none' | 'hidden' | 'locked') => void;
+    prefillMode: 'none' | 'hidden' | 'locked' | 'prefilled';
+    onPrefillChange: (prefill: string, mode: 'none' | 'hidden' | 'locked' | 'prefilled') => void;
   }
   const { appState, slot, rowLabel, onMoveUp, onMoveDown, onRemove, prefill, prefillMode, onPrefillChange }: Props = $props();
 
   /** Ein gesetzter Wert ohne gewählten Modus wäre eine Vorbelegung ohne Aussage darüber,
-   *  ob der Nutzer sie sehen soll — `locked` ist die sichtbare, also die harmlosere. */
-  const setzeWert = (v: string) => onPrefillChange(v, prefillMode === 'none' ? 'locked' : prefillMode);
+   *  ob der Nutzer sie sehen soll. Vorgabe ist `prefilled` (sichtbar UND änderbar): der
+   *  Wert wirkt, nimmt aber niemandem etwas weg — `locked` und `hidden` schränken ein
+   *  und sollen deshalb eine bewusste Wahl sein (ADR-v9-268 E6). */
+  const setzeWert = (v: string) => onPrefillChange(v, prefillMode === 'none' ? 'prefilled' : prefillMode);
 
   const istDatum = $derived(isEventSlot(slot) && slot.field === 'date');
   const istOrt = $derived(isEventSlot(slot) && slot.field === 'place');
@@ -157,9 +159,10 @@
       <select
         value={prefillMode}
         aria-label={`${rowLabel}: Vorbelegungs-Modus`}
-        onchange={(e) => onPrefillChange(prefill, (e.currentTarget as HTMLSelectElement).value as 'none' | 'hidden' | 'locked')}
+        onchange={(e) => onPrefillChange(prefill, (e.currentTarget as HTMLSelectElement).value as 'none' | 'hidden' | 'locked' | 'prefilled')}
       >
         <option value="none">Keine Vorbelegung</option>
+        <option value="prefilled">Vorbelegt, änderbar</option>
         <option value="locked">Sichtbar, gesperrt</option>
         <option value="hidden">Versteckt</option>
       </select>

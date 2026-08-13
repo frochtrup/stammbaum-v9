@@ -153,7 +153,13 @@ export function effectiveIdentityValue(
   typed: string,
 ): string {
   const slot = group.identitySlots.find((s) => s.field === field);
-  return slot?.prefill ?? typed;
+  if (slot?.prefill === undefined) return typed;
+  // Die Vorrang-Regel der drei Modi (ADR-v9-268 E6), hier für die Dubletten-Suche: bei
+  // `hidden`/`locked` gilt die Vorbelegung, bei `prefilled` ist sie nur ein Startwert —
+  // dort gewinnt, was im Feld steht. Dieselbe Reihenfolge wie in `aufloesen()`; stünde sie
+  // hier anders, beurteilte die Suche wieder eine andere Person als die entstehende.
+  if (slot.prefillMode === 'prefilled') return typed || slot.prefill;
+  return slot.prefill;
 }
 
 export function isPersonRole(role: EntryRole): role is EntryPersonRole {

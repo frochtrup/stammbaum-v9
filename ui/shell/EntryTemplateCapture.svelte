@@ -20,7 +20,7 @@
   import type { EntryTemplateAmbiguity } from '../../core/model';
   import type { FamilyId, PersonId } from '../../core/model/types';
   import { runValidationOn, defaultConfig } from '../../core/validate';
-  import { computeDate, makeEditableDate, type EditableDate } from './event-edit';
+  import { computeDate, editableDateFrom, makeEditableDate, type EditableDate } from './event-edit';
   import {
     groupTemplateSlots,
     hiddenPrefillChips,
@@ -54,14 +54,33 @@
   function freshDateStates(): Record<string, EditableDate> {
     const out: Record<string, EditableDate> = {};
     for (const slot of template.slots) {
-      if (slot.prefillMode) continue;
-      if (isEventSlot(slot) && slot.field === 'date') out[slotKey(slot)] = makeEditableDate();
+      // `hidden`/`locked` brauchen kein Entwurfsfeld — ihr Wert kommt direkt aus dem Slot.
+      // `prefilled` dagegen ist ein START-Wert in einem änderbaren Feld (ADR-v9-268 E6):
+      // er wird hier eingesetzt, damit die Zeile ihn zeigt und der Nutzer ihn überschreiben
+      // kann. Auch der Serien-Reset läuft hierüber — die Vorbelegung steht danach wieder da.
+      if (slot.prefillMode === 'hidden' || slot.prefillMode === 'locked') continue;
+      if (isEventSlot(slot) && slot.field === 'date') {
+        out[slotKey(slot)] = editableDateFrom(slot.prefill ?? null);
+      }
+    }
+    return out;
+  }
+
+  /** Startwerte der Textfelder — das Gegenstück zu `freshDateStates()` für alles, was
+   *  keine Datumszeile ist: ein `prefilled`-Slot beginnt mit seinem Wert im Feld, alle
+   *  anderen leer (ADR-v9-268 E6). */
+  function freshTextValues(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const slot of template.slots) {
+      if (slot.prefillMode !== 'prefilled') continue;
+      if (isEventSlot(slot) && slot.field === 'date') continue; // hat sein eigenes Gerüst
+      out[slotKey(slot)] = slot.prefill;
     }
     return out;
   }
 
   // --- Entwurf (ADR-v9-264 E5: vor „Speichern" existiert kein Datensatz) ----------------
-  let textValues = $state<Record<string, string>>({});
+  let textValues = $state<Record<string, string>>(untrack(() => freshTextValues()));
   let dateStates = $state<Record<string, EditableDate>>(untrack(() => freshDateStates()));
   let persons = $state<Partial<Record<EntryPersonRole, PersonId>>>({});
   /** Kandidaten der Live-Dubletten-Suche je Rolle — reiner Vorschlag, keine Bindung. */
@@ -97,10 +116,11 @@
   function buildDraft() {
     const values: Record<string, string> = {};
     for (const slot of template.slots) {
-      // Ein `prefill` fließt direkt über `slot.prefill` in `applyEntryTemplate` ein
-      // (aufloesen(), core/model/apply-entry-template.ts) — hidden/locked-Slots brauchen
-      // hier keinen Entwurfswert.
-      if (slot.prefillMode) continue;
+      // Ein `prefill` fließt bei `hidden`/`locked` direkt über `slot.prefill` in
+      // `applyEntryTemplate` ein (aufloesen()) — diese Slots brauchen hier keinen
+      // Entwurfswert. `prefilled` schon: dort gewinnt der FELDWERT, weil der Nutzer ihn
+      // geändert haben kann (ADR-v9-268 E6).
+      if (slot.prefillMode === 'hidden' || slot.prefillMode === 'locked') continue;
       const key = slotKey(slot);
       values[key] = isEventSlot(slot) && slot.field === 'date' ? (computeDate(dateStateFor(key)) ?? '') : (textValues[key] ?? '').trim();
     }
@@ -116,7 +136,7 @@
   function resetForSeries(): void {
     // Vorbelegungen bleiben stehen (E3: sie sind Eigenschaft der VORLAGE, nicht des
     // Entwurfs) — nur der Nutzer-Entwurf wird geleert.
-    textValues = {};
+    textValues = freshTextValues();
     dateStates = freshDateStates();
     persons = {};
     families = {};

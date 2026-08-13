@@ -86,7 +86,20 @@ export type FamilyEventTag = (typeof FAMILY_EVENT_TAGS)[number];
 
 /** `hidden` = der Wert wird übernommen, ohne ein Feld zu zeigen; `locked` = sichtbar und
  *  `readonly` (ADR-v9-264 E3: gesperrt heißt gesperrt, nicht „Schloss-Icon daneben"). */
-export type PrefillMode = 'hidden' | 'locked';
+/**
+ * Was mit einer Vorbelegung passiert — drei Modi, jeder mit genau EINER Bedeutung
+ * (ADR-v9-268 E6):
+ *
+ *  - `hidden`    — kein Feld; der Wert wird beim Speichern übernommen (Chip im Kopf).
+ *  - `locked`    — sichtbar und `readonly`.
+ *  - `prefilled` — sichtbar UND änderbar; der Wert ist ein Startpunkt.
+ *
+ * v8 kannte den dritten Fall, führte ihn aber als `locked` mit Schloss-Icon UND
+ * editierbarem Feld (`ui-quicktpl.js` Z. 588–623). ADR-v9-264 E3 löste diese
+ * Unstimmigkeit auf und nahm den editierbaren Fall dabei mit — hier kommt er als eigener
+ * Modus zurück, statt einen anderen doppeldeutig zu machen.
+ */
+export type PrefillMode = 'hidden' | 'locked' | 'prefilled';
 
 /**
  * Vorbelegung JE SLOT. Als Paar-Union statt zweier unabhängiger optionaler Felder: ein
@@ -303,7 +316,10 @@ function quayOf(v: unknown): Quay | null {
 
 function prefillOf(o: Record<string, unknown>): SlotPrefill {
   if (typeof o.prefill !== 'string') return {};
-  const mode = o.prefillMode === 'hidden' ? 'hidden' : 'locked';
+  // Unbekannter/fehlender Modus → `locked`: die vorsichtigste Lesart einer fremden Datei
+  // (der Wert gilt und ist sichtbar, aber niemand ändert ihn versehentlich).
+  const mode: PrefillMode =
+    o.prefillMode === 'hidden' || o.prefillMode === 'prefilled' ? o.prefillMode : 'locked';
   return { prefill: o.prefill, prefillMode: mode };
 }
 
