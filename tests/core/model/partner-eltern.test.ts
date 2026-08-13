@@ -224,31 +224,43 @@ describe('Vorbelegt und änderbar — der dritte Modus (ADR-v9-268 E6)', () => {
     expect(p.surname).toBe('Wolters');
   });
 
-  it('ein VERSTECKTER oder gesperrter Startwert legt nichts an', () => {
-    // Der Grund für die Regel: die Heirats-Vorlage belegt das Geschlecht versteckt vor —
-    // ohne diese Grenze entstünden bei jedem leeren Speichern zwei Personen.
-    for (const modus of ['hidden', 'locked'] as const) {
-      const tpl = makeEntryTemplate(`t-${modus}`, {
-        label: modus,
-        slots: [
-          { role: 'main', field: 'given', prefill: 'Maria', prefillMode: modus },
-          { role: 'main', field: 'surname', prefill: 'Wolters', prefillMode: modus },
-        ],
-      });
+  it('ein GESPERRTER Startwert legt ebenfalls an — sichtbar genügt, änderbar ist nicht nötig', () => {
+    const tpl = makeEntryTemplate('t-locked', {
+      label: 'gesperrt',
+      slots: [
+        { role: 'main', field: 'given', prefill: 'Maria', prefillMode: 'locked' },
+        { role: 'main', field: 'surname', prefill: 'Wolters', prefillMode: 'locked' },
+      ],
+    });
 
-      const res = applyEntryTemplate(makeDatabase(), tpl, makeEntryDraft({ values: {} }));
+    const res = applyEntryTemplate(makeDatabase(), tpl, makeEntryDraft({ values: {} }));
 
-      expect(res.db.individuals.size, modus).toBe(0);
-    }
+    expect(res.db.individuals.size).toBe(1);
   });
 
-  it('die Regel gilt auch, wenn der sichtbare Startwert kein Name ist — mit Folge', () => {
-    // `mitStartwert` belegt nur Ereignis-Felder vor: der Ort ist `prefilled`, also sichtbar
-    // und löschbar. Leeres Speichern legt deshalb eine Person an — eine NAMENLOSE, mit
-    // einer Taufe in Ochtrup. Das ist die ehrliche Konsequenz derselben Regel, die dem
-    // vorbelegten Namen zu seinem Datensatz verhilft, und keine Sonderbehandlung wert:
-    // wer nur einen Ort stehen lässt und speichert, bekommt genau das — sichtbar in der
-    // Liste und mit EINEM Undo-Schritt zurückzunehmen.
+  it('ein VERSTECKTER Startwert legt nichts an — was niemand sieht, kann niemand entscheiden', () => {
+    // Die einzige Grenze, und ihr Grund ist nicht der Inhalt, sondern die Voraussetzung
+    // der Entscheidung: die Heirats-Vorlage belegt das Geschlecht versteckt vor — ohne
+    // diese Grenze entstünden bei jedem leeren Speichern zwei Personen, ohne dass
+    // irgendwo etwas gestanden hätte.
+    const tpl = makeEntryTemplate('t-hidden', {
+      label: 'versteckt',
+      slots: [
+        { role: 'main', field: 'given', prefill: 'Maria', prefillMode: 'hidden' },
+        { role: 'main', field: 'surname', prefill: 'Wolters', prefillMode: 'hidden' },
+      ],
+    });
+
+    const res = applyEntryTemplate(makeDatabase(), tpl, makeEntryDraft({ values: {} }));
+
+    expect(res.db.individuals.size).toBe(0);
+  });
+
+  it('die Regel bewertet den INHALT nicht — ein Ort allein genügt', () => {
+    // `mitStartwert` belegt nur Ereignis-Felder vor. Leeres Speichern legt deshalb eine
+    // NAMENLOSE Person mit einer Taufe in Ochtrup an. Ob dieses Datenbündel sinnvoll ist,
+    // entscheidet der Mensch, der speichert — nicht der Kern: er stellt nur sicher, dass
+    // sichtbar war, was gespeichert wird.
     const res = applyEntryTemplate(makeDatabase(), mitStartwert, makeEntryDraft({ values: {} }));
 
     expect(res.db.individuals.size).toBe(1);

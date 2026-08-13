@@ -285,11 +285,29 @@ describe('applyEntryTemplate — EIN Durchlauf, EIN Undo-Schritt (ADR-v9-264 E4)
     expect(res.families.parentFamily).toBeUndefined();
   });
 
-  it('ein leerer Entwurf ändert nichts', () => {
-    const res = applyEntryTemplate(makeDatabase(), VOLL, draft());
+  it('ein leerer Entwurf ändert nichts — wenn die Vorlage nichts SICHTBAR vorbelegt', () => {
+    // Ohne sichtbaren Startwert gibt es nichts, worüber der Mensch entschieden haben
+    // könnte (ADR-v9-268 E7). `VOLL` belegt nur Geschlechter versteckt vor.
+    const ohneSichtbares = makeEntryTemplate('t-leer', {
+      label: 'ohne sichtbare Vorbelegung',
+      slots: VOLL.slots.filter((s) => s.prefillMode !== 'locked'),
+    });
+
+    const res = applyEntryTemplate(makeDatabase(), ohneSichtbares, draft());
+
     expect(res.db.individuals.size).toBe(0);
     expect(res.db.families.size).toBe(0);
     expect(res.persons).toEqual({});
+  });
+
+  it('ein SICHTBARER Startwert legt dagegen an — auch ungetippt (ADR-v9-268 E7)', () => {
+    // `VOLL` zeigt den Taufort „Ochtrup" gesperrt-sichtbar. Wer dieses Formular speichert,
+    // sieht den Wert und entscheidet damit — ob das Datenbündel sinnvoll ist, beurteilt
+    // der Mensch, nicht der Kern.
+    const res = applyEntryTemplate(makeDatabase(), VOLL, draft());
+
+    expect(res.db.individuals.size).toBe(1);
+    expect([...res.db.individuals.values()][0].chr.place).toBe('Ochtrup');
   });
 });
 

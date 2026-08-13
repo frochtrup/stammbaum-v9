@@ -190,32 +190,41 @@ interface AufgeloesterSlot {
 /** Vorbelegung schlägt Eingabe — und zwar in BEIDEN Anzeigemodi (ADR-v9-264 E3): bei
  *  `locked` steht derselbe Wert ohnehin im gesperrten Feld, bei `hidden` gibt es gar
  *  keines. Ein `prefill` fließt deshalb unabhängig vom Modus ein. */
+/**
+ * Was in jedem Feld steht — und ob es zählt.
+ *
+ * ZWEI Fragen, die getrennt gehören und deshalb hier auch getrennt beantwortet werden:
+ *
+ * 1. **Welcher Wert gilt?** (ADR-v9-268 E6) `hidden`/`locked` sind VORGABEN — dort schlägt
+ *    die Vorbelegung die Eingabe. `prefilled` ist ein STARTPUNKT — dort schlägt die
+ *    Eingabe die Vorbelegung, sonst wäre „änderbar" eine Anzeige-Lüge.
+ *
+ * 2. **Legt er einen Datensatz an?** (E7) Das entscheidet allein die SICHTBARKEIT, und der
+ *    Grund ist ausdrücklich KEINE Bewertung des Inhalts: ob ein Datenbündel sinnvoll ist,
+ *    entscheidet der Mensch, der auf „Speichern" drückt — nicht dieses Modul. Eine Person
+ *    mit nur einem Taufort mag dünn aussehen; wer sie so erfasst, wird seine Gründe haben,
+ *    sie steht sichtbar in der Liste, und ein Undo-Schritt nimmt sie zurück. Was die
+ *    Maschine sicherstellen muss, ist nur die VORAUSSETZUNG dieser Entscheidung: dass der
+ *    Mensch sehen konnte, was er speichert. Deshalb zählt `hidden` nicht — und nur
+ *    `hidden`: ein verstecktes Feld hat er nie zu Gesicht bekommen, es erzeugte sonst
+ *    Datensätze hinter seinem Rücken (die Heirats-Vorlage mit verstecktem Geschlecht legte
+ *    so zwei Personen an, ohne dass irgendwo etwas stand). `locked` ist sichtbar, wenn
+ *    auch unveränderlich — der Wert steht vor Augen und wird bewusst mitgespeichert.
+ */
 function aufloesen(tpl: EntryTemplate, draft: EntryTemplateDraft): AufgeloesterSlot[] {
   return tpl.slots.map((slot) => {
     const eigen = (draft.values[slotKey(slot)] ?? '').trim();
-    // Die Vorrang-Regel der drei Modi (ADR-v9-268 E6): `hidden`/`locked` sind Vorgaben —
-    // dort schlägt die Vorbelegung die Eingabe. `prefilled` ist ein STARTPUNKT — dort
-    // schlägt die Eingabe die Vorbelegung, sonst wäre „änderbar" eine Anzeige-Lüge: das
-    // Feld ließe sich bearbeiten, und beim Speichern fiele die Änderung unter den Tisch.
+    const start = slot.prefill?.trim() ?? '';
+    const sichtbar = slot.prefillMode !== 'hidden';
+
+    // (1) Vorgabe: die Vorbelegung gilt, die Eingabe wird nicht gelesen.
     if (slot.prefill !== undefined && slot.prefillMode !== 'prefilled') {
-      return { slot, value: slot.prefill.trim(), eingabe: false };
+      return { slot, value: start, eingabe: sichtbar && start !== '' };
     }
+    // (1) Startpunkt bzw. reines Eingabefeld: was der Mensch geschrieben hat, gilt.
     if (eigen !== '') return { slot, value: eigen, eingabe: true };
-    // Unangetasteter Startwert. Ob er einen Datensatz ANLEGT, entscheidet die Sichtbarkeit
-    // — und zwar in beide Richtungen begründet:
-    //
-    //  · `prefilled` ZÄHLT als Eingabe. Der Wert steht sichtbar im Feld, und der Nutzer
-    //    kann ihn löschen, wenn er ihn nicht will. Ein Formular, das sichtbar „Maria"
-    //    zeigt und beim Speichern nichts anlegt, wäre für den Nutzer nicht erklärbar.
-    //  · `hidden`/`locked` zählen NICHT. Versteckt sieht der Nutzer den Wert gar nicht,
-    //    gesperrt kann er ihn nicht entfernen — beides ergäbe eine Vorlage, die bei JEDEM
-    //    Öffnen und leerem Speichern Datensätze produziert (genau der Fehler, den die
-    //    Regel „eine Vorbelegung füllt, sie legt nichts an" verhindern soll: die
-    //    Heirats-Vorlage mit verstecktem Geschlecht legte sonst zwei Personen an).
-    if (slot.prefill !== undefined) {
-      const start = slot.prefill.trim();
-      return { slot, value: start, eingabe: slot.prefillMode === 'prefilled' && start !== '' };
-    }
+    // (2) Unangetasteter Startpunkt — `prefilled` ist per Definition sichtbar.
+    if (slot.prefill !== undefined) return { slot, value: start, eingabe: start !== '' };
     return { slot, value: '', eingabe: false };
   });
 }
