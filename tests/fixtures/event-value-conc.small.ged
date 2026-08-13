@@ -1,0 +1,27 @@
+0 HEAD
+1 SOUR STAMMBAUM-TEST
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Hof /Kuhmann/
+1 SEX M
+1 EVEN 1680 zahlte der Hofbesitzer zwei Reichsthaler und sieben Schilling an Hausstättenschatzung. Er besaß einen Pflug und zwei Pferde. Der Hof war nur noch ein Halberbe. Die Kirchenbücher berichten: Der Leibeigene gab jährlich fünf Moldt Hafer
+2 CONC , kleines Maß, auch Coesfelder Maße, 50 Scheffel, item zwei Tage Arbeit.
+2 TYPE Hofgeschichte
+2 DATE 1680
+0 @I2@ INDI
+1 NAME Beruf /Mehrzeilig/
+1 SEX F
+1 OCCU Kötter und Tagelöhner
+2 CONT zuletzt Heuermann auf dem Hof Schulte
+2 DATE 1900
+2 PLAC Ostbevern
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 EVEN Anno 1686 hat der Bräutigam die Winnung zu 25 Reichsthaler verdungen und das Erbe nach Eigentumsgerechtigkeit angenommen
+2 CONC , wie das Protokoll des Gutsherrn ausweist.
+2 TYPE Hofgeschichte
+0 TRLR
