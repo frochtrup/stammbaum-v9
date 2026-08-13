@@ -270,6 +270,11 @@ export const BUILTIN_ENTRY_TEMPLATES: EntryTemplate[] = [
       { role: 'spouse', field: 'sex', prefill: 'F', prefillMode: 'hidden' },
     ],
   }),
+  // Bei Taufe/Sterbefall wird das Geschlecht GEFRAGT (Slot ohne Vorbelegung), nicht
+  // vorbelegt: anders als bei der Heirat, wo die Rolle es festlegt (Ehemann/Ehefrau),
+  // sagt die Rolle „Hauptperson" nichts darüber. Ohne den Slot entstand jede so erfasste
+  // Person mit `sex: 'U'` — und das kostet auch die Dubletten-Suche ihre Geschlechts-Achse
+  // (±11 von 100 Punkten, `core/dedup/person-duplicates.ts`).
   makeEntryTemplate('taufe', {
     label: 'Taufe (Taufbuch)',
     slots: [
@@ -277,6 +282,7 @@ export const BUILTIN_ENTRY_TEMPLATES: EntryTemplate[] = [
       { role: 'main', field: 'place', event: 'CHR' },
       { role: 'main', field: 'surname' },
       { role: 'main', field: 'given' },
+      { role: 'main', field: 'sex' },
     ],
   }),
   makeEntryTemplate('sterbefall', {
@@ -287,6 +293,7 @@ export const BUILTIN_ENTRY_TEMPLATES: EntryTemplate[] = [
       { role: 'main', field: 'date', event: 'BURI' },
       { role: 'main', field: 'surname' },
       { role: 'main', field: 'given' },
+      { role: 'main', field: 'sex' },
     ],
   }),
 ];

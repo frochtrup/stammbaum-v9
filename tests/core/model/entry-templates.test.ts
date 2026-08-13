@@ -129,6 +129,21 @@ describe('Die drei Standard-Vorlagen sind Daten, kein Code (ADR-v9-264 E8)', () 
     expect(nachgebaut).toEqual(heirat);
   });
 
+  it('jede mitgelieferte Vorlage erhebt das Geschlecht — gefragt ODER aus der Rolle', () => {
+    // Nutzer-Befund: im Taufe-Template fehlte es ganz, jede so erfasste Person bekam
+    // `sex: 'U'`. Bei der Heirat legt die ROLLE es fest (vorbelegt), sonst wird gefragt —
+    // beides ist zulässig, nur gar nicht erheben ist es nicht.
+    for (const tpl of BUILTIN_ENTRY_TEMPLATES) {
+      const sexSlots = tpl.slots.filter((s) => s.field === 'sex');
+      expect(sexSlots.length, tpl.id).toBeGreaterThan(0);
+      for (const s of sexSlots) {
+        const gefragt = s.prefill === undefined;
+        const ausDerRolle = s.prefill === 'M' || s.prefill === 'F';
+        expect(gefragt || ausDerRolle, `${tpl.id}: ${s.role}`).toBe(true);
+      }
+    }
+  });
+
   it('die Feldauswahl folgt dem v8-Orakel (QT_BASE_PATTERNS), nicht seiner Form', () => {
     const taufe = BUILTIN_ENTRY_TEMPLATES.find((t) => t.id === 'taufe')!;
     // Orakel: Taufdatum + Nachname + Vorname (die Seite ist die Zitation, kein Feld).
