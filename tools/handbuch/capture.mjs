@@ -413,7 +413,14 @@ await click('Duplikate suchen'); await sleep(500);
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__scan-btn'); if (b) b.click(); }); await sleep(1800);
 await scrollTop(); await shot('05-duplikate');
 await page.evaluate(() => { const b = document.querySelector('.person-dedup__close-btn'); if (b) b.click(); }); await sleep(400);
-await bottomNav('person'); await scrollTop(); await openInList(RICH_PERSON); await shot('04-person-detail');
+await bottomNav('person'); await scrollTop(); await openInList(RICH_PERSON);
+// Proband SCHON HIER setzen, nicht erst vor der Sanduhr (BL-365): der Steckbrief nennt
+// seit ADR-v9-274 die Verwandtschaft zum Probanden, und ohne gesetzten fällt die auf die
+// Vorbelegung zurück — die Aufnahme behauptete dann „nicht mit <irgendwem> verwandt" über
+// eine Person, die im Handbuch nirgends vorkommt. Mit dem Probanden hier zeigt 04 das
+// „★ Proband"-Kopfzeichen und 04c (eine ANDERE Person) die Verwandtschaftszeile zu ihm.
+await click('☆ Als Proband'); await sleep(400); await scrollAllTop();
+await shot('04-person-detail');
 // Forschung AM Steckbrief (BL-341/350): Aufgabe, Protokolleintrag und Hypothese entstehen
 // dort, wo die Person steht — ohne den Umweg über die drei Forschungsansichten und das
 // dortige Heraussuchen derselben Person. Die Sektion wird hier über GENAU DIESEN Weg
@@ -447,12 +454,22 @@ await click('Fertig'); await sleep(450); await scrollAllTop();
 await click('Personen'); await sleep(500); await scrollAllTop();
 await openInList(SHORT_PERSON); await sleep(600);
 await scrollToEl('.delete-entity'); await shot('04c-loeschzone');
+// Verwandtschaft zum Probanden (BL-365, ADR-v9-274). Bewusst an einer Person, die MIT dem
+// Probanden verwandt ist: `SHORT_PERSON` (Bendfeld) ist es nicht, dort steht nur „nicht
+// verwandt" — der ehrliche, aber unergiebigste Fall, und die HERVORHEBUNG des Grades
+// (der eigentliche Punkt) wäre daran gar nicht zu sehen. Kaspars Onkel zeigt beides.
+// Der Name ist im Bestand mehrfach ähnlich vergeben („Melchior, Wessel …", „Dr.-Ing.
+// Wessel …"); der Kürzeste-Treffer-Vorrang von `click` trifft den gemeinten (Lesson 6).
+await click('Personen'); await sleep(500); await scrollAllTop();
+await openInList('Wessel Hörstmann'); await sleep(600); await scrollAllTop();
+await shot('04e-verwandtschaft');
 await click('Personen'); await sleep(500); await scrollAllTop();
 await openInList(RICH_PERSON); await sleep(600); await scrollAllTop();
-// Kaspar als Session-Proband setzen (BL-120): die effektive Referenzperson der Sitzung.
-// Davon erben gleich Beziehungsrechner (Person A), Ausgaben-Bezugsperson und Story-Modus
-// ihre Vorbelegung — der Screenshot des „★ Proband"-Zustands liegt im Steckbrief-Kopf.
-await click('☆ Als Proband'); await sleep(400);
+// Kaspar IST hier bereits Proband (oben gesetzt, s. 04-person-detail) — kein zweiter Klick:
+// der Knopf steht dann als „★ Proband" da, und ein Versuch auf „☆ Als Proband" meldete bei
+// jedem Lauf ein „! nicht gefunden", das nach einem echten Fehlklick aussieht. Der Proband
+// ist Sitzungszustand und überlebt kein Neuladen — nach dem `page.goto` weiter unten wird er
+// deshalb erneut gesetzt (dort steht der Knopf wieder auf „☆").
 // Sanduhr DIREKT aus dem offenen Steckbrief des verstorbenen Probanden (@I3@, †1997). Der
 // Absprung ist seit BL-60/ADR-v9-153 der kanonische Lens-Umschalter im Steckbrief (vormals
 // der Einzelknopf „Im Baum anzeigen") — er setzt lensFocus, davon erben gleich Karte-

@@ -11,14 +11,16 @@
   import { displayName, sexSymbol } from '../../shell/person-display';
   import { formatDateForDisplay } from '../../../core/model/gedcom-date';
   import { tooltip } from '../../shell/tooltip';
+  import type { RelationToProband } from '../tools/relationship';
 
   interface Props {
     person: Person;
     isProband: boolean;
-    /** „Enkelin von Otto Alt" — die Verwandtschaft dieser Person zum Probanden
-     *  (`relationToProbandLabel`). Leer = nichts anzeigen (u. a. wenn die Person selbst
-     *  der Proband ist). Optional, damit isolierte Tests ohne sie mounten können. */
-    relationToProband?: string;
+    /** Die Verwandtschaft dieser Person zum Probanden in zwei Teilen
+     *  (`relationToProbandLabel`) — der Grad wird hervorgehoben. `null` = nichts anzeigen
+     *  (u. a. wenn die Person selbst der Proband ist). Optional, damit isolierte Tests
+     *  ohne sie mounten können. */
+    relationToProband?: RelationToProband | null;
     onBack: () => void;
     /** Bearbeiten-Modus offen? Steuert die Beschriftung des Schalters (BL-274). */
     editing: boolean;
@@ -29,7 +31,7 @@
      *  optional, damit isolierte Tests/Kontexte ohne Lens-Fläche weiterlaufen. */
     onOpenLens?: (personId: string, lens: LensId) => void;
   }
-  const { person, isProband, relationToProband = '', onBack, editing, onToggleEdit, onSetProband, onOpenLens }: Props = $props();
+  const { person, isProband, relationToProband = null, onBack, editing, onToggleEdit, onSetProband, onOpenLens }: Props = $props();
 </script>
 
 <!-- EINE Einheit, nicht drei Geschwister (BL-346). Titelzeile, Untertitel und
@@ -88,7 +90,15 @@
          (INV-UI-11 zählt nur Bedienelemente). -->
     {#if relationToProband}
       <span class="person-detail-header__relation" use:tooltip={'Verwandtschaft zum Probanden dieser Sitzung'}>
-        {relationToProband}
+        <!-- Der GRAD ist die Aussage, der Bezug nur ihr Ziel — deshalb trägt „Vater" die
+             Auszeichnung und „von Otto Alt" bleibt gedämpft (Nutzer-Wunsch 2026-08-13).
+             Beides in EINER Zeile, damit die Umbruch-Einheit erhalten bleibt (INV-UI-5). -->
+        <!-- `&nbsp;` statt eines gewöhnlichen Leerzeichens: Svelte trimmt Weißraum an der
+             Blockgrenze weg, aus „Enkel von Otto" wurde „Enkelvon Otto" (im Test gefangen);
+             ein `{' '}`-Ausdruck wiederum ist eine ESLint-Regelverletzung
+             (`svelte/no-useless-mustaches`). Die geschützte Variante löst beides und hält
+             den Grad nebenbei an seinem „von". -->
+        {#if relationToProband.degree}<strong class="person-detail-header__relation-degree">{relationToProband.degree}</strong>&nbsp;{/if}{relationToProband.suffix}
       </span>
     {/if}
     {#if person.lastChanged}
@@ -184,5 +194,14 @@
      davor: „Enkelin von Otto Alt" liest sich ohne Vorspann. */
   .person-detail-header__relation {
     color: var(--stb-text-dim);
+  }
+
+  /* Der Grad ist der Teil, den man sucht („Vater", „Enkelin") — er bekommt die volle
+     Textfarbe, nicht Gold: Gold ist in dieser Oberfläche die Farbe des Anklickbaren, und
+     hier ist nichts anklickbar. Fett + heller genügt, um ihn aus der gedämpften Zeile
+     zu heben. */
+  .person-detail-header__relation-degree {
+    color: var(--stb-text);
+    font-weight: 600;
   }
 </style>

@@ -22,6 +22,15 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.17] — 2026-08-13
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`d6f28b3`…HEAD) erzeugt._
+
+- feat(person): Hochzeitsdatum, chronologische Kinder und die Verwandtschaft zum Probanden (BL-363/364/365) (`357b328`)
+- fix(tree): Zentrum und Proband sind zwei Dinge — Kekule zaehlt ab dem Probanden, die Flaeche umschliesst den Baum (BL-361/362) (`0fbfba0`)
+
+---
+
 ## [9.16] — 2026-08-13
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`ec3ad93`…HEAD) erzeugt._

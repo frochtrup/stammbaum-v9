@@ -105,7 +105,7 @@
   // über „★ Proband", eine zweite Aussage daneben wäre Rauschen.
   const relationToProband = $derived.by(() => {
     const proband = resolveProband(appState.db, viewState);
-    if (!personId || !proband || proband === personId) return '';
+    if (!personId || !proband || proband === personId) return null;
     const p = appState.db.individuals.get(proband);
     return relationToProbandLabel(findRelationshipPath(appState.db, personId, proband), p ? displayName(p) : '');
   });

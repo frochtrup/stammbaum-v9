@@ -142,24 +142,42 @@ export function findRelationshipPath(
   };
 }
 
+/** Die Verwandtschafts-Zeile am Steckbrief, in zwei Teilen — der GRAD wird hervorgehoben
+ *  dargestellt, der Rest bleibt gedämpft (Nutzer-Wunsch 2026-08-13: „der Verwandtschafts-
+ *  grad sollte etwas hervorgehoben werden"). Deshalb kein fertiger String: die Auszeichnung
+ *  gehört ins Markup, und ein Aufteilen am Wort „von" wäre eine Zerlegung dessen, was diese
+ *  Funktion gerade zusammengesetzt hat. */
+export interface RelationToProband {
+  /** „Vater", „Enkelin", „Geschwister" — hervorgehoben. Leer, wenn nicht verwandt. */
+  degree: string;
+  /** Der Rest der Zeile: „von Otto Alt" bzw. die ganze Aussage „nicht mit Otto Alt verwandt". */
+  suffix: string;
+  /** Beide Teile als eine Zeichenkette — für Tooltip, `aria-label` und Tests. */
+  text: string;
+}
+
 /**
- * Die kompakte Verwandtschafts-Zeile am Personen-Steckbrief (Nutzer-Wunsch 2026-08-13):
- * „Enkelin von Otto Alt" bzw. „nicht mit Otto Alt verwandt".
+ * Die kompakte Verwandtschafts-Angabe am Personen-Steckbrief (Nutzer-Wunsch 2026-08-13):
+ * „**Enkelin** von Otto Alt" bzw. „nicht mit Otto Alt verwandt".
  *
  * KEIN zweiter Rechenweg und keine zweite Benennung — das Etikett kommt unverändert aus
  * `relationshipLabel` (über `findRelationshipPath`), hier wird nur die Bezugsperson
  * angehängt. Der Beziehungsrechner formuliert daraus seinen eigenen ganzen Satz mit BEIDEN
  * Namen; das ist eine andere Fläche, dieselbe Quelle.
  *
- * `null`/leerer Name → leere Zeile: `findRelationshipPath` liefert `null`, wenn die Person
- * der Proband SELBST ist (Beziehung zu sich selbst), und dann sagt die Kopfzeile das
- * bereits über „★ Proband".
+ * `null`/leerer Name → `null`: `findRelationshipPath` liefert `null`, wenn die Person der
+ * Proband SELBST ist (Beziehung zu sich selbst), und dann sagt die Kopfzeile das bereits
+ * über „★ Proband".
  *
  * „Geschwister" bleibt „Geschwister von X": die geteilte Benennung kennt für diesen Fall
  * bewusst kein Geschlecht (v8-Orakel `_relLabel`), und sie hier zu Bruder/Schwester
  * aufzulösen wäre eine zweite Benennungsregel neben der einen.
  */
-export function relationToProbandLabel(rel: RelationshipResult | null, probandName: string): string {
-  if (!rel || !probandName) return '';
-  return rel.related ? `${rel.label} von ${probandName}` : `nicht mit ${probandName} verwandt`;
+export function relationToProbandLabel(rel: RelationshipResult | null, probandName: string): RelationToProband | null {
+  if (!rel || !probandName) return null;
+  if (!rel.related) {
+    const suffix = `nicht mit ${probandName} verwandt`;
+    return { degree: '', suffix, text: suffix };
+  }
+  return { degree: rel.label, suffix: `von ${probandName}`, text: `${rel.label} von ${probandName}` };
 }

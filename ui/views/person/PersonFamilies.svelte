@@ -83,6 +83,15 @@
         </button>
       {/if}
       {#if fam.pedigree}<span class="person-families__pedigree" use:tooltip={'Kind-Verhältnis'}>· {fam.pedigree}</span>{/if}
+      <!-- Hochzeitsdatum VOR den Personen (Nutzer-Wunsch 2026-08-13): „das Datum steht
+           normalerweise am Anfang der Zeile" — dieselbe Lesart wie die Ereigniszeile
+           („Geburt · 1. Januar 1855, Ochtrup"), wo auf die Bezeichnung das Datum folgt.
+           Angehängt hinter einer variabel langen Namensliste war es schwerer zu finden.
+           Das ⚭ trägt die Bedeutung, deshalb kein zusätzliches Wort (INV-UI-5) — den
+           Klartext gibt der Tooltip. -->
+      {#if fam.marriage}
+        <span class="person-families__marriage" use:tooltip={'Hochzeitsdatum'}>⚭ {fam.marriage}</span>
+      {/if}
       {#if fam.members.length === 0}
         <span class="person-families__label">{fam.label}</span>
       {:else}
@@ -91,12 +100,6 @@
             {member.name}{#if member.summary}<span class="person-families__summary">({member.summary})</span>{/if}
           </button>
         {/each}
-      {/if}
-      <!-- Hochzeitsdatum der Familie (Nutzer-Wunsch 2026-08-13). Steht NACH den Personen:
-           erst wer, dann wann. Das ⚭ trägt die Bedeutung, deshalb kein zusätzliches Wort
-           (INV-UI-5) — den Klartext gibt der Tooltip. -->
-      {#if fam.marriage}
-        <span class="person-families__marriage" use:tooltip={'Hochzeitsdatum'}>⚭ {fam.marriage}</span>
       {/if}
       {#if fam.children.length > 0}
         <span class="person-families__children">

@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.16 · Stand 2026-08-13</div>
+  <div class="version">Benutzerhandbuch · Version 9.17 · Stand 2026-08-13</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -662,6 +662,15 @@
       einen fehlenden Vater also nicht mehr erst in den Familien-Bereich wechseln.
     </p>
     <p>
+      <strong>Jede Familienzeile nennt ihr Hochzeitsdatum</strong> (<strong>⚭</strong>),
+      gleich zu Beginn der Zeile: bei der eigenen Familie die eigene Ehe, bei der
+      Herkunftsfamilie die der Eltern — für die Einordnung einer Kindheit oft genauso
+      wichtig. Ist keines bekannt, steht dort nichts (kein „unbekannt").
+      <strong>Die Kinder stehen chronologisch</strong> nach Geburtsdatum, Kinder ohne
+      Datum am Ende. Sortiert wird nur die <em>Anzeige</em>: In Ihrer Datei bleibt die
+      Reihenfolge unangetastet, so wie sie dort steht.
+    </p>
+    <p>
       <strong>Forschung an Ort und Stelle.</strong> Ein eigener Abschnitt
       <em>Forschung</em> nimmt Aufgaben, Hypothesen und Protokoll-Einträge direkt an der
       Person auf — dieselben Einträge, die <a href="#k12">Kapitel 15</a> beschreibt, nur
@@ -754,6 +763,21 @@
   Sie keinen gesetzt haben, wählt die App sinnvoll vor — so ist überall dieselbe Person
   gemeint, ohne dass Sie sie in jeder Ansicht neu suchen müssen.
 </p>
+<p>
+  <strong>Jeder Steckbrief sagt Ihnen, wie seine Person zum Probanden steht.</strong>
+  Unter dem Namen steht das Verwandtschaftsverhältnis, der Grad hervorgehoben:
+  <strong>Onkel</strong> <span class="muted">von Kaspar Hörstmann</span>. Gibt es keinen
+  gemeinsamen Vorfahren, steht genau das dort — „nicht mit … verwandt" ist eine Auskunft,
+  kein Fehler, und unterscheidet sich sichtbar von „nicht berechnet". Beim Probanden
+  selbst entfällt die Zeile; dort sagt es bereits <strong>★ Proband</strong>. Gerechnet
+  wird mit demselben Verfahren wie im <a href="#k4">Verwandtschaftsrechner</a> — wer den
+  vollständigen Pfad und den gemeinsamen Vorfahren sehen will, öffnet ihn dort.
+</p>
+
+<figure class="phone phone--narrow">
+  <img src="handbuch-assets/04e-verwandtschaft.png" alt="Personen-Steckbrief; unter dem Namen steht fett „Onkel“ und dahinter „von Kaspar Hörstmann“">
+  <figcaption>Unter dem Namen: das Verhältnis zum Probanden, der Grad hervorgehoben</figcaption>
+</figure>
 
 <div class="workflow">
   <h3>So legen Sie eine Person an</h3>
@@ -942,7 +966,10 @@
       <li>Familien-Ereignisse wie <strong>Verlobung</strong> und <strong>Heirat</strong>
           (mit Ort, Koordinaten und Quellen wie bei Personen).</li>
       <li><strong>Kinder</strong> — die Liste ist anklickbar; über
-          „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder.</li>
+          „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder. Die Kinder
+          stehen <strong>chronologisch nach Geburtsdatum</strong> (undatierte am Ende), hier
+          wie im Personen-Steckbrief. Sortiert wird allein die Anzeige — in Ihrer Datei
+          bleibt die Reihenfolge, wie sie ist.</li>
       <li>Ein <strong>Kind neu anlegen</strong> geht direkt aus der Familie heraus: die
           neue Person ist sofort zugeordnet, Sie füllen nur noch den Steckbrief.</li>
       <li><strong>Wie sicher ist die Kindschaft?</strong> Zu jedem Kind lässt sich
@@ -1974,11 +2001,19 @@
   <div class="prose">
     <h3>Sanduhr</h3>
     <p>
-      Die Sanduhr zeigt den Probanden in der Mitte, die Vorfahren darüber, seine Kinder und
-      Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
+      Die Sanduhr zeigt die gewählte Person in der Mitte, die Vorfahren darüber, ihre Kinder
+      und Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
       (1 = Proband, 2 = Vater, 3 = Mutter …); der farbige Rand codiert das Geschlecht.
       Mehrfach-Ehen (<strong>⚭N</strong>) und Halbgeschwister (<strong>½</strong>) werden
       eigens markiert.
+    </p>
+    <p>
+      <strong>Ein Tipp auf eine Karte rückt den Baum um</strong> — die angetippte Person
+      steht danach in der Mitte, und Sie wandern so durch die Generationen. Die
+      Kekulé-Nummern <em>wandern dabei nicht mit</em>: Sie zählen weiter ab Ihrem
+      <a href="#proband">Probanden</a>, nicht ab der Person, die gerade in der Mitte steht.
+      Die Ziffer bedeutet also immer dasselbe, egal wo Sie sich gerade befinden — und eine
+      Person, die kein Vorfahre des Probanden ist, trägt folgerichtig keine.
     </p>
   </div>
   <figure class="phone">
@@ -3278,7 +3313,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.16 · Stand 2026-08-13<br>
+  Stammbaum · Benutzerhandbuch Version 9.17 · Stand 2026-08-13<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 

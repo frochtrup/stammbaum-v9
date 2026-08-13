@@ -1341,13 +1341,16 @@ describe('Kopf und Familien-Zeile: Verwandtschaft, Hochzeitsdatum, Kinder-Reihen
   }
 
   it('nennt im Kopf die Verwandtschaft zum Probanden', () => {
-    zeige('@I10@', '@I1@'); // Enkel von Otto
-    expect(screen.getByText('Enkel von Otto Alt')).toBeTruthy();
+    const { container } = zeige('@I10@', '@I1@'); // Enkel von Otto
+    const zeile = container.querySelector('.person-detail-header__relation');
+    expect((zeile?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Enkel von Otto Alt');
+    // Der Grad ist eigens ausgezeichnet, nicht nur Fließtext (Nutzer-Wunsch 2026-08-13).
+    expect(zeile?.querySelector('.person-detail-header__relation-degree')?.textContent).toBe('Enkel');
   });
 
   it('sagt am Probanden selbst nichts über eine Verwandtschaft zu sich', () => {
-    zeige('@I1@', '@I1@');
-    expect(screen.queryByText(/von Otto Alt$/)).toBeNull();
+    const { container } = zeige('@I1@', '@I1@');
+    expect(container.querySelector('.person-detail-header__relation')).toBeNull();
   });
 
   it('zeigt das Hochzeitsdatum an der Familien-Zeile', () => {
@@ -1360,5 +1363,27 @@ describe('Kopf und Familien-Zeile: Verwandtschaft, Hochzeitsdatum, Kinder-Reihen
     const kinder = [...container.querySelectorAll('.person-families__children .person-families__link')]
       .map((el) => (el.textContent ?? '').trim().split('(')[0].trim());
     expect(kinder).toEqual(['Frueh Alt', 'Mitte Alt', 'Spaet Alt']);
+  });
+});
+
+describe('Familienzeile: das Datum führt die Zeile an (Nutzer-Wunsch 2026-08-13)', () => {
+  it('das Hochzeitsdatum steht VOR den Personen der Zeile, nicht dahinter', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Anton', surname: 'Meyer', parentIn: ['@F1@'] }));
+    db.individuals.set('@I2@', makePerson('@I2@', { given: 'Berta', surname: 'Meyer', parentIn: ['@F1@'] }));
+    const fam = makeFamily('@F1@', { husband: '@I1@', wife: '@I2@' });
+    fam.marriage.date = '5 MAY 1879';
+    db.families.set('@F1@', fam);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('person', '@I1@');
+
+    const { container } = render(PersonDetail, { props: { appState, viewState } });
+    const zeile = container.querySelector('.person-families li')!;
+    const datum = zeile.querySelector('.person-families__marriage')!;
+    const partner = zeile.querySelector('.person-families__link')!;
+    // DOCUMENT_POSITION_FOLLOWING: `partner` steht im Dokument NACH `datum`.
+    expect(datum.compareDocumentPosition(partner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
