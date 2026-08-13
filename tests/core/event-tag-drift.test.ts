@@ -18,6 +18,14 @@
 //
 // Die vier Richtungen unten sind bewusst getrennt: jede kann einzeln brechen und benennt
 // dann genau die Datei, in der die Ergänzung fehlt.
+//
+// EINE FÜNFTE RICHTUNG GIBT ES, SIE WOHNT NUR WOANDERS (BL-356, ADR-v9-267): der
+// Coverage-Nenner (`MODELED_GEDCOM_TAGS` in tests/core/spec-universe.ts) hat die zehn Tags
+// aus BL-335 NICHT mitbekommen und meldete zwei Monate lang 76/135 statt 87/135. Geprüft
+// wird das in `coverage-spec.test.ts` („die Gegenrichtung"), weil die Frage dort breiter
+// gestellt werden kann als bei Ereignissen — sie gilt für JEDEN beanspruchten Tag, auch
+// `DATA`, das dieselbe Lücke hatte. Wer hier eine Liste erweitert, wird also von dort
+// erinnert; eine Kopie derselben Zusicherung braucht es nicht.
 import { describe, it, expect } from 'vitest';
 import { EVENT_TAGS, SPECIAL_EVENT_TAGS } from '../../core/interop/gedcom-parse';
 import { ERKANNTE_TAGS, EREIGNIS_TAGS_PUBLIC, modellierteKinder } from '../../core/interop/write-back';

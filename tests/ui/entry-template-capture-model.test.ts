@@ -8,6 +8,7 @@ import {
   hiddenPrefillChips,
   prefillValueLabel,
 } from '../../ui/shell/entry-template-capture-model';
+import { EVENT_TYPE_LABELS } from '../../ui/shell/event-labels';
 import { makeEntryTemplate, type EntryTemplate } from '../../core/model/entry-templates';
 
 const HEIRAT: EntryTemplate = makeEntryTemplate('t-heirat', {
@@ -117,9 +118,36 @@ describe('fieldLabel/prefillValueLabel', () => {
 });
 
 describe('ENTRY_ROLE_LABELS — jede EntryRole hat ein deutsches Label (Feld-Vollständigkeit)', () => {
-  it('deckt alle sechs Rollen ab', () => {
+  it('deckt alle neun Rollen ab (ADR-v9-268 E1: beide Elternpaare)', () => {
     expect(Object.keys(ENTRY_ROLE_LABELS).sort()).toEqual(
-      ['father', 'main', 'mother', 'parentFamily', 'spouse', 'spouseFamily'].sort(),
+      [
+        'father',
+        'main',
+        'mother',
+        'parentFamily',
+        'spouse',
+        'spouseFamily',
+        'spouseFather',
+        'spouseMother',
+        'spouseParentFamily',
+      ].sort(),
     );
+  });
+});
+
+describe('Ereignistyp-Labels sind unterscheidbar (Nutzer-Befund CHR/BAPM)', () => {
+  it('kein Label kommt zweimal vor — sonst greift man im Menü zum falschen Tag', () => {
+    const labels = Object.values(EVENT_TYPE_LABELS);
+    expect(labels.length).toBeGreaterThan(20);
+
+    const doppelt = labels.filter((l, i) => labels.indexOf(l) !== i);
+    expect([...new Set(doppelt)]).toEqual([]);
+  });
+
+  it('die Taufe des Kirchenbuchs ist CHR, nicht BAPM', () => {
+    // GEDCOM 5.5.1: `CHR` = Kindstaufe (der Regelfall), `BAPM` = Glaubens-/
+    // Erwachsenentaufe. Die mitgelieferte Taufe-Vorlage nutzt CHR.
+    expect(EVENT_TYPE_LABELS.CHR).toBe('Taufe');
+    expect(EVENT_TYPE_LABELS.BAPM).not.toBe('Taufe');
   });
 });

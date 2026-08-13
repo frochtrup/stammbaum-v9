@@ -12,6 +12,7 @@
   // (ADR-v9-81) und wie `PlaceMergeSection`. Rückgängig über den regulären Undo-Stack.
   import type { PlacesHost } from '../../shell/places-host';
   import { PROSE_FIELD } from '../../shell/plain-input';
+  import StatusNotice from '../../shell/StatusNotice.svelte';
 
   interface Props {
     appState: PlacesHost;
@@ -68,9 +69,7 @@
       placeholder={PLACEHOLDER}
     ></textarea>
     <button type="button" class="gov-import__apply" disabled={!text.trim()} onclick={apply}>Übernehmen</button>
-    {#if notice}
-      <p class="gov-import__notice" role="status">{notice}</p>
-    {/if}
+    <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="block" />
   {/if}
 </section>
 
@@ -119,9 +118,7 @@
     padding: 0.4rem;
   }
 
-  .gov-import__notice {
-    margin: 0.4rem 0 0;
-    color: var(--stb-text-dim);
-    font-size: 0.8rem;
-  }
+  /* Das Ergebnis der Übernahme kommt aus `StatusNotice` (BL-334) — auch der Fall
+     „Keine GOV-Kennung erkannt": das ist die Antwort auf einen Klick, nicht die
+     Gültigkeit eines Feldes, und der Text bleibt so lange stehen wie jede andere. */
 </style>

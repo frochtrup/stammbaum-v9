@@ -97,7 +97,11 @@
   // verbietet [ADR-v9-243]: das Jahr MUSS aus dem Tag ableitbar sein und dazu passen.
   let newEnclosedFrom = $state('');
   let newEnclosedTo = $state('');
-  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addEnclosedBy). */
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addEnclosedBy).
+   *  BEWUSST KEIN `StatusNotice` (BL-334): das hier ist ein FELDFEHLER, keine transiente
+   *  Rückmeldung. Er sagt aus, dass die Eingabe daneben ungültig IST — solange sie es ist,
+   *  muss er stehen bleiben. Eine 12-s-Frist würde die Begründung wegnehmen, während der
+   *  Nutzer noch am Feld tippt, und der Knopf wäre wieder stumm. */
   let grenzFehler = $state('');
 
   /** Inline-Neuanlage eines übergeordneten Ortes (ADR-v9-42 Punkt 4). */

@@ -13,6 +13,7 @@
   import type { PlacesPersister } from './places-persister';
   import type { AppState } from './app-state.svelte';
   import { importPlacesFile } from './places-file-import';
+  import StatusNotice from './StatusNotice.svelte';
 
   interface Props {
     appState: AppState;
@@ -77,18 +78,14 @@
     <button type="button" class="stb-btn" data-variant="secondary" onclick={handleExport} disabled={exportStatus === 'busy'}>
       {exportStatus === 'busy' ? 'Exportiere …' : 'Orte exportieren'}
     </button>
-    {#if exportNotice}
-      <span class="places-file-bar__notice" role="status">{exportNotice}</span>
-    {/if}
+    <StatusNotice text={exportNotice} onDismiss={() => (exportNotice = '')} lage="inline" />
   </div>
 
   <div class="places-file-bar__action">
     <button type="button" class="stb-btn" data-variant="secondary" onclick={handleImport} disabled={importStatus === 'busy'}>
       {importStatus === 'busy' ? 'Importiere …' : 'Orte importieren'}
     </button>
-    {#if importNotice}
-      <span class="places-file-bar__notice" role="status">{importNotice}</span>
-    {/if}
+    <StatusNotice text={importNotice} onDismiss={() => (importNotice = '')} lage="inline" />
   </div>
 </div>
 
@@ -110,9 +107,6 @@
      Datei — nicht so schwer wie die Primäraktion (Öffnen/Speichern). Die Optik kommt aus
      `.stb-btn[data-variant='secondary']` (design-system.css, INV-UI-4). */
 
-  .places-file-bar__notice {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
-  }
+  /* Beide Rückmeldungen kommen aus `StatusNotice` (BL-334) — inklusive Frist und ✕, die
+     die handgebaute Fassung hier nie hatte. */
 </style>

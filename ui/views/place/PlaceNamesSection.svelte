@@ -46,7 +46,11 @@
   // 9. Mai 1945 zu Chocianow) — bis hierher fiel er auf das Jahr zurueck.
   let newPnameFrom = $state('');
   let newPnameTo = $state('');
-  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addPname). */
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addPname).
+   *  BEWUSST KEIN `StatusNotice` (BL-334): das hier ist ein FELDFEHLER, keine transiente
+   *  Rückmeldung. Er sagt aus, dass die Eingabe daneben ungültig IST — solange sie es ist,
+   *  muss er stehen bleiben. Eine 12-s-Frist würde die Begründung wegnehmen, während der
+   *  Nutzer noch am Feld tippt, und der Knopf wäre wieder stumm. */
   let grenzFehler = $state('');
   let newTransLang = $state('');
   let newTransValue = $state('');

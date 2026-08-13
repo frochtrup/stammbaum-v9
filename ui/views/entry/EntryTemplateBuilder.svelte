@@ -12,7 +12,13 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { EntrySlot, EntryTemplate } from '../../../core/model/entry-templates';
-  import { ALL_ENTRY_ROLES, draftSourcePrefill, entryTemplateBuilderErrors } from './entry-template-builder-model';
+  import {
+    ALL_ENTRY_ROLES,
+    draftSourcePrefill,
+    entryTemplateBuilderErrors,
+    moveRoleBlock,
+    roleOrderOf,
+  } from './entry-template-builder-model';
   import { groupTemplateSlots, ENTRY_ROLE_LABELS, type EntryRoleGroup } from '../../shell/entry-template-capture-model';
   import { isFamilyRole, type EntryRole } from '../../../core/model/entry-templates';
   import type { Quay, SourceId } from '../../../core/model/types';
@@ -42,13 +48,26 @@
   let quay = $state<Quay | null>(untrack(() => template.source?.quay ?? null));
   let pagePattern = $state(untrack(() => template.source?.pagePattern ?? ''));
   let urlPattern = $state(untrack(() => template.source?.urlPattern ?? ''));
+  // Seite und Weblink sind KEINE Slots (sie gehören der Zitation, nicht einer Rolle) und
+  // tragen ihr Mitführen deshalb hier statt an einem Slot — ADR-v9-271.
+  let pageCarry = $state(untrack(() => template.source?.pageCarry ?? false));
+  let urlCarry = $state(untrack(() => template.source?.urlCarry ?? false));
 
   function buildSource() {
     if (!sourceEnabled || !sourceId) return undefined;
     // Der Fingerabdruck wird FRISCH aus dem aktuellen Bestand gezogen (ADR-v9-264 E7) —
     // dieselbe Quelle, wie sie JETZT heißt, nicht ein eingefrorener Altwert.
     const src = appState.db.sources.get(sourceId);
-    return draftSourcePrefill({ sourceId, abbr: src?.abbr ?? '', title: src?.title ?? '', quay, pagePattern, urlPattern });
+    return draftSourcePrefill({
+      sourceId,
+      abbr: src?.abbr ?? '',
+      title: src?.title ?? '',
+      quay,
+      pagePattern,
+      urlPattern,
+      pageCarry,
+      urlCarry,
+    });
   }
 
   const draft = $derived<EntryTemplate>({ id: template.id, label, slots, source: buildSource() });
@@ -70,6 +89,19 @@
   function onSlotsChange(next: EntrySlot[]) {
     slots = next;
   }
+
+  /**
+   * Belegte Rollen in ihrer (verschiebbaren) Reihenfolge, leere hinten dran — als EINE
+   * Liste. Zwei getrennte `{#each}`-Blöcke wären naheliegender, aber ein Abschnitt würde
+   * dann neu montieren, sobald er sein erstes Feld bekommt (er wechselt die Liste): der
+   * Aufrufer verlöre seine DOM-Referenz, offene Menüs schlössen sich, der Fokus spränge.
+   * Eine Liste, keyed nach Rolle, hält die Instanz.
+   */
+  const rollenReihenfolge = $derived(roleOrderOf(slots));
+  const alleRollen = $derived([
+    ...rollenReihenfolge,
+    ...ALL_ENTRY_ROLES.filter((r) => !rollenReihenfolge.includes(r)),
+  ]);
 
   function trySave() {
     if (errors.length > 0) return;
@@ -125,16 +157,41 @@
         Seiten-Muster
         <input type="text" {...PLAIN_FIELD} bind:value={pagePattern} aria-label="Seiten-Muster" placeholder="Nr. …" />
       </label>
+      <!-- Beim Abschreiben eines Kirchenbuchs ist die Seite die Angabe, die sich am
+           wenigsten ändert — mitgeführt steht sie sichtbar im Feld und wird korrigiert
+           statt neu getippt (ADR-v9-271). -->
+      <label class="entry-builder__source-carry">
+        <input type="checkbox" bind:checked={pageCarry} aria-label="Seite in den nächsten Eintrag mitführen" />
+        <span>Seite mitführen</span>
+      </label>
       <label class="entry-builder__source-field">
         Weblink-Muster
         <input type="text" {...PLAIN_FIELD} bind:value={urlPattern} aria-label="Weblink-Muster" />
       </label>
+      <label class="entry-builder__source-carry">
+        <input type="checkbox" bind:checked={urlCarry} aria-label="Weblink in den nächsten Eintrag mitführen" />
+        <span>Weblink mitführen</span>
+      </label>
     {/if}
   </section>
 
+  <!-- Die BELEGTEN Rollen zuerst, in ihrer eigenen Reihenfolge (ADR-v9-268 E5) — sie ist
+       verschiebbar. Die noch leeren hängen unverändert hinten dran: sie haben keine
+       Position, weil sie kein Feld haben. -->
   <div class="entry-builder__roles">
-    {#each ALL_ENTRY_ROLES as role (role)}
-      <EntryTemplateBuilderRoleSection {role} group={groupFor(role)} {slots} {onSlotsChange} />
+    {#each alleRollen as role, i (role)}
+      <!-- Verschiebbar ist nur, was eine Position hat: die belegten Rollen. Eine noch
+           leere steht hinten und bekommt keine Pfeile — sie hat kein Feld, das wandern
+           könnte (ADR-v9-268 E5). -->
+      <EntryTemplateBuilderRoleSection
+        {appState}
+        {role}
+        group={groupFor(role)}
+        {slots}
+        {onSlotsChange}
+        onMoveUp={i > 0 && i < rollenReihenfolge.length ? () => onSlotsChange(moveRoleBlock(slots, role, -1)) : undefined}
+        onMoveDown={i < rollenReihenfolge.length - 1 ? () => onSlotsChange(moveRoleBlock(slots, role, 1)) : undefined}
+      />
     {/each}
   </div>
 
@@ -209,6 +266,16 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--stb-text-dim);
+  }
+
+  /* Schalter mit Wort, kein Feld mit Beschriftung darüber — deshalb in der Zeile. */
+  .entry-builder__source-carry {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.8rem;
     color: var(--stb-text-dim);
   }

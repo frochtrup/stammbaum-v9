@@ -19,6 +19,7 @@
   import type { AppDataIO } from '../../../services/app-data';
   import type { MediaResolver } from '../../../services/media';
   import AppDataFileButtons from '../../shell/AppDataFileButtons.svelte';
+  import StatusNotice from '../../shell/StatusNotice.svelte';
   import type { NavTargetId } from '../../shell/nav-model';
   import {
     SCOPE_LABEL,
@@ -181,7 +182,7 @@
             </button>
           {/if}
         </div>
-        {#if notice}<p class="settings-view__notice">{notice}</p>{/if}
+        <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
       {/if}
     {:else}
       <div class="settings-view__actions">
@@ -215,7 +216,7 @@
           </button>
         {/if}
       </div>
-      {#if notice}<p class="settings-view__notice">{notice}</p>{/if}
+      <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
     {/if}
   </section>
 
@@ -301,11 +302,8 @@
     font-size: 0.85rem;
   }
 
-  .settings-view__notice {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-  }
+  /* Die Rückmeldung nach Ordner-/Medien-Aktionen kommt aus `StatusNotice` (BL-334) —
+     EIN Kanal, an zwei Stellen gezeigt, je nachdem welcher Zweig gerade offen ist. */
 
   .settings-view__actions {
     display: flex;

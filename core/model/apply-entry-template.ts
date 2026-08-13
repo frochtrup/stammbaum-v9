@@ -190,11 +190,42 @@ interface AufgeloesterSlot {
 /** Vorbelegung schlägt Eingabe — und zwar in BEIDEN Anzeigemodi (ADR-v9-264 E3): bei
  *  `locked` steht derselbe Wert ohnehin im gesperrten Feld, bei `hidden` gibt es gar
  *  keines. Ein `prefill` fließt deshalb unabhängig vom Modus ein. */
+/**
+ * Was in jedem Feld steht — und ob es zählt.
+ *
+ * ZWEI Fragen, die getrennt gehören und deshalb hier auch getrennt beantwortet werden:
+ *
+ * 1. **Welcher Wert gilt?** (ADR-v9-268 E6) `hidden`/`locked` sind VORGABEN — dort schlägt
+ *    die Vorbelegung die Eingabe. `prefilled` ist ein STARTPUNKT — dort schlägt die
+ *    Eingabe die Vorbelegung, sonst wäre „änderbar" eine Anzeige-Lüge.
+ *
+ * 2. **Legt er einen Datensatz an?** (E7) Das entscheidet allein die SICHTBARKEIT, und der
+ *    Grund ist ausdrücklich KEINE Bewertung des Inhalts: ob ein Datenbündel sinnvoll ist,
+ *    entscheidet der Mensch, der auf „Speichern" drückt — nicht dieses Modul. Eine Person
+ *    mit nur einem Taufort mag dünn aussehen; wer sie so erfasst, wird seine Gründe haben,
+ *    sie steht sichtbar in der Liste, und ein Undo-Schritt nimmt sie zurück. Was die
+ *    Maschine sicherstellen muss, ist nur die VORAUSSETZUNG dieser Entscheidung: dass der
+ *    Mensch sehen konnte, was er speichert. Deshalb zählt `hidden` nicht — und nur
+ *    `hidden`: ein verstecktes Feld hat er nie zu Gesicht bekommen, es erzeugte sonst
+ *    Datensätze hinter seinem Rücken (die Heirats-Vorlage mit verstecktem Geschlecht legte
+ *    so zwei Personen an, ohne dass irgendwo etwas stand). `locked` ist sichtbar, wenn
+ *    auch unveränderlich — der Wert steht vor Augen und wird bewusst mitgespeichert.
+ */
 function aufloesen(tpl: EntryTemplate, draft: EntryTemplateDraft): AufgeloesterSlot[] {
   return tpl.slots.map((slot) => {
     const eigen = (draft.values[slotKey(slot)] ?? '').trim();
-    if (slot.prefill !== undefined) return { slot, value: slot.prefill.trim(), eingabe: false };
-    return { slot, value: eigen, eingabe: eigen !== '' };
+    const start = slot.prefill?.trim() ?? '';
+    const sichtbar = slot.prefillMode !== 'hidden';
+
+    // (1) Vorgabe: die Vorbelegung gilt, die Eingabe wird nicht gelesen.
+    if (slot.prefill !== undefined && slot.prefillMode !== 'prefilled') {
+      return { slot, value: start, eingabe: sichtbar && start !== '' };
+    }
+    // (1) Startpunkt bzw. reines Eingabefeld: was der Mensch geschrieben hat, gilt.
+    if (eigen !== '') return { slot, value: eigen, eingabe: true };
+    // (2) Unangetasteter Startpunkt — `prefilled` ist per Definition sichtbar.
+    if (slot.prefill !== undefined) return { slot, value: start, eingabe: start !== '' };
+    return { slot, value: '', eingabe: false };
   });
 }
 
@@ -446,16 +477,32 @@ export function applyEntryTemplate(
       : { id: nextId(alloc, 'F'), neu: true, eltern, kind };
   };
 
-  if (main !== undefined) {
-    const vater = personIds.father;
-    const mutter = personIds.mother;
-    if (vater !== undefined || mutter !== undefined || hatEingabe(slots, 'parentFamily')) {
-      const eltern: FamilienPlan['eltern'] = [];
-      if (vater !== undefined) eltern.push({ slot: 'husband', person: vater });
-      if (mutter !== undefined) eltern.push({ slot: 'wife', person: mutter });
-      planen('parentFamily', { husband: wunsch('father'), wife: wunsch('mother') }, eltern, main);
-    }
+  /**
+   * Eine Elternfamilie planen — EIN Helfer für beide Paare (ADR-v9-268 E1). `parentFamily`
+   * ist die FAMC der Hauptperson, `spouseParentFamily` die des Partners; sie unterscheiden
+   * sich allein darin, WESSEN Eltern und WESSEN Kind gemeint sind. Zwei Kopien desselben
+   * Blocks wären der Anfang zweier Fassungen, die auseinanderlaufen.
+   */
+  const planeElternfamilie = (
+    rolle: EntryFamilyRole,
+    vaterRolle: EntryPersonRole,
+    mutterRolle: EntryPersonRole,
+    kind: PersonId | undefined,
+  ): void => {
+    if (kind === undefined) return; // ohne Kind ist es keine ELTERN-Familie.
+    const vater = personIds[vaterRolle];
+    const mutter = personIds[mutterRolle];
+    if (vater === undefined && mutter === undefined && !hatEingabe(slots, rolle)) return;
+    const eltern: FamilienPlan['eltern'] = [];
+    if (vater !== undefined) eltern.push({ slot: 'husband', person: vater });
+    if (mutter !== undefined) eltern.push({ slot: 'wife', person: mutter });
+    planen(rolle, { husband: wunsch(vaterRolle), wife: wunsch(mutterRolle) }, eltern, kind);
+  };
 
+  planeElternfamilie('parentFamily', 'father', 'mother', main);
+  planeElternfamilie('spouseParentFamily', 'spouseFather', 'spouseMother', personIds.spouse);
+
+  if (main !== undefined) {
     const partner = personIds.spouse;
     if (partner !== undefined || hatEingabe(slots, 'spouseFamily')) {
       const seiten = eheSlots(sexVon('main'), sexVon('spouse'));

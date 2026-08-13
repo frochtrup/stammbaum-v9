@@ -56,7 +56,7 @@ describe('Erfassungs-Vorlagen — das Feld-Vokabular ist das Modell (ADR-v9-264 
   });
 });
 
-describe('Sechs Rollen, davon zwei für Familien (ADR-v9-264 E2)', () => {
+describe('Neun Rollen, davon drei für Familien (ADR-v9-264 E2, erweitert durch ADR-v9-268 E1)', () => {
   it('Familien-Rollen tragen ausschließlich Familien-Ereignis-Slots (MARR/ENGA)', () => {
     const familienSlots = alleSlots().filter(({ slot }) =>
       (ENTRY_FAMILY_ROLES as readonly string[]).includes(slot.role),
@@ -79,10 +79,20 @@ describe('Sechs Rollen, davon zwei für Familien (ADR-v9-264 E2)', () => {
     expect(ort!.role).toBe('spouseFamily');
   });
 
-  it('alle sechs Rollen sind benannt und disjunkt', () => {
-    expect([...ENTRY_PERSON_ROLES]).toEqual(['main', 'father', 'mother', 'spouse']);
-    expect([...ENTRY_FAMILY_ROLES]).toEqual(['parentFamily', 'spouseFamily']);
-    expect(new Set([...ENTRY_PERSON_ROLES, ...ENTRY_FAMILY_ROLES]).size).toBe(6);
+  it('alle neun Rollen sind benannt und disjunkt (ADR-v9-268 E1)', () => {
+    // Erweitert um die Eltern des Partners: `spouseFather`/`spouseMother` samt ihrer
+    // Familie `spouseParentFamily` (die FAMC des Partners) — die symmetrische Ergänzung
+    // zu `father`/`mother`/`parentFamily`, weil ein Trauregister beide Elternpaare nennt.
+    expect([...ENTRY_PERSON_ROLES]).toEqual([
+      'main',
+      'father',
+      'mother',
+      'spouse',
+      'spouseFather',
+      'spouseMother',
+    ]);
+    expect([...ENTRY_FAMILY_ROLES]).toEqual(['parentFamily', 'spouseParentFamily', 'spouseFamily']);
+    expect(new Set([...ENTRY_PERSON_ROLES, ...ENTRY_FAMILY_ROLES]).size).toBe(9);
   });
 });
 
@@ -119,6 +129,21 @@ describe('Die drei Standard-Vorlagen sind Daten, kein Code (ADR-v9-264 E8)', () 
     expect(nachgebaut).toEqual(heirat);
   });
 
+  it('jede mitgelieferte Vorlage erhebt das Geschlecht — gefragt ODER aus der Rolle', () => {
+    // Nutzer-Befund: im Taufe-Template fehlte es ganz, jede so erfasste Person bekam
+    // `sex: 'U'`. Bei der Heirat legt die ROLLE es fest (vorbelegt), sonst wird gefragt —
+    // beides ist zulässig, nur gar nicht erheben ist es nicht.
+    for (const tpl of BUILTIN_ENTRY_TEMPLATES) {
+      const sexSlots = tpl.slots.filter((s) => s.field === 'sex');
+      expect(sexSlots.length, tpl.id).toBeGreaterThan(0);
+      for (const s of sexSlots) {
+        const gefragt = s.prefill === undefined;
+        const ausDerRolle = s.prefill === 'M' || s.prefill === 'F';
+        expect(gefragt || ausDerRolle, `${tpl.id}: ${s.role}`).toBe(true);
+      }
+    }
+  });
+
   it('die Feldauswahl folgt dem v8-Orakel (QT_BASE_PATTERNS), nicht seiner Form', () => {
     const taufe = BUILTIN_ENTRY_TEMPLATES.find((t) => t.id === 'taufe')!;
     // Orakel: Taufdatum + Nachname + Vorname (die Seite ist die Zitation, kein Feld).
@@ -144,6 +169,8 @@ describe('Quellen-Vorbelegung: Fingerabdruck statt nackter Id (ADR-v9-264 E7)', 
     quay: 3 as const,
     pagePattern: 'Nr. […]',
     urlPattern: '',
+    pageCarry: false,
+    urlCarry: false,
   };
 
   it('passt der Fingerabdruck, gilt die Vorbelegung', () => {
@@ -196,5 +223,36 @@ describe('Gespeicherte Vorlagen kommen als `unknown` an (BL-239-Muster)', () => 
     expect(tpl.id).toBe('');
     expect(tpl.slots).toEqual([]);
     expect(tpl.source).toBeUndefined();
+  });
+
+  // ADR-v9-271: `carry` ist eine ZWEITE Achse, unabhängig von der Vorbelegung — ein Feld
+  // OHNE Vorbelegung kann mitlaufen (der Nachname im Hofregister), und an einem nicht
+  // änderbaren Feld fällt das Flag weg, statt einen ungültigen Zustand zu erzeugen.
+  it('liest `carry` unabhängig von der Vorbelegung — und wirft es an gesperrten/versteckten Feldern weg', () => {
+    const tpl = normalizeEntryTemplate({
+      id: 'hof',
+      label: 'Hofregister',
+      slots: [
+        { role: 'main', field: 'surname', carry: true },
+        { role: 'main', field: 'given', prefill: 'A', prefillMode: 'prefilled', carry: true },
+        { role: 'main', field: 'place', event: 'CHR', prefill: 'B', prefillMode: 'locked', carry: true },
+        { role: 'main', field: 'sex', prefill: 'C', prefillMode: 'hidden', carry: true },
+      ],
+    });
+    expect(tpl.slots.map((s) => s.carry)).toEqual([true, true, undefined, undefined]);
+    // Die Vorbelegungen selbst bleiben davon unberührt.
+    expect(tpl.slots.map((s) => s.prefillMode)).toEqual([undefined, 'prefilled', 'locked', 'hidden']);
+  });
+
+  it('ohne `carry` in der Datei läuft nichts mit — eine ältere Vorlage verhält sich unverändert', () => {
+    const tpl = normalizeEntryTemplate({
+      id: 'alt',
+      label: 'Alt',
+      slots: [{ role: 'main', field: 'given' }],
+      source: { sourceId: '@S1@', abbr: 'KB', title: '', quay: null, pagePattern: '', urlPattern: '' },
+    });
+    expect(tpl.slots[0].carry).toBeUndefined();
+    expect(tpl.source?.pageCarry).toBe(false);
+    expect(tpl.source?.urlCarry).toBe(false);
   });
 });

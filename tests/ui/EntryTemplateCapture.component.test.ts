@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
 import EntryTemplateCapture from '../../ui/shell/EntryTemplateCapture.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
-import { makeDatabase, makePerson, makeFamily } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeSource } from '../../core/model';
 import { makeEntryTemplate, type EntryTemplate } from '../../core/model/entry-templates';
 
 const HEIRAT: EntryTemplate = makeEntryTemplate('t-heirat', {
@@ -244,5 +244,76 @@ describe('EntryTemplateCapture — Familien-Mehrdeutigkeit (ADR-v9-264 E6)', () 
     // Nach der Wahl: derselbe Aufruf lief erneut durch und hat geschrieben.
     expect(appState.db.individuals.size).toBe(2);
     expect(screen.queryByText(/Mehrere passende/)).toBeNull();
+  });
+});
+
+// --- Mitführen je Feld (BL-360, ADR-v9-271) --------------------------------------------
+//
+// DER FALL, DER ES AUSGELÖST HAT: ein Hofregister. Derselbe Nachname über zwanzig
+// Einträge, aber OHNE Vorbelegung — er ist von Bestand zu Bestand ein anderer, gehört also
+// nicht in die Vorlage. Genau deshalb ist `carry` kein vierter `prefillMode`, sondern eine
+// eigene Achse: ein vierter Modus wäre die Anzeige-Anweisung einer Vorbelegung, die es
+// nicht gibt.
+//
+// Geprüft wird BEIDES in einem Zug — was mitläuft UND was nicht. Ein Test, der nur das
+// Mitgeführte prüft, bliebe grün, wenn `resetForSeries` gar nichts mehr leert.
+describe('EntryTemplateCapture — Mitführen (BL-360)', () => {
+  const HOFREGISTER: EntryTemplate = makeEntryTemplate('t-hof', {
+    label: 'Hofregister',
+    slots: [
+      { role: 'main', field: 'surname', carry: true },
+      { role: 'main', field: 'given' },
+    ],
+    source: {
+      sourceId: '@S1@',
+      abbr: 'HR',
+      title: 'Hofregister',
+      quay: null,
+      pagePattern: '',
+      urlPattern: '',
+      pageCarry: true,
+      urlCarry: false,
+    },
+  });
+
+  function appStateMitQuelle() {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.sources.set('@S1@', makeSource('@S1@', { abbr: 'HR', title: 'Hofregister' }));
+    appState.loadDatabase(db, 'hofregister.ged');
+    return appState;
+  }
+
+  it('führt das markierte Feld und die Seite in den nächsten Eintrag mit — die übrigen nicht', async () => {
+    const appState = appStateMitQuelle();
+    render(EntryTemplateCapture, { props: { appState, template: HOFREGISTER, onClose: vi.fn() } });
+
+    await fireEvent.change(screen.getByLabelText('Hauptperson Nachname'), { target: { value: 'Meyer' } });
+    await fireEvent.change(screen.getByLabelText('Hauptperson Vorname'), { target: { value: 'Josef' } });
+    await fireEvent.change(screen.getByLabelText('Seite / Fundstelle'), { target: { value: 'Bl. 14' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    expect(appState.db.individuals.size).toBe(1);
+    // Mitgeführt: der Nachname (Slot-Flag) und die Seite (Flag an der Quellen-Vorbelegung).
+    expect((screen.getByLabelText('Hauptperson Nachname') as HTMLInputElement).value).toBe('Meyer');
+    expect((screen.getByLabelText('Seite / Fundstelle') as HTMLInputElement).value).toBe('Bl. 14');
+    // NICHT mitgeführt: alles ohne Flag.
+    expect((screen.getByLabelText('Hauptperson Vorname') as HTMLInputElement).value).toBe('');
+  });
+
+  it('legt beim zweiten Eintrag eine zweite Person mit dem mitgeführten Nachnamen an', async () => {
+    const appState = appStateMitQuelle();
+    render(EntryTemplateCapture, { props: { appState, template: HOFREGISTER, onClose: vi.fn() } });
+
+    await fireEvent.change(screen.getByLabelText('Hauptperson Nachname'), { target: { value: 'Meyer' } });
+    await fireEvent.change(screen.getByLabelText('Hauptperson Vorname'), { target: { value: 'Josef' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    // Zweiter Eintrag: NUR der Vorname wird getippt — der Nachname steht schon da.
+    await fireEvent.change(screen.getByLabelText('Hauptperson Vorname'), { target: { value: 'Anna' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const namen = [...appState.db.individuals.values()].map((p) => `${p.given} ${p.surname}`).sort();
+    expect(namen).toEqual(['Anna Meyer', 'Josef Meyer']);
   });
 });

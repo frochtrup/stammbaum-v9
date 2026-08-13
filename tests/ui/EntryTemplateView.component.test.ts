@@ -131,7 +131,8 @@ describe('EntryView — Builder: eine gebaute Vorlage ist von einer mitgeliefert
     await fireEvent.click(within(mainSection).getByRole('button', { name: 'Nachname' }));
 
     // Ereignis über EventTypeMenu — INV-UI-8, keine zweite Typ-Liste. „Geburt" ist
-    // eindeutig beschriftet (BIRT), anders als „Taufe" (CHR **und** BAPM).
+    // eindeutig beschriftet (BIRT). Seit dem CHR/BAPM-Befund ist jedes Label eindeutig —
+    // ein Wächter in entry-template-capture-model.test.ts hält das fest.
     await fireEvent.click(within(mainSection).getByRole('button', { name: '＋ Ereignis' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Geburt' }));
 

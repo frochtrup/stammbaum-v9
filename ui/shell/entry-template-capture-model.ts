@@ -27,7 +27,13 @@ export const ENTRY_ROLE_LABELS: Record<EntryRole, string> = {
   father: 'Vater',
   mother: 'Mutter',
   spouse: 'Partner(in)',
+  // „von Partner(in)" statt „Schwiegervater/-mutter": die Rolle beschreibt, WESSEN Vater
+  // gemeint ist, nicht das Verhältnis zur Hauptperson — und das Schwieger-Verhältnis
+  // entsteht erst durch die Ehe, die in diesem Eintrag oft gerade erst geschlossen wird.
+  spouseFather: 'Vater von Partner(in)',
+  spouseMother: 'Mutter von Partner(in)',
   parentFamily: 'Elternfamilie',
+  spouseParentFamily: 'Elternfamilie von Partner(in)',
   spouseFamily: 'Ehefamilie/Partnerschaft',
 };
 
@@ -147,7 +153,13 @@ export function effectiveIdentityValue(
   typed: string,
 ): string {
   const slot = group.identitySlots.find((s) => s.field === field);
-  return slot?.prefill ?? typed;
+  if (slot?.prefill === undefined) return typed;
+  // Die Vorrang-Regel der drei Modi (ADR-v9-268 E6), hier für die Dubletten-Suche: bei
+  // `hidden`/`locked` gilt die Vorbelegung, bei `prefilled` ist sie nur ein Startwert —
+  // dort gewinnt, was im Feld steht. Dieselbe Reihenfolge wie in `aufloesen()`; stünde sie
+  // hier anders, beurteilte die Suche wieder eine andere Person als die entstehende.
+  if (slot.prefillMode === 'prefilled') return typed || slot.prefill;
+  return slot.prefill;
 }
 
 export function isPersonRole(role: EntryRole): role is EntryPersonRole {

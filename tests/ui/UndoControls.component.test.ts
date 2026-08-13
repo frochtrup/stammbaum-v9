@@ -114,6 +114,8 @@ describe('UndoControls', () => {
   // Knopfzeile, damit sie nicht mehr mit den Bedienelementen um Breite konkurriert — und
   // ihr Platz entsteht NUR, solange sie da ist (kein reservierter Leerraum, der die
   // Topbar dauerhaft höher machte).
+  // Seit BL-334 trägt `StatusNotice` die Zeile; die geprüfte Zusage ist dieselbe, nur der
+  // Klassenname wechselt von der eigenen Fassung auf die des Bausteins.
   it('die Meldung steht unter der Knopfzeile, nicht in ihr', async () => {
     const appState = seeded();
     const { container } = render(UndoControls, { props: { appState } });
@@ -121,16 +123,28 @@ describe('UndoControls', () => {
     await Promise.resolve();
     await fireEvent.click(undoBtn()!);
 
-    const notice = container.querySelector('.undo-controls__notice');
+    const notice = container.querySelector('.status-notice');
     expect(notice).not.toBeNull();
     // Entscheidend: NICHT im selben Container wie die Knöpfe.
     expect(notice!.closest('.undo-controls__row')).toBeNull();
     expect(notice!.parentElement!.classList.contains('undo-controls')).toBe(true);
   });
 
+  it('die Meldung geht auch ohne Abwarten wieder — ✕ ist der Sofort-Weg (BL-334)', async () => {
+    const appState = seeded();
+    const { container } = render(UndoControls, { props: { appState } });
+    appState.savePerson({ ...appState.db.individuals.get('@I1@')!, given: 'Geändert' });
+    await Promise.resolve();
+    await fireEvent.click(undoBtn()!);
+    expect(container.querySelector('.status-notice')).not.toBeNull();
+
+    await fireEvent.click(screen.getByLabelText('Hinweis schließen'));
+    expect(container.querySelector('.status-notice')).toBeNull();
+  });
+
   it('ohne Meldung entsteht kein Platz — die Zeile wird gar nicht erst gerendert', () => {
     const { container } = render(UndoControls, { props: { appState: seeded() } });
-    expect(container.querySelector('.undo-controls__notice')).toBeNull();
+    expect(container.querySelector('.status-notice')).toBeNull();
     // Nur die Knopfzeile, kein leeres Platzhalter-Element daneben.
     expect(container.querySelectorAll('.undo-controls > *')).toHaveLength(1);
   });

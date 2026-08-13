@@ -23,7 +23,11 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   EVEN: 'Ereignis',
   // Weitere GEDCOM-Standardtypen, die in Datenbeständen vorkommen können
   ADOP: 'Adoption',
-  BAPM: 'Taufe',
+  // NICHT „Taufe": das ist `CHR` (Kindstaufe, der Regelfall im Kirchenbuch). `BAPM` ist
+  // nach GEDCOM 5.5.1 die Glaubens-/Erwachsenentaufe. Beide gleich zu beschriften machte
+  // sie im „＋ Ereignis"-Menü ununterscheidbar — zwei Einträge „Taufe", und wer den
+  // falschen greift, schreibt einen anderen Tag in die Datei, als er meint.
+  BAPM: 'Glaubenstaufe',
   BARM: 'Bar Mizwa',
   BASM: 'Bat Mizwa',
   BLES: 'Segnung',

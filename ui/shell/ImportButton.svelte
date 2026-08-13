@@ -14,6 +14,7 @@
   // erkennt an genau diesem Namen, dass Demo-Material geladen ist.
   import { DEMO_FILE_NAME } from './onboarding-state.svelte';
   import { loadDocText } from './load-doc-text';
+  import StatusNotice from './StatusNotice.svelte';
   import type { AppState } from './app-state.svelte';
   import type { PlacesPersister } from './places-persister';
   import type { FileService } from '../../services/file';
@@ -43,8 +44,8 @@
 
   let status = $state<'idle' | 'loading-file' | 'loading-demo' | 'error'>('idle');
   let errorMessage = $state('');
-  /** Einfacher State-Flag für Konflikt-/Schema-Hinweise (Spec 30 §4 LP-9) — kein Modal,
-   * keine eigene Toast-Infrastruktur vorhanden; reicht laut Aufgabenstellung. */
+  /** Konflikt-/Schema-Hinweise nach dem Laden (Spec 30 §4 LP-9). Seit BL-334 über
+   *  `StatusNotice` — kein eigener Kanal mehr, sondern der Baustein mit Frist und ✕. */
   let placesNotice = $state('');
   async function handleClick() {
     status = 'loading-file';
@@ -104,12 +105,14 @@
   >
     {status === 'loading-demo' ? 'Lade …' : 'Demo laden'}
   </button>
+  <!-- KEIN `StatusNotice`, mit Absicht (BL-334): der Fehler ist keine transiente
+       Rückmeldung, sondern der ZUSTAND des misslungenen Ladens — er steht, bis der
+       nächste Versuch ihn ersetzt, und darf nicht nach 12 s wegblenden, während der
+       Nutzer noch überlegt, welche Datei er stattdessen wählt. -->
   {#if status === 'error'}
     <span class="import-bar__error" role="alert">Fehler beim Import: {errorMessage}</span>
   {/if}
-  {#if placesNotice}
-    <span class="import-bar__notice" role="status">{placesNotice}</span>
-  {/if}
+  <StatusNotice text={placesNotice} onDismiss={() => (placesNotice = '')} lage="inline" />
 </div>
 
 <style>
@@ -130,9 +133,6 @@
     font-size: 0.85rem;
   }
 
-  .import-bar__notice {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
-  }
+  /* Die Orts-Rückmeldung kommt aus `StatusNotice` (BL-334); der Fehler daneben behält
+     seine eigene, rote Optik — s. Begründung am Markup. */
 </style>

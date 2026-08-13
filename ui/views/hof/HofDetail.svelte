@@ -25,6 +25,7 @@
   import HofEditForm from './HofEditForm.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import Picker from '../../shell/Picker.svelte';
+  import StatusNotice from '../../shell/StatusNotice.svelte';
   import { placeDisplayName, normPlaceName } from '../../../core/places';
   import { hofHeading } from '../../shell/place-labels';
   import { buildHofDetail, type HofResidentRow } from './hof-detail-model';
@@ -52,7 +53,11 @@
   // Hausnummern-Reform hat ein Datum, kein Jahr; bis hierher fiel sie auf das Jahr zurück.
   let newAddrFrom = $state('');
   let newAddrTo = $state('');
-  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addAddr). */
+  /** Sichtbare Rückmeldung statt eines toten Knopfes (s. addAddr).
+   *  BEWUSST KEIN `StatusNotice` (BL-334): das hier ist ein FELDFEHLER, keine transiente
+   *  Rückmeldung. Er sagt aus, dass die Eingabe daneben ungültig IST — solange sie es ist,
+   *  muss er stehen bleiben. Eine 12-s-Frist würde die Begründung wegnehmen, während der
+   *  Nutzer noch am Feld tippt, und der Knopf wäre wieder stumm. */
   let grenzFehler = $state('');
 
   function startEdit() {
@@ -172,6 +177,7 @@
   const villageMatches = (p: PlaceObject, q: string) =>
     normPlaceName(placeDisplayName(p)).includes(normPlaceName(q));
 
+  /** Frist und Ausgang trägt `StatusNotice` (BL-334) — hier steht nur der Text. */
   let moveNotice = $state('');
 
   /**
@@ -305,9 +311,7 @@
             label="Dorf des Hofes"
             placeholder="Dorf wählen…"
           />
-          {#if moveNotice}
-            <p class="hof-detail__muted" role="status">{moveNotice}</p>
-          {/if}
+          <StatusNotice text={moveNotice} onDismiss={() => (moveNotice = '')} lage="block" />
         </div>
       {/if}
     </section>

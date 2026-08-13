@@ -199,7 +199,17 @@ function eventNode(ev: Event, media?: MediaLookup): GedNode {
   if (ev.note) kids.push(textNode('NOTE', ev.note));
   for (const c of ev.citations) kids.push(citationNode(c, media));
   for (const m of ev.media) kids.push(mediaNode(m, media?.get(m.mediaId)));
-  return N(ev.type, ev.value, kids);
+  // Der WERT über `textNode`, nicht roh (BL-355, ADR-v9-266) — die Schreib-Hälfte derselben
+  // Frage wie `collectText` in `parseEvent`. Seit der Wert Fortsetzungen trägt, kann er ein
+  // `\n` enthalten; roh in `N(...)` gegeben ergäbe das eine Zeile mit eingebettetem Umbruch,
+  // die kein Leser mehr als GEDCOM-Zeile sieht. Die 255-Byte-Grenze setzt der Serialisierer
+  // danach ohnehin wieder per `CONC` (BL-305) — hier geht es allein um den echten Umbruch.
+  //
+  // Die Fortsetzungs-Kinder stehen VOR `TYPE`/`DATE`/`PLAC`/…: eine Fortsetzung gehört
+  // unmittelbar an ihre Zeile, sonst setzt sie beim nächsten Lesen den falschen Elternwert
+  // fort. Dieselbe Reihenfolge-Regel wie bei `addrExtra` HINTER den ADDR-CONT-Zeilen.
+  const wert = textNode(ev.type, ev.value);
+  return { ...wert, children: [...wert.children, ...kids] };
 }
 
 /**

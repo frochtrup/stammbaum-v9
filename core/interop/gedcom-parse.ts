@@ -282,7 +282,12 @@ function collectMedia(roots: GedNode[]): Map<MediaId, Media> {
 function parseEvent(node: GedNode): Event {
   const ev = makeEvent(node.tag);
   ev.seen = true;
-  ev.value = node.value;
+  // `collectText`, nicht `node.value` (BL-355, ADR-v9-266): der Wert eines Ereignisses darf
+  // wie jeder andere Zeilenwert über `CONC`/`CONT` weiterlaufen. Roh gelesen endete er nach
+  // dem ersten Fragment — am Realbestand 242 statt 360 Zeichen an einer Hofgeschichte — und
+  // der Neubau des Records schrieb die Kürzung in die Datei zurück. `ADDR`/`NOTE` zwei
+  // Zeilen weiter unten machten es von Anfang an so; das hier war die Auslassung in der Reihe.
+  ev.value = collectText(node);
 
   const dateNode = child(node, 'DATE');
   ev.date = dateNode ? dateNode.value : null;
