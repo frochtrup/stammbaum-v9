@@ -42,6 +42,18 @@ export interface TreeLayoutOptions {
   maxAncestorLevels?: number;
   /** Index der aktiven Ehe/Familie bei Mehrfach-Ehen (Spec: `⚭N`, aktive Familie bestimmt Hauptkinder). */
   activeSpouseIndex?: number;
+  /**
+   * Der PROBAND der Sitzung — die Wurzel der Kekule-Zählung, NICHT das Zentrum des Baums
+   * (das ist `centerId`). Die beiden fielen bis dahin zusammen, weil der Parameter selbst
+   * `probandId` hieß: jedes Rezentrieren auf eine Karte nummerierte den ganzen Baum neu, und
+   * das Tooltip „Proband = 1" behauptete etwas, das nur zufällig stimmte (Nutzer-Befund).
+   *
+   * Fehlt er, gibt es GAR KEINE Nummern — dieselbe Regel wie in der Personenliste
+   * (`person-list-model.ts`: `probandId ? computeKekuleNumbers(...) : null`, INV-UI-4). Eine
+   * Nummer ohne bekannten Bezugspunkt wäre eine Aussage über eine Ahnentafel, die es nicht
+   * gibt; die Aufrufer der UI lösen den Probanden ohnehin über `resolveProband` auf.
+   */
+  probandId?: PersonId | null;
 }
 
 export interface CardBox {
@@ -125,10 +137,10 @@ const MAX_CHILD_COLS = 4;
 
 export function computeTreeLayout(
   db: Database,
-  probandId: PersonId,
+  centerId: PersonId,
   options: TreeLayoutOptions,
 ): TreeLayoutResult | null {
-  const proband = db.individuals.get(probandId);
+  const proband = db.individuals.get(centerId);
   if (!proband) return null;
 
   const d = options.portrait ? DIMS.portrait : DIMS.landscape;
@@ -138,19 +150,21 @@ export function computeTreeLayout(
 
   // ── Geschwister des Probanden (ADR-v9-23, Spec 20 §1.3 [K]): eigene Zeile links vom
   // Probanden, Voll- und Halbgeschwister aus person.childOf. ──
-  const siblings = getSiblingIds(db, probandId);
+  const siblings = getSiblingIds(db, centerId);
   const nSibs = siblings.length;
 
   const requestedLevels = Math.max(1, Math.min(4, options.maxAncestorLevels ?? (options.portrait ? 2 : 4)));
 
-  // ── Kekule-Nummern (Proband=1, relativ zum Probanden — Spec 20 §1.3 [K]) ──
-  const kekule = computeKekuleNumbers(db, probandId);
-  const kNum = (id: PersonId | null): number | null => (id ? kekule.get(id) ?? null : null);
+  // ── Kekule-Nummern (Proband=1, relativ zum PROBANDEN — Spec 20 §1.3 [K]) ──
+  // NICHT `centerId`: der Baum zentriert auf die Fokusperson, gezählt wird trotzdem ab dem
+  // Probanden der Sitzung (s. `TreeLayoutOptions.probandId`). Ohne Probanden keine Nummern.
+  const kekule = options.probandId ? computeKekuleNumbers(db, options.probandId) : null;
+  const kNum = (id: PersonId | null): number | null => (id && kekule ? kekule.get(id) ?? null : null);
 
   // ── Vorfahren-Ebenen 1..requestedLevels, gekappt auf die tiefste belegte Ebene ──
   const levels: (PersonId | null)[][] = [];
   for (let depth = 1; depth <= requestedLevels; depth++) {
-    levels.push(ancestorLevel(db, probandId, depth));
+    levels.push(ancestorLevel(db, centerId, depth));
   }
   let ancLevels = 0;
   for (let i = levels.length - 1; i >= 0; i--) {
@@ -166,13 +180,13 @@ export function computeTreeLayout(
   const par0 = usedLevels[0] ? { father: usedLevels[0][0], mother: usedLevels[0][1] } : { father: null, mother: null };
 
   // ── Ehen/Familien (Mehrfach-Ehen, Spec: `⚭N`) ──
-  const spouseFamilies = getSpouseFamilies(db, probandId).filter((f) => f.spouseId != null);
+  const spouseFamilies = getSpouseFamilies(db, centerId).filter((f) => f.spouseId != null);
   const activeIdx = spouseFamilies.length > 0 ? (options.activeSpouseIndex ?? 0) % spouseFamilies.length : 0;
   const activeFam = spouseFamilies[activeIdx] ?? null;
-  const mainKidSet = new Set(activeFam ? activeFam.children : (getSpouseFamilies(db, probandId)[0]?.children ?? []));
+  const mainKidSet = new Set(activeFam ? activeFam.children : (getSpouseFamilies(db, centerId)[0]?.children ?? []));
 
   const seenKids = new Set<PersonId>();
-  const allFamilies = getSpouseFamilies(db, probandId);
+  const allFamilies = getSpouseFamilies(db, centerId);
   const allKids: PersonId[] = [];
   for (const fam of allFamilies) {
     for (const kid of fam.children) {
@@ -396,7 +410,7 @@ export function computeTreeLayout(
 
   // ── Zentrumsperson ──
   cards.push({
-    id: probandId,
+    id: centerId,
     x: personX,
     y: ry(0),
     width: CW,
@@ -405,7 +419,7 @@ export function computeTreeLayout(
     isHalfSibling: false,
     isSibling: false,
     isPeek: false,
-    kekule: kNum(probandId),
+    kekule: kNum(centerId),
   });
 
   // ── Ehepartner (aktiver zuerst, horizontal rechts) ──
@@ -415,7 +429,21 @@ export function computeTreeLayout(
       : [];
   const spColX = personX + CW + MGAP;
   const spouseBaseY = ry(0) + Math.round((CH - H) / 2);
-  let marriageBadge: MarriageBadge | null = null;
+  // Der ⚭-Badge hängt allein an der AKTIVEN Ehe — die steht nach `orderedSpouses` an
+  // Position 0, ihre Karte also fest bei `spColX`. Deshalb hier deklarativ statt als
+  // `let`, das im Callback unten gesetzt wird: eine im Callback zugewiesene Variable
+  // hält die Kontrollfluss-Analyse danach für `never`, was jeden Zugriff auf das Feld
+  // (etwa in der Umriss-Berechnung am Ende) zu einem Cast zwingt.
+  const activeFamForBadge = orderedSpouses[0] ?? null;
+  const marriageBadge: MarriageBadge | null = activeFamForBadge
+    ? {
+        familyId: activeFamForBadge.familyId,
+        x: personX + CW,
+        y: ry(0) + CH / 2 - 12,
+        width: spColX - personX - CW,
+        height: 24,
+      }
+    : null;
   orderedSpouses.forEach((fam, displayIdx) => {
     const isActive = displayIdx === 0;
     const spX = spColX + displayIdx * (W + MGAP);
@@ -433,13 +461,6 @@ export function computeTreeLayout(
     });
     if (isActive) {
       connectors.push({ x1: personX + CW, y1: ry(0) + CH / 2, x2: spX, y2: spouseBaseY + H / 2, dashed: true });
-      marriageBadge = {
-        familyId: fam.familyId,
-        x: personX + CW,
-        y: ry(0) + CH / 2 - 12,
-        width: spX - personX - CW,
-        height: 24,
-      };
     }
   });
 
@@ -468,8 +489,42 @@ export function computeTreeLayout(
     });
   });
 
+  // ── Die Fläche muss umschließen, was gezeichnet wird ────────────────────────────────
+  // `personCX` bemisst sich allein am Ahnen-Fächer (Orakel, s. Kopfkommentar) — die
+  // Kinderzeile und der Peek-Geschwisterstapel richten sich aber ebenfalls an ihm aus und
+  // sind bei WENIGEN Ahnen-Ebenen breiter als er: eine volle Kinderzeile misst
+  // 4·SLOT, ein Ein-Ebenen-Fächer nur 2·SLOT. Die Differenz lag links von x=0 — und was
+  // dort liegt, kann kein Scroll-Container erreichen (`scrollLeft` wird nie negativ), es
+  // war schlicht abgeschnitten (Nutzer-Befund „Baum wird nicht vollständig angezeigt";
+  // gemessen: Kinderkarte bei x=-81, Peek-Stapel bei x=-64, Linien bei x=-33).
+  //
+  // Korrigiert wird am ENDE über den tatsächlichen Umriss, nicht in `personCX`: die
+  // einseitige Breitenberechnung des Orakels (Fächer bestimmt personCX, alles andere ordnet
+  // sich unter) bleibt damit unangetastet — es verschiebt sich nur der Ursprung. Ein
+  // Reserve-Term in `personCX` hätte dagegen den Zirkelbezug zurückgeholt, den der
+  // Kopfkommentar auflöst (die Geschwister-Kartenbreite hängt selbst von `personX` ab).
+  // Als Umriss zählt alles Gezeichnete: Karten, Linien, ⚭-Badge, „…"-Indikator.
+  const alleX: number[] = [];
+  for (const c of cards) alleX.push(c.x, c.x + c.width);
+  for (const c of connectors) alleX.push(c.x1, c.x2);
+  if (marriageBadge) alleX.push(marriageBadge.x, marriageBadge.x + marriageBadge.width);
+  if (siblingOverflow) alleX.push(siblingOverflow.x, siblingOverflow.x + siblingOverflow.width);
+  const minX = alleX.length > 0 ? Math.min(...alleX) : 0;
+  const shift = minX < PAD ? PAD - minX : 0;
+  if (shift > 0) {
+    for (const c of cards) c.x += shift;
+    for (const c of connectors) {
+      c.x1 += shift;
+      c.x2 += shift;
+    }
+    if (marriageBadge) marriageBadge.x += shift;
+    if (siblingOverflow) siblingOverflow.x += shift;
+  }
+  const maxX = alleX.length > 0 ? Math.max(...alleX) + shift : 0;
+  const width = Math.max(totalW + shift, maxX + PAD);
+
   return {
-    width: totalW,
+    width,
     height: totalH,
     cards,
     connectors,
@@ -483,7 +538,8 @@ export function computeTreeLayout(
       down: allKids[0] ?? null,
       right: orderedSpouses[0]?.spouseId ?? null,
     },
-    centerX: personCX,
+    // Zentrum MIT Verschiebung — der Viewport zentriert daran, er sieht nur das Ergebnis.
+    centerX: personCX + shift,
     centerY: ry(0),
   };
 }

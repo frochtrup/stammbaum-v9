@@ -1,10 +1,10 @@
 // ui/shell/person-display.ts — reine Darstellungs-Helfer für Personen (Präsentation,
 // keine Domänenlogik — deshalb bewusst in ui/, nicht core/model). Liest AUSSCHLIESSLICH
 // über core-Chokepoints/-Felder, schreibt nie zurück (reine Query-Funktionen, Spec 02 §3).
-import type { Person, Event, Sex, ChildLink } from '../../core/model/types';
+import type { Person, Event, Sex, ChildLink, Database } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
 import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
-import { formatDateForDisplay, parseDateValue } from '../../core/model/gedcom-date';
+import { dateSortKey, formatDateForDisplay, parseDateValue } from '../../core/model/gedcom-date';
 import { surnameOf } from '../../core/model/name-parts';
 
 /**
@@ -169,4 +169,24 @@ export function dateSummary(ev: Event, ctx: PlaceContext): string {
   const place = eventPlaceLabel(ev, ctx);
   if (date && place) return `${date}, ${place}`;
   return date || place;
+}
+
+/**
+ * Personen-Ids chronologisch nach Geburtsdatum — die Anzeige-Reihenfolge der Kinder einer
+ * Familie (Nutzer-Befund 2026-08-13), in `PersonDetail` wie in `FamilyDetail` (INV-UI-4:
+ * eine Reihenfolge, nicht zwei).
+ *
+ * SORTIERT EINE KOPIE. Die gespeicherte `family.children`-Reihenfolge ist Dateiinhalt und
+ * wird beim Schreiben unverändert ausgegeben — sie hier umzustellen hieße, eine Datei zu
+ * verändern, die niemand angefasst hat (LP-1).
+ *
+ * STABIL: Kinder ohne Geburtsdatum (Schlüssel `Infinity`) und solche mit demselben Datum
+ * behalten untereinander die Dateireihenfolge — `Array.prototype.sort` ist seit ES2019
+ * stabil zugesichert. Unbekannte Ids fallen heraus, wie in den Aufrufern auch.
+ */
+export function sortPersonIdsByBirth(db: Database, ids: readonly string[]): string[] {
+  return ids
+    .filter((id) => db.individuals.has(id))
+    .slice()
+    .sort((a, b) => dateSortKey(db.individuals.get(a)!.birth.date) - dateSortKey(db.individuals.get(b)!.birth.date));
 }

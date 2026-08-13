@@ -6,7 +6,7 @@ import type { Citation, Database, Event, Family, Person } from '../../../core/mo
 import type { Coords, PlaceContext } from '../../../core/places';
 import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
 import { isEventPresent, isEventEmpty, addrDisplay } from '../../../core/model';
-import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel } from '../../shell/person-display';
+import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, sortPersonIdsByBirth } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
 
 export interface FamilyMemberRow {
@@ -143,7 +143,9 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
   if (husband) members.push(husband);
   const wife = memberRow(family.wife, 'wife', db, ctx);
   if (wife) members.push(wife);
-  for (const childId of family.children) {
+  // Kinder chronologisch (Nutzer-Wunsch 2026-08-13), Eltern bleiben davor. Derselbe
+  // Helfer wie im Personen-Steckbrief; er sortiert eine Kopie (LP-1).
+  for (const childId of sortPersonIdsByBirth(db, family.children)) {
     const child = memberRow(childId, 'child', db, ctx, familyId);
     if (child) members.push(child);
   }

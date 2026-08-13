@@ -230,3 +230,29 @@ export function formatDateForDisplay(raw: string | null): string {
     default: return left;
   }
 }
+
+/**
+ * Vergleichsschlüssel eines rohen GEDCOM-Datums für chronologisches Sortieren —
+ * `Jahr*10000 + Monat*100 + Tag`, fehlende Teile als 0.
+ *
+ * WOZU: Kinder einer Familie stehen in der Datei in beliebiger Reihenfolge; angezeigt
+ * gehören sie chronologisch (Nutzer-Befund 2026-08-13). Der Schlüssel lebt HIER, weil hier
+ * der Datums-Parser lebt — eine zweite Stelle, die Monatscodes in Zahlen übersetzt, wäre
+ * genau die Doppelung, die `parseDateValue` vermeidet (INV-UI-4).
+ *
+ * OHNE JAHR ans Ende: `Infinity`. Ein Kind ohne Geburtsdatum irgendwo dazwischen
+ * einzusortieren wäre eine Behauptung; hinten stehen heißt „unbekannt", und die
+ * Aufrufer sortieren stabil, sodass diese Kinder ihre Dateireihenfolge behalten.
+ *
+ * QUALIFIER werden bewusst NICHT gewichtet: „vor 1880" und „1880" sortieren gleich. Die
+ * Ordnung ist eine Anzeige-Hilfe, keine Aussage über Genauigkeit — und eine Rangfolge
+ * unter Unschärfen (`BEF` vor `ABT` vor `EXACT`?) wäre erfunden. Bei `BET`/`FROM` zählt
+ * die untere Grenze, weil `parseDateValue` sie als `year`/`month`/`day` liefert.
+ */
+export function dateSortKey(raw: string | null): number {
+  if (raw == null || raw.trim() === '') return Number.POSITIVE_INFINITY;
+  const p = parseDateValue(raw);
+  if (p.year == null) return Number.POSITIVE_INFINITY;
+  const month = p.month ? MONTHS.indexOf(p.month as (typeof MONTHS)[number]) + 1 : 0;
+  return p.year * 10000 + month * 100 + (p.day ?? 0);
+}

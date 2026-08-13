@@ -22,6 +22,38 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.17] — 2026-08-13
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`d6f28b3`…HEAD) erzeugt._
+
+- feat(person): Hochzeitsdatum, chronologische Kinder und die Verwandtschaft zum Probanden (BL-363/364/365) (`357b328`)
+- fix(tree): Zentrum und Proband sind zwei Dinge — Kekule zaehlt ab dem Probanden, die Flaeche umschliesst den Baum (BL-361/362) (`0fbfba0`)
+
+---
+
+## [9.16] — 2026-08-13
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`ec3ad93`…HEAD) erzeugt._
+
+- feat(v9): BL-360 — Mitfuehren je Feld ueberlebt den Serien-Reset (`2db15e6`)
+- feat(v9): BL-334 — die Meldungs-Kanaele ziehen auf StatusNotice nach (`790b068`)
+- fix(v9): CHR und BAPM hiessen beide "Taufe" — im Menue nicht unterscheidbar (`9bb2293`)
+- fix(v9): ein sichtbarer Startwert legt an — und "gespeichert" luegt nicht mehr (`0f3f85c`)
+- fix(v9): Taufe und Sterbefall erheben das Geschlecht (Nutzer-Befund) (`6393018`)
+- feat(v9): dritter Vorbelegungs-Modus — vorbelegt UND aenderbar (ADR-v9-268 E6) (`4a8ab3c`)
+- feat(v9): BL-358/357 Eltern des Partners, und der Builder bedient wie die Erfassung (`95f34ca`)
+- fix(interop): ein Ereigniswert traegt seine Fortsetzungen (BL-355) (`25f00b0`)
+- feat(v9): BL-354 eine Erfassungs-Vorlage als Datei weitergeben (`1993014`)
+- feat(v9): BL-353 Erfassung als Arbeits-Ziel — Vorlagen-Liste und Builder (`320eafe`)
+- feat(v9): BL-352 Erfassungs-Flaeche — Datumszeile geteilt, Treffer vorgeschlagen (`739d0eb`)
+- feat(v9): BL-232 Erfassungs-Vorlagen — Modell, Persistenz, Anwenden-Kommando (`96e36b3`)
+- fix(ui): die Rueckfrage vor dem Loeschen gehoert der App, nicht dem Browser (BL-351) (`64c920c`)
+- feat(person): die Forschungszeile sagt, was sie weiss — und laesst sich anfassen (BL-350) (`7f5566a`)
+- fix(ui): in einer scrollenden Spalte schrumpft kein Kind — die Detail-Wurzel wird eine Klasse (BL-349) (`2ceefa8`)
+- feat(v9): BL-234 Quellreferenz-Zwischenablage (ADR-v9-260) (`5caa8b1`)
+
+---
+
 ## [9.15] — 2026-08-11
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`e903a85`…HEAD) erzeugt._

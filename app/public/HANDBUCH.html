@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.15 · Stand 2026-08-11</div>
+  <div class="version">Benutzerhandbuch · Version 9.17 · Stand 2026-08-13</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -204,6 +204,7 @@
     <li><a href="#k4">Personen — das Herzstück</a></li>
     <li><a href="#k5">Familien</a></li>
     <li><a href="#k6">Quellen und Archive</a></li>
+    <li><a href="#kErfassung">Erfassung: ein Registereintrag in einem Zug</a></li>
     <li><a href="#k7">Orte</a></li>
     <li><a href="#k8">Höfe</a></li>
     <li><a href="#k9">Medien</a></li>
@@ -264,14 +265,21 @@
   <li><strong>Zwei Standardformate, gleichrangig.</strong> <strong>GEDCOM 5.5.1</strong> und
       <strong>GRAMPS XML</strong> — beide werden gelesen <em>und</em> geschrieben, Sie
       können zwischen ihnen wechseln, ohne etwas zu verlieren (siehe
-      <a href="#k16">Kapitel 18</a>).</li>
+      <a href="#k16">Kapitel 19</a>).</li>
   <li><strong>Sechs Kern-Datenarten:</strong> Personen, Familien, Quellen, Orte, Höfe und
       Medien — dazu Diagramme, Statistik und ein Forschungs-Arbeitsbereich.</li>
   <li><strong>Ihre Bilder bleiben Ihre Dateien.</strong> Stammbaum legt keine eigene
       Fotosammlung an und lädt nichts hoch: Sie geben einmal den Ordner frei, in dem Ihre
       Scans ohnehin liegen, und die App zeigt sie als Vorschau — in der
       <a href="#k9">Galerie</a>, im Steckbrief, in Story und Ausgaben (siehe
-      <a href="#k9">Kapitel 9</a>).</li>
+      <a href="#k9">Kapitel 10</a>).</li>
+  <li><strong>Ein Registereintrag, ein Speichervorgang.</strong> Ein Trauregister nennt
+      zwei Brautleute, zwei Elternpaare, Datum, Ort und seine eigene Seitenzahl. Die
+      <a href="#kErfassung">Erfassung</a> nimmt das in <em>einer</em> Fläche auf und legt
+      Personen, Familien und Ereignisse zusammen an — mit der Quellenangabe an jedem
+      einzelnen davon und einem einzigen Schritt zum Zurücknehmen. Die Vorlagen dafür sind
+      nicht vorgegeben, sondern frei baubar: eine je Kirchenbuch, so geordnet, wie der
+      Eintrag gelesen wird.</li>
   <li><strong>Erzählte Biografien.</strong> Die <a href="#kStory">Story-Ansicht</a> macht
       aus nüchternen Daten eine lesbare Lebensgeschichte — mit Karte, Diagramm und Fotos,
       als Dokument herunterladbar.</li>
@@ -295,7 +303,7 @@
 <div class="info">
   Dieses Handbuch beschreibt nur Funktionen, die tatsächlich gebaut und in der App
   erreichbar sind. Geplante, aber noch nicht fertige Bereiche sind in
-  <a href="#k17">Kapitel 19</a> gesammelt und in der App mit „(folgt)" gekennzeichnet.
+  <a href="#k17">Kapitel 20</a> gesammelt und in der App mit „(folgt)" gekennzeichnet.
 </div>
 
 <h2>Was Sie zum Loslegen brauchen</h2>
@@ -378,6 +386,10 @@
         Karte, Statistik und Ortszeitgenossen.</li>
     <li><strong>Ergänzen &amp; belegen.</strong> Fehlende Ereignisse eintragen und
         <a href="#k6">jede Angabe mit einer Quelle</a> versehen.</li>
+    <li><strong>Serien erfassen.</strong> Arbeiten Sie ein Kirchenbuch oder Register am
+        Stück durch, legen Sie sich dafür eine
+        <a href="#kErfassung">Erfassungs-Vorlage</a> an — ein Eintrag wird dann zu
+        <em>einer</em> Eingabe samt Quellenangabe.</li>
     <li><strong>Forschen mit Plan.</strong> Offene Fragen als
         <a href="#k12">Aufgabe</a> festhalten, Recherche im <a href="#k12">Protokoll</a>
         dokumentieren, Schlussfolgerungen als <a href="#k12">Hypothese</a> prüfen.</li>
@@ -391,9 +403,10 @@
 
 <p class="lead">
   Stammbaum ordnet alles nach <strong>Rollen</strong>: Es gibt <em>Daten</em>
-  (die fünf Datenarten), <em>Ansichten</em> (Diagramme und Statistik),
+  (die sechs Datenarten), <em>Ansichten</em> (Diagramme und Statistik),
   <em>Forschung</em> (Dashboard, Aufgaben, Protokoll, Hypothesen) und <em>Arbeit</em>
-  (Suche, Datei). Auf dem Handy und auf dem Computer sieht das leicht unterschiedlich
+  (Suche, Datei, Ausgaben, <a href="#kErfassung">Erfassung</a>, Einstellungen). Auf dem
+  Handy und auf dem Computer sieht das leicht unterschiedlich
   aus, folgt aber überall demselben Register — und benennt dieselbe Gruppe auf beiden
   Geräten gleich.
 </p>
@@ -413,9 +426,10 @@
       Medien</em>.
     </p>
     <p>
-      Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, Statistik,
-      <a href="#kStory">Story</a>, <a href="#kReports">Ausgaben</a>, das Datei-Menü und
-      die <a href="#einstellungen">Einstellungen</a>.
+      Unter <strong>Mehr</strong> finden Sie Karte, Zeitleiste, das Datei-Menü, die
+      <a href="#kErfassung">Erfassung</a>, Statistik, <a href="#kStory">Story</a>,
+      <a href="#kReports">Ausgaben</a> und die
+      <a href="#einstellungen">Einstellungen</a>.
     </p>
     <p>
       <strong>Zurück und vorwärts.</strong> Stammbaum merkt sich Ihren Weg. In einer
@@ -470,12 +484,30 @@
   eingebaut.
 </div>
 
+<h2>Rückfragen und Rückmeldungen</h2>
+<p>
+  <strong>Vor jedem Löschen fragt die App — und zwar die App.</strong> Die Rückfrage ist ein
+  Dialog des Programms, kein Browser-Fenster: Sie nennt in der Überschrift die Handlung
+  (<em>„Taufe" löschen?</em>), darunter, was verloren geht, und der bestätigende Knopf trägt ein
+  <em>Verb</em> statt „OK" — <strong>Löschen</strong>, <strong>Entfernen</strong>,
+  <strong>Ersetzen</strong>. <kbd>Esc</kbd> oder ein Klick daneben bricht ab, der
+  Tastaturfokus bleibt im Dialog. Überall dieselbe Form, an jeder der sieben Datenarten.
+</p>
+<p>
+  <strong>Und jede Rückmeldung sieht gleich aus.</strong> Ob nach dem Laden einer Datei,
+  nach einem Export oder nach einer Erfassung: Bestätigungen und Hinweise erscheinen als
+  eine Zeile mit ✕ zum Schließen, die sich nach einer Weile von selbst zurückzieht. Sie
+  betrifft nur die <em>Anzeige</em> — was tatsächlich Handlungsbedarf ist, steht als Befund
+  im <a href="#k13">Qualitäts-Dashboard</a> und verschwindet dort nicht von allein.
+</p>
+
 <h2>Auf dem Computer: Seitenleiste und zwei Spalten</h2>
 <p>
   Ab einer Fensterbreite von etwa 900&nbsp;Pixeln ersetzt eine <strong>Seitenleiste</strong>
   die untere Navigationsleiste. Sie zeigt alle Ziele nach Rolle gruppiert
   (DATEN · ANSICHTEN · FORSCHUNG · ARBEIT — die Gruppe <em>Forschung</em> bündelt
-  Dashboard, Aufgaben, Protokoll und Hypothesen). Zusätzlich erscheint die
+  Dashboard, Aufgaben, Protokoll und Hypothesen, die Gruppe <em>Arbeit</em> Suche, Datei,
+  Ausgaben, <a href="#kErfassung">Erfassung</a> und Einstellungen). Zusätzlich erscheint die
   <strong>Zwei-Spalten-Ansicht</strong>: links die Liste, rechts sofort die
   Detailansicht des gewählten Eintrags.
 </p>
@@ -602,21 +634,6 @@
       einzutragen, wo sie fehlt. Dasselbe gilt für Taufe, Tod und Bestattung.
     </p>
     <p>
-      <strong>Eltern und eigene Familien direkt am Steckbrief.</strong> Unter
-      <em>Herkunftsfamilie</em> und <em>Eigene Familie</em> steht hinter jeder Rolle
-      (Vater, Mutter, Partner) eine <strong>+</strong>-Pille. Ein Tipp öffnet die Suche:
-      Sie ordnen eine vorhandene Person zu — oder legen sie gleich neu an, wenn die Suche
-      nichts findet. Ist noch gar keine Familie da, entsteht sie dabei mit. Sie müssen für
-      einen fehlenden Vater also nicht mehr erst in den Familien-Bereich wechseln.
-    </p>
-    <p>
-      <strong>Forschung an Ort und Stelle.</strong> Ein eigener Abschnitt
-      <em>Forschung</em> nimmt Aufgaben, Hypothesen und Protokoll-Einträge direkt an der
-      Person auf — dieselben Einträge, die <a href="#k12">Kapitel 12</a> beschreibt, nur
-      ohne Umweg über den Forschungs-Bereich. Ab vier Einträgen klappt der Abschnitt
-      zusammen, damit er den Steckbrief nicht überwächst.
-    </p>
-    <p>
       Ist ein <a href="#k9">Medium</a> als <strong>Primärbild</strong> gekennzeichnet und
       der Medien-Ordner verbunden, steht es als <strong>Porträt</strong> im Steckbrief;
       Ereignisse mit eigenem Medium tragen eine kleine <strong>Miniatur</strong> in ihrer
@@ -628,6 +645,48 @@
     <img src="handbuch-assets/04-person-detail.png" alt="Personen-Detail mit gruppierten Ereignissen, Quellen-Badges und Koordinaten-Icons">
     <figcaption>Personen-Detail: Ereignisse nach Typ, mit Quellen und Koordinaten</figcaption>
   </figure>
+</div>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/04d-forschung-person.png" alt="Unterer Teil eines Personen-Steckbriefs: Familien mit +-Pillen, Personenbezüge und der Abschnitt Forschung mit einer Aufgabe und einem Protokolleintrag">
+    <figcaption>Unten am Steckbrief: Familien, Bezüge — und die Forschung an dieser Person</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      <strong>Eltern und eigene Familien direkt am Steckbrief.</strong> Unter
+      <em>Herkunftsfamilie</em> und <em>Eigene Familie</em> steht hinter jeder Rolle
+      (Vater, Mutter, Partner) eine <strong>+</strong>-Pille. Ein Tipp öffnet die Suche:
+      Sie ordnen eine vorhandene Person zu — oder legen sie gleich neu an, wenn die Suche
+      nichts findet. Ist noch gar keine Familie da, entsteht sie dabei mit. Sie müssen für
+      einen fehlenden Vater also nicht mehr erst in den Familien-Bereich wechseln.
+    </p>
+    <p>
+      <strong>Jede Familienzeile nennt ihr Hochzeitsdatum</strong> (<strong>⚭</strong>),
+      gleich zu Beginn der Zeile: bei der eigenen Familie die eigene Ehe, bei der
+      Herkunftsfamilie die der Eltern — für die Einordnung einer Kindheit oft genauso
+      wichtig. Ist keines bekannt, steht dort nichts (kein „unbekannt").
+      <strong>Die Kinder stehen chronologisch</strong> nach Geburtsdatum, Kinder ohne
+      Datum am Ende. Sortiert wird nur die <em>Anzeige</em>: In Ihrer Datei bleibt die
+      Reihenfolge unangetastet, so wie sie dort steht.
+    </p>
+    <p>
+      <strong>Forschung an Ort und Stelle.</strong> Ein eigener Abschnitt
+      <em>Forschung</em> nimmt Aufgaben, Hypothesen und Protokoll-Einträge direkt an der
+      Person auf — dieselben Einträge, die <a href="#k12">Kapitel 15</a> beschreibt, nur
+      ohne Umweg über den Forschungs-Bereich. <strong>＋ Forschungseintrag</strong> öffnet
+      dafür ein Menü mit den drei Arten.
+    </p>
+    <p>
+      Jede Zeile sagt, was sie weiß: links ihre Art (<em>Aufgabe · Protokoll ·
+      Hypothese</em>), dann der Text und dahinter als Zusatz, was den Eintrag
+      unterscheidet — das Ergebnis einer Suche, der Status einer Hypothese, die Quelle,
+      das Datum, jeweils in Klartext statt als Kürzel. <strong>✎</strong> und
+      <strong>🗑</strong> an der Zeile ändern und entfernen ihn, genau wie an einer
+      Ereigniszeile darüber. Ab vier Einträgen klappt der Abschnitt zusammen, damit er den
+      Steckbrief nicht überwächst.
+    </p>
+  </div>
 </div>
 
 <div class="shot-row pair">
@@ -704,6 +763,21 @@
   Sie keinen gesetzt haben, wählt die App sinnvoll vor — so ist überall dieselbe Person
   gemeint, ohne dass Sie sie in jeder Ansicht neu suchen müssen.
 </p>
+<p>
+  <strong>Jeder Steckbrief sagt Ihnen, wie seine Person zum Probanden steht.</strong>
+  Unter dem Namen steht das Verwandtschaftsverhältnis, der Grad hervorgehoben:
+  <strong>Onkel</strong> <span class="muted">von Kaspar Hörstmann</span>. Gibt es keinen
+  gemeinsamen Vorfahren, steht genau das dort — „nicht mit … verwandt" ist eine Auskunft,
+  kein Fehler, und unterscheidet sich sichtbar von „nicht berechnet". Beim Probanden
+  selbst entfällt die Zeile; dort sagt es bereits <strong>★ Proband</strong>. Gerechnet
+  wird mit demselben Verfahren wie im <a href="#k4">Verwandtschaftsrechner</a> — wer den
+  vollständigen Pfad und den gemeinsamen Vorfahren sehen will, öffnet ihn dort.
+</p>
+
+<figure class="phone phone--narrow">
+  <img src="handbuch-assets/04e-verwandtschaft.png" alt="Personen-Steckbrief; unter dem Namen steht fett „Onkel“ und dahinter „von Kaspar Hörstmann“">
+  <figcaption>Unter dem Namen: das Verhältnis zum Probanden, der Grad hervorgehoben</figcaption>
+</figure>
 
 <div class="workflow">
   <h3>So legen Sie eine Person an</h3>
@@ -892,7 +966,10 @@
       <li>Familien-Ereignisse wie <strong>Verlobung</strong> und <strong>Heirat</strong>
           (mit Ort, Koordinaten und Quellen wie bei Personen).</li>
       <li><strong>Kinder</strong> — die Liste ist anklickbar; über
-          „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder.</li>
+          „Kind hinzufügen…" wird eine Person zugeordnet, das ✕ löst sie wieder. Die Kinder
+          stehen <strong>chronologisch nach Geburtsdatum</strong> (undatierte am Ende), hier
+          wie im Personen-Steckbrief. Sortiert wird allein die Anzeige — in Ihrer Datei
+          bleibt die Reihenfolge, wie sie ist.</li>
       <li>Ein <strong>Kind neu anlegen</strong> geht direkt aus der Familie heraus: die
           neue Person ist sofort zugeordnet, Sie füllen nur noch den Steckbrief.</li>
       <li><strong>Wie sicher ist die Kindschaft?</strong> Zu jedem Kind lässt sich
@@ -1032,6 +1109,30 @@
   </ol>
 </div>
 
+<h2>Dieselbe Fundstelle mehrfach verwenden</h2>
+<p>
+  Eine Seite im Kirchenbuch belegt selten nur eine einzige Angabe: Derselbe Taufeintrag
+  nennt Datum, Ort, Eltern und Paten. Damit die Fundstelle nicht viermal von Hand
+  eingetippt wird, hat jede Zitatzeile ein <strong>⧉</strong>. Es legt die
+  <em>vollständige</em> Zitation in eine Ablage — Quelle, Seite, Beweiskraft, Notiz,
+  Weblink und die Evidenz-Achsen, nicht nur den Namen.
+</p>
+<p>
+  An jeder anderen Quellen-Sektion erscheint daraufhin ein Chip
+  <strong>„📋 Übernehmen: <em>Quelle · Seite</em>"</strong> — ein Klick fügt die Fundstelle
+  dort ein. Der Chip steht nur, solange etwas abgelegt ist, und trägt ein eigenes
+  <strong>✕</strong>, um die Ablage zu leeren; die Ablage selbst gilt für die laufende
+  Sitzung und wird nicht mitgespeichert. Ein <strong>↗</strong> in der Beschriftung
+  verrät, dass ein Weblink mitreist.
+</p>
+<p class="muted">
+  Für GRAMPS-Dateien mit gedacht: Dort ist eine Zitation ein <em>gemeinsamer</em>
+  Datensatz, den mehrere Ereignisse benutzen — die eingefügte Zeile bleibt deshalb
+  zunächst dieselbe Fundstelle und löst sich erst von ihr, sobald Sie sie ändern. So
+  entsteht weder eine stille Dublette noch eine Änderung, die ungewollt auf die
+  Ursprungszeile durchschlägt.
+</p>
+
 <div class="practice">
   Belegen Sie jede Tatsache, und trennen Sie sauber: <em>Was</em> steht in der Quelle
   (das Ereignis) von <em>wie verlässlich</em> die Quelle ist (die Beweiskraft) von
@@ -1040,7 +1141,231 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k7">7. Orte</h1>
+<h1 class="chapter" id="kErfassung">7. Erfassung: ein Registereintrag in einem Zug</h1>
+
+<p class="lead">
+  Ein Trauregister-Eintrag nennt Braut und Bräutigam, meist beide Elternpaare, Datum und Ort
+  der Trauung — und steht auf einer bestimmten Seite eines bestimmten Kirchenbuchs. In der
+  üblichen Arbeitsweise werden daraus sechs Formulare, zwei Familien und ein Dutzend Mal
+  dieselbe Quellenangabe. Die <strong>Erfassung</strong> macht daraus <em>eine</em> Fläche
+  und <em>einen</em> Speichervorgang: Personen, Familien, Ereignisse und der Beleg entstehen
+  gemeinsam — und lassen sich mit einem einzigen <strong>↶ Rückgängig</strong> wieder
+  zurücknehmen. Wer ein Kirchenbuch systematisch durcharbeitet, erfasst so Eintrag für
+  Eintrag, ohne die Fläche zu verlassen.
+</p>
+
+<p>
+  Zu finden ist sie am Handy unter <strong>Mehr → Erfassung</strong>, am Computer in der
+  Seitenleiste unter <strong>ARBEIT</strong>. Sie ist ein <em>eigenes</em> Arbeitsziel und
+  kein Werkzeug der Personenliste — was hier entsteht, gehört keiner einzelnen Datenart.
+</p>
+
+<div class="shot-row">
+  <figure class="phone">
+    <img src="handbuch-assets/33-erfassung-liste.png" alt="Erfassungs-Fläche mit den drei mitgelieferten Vorlagen Heirat, Taufe und Sterbefall">
+    <figcaption>Der Einstieg: die Vorlagen-Liste</figcaption>
+  </figure>
+  <div class="prose">
+    <h2>Vorlagen — der Einstieg</h2>
+    <p>
+      Eine <strong>Vorlage</strong> beschreibt einen wiederkehrenden Quelleneintrag: welche
+      Personen und Familien er nennt und welche Felder dafür auszufüllen sind. Drei bringt
+      die App mit — <strong>Heirat (Heiratsbuch)</strong>, <strong>Taufe (Taufbuch)</strong>
+      und <strong>Sterbefall (Sterberegister)</strong>. Unter dem Namen steht, welche Rollen
+      die Vorlage trägt. Die Taufe fragt dabei nach dem <em>Geschlecht</em> — im Taufbuch
+      steht es —, während die Heirat es aus den Rollen mitbringt: Bräutigam und Braut sind
+      dort keine Frage, sondern Teil der Vorlage.
+    </p>
+    <p>
+      Je Zeile: <strong>▶ Erfassen</strong> öffnet die Erfassungsfläche, <strong>⧉</strong>
+      legt eine bearbeitbare Kopie an, <strong>✎</strong> und <strong>🗑</strong> ändern
+      bzw. entfernen eigene Vorlagen. Die mitgelieferten sind bewusst nur
+      <em>kopierbar</em>: Sie behalten damit immer einen unveränderten Ausgangspunkt.
+      <strong>＋ Neue Vorlage</strong> beginnt bei null, <strong>Vorlage laden</strong>
+      übernimmt eine aus einer Datei (siehe unten).
+    </p>
+  </div>
+</div>
+
+<h2>Die Erfassungsfläche</h2>
+<p>
+  Die Fläche zeigt die Felder der Vorlage, nach <strong>Rollen</strong> gruppiert:
+  Hauptperson, Vater, Mutter, Partner(in), deren Eltern sowie die drei Familien-Rollen
+  (Elternfamilie, Elternfamilie der Partnerin bzw. des Partners, Ehefamilie). Ein
+  Heiratsdatum ist damit ein Feld der <em>Familie</em> und kein Sonderfall an einer Person.
+  Eingegeben wird mit denselben Bausteinen wie überall in der App: dieselbe Datumszeile mit
+  <em>exakt / um / vor / nach</em>, derselbe Ortspicker, dieselbe Quellen-Sektion — die
+  Erfassung ist eine Abkürzung, keine zweite Bedienwelt.
+</p>
+
+<div class="shot-row pair">
+  <figure class="phone">
+    <img src="handbuch-assets/34-erfassung-flaeche.png" alt="Erfassungsfläche der Heirats-Vorlage mit Chips für vorbelegte Werte, Ehefamilie, Hauptperson und Partnerin">
+    <figcaption>Eine Vorlage in Arbeit: Rollen-Blöcke, Chips für Vorbelegtes</figcaption>
+  </figure>
+  <figure class="phone">
+    <img src="handbuch-assets/34b-erfassung-dublette.png" alt="Geöffneter Personen-Picker mit sechs Dubletten-Kandidaten samt Geburtsjahr und Ort">
+    <figcaption>Die Dubletten-Suche schlägt vor — verknüpft wird per Klick</figcaption>
+  </figure>
+  <div class="prose">
+    <p>
+      <strong>Vor dem Speichern existiert kein Datensatz.</strong> Die Fläche hält einen
+      Entwurf; erst <strong>Speichern</strong> legt an — und zwar alles zusammen, in einem
+      Schritt, der als <em>ein</em> Schritt zurückgenommen werden kann. Wer abbricht,
+      hinterlässt nichts.
+    </p>
+    <p>
+      <strong>Dubletten werden vorgeschlagen, nicht gebunden.</strong> Während Sie Vor- und
+      Nachnamen eintragen, vergleicht die App den entstehenden Datensatz mit dem Bestand —
+      mit demselben Ähnlichkeitsmaß wie die <a href="#k4">Duplikatsuche</a>, kein zweiter
+      Maßstab. Passt etwas, erscheint <em>„N mögliche Treffer — verknüpfen statt neu
+      anlegen?"</em>; ein Tipp darauf öffnet den gewohnten Personen-Picker mit genau diesen
+      Kandidaten (mit Geburtsjahr und Ort zur Unterscheidung), <em>„Alle Personen
+      durchsuchen"</em> hebt die Einschränkung auf. Verknüpft wird ausschließlich durch
+      Ihren Klick: ein Namensgleichklang ist schwächere Evidenz als eine Familienbindung
+      und darf nicht selbsttätig in fremde Datensätze schreiben.
+    </p>
+    <p>
+      <strong>Eine verknüpfte Person wird ergänzt, nie überschrieben.</strong> Leere Felder
+      füllt die Erfassung, belegte lässt sie stehen — und ein Ereignis, das keine
+      Sondersemantik trägt, kommt stets als <em>neues</em> hinzu, statt ein vorhandenes zu
+      überschreiben. Welches von mehreren gemeint wäre, kann niemand entscheiden.
+    </p>
+  </div>
+</div>
+
+<h3>Vorbelegte Werte und die Sichtbarkeitsregel</h3>
+<p>
+  Eine Vorlage kann Felder vorbelegen — in drei Formen, die sich nicht nur in der Anzeige
+  unterscheiden:
+</p>
+<ul>
+  <li><strong>Versteckt.</strong> Der Wert wird beim Speichern übernommen, erscheint aber
+      nicht als Feld, sondern als <strong>Chip im Kopf</strong> der Fläche („Hauptperson ·
+      Geschlecht: Männlich"). Für das, was im ganzen Register gleich ist.</li>
+  <li><strong>Sichtbar, gesperrt.</strong> Der Wert steht im Feld und ist nicht änderbar.</li>
+  <li><strong>Vorbelegt, änderbar.</strong> Der Wert ist ein Startpunkt; was Sie
+      hineinschreiben, gilt. Sonst wäre „änderbar" eine Anzeige-Lüge.</li>
+</ul>
+<p>
+  Daran hängt eine Regel, die vor stillen Anlagen schützt: <strong>ob eine Vorbelegung
+  einen Datensatz entstehen lässt, entscheidet allein ihre Sichtbarkeit.</strong> Ein
+  <em>versteckter</em> Wert allein legt nichts an — niemand hat ihn zu Gesicht bekommen.
+  Ein sichtbarer zählt wie eine Eingabe. Ob ein Datenbündel <em>sinnvoll</em> ist,
+  beurteilt der Mensch, der auf Speichern drückt; die App stellt nur sicher, dass sichtbar
+  war, was gespeichert wird. Und wo nichts entstanden ist, meldet die Fläche genau das
+  („Nichts erfasst — es war kein Feld ausgefüllt.") statt eines Erfolgs, den es nicht gab.
+</p>
+
+<h3>Der Beleg läuft mit</h3>
+<p>
+  Trägt die Vorlage eine <strong>Quellen-Vorbelegung</strong>, zeigt die Fläche die Quelle
+  als Marke und darunter <em>Seite / Fundstelle</em> und <em>Weblink</em>. Beim Speichern
+  hängt dieselbe Zitation an <em>jedem</em> berührten Ereignis — je Ereignis ein eigenes
+  Zitat, wie von Hand angelegt. Genau das ist der Punkt, an dem Erfassungsvorlagen mehr sind
+  als Tipparbeit-Ersparnis: Der Beleg entsteht nicht später und nicht aus dem Gedächtnis,
+  sondern im selben Handgriff wie die Angabe, die er stützt. Passt die vorbelegte Quelle
+  nicht zum geladenen Bestand (weil die Vorlage aus einer fremden Datei stammt), sagt die
+  Fläche das und hängt <em>keine</em> Zitation an — wirkungslos statt falsch.
+</p>
+
+<h3>Familien: wiederverwenden, bei Zweifel fragen</h3>
+<p>
+  Passt eine vorhandene Familie zu den genannten Eltern, wird sie wiederverwendet statt
+  ein zweites Mal angelegt. Kommen mehrere in Frage, wird <em>gefragt</em> statt geraten:
+  ein Picker zeigt die Kandidaten zur Wahl. Dieselbe Haltung wie bei der
+  <a href="#k7">Ortsauflösung</a> — bei Mehrdeutigkeit entscheidet ein Mensch.
+</p>
+
+<h3>Serienerfassung und „Mitführen"</h3>
+<p>
+  Nach dem Speichern bleibt die Fläche offen und setzt sich für den nächsten Eintrag
+  zurück; die Vorbelegungen der Vorlage stehen wieder da. Zusätzlich kann die Vorlage an
+  <em>jedem einzelnen Feld</em> festlegen, dass der <strong>eingetippte</strong> Wert den
+  Reset überlebt — <strong>Mitführen</strong>. Der Fall, für den es gebaut ist, ist ein
+  Hofregister: derselbe Nachname über zwanzig Einträge, aber ohne Vorbelegung, weil er von
+  Bestand zu Bestand ein anderer ist. Je Feld, nicht je Block: der Nachname läuft mit, der
+  Vorname nicht. Seite und Weblink der Zitation können ebenso mitlaufen. Die
+  <em>gewählte</em> Person oder Familie läuft bewusst nicht mit — der nächste Taufeintrag
+  betrifft ein anderes Kind, auch wenn der Nachname derselbe bleibt.
+</p>
+<p>
+  Unmittelbar nach dem Speichern prüft die App die neu entstandenen Datensätze mit den
+  Regeln der <a href="#k13">Datenprüfung</a> — nur diese, kein Durchlauf über den ganzen
+  Bestand — und meldet Befunde direkt an der Fläche. Ein vertauschtes Jahr fällt so
+  beim nächsten Eintrag auf und nicht erst beim nächsten Dashboard-Lauf.
+</p>
+
+<h2>Eigene Vorlagen bauen</h2>
+
+<figure class="wide">
+  <img src="handbuch-assets/35-erfassung-builder.png" alt="Vorlagen-Builder im Desktop-Layout mit Rollen-Blöcken, Feldzeilen, Vorbelegungs-Modus und Mitführen-Häkchen">
+  <figcaption>Der Builder: je Feld eine Zeile mit Vorbelegung, Modus und „Mitführen"</figcaption>
+</figure>
+
+<p>
+  Der <strong>Builder</strong> öffnet sich über <strong>＋ Neue Vorlage</strong> oder über
+  <strong>⧉</strong> an einer bestehenden. Er kennt keine festen Bausätze: Sie fügen je
+  Rolle die Felder hinzu, die Ihr Register nennt — <em>Nachname, Vorname, Geschlecht</em>
+  als Identitätsangaben, dazu beliebige Ereignisse mit <em>Datum, Ort, Adresse, Wert,
+  Notiz</em>. Das Feld-Vokabular ist dasselbe, das die App auch sonst verwendet; es gibt
+  keine zweite Liste, die auseinanderlaufen könnte.
+</p>
+<ul>
+  <li><strong>Reihenfolge.</strong> ▲ und ▼ verschieben eine Feldzeile — und einen ganzen
+      Rollen-Block. Ordnen Sie die Vorlage so, wie der Eintrag im Buch gelesen wird, dann
+      folgt das Abtippen der Vorlage statt umgekehrt.</li>
+  <li><strong>Vorbelegung und Modus</strong> stehen je Zeile nebeneinander, daneben das
+      Häkchen <em>Mitführen</em>. Eingegeben wird eine Vorbelegung mit demselben
+      Bedienelement wie das Feld, das sie vorbelegt: das Geschlecht über das Auswahlfeld,
+      der Ort über den Ortspicker.</li>
+  <li><strong>Quellen-Vorbelegung.</strong> Ein Häkchen schaltet sie frei: Quelle,
+      Beweiskraft und Muster für Seite und Weblink. Gespeichert wird bei Ortsangaben der
+      <em>Text</em>, nicht die interne Kennung — so bleibt eine Vorlage von einem konkreten
+      Bestand unabhängig und funktioniert auch in einer anderen Datei.</li>
+</ul>
+
+<div class="workflow">
+  <h3>So bauen Sie eine Vorlage für Ihr Kirchenbuch</h3>
+  <ol class="steps">
+    <li>Die nächstliegende mitgelieferte Vorlage mit <strong>⧉</strong> kopieren und
+        umbenennen (z.&nbsp;B. „Taufe St. Lamberti").</li>
+    <li>Die Felder ergänzen, die <em>dieses</em> Register nennt — etwa Vater und Mutter,
+        Pate, Beruf des Vaters.</li>
+    <li>Was in <em>jedem</em> Eintrag dieses Buches gleich ist, vorbelegen: den Taufort
+        gesperrt oder versteckt, die Quelle als Quellen-Vorbelegung mit Seitenmuster.</li>
+    <li>Bei Feldern, die sich über eine Serie hinweg wiederholen, aber nicht zum Buch
+        gehören (Nachname im Hofregister, Seitenzahl), <strong>Mitführen</strong>
+        ankreuzen.</li>
+    <li>Speichern — und die Vorlage über <strong>▶ Erfassen</strong> an einem echten
+        Eintrag ausprobieren, bevor Sie eine ganze Serie damit abarbeiten.</li>
+  </ol>
+</div>
+
+<h2>Eine Vorlage weitergeben</h2>
+<p>
+  Vorlagen gehören zu Ihren App-Daten, nicht zur Genealogie-Datei; sie reisen mit dem
+  <a href="#appdata">App-Daten-Bündel</a> auf ein zweites Gerät. Eine <em>einzelne</em>
+  Vorlage geht darüber hinaus als Datei an andere: <strong>Als Datei sichern</strong> im
+  Builder schreibt sie, <strong>Vorlage laden</strong> im Kopf der Liste liest sie wieder
+  ein — durch dasselbe Datei-Rohr wie jeder andere Export. <strong>Der Import ergänzt, er
+  ersetzt nie:</strong> Eine bereits belegte Kennung bekommt eine neue, statt Ihren
+  womöglich weiterbearbeiteten Stand zu überschreiben. Eine mitgeführte Quellen-Vorbelegung
+  trägt den Kurznamen der Quelle als Fingerabdruck mit und wird beim Anwenden geprüft — in
+  einem fremden Bestand bleibt sie wirkungslos, statt auf die falsche Quelle zu zeigen.
+</p>
+
+<div class="practice">
+  <strong>Eine Vorlage je Buch, nicht je Ereignisart.</strong> Zwei Kirchenbücher nennen
+  selten dieselben Felder, und genau die Abweichung ist der Grund, eine eigene Vorlage
+  anzulegen. Versteckte Vorbelegungen sparsam einsetzen: Sie sind bequem, aber
+  unsichtbar — was in einem Eintrag doch einmal abweicht, fällt dann niemandem auf.
+  Für alles, was <em>meistens</em> gleich ist, ist „vorbelegt, änderbar" die ehrlichere
+  Wahl.
+</div>
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="k7">8. Orte</h1>
 
 <p class="lead">
   Orte sind in Stammbaum eigene Objekte — nicht nur Text in einem Ereignis. Das
@@ -1113,7 +1438,7 @@
       Namen, datierte Zugehörigkeiten) kann GEDCOM gar nicht abbilden. Beim Export
       wird sie auf den im Ereignisjahr gültigen Ortstext <em>zusammengefaltet</em> —
       die volle Historie bleibt in <code>orte.json</code>, Ihre Datei bleibt
-      standardkonform und verliert nichts<span data-doc="app"> (siehe <a href="#k16">Kapitel 18</a>)</span>.</li>
+      standardkonform und verliert nichts<span data-doc="app"> (siehe <a href="#k16">Kapitel 19</a>)</span>.</li>
   <li data-doc="app"><strong>Ein Spiegel im Gerät.</strong> Damit die Karte sofort funktioniert, hält
       die App eine Kopie von <code>orte.json</code> im Browser-Speicher. Import und
       Export gehen über <strong>Datei → Orte importieren / Orte exportieren</strong>.</li>
@@ -1386,7 +1711,7 @@
   Über <strong>Datei → Orte importieren / Orte exportieren</strong> pflegen Sie einen
   wiederverwendbaren Orts-Bestand (Koordinaten, Hierarchien, Namensvarianten) als
   JSON-Datei. Beim Import werden vorhandene Orte angereichert und die Ereignisse neu
-  aufgelöst — dadurch erscheinen die Marker auf der Karte (siehe <a href="#k10">Kapitel 10</a>).
+  aufgelöst — dadurch erscheinen die Marker auf der Karte (siehe <a href="#k10">Kapitel 11</a>).
 </p>
 
 <div class="workflow">
@@ -1414,7 +1739,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k8">8. Höfe</h1>
+<h1 class="chapter" id="k8">9. Höfe</h1>
 
 <div class="shot-row pair">
   <figure class="phone">
@@ -1471,7 +1796,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k9">9. Medien</h1>
+<h1 class="chapter" id="k9">10. Medien</h1>
 
 <p class="lead">
   Fotos, Urkundenscans, Kirchenbuch-Aufnahmen: <strong>Medien</strong> sind in Stammbaum
@@ -1622,7 +1947,7 @@
   <em>schreibt keinen Pfad zurück</em>. Was in Ihrer Datei als Dateiverweis steht, bleibt
   Zeichen für Zeichen stehen, auch wenn die App die Datei über einen Umweg gefunden hat.
   Und beim Speichern werden die Medien-Einträge <strong>verlustfrei</strong> in GEDCOM
-  bzw. GRAMPS zurückgeschrieben (siehe <a href="#k16">Kapitel 18</a>) — auch Felder, die
+  bzw. GRAMPS zurückgeschrieben (siehe <a href="#k16">Kapitel 19</a>) — auch Felder, die
   die App gar nicht anzeigt, bleiben unangetastet.
 </div>
 
@@ -1651,7 +1976,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k10">10. Diagramme: Baum, Karte, Zeitleiste</h1>
+<h1 class="chapter" id="k10">11. Diagramme: Baum, Karte, Zeitleiste</h1>
 
 <p class="lead">
   Der Bereich <strong>Ansichten</strong> ist der Umschalter für die grafischen
@@ -1676,11 +2001,19 @@
   <div class="prose">
     <h3>Sanduhr</h3>
     <p>
-      Die Sanduhr zeigt den Probanden in der Mitte, die Vorfahren darüber, seine Kinder und
-      Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
+      Die Sanduhr zeigt die gewählte Person in der Mitte, die Vorfahren darüber, ihre Kinder
+      und Geschwister darunter. Die kleinen Ziffern sind die <strong>Kekulé-Nummern</strong>
       (1 = Proband, 2 = Vater, 3 = Mutter …); der farbige Rand codiert das Geschlecht.
       Mehrfach-Ehen (<strong>⚭N</strong>) und Halbgeschwister (<strong>½</strong>) werden
       eigens markiert.
+    </p>
+    <p>
+      <strong>Ein Tipp auf eine Karte rückt den Baum um</strong> — die angetippte Person
+      steht danach in der Mitte, und Sie wandern so durch die Generationen. Die
+      Kekulé-Nummern <em>wandern dabei nicht mit</em>: Sie zählen weiter ab Ihrem
+      <a href="#proband">Probanden</a>, nicht ab der Person, die gerade in der Mitte steht.
+      Die Ziffer bedeutet also immer dasselbe, egal wo Sie sich gerade befinden — und eine
+      Person, die kein Vorfahre des Probanden ist, trägt folgerichtig keine.
     </p>
   </div>
   <figure class="phone">
@@ -1721,7 +2054,7 @@
       Karten mit fehlenden oder unbelegten Angaben tragen einen farbigen Ring:
       <strong>goldgelb</strong> für einen Hinweis, <strong>orange</strong> für eine Warnung,
       <strong>rot</strong> für einen Fehler. Die Stufung stammt aus derselben Prüfung wie das
-      <a href="#k13">Qualitäts-Dashboard</a> (Kapitel 15) — kein zweiter Maßstab. Fahren Sie
+      <a href="#k13">Qualitäts-Dashboard</a> (Kapitel 16) — kein zweiter Maßstab. Fahren Sie
       mit der Maus über eine Karte, nennt ein Hinweisfeld die konkret fehlenden Angaben. So
       sehen Sie direkt im Baum, wo noch Arbeit wartet.
     </p>
@@ -1754,7 +2087,7 @@
 
 <div class="info">
   Marker erscheinen nur für Orte mit hinterlegten Koordinaten. Diese kommen aus dem
-  Orts-Bestand (siehe <a href="#k7">Kapitel 7</a>, „Orte importieren"). Ohne
+  Orts-Bestand (siehe <a href="#k7">Kapitel 8</a>, „Orte importieren"). Ohne
   Koordinaten bleibt die Karte leer — dann zuerst den Orts-Bestand importieren.
 </div>
 
@@ -1808,7 +2141,7 @@
 </figure>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k11">11. Statistik</h1>
+<h1 class="chapter" id="k11">12. Statistik</h1>
 
 <p class="lead">
   Wie sieht der Bestand als Ganzes aus? Die Statistik zeigt Verteilungen —
@@ -1847,7 +2180,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="kStory">12. Story: Erzählte Biografien</h1>
+<h1 class="chapter" id="kStory">13. Story: Erzählte Biografien</h1>
 
 <p class="lead">
   Die <strong>Story-Ansicht</strong> verwandelt die nüchternen Daten einer Person in eine
@@ -1905,7 +2238,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="kReports">13. Ausgaben: Druckfertige Reports</h1>
+<h1 class="chapter" id="kReports">14. Ausgaben: Druckfertige Reports</h1>
 
 <p class="lead">
   Unter <strong>Mehr → Ausgaben</strong> erzeugt Stammbaum eine Reihe
@@ -1960,11 +2293,11 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k12">14. Forschung: Aufgaben, Protokoll, Hypothesen</h1>
+<h1 class="chapter" id="k12">15. Forschung: Aufgaben, Protokoll, Hypothesen</h1>
 
 <p class="lead">
   Die <strong>Forschung</strong> ist Ihr Arbeitsplatz für die laufende Recherche und
-  besteht aus vier Bereichen: <strong>Dashboard</strong> (Kapitel 15),
+  besteht aus vier Bereichen: <strong>Dashboard</strong> (Kapitel 16),
   <strong>Aufgaben</strong>, <strong>Protokoll</strong> und <strong>Hypothesen</strong>.
   Jeder Eintrag hängt an einer Person oder Familie.
 </p>
@@ -1973,6 +2306,14 @@
   <strong>Seitenleisten-Gruppe „Forschung"</strong>; auf dem Handy erreichen Sie sie über
   <strong>Forschung</strong> in der unteren Leiste, mit dem <strong>Dashboard an erster
   Stelle</strong> der Segmentreihe.
+</p>
+<p>
+  <strong>Anlegen können Sie einen Eintrag auch dort, wo er entsteht:</strong> Der
+  Abschnitt <em>Forschung</em> am <a href="#k4">Personen-</a> und Familien-Steckbrief nimmt
+  Aufgabe, Protokolleintrag und Hypothese direkt auf — dieselben Einträge, dieselben
+  Formulare, nur ohne den Umweg, die Person hier erst wieder herauszusuchen. Die drei
+  Bereiche dieses Kapitels bleiben der Ort, an dem Sie über den ganzen Bestand hinweg
+  <em>arbeiten</em>: sortieren, filtern, abhaken.
 </p>
 
 <div class="info">
@@ -1984,7 +2325,7 @@
   Projekte reisen <em>nicht</em> mit der Genealogie-Datei — sie sind eine Sicht auf Ihren
   Bestand, keine Aussage über ihn. Auf ein zweites Gerät nehmen Sie sie zusammen mit den
   übrigen App-Einstellungen über <code>app-data.json</code> mit
-  (<a href="#appdata">Kapitel 17</a>).
+  (<a href="#appdata">Kapitel 18</a>).
 </div>
 
 <div class="info">
@@ -2091,7 +2432,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k13">15. Qualität und Datenprüfung</h1>
+<h1 class="chapter" id="k13">16. Qualität und Datenprüfung</h1>
 
 <div class="shot-row">
   <div class="prose">
@@ -2137,7 +2478,7 @@
   Die Regel-Konfiguration reist <strong>nicht</strong> mit der Genealogie-Datei und
   verändert Ihre GEDCOM-/GRAMPS-Datei nicht — sie gehört zu Ihren App-Einstellungen.
   Auf ein zweites Gerät nehmen Sie sie über die Datei <code>app-data.json</code> mit
-  (<a href="#k15">Kapitel 17</a>), zusammen mit der Export-Vorwahl und Ihren
+  (<a href="#k15">Kapitel 18</a>), zusammen mit der Export-Vorwahl und Ihren
   Forschungsprojekten.
 </div>
 
@@ -2166,7 +2507,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k14">16. Suchen und Finden</h1>
+<h1 class="chapter" id="k14">17. Suchen und Finden</h1>
 
 <div class="shot-row">
   <div class="prose">
@@ -2204,7 +2545,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k15">17. Speichern und Sichern</h1>
+<h1 class="chapter" id="k15">18. Speichern und Sichern</h1>
 
 <h2>Wohin „Speichern“ schreibt</h2>
 <p>
@@ -2281,7 +2622,7 @@
   <li><strong>Medien-Ordner</strong> — <em>nur auf diesem Gerät, reist nicht mit.</em>
       Die Freigabe eines Ordners kann ein Browser naturgemäß nicht auf ein anderes Gerät
       übertragen; mitgenommen wird nur sein <em>Name</em>, damit Sie am zweiten Gerät
-      wissen, wonach Sie suchen (siehe <a href="#k9">Kapitel 9</a>).</li>
+      wissen, wonach Sie suchen (siehe <a href="#k9">Kapitel 10</a>).</li>
   <li><strong>Wird woanders bedient</strong> — ein ehrlicher Verweis statt einer zweiten
       Bedienstelle: Die <strong>Prüfregeln</strong> stehen im
       <a href="#k13">Dashboard</a> neben ihren Befunden, die
@@ -2332,7 +2673,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k16">18. Datenformate und Import/Export</h1>
+<h1 class="chapter" id="k16">19. Datenformate und Import/Export</h1>
 
 <h2>Welche Formate?</h2>
 <ul>
@@ -2362,7 +2703,7 @@
       seinen Wortlaut, solange Sie es nicht anfassen: Ein Speichern ohne Ihr Zutun
       schreibt <em>keinen</em> Wert um. Wie das sichergestellt wird, steht in
       <a href="#anhangB">Anhang B</a>; was es im Alltag bedeutet, in
-      <a href="#k15">Kapitel 17</a>.
+      <a href="#k15">Kapitel 18</a>.
     </p>
   </div>
   <figure class="phone">
@@ -2380,7 +2721,7 @@
 </p>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k17">19. Was noch folgt</h1>
+<h1 class="chapter" id="k17">20. Was noch folgt</h1>
 
 <p class="lead">
   Ehrlichkeitshalber: Die folgenden Bereiche sind geplant und in der App teils schon
@@ -2391,12 +2732,16 @@
   <li><strong>Historische Kartenebenen</strong> (z.&nbsp;B. Messtischblätter als
       Hintergrund, eigene Kachel-Adresse) — die Karte nutzt heute eine feste
       Grundkarte.</li>
-  <li><strong>Frei konfigurierbare Eingabe-Vorlagen</strong> für wiederkehrende
-      Erfassungsmuster.</li>
 </ul>
 
+<p class="muted">
+  Die <strong>frei konfigurierbaren Eingabe-Vorlagen</strong>, die hier lange standen, sind
+  inzwischen gebaut und haben ein eigenes Kapitel bekommen:
+  <a href="#kErfassung">Erfassung</a>.
+</p>
+
 <!-- ============================================================= -->
-<h1 class="chapter" id="k18">20. Gute Praxis auf einen Blick</h1>
+<h1 class="chapter" id="k18">21. Gute Praxis auf einen Blick</h1>
 
 <ul>
   <li><strong>Belegen vor Behaupten.</strong> Jede Tatsache verdient eine Quelle. Eine
@@ -2409,6 +2754,10 @@
       Schlussfolgerung (Hypothese).</li>
   <li><strong>Auch Erfolgloses protokollieren.</strong> Wo Sie schon gesucht haben, ist
       wertvolles Wissen.</li>
+  <li><strong>Serien mit einer Vorlage erfassen.</strong> Wer ein Kirchenbuch
+      durcharbeitet, baut sich einmal eine <a href="#kErfassung">Erfassungs-Vorlage</a>
+      dafür — das spart nicht nur Tipparbeit, es hängt die Fundstelle an jede einzelne
+      Angabe, statt sie später nachzutragen.</li>
   <li><strong>Regelmäßig sichern.</strong> Die App speichert nicht von selbst in Ihre
       Datei — schreiben Sie bewusst zurück.</li>
   <li><strong>Datenpflege ist laufend.</strong> Orte aufräumen und das Dashboard prüfen
@@ -2416,7 +2765,7 @@
 </ul>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k19">21. Häufige Fragen</h1>
+<h1 class="chapter" id="k19">22. Häufige Fragen</h1>
 
 <dl class="faq">
   <dt>Wo sind meine Daten gespeichert? Sind sie sicher?</dt>
@@ -2426,7 +2775,7 @@
   <dt>Muss ich speichern?</dt>
   <dd>Ihr Zwischenstand bleibt automatisch als Arbeitskopie erhalten und wird beim
       Neustart geladen. In <em>Ihre</em> Datei schreiben Sie aber bewusst über das
-      Datei-Menü zurück (siehe <a href="#k15">Kapitel 17</a>).</dd>
+      Datei-Menü zurück (siehe <a href="#k15">Kapitel 18</a>).</dd>
 
   <dt>Ich habe aus Versehen etwas geändert — was nun?</dt>
   <dd>Nutzen Sie <strong>↶ Rückgängig</strong> oder verwerfen Sie alle Änderungen seit
@@ -2437,11 +2786,11 @@
       <strong>Mehr → <a href="#einstellungen">Einstellungen</a> → Medien-Ordner</strong>
       einmalig den Ordner frei, in dem Ihre Scans liegen — auf iPhone/iPad stattdessen
       <strong>Medien importieren</strong>. Danach sagt Ihnen jede Kachel, woran sie ist
-      (<a href="#k9">Kapitel 9</a>).</dd>
+      (<a href="#k9">Kapitel 10</a>).</dd>
 
   <dt>Die Karte bleibt leer.</dt>
   <dd>Es fehlen Koordinaten. Importieren Sie zuerst einen Orts-Bestand
-      (<a href="#k7">Kapitel 7</a>); erst dann erscheinen Marker.</dd>
+      (<a href="#k7">Kapitel 8</a>); erst dann erscheinen Marker.</dd>
 
   <dt>Kann ich die App ohne Internet nutzen?</dt>
   <dd>Ja. Einmal geladen, funktioniert sie offline; eine Anzeige signalisiert den
@@ -2449,7 +2798,7 @@
 
   <dt>Was ist der Unterschied zwischen einem Ort und einem Hof?</dt>
   <dd>Ein Ort ist ein Dorf/eine Gemeinde; ein Hof ist eine Adresse <em>innerhalb</em>
-      eines Ortes (Straße, Hausnummer). Siehe <a href="#k8">Kapitel 8</a>.</dd>
+      eines Ortes (Straße, Hausnummer). Siehe <a href="#k8">Kapitel 9</a>.</dd>
 
   <dt>Gehen beim Öffnen und Speichern Daten verloren?</dt>
   <dd>Nein — und es wird auch nichts stillschweigend umgeschrieben. Ein Öffnen und
@@ -2457,7 +2806,7 @@
       nachweislich null veränderte Zeilen zurück. Felder, die die App gar nicht
       bearbeitet, werden unverändert durchgereicht; Felder, die sie bearbeitet, behalten
       den Wortlaut Ihrer Quelle, bis Sie sie ändern (siehe
-      <a href="#k15">Kapitel 17</a> und <a href="#anhangB">Anhang B</a>).</dd>
+      <a href="#k15">Kapitel 18</a> und <a href="#anhangB">Anhang B</a>).</dd>
 
   <dt>Warum steht die Konfession bei den Ereignissen und nicht bei den Stammdaten?</dt>
   <dd>Weil sie Datum, Ort und Quelle haben kann — ein Übertritt ist ein Ereignis im
@@ -2475,11 +2824,11 @@
 
   <dt>Wie gebe ich einen Auszug weiter, ohne Lebende preiszugeben?</dt>
   <dd>Beim Export die <strong>Anonymisierung</strong> aktivieren
-      (<a href="#k16">Kapitel 18</a>).</dd>
+      (<a href="#k16">Kapitel 19</a>).</dd>
 </dl>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k20">22. Umstieg von anderen Programmen</h1>
+<h1 class="chapter" id="k20">23. Umstieg von anderen Programmen</h1>
 
 <p>
   Stammbaum liest die verbreiteten Austauschformate. Der beste Weg aus einem anderen
@@ -2489,7 +2838,7 @@
 <ol class="steps">
   <li>Im Ausgangsprogramm als GEDCOM 5.5.1 (oder GRAMPS-Datei) exportieren.</li>
   <li>In Stammbaum über <strong>Mehr → Datei → Datei öffnen</strong> einlesen.</li>
-  <li>Die Orte ordnen (<a href="#k7">Kapitel 7</a>) und mit dem
+  <li>Die Orte ordnen (<a href="#k7">Kapitel 8</a>) und mit dem
       <a href="#k13">Dashboard</a> die Datenlage prüfen.</li>
 </ol>
 <div class="info">
@@ -2499,7 +2848,7 @@
 </div>
 
 <!-- ============================================================= -->
-<h1 class="chapter" id="k21">23. Checkliste für einen guten Start</h1>
+<h1 class="chapter" id="k21">24. Checkliste für einen guten Start</h1>
 
 <ol class="steps">
   <li>Datei geladen und einmal probehalber zurückgeschrieben (der Speicherweg
@@ -2522,12 +2871,19 @@
   <tr><td>Quellen-Marke</td><td>Verknüpfte Quelle — zeigt deren <strong>Kurznamen</strong> (nur bei namenloser Quelle die interne Nummer <span class="badge q">§N</span>); der kleine Punkte-Balken daneben ist die Beweiskraft (0–3 gefüllte Punkte).</td></tr>
   <tr><td><span class="badge g">QUAY 3</span></td><td>Beweiskraft eines Quellenbezugs (0–3), als Punkte-Balken (so viele gefüllte Punkte wie die Stufe).</td></tr>
   <tr><td>✎</td><td>Bearbeiten.</td></tr>
+  <tr><td>🗑</td><td>Diesen Eintrag entfernen — immer mit Rückfrage, immer als äußerstes
+      Zeichen der Zeile.</td></tr>
+  <tr><td>⧉</td><td>Kopieren: eine Zitation oder ein Ereignis in die Sitzungs-Ablage legen
+      (<a href="#k6">Kapitel 6</a>) bzw. eine Erfassungs-Vorlage vervielfältigen
+      (<a href="#kErfassung">Kapitel 7</a>).</td></tr>
+  <tr><td>📋 Übernehmen</td><td>Das Gegenstück: das Abgelegte hier einfügen. Erscheint nur,
+      solange die Ablage gefüllt ist.</td></tr>
   <tr><td>⧖</td><td>Im Baum anzeigen.</td></tr>
   <tr><td>↶ / ↷</td><td>Rückgängig / Wiederholen (Änderungen an den Daten — nicht zu
       verwechseln mit „← Zurück", das in der Ansicht zurückführt).</td></tr>
   <tr><td>braune Kreise / blaue Rauten</td><td>Auf der Karte: Dörfer bzw. Höfe.</td></tr>
   <tr><td>✓ Geprüft <em>Datum</em></td><td>Ort oder Hof wurde von Hand angesehen und für
-      richtig befunden (<a href="#k7">Kapitel 7</a>). Wird nie automatisch gesetzt.</td></tr>
+      richtig befunden (<a href="#k7">Kapitel 8</a>). Wird nie automatisch gesetzt.</td></tr>
   <tr><td>📎</td><td>An diesem Eintrag hängen <a href="#k9">Medien</a> (Personen- und
       Quellenliste). Dasselbe Zeichen trägt das Segment <em>Medien</em>.</td></tr>
   <tr><td>📄</td><td><a href="#k9">Medium</a>: gefundene Datei, die kein Bild ist (z.&nbsp;B. PDF).</td></tr>
@@ -2544,7 +2900,8 @@
   <tr><td>👤 Daten</td><td>Datenarten (Personen, Familien, Quellen, Orte, Höfe, Medien).</td></tr>
   <tr><td>🔍 Suche</td><td>Globale Suche über alle Datenarten.</td></tr>
   <tr><td>☑ Forschung</td><td>Forschung: Aufgaben, Protokoll, Hypothesen, Dashboard.</td></tr>
-  <tr><td>⋯ Mehr</td><td>Statistik, Story, Ausgaben, Datei-Menü, Einstellungen.</td></tr>
+  <tr><td>⋯ Mehr</td><td>Karte, Zeitleiste, Datei-Menü, ⚡ Erfassung, Statistik, Story,
+      Ausgaben, Einstellungen.</td></tr>
 </table>
 
 <h2>Tastaturkürzel (Computer)</h2>
@@ -2593,6 +2950,18 @@
   erneutes Speichern ohne Änderung erzeugt bit-gleiche Ausgabe; es geht nichts verloren.
 </p>
 
+<div class="practice">
+  <strong>Lange Texte laufen über mehrere Zeilen — und werden auch so gelesen.</strong>
+  GEDCOM zerlegt einen langen Wert in Fortsetzungszeilen (<code>CONC</code>/<code>CONT</code>).
+  Eine Hofgeschichte in einem echten Bestand endete deshalb eine Zeitlang nach dem ersten
+  Bruchstück: 242 statt 360 Zeichen, und beim Zurückschreiben fehlte der Rest. Behoben —
+  und, wichtiger, die Lücke im Prüfnetz gleich mit: Der Verlust-Zensus verglich bis dahin
+  nur Zeilen<em>längen</em> und lief an kleinen Testdateien. Jetzt vergleicht ein Wächter
+  die Textfragmente <em>aller</em> Datensätze des vollen Bestands. Wenn Sie nach einem
+  Speichern einen abgeschnittenen Text bemerken, melden Sie ihn: Solche Fälle sind
+  behebbar, aber nur, wenn jemand hinsieht.
+</div>
+
 <h3>Die Überlappungszone — wo Datenverlust wirklich entsteht</h3>
 <p>
   Der Passthrough kann per Konstruktion nur retten, was das Datenmodell <em>nicht</em>
@@ -2633,8 +3002,18 @@
   Standard-Ereignisse als vollwertige Zeilen mit Datum, Ort und Quellen — darunter Beruf,
   Wohnsitz, Ausbildung, Aus- und Einwanderung, Einbürgerung, Volkszählung, Besitz,
   Militärdienst, Konfirmation, Religion, Priester-/Ordensweihe (<code>ORDN</code>),
-  Bar/Bat Mitzwa, Segnung, Erwachsenentaufe, Feuerbestattung, Erstkommunion,
+  Bar/Bat Mitzwa, Segnung, Glaubenstaufe, Feuerbestattung, Erstkommunion,
   Testamentseröffnung, Testament und Ruhestand.
+</p>
+<p>
+  <strong>Taufe ist nicht gleich Taufe.</strong> GEDCOM unterscheidet die
+  <em>Kindstaufe</em> (<code>CHR</code>) — der Regelfall im Kirchenbuch und das, was die
+  App schlicht <strong>Taufe</strong> nennt — von der Glaubens- oder Erwachsenentaufe
+  (<code>BAPM</code>), die hier <strong>Glaubenstaufe</strong> heißt. Beide trugen eine
+  Weile dieselbe Beschriftung und standen im Menü „＋ Ereignis" zweimal gleichlautend
+  nebeneinander; wer den falschen Eintrag griff, schrieb einen anderen Tag in die Datei,
+  als er meinte. Ein automatischer Wächter stellt jetzt sicher, dass keine zwei
+  Ereignisarten denselben Namen tragen.
 </p>
 <div class="practice">
   Die Priesterweihe eines Vorfahren war eine Weile in der Datei vorhanden, aber im
@@ -2691,7 +3070,7 @@
 </p>
 <table class="ref">
   <tr><th>Tag</th><th>Inhalt</th></tr>
-  <tr><td>_TASK</td><td>Forschungsaufgabe (<a href="#k12">Kapitel 14</a>)</td></tr>
+  <tr><td>_TASK</td><td>Forschungsaufgabe (<a href="#k12">Kapitel 15</a>)</td></tr>
   <tr><td>_RLOG</td><td>Forschungsprotokoll-Eintrag</td></tr>
   <tr><td>_HYPO</td><td>Hypothese samt Konfidenz und Belegen</td></tr>
   <tr><td>_EVAL</td><td>Evidenzbewertung eines Quellenbezugs (in GRAMPS als
@@ -2721,7 +3100,7 @@
   <tr><td>Von der App bearbeitet</td><td>Namen (samt Namensvarianten), Geschlecht, Ereignisse (Datum, Ort, Adresse, Wert — auch die Konfession), Quellen &amp; Zitate mit Beweiskraft, Notizen, Familien-/Kind-Verknüpfungen, Medien-/Objektverweise, Personenbezüge (Paten/Zeugen), die Forschungsdaten (Aufgaben/Protokoll/Hypothesen/Evidenz) — werden aus dem Modell geschrieben.</td></tr>
   <tr><td>Erhalten, aber (noch) nicht editierbar</td><td>Seltene oder programmspezifische Fremd-Tags, Kopfzeilen-Angaben Ihres Vorprogramms, Untersätze ohne eigene Maske — bit-genau durchgereicht.</td></tr>
   <tr><td>Unangetastet, solange Sie es nicht anfassen</td><td>Der <strong>Wortlaut</strong> jedes Wertes, den die App zwar kennt, aber nicht anders meint: der Ortstext eines Ereignisses (auch wenn die App ihn periodengerecht <em>anzeigt</em>), das Dateiformat eines Mediums (<code>JPEG</code> bleibt <code>JPEG</code>), Namensbestandteile, die die Quelle nicht getrennt notiert hat. Erst Ihr Eingriff — oder eine bewusste Kuration wie ein Orts-Merge — ersetzt ihn.</td></tr>
-  <tr><td>Bewusst nicht in GEDCOM abbildbar</td><td>Die <strong>Zeitachse</strong> der Orte (historische Namen, datierte Verwaltungszugehörigkeit) und die Hof-Historie. GEDCOM kennt nur <em>einen</em> Ortstext je Ereignis; die volle Historie bleibt in <code>orte.json</code> (siehe <a href="#k7">Kapitel 7</a>).</td></tr>
+  <tr><td>Bewusst nicht in GEDCOM abbildbar</td><td>Die <strong>Zeitachse</strong> der Orte (historische Namen, datierte Verwaltungszugehörigkeit) und die Hof-Historie. GEDCOM kennt nur <em>einen</em> Ortstext je Ereignis; die volle Historie bleibt in <code>orte.json</code> (siehe <a href="#k7">Kapitel 8</a>).</td></tr>
 </table>
 
 <h2>Grenzen der Kompatibilität</h2>
@@ -2746,7 +3125,7 @@
   Für die tägliche Arbeit und Sicherung: <strong>volles GEDCOM 5.5.1</strong> (verlustfrei).
   Für die Weitergabe an ein Programm, das die Zusatz-Tags nicht kennt:
   <strong>„Strict"</strong>. Ein Auszug ohne lebende Personen: zusätzlich die
-  <strong>Anonymisierung</strong> (siehe <a href="#k16">Kapitel 18</a>).
+  <strong>Anonymisierung</strong> (siehe <a href="#k16">Kapitel 19</a>).
 </div>
 
 <div class="info">
@@ -2814,7 +3193,7 @@
       bleibt unangetastet.</li>
   <li><strong>Grenze.</strong> Wie bei GEDCOM kann die <em>datierte</em> Orts-/Hof-Historie
       nicht vollständig ins Wire-Format; ihre Heimat bleibt <code>orte.json</code>
-      (<a href="#k7">Kapitel 7</a>).</li>
+      (<a href="#k7">Kapitel 8</a>).</li>
 </ul>
 
 <div class="info">
@@ -2901,7 +3280,7 @@
   eine neuere Schema-Version als die bekannte löst einen Schreibstopp aus, damit eine
   ältere App-Version keine neuen Felder zerstört. So bleibt das mühsam gepflegte
   Ortswissen über alle Ihre Stammbäume und Geräte hinweg erhalten (siehe
-  <a href="#k7">Kapitel 7</a>).
+  <a href="#k7">Kapitel 8</a>).
 </p>
 
 <h2>Speicher, Rückgängig, Offline</h2>
@@ -2934,7 +3313,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.15 · Stand 2026-08-11<br>
+  Stammbaum · Benutzerhandbuch Version 9.17 · Stand 2026-08-13<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
@@ -2947,7 +3326,7 @@
 <p>
   Der <strong>Orte-Editor</strong> ist ein zweites, eigenständig aufrufbares Programm. Er
   bearbeitet genau eine Sache: die Datei <code>orte.json</code> — das Ortsverzeichnis, das
-  über die einzelne Genealogie-Datei hinaus gilt (siehe <a href="#k7">Kapitel 7</a>).
+  über die einzelne Genealogie-Datei hinaus gilt (siehe <a href="#k7">Kapitel 8</a>).
   Sie erreichen ihn unter der Adresse des Hauptprogramms mit dem Zusatz
   <code>/orte/</code>.
 </p>
