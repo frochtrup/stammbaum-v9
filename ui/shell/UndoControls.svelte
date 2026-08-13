@@ -9,6 +9,7 @@
   // NUR, wenn nichts mehr rücknehmbar ist — es ist die grobe Notbremse, nicht die
   // alltägliche Aktion, und stünde daneben ständig als Fehlklick-Risiko im Weg.
   import { tooltip } from './tooltip';
+  import StatusNotice from './StatusNotice.svelte';
   import type { AppState } from './app-state.svelte';
 
   interface Props {
@@ -18,12 +19,15 @@
 
   /** Kurzer Hinweis nach einer Aktion — bestätigt, DASS etwas passiert ist. Ohne ihn
    *  wirkt ein Undo, dessen Wirkung gerade nicht im Blick liegt (z. B. eine Änderung in
-   *  einer anderen Ansicht), wie ein wirkungsloser Klick. */
+   *  einer anderen Ansicht), wie ein wirkungsloser Klick.
+   *  Frist und Ausgang trägt `StatusNotice` (BL-334) — hier steht nur der Text. Die 2,5 s
+   *  bleiben: sie waren die Präzedenz, aus der die 12 s des Bausteins abgeleitet wurden
+   *  (ADR-v9-247), und gelten hier weiter, weil hier ein Wort steht und nicht zwei Sätze. */
   let notice = $state('');
+  const KURZ_MS = 2500;
 
   function say(text: string) {
     notice = text;
-    setTimeout(() => (notice = ''), 2500);
   }
 
   function onUndo() {
@@ -107,10 +111,13 @@
        DER PLATZ ENTSTEHT NUR, SOLANGE SIE DA IST: die Zeile wird gar nicht erst
        gerendert, wenn `notice` leer ist — kein reservierter Leerraum, der die Topbar
        dauerhaft höher machte. Nach den 2,5s fällt der Kopf exakt in den vorherigen
-       Zustand zurück. -->
-  {#if notice}
-    <span class="undo-controls__notice" role="status">{notice}</span>
-  {/if}
+       Zustand zurück.
+       Seit BL-334 trägt `StatusNotice` die Zeile: derselbe Ort, dieselbe Optik, dazu
+       ein ✕. Die frühere Ellipse als Sicherheitsnetz für einen längeren Text fällt
+       damit weg — sie hätte den Text abgeschnitten, wo der Baustein ihn umbricht; bei
+       gemessenen 118px Text gegen 206–230px Leistenbreite greift weder das eine noch
+       das andere. -->
+  <StatusNotice text={notice} onDismiss={() => (notice = '')} dauerMs={KURZ_MS} lage="inline" />
 </div>
 
 <style>
@@ -166,16 +173,6 @@
     cursor: pointer;
   }
 
-  .undo-controls__notice {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
-    /* Eigene Zeile: die volle Leistenbreite steht zur Verfügung. Ellipse bleibt als
-       Sicherheitsnetz für eine künftig längere Meldung — sie soll die Leiste nicht
-       verbreitern und damit den Titel verdrängen, aber im Normalfall greift sie nicht. */
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  /* Die Meldungs-Optik kommt seit BL-334 aus `StatusNotice` (INV-UI-4) — hier steht
+     bewusst nichts mehr dazu. */
 </style>

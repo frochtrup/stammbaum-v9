@@ -22,6 +22,7 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { untrack } from 'svelte';
   import { baseNameOf, exportGedcom, formatFamily, type UiExportFormat } from '../../shell/save-action';
+  import StatusNotice from '../../shell/StatusNotice.svelte';
   import type { AppDataIO } from '../../../services/app-data';
 
   interface Props {
@@ -174,9 +175,7 @@
       <button type="button" class="export-view__button" onclick={handleExport} disabled={status === 'busy'}>
         {status === 'busy' ? 'Exportiere …' : 'Exportieren'}
       </button>
-      {#if notice}
-        <span class="export-view__notice" role="status">{notice}</span>
-      {/if}
+      <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
     </div>
   </div>
 {/if}
@@ -234,9 +233,7 @@
     cursor: default;
   }
 
-  .export-view__notice {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
-  }
+  /* Die Meldung nach dem Export kommt aus `StatusNotice` (BL-334) — der Zähler darüber
+     (`__count`) bleibt eigen: er ist eine Dauer-Anzeige zum Zustand der Auswahl, keine
+     Rückmeldung auf eine Handlung, und darf mit keiner Frist verschwinden. */
 </style>

@@ -36,6 +36,7 @@
   // Update-Hinweis statt stillem Bruch (Spec 30 NFR-2) — dieselbe Komponente wie im
   // Hauptprogramm, kein zweiter Mechanismus (INV-UI-4).
   import UpdateBanner from '../ui/shell/UpdateBanner.svelte';
+  import StatusNotice from '../ui/shell/StatusNotice.svelte';
   import { swUpdate } from '../ui/shell/sw-update.svelte';
   import { applyUpdate } from '../app/sw-register';
 
@@ -239,9 +240,9 @@
     </div>
   </header>
 
-  {#if notice}
-    <p class="orte-app__notice" role="status">{notice}</p>
-  {/if}
+  <!-- Derselbe Baustein wie im Hauptprogramm (BL-334): der Orte-Editor ist ein eigenes
+       Programm, aber kein eigenes Meldungs-Muster (INV-UI-4). -->
+  <StatusNotice text={notice} onDismiss={() => (notice = '')} />
 
   {#if !doc.open}
     <div class="orte-app__empty">
@@ -351,14 +352,6 @@
   .orte-app__commands button:disabled {
     opacity: 0.45;
     cursor: default;
-  }
-
-  .orte-app__notice {
-    margin: 0;
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8rem;
-    color: var(--stb-text-dim);
-    border-bottom: 1px solid var(--stb-surface-3);
   }
 
   .orte-app__empty {

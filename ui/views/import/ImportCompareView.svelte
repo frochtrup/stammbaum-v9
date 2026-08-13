@@ -22,6 +22,7 @@
   import { makeLogEntry } from '../../../core/research';
   import { pageSlice, DEFAULT_PAGE_SIZE } from '../../shell/pagination';
   import { buildImportRows, countByStatus, diffForRow, STATUS_LABELS, type ImportRow } from './import-compare-model';
+  import StatusNotice from '../../shell/StatusNotice.svelte';
 
   interface Props {
     appState: AppState;
@@ -40,6 +41,9 @@
   let statusFilter = $state<'matched' | 'uncertain' | 'new'>('matched');
   let shown = $state(DEFAULT_PAGE_SIZE);
   let gewaehlt = $state<ImportRow | null>(null);
+  /** Rückmeldung auf eine Entscheidung im Vergleich. Frist und Ausgang trägt
+   *  `StatusNotice` (BL-334) — dieser Kanal fehlte in der Zählung von ADR-v9-247 und war
+   *  der einzige ohne angesagte Rolle: Screenreader bekamen ihn gar nicht zu hören. */
   let meldung = $state('');
 
   /** „≠ Andere Person" — aufgehobene Zuordnungen (Spec 20 §1.12). */
@@ -179,8 +183,11 @@
     {#if fileName}<span class="import-compare__filename">{fileName}</span>{/if}
   </div>
 
+  <!-- Der Fehler ist der ZUSTAND der misslungenen Dateiwahl und bleibt eigen (BL-334,
+       dieselbe Begründung wie in `ImportButton`); die Meldung darunter ist die
+       Rückmeldung auf eine Entscheidung und kommt aus dem Baustein. -->
   {#if fehler}<p class="import-compare__error">{fehler}</p>{/if}
-  {#if meldung}<p class="import-compare__status">{meldung}</p>{/if}
+  <StatusNotice text={meldung} onDismiss={() => (meldung = '')} lage="block" />
 
   {#if !fremd}
     <p class="import-compare__empty">
@@ -378,7 +385,6 @@
   }
 
   .import-compare__error,
-  .import-compare__status,
   .import-compare__empty,
   .import-compare__hint {
     font-size: 0.85rem;

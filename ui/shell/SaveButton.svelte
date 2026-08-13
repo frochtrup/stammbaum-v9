@@ -9,6 +9,7 @@
   // Strict/GRAMPS/Anonymisierung sind nicht Teil dieser Aktion (separater Export-Dialog,
   // nicht Teil dieser Scheibe).
   import { saveCurrentDoc } from './save-action';
+  import StatusNotice from './StatusNotice.svelte';
   import type { FileService } from '../../services/file';
   import type { AppState } from './app-state.svelte';
 
@@ -23,7 +24,8 @@
   const { appState, fileService, handle, onHandleAcquired }: Props = $props();
 
   let status = $state<'idle' | 'saving'>('idle');
-  /** Kurzer Status-Hinweis nach dem Speichern (analog placesEditNotice-Muster in App.svelte). */
+  /** Kurzer Status-Hinweis nach dem Speichern. Frist und Ausgang trägt `StatusNotice`
+   *  (BL-334); solange er steht, tritt die Zielangabe dahinter zurück. */
   let notice = $state('');
 
   // Der eigentliche Vorgang liegt seit BL-93 in save-action.ts — dieselbe Funktion
@@ -46,7 +48,7 @@
       {status === 'saving' ? 'Speichere …' : 'Speichern'}
     </button>
     {#if notice}
-      <span class="save-bar__notice" role="status">{notice}</span>
+      <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
     {:else}
       <!-- Speicher-Ziel sichtbar machen (ADR-v9-128, Kritik-Punkt 2): „Speichern → Datei",
            damit klar ist, wohin geschrieben wird. Nach dem Speichern ersetzt die Meldung
@@ -65,12 +67,8 @@
 
   /* Optik + Trefferfläche aus `.stb-btn[data-variant='primary']` (design-system.css). */
 
-  .save-bar__notice {
-    color: var(--stb-text-dim);
-    font-size: 0.85rem;
-    font-style: italic;
-  }
-
+  /* Die Meldungs-Optik kommt aus `StatusNotice` (BL-334) — die Zielangabe daneben ist
+     KEINE Meldung, sondern eine Dauer-Anzeige, und behält deshalb ihre eigene Regel. */
   .save-bar__target {
     color: var(--stb-text-dim);
     font-size: 0.85rem;

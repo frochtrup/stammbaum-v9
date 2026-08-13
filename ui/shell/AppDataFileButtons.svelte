@@ -8,6 +8,7 @@
   // KEIN stiller Schreib-Sync pro Änderung (ADR-v9-134): auf Tier-2-Plattformen wäre jede
   // Mutation ein Share-Sheet.
   import { exportAppDataFile, importAppDataFile, type AppDataIO } from '../../services/app-data';
+  import StatusNotice from './StatusNotice.svelte';
 
   interface Props {
     /** Geteilte FileService-Instanz aus App.svelte (dasselbe Export-Rohr wie SaveButton). */
@@ -78,7 +79,7 @@
     >
       {exportStatus === 'busy' ? 'Exportiere …' : 'App-Daten exportieren'}
     </button>
-    {#if exportNotice}<span class="app-data-bar__notice" role="status">{exportNotice}</span>{/if}
+    <StatusNotice text={exportNotice} onDismiss={() => (exportNotice = '')} lage="inline" />
   </div>
 
   <div class="app-data-bar__action">
@@ -91,7 +92,7 @@
     >
       {importStatus === 'busy' ? 'Importiere …' : 'App-Daten importieren'}
     </button>
-    {#if importNotice}<span class="app-data-bar__notice" role="status">{importNotice}</span>{/if}
+    <StatusNotice text={importNotice} onDismiss={() => (importNotice = '')} lage="inline" />
   </div>
 </div>
 
@@ -113,8 +114,6 @@
      Optik + Trefferfläche aus `.stb-btn[data-variant='secondary']` — die 44 px standen hier
      als Literal, obwohl Spec 21 §6i sie EINMAL als Token verlangt. */
 
-  .app-data-bar__notice {
-    font-size: 0.85rem;
-    color: var(--stb-text-dim);
-  }
+  /* Beide Rückmeldungen kommen aus `StatusNotice` (BL-334) — die Import-Meldung nennt
+     hier betroffene Abschnitte und war damit die längste ohne Frist im Programm. */
 </style>
