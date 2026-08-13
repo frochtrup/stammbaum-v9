@@ -1,7 +1,7 @@
 // tests/ui/entry-template-builder-model.test.ts — reine Helfer des Vorlagen-Builders
 // (BL-353, ADR-v9-264/-265). Kein happy-dom nötig (INV-ARCH-2-Geist): die Logik ist rein.
 import { describe, expect, it } from 'vitest';
-import { makeEntryTemplate, type EntryTemplate } from '../../core/model/entry-templates';
+import { makeEntryTemplate, type EntrySlot, type EntryTemplate } from '../../core/model/entry-templates';
 import {
   addEventSlotField,
   addIdentitySlot,
@@ -18,6 +18,8 @@ import {
   roleSummary,
   setSlotPrefill,
   swapSlots,
+  moveRoleBlock,
+  roleOrderOf,
 } from '../../ui/views/entry/entry-template-builder-model';
 
 describe('newEntryTemplateId — frisch und kollisionsarm', () => {
@@ -186,5 +188,52 @@ describe('entryTemplateBuilderErrors — Fertig-Zustand: keine leere Vorlage spe
   it('ist leer, wenn Name UND mindestens ein Feld vorhanden sind', () => {
     const tpl = makeEntryTemplate('t', { label: 'X', slots: [{ role: 'main', field: 'given' }] });
     expect(entryTemplateBuilderErrors(tpl)).toEqual([]);
+  });
+});
+
+describe('moveRoleBlock — ganze Rollen-Blöcke verschieben (ADR-v9-268 E5, BL-357)', () => {
+  const slots = [
+    { role: 'main', field: 'given' },
+    { role: 'main', field: 'surname' },
+    { role: 'father', field: 'given' },
+    { role: 'spouse', field: 'given' },
+    { role: 'spouse', field: 'surname' },
+  ] as EntrySlot[];
+
+  it('leitet die Block-Reihenfolge aus der Feldliste ab — kein zweites Feld', () => {
+    expect(roleOrderOf(slots)).toEqual(['main', 'father', 'spouse']);
+  });
+
+  it('verschiebt den Block MIT seinen Feldern und behält deren Reihenfolge', () => {
+    const nachher = moveRoleBlock(slots, 'father', -1);
+
+    expect(roleOrderOf(nachher)).toEqual(['father', 'main', 'spouse']);
+    // Die Felder der Hauptperson stehen weiterhin in ihrer Reihenfolge beieinander.
+    expect(nachher.map((s) => `${s.role}.${s.field}`)).toEqual([
+      'father.given',
+      'main.given',
+      'main.surname',
+      'spouse.given',
+      'spouse.surname',
+    ]);
+  });
+
+  it('nach unten ist die Umkehrung von nach oben', () => {
+    const runter = moveRoleBlock(slots, 'main', 1);
+    expect(roleOrderOf(runter)).toEqual(['father', 'main', 'spouse']);
+    expect(moveRoleBlock(runter, 'main', -1)).toEqual([...slots]);
+  });
+
+  it('am Rand und bei unbekannter Rolle bleibt alles, wie es war', () => {
+    expect(moveRoleBlock(slots, 'main', -1)).toEqual([...slots]);
+    expect(moveRoleBlock(slots, 'spouse', 1)).toEqual([...slots]);
+    expect(moveRoleBlock(slots, 'spouseMother', -1)).toEqual([...slots]);
+  });
+
+  it('verliert kein Feld — die Menge bleibt gleich', () => {
+    const nachher = moveRoleBlock(slots, 'spouse', -1);
+    expect(nachher).toHaveLength(slots.length);
+    expect([...nachher].sort((a, b) => `${a.role}${a.field}`.localeCompare(`${b.role}${b.field}`)))
+      .toEqual([...slots].sort((a, b) => `${a.role}${a.field}`.localeCompare(`${b.role}${b.field}`)));
   });
 });

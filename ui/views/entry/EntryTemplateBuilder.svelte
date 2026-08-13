@@ -12,7 +12,13 @@
   import { untrack } from 'svelte';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { EntrySlot, EntryTemplate } from '../../../core/model/entry-templates';
-  import { ALL_ENTRY_ROLES, draftSourcePrefill, entryTemplateBuilderErrors } from './entry-template-builder-model';
+  import {
+    ALL_ENTRY_ROLES,
+    draftSourcePrefill,
+    entryTemplateBuilderErrors,
+    moveRoleBlock,
+    roleOrderOf,
+  } from './entry-template-builder-model';
   import { groupTemplateSlots, ENTRY_ROLE_LABELS, type EntryRoleGroup } from '../../shell/entry-template-capture-model';
   import { isFamilyRole, type EntryRole } from '../../../core/model/entry-templates';
   import type { Quay, SourceId } from '../../../core/model/types';
@@ -70,6 +76,19 @@
   function onSlotsChange(next: EntrySlot[]) {
     slots = next;
   }
+
+  /**
+   * Belegte Rollen in ihrer (verschiebbaren) Reihenfolge, leere hinten dran — als EINE
+   * Liste. Zwei getrennte `{#each}`-Blöcke wären naheliegender, aber ein Abschnitt würde
+   * dann neu montieren, sobald er sein erstes Feld bekommt (er wechselt die Liste): der
+   * Aufrufer verlöre seine DOM-Referenz, offene Menüs schlössen sich, der Fokus spränge.
+   * Eine Liste, keyed nach Rolle, hält die Instanz.
+   */
+  const rollenReihenfolge = $derived(roleOrderOf(slots));
+  const alleRollen = $derived([
+    ...rollenReihenfolge,
+    ...ALL_ENTRY_ROLES.filter((r) => !rollenReihenfolge.includes(r)),
+  ]);
 
   function trySave() {
     if (errors.length > 0) return;
@@ -132,9 +151,23 @@
     {/if}
   </section>
 
+  <!-- Die BELEGTEN Rollen zuerst, in ihrer eigenen Reihenfolge (ADR-v9-268 E5) — sie ist
+       verschiebbar. Die noch leeren hängen unverändert hinten dran: sie haben keine
+       Position, weil sie kein Feld haben. -->
   <div class="entry-builder__roles">
-    {#each ALL_ENTRY_ROLES as role (role)}
-      <EntryTemplateBuilderRoleSection {role} group={groupFor(role)} {slots} {onSlotsChange} />
+    {#each alleRollen as role, i (role)}
+      <!-- Verschiebbar ist nur, was eine Position hat: die belegten Rollen. Eine noch
+           leere steht hinten und bekommt keine Pfeile — sie hat kein Feld, das wandern
+           könnte (ADR-v9-268 E5). -->
+      <EntryTemplateBuilderRoleSection
+        {appState}
+        {role}
+        group={groupFor(role)}
+        {slots}
+        {onSlotsChange}
+        onMoveUp={i > 0 && i < rollenReihenfolge.length ? () => onSlotsChange(moveRoleBlock(slots, role, -1)) : undefined}
+        onMoveDown={i < rollenReihenfolge.length - 1 ? () => onSlotsChange(moveRoleBlock(slots, role, 1)) : undefined}
+      />
     {/each}
   </div>
 

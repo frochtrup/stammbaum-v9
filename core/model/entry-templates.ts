@@ -29,13 +29,28 @@ import type { Event, Person, Quay, SourceId, Source } from './types';
 
 // --- Rollen (ADR-v9-264 E2) -----------------------------------------------------------
 
-/** Die vier Personen-Rollen — sie tragen Identitäts- UND Personen-Ereignis-Felder. */
-export const ENTRY_PERSON_ROLES = ['main', 'father', 'mother', 'spouse'] as const;
+/**
+ * Die sechs Personen-Rollen — sie tragen Identitäts- UND Personen-Ereignis-Felder.
+ *
+ * `spouseFather`/`spouseMother` sind die symmetrische Ergänzung zu `father`/`mother`
+ * (ADR-v9-268 E1). Der Anlass ist die Quelle selbst: ein Trauregister-Eintrag nennt in
+ * aller Regel BEIDE Elternpaare — ohne diese Rollen bildet die Vorlage genau den Eintrag
+ * nicht ab, für den sie gemacht ist.
+ */
+export const ENTRY_PERSON_ROLES = [
+  'main',
+  'father',
+  'mother',
+  'spouse',
+  'spouseFather',
+  'spouseMother',
+] as const;
 export type EntryPersonRole = (typeof ENTRY_PERSON_ROLES)[number];
 
-/** Die zwei Familien-Rollen: `parentFamily` = FAMC von `main`, `spouseFamily` = FAMS von
- *  `main`+`spouse`. Sie tragen AUSSCHLIESSLICH Familien-Ereignis-Felder. */
-export const ENTRY_FAMILY_ROLES = ['parentFamily', 'spouseFamily'] as const;
+/** Die drei Familien-Rollen: `parentFamily` = FAMC von `main`, `spouseParentFamily` = FAMC
+ *  von `spouse`, `spouseFamily` = FAMS von `main`+`spouse`. Sie tragen AUSSCHLIESSLICH
+ *  Familien-Ereignis-Felder. */
+export const ENTRY_FAMILY_ROLES = ['parentFamily', 'spouseParentFamily', 'spouseFamily'] as const;
 export type EntryFamilyRole = (typeof ENTRY_FAMILY_ROLES)[number];
 
 export type EntryRole = EntryPersonRole | EntryFamilyRole;

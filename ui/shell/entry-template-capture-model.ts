@@ -27,7 +27,13 @@ export const ENTRY_ROLE_LABELS: Record<EntryRole, string> = {
   father: 'Vater',
   mother: 'Mutter',
   spouse: 'Partner(in)',
+  // „von Partner(in)" statt „Schwiegervater/-mutter": die Rolle beschreibt, WESSEN Vater
+  // gemeint ist, nicht das Verhältnis zur Hauptperson — und das Schwieger-Verhältnis
+  // entsteht erst durch die Ehe, die in diesem Eintrag oft gerade erst geschlossen wird.
+  spouseFather: 'Vater von Partner(in)',
+  spouseMother: 'Mutter von Partner(in)',
   parentFamily: 'Elternfamilie',
+  spouseParentFamily: 'Elternfamilie von Partner(in)',
   spouseFamily: 'Ehefamilie/Partnerschaft',
 };
 

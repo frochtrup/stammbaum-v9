@@ -117,9 +117,19 @@ describe('fieldLabel/prefillValueLabel', () => {
 });
 
 describe('ENTRY_ROLE_LABELS — jede EntryRole hat ein deutsches Label (Feld-Vollständigkeit)', () => {
-  it('deckt alle sechs Rollen ab', () => {
+  it('deckt alle neun Rollen ab (ADR-v9-268 E1: beide Elternpaare)', () => {
     expect(Object.keys(ENTRY_ROLE_LABELS).sort()).toEqual(
-      ['father', 'main', 'mother', 'parentFamily', 'spouse', 'spouseFamily'].sort(),
+      [
+        'father',
+        'main',
+        'mother',
+        'parentFamily',
+        'spouse',
+        'spouseFamily',
+        'spouseFather',
+        'spouseMother',
+        'spouseParentFamily',
+      ].sort(),
     );
   });
 });

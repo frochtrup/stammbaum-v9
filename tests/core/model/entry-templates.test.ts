@@ -56,7 +56,7 @@ describe('Erfassungs-Vorlagen — das Feld-Vokabular ist das Modell (ADR-v9-264 
   });
 });
 
-describe('Sechs Rollen, davon zwei für Familien (ADR-v9-264 E2)', () => {
+describe('Neun Rollen, davon drei für Familien (ADR-v9-264 E2, erweitert durch ADR-v9-268 E1)', () => {
   it('Familien-Rollen tragen ausschließlich Familien-Ereignis-Slots (MARR/ENGA)', () => {
     const familienSlots = alleSlots().filter(({ slot }) =>
       (ENTRY_FAMILY_ROLES as readonly string[]).includes(slot.role),
@@ -79,10 +79,20 @@ describe('Sechs Rollen, davon zwei für Familien (ADR-v9-264 E2)', () => {
     expect(ort!.role).toBe('spouseFamily');
   });
 
-  it('alle sechs Rollen sind benannt und disjunkt', () => {
-    expect([...ENTRY_PERSON_ROLES]).toEqual(['main', 'father', 'mother', 'spouse']);
-    expect([...ENTRY_FAMILY_ROLES]).toEqual(['parentFamily', 'spouseFamily']);
-    expect(new Set([...ENTRY_PERSON_ROLES, ...ENTRY_FAMILY_ROLES]).size).toBe(6);
+  it('alle neun Rollen sind benannt und disjunkt (ADR-v9-268 E1)', () => {
+    // Erweitert um die Eltern des Partners: `spouseFather`/`spouseMother` samt ihrer
+    // Familie `spouseParentFamily` (die FAMC des Partners) — die symmetrische Ergänzung
+    // zu `father`/`mother`/`parentFamily`, weil ein Trauregister beide Elternpaare nennt.
+    expect([...ENTRY_PERSON_ROLES]).toEqual([
+      'main',
+      'father',
+      'mother',
+      'spouse',
+      'spouseFather',
+      'spouseMother',
+    ]);
+    expect([...ENTRY_FAMILY_ROLES]).toEqual(['parentFamily', 'spouseParentFamily', 'spouseFamily']);
+    expect(new Set([...ENTRY_PERSON_ROLES, ...ENTRY_FAMILY_ROLES]).size).toBe(9);
   });
 });
 

@@ -56,6 +56,31 @@ export interface EditableDate {
  *  dahinter (EntryTemplateCapture.svelte). `dateDirty: false` + `originalDate: null`
  *  macht `computeDate` bis zur ersten Eingabe zu `null` (= "kein Datum"), genau wie ein
  *  frisch angelegtes Ereignis es täte. */
+/**
+ * Ein `EditableDate` aus einem vorhandenen GEDCOM-Datumswert — dieselbe Zerlegung, die
+ * `toEditable` für ein Ereignis vornimmt, nur ohne Ereignis drumherum (BL-357).
+ *
+ * Gebraucht wird das dort, wo eine Datumszeile einen freistehenden Wert bearbeitet statt
+ * eines `Event`-Feldes: die Vorbelegung eines Datums-Slots im Vorlagen-Builder. Ohne diese
+ * Funktion müsste die Komponente `parseDateValue` selbst aufrufen und die Zuordnung der
+ * sieben Teilfelder ein zweites Mal schreiben — genau die zweite Fassung, die `toEditable`
+ * vermeidet.
+ */
+export function editableDateFrom(wert: string | null): EditableDate {
+  const parts = wert ? parseDateValue(wert) : null;
+  return {
+    dateQualifier: parts?.qualifier ?? 'EXACT',
+    day: parts?.day ?? null,
+    month: parts?.month ?? null,
+    year: parts?.year ?? null,
+    day2: parts?.day2 ?? null,
+    month2: parts?.month2 ?? null,
+    year2: parts?.year2 ?? null,
+    originalDate: wert && wert !== '' ? wert : null,
+    dateDirty: false,
+  };
+}
+
 export function makeEditableDate(): EditableDate {
   return {
     dateQualifier: 'EXACT',

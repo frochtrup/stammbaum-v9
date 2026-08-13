@@ -446,16 +446,32 @@ export function applyEntryTemplate(
       : { id: nextId(alloc, 'F'), neu: true, eltern, kind };
   };
 
-  if (main !== undefined) {
-    const vater = personIds.father;
-    const mutter = personIds.mother;
-    if (vater !== undefined || mutter !== undefined || hatEingabe(slots, 'parentFamily')) {
-      const eltern: FamilienPlan['eltern'] = [];
-      if (vater !== undefined) eltern.push({ slot: 'husband', person: vater });
-      if (mutter !== undefined) eltern.push({ slot: 'wife', person: mutter });
-      planen('parentFamily', { husband: wunsch('father'), wife: wunsch('mother') }, eltern, main);
-    }
+  /**
+   * Eine Elternfamilie planen — EIN Helfer für beide Paare (ADR-v9-268 E1). `parentFamily`
+   * ist die FAMC der Hauptperson, `spouseParentFamily` die des Partners; sie unterscheiden
+   * sich allein darin, WESSEN Eltern und WESSEN Kind gemeint sind. Zwei Kopien desselben
+   * Blocks wären der Anfang zweier Fassungen, die auseinanderlaufen.
+   */
+  const planeElternfamilie = (
+    rolle: EntryFamilyRole,
+    vaterRolle: EntryPersonRole,
+    mutterRolle: EntryPersonRole,
+    kind: PersonId | undefined,
+  ): void => {
+    if (kind === undefined) return; // ohne Kind ist es keine ELTERN-Familie.
+    const vater = personIds[vaterRolle];
+    const mutter = personIds[mutterRolle];
+    if (vater === undefined && mutter === undefined && !hatEingabe(slots, rolle)) return;
+    const eltern: FamilienPlan['eltern'] = [];
+    if (vater !== undefined) eltern.push({ slot: 'husband', person: vater });
+    if (mutter !== undefined) eltern.push({ slot: 'wife', person: mutter });
+    planen(rolle, { husband: wunsch(vaterRolle), wife: wunsch(mutterRolle) }, eltern, kind);
+  };
 
+  planeElternfamilie('parentFamily', 'father', 'mother', main);
+  planeElternfamilie('spouseParentFamily', 'spouseFather', 'spouseMother', personIds.spouse);
+
+  if (main !== undefined) {
     const partner = personIds.spouse;
     if (partner !== undefined || hatEingabe(slots, 'spouseFamily')) {
       const seiten = eheSlots(sexVon('main'), sexVon('spouse'));

@@ -200,3 +200,47 @@ export function draftSourcePrefill(patch: Partial<EntrySourcePrefill> & Pick<Ent
     urlPattern: patch.urlPattern ?? '',
   };
 }
+
+/**
+ * Die Rollen in ihrer Anzeige-Reihenfolge — abgeleitet aus dem ersten Auftreten in der
+ * Feldliste, genau wie `groupTemplateSlots` es tut (ADR-v9-268 E5). Rollen ohne Feld
+ * kommen nicht vor: es gibt sie schlicht nicht.
+ */
+export function roleOrderOf(slots: readonly EntrySlot[]): EntryRole[] {
+  const order: EntryRole[] = [];
+  for (const s of slots) if (!order.includes(s.role)) order.push(s.role);
+  return order;
+}
+
+/**
+ * Verschiebt einen ganzen Rollen-Block um eine Position (ADR-v9-268 E5, BL-357).
+ *
+ * KEIN `roleOrder`-Feld am Template: die Reihenfolge steht bereits in `slots`, und ein
+ * zweites Feld daneben wäre eine zweite Wahrheit, die auseinanderlaufen kann. Ein Block
+ * wandert deshalb, indem seine Felder ALS GRUPPE wandern — die Reihenfolge INNERHALB des
+ * Blocks bleibt dabei erhalten, und die Felder des übersprungenen Blocks ebenso.
+ *
+ * `richtung` −1 = nach oben, +1 = nach unten. Am Rand (oder bei unbekannter Rolle) bleibt
+ * die Liste unverändert — der Aufrufer blendet den Knopf dort ohnehin aus.
+ */
+export function moveRoleBlock(
+  slots: readonly EntrySlot[],
+  role: EntryRole,
+  richtung: -1 | 1,
+): EntrySlot[] {
+  const order = roleOrderOf(slots);
+  const i = order.indexOf(role);
+  const j = i + richtung;
+  if (i < 0 || j < 0 || j >= order.length) return [...slots];
+
+  const bloecke = new Map<EntryRole, EntrySlot[]>();
+  for (const s of slots) {
+    const liste = bloecke.get(s.role) ?? [];
+    liste.push(s);
+    bloecke.set(s.role, liste);
+  }
+
+  const neueOrdnung = [...order];
+  [neueOrdnung[i], neueOrdnung[j]] = [neueOrdnung[j], neueOrdnung[i]];
+  return neueOrdnung.flatMap((r) => bloecke.get(r) ?? []);
+}
