@@ -22,7 +22,7 @@ describe('computeTreeLayout', () => {
 
   it('Desktop (Landscape): bis zu 4 Vorfahren-Ebenen, hier 3 belegte Ebenen (Eltern/Großeltern/Urgroßeltern)', () => {
     const db = buildFourGenTree();
-    const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 4 })!;
+    const layout = computeTreeLayout(db, 'I1', { portrait: false, maxAncestorLevels: 4, probandId: 'I1' })!;
     // Eltern(2) + Großeltern(4) + Urgroßeltern(8) = 14 Ahnen-Karten + 1 Proband + 1 Ehepartner + 2 Kinder = 18
     const nonNullAncestors = layout.cards.filter((c) => !c.isCenter && c.kekule && c.kekule >= 2 && c.kekule <= 15);
     expect(nonNullAncestors).toHaveLength(14);
@@ -30,14 +30,17 @@ describe('computeTreeLayout', () => {
 
   it('Portrait/Mobile: nur 2 Ebenen (Eltern + Großeltern), keine Urgroßeltern-Karten', () => {
     const db = buildFourGenTree();
-    const layout = computeTreeLayout(db, 'I1', { portrait: true })!;
+    const layout = computeTreeLayout(db, 'I1', { portrait: true, probandId: 'I1' })!;
     const kekuleNumbers = layout.cards.map((c) => c.kekule).filter((k): k is number => k != null);
+    // Zählung VOR der Zusicherung: über einer leeren Menge wäre `Math.max` -Infinity und
+    // der Test grün, ohne je etwas geprüft zu haben (ADR-v9-200).
+    expect(kekuleNumbers.length).toBeGreaterThan(0);
     expect(Math.max(...kekuleNumbers)).toBeLessThan(8); // keine Urgroßeltern (Kekule 8..15)
   });
 
   it('Kekule-Nummern erscheinen auf den Ahnen-Karten (Proband=1, Vater=2, Mutter=3)', () => {
     const db = buildFourGenTree();
-    const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+    const layout = computeTreeLayout(db, 'I1', { portrait: false, probandId: 'I1' })!;
     const byId = new Map(layout.cards.filter((c) => c.id).map((c) => [c.id, c.kekule]));
     expect(byId.get('I1')).toBe(1);
     expect(byId.get('I2')).toBe(2);
@@ -112,6 +115,91 @@ describe('computeTreeLayout', () => {
     // 5. Kind muss in einer neuen Zeile stehen (andere Y als die ersten 4).
     const rowYs = new Set(kidCards.map((c) => c.y));
     expect(rowYs.size).toBe(2);
+  });
+
+  describe('Die Fläche umschließt, was gezeichnet wird', () => {
+    /** Der Fall aus dem Nutzer-Befund: EINE Ahnen-Ebene (Fächer = 2 Slots) und eine volle
+     *  Kinderzeile (4 Spalten). Die Kinderzeile ist auf den Probanden zentriert und damit
+     *  breiter als der Fächer, über den sich `personCX` bemisst — sie ragte links über die
+     *  Fläche hinaus, und was links von x=0 liegt, kann kein Scroll-Container zeigen. */
+    function familieMitVielenKindern() {
+      const db = makeDatabase();
+      addPerson(db, 'P');
+      addPerson(db, 'SP');
+      const kids = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6'];
+      for (const k of kids) addPerson(db, k);
+      marry(db, 'F1', 'P', 'SP', kids);
+      return db;
+    }
+
+    it('keine Karte links außerhalb der Fläche (Kinderzeile breiter als der Ahnen-Fächer)', () => {
+      const layout = computeTreeLayout(familieMitVielenKindern(), 'P', { portrait: false })!;
+      expect(layout.cards.length).toBeGreaterThan(0);
+      const minX = Math.min(...layout.cards.map((c) => c.x));
+      expect(minX).toBeGreaterThanOrEqual(0);
+    });
+
+    it('keine Karte rechts außerhalb der Fläche', () => {
+      const layout = computeTreeLayout(familieMitVielenKindern(), 'P', { portrait: false })!;
+      const maxX = Math.max(...layout.cards.map((c) => c.x + c.width));
+      expect(maxX).toBeLessThanOrEqual(layout.width);
+    });
+
+    it('auch die Verbindungslinien liegen innerhalb der Fläche', () => {
+      const layout = computeTreeLayout(familieMitVielenKindern(), 'P', { portrait: false })!;
+      expect(layout.connectors.length).toBeGreaterThan(0);
+      const xs = layout.connectors.flatMap((c) => [c.x1, c.x2]);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+      expect(Math.max(...xs)).toBeLessThanOrEqual(layout.width);
+    });
+
+    it('centerX zeigt weiterhin auf die Mitte der Proband-Karte', () => {
+      const layout = computeTreeLayout(familieMitVielenKindern(), 'P', { portrait: false })!;
+      const center = layout.cards.find((c) => c.isCenter)!;
+      expect(layout.centerX).toBe(center.x + center.width / 2);
+      expect(layout.centerY).toBe(center.y);
+    });
+
+    it('der Peek-Geschwisterstapel bleibt ebenfalls in der Fläche', () => {
+      // <3 Ahnen-Ebenen ⇒ Peek-Stapel statt horizontaler Zeile; er sitzt eine feste
+      // Kartenbreite links vom Probanden und ragte dort ebenso hinaus.
+      const db = makeDatabase();
+      addPerson(db, 'V');
+      addPerson(db, 'M');
+      addPerson(db, 'P');
+      addPerson(db, 'G1');
+      addPerson(db, 'G2');
+      marry(db, 'F1', 'V', 'M', ['P', 'G1', 'G2']);
+      const layout = computeTreeLayout(db, 'P', { portrait: false })!;
+      expect(layout.cards.filter((c) => c.isSibling).length).toBeGreaterThan(0);
+      expect(Math.min(...layout.cards.map((c) => c.x))).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('Kekule-Nummern bleiben auf den Probanden bezogen (nicht auf die Fokusperson)', () => {
+    it('zentriert auf ein Kind: der Proband behält die 1, sein Vater die 2', () => {
+      const db = buildFourGenTree();
+      // Der Baum steht auf dem Kind I30 — gezählt wird trotzdem ab dem Probanden I1.
+      const layout = computeTreeLayout(db, 'I30', { portrait: false, probandId: 'I1' })!;
+      const byId = new Map(layout.cards.filter((c) => c.id).map((c) => [c.id, c.kekule]));
+      expect(byId.get('I1')).toBe(1);
+      expect(byId.get('I2')).toBe(2);
+      expect(byId.get('I3')).toBe(3);
+    });
+
+    it('die Fokusperson selbst bekommt keine Nummer, wenn sie kein Vorfahre des Probanden ist', () => {
+      const db = buildFourGenTree();
+      const layout = computeTreeLayout(db, 'I30', { portrait: false, probandId: 'I1' })!;
+      const center = layout.cards.find((c) => c.isCenter)!;
+      expect(center.id).toBe('I30');
+      expect(center.kekule).toBeNull();
+    });
+
+    it('ohne Probanden gibt es gar keine Nummern (wie in der Personenliste)', () => {
+      const db = buildFourGenTree();
+      const layout = computeTreeLayout(db, 'I1', { portrait: false })!;
+      expect(layout.cards.every((c) => c.kekule === null)).toBe(true);
+    });
   });
 
   it('navTargets liefert Vater/Mutter/erstes Kind/aktiven Partner für Tastaturnavigation', () => {

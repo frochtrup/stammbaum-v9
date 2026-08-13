@@ -59,6 +59,12 @@
   // Der Baum zentriert auf den geteilten Lens-Fokus; ohne einen fällt er auf den Probanden
   // (effektive Referenzperson, BL-120 — vorher `keys().next()`/Einfüge-Reihenfolge).
   const focusId = $derived(viewState.getCurrent('lensFocus') ?? resolveProband(appState.db, viewState));
+  // Die Kekule-Zählung hängt am PROBANDEN, nicht am Fokus (Nutzer-Befund): der Baum
+  // zentriert beim Klick auf eine Karte um, die Ahnentafel-Nummern müssen dabei ihren
+  // Bezugspunkt behalten — sonst hieße jede gerade angesehene Person „1". Dieselbe
+  // Auflösung wie in der Personenliste (`resolveProband`, INV-UI-4); fällt der Fokus
+  // mangels `lensFocus` auf den Probanden zurück, sind beide identisch.
+  const probandId = $derived(resolveProband(appState.db, viewState));
 
   // ── Vollständigkeits-Ring (BL-121, Spec 21 §8) ──
   // Regel-Konfiguration wie im Dashboard nachladen (dieselbe Quelle → gleiche Ringe/Ampel).
@@ -98,6 +104,7 @@
     db: Database,
     id: string,
     ring: ReadonlyMap<PersonId, CardRing>,
+    proband: PersonId | null,
   ): TreeIslandHandle {
     const callbacks = {
       onSelect: recenter,
@@ -107,7 +114,9 @@
     // Der Ring gilt nur für die Rechteck-Karten (Sanduhr/Nachkommen), nicht den Fächer (§8).
     if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks, { ringByPerson: ring });
     if (mode === 'fan') return mountFanChart(container, db, id, callbacks);
-    return mountHourglassTree(container, db, id, callbacks, { ringByPerson: ring });
+    // Kekule-Badges trägt nur die Sanduhr (Spec 20 §1.3 [K]) — deshalb bekommt auch nur sie
+    // den Probanden; Nachkommen-Baum und Fächer kennen keine Ahnentafel-Nummern.
+    return mountHourglassTree(container, db, id, callbacks, { ringByPerson: ring, probandId: proband });
   }
 
   $effect(() => {
@@ -115,6 +124,10 @@
     const db = appState.db;
     const mode = treeMode;
     const ring = ringByPerson;
+    // Mitgelesen, damit ein Probanden-Wechsel WÄHREND geöffneter Baum-Ansicht die Nummern
+    // sofort neu zeichnet (der Fokus ändert sich dabei nicht — ohne diese Abhängigkeit
+    // liefe der Effekt gar nicht erneut).
+    const proband = probandId;
     if (!containerEl || !id) return;
     // Modus- oder Datensatz-Wechsel: alte Insel abbauen und neu mounten (Spec 02 §5).
     if (handle && (mounted?.mode !== mode || mounted?.db !== db)) {
@@ -122,10 +135,10 @@
       handle = null;
     }
     if (!handle) {
-      handle = mountFor(mode, containerEl, db, id, ring);
+      handle = mountFor(mode, containerEl, db, id, ring, proband);
       mounted = { mode, db };
     } else {
-      handle.update(id, { ringByPerson: ring });
+      handle.update(id, { ringByPerson: ring, probandId: proband });
     }
   });
 

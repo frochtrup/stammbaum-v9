@@ -34,6 +34,10 @@ export interface TreeMountOptions {
   maxAncestorLevels?: number;
   /** Vorberechnete Vollständigkeits-Ringe je Person (BL-121); fehlt = keine Ringe. */
   ringByPerson?: ReadonlyMap<PersonId, CardRing>;
+  /** Der Proband der Sitzung — Wurzel der Kekule-Zählung, unabhängig davon, auf WEN der
+   *  Baum gerade zentriert ist (`personId`/`update()`). Fehlt er, zeigt die Insel keine
+   *  Kekule-Badges (s. `TreeLayoutOptions.probandId`). */
+  probandId?: PersonId | null;
 }
 
 export interface TreeIslandHandle {
@@ -68,6 +72,7 @@ export function mountHourglassTree(
   // den Container) und reicht es über `ctx.portrait` an `draw()`.
   let maxAncestorLevels = initialOptions.maxAncestorLevels;
   let ringByPerson = initialOptions.ringByPerson;
+  let probandId = initialOptions.probandId ?? null;
 
   function makeCard(ctx: DrawContext, layout: TreeLayoutResult, card: TreeLayoutResult['cards'][number], peekZIndex: number): void {
     const div = appendPersonCard(
@@ -123,6 +128,7 @@ export function mountHourglassTree(
     const layout = computeTreeLayout(db, currentId, {
       portrait: ctx.portrait,
       maxAncestorLevels,
+      probandId,
     });
     if (!layout) return null;
 
@@ -173,6 +179,7 @@ export function mountHourglassTree(
       currentId = nextId;
       if (options.maxAncestorLevels !== undefined) maxAncestorLevels = options.maxAncestorLevels;
       if (options.ringByPerson !== undefined) ringByPerson = options.ringByPerson;
+      if (options.probandId !== undefined) probandId = options.probandId;
       viewport.render();
     },
     toggleFullscreen() {
@@ -189,7 +196,7 @@ export function mountHourglassTree(
     },
     getExportSvg() {
       if (!currentId) return null;
-      const layout = computeTreeLayout(db, currentId, { portrait: false, maxAncestorLevels });
+      const layout = computeTreeLayout(db, currentId, { portrait: false, maxAncestorLevels, probandId });
       return layout ? renderHourglassSvg(db, layout, ringByPerson) : null;
     },
   };
