@@ -1387,3 +1387,37 @@ describe('Familienzeile: das Datum führt die Zeile an (Nutzer-Wunsch 2026-08-13
     expect(datum.compareDocumentPosition(partner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe('Die Verwandtschaftszeile setzt einen GEWÄHLTEN Probanden voraus (Nutzer-Entscheidung 2026-08-13)', () => {
+  /** Zwei Personen, klar verwandt — nur der Proband ist nicht gesetzt. */
+  function vaterUndSohn() {
+    const db = makeDatabase();
+    db.individuals.set('@I1@', makePerson('@I1@', { given: 'Otto', surname: 'Alt', sex: 'M', parentIn: ['@F1@'] }));
+    db.individuals.set('@I2@', makePerson('@I2@', {
+      given: 'Sohn', surname: 'Alt', sex: 'M',
+      childOf: [{ familyId: '@F1@', pedigree: 'birth', fatherRel: '', motherRel: '', fatherRelSeen: false, motherRelSeen: false, citations: [] }],
+    }));
+    db.families.set('@F1@', makeFamily('@F1@', { husband: '@I1@', children: ['@I2@'] }));
+    return db;
+  }
+
+  it('ohne ausdrücklich gesetzten Probanden erscheint keine Zeile — auch nicht über die Vorbelegung', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(vaterUndSohn(), 'test.ged');
+    viewState.setCurrent('person', '@I2@'); // KEIN setProband — die App belegt intern @I1@ vor
+    const { container } = render(PersonDetail, { props: { appState, viewState } });
+    expect(container.querySelector('.person-detail-header__relation')).toBeNull();
+  });
+
+  it('sobald einer gesetzt ist, steht sie da', () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(vaterUndSohn(), 'test.ged');
+    viewState.setProband('@I1@');
+    viewState.setCurrent('person', '@I2@');
+    const { container } = render(PersonDetail, { props: { appState, viewState } });
+    expect(container.querySelector('.person-detail-header__relation')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('Sohn von Otto Alt');
+  });
+});
