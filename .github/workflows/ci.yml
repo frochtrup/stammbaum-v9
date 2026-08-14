@@ -38,17 +38,26 @@ permissions:
 # `packageManager`-Feld trägt — wir sagen ohnehin ausdrücklich `cache: npm`.
 #
 # `node-version` unten ist eine ANDERE Frage: das ist die Node-Version, mit der gebaut und
-# getestet wird. Sie erzeugt keine Warnung, ist aber ebenfalls Node 20 — s. Notiz dort.
+# getestet wird. Sie erzeugt keine Warnung — sie steht aus einem eigenen Grund auf 24,
+# s. Notiz dort.
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        # Node 20 ist EOL (April 2026), und lokal läuft das Gate auf Node 24 — CI prüft
-        # damit eine andere Laufzeit als die, auf der entwickelt wird. Bewusst noch nicht
-        # angehoben: das ist eine Änderung am Prüfgegenstand, keine Wartung der Actions.
-        with: { node-version: 20, cache: npm }
+        # 24, weil CI dieselbe Laufzeit prüfen soll, auf der entwickelt wird: das
+        # Acht-Schritte-Gate läuft lokal auf Node 24, und Node 20 ist seit April 2026
+        # ohne Wartung. Eine grüne CI auf einer Laufzeit, die niemand benutzt, prüft die
+        # falsche Frage.
+        #
+        # FOLGE FÜR DIE PERF-BUDGETS: Die Zeit-Budgets sind gegen den Runner kalibriert
+        # (ADR-v9-91), gemessen wurde damals auf Node 20. Zum Vergleich der Stand des
+        # letzten Node-20-Laufs (2026-08-14, Runner 2.336.0, 20000 Personen):
+        # parse 807 ms (Budget 1500) · Orts-Auflösung 9822 ms (30000) · Sort 275 ms (1200)
+        # · Undo-Speicher 26,3 MiB (50). Wer die Version wieder anfasst, hält die neuen
+        # Zahlen dagegen — der Exit-Code allein sagt nichts über eine Verschiebung.
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run check:arch
       - run: npm run check:csp
@@ -77,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: 20, cache: npm }
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
