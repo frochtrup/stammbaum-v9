@@ -22,12 +22,32 @@ permissions:
   pages: write
   id-token: write
 
+# Action-Versionen: die LAUFZEIT der Actions selbst, nicht die des Projekts.
+#
+# Node 20 ist im April 2026 aus der Wartung gefallen; seit dem 16.06.2026 starten die
+# Runner Actions standardmäßig auf Node 24 und melden für jede Action, die noch `node20`
+# deklariert, eine Warnung („being forced to run on Node.js 24"). Im Herbst 2026 entfernt
+# GitHub Node 20 ganz — dann laufen diese Actions nicht mehr, die Warnung ist also eine
+# Frist, keine Geschmacksfrage. Deshalb stehen hier die Majors, die `runs.using: node24`
+# deklarieren (am 2026-08-14 an der jeweiligen `action.yml` nachgesehen, nicht geraten):
+# checkout v7 · setup-node v7 · upload-pages-artifact v5 · deploy-pages v5.
+#
+# Zwei Bruchstellen dieser Majors betreffen uns NICHT, beide geprüft: checkout v5+ sperrt
+# den Fork-Checkout bei `pull_request_target`/`workflow_run` (wir triggern auf `push` und
+# `pull_request`), und setup-node v5+ cacht von sich aus, wenn `package.json` ein
+# `packageManager`-Feld trägt — wir sagen ohnehin ausdrücklich `cache: npm`.
+#
+# `node-version` unten ist eine ANDERE Frage: das ist die Node-Version, mit der gebaut und
+# getestet wird. Sie erzeugt keine Warnung, ist aber ebenfalls Node 20 — s. Notiz dort.
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        # Node 20 ist EOL (April 2026), und lokal läuft das Gate auf Node 24 — CI prüft
+        # damit eine andere Laufzeit als die, auf der entwickelt wird. Bewusst noch nicht
+        # angehoben: das ist eine Änderung am Prüfgegenstand, keine Wartung der Actions.
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run check:arch
@@ -55,11 +75,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: github-pages
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: dist }
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
