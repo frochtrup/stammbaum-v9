@@ -11,8 +11,21 @@
 // zurückgibt; Rezentrierung/Zoom/Resize = kompletter Neu-Aufbau (Spec 02 §5). Nach oben
 // ausschließlich über Callbacks.
 import type { Database, PersonId } from '../../../core/model/types';
-import { computeTreeLayout, type TreeLayoutResult } from './tree-layout';
-import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
+import {
+  computeTreeLayout,
+  clampAncestorLevels,
+  defaultAncestorLevels,
+  MIN_ANCESTOR_LEVELS,
+  MAX_ANCESTOR_LEVELS,
+  type TreeLayoutResult,
+} from './tree-layout';
+import {
+  createTreeViewport,
+  generationOptions,
+  homeTargetFor,
+  type DrawContext,
+  type DiagramLayoutFrame,
+} from './tree-viewport';
 import { appendPersonCard, appendConnector, appendMarriageButton, type CardRing } from './tree-cards';
 import { renderHourglassSvg, type DiagramSvg } from './diagram-export';
 // Geteilter Tooltip (INV-UI-12/ADR-v9-87): hier IMPERATIV aufgerufen (kein Svelte-`use:`),
@@ -26,12 +39,27 @@ export interface TreeMountCallbacks {
   onSelectCenter?: (id: PersonId) => void;
   /** Klick auf den ⚭-Badge zwischen Proband und aktivem Ehepartner. */
   onSelectFamily?: (familyId: string) => void;
+  /** Der Nutzer hat im Regler der Überlagerung eine andere Generationenzahl gewählt
+   *  (BL-368). Die Insel legt den Wert NICHT selbst ab — die Schale hält ihn und reicht
+   *  ihn über `update()` zurück (eine Wahrheit, s. `tree-view-state.svelte.ts`). */
+  onGenerationsChange?: (n: number) => void;
 }
+
+/** Stufen des Sanduhr-Reglers. Sprechende Wörter statt bloßer Zahlen — „3" allein sagt
+ *  nicht, wovon (Spec 21: echte Wörter, keine kryptischen Kürzel). */
+const ANCESTOR_LEVEL_OPTIONS = generationOptions(MIN_ANCESTOR_LEVELS, MAX_ANCESTOR_LEVELS, (n) =>
+  n === 1 ? '1 Ebene' : `${n} Ebenen`,
+);
 
 export interface TreeMountOptions {
   /** Erzwingt Portrait/Landscape statt Container-Maße zu messen (v. a. für Tests). */
   portrait?: boolean;
+  /** Vorfahren-Ebenen der SANDUHR (sie zählt Ebenen über dem Zentrum). Nachkommen-Baum
+   *  und Fächer zählen Generationen und nutzen stattdessen `generations` — zwei Fragen,
+   *  zwei Felder, damit der uniforme Options-Beutel keine Bedeutung verwischt. */
   maxAncestorLevels?: number;
+  /** Generationen für Nachkommen-Baum/Fächer (BL-368); von der Sanduhr ignoriert. */
+  generations?: number;
   /** Vorberechnete Vollständigkeits-Ringe je Person (BL-121); fehlt = keine Ringe. */
   ringByPerson?: ReadonlyMap<PersonId, CardRing>;
   /** Der Proband der Sitzung — Wurzel der Kekule-Zählung, unabhängig davon, auf WEN der
@@ -125,9 +153,14 @@ export function mountHourglassTree(
   // navTargets) — alles Weitere (Zoom/Zentrierung/Tastatur) besorgt der Viewport.
   function draw(ctx: DrawContext): DiagramLayoutFrame | null {
     if (!currentId) return null;
+    // Die Vorgabe hängt am Formfaktor und WIRD HIER GEBILDET, nicht in der Schale: der
+    // Viewport misst das Seitenverhältnis des Containers (`ctx.portrait`), die Schale
+    // kennt nur die Fensterbreite. Weil der Regler in der Insel sitzt, zeigt er damit
+    // genau den Wert, der auch gezeichnet wird — ohne zweite Formfaktor-Wahrheit.
+    const levels = clampAncestorLevels(maxAncestorLevels ?? defaultAncestorLevels(ctx.portrait));
     const layout = computeTreeLayout(db, currentId, {
       portrait: ctx.portrait,
-      maxAncestorLevels,
+      maxAncestorLevels: levels,
       probandId,
     });
     if (!layout) return null;
@@ -164,12 +197,25 @@ export function mountHourglassTree(
       centerX: layout.centerX,
       centerY: layout.centerY,
       navTargets: layout.navTargets,
+      homeTarget: homeTargetFor(probandId, currentId),
+      generations: {
+        caption: 'Vorfahren-Ebenen',
+        // Der GEWÜNSCHTE Wert, nicht der von der Datenlage gekappte: `computeTreeLayout`
+        // kürzt auf die tiefste belegte Ebene, und ein Regler, der bei einer ahnenlosen
+        // Person auf 1 zurückspränge, ließe sich nicht mehr hochstellen.
+        value: levels,
+        options: ANCESTOR_LEVEL_OPTIONS,
+      },
     };
   }
 
   const viewport = createTreeViewport(
     container,
-    { portrait: initialOptions.portrait, onNavigate: callbacks.onSelect },
+    {
+      portrait: initialOptions.portrait,
+      onNavigate: callbacks.onSelect,
+      onGenerationsChange: callbacks.onGenerationsChange,
+    },
     draw,
   );
   viewport.render();

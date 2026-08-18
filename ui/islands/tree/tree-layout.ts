@@ -35,10 +35,32 @@ import {
   getSpouseFamilies,
 } from './tree-model';
 
+/**
+ * Wählbare Spanne der Vorfahren-Ebenen (BL-368). Die Sanduhr zählt Ebenen ÜBER dem
+ * Zentrum — nicht Generationen inklusive Zentrum wie Nachkommen-Baum und Fächer; deshalb
+ * eigene Namen und eigene Beschriftung im Regler.
+ * Obergrenze 4: darüber wird die Sanduhr breiter als jedes Viewport, und der Auto-Fit
+ * skaliert die Karten unter die Lesbarkeit.
+ */
+export const MIN_ANCESTOR_LEVELS = 1;
+export const MAX_ANCESTOR_LEVELS = 4;
+
+/** Vorgabe je Formfaktor: im Hochformat ist für 4 Ebenen kein Platz (Spec 20 §1.3). */
+export function defaultAncestorLevels(portrait: boolean): number {
+  return portrait ? 2 : MAX_ANCESTOR_LEVELS;
+}
+
+/** Klemmt einen gewünschten Wert in die Spanne — die Verteidigungslinie der Insel bleibt
+ *  hier, unabhängig davon, was die Schale schickt. */
+export function clampAncestorLevels(n: number): number {
+  return Math.max(MIN_ANCESTOR_LEVELS, Math.min(MAX_ANCESTOR_LEVELS, Math.round(n)));
+}
+
 export interface TreeLayoutOptions {
   /** Hochformat/Mobile (Spec 20 §1.3: 2 Ebenen) vs. Desktop (bis 4 Ebenen). */
   portrait: boolean;
-  /** Maximal gewünschte Vorfahren-Ebenen (1..4); wird durch tatsächliche Belegung gekappt. */
+  /** Gewünschte Vorfahren-Ebenen (`MIN_`..`MAX_ANCESTOR_LEVELS`); wird durch tatsächliche
+   *  Belegung gekappt. Ohne Angabe: `defaultAncestorLevels(portrait)`. */
   maxAncestorLevels?: number;
   /** Index der aktiven Ehe/Familie bei Mehrfach-Ehen (Spec: `⚭N`, aktive Familie bestimmt Hauptkinder). */
   activeSpouseIndex?: number;
@@ -153,7 +175,7 @@ export function computeTreeLayout(
   const siblings = getSiblingIds(db, centerId);
   const nSibs = siblings.length;
 
-  const requestedLevels = Math.max(1, Math.min(4, options.maxAncestorLevels ?? (options.portrait ? 2 : 4)));
+  const requestedLevels = clampAncestorLevels(options.maxAncestorLevels ?? defaultAncestorLevels(options.portrait));
 
   // ── Kekule-Nummern (Proband=1, relativ zum PROBANDEN — Spec 20 §1.3 [K]) ──
   // NICHT `centerId`: der Baum zentriert auf die Fokusperson, gezählt wird trotzdem ab dem

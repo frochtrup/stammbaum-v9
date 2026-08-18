@@ -4,17 +4,36 @@
 // `tree-cards`-Renderer — identisch zur Sanduhr, nur mit dem Nachkommen-Layout und dem
 // ▼-„mehr Nachkommen"-Badge als einzigem insel-eigenen Zusatz. Nach oben nur Callbacks.
 import type { Database, PersonId } from '../../../core/model/types';
-import { computeDescendantLayout } from './descendant-layout';
-import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
+import {
+  computeDescendantLayout,
+  clampDescGenerations,
+  DEFAULT_DESC_GENERATIONS,
+  MIN_DESC_GENERATIONS,
+  MAX_DESC_GENERATIONS,
+} from './descendant-layout';
+import {
+  createTreeViewport,
+  generationOptions,
+  homeTargetFor,
+  type DrawContext,
+  type DiagramLayoutFrame,
+} from './tree-viewport';
 import { appendPersonCard, appendConnector, appendMarriageButton } from './tree-cards';
 import { renderDescendantSvg } from './diagram-export';
 import { tooltip } from '../../shell/tooltip';
 import type { TreeMountCallbacks, TreeMountOptions, TreeIslandHandle } from './hourglass-tree';
 
-export interface DescendantMountOptions extends TreeMountOptions {
-  /** Dargestellte Generationen inkl. Proband (2–7, Spec 20 §1.3). Default 4. */
-  generations?: number;
-}
+/** `generations` liegt inzwischen in `TreeMountOptions` (uniformer Options-Beutel, damit
+ *  `TreeIslandHandle.update` für alle drei Modi dieselbe Form hat) — dieser Alias bleibt
+ *  als sprechender Name an der Aufrufstelle. */
+export type DescendantMountOptions = TreeMountOptions;
+
+/** Stufen des Nachkommen-Reglers — Generationen INKLUSIVE Zentrum. */
+const DESC_GENERATION_OPTIONS = generationOptions(
+  MIN_DESC_GENERATIONS,
+  MAX_DESC_GENERATIONS,
+  (n) => `${n} Generationen`,
+);
 
 /**
  * Mountet den Nachkommen-Baum in `container`. Gleiche Handle-Form wie die Sanduhr
@@ -30,12 +49,16 @@ export function mountDescendantTree(
   let currentId: PersonId | null = personId;
   let generations = initialOptions.generations;
   let ringByPerson = initialOptions.ringByPerson;
+  // Der Nachkommen-Baum trägt keine Kekule-Nummern und brauchte den Probanden bisher
+  // nicht — jetzt schon, aber nur für „★ Zentrieren" (BL-367), nicht fürs Layout.
+  let probandId = initialOptions.probandId ?? null;
 
   function draw(ctx: DrawContext): DiagramLayoutFrame | null {
     if (!currentId) return null;
+    const gens = clampDescGenerations(generations ?? DEFAULT_DESC_GENERATIONS);
     const layout = computeDescendantLayout(db, currentId, {
       portrait: ctx.portrait,
-      generations,
+      generations: gens,
     });
     if (!layout) return null;
 
@@ -68,12 +91,18 @@ export function mountDescendantTree(
       centerX: layout.centerX,
       centerY: layout.centerY,
       navTargets: layout.navTargets,
+      homeTarget: homeTargetFor(probandId, currentId),
+      generations: { caption: 'Generationen', value: gens, options: DESC_GENERATION_OPTIONS },
     };
   }
 
   const viewport = createTreeViewport(
     container,
-    { portrait: initialOptions.portrait, onNavigate: callbacks.onSelect },
+    {
+      portrait: initialOptions.portrait,
+      onNavigate: callbacks.onSelect,
+      onGenerationsChange: callbacks.onGenerationsChange,
+    },
     draw,
   );
   viewport.render();
@@ -83,6 +112,7 @@ export function mountDescendantTree(
       currentId = nextId;
       if (options.generations !== undefined) generations = options.generations;
       if (options.ringByPerson !== undefined) ringByPerson = options.ringByPerson;
+      if (options.probandId !== undefined) probandId = options.probandId;
       viewport.render();
     },
     toggleFullscreen() {

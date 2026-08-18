@@ -58,10 +58,25 @@ export interface DescendantLayoutResult {
   navTargets: DiagramNavTargets;
 }
 
+/**
+ * Wählbare Spanne der Generationen INKLUSIVE Zentrum (BL-368) — anders als die Sanduhr,
+ * die Ebenen ÜBER dem Zentrum zählt. Untergrenze 2, weil eine Nachkommentafel mit nur
+ * einer Generation kein Baum wäre; Obergrenze 7 wie im Orakel.
+ */
+export const MIN_DESC_GENERATIONS = 2;
+export const MAX_DESC_GENERATIONS = 7;
+export const DEFAULT_DESC_GENERATIONS = 4;
+
+/** Klemmt einen gewünschten Wert in die Spanne (Verteidigungslinie der Insel). */
+export function clampDescGenerations(n: number): number {
+  return Math.max(MIN_DESC_GENERATIONS, Math.min(MAX_DESC_GENERATIONS, Math.round(n)));
+}
+
 export interface DescendantLayoutOptions {
   /** Hochformat/Mobile (kleinere Karten/Abstände) vs. Desktop. */
   portrait: boolean;
-  /** Anzahl dargestellter Generationen inkl. Proband (2–7, Spec 20 §1.3). Default 4. */
+  /** Anzahl dargestellter Generationen inkl. Zentrum (`MIN_`..`MAX_DESC_GENERATIONS`,
+   *  Spec 20 §1.3). Ohne Angabe: `DEFAULT_DESC_GENERATIONS`. */
   generations?: number;
 }
 
@@ -167,7 +182,7 @@ export function computeDescendantLayout(
   const d = options.portrait ? DIMS.portrait : DIMS.landscape;
   const { W, H, CW, CH, HGAP, VGAP, PAD, MGAP, SIB_GAP } = d;
   const SLOT = W + HGAP;
-  const generations = Math.max(2, Math.min(7, options.generations ?? 4));
+  const generations = clampDescGenerations(options.generations ?? DEFAULT_DESC_GENERATIONS);
 
   const rootSpouseIds = spouseIds(db, probandId);
   const nSpouses = rootSpouseIds.length;

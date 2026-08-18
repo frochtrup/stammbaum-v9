@@ -5,17 +5,37 @@
 // KEIN `tree-cards`-Renderer — die Geometrie kommt aus `fan-layout.ts`). Nach oben nur
 // Callbacks. Rezentrierung/Zoom/Resize = kompletter Neu-Aufbau (Spec 02 §5).
 import type { Database, PersonId } from '../../../core/model/types';
-import { computeFanLayout, type FanText } from './fan-layout';
-import { createTreeViewport, type DrawContext, type DiagramLayoutFrame } from './tree-viewport';
+import {
+  computeFanLayout,
+  clampFanGenerations,
+  DEFAULT_FAN_GENERATIONS,
+  MIN_FAN_GENERATIONS,
+  MAX_FAN_GENERATIONS,
+  type FanText,
+} from './fan-layout';
+import {
+  createTreeViewport,
+  generationOptions,
+  homeTargetFor,
+  type DrawContext,
+  type DiagramLayoutFrame,
+} from './tree-viewport';
 import { renderFanSvg } from './diagram-export';
 import type { TreeMountCallbacks, TreeMountOptions, TreeIslandHandle } from './hourglass-tree';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export interface FanMountOptions extends TreeMountOptions {
-  /** Generationen inkl. Proband-Ringe (3–6, Spec 20 §1.3). Default 5. */
-  generations?: number;
-}
+/** `generations` liegt inzwischen in `TreeMountOptions` (uniformer Options-Beutel) — der
+ *  Alias bleibt als sprechender Name an der Aufrufstelle. */
+export type FanMountOptions = TreeMountOptions;
+
+/** Stufen des Fächer-Reglers. Gezählt werden AHNEN-RINGE um das Zentrum: „5" heißt fünf
+ *  Ringe zusätzlich zum Zentrums-Kreis. */
+const FAN_GENERATION_OPTIONS = generationOptions(
+  MIN_FAN_GENERATIONS,
+  MAX_FAN_GENERATIONS,
+  (n) => `${n} Generationen`,
+);
 
 function drawText(svg: SVGSVGElement, t: FanText): void {
   const el = document.createElementNS(SVG_NS, 'text');
@@ -43,10 +63,14 @@ export function mountFanChart(
 ): TreeIslandHandle {
   let currentId: PersonId | null = personId;
   let generations = initialOptions.generations;
+  // Der Fächer trägt keine Kekule-Nummern und brauchte den Probanden bisher nicht — jetzt
+  // schon, aber nur für „★ Zentrieren" (BL-367), nicht fürs Layout.
+  let probandId = initialOptions.probandId ?? null;
 
   function draw(ctx: DrawContext): DiagramLayoutFrame | null {
     if (!currentId) return null;
-    const layout = computeFanLayout(db, currentId, { generations });
+    const gens = clampFanGenerations(generations ?? DEFAULT_FAN_GENERATIONS);
+    const layout = computeFanLayout(db, currentId, { generations: gens });
     if (!layout) return null;
 
     ctx.wrap.querySelectorAll('.tree-island__card').forEach((el) => el.remove());
@@ -60,8 +84,9 @@ export function mountFanChart(
       if (seg.id) path.dataset.sex = seg.sex;
       path.setAttribute('fill-opacity', String(seg.fillOpacity));
       if (seg.id) {
+        // `data-person-id` ist zugleich der Zeiger-Kontrakt: die geteilte SVG-Ebene ist
+        // stumm, erst dieses Attribut holt Klick und `cursor` zurück (CSS, BL-366).
         path.dataset.personId = seg.id;
-        path.style.cursor = 'pointer';
         path.addEventListener('click', () => {
           if (ctx.shouldSuppressClick()) return;
           callbacks.onSelect(seg.id!);
@@ -71,17 +96,16 @@ export function mountFanChart(
       for (const t of seg.texts) drawText(ctx.svg, t);
     }
 
-    // ── Proband-Kreis (Zentrum) ──
-    if (layout.proband) {
-      const pr = layout.proband;
+    // ── Zentrums-Kreis (die Person, um die gezeichnet wird — nicht der Proband, ADR-v9-273) ──
+    if (layout.center) {
+      const pr = layout.center;
       const circle = document.createElementNS(SVG_NS, 'circle');
       circle.setAttribute('cx', String(pr.cx));
       circle.setAttribute('cy', String(pr.cy));
       circle.setAttribute('r', String(pr.r));
-      circle.setAttribute('class', 'tree-island__fan-proband');
+      circle.setAttribute('class', 'tree-island__fan-center');
       circle.dataset.sex = pr.sex;
       circle.dataset.personId = pr.id;
-      circle.style.cursor = 'pointer';
       circle.addEventListener('click', () => {
         if (ctx.shouldSuppressClick()) return;
         callbacks.onSelectCenter?.(pr.id);
@@ -97,12 +121,18 @@ export function mountFanChart(
       centerX: layout.centerX,
       centerY: layout.centerY,
       navTargets: layout.navTargets,
+      homeTarget: homeTargetFor(probandId, currentId),
+      generations: { caption: 'Generationen', value: gens, options: FAN_GENERATION_OPTIONS },
     };
   }
 
   const viewport = createTreeViewport(
     container,
-    { portrait: initialOptions.portrait, onNavigate: callbacks.onSelect },
+    {
+      portrait: initialOptions.portrait,
+      onNavigate: callbacks.onSelect,
+      onGenerationsChange: callbacks.onGenerationsChange,
+    },
     draw,
   );
   viewport.render();
@@ -111,6 +141,7 @@ export function mountFanChart(
     update(nextId, options: FanMountOptions = {}) {
       currentId = nextId;
       if (options.generations !== undefined) generations = options.generations;
+      if (options.probandId !== undefined) probandId = options.probandId;
       viewport.render();
     },
     toggleFullscreen() {

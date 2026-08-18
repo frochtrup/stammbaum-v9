@@ -21,7 +21,6 @@
   import { createPlacesSyncService, createPlacesFileIO, type PlacesFileIO } from '../services/places';
   import { createPlacesPersister, type PlacesPersister } from '../ui/shell/places-persister';
   import { createFileService, type FileService } from '../services/file';
-  import { loadDocText } from '../ui/shell/load-doc-text';
   import BottomNav from '../ui/shell/BottomNav.svelte';
   import Sidebar from '../ui/shell/Sidebar.svelte';
   import {
@@ -76,7 +75,7 @@
   import OfflineIndicator from '../ui/shell/OfflineIndicator.svelte';
   import OnboardingTour from '../ui/shell/OnboardingTour.svelte';
   import { createTourState } from '../ui/shell/onboarding-state.svelte';
-  import { onlineStatus } from '../ui/shell/online-status.svelte';
+  import { startApp } from '../ui/shell/app-startup';
   import { layout, type LayoutEnv } from '../ui/shell/layout.svelte';
   import { createViewHolders } from '../ui/shell/view-holders.svelte';
 
@@ -156,6 +155,7 @@
   // nicht in den Flächen selbst, steht in `view-holders.svelte.ts`.
   const holders = createViewHolders();
   const qualityState = holders.quality;
+  const treeState = holders.tree;
   const searchState = holders.search;
   const listStates = holders.lists;
   const windowStates = holders.windows;
@@ -219,59 +219,28 @@
     },
   });
 
-  // Auto-Load der Arbeitskopie beim Start (Spec 20 §1.2 [K], Spec 14 §3.1/§8 Schritt 4).
-  // Gibt es keine Arbeitskopie, bleibt der Startzustand wie bisher (leere DB, Import-
-  // Buttons sichtbar). Nutzt DIESELBE Lade-Pipeline wie ImportButton/Demo (loadGedcomText)
-  // — EIN Lade-Pfad (INV-UI-4-Lehre), nur die Text-Quelle ist hier die Arbeitskopie statt
-  // Picker/fetch.
-  onMount(() => {
-    void (async () => {
-      const copy = await fileService.loadWorkingCopy();
-      if (!copy) return;
-      fileHandle = copy.handle;
-      const result = await loadDocText(copy.format ?? 'gedcom', copy.text, copy.name, appState, persister);
-      zeigeNotiz(result.placesNotice);
-    })();
-
-    // Forschungsprojekte laden (BL-58, fällt bei Speicherfehler auf leere Liste zurück).
-    void projectsState.load();
-
-    // Erfassungs-Vorlagen laden (BL-353) — ein Speicherfehler blockiert nicht, die drei mitgelieferten bleiben sichtbar.
-    void entryTemplatesState.load();
-
-    // Merker des Erstnutzer-Rundgangs (BL-213) — bis er gelesen ist, zeigt der Rundgang
-    // nichts; ein Speicherfehler gilt als „schon gesehen".
-    void tour.load();
-
-    // Medien-Ordner wiederherstellen (BL-257): gespeicherter Verzeichnis-Handle +
-    // Leserecht-Nachfrage, genau wie beim Arbeitskopie-Handle. Kein Ordner oder kein
-    // erneut erteiltes Recht ist KEIN Fehler — die App läuft vollständig weiter, nur
-    // ohne Medien-Vorschauen.
-    void mediaResolver.restore().catch(() => {});
-
-    // Plattform-Listener der Schale, beide mit derselben Aufräum-Disziplin: der
-    // Rückgabewert von onMount ist die Aufräumfunktion — die Zustände leben zwar so
-    // lange wie die App, aber ein Listener-Leck in Komponententests (mehrfaches
-    // Mounten) wäre real.
-    //
-    // `layout` (BL-91) ist der EINE Formfaktor-Zustand (Spec 21 §3): hier verdrahtet,
-    // damit es genau ein `matchMedia` in der Schale gibt. Gelesen wird er erst von der
-    // Sidebar (BL-06) und dem Multi-Pane (BL-92) — verdrahtet ist er trotzdem schon
-    // hier, weil er sonst dort nachgezogen werden müsste und die eine Stelle, an der
-    // Plattform-Listener der Schale starten, genau diese ist.
-    const stopOnline = onlineStatus.start();
-    const stopLayout = layout.start(layoutEnv);
-    return () => {
-      stopOnline();
-      stopLayout();
-    };
-  });
-
   // Erstnutzer-Rundgang (BL-213): die Bedingung lebt in `onboarding-state.svelte.ts`,
   // hier bleibt die Verdrahtung.
   // `untrack` wie bei `projectsState` darüber: der Merker-Store wird genau einmal beim
   // Start gebunden (eine Instanz, kein Wert, der sich ändert).
   const tour = createTourState(untrack(() => tourStore), () => appState.fileName);
+
+  // Der Startlauf selbst liegt als kohäsive Einheit daneben (`app-startup.ts`), wie schon
+  // die Ansichts-Halter — hier bleibt nur, WOMIT er läuft.
+  onMount(() =>
+    startApp({
+      appState,
+      fileService,
+      persister,
+      mediaResolver,
+      layoutEnv,
+      loadProjects: () => projectsState.load(),
+      loadEntryTemplates: () => entryTemplatesState.load(),
+      loadTour: () => tour.load(),
+      notify: zeigeNotiz,
+      setFileHandle: (h) => (fileHandle = h),
+    }),
+  );
 
   // Badge am Bottom-Nav-Ziel "Aufgaben" (Spec 20 §1.11 [K], Orakel `_updateTasksBadge`) —
   // $derived liest appState.db über den Chokepoint neu, sobald ein Aufgaben-Kommando
@@ -451,6 +420,7 @@
         {viewState}
         {route}
         {fileService}
+        tree={treeState}
         onOpenPersonDetail={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateLens={navigateLens}

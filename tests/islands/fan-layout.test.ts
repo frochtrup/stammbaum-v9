@@ -7,18 +7,18 @@ import { computeFanLayout } from '../../ui/islands/tree/fan-layout';
 import { buildFourGenTree } from './tree-fixtures';
 
 describe('computeFanLayout', () => {
-  it('gibt null zurück, wenn der Proband nicht existiert', () => {
+  it('gibt null zurück, wenn die Zentrumsperson nicht existiert', () => {
     const db = makeDatabase();
     expect(computeFanLayout(db, 'nope')).toBeNull();
   });
 
-  it('legt einen Proband-Kreis in der Mitte an (unten), mit Radius > 0', () => {
+  it('legt einen Zentrums-Kreis in der Mitte an (unten), mit Radius > 0', () => {
     const db = buildFourGenTree();
     const layout = computeFanLayout(db, 'I1')!;
-    expect(layout.proband).not.toBeNull();
-    expect(layout.proband!.id).toBe('I1');
-    expect(layout.proband!.cx).toBe(layout.width / 2);
-    expect(layout.proband!.r).toBeGreaterThan(0);
+    expect(layout.center).not.toBeNull();
+    expect(layout.center!.id).toBe('I1');
+    expect(layout.center!.cx).toBe(layout.width / 2);
+    expect(layout.center!.r).toBeGreaterThan(0);
   });
 
   it('jede Generation g hat 2^g Segmente', () => {

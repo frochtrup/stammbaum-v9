@@ -22,6 +22,7 @@ import {
   type HofListState,
 } from '../views/list-view-state.svelte';
 import { createQualityDashboardState } from '../views/quality/quality-dashboard-state.svelte';
+import { createTreeViewState } from '../views/tree/tree-view-state.svelte';
 import { createGlobalSearchState } from '../views/search/global-search-state.svelte';
 import {
   createHypothesesViewState,
@@ -35,6 +36,9 @@ export type WindowSlot = 'person' | 'family' | 'source' | 'repository' | 'place'
 
 export interface ViewHolders {
   quality: ReturnType<typeof createQualityDashboardState>;
+  /** Generationenzahl je Baum-Modus (BL-368). Gehört der Wurzel, nicht der Lens: der Weg
+   *  in eine andere Lens baut `TreeView` ab. */
+  tree: ReturnType<typeof createTreeViewState>;
   search: ReturnType<typeof createGlobalSearchState>;
   tasks: ReturnType<typeof createTasksViewState>;
   log: ReturnType<typeof createLogViewState>;
@@ -56,6 +60,7 @@ export interface ViewHolders {
 export function createViewHolders(): ViewHolders {
   return {
     quality: createQualityDashboardState(),
+    tree: createTreeViewState(),
     search: createGlobalSearchState(),
     tasks: createTasksViewState(),
     log: createLogViewState(),

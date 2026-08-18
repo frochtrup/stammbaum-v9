@@ -22,13 +22,42 @@ permissions:
   pages: write
   id-token: write
 
+# Action-Versionen: die LAUFZEIT der Actions selbst, nicht die des Projekts.
+#
+# Node 20 ist im April 2026 aus der Wartung gefallen; seit dem 16.06.2026 starten die
+# Runner Actions standardmäßig auf Node 24 und melden für jede Action, die noch `node20`
+# deklariert, eine Warnung („being forced to run on Node.js 24"). Im Herbst 2026 entfernt
+# GitHub Node 20 ganz — dann laufen diese Actions nicht mehr, die Warnung ist also eine
+# Frist, keine Geschmacksfrage. Deshalb stehen hier die Majors, die `runs.using: node24`
+# deklarieren (am 2026-08-14 an der jeweiligen `action.yml` nachgesehen, nicht geraten):
+# checkout v7 · setup-node v7 · upload-pages-artifact v5 · deploy-pages v5.
+#
+# Zwei Bruchstellen dieser Majors betreffen uns NICHT, beide geprüft: checkout v5+ sperrt
+# den Fork-Checkout bei `pull_request_target`/`workflow_run` (wir triggern auf `push` und
+# `pull_request`), und setup-node v5+ cacht von sich aus, wenn `package.json` ein
+# `packageManager`-Feld trägt — wir sagen ohnehin ausdrücklich `cache: npm`.
+#
+# `node-version` unten ist eine ANDERE Frage: das ist die Node-Version, mit der gebaut und
+# getestet wird. Sie erzeugt keine Warnung — sie steht aus einem eigenen Grund auf 24,
+# s. Notiz dort.
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        # 24, weil CI dieselbe Laufzeit prüfen soll, auf der entwickelt wird: das
+        # Acht-Schritte-Gate läuft lokal auf Node 24, und Node 20 ist seit April 2026
+        # ohne Wartung. Eine grüne CI auf einer Laufzeit, die niemand benutzt, prüft die
+        # falsche Frage.
+        #
+        # FOLGE FÜR DIE PERF-BUDGETS: Die Zeit-Budgets sind gegen den Runner kalibriert
+        # (ADR-v9-91), gemessen wurde damals auf Node 20. Zum Vergleich der Stand des
+        # letzten Node-20-Laufs (2026-08-14, Runner 2.336.0, 20000 Personen):
+        # parse 807 ms (Budget 1500) · Orts-Auflösung 9822 ms (30000) · Sort 275 ms (1200)
+        # · Undo-Speicher 26,3 MiB (50). Wer die Version wieder anfasst, hält die neuen
+        # Zahlen dagegen — der Exit-Code allein sagt nichts über eine Verschiebung.
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run check:arch
       - run: npm run check:csp
@@ -55,11 +84,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: github-pages
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with: { path: dist }
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
