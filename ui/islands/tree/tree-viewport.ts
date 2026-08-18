@@ -33,8 +33,24 @@ export interface DiagramNavTargets {
   right: PersonId | null;
 }
 
+/**
+ * Der Generationen-Regler EINER Insel (BL-368). Die Spanne und ihre Beschriftung sind
+ * inselspezifisch und bleiben es: die Sanduhr zählt Ebenen ÜBER dem Zentrum, Nachkommen
+ * und Fächer zählen Generationen — ein gemeinsames Wort wäre gelogen. Der Viewport
+ * rendert nur, was hier steht; er kennt weder `TreeModeId` noch die Spannen (INV-ARCH-1).
+ */
+export interface DiagramGenerationsControl {
+  /** Zugänglicher Name des Reglers, z. B. „Generationen" / „Vorfahren-Ebenen". */
+  caption: string;
+  /** Der EFFEKTIV gezeichnete Wert — was der Regler zeigt, ist das, was zu sehen ist. */
+  value: number;
+  /** Wählbare Stufen mit sprechender Beschriftung, aufsteigend. */
+  options: readonly { value: number; label: string }[];
+}
+
 /** Das reine Modell, das eine Insel-`draw()` zurückgibt — nur was der Viewport für Maße,
- *  Auto-Fit-Zentrierung und Tastaturnavigation braucht (nicht die Karten selbst). */
+ *  Auto-Fit-Zentrierung, Tastaturnavigation und die Überlagerung braucht (nicht die
+ *  Karten selbst). */
 export interface DiagramLayoutFrame {
   width: number;
   height: number;
@@ -42,6 +58,40 @@ export interface DiagramLayoutFrame {
   centerX: number;
   centerY: number;
   navTargets: DiagramNavTargets;
+  /**
+   * Person, auf die „★ Zentrieren" zurückführt (BL-367) — `null` blendet den Knopf aus.
+   * Die Inseln setzen ihn auf den Probanden, SOLANGE er nicht schon das Zentrum ist: ein
+   * Knopf, der nichts täte, wäre ein wirkungsloser Wiederhol-Klick (dieselbe Erwägung wie
+   * „★ Proband" statt eines zweiten „Als Proband setzen", ADR-v9-140 (d)).
+   * Bewusst der Frame und kein eigener Options-Pfad: er ist der Kanal, den jede Insel je
+   * Zeichnung ohnehin befüllt.
+   */
+  homeTarget: PersonId | null;
+  /** Generationen-Regler dieser Insel; `null` blendet ihn aus. */
+  generations: DiagramGenerationsControl | null;
+}
+
+/**
+ * Baut die Stufenliste eines Generationen-Reglers. EIN Bauhelfer für alle drei Inseln
+ * (INV-UI-4) — sie unterscheiden sich nur in Spanne und Beschriftung, nicht in der Form.
+ */
+export function generationOptions(
+  min: number,
+  max: number,
+  label: (n: number) => string,
+): { value: number; label: string }[] {
+  const out: { value: number; label: string }[] = [];
+  for (let n = min; n <= max; n++) out.push({ value: n, label: label(n) });
+  return out;
+}
+
+/**
+ * Ziel für „★ Zentrieren": der Proband, solange er nicht schon das Zentrum ist.
+ * Eine Regel, von allen drei Inseln gelesen — sonst beantwortete jede die Frage „wann ist
+ * der Knopf sinnvoll?" für sich, und die Antworten drifteten auseinander.
+ */
+export function homeTargetFor(probandId: PersonId | null, centerId: PersonId | null): PersonId | null {
+  return probandId && probandId !== centerId ? probandId : null;
 }
 
 /** Zeichen-Kontext, den der Viewport an die Insel-`draw()` reicht. */
@@ -62,8 +112,13 @@ export interface DrawContext {
 export interface TreeViewportOptions {
   /** Erzwingt Portrait/Landscape statt Container-Maße zu messen (v. a. für Tests). */
   portrait?: boolean;
-  /** Pfeiltasten-Navigation zwischen Fokuspersonen (↑/↓/→). */
+  /** Pfeiltasten-Navigation zwischen Fokuspersonen (↑/↓/→) UND „★ Zentrieren" — ein
+   *  Rückkanal für „zeige mir jetzt diese Person", nicht zwei. */
   onNavigate: (id: PersonId) => void;
+  /** Der Nutzer hat eine andere Generationenzahl gewählt (BL-368). Die Insel hält den Wert
+   *  NICHT selbst — die Schale legt ihn ab und reicht ihn über `update()` zurück, damit es
+   *  genau eine Wahrheit gibt. */
+  onGenerationsChange?: (n: number) => void;
 }
 
 export interface TreeViewportHandle {
@@ -97,10 +152,45 @@ export function createTreeViewport(
   // ── Container-Grundgerüst (einmalig) ──
   container.classList.add('tree-island');
 
-  // Der Vollbild-Schalter gehört IN die Insel, nicht in die Lens-Kopfzeile darüber
-  // (BL-95): `.tree-island--fullscreen` ist `position: fixed; inset: 0; z-index: 500` und
-  // legt sich über Kopfzeile UND Bottom-Nav — ein Schalter außerhalb wäre im Vollbild
-  // unerreichbar. Ein Schalter INNERHALB wandert mit ins Vollbild und bleibt bedienbar.
+  // ÜBERLAGERUNG: alle Bedienelemente der Insel in EINEM Streifen (BL-367/368).
+  //
+  // Warum sie IN der Insel liegen und nicht in der Modus-Zeile darüber — dasselbe
+  // Argument, mit dem BL-95 schon den Vollbild-Schalter hierher geholt hat:
+  // `.tree-island--fullscreen` ist `position: fixed; inset: 0; z-index: 500` und legt sich
+  // über Kopfzeile UND Bottom-Nav. Alles außerhalb wäre im Vollbild unerreichbar — also
+  // genau in dem Modus, in dem man am ehesten die Orientierung verliert und am ehesten
+  // mehr Generationen sehen will. Zweitens war in der Modus-Zeile bei 375px kein Platz
+  // (351px nutzbar, ~322px belegt — weniger als ein Tap-Ziel frei), und drittens berührt
+  // die Überlagerung damit das Befehlsflächen-Budget des Kopfbereichs nicht (INV-UI-11).
+  //
+  // EIN Wrapper statt dreier absolut gesetzter Knöpfe: die Vollbild-Safe-Area-Regel wird
+  // dadurch einmal gepflegt, nicht je Element (INV-UI-4).
+  const overlayEl = document.createElement('div');
+  overlayEl.className = 'tree-island__overlay';
+
+  // Generationen-Regler (BL-368). Natives `<select>` — dieselbe Bauform wie die
+  // Ast-Ebenen-Wahl im Dashboard (ADR-v9-167), nur imperativ statt in Svelte. Er trägt
+  // seinen Namen als `aria-label`, weil ein sichtbares Label in der Überlagerung Platz
+  // über dem Diagramm kostete, den es nicht wert ist.
+  const genSel = document.createElement('select');
+  genSel.className = 'tree-island__gen-sel';
+  genSel.hidden = true;
+  /** Signatur der aktuell gerenderten Stufen — nur bei Änderung neu aufbauen. */
+  let genSig = '';
+  genSel.addEventListener('change', () => {
+    options.onGenerationsChange?.(Number(genSel.value));
+  });
+
+  // „★ Zentrieren" (BL-367): zurück auf den Probanden, OHNE die Lens zu verlassen.
+  // Bewusst nicht „Zum Probanden" — so heißt der Palette-Befehl, und der hat ein anderes
+  // Ziel (den Steckbrief). Gleiche Wörter für zwei Ziele wären INV-UI-2.
+  const homeBtn = document.createElement('button');
+  homeBtn.type = 'button';
+  homeBtn.className = 'tree-island__home-btn';
+  homeBtn.textContent = '★ Zentrieren';
+  homeBtn.setAttribute('aria-label', 'Auf den Probanden zentrieren');
+  homeBtn.hidden = true;
+
   // Escape verlässt zusätzlich das Vollbild (ein Modus braucht mehr als einen Ausgang).
   const fsBtn = document.createElement('button');
   fsBtn.type = 'button';
@@ -109,6 +199,7 @@ export function createTreeViewport(
     fsBtn.textContent = fullscreen ? '⤡ Vollbild beenden' : '⤢ Vollbild';
     fsBtn.setAttribute('aria-pressed', String(fullscreen));
   };
+  overlayEl.append(genSel, homeBtn, fsBtn);
 
   const scrollEl = document.createElement('div');
   scrollEl.className = 'tree-island__scroll';
@@ -128,7 +219,7 @@ export function createTreeViewport(
   scrollEl.appendChild(scaleWrapEl);
   container.innerHTML = '';
   container.appendChild(scrollEl);
-  container.appendChild(fsBtn); // NACH dem Scroll-Layer: liegt darüber, ohne z-index-Turnen
+  container.appendChild(overlayEl); // NACH dem Scroll-Layer: liegt darüber, ohne z-index-Turnen
 
   function detectPortrait(): boolean {
     if (options.portrait != null) return options.portrait;
@@ -151,6 +242,38 @@ export function createTreeViewport(
     scaleWrapEl.style.height = `${Math.round(frame.height * zoomScale)}px`;
   }
 
+  /**
+   * Zieht die Überlagerung an dem nach, was die Insel gerade gezeichnet hat.
+   *
+   * Der `<select>` wird NUR bei geänderten Stufen neu aufgebaut (Modus-Wechsel), sonst
+   * bekommt er bloß seinen Wert gesetzt: `render()` läuft auch bei Resize, Zoom und
+   * Vollbild-Wechsel, und ein jedes Mal neu aufgebautes Feld verlöre mitten in der
+   * Bedienung den Fokus. `select.value = …` löst kein `change` aus — keine Rückkopplung.
+   */
+  function syncOverlay(frame: DiagramLayoutFrame): void {
+    homeBtn.hidden = frame.homeTarget === null;
+
+    const gen = frame.generations;
+    genSel.hidden = gen === null;
+    if (!gen) {
+      genSig = '';
+      return;
+    }
+    genSel.setAttribute('aria-label', gen.caption);
+    const sig = gen.options.map((o) => `${o.value}:${o.label}`).join('|');
+    if (sig !== genSig) {
+      genSig = sig;
+      genSel.innerHTML = '';
+      for (const o of gen.options) {
+        const opt = document.createElement('option');
+        opt.value = String(o.value);
+        opt.textContent = o.label;
+        genSel.appendChild(opt);
+      }
+    }
+    genSel.value = String(gen.value);
+  }
+
   function render(): void {
     const portrait = detectPortrait();
     // Portrait: kein Zoom (Orakel-Verhalten) — vor draw zurücksetzen, damit die
@@ -167,6 +290,7 @@ export function createTreeViewport(
     });
     if (!frame) return;
     lastFrame = frame;
+    syncOverlay(frame);
 
     wrapEl.style.width = `${frame.width}px`;
     wrapEl.style.height = `${frame.height}px`;
@@ -220,6 +344,11 @@ export function createTreeViewport(
 
   fsBtn.addEventListener('click', () => setFullscreen(!fullscreen));
   setFsLabel();
+
+  homeBtn.addEventListener('click', () => {
+    const target = lastFrame?.homeTarget;
+    if (target) options.onNavigate(target);
+  });
 
   // ── Drag-to-Pan (Desktop) ──
   let dragState: { x: number; y: number; sl: number; st: number } | null = null;

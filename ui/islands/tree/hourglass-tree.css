@@ -16,15 +16,41 @@
   z-index: 500;
 }
 
-/* Vollbild-Schalter INNERHALB der Insel (BL-95): im Vollbild legt sich `.tree-island`
-   über Kopfzeile und Bottom-Nav — ein Schalter außerhalb wäre dort unerreichbar und der
-   Modus eine Einbahnstraße. Er liegt im DOM NACH dem Scroll-Layer und braucht deshalb
-   keinen z-index-Wettlauf; `position: absolute` bezieht sich auf `.tree-island`
-   (`position: relative`) und wandert mit ins `position: fixed`-Vollbild. */
-.tree-island__fs-btn {
+/* BEDIENELEMENTE INNERHALB der Insel (BL-95, erweitert um BL-367/368): im Vollbild legt
+   sich `.tree-island` über Kopfzeile und Bottom-Nav — alles außerhalb wäre dort
+   unerreichbar und der Modus eine Einbahnstraße. Sie liegen im DOM NACH dem Scroll-Layer
+   und brauchen deshalb keinen z-index-Wettlauf; `position: absolute` bezieht sich auf
+   `.tree-island` (`position: relative`) und wandert mit ins `position: fixed`-Vollbild.
+
+   EIN Streifen statt dreier einzeln positionierter Elemente: die Vollbild-Einrückung
+   unten wird dadurch an genau einer Stelle gepflegt (INV-UI-4). */
+.tree-island__overlay {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  /* Der Streifen selbst ist nur ein Rahmen — Klicks daneben gehören dem Diagramm. */
+  pointer-events: none;
+}
+
+.tree-island__overlay > * {
+  pointer-events: auto;
+}
+
+/* Im Vollbild liegt die Insel am Viewport-Rand, der Streifen also genau dort, wo iOS
+   Uhr/Batterie zeichnet — der EINZIGE Ausweg aus dem Modus wäre unerreichbar. Nur hier,
+   nicht am Grundzustand: eingebettet sitzt die Insel unterhalb der Kopfzeile, ein Inset
+   wäre dort eine falsche Einrückung. */
+.tree-island--fullscreen .tree-island__overlay {
+  top: calc(0.5rem + var(--stb-safe-top));
+  right: calc(0.5rem + var(--stb-safe-right));
+}
+
+.tree-island__fs-btn,
+.tree-island__home-btn,
+.tree-island__gen-sel {
   background: var(--stb-surface-2);
   border: 1px solid var(--stb-gold-dim);
   color: var(--stb-text);
@@ -38,17 +64,12 @@
   opacity: 0.85;
 }
 
-/* Im Vollbild liegt die Insel am Viewport-Rand, der Schalter also genau dort, wo iOS
-   Uhr/Batterie zeichnet — der EINZIGE Ausweg aus dem Modus wäre unerreichbar. Nur hier,
-   nicht am Grundzustand: eingebettet sitzt die Insel unterhalb der Kopfzeile, ein Inset
-   wäre dort eine falsche Einrückung. */
-.tree-island--fullscreen .tree-island__fs-btn {
-  top: calc(0.5rem + var(--stb-safe-top));
-  right: calc(0.5rem + var(--stb-safe-right));
-}
-
 .tree-island__fs-btn:hover,
-.tree-island__fs-btn:focus-visible {
+.tree-island__fs-btn:focus-visible,
+.tree-island__home-btn:hover,
+.tree-island__home-btn:focus-visible,
+.tree-island__gen-sel:hover,
+.tree-island__gen-sel:focus-visible {
   opacity: 1;
   border-color: var(--stb-gold);
 }
@@ -79,11 +100,32 @@
   position: relative;
 }
 
+/* ZEIGER-KONTRAKT der geteilten SVG-Ebene (BL-366). Die Ebene selbst ist STUMM: bei der
+   Sanduhr und beim Nachkommen-Baum trägt sie nur Verbindungslinien, die Karten sind
+   `div`s darüber — ein klickbarer, vollflächiger SVG-Kasten würde dort nur im Weg stehen.
+   Der Fächer ist die einzige Insel, die ihre Karten ALS SVG zeichnet; seine
+   Segment-Klicks (`fan-chart.ts`) waren dadurch im Browser tot, während happy-dom sie
+   für klickbar hielt (`pointer-events` wird dort nicht ausgewertet) und die
+   Tastaturnavigation unabhängig davon weiterlief.
+
+   Deshalb eine REGEL statt einer Namensliste: was eine Person benennt, holt sich das
+   Klicken zurück. `[data-person-id]` ist der bereits geteilte Kontrakt — `tree-cards.ts`
+   setzt es auf die Karten, `fan-chart.ts` auf Segmente und Zentrums-Kreis; jede künftige
+   klickbare SVG-Form erbt die Regel, ohne dass jemand daran denken muss.
+   Bewusst NICHT `pointer-events` ersatzlos vom SVG nehmen: der Wurzelknoten ist eine
+   vollflächige Box über der ganzen Diagrammfläche, jeder leere Pixel würde ihn treffen
+   und jede künftige Ebene DARUNTER still unklickbar machen (dieselbe Fehlerklasse wie
+   bei BL-95). Ein Opt-in ist außerdem prüfbar, ein entferntes Attribut nicht. */
 .tree-island__svg {
   position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
+}
+
+.tree-island__svg [data-person-id] {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .tree-island__line {
@@ -263,18 +305,21 @@
   fill-opacity: 1;
 }
 
-.tree-island__fan-proband {
+.tree-island__fan-center {
   stroke: var(--stb-bg);
   stroke-width: 2;
   fill: var(--stb-surface-3);
 }
-.tree-island__fan-proband[data-sex='M'] {
+.tree-island__fan-center[data-sex='M'] {
   fill: var(--stb-sex-m);
 }
-.tree-island__fan-proband[data-sex='F'] {
+.tree-island__fan-center[data-sex='F'] {
   fill: var(--stb-sex-f);
 }
 
+/* `pointer-events: none` ist hier TRAGEND, nicht Vorsicht: `drawText()` hängt die Labels
+   NACH ihrem Pfad an, sie liegen also darüber. Ohne die Regel schluckte die Beschriftung
+   den Klick auf ihr eigenes Segment (s. Zeiger-Kontrakt oben). */
 .tree-island__fan-text {
   fill: var(--stb-text);
   font-family: system-ui, -apple-system, sans-serif;

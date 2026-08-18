@@ -2,15 +2,20 @@
   // ui/views/tree/TreeView.svelte — dünner Svelte-Wrapper um die imperativen Baum-Inseln
   // (Spec 02 §5). Kein Layout/SVG-Code hier — das lebt in ui/islands/tree/ (framework-frei).
   //
-  // Seit BL-122 hostet die Baum-Lens DREI Modi (Sanduhr · Nachkommen · Fächer[folgt]) über
+  // Seit BL-122 hostet die Baum-Lens DREI Modi (Sanduhr · Nachkommen · Fächer) über
   // EINEN geteilten Viewport (ADR-v9-123). Der Modus lebt in route.treeMode (analog mapMode,
   // übersteht das Verlassen der Lens) und wird über den geteilten ViewModeToggle gewählt —
   // ein View-internes Konzept, deshalb UNTER der Lens-Kopfzeile (wie der Karten-Modusrow),
   // nicht im Lens-Umschalter selbst (INV-UI-3/§4). Wechselt der Modus, wird die alte Insel
   // zerstört und die neue in denselben Container gemountet (kein Fein-Diffing, Spec 02 §5).
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
+  import { createTreeViewState, type TreeViewState } from './tree-view-state.svelte';
   import '../../islands/tree/hourglass-tree.css';
-  import { mountHourglassTree, type TreeIslandHandle } from '../../islands/tree/hourglass-tree';
+  import {
+    mountHourglassTree,
+    type TreeIslandHandle,
+    type TreeMountOptions,
+  } from '../../islands/tree/hourglass-tree';
   import { mountDescendantTree } from '../../islands/tree/descendant-tree';
   import { mountFanChart } from '../../islands/tree/fan-chart';
   import type { AppState } from '../../shell/app-state.svelte';
@@ -41,6 +46,10 @@
     route?: Route;
     /** Export-Rohr (BL-124) — dieselbe Instanz wie SaveButton/ExportView. Optional für Tests. */
     fileService?: FileService;
+    /** Ansichts-Unterzustand der Fläche (BL-368): die gewählte Generationenzahl je Modus.
+     *  Von der App-Wurzel gestellt, damit sie den Weg in eine andere Lens überlebt
+     *  (Spec 21 §5). Optional — Tests bekommen dann eine frische, isolierte Instanz. */
+    tree?: TreeViewState;
     /** Cross-Tab-Navigation zur Familien-Detailseite (⚭-Badge zwischen Proband/Ehepartner). */
     onNavigateToFamily?: (familyId: string) => void;
     /** Cross-Tab-Navigation: Klick auf die Zentrum-Karte öffnet die Personen-Detailseite. */
@@ -49,7 +58,20 @@
      *  im geteilten ViewState-Slot `lensFocus` und bleibt beim Wechsel erhalten. */
     onNavigateLens?: (lens: LensId) => void;
   }
-  const { appState, viewState, route, fileService, onNavigateToFamily, onOpenPersonDetail, onNavigateLens }: Props = $props();
+  const {
+    appState,
+    viewState,
+    route,
+    fileService,
+    tree: treeProp,
+    onNavigateToFamily,
+    onOpenPersonDetail,
+    onNavigateLens,
+  }: Props = $props();
+
+  // Fallback wie im Qualitäts-Dashboard: ohne Prop eine eigene, isolierte Instanz — die
+  // bestehenden Komponententests mounten weiter ohne, und kein Modul-Singleton entsteht.
+  const treeState = untrack(() => treeProp ?? createTreeViewState());
 
   let containerEl: HTMLDivElement | undefined = $state();
   let handle: TreeIslandHandle | null = null;
@@ -98,25 +120,48 @@
     viewState.setCurrent('lensFocus', id);
   }
 
+  /** Gewählte Generationenzahl des aktiven Modus; `undefined` = noch keine Wahl, dann
+   *  bildet die Insel ihre eigene (formfaktor-abhängige) Vorgabe und zeigt sie an. */
+  const generations = $derived(treeState.generationsFor(treeMode) ?? undefined);
+
+  /**
+   * EINE Abbildung Modus → Insel-Optionen, von Mount UND Update benutzt. Getrennte
+   * Options-Listen an beiden Stellen wären genau die Sorte Geschwister-Stelle, die
+   * auseinanderdriftet, sobald eine dritte Option dazukommt.
+   *
+   * `probandId` bekommen jetzt ALLE drei Modi: die Sanduhr für ihre Kekule-Zählung
+   * (Spec 20 §1.3 [K]), Nachkommen-Baum und Fächer nur für „★ Zentrieren" (BL-367) —
+   * dort bleibt er ohne Wirkung aufs Layout.
+   */
+  function islandOptions(
+    mode: TreeModeId,
+    ring: ReadonlyMap<PersonId, CardRing>,
+    proband: PersonId | null,
+    gens: number | undefined,
+  ): TreeMountOptions {
+    // Der Ring gilt nur für die Rechteck-Karten (Sanduhr/Nachkommen), nicht den Fächer (§8).
+    const base = { ringByPerson: ring, probandId: proband };
+    // Die Sanduhr zählt Ebenen ÜBER dem Zentrum, die beiden anderen Generationen
+    // INKLUSIVE Zentrum — zwei Felder, weil es zwei Fragen sind.
+    return mode === 'hourglass' ? { ...base, maxAncestorLevels: gens } : { ...base, generations: gens };
+  }
+
   function mountFor(
     mode: TreeModeId,
     container: HTMLDivElement,
     db: Database,
     id: string,
-    ring: ReadonlyMap<PersonId, CardRing>,
-    proband: PersonId | null,
+    options: TreeMountOptions,
   ): TreeIslandHandle {
     const callbacks = {
       onSelect: recenter,
       onSelectCenter: (pid: string) => onOpenPersonDetail?.(pid),
       onSelectFamily: (fid: string) => onNavigateToFamily?.(fid),
+      onGenerationsChange: (n: number) => treeState.setGenerations(mode, n),
     };
-    // Der Ring gilt nur für die Rechteck-Karten (Sanduhr/Nachkommen), nicht den Fächer (§8).
-    if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks, { ringByPerson: ring });
-    if (mode === 'fan') return mountFanChart(container, db, id, callbacks);
-    // Kekule-Badges trägt nur die Sanduhr (Spec 20 §1.3 [K]) — deshalb bekommt auch nur sie
-    // den Probanden; Nachkommen-Baum und Fächer kennen keine Ahnentafel-Nummern.
-    return mountHourglassTree(container, db, id, callbacks, { ringByPerson: ring, probandId: proband });
+    if (mode === 'descendant') return mountDescendantTree(container, db, id, callbacks, options);
+    if (mode === 'fan') return mountFanChart(container, db, id, callbacks, options);
+    return mountHourglassTree(container, db, id, callbacks, options);
   }
 
   $effect(() => {
@@ -128,17 +173,24 @@
     // sofort neu zeichnet (der Fokus ändert sich dabei nicht — ohne diese Abhängigkeit
     // liefe der Effekt gar nicht erneut).
     const proband = probandId;
+    // Mitgelesen wie der Proband: ohne diese Abhängigkeit liefe der Effekt nach einer
+    // Generationen-Wahl gar nicht erneut — die Insel bekäme den neuen Wert erst beim
+    // nächsten Modus-Wechsel (BL-368).
+    const gens = generations;
     if (!containerEl || !id) return;
     // Modus- oder Datensatz-Wechsel: alte Insel abbauen und neu mounten (Spec 02 §5).
     if (handle && (mounted?.mode !== mode || mounted?.db !== db)) {
       handle.destroy();
       handle = null;
     }
+    const options = islandOptions(mode, ring, proband, gens);
     if (!handle) {
-      handle = mountFor(mode, containerEl, db, id, ring, proband);
+      handle = mountFor(mode, containerEl, db, id, options);
       mounted = { mode, db };
     } else {
-      handle.update(id, { ringByPerson: ring, probandId: proband });
+      // Neu ZEICHNEN statt neu mounten: eine Generationen-Wahl darf weder Zoom noch
+      // Scroll-Position noch den Tastaturzustand der Insel wegwerfen.
+      handle.update(id, options);
     }
   });
 

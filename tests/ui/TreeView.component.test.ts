@@ -4,10 +4,14 @@
 // Layout-/SVG-Logik selbst ist in tests/islands/tree-layout.test.ts abgedeckt
 // (Spec 32 §2: Inseln werden über ihre Layout-Berechnung getestet, nicht Pixel).
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { tick } from 'svelte';
 import { render, fireEvent } from '@testing-library/svelte';
 import TreeView from '../../ui/views/tree/TreeView.svelte';
 import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createViewState } from '../../ui/shell/view-state.svelte';
+import { createRoute } from '../../ui/shell/route.svelte';
+import { createTreeViewState, type TreeViewState } from '../../ui/views/tree/tree-view-state.svelte';
+import { buildFourGenTree } from '../islands/tree-fixtures';
 import { makeDatabase, makePerson, makeFamily } from '../../core/model';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
@@ -263,5 +267,123 @@ describe('TreeView — Lens-Umschalter-Einbettung (Spec 21 §4, INV-UI-3)', () =
     const second = render(TreeView, { props: { appState, viewState } });
     expect(viewState.getCurrent('lensFocus')).toBe('@I1@');
     expect(second.container.querySelector('[data-person-id="@I1@"].tree-island__card--center')).toBeTruthy();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Die Naht Schale ↔ Insel (BL-367/368). Was die Inseln je für sich zusichern, steht in
+// tests/islands/tree-overlay.test.ts; HIER steht nur, was keine der beiden Seiten allein
+// beweisen kann: dass der Weg Regler → Halter → `handle.update` → Neuzeichnen geschlossen
+// ist, und dass er beim Moduswechsel nicht die Werte vertauscht.
+// ──────────────────────────────────────────────────────────────────────────────
+describe('TreeView — Rückkehr zum Probanden (BL-367)', () => {
+  for (const mode of ['hourglass', 'descendant', 'fan'] as const) {
+    it(`Modus ${mode}: der Knopf erscheint erst abseits des Probanden und zentriert zurück`, async () => {
+      const appState = createAppState();
+      const viewState = createViewState();
+      const route = createRoute({ treeMode: mode });
+      appState.loadDatabase(buildFourGenTree(), 'test.ged');
+      viewState.setProband('I1');
+      viewState.setCurrent('lensFocus', 'I1');
+
+      const { container } = render(TreeView, { props: { appState, viewState, route } });
+      const home = () => container.querySelector('.tree-island__home-btn') as HTMLButtonElement;
+
+      // Auf dem Probanden zentriert: nichts zurückzugehen, also kein Knopf.
+      expect(home().hidden).toBe(true);
+
+      viewState.setCurrent('lensFocus', 'I2');
+      await tick();
+      expect(home().hidden).toBe(false);
+
+      await fireEvent.click(home());
+      await tick();
+
+      expect(viewState.getCurrent('lensFocus')).toBe('I1');
+      expect(home().hidden).toBe(true);
+    });
+  }
+
+  it('folgt dem AUFGELÖSTEN Probanden, nicht nur dem ausdrücklich gesetzten', async () => {
+    // ADR-v9-274 erlaubt die Unterscheidung „gesetzt vs. aufgelöst" ausdrücklich nur an
+    // EINER Stelle (der Verwandtschaftszeile). Der Baum macht sie deshalb nicht: ohne
+    // gesetzten Probanden ist `resolveProband` die Referenz — dieselbe wie überall sonst.
+    const appState = createAppState();
+    const viewState = createViewState();
+    appState.loadDatabase(buildFourGenTree(), 'test.ged');
+    viewState.setCurrent('lensFocus', 'I2'); // kein setProband()
+
+    const { container } = render(TreeView, { props: { appState, viewState } });
+
+    expect((container.querySelector('.tree-island__home-btn') as HTMLButtonElement).hidden).toBe(false);
+    await fireEvent.click(container.querySelector('.tree-island__home-btn')!);
+
+    expect(viewState.getCurrent('lensFocus')).toBe('I1'); // kleinste Id
+  });
+});
+
+describe('TreeView — wählbare Generationenzahl (BL-368)', () => {
+  function renderMode(mode: 'hourglass' | 'descendant' | 'fan', tree?: TreeViewState) {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const route = createRoute({ treeMode: mode });
+    appState.loadDatabase(buildFourGenTree(), 'test.ged');
+    viewState.setCurrent('lensFocus', 'I1');
+    return { ...render(TreeView, { props: { appState, viewState, route, tree } }), route };
+  }
+
+  async function waehle(container: HTMLElement, n: number): Promise<void> {
+    const sel = container.querySelector('.tree-island__gen-sel') as HTMLSelectElement;
+    sel.value = String(n);
+    await fireEvent.change(sel);
+    await tick();
+  }
+
+  it('eine Wahl im Regler zeichnet neu — ohne die Insel neu aufzubauen', async () => {
+    const { container } = renderMode('fan');
+    const insel = container.querySelector('.tree-island__scroll');
+    const vorher = container.querySelectorAll('.tree-island__fan-seg').length;
+
+    await waehle(container, 3);
+
+    const nachher = container.querySelectorAll('.tree-island__fan-seg').length;
+    // 3 Ringe statt 5 → weniger Segmente. Ohne diese Zusicherung wäre der Test grün,
+    // sobald der Regler nur SEINEN Wert ändert und das Diagramm stehen bleibt.
+    expect(nachher).toBeLessThan(vorher);
+    expect(nachher).toBeGreaterThan(0);
+    // Dieselbe DOM-Instanz: kein Remount, also kein verlorener Zoom/Scroll.
+    expect(container.querySelector('.tree-island__scroll')).toBe(insel);
+  });
+
+  it('der Wert landet im Halter und überlebt den Weg aus der Lens heraus und zurück', async () => {
+    const tree = createTreeViewState();
+    const erste = renderMode('fan', tree);
+
+    await waehle(erste.container, 4);
+    expect(tree.generationsFor('fan')).toBe(4);
+    erste.unmount();
+
+    // Weg zur Karte und zurück: TreeView wird abgebaut, der Halter der App-Wurzel nicht.
+    const zweite = renderMode('fan', tree);
+    expect((zweite.container.querySelector('.tree-island__gen-sel') as HTMLSelectElement).value).toBe('4');
+  });
+
+  it('jeder Modus behält seinen eigenen Wert über den Umschalter hinweg', async () => {
+    const tree = createTreeViewState();
+    const { container, route } = renderMode('fan', tree);
+
+    await waehle(container, 6);
+    route.setTreeMode('hourglass');
+    await tick();
+
+    // 6 gibt es in der Sanduhr-Spanne (1–4) gar nicht — ein geteilter Wert hätte hier
+    // still auf 4 geklemmt und der Regler zeigte etwas anderes als das Diagramm.
+    expect((container.querySelector('.tree-island__gen-sel') as HTMLSelectElement).value).toBe('4');
+    await waehle(container, 2);
+
+    route.setTreeMode('fan');
+    await tick();
+    expect((container.querySelector('.tree-island__gen-sel') as HTMLSelectElement).value).toBe('6');
+    expect(tree.generationsFor('hourglass')).toBe(2);
   });
 });

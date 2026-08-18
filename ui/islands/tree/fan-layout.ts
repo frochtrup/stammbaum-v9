@@ -35,7 +35,12 @@ export interface FanSegment {
   texts: FanText[];
 }
 
-export interface FanProband {
+/**
+ * Der Kreis in der Mitte: die Person, um die GEZEICHNET wird — nicht der Proband
+ * (ADR-v9-273, Zentrum ≠ Proband). Der Fächer kennt gar keinen Probanden; er trägt keine
+ * Kekule-Nummern, deren Bezugspunkt das wäre.
+ */
+export interface FanCenter {
   id: PersonId;
   cx: number;
   cy: number;
@@ -50,13 +55,29 @@ export interface FanLayoutResult {
   height: number;
   centerX: number;
   centerY: number;
-  proband: FanProband | null;
+  center: FanCenter | null;
   segments: FanSegment[];
   navTargets: DiagramNavTargets;
 }
 
+/**
+ * Wählbare Spanne der AHNEN-RINGE um den Zentrums-Kreis (BL-368). Achtung beim Zählen:
+ * `generations = 5` heißt fünf Ringe ZUSÄTZLICH zum Zentrum, die äußerste Generation ist
+ * also die der Ururgroßeltern. Obergrenze 6, weil `RADII` sieben Einträge hat — mehr
+ * Ringe hätten keinen Radius.
+ */
+export const MIN_FAN_GENERATIONS = 3;
+export const MAX_FAN_GENERATIONS = 6;
+export const DEFAULT_FAN_GENERATIONS = 5;
+
+/** Klemmt einen gewünschten Wert in die Spanne (Verteidigungslinie der Insel). */
+export function clampFanGenerations(n: number): number {
+  return Math.max(MIN_FAN_GENERATIONS, Math.min(MAX_FAN_GENERATIONS, Math.round(n)));
+}
+
 export interface FanLayoutOptions {
-  /** Generationen inkl. Proband-Ringe (3–6, Spec 20 §1.3). Default 5. */
+  /** Ahnen-Ringe um den Zentrums-Kreis (`MIN_`..`MAX_FAN_GENERATIONS`, Spec 20 §1.3).
+   *  Ohne Angabe: `DEFAULT_FAN_GENERATIONS`. */
   generations?: number;
 }
 
@@ -94,11 +115,11 @@ function sexOf(db: Database, id: PersonId | null): 'M' | 'F' | 'U' {
   return s === 'M' || s === 'F' ? s : 'U';
 }
 
-export function computeFanLayout(db: Database, probandId: PersonId, options: FanLayoutOptions = {}): FanLayoutResult | null {
-  const proband = db.individuals.get(probandId);
-  if (!proband) return null;
+export function computeFanLayout(db: Database, centerId: PersonId, options: FanLayoutOptions = {}): FanLayoutResult | null {
+  const center = db.individuals.get(centerId);
+  if (!center) return null;
 
-  const genCount = Math.max(3, Math.min(6, options.generations ?? 5));
+  const genCount = clampFanGenerations(options.generations ?? DEFAULT_FAN_GENERATIONS);
   const maxR = RADII[genCount];
   const width = maxR * 2 + PAD * 2;
   const height = maxR + PAD + 52; // Puffer unter dem Proband-Mittelpunkt
@@ -106,7 +127,7 @@ export function computeFanLayout(db: Database, probandId: PersonId, options: Fan
   const cy = height - 32; // Proband nahe der Unterkante
 
   // Vorfahren per BFS: gens[g][i] = Person-ID oder null (2^g Einträge je Generation).
-  const gens: (PersonId | null)[][] = [[probandId]];
+  const gens: (PersonId | null)[][] = [[centerId]];
   for (let g = 1; g <= genCount; g++) {
     const cur: (PersonId | null)[] = [];
     for (const id of gens[g - 1]) {
@@ -172,7 +193,7 @@ export function computeFanLayout(db: Database, probandId: PersonId, options: Fan
     }
   }
 
-  const par0 = getParentIds(db, probandId);
+  const par0 = getParentIds(db, centerId);
   const navTargets: DiagramNavTargets = {
     up: par0.father || par0.mother || null,
     up2: par0.father ? par0.mother : null,
@@ -185,14 +206,14 @@ export function computeFanLayout(db: Database, probandId: PersonId, options: Fan
     height,
     centerX: cx,
     centerY: height / 2,
-    proband: {
-      id: probandId,
+    center: {
+      id: centerId,
       cx,
       cy,
       r: RADII[0],
-      sex: sexOf(db, probandId),
-      given: proband.given || (proband.name || '').split(/\s+/)[0] || '',
-      surname: proband.surname || '',
+      sex: sexOf(db, centerId),
+      given: center.given || (center.name || '').split(/\s+/)[0] || '',
+      surname: center.surname || '',
     },
     segments,
     navTargets,

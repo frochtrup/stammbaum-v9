@@ -126,8 +126,8 @@ export function renderFanSvg(layout: FanLayoutResult): DiagramSvg {
     parts.push(`<path d="${seg.d}" fill="${fill}" fill-opacity="${seg.id ? seg.fillOpacity : 0.5}" stroke="${C.bg}" stroke-width="1.5"/>`);
     for (const t of seg.texts) parts.push(text(t.text, t.x, t.y, t.fontSize, t.dim ? C.dim : C.text, { rotate: t.rotation }));
   }
-  if (layout.proband) {
-    const pr = layout.proband;
+  if (layout.center) {
+    const pr = layout.center;
     parts.push(`<circle cx="${r1(pr.cx)}" cy="${r1(pr.cy)}" r="${pr.r}" fill="${pr.sex === 'M' ? C.sexM : pr.sex === 'F' ? C.sexF : C.border}" stroke="${C.bg}" stroke-width="2"/>`);
     if (pr.given) parts.push(text(pr.given, pr.cx, pr.cy - 6, 10, C.text, { weight: 600 }));
     if (pr.surname) parts.push(text(pr.surname, pr.cx, pr.cy + 7, 9, C.dim));
