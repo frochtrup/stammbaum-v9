@@ -5,12 +5,18 @@
 // Konzentrische Halbkreis-Segmente: Proband unten in der Mitte, Vorfahren fächern nach
 // oben (π = links/Vater → 0 = rechts/Mutter). Generation g hat 2^g Segmente. Reiner
 // Geometrie-Ausgang (Arc-Pfade + Textplatzierung); die Insel zeichnet nur noch.
-import type { Database, PersonId } from '../../../core/model/types';
+import type { Database, Person, PersonId } from '../../../core/model/types';
+import type { PlaceContext } from '../../../core/places';
+import { displayNameOr, eventYearLabel, yearPlaceSummary } from '../../shell/person-display';
 import { getParentIds } from './tree-model';
 import type { DiagramNavTargets } from './tree-viewport';
 
-/** Außenradius je Generation; Index 0 = Radius des Proband-Kreises (Orakel: `RADII`). */
-const RADII = [38, 90, 148, 218, 296, 380, 464];
+/** Außenradius je Generation; Index 0 = Radius des Proband-Kreises (Orakel: `RADII`).
+ *  Die Ringe 7 und 8 sind bewusst BREITER als ihre Vorgänger (92/100 statt 84) — nicht
+ *  für Text: die Bogenlänge fällt dort auf ~12 bzw. ~7 px und lässt gar keinen mehr zu
+ *  (s. die Schwellen weiter unten). Die Breite trägt die TREFFERFLÄCHE des Segments, also
+ *  das, woran Zeiger und Tooltip hängen (ADR-v9-276). */
+const RADII = [38, 90, 148, 218, 296, 380, 464, 556, 656];
 const PAD = 22;
 
 export interface FanText {
@@ -33,6 +39,10 @@ export interface FanSegment {
   /** Generations-Abstufung (außen blasser) — Tiefen-Hinweis. */
   fillOpacity: number;
   texts: FanText[];
+  /** Fertige Tooltip-Zeile (Name + Geburtsjahr/-ort, s. `personLabel`); leer bei `id: null`.
+   *  Die Insel wertet nichts aus — sie hängt den Text an, wie sie es bei den
+   *  Vollständigkeits-Ringen der Karten schon tut (`CardRing.tooltip`). */
+  tooltip: string;
 }
 
 /**
@@ -48,6 +58,9 @@ export interface FanCenter {
   sex: 'M' | 'F' | 'U';
   given: string;
   surname: string;
+  /** Wie `FanSegment.tooltip` — der Zentrums-Kreis zeigt zwar seinen Namen, aber kein
+   *  Geburtsjahr; die Zeile ist an jeder Fläche dieselbe (INV-UI-4). */
+  tooltip: string;
 }
 
 export interface FanLayoutResult {
@@ -63,11 +76,17 @@ export interface FanLayoutResult {
 /**
  * Wählbare Spanne der AHNEN-RINGE um den Zentrums-Kreis (BL-368). Achtung beim Zählen:
  * `generations = 5` heißt fünf Ringe ZUSÄTZLICH zum Zentrum, die äußerste Generation ist
- * also die der Ururgroßeltern. Obergrenze 6, weil `RADII` sieben Einträge hat — mehr
- * Ringe hätten keinen Radius.
+ * also die der Ururgroßeltern. Obergrenze 8, weil `RADII` neun Einträge hat — mehr Ringe
+ * hätten keinen Radius.
+ *
+ * Warum 8 überhaupt lesbar ist, obwohl der äußerste Ring 256 Segmente à ~7 px trägt: die
+ * Beschriftung hört dort ohnehin auf (die Schwellen unten), die Identität hängt am
+ * Tooltip (`personLabel`). Der äußere Ring ist damit eine ÜBERSICHT über die Belegung der
+ * Ahnenreihe — welche Zweige weiterlaufen und welche abbrechen — und wird per Zoom/
+ * Vollbild befragt, nicht gelesen.
  */
 export const MIN_FAN_GENERATIONS = 3;
-export const MAX_FAN_GENERATIONS = 6;
+export const MAX_FAN_GENERATIONS = 8;
 export const DEFAULT_FAN_GENERATIONS = 5;
 
 /** Klemmt einen gewünschten Wert in die Spanne (Verteidigungslinie der Insel). */
@@ -79,6 +98,27 @@ export interface FanLayoutOptions {
   /** Ahnen-Ringe um den Zentrums-Kreis (`MIN_`..`MAX_FAN_GENERATIONS`, Spec 20 §1.3).
    *  Ohne Angabe: `DEFAULT_FAN_GENERATIONS`. */
   generations?: number;
+  /** Orts-Registries für den Orts-Teil der Tooltip-Zeile (Chokepoint-Pflicht, Spec 11 §5:
+   *  `ev.place` nie roh anzeigen, wenn eine Auflösung möglich ist). Fehlt er, bleibt vom
+   *  Geburtsereignis das Jahr — dieselbe Anzeige-Funktion, nur ohne Ortsauflösung. */
+  placeContext?: PlaceContext;
+}
+
+/**
+ * Tooltip-Zeile einer Person — dieselbe Darstellung wie eine Zeile der Entitäts-Picker
+ * (`PersonPicker` → `Picker`: `displayName` als Titel, `yearPlaceSummary(p.birth)` als
+ * Unterzeile, INV-UI-4/INV-UI-6). Im Fächer stehen beide Teile in EINER Zeile, weil die
+ * geteilte Tooltip-Blase Klartext trägt (`ui/shell/tooltip.ts`).
+ *
+ * Warum jedes Segment eine bekommt und nicht nur die äußeren: die gezeichnete Beschriftung
+ * verkürzt sich ring für ring (`fcName` → nur Nachname → gar nichts), und ein Tooltip, der
+ * je nach Ring da ist oder nicht, wäre nicht auffindbar. Das Geburtsjahr zeigt der Fächer
+ * ohnehin nirgends — auch im Zentrum nicht.
+ */
+function personLabel(p: Person, ctx: PlaceContext | undefined): string {
+  const name = displayNameOr(p, p.id);
+  const sub = ctx ? yearPlaceSummary(p.birth, ctx) : eventYearLabel(p.birth);
+  return sub ? `${name} · ${sub}` : name;
 }
 
 /** Auf 1 Dezimalstelle runden (kompaktere, deterministische SVG-Ausgabe, Orakel `f`). */
@@ -120,6 +160,7 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
   if (!center) return null;
 
   const genCount = clampFanGenerations(options.generations ?? DEFAULT_FAN_GENERATIONS);
+  const placeCtx = options.placeContext;
   const maxR = RADII[genCount];
   const width = maxR * 2 + PAD * 2;
   const height = maxR + PAD + 52; // Puffer unter dem Proband-Mittelpunkt
@@ -159,6 +200,7 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
         sex: sexOf(db, id),
         fillOpacity,
         texts: [],
+        tooltip: person ? personLabel(person, placeCtx) : '',
       };
 
       if (person) {
@@ -214,6 +256,7 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
       sex: sexOf(db, centerId),
       given: center.given || (center.name || '').split(/\s+/)[0] || '',
       surname: center.surname || '',
+      tooltip: personLabel(center, placeCtx),
     },
     segments,
     navTargets,

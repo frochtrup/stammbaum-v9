@@ -11,6 +11,7 @@
 // zurückgibt; Rezentrierung/Zoom/Resize = kompletter Neu-Aufbau (Spec 02 §5). Nach oben
 // ausschließlich über Callbacks.
 import type { Database, PersonId } from '../../../core/model/types';
+import type { PlaceContext } from '../../../core/places';
 import {
   computeTreeLayout,
   clampAncestorLevels,
@@ -66,6 +67,10 @@ export interface TreeMountOptions {
    *  Baum gerade zentriert ist (`personId`/`update()`). Fehlt er, zeigt die Insel keine
    *  Kekule-Badges (s. `TreeLayoutOptions.probandId`). */
   probandId?: PersonId | null;
+  /** Orts-Registries für Anzeige-Texte, die einen Ort auflösen müssen (heute: die
+   *  Tooltip-Zeile des Fächers, Spec 11 §5). Von Sanduhr und Nachkommen-Baum ignoriert —
+   *  wie `ringByPerson` vom Fächer (ein Beutel, jede Insel nimmt, was sie braucht). */
+  placeContext?: PlaceContext;
 }
 
 export interface TreeIslandHandle {

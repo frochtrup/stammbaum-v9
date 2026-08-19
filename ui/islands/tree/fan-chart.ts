@@ -21,6 +21,12 @@ import {
   type DiagramLayoutFrame,
 } from './tree-viewport';
 import { renderFanSvg } from './diagram-export';
+// Geteilter Tooltip (INV-UI-4: EIN Mechanismus, ADR-v9-86/87), imperativ aufgerufen —
+// s. hourglass-tree.ts. Er ersetzt das native `title`, das auf Touch gar nicht und auf dem
+// Desktop nur verzögert erscheint; im Fächer ist er der einzige Weg zu den Namen der
+// äußeren Ringe, deren Beschriftung die Bogenlänge nicht mehr hergibt (ADR-v9-276).
+import { tooltip } from '../../shell/tooltip';
+import type { PlaceContext } from '../../../core/places';
 import type { TreeMountCallbacks, TreeMountOptions, TreeIslandHandle } from './hourglass-tree';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -66,11 +72,13 @@ export function mountFanChart(
   // Der Fächer trägt keine Kekule-Nummern und brauchte den Probanden bisher nicht — jetzt
   // schon, aber nur für „★ Zentrieren" (BL-367), nicht fürs Layout.
   let probandId = initialOptions.probandId ?? null;
+  // Nur für den Orts-Teil der Tooltip-Zeile (Spec 11 §5); ohne ihn bleibt das Geburtsjahr.
+  let placeContext: PlaceContext | undefined = initialOptions.placeContext;
 
   function draw(ctx: DrawContext): DiagramLayoutFrame | null {
     if (!currentId) return null;
     const gens = clampFanGenerations(generations ?? DEFAULT_FAN_GENERATIONS);
-    const layout = computeFanLayout(db, currentId, { generations: gens });
+    const layout = computeFanLayout(db, currentId, { generations: gens, placeContext });
     if (!layout) return null;
 
     ctx.wrap.querySelectorAll('.tree-island__card').forEach((el) => el.remove());
@@ -91,6 +99,10 @@ export function mountFanChart(
           if (ctx.shouldSuppressClick()) return;
           callbacks.onSelect(seg.id!);
         });
+        // Der Tooltip trägt, was die gezeichnete Beschriftung nicht mehr trägt: den vollen
+        // Namen plus Geburtsjahr/-ort. `tooltip` ist auf `Element` typisiert, weil es nur
+        // `addEventListener`/`getBoundingClientRect` benutzt — beides kann ein SVG-Pfad.
+        tooltip(path, seg.tooltip);
       }
       ctx.svg.appendChild(path);
       for (const t of seg.texts) drawText(ctx.svg, t);
@@ -110,6 +122,7 @@ export function mountFanChart(
         if (ctx.shouldSuppressClick()) return;
         callbacks.onSelectCenter?.(pr.id);
       });
+      tooltip(circle, pr.tooltip);
       ctx.svg.appendChild(circle);
       if (pr.given) drawText(ctx.svg, { text: pr.given, x: pr.cx, y: pr.cy - 6, rotation: 0, fontSize: 10, dim: false });
       if (pr.surname) drawText(ctx.svg, { text: pr.surname, x: pr.cx, y: pr.cy + 7, rotation: 0, fontSize: 9, dim: true });
@@ -142,6 +155,7 @@ export function mountFanChart(
       currentId = nextId;
       if (options.generations !== undefined) generations = options.generations;
       if (options.probandId !== undefined) probandId = options.probandId;
+      if (options.placeContext !== undefined) placeContext = options.placeContext;
       viewport.render();
     },
     toggleFullscreen() {
@@ -158,7 +172,7 @@ export function mountFanChart(
     },
     getExportSvg() {
       if (!currentId) return null;
-      const layout = computeFanLayout(db, currentId, { generations });
+      const layout = computeFanLayout(db, currentId, { generations, placeContext });
       return layout ? renderFanSvg(layout) : null;
     },
   };

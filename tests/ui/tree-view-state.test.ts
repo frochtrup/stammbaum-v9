@@ -2,7 +2,7 @@
 //
 // Die eine Zusicherung, die es zu halten gilt: JE MODUS ein eigener Wert. Ein gemeinsamer
 // Wert wäre der naheliegende Bau — und würde stillschweigend klemmen, weil die drei
-// Spannen verschieden sind (Vorfahren-Ebenen 1–4 · Nachkommen 2–7 · Fächer 3–6). Der
+// Spannen verschieden sind (Vorfahren-Ebenen 1–4 · Nachkommen 2–7 · Fächer 3–8). Der
 // Regler zeigte dann „6", während die Sanduhr 4 Ebenen zeichnet.
 import { describe, expect, it } from 'vitest';
 import { createTreeViewState } from '../../ui/views/tree/tree-view-state.svelte';
