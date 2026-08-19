@@ -3,7 +3,7 @@
 //
 // WAS HIER LIEGT: die gewählte Generationenzahl, JE MODUS eine eigene. Nicht ein
 // gemeinsamer Wert, den jede Insel auf ihre Spanne klemmt — die drei Spannen sind
-// verschieden (Vorfahren-Ebenen 1–4 · Nachkommen 2–7 · Fächer 3–6), und ein geteilter
+// verschieden (Vorfahren-Ebenen 1–4 · Nachkommen 2–7 · Fächer 3–8), und ein geteilter
 // Wert hieße, dass der Regler „6" zeigt, während die Sanduhr 4 Ebenen zeichnet. Je Modus
 // ein Slot macht diese stille Klemmung strukturell unmöglich (Nutzer-Entscheidung
 // 2026-08-17).

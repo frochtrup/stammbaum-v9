@@ -5,6 +5,11 @@
 // Touch/iPad GAR NICHT (kein Hover) und auf dem Desktop nur verzögert/unzuverlässig. Diese
 // Action zeigt sofort — bei Hover UND Tastatur-Fokus (Desktop/A11y) und per Long-Press (Touch).
 //
+// AUF `Element` TYPISIERT, nicht auf `HTMLElement`: die Action benutzt ausschließlich
+// `addEventListener` und `getBoundingClientRect`, die jedes Element hat — und die
+// imperativen SVG-Inseln hängen sie an Pfade/Kreise (Fächer-Segmente). Eine engere
+// Signatur hätte dort einen Cast erzwungen, also eine Behauptung statt einer Prüfung.
+//
 // Positionierung: EINE gemeinsame Blase (`position: fixed`, an <body> gehängt) — umgeht damit
 // jedes `overflow:auto` eines Vorfahren (z. B. `.person-detail`), das eine absolut positionierte
 // Blase abschneiden würde. Styling: `.stb-tooltip` in design-system.css (global, weil die Blase
@@ -12,7 +17,7 @@
 import type { Action } from 'svelte/action';
 
 let bubble: HTMLDivElement | null = null;
-let activeNode: HTMLElement | null = null;
+let activeNode: Element | null = null;
 
 function ensureBubble(): HTMLDivElement {
   if (bubble) {
@@ -38,7 +43,7 @@ function ensureBubble(): HTMLDivElement {
   return el;
 }
 
-function position(node: HTMLElement, el: HTMLDivElement): void {
+function position(node: Element, el: HTMLDivElement): void {
   const r = node.getBoundingClientRect();
   const bw = el.offsetWidth;
   const bh = el.offsetHeight;
@@ -51,7 +56,7 @@ function position(node: HTMLElement, el: HTMLDivElement): void {
   el.style.left = `${Math.round(left)}px`;
 }
 
-function showFor(node: HTMLElement, text: string): void {
+function showFor(node: Element, text: string): void {
   if (!text) return;
   const el = ensureBubble();
   el.textContent = text;
@@ -64,7 +69,7 @@ function showFor(node: HTMLElement, text: string): void {
   el.style.opacity = '1';
 }
 
-function hide(node?: HTMLElement): void {
+function hide(node?: Element): void {
   if (node && activeNode !== node) return;
   activeNode = null;
   if (!bubble) return;
@@ -75,7 +80,7 @@ function hide(node?: HTMLElement): void {
 const LONG_PRESS_MS = 400;
 const TOUCH_AUTOHIDE_MS = 2500;
 
-export const tooltip: Action<HTMLElement, string | undefined> = (node, text) => {
+export const tooltip: Action<Element, string | undefined> = (node, text) => {
   let current = text ?? '';
   let lpTimer: ReturnType<typeof setTimeout> | undefined;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,7 +106,9 @@ export const tooltip: Action<HTMLElement, string | undefined> = (node, text) => 
       showFor(node, current);
     }, LONG_PRESS_MS);
   };
-  const onTouchEnd = (e: TouchEvent): void => {
+  // `Event` statt `TouchEvent`: die Touch-Ereignisse stehen nicht in `ElementEventMap`
+  // (nur in der von HTMLElement), und gebraucht wird hier ohnehin nur `preventDefault`.
+  const onTouchEnd = (e: Event): void => {
     clearLp();
     if (lpFired) {
       // Long-Press hat den Tooltip gezeigt → den synthetischen Klick (Navigation) unterdrücken

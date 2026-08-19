@@ -23,6 +23,7 @@
   import type { Route } from '../../shell/route.svelte';
   import { resolveProband } from '../../shell/proband';
   import type { Database, PersonId } from '../../../core/model/types';
+  import type { PlaceContext } from '../../../core/places';
   import type { TreeModeId } from '../../shell/nav-model';
   import LensViewHeader from '../../shell/LensViewHeader.svelte';
   import ViewModeToggle from '../../shell/ViewModeToggle.svelte';
@@ -138,9 +139,12 @@
     ring: ReadonlyMap<PersonId, CardRing>,
     proband: PersonId | null,
     gens: number | undefined,
+    places: PlaceContext,
   ): TreeMountOptions {
     // Der Ring gilt nur für die Rechteck-Karten (Sanduhr/Nachkommen), nicht den Fächer (§8).
-    const base = { ringByPerson: ring, probandId: proband };
+    // `placeContext` umgekehrt nur für den Fächer-Tooltip — beides im selben Beutel, weil
+    // sonst je Insel eine eigene Options-Liste entstünde (die Stelle, die auseinanderdriftet).
+    const base = { ringByPerson: ring, probandId: proband, placeContext: places };
     // Die Sanduhr zählt Ebenen ÜBER dem Zentrum, die beiden anderen Generationen
     // INKLUSIVE Zentrum — zwei Felder, weil es zwei Fragen sind.
     return mode === 'hourglass' ? { ...base, maxAncestorLevels: gens } : { ...base, generations: gens };
@@ -177,13 +181,16 @@
     // Generationen-Wahl gar nicht erneut — die Insel bekäme den neuen Wert erst beim
     // nächsten Modus-Wechsel (BL-368).
     const gens = generations;
+    // Mitgelesen wie Proband und Generationenzahl: eine Ortskuration während geöffneter
+    // Baum-Ansicht soll in der Tooltip-Zeile ankommen.
+    const places = appState.placeContext;
     if (!containerEl || !id) return;
     // Modus- oder Datensatz-Wechsel: alte Insel abbauen und neu mounten (Spec 02 §5).
     if (handle && (mounted?.mode !== mode || mounted?.db !== db)) {
       handle.destroy();
       handle = null;
     }
-    const options = islandOptions(mode, ring, proband, gens);
+    const options = islandOptions(mode, ring, proband, gens, places);
     if (!handle) {
       handle = mountFor(mode, containerEl, db, id, options);
       mounted = { mode, db };
