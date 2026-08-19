@@ -22,6 +22,17 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.18] — 2026-08-19
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`357b328`…HEAD) erzeugt._
+
+- feat(v9-tree): BL-370/371 — Faecher-Segmente nennen Namen und Geburtsjahr im Tooltip, bis zu 8 Ringe (ADR-v9-276) (`e0c503a`)
+- feat(v9-tree): BL-366/367/368 — Fächer klickbar, Rückweg zum Probanden, wählbare Generationen (ADR-v9-275) (`3b4a532`)
+- feat(person): die Verwandtschaftszeile verlangt einen gewaehlten Probanden (ADR-v9-274 E7) (`4bf4958`)
+- feat(person): das Datum fuehrt die Familienzeile an, der Verwandtschaftsgrad ist hervorgehoben + Handbuch 9.17 (`2fa6be8`)
+
+---
+
 ## [9.17] — 2026-08-13
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`d6f28b3`…HEAD) erzeugt._

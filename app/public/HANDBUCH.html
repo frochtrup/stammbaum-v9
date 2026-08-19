@@ -185,7 +185,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.17 · Stand 2026-08-13</div>
+  <div class="version">Benutzerhandbuch · Version 9.18 · Stand 2026-08-19</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -1997,9 +1997,47 @@
   Ansicht bleibt erhalten, auch wenn Sie zwischendurch zu Karte oder Zeitleiste wechseln.
   Jedes Diagramm lässt sich per <strong>⤢ Vollbild</strong> auf den ganzen Bildschirm
   ziehen und passt sich automatisch mittig ein; ein Tippen auf eine Kachel (bzw. ein
-  Fächer-Segment) wechselt den Probanden, die Pfeiltasten ↑ ↓ → navigieren zwischen den
-  Personen.
+  Fächer-Segment) rückt den Baum um diese Person herum neu auf, die Pfeiltasten ↑ ↓ →
+  navigieren zwischen den Personen. <strong>Ihr <a href="#proband">Proband</a> ändert sich
+  dabei nicht</strong> — Sie verschieben nur den Blickpunkt. Ein Tipp auf die Person in der
+  Mitte öffnet stattdessen ihren Steckbrief; dort ist ja nichts umzurücken.
 </p>
+
+<h3>Die Bedienleiste im Diagramm</h3>
+<p>
+  Rechts oben <em>im</em> Diagramm schwebt eine schmale Leiste mit bis zu drei
+  Bedienelementen. Sie liegt bewusst innerhalb der Zeichenfläche und nicht in der
+  Kopfzeile — im Vollbild wäre sie sonst unerreichbar, und gerade dort will man den
+  Ausschnitt ändern.
+</p>
+<ul>
+  <li>
+    <strong>Wie viele Generationen?</strong> Das Auswahlfeld links bestimmt, wie tief das
+    Diagramm reicht. Jede der drei Ansichten hat ihre eigene Spanne und ihr eigenes Wort
+    dafür: die Sanduhr zählt <strong>Vorfahren-Ebenen</strong> über der Mitte (1 bis 4),
+    der Nachkommen-Baum und der Fächer zählen <strong>Generationen</strong> (2 bis 7 bzw.
+    3 bis 8). Jede Ansicht merkt sich ihre eigene Einstellung — wer im Fächer 8 wählt und
+    zur Sanduhr wechselt, findet dort seine 4 Ebenen wieder, nicht einen stillschweigend
+    gekappten Wert. Die Einstellung gilt für die laufende Sitzung; beim nächsten Start
+    beginnt jede Ansicht wieder mit ihrer Vorgabe (die Sanduhr wählt sie nach dem Platz:
+    4 Ebenen quer, 2 hochkant).
+  </li>
+  <li>
+    <strong>★ Zentrieren</strong> holt den Baum zu Ihrem Probanden zurück, ohne die Ansicht
+    zu verlassen — der Ausweg, wenn Sie sich durch die Generationen geklickt haben und
+    nicht mehr wissen, wo Sie sind. Der Knopf erscheint nur, solange jemand anderes in der
+    Mitte steht. <em>Nicht zu verwechseln</em> mit dem Befehl <strong>Zum Probanden</strong>
+    aus der Befehlspalette: der öffnet den Steckbrief und verlässt die Baum-Ansicht.
+  </li>
+  <li>
+    <strong>⤢ Vollbild</strong> zieht das Diagramm über den ganzen Bildschirm;
+    <kbd>Esc</kbd> oder ein erneuter Tipp führt zurück.
+  </li>
+</ul>
+<figure class="wide">
+  <img src="handbuch-assets/14e-insel-leiste.png" alt="Fächer-Diagramm mit der schwebenden Bedienleiste: Auswahlfeld „5 Generationen", ★ Zentrieren und ⤢ Vollbild">
+  <figcaption>Die Bedienleiste im Diagramm — hier steht ein Vorfahre in der Mitte, deshalb bietet sie ★ Zentrieren an</figcaption>
+</figure>
 
 <div class="shot-row">
   <div class="prose">
@@ -2029,7 +2067,7 @@
 <h3>Nachkommen-Baum</h3>
 <p>
   Der Nachkommen-Baum stellt eine Person an die Spitze und fächert ihre Kinder, Enkel und
-  weitere Generationen (einstellbar 2 bis 7) nach unten auf — mit den Ehepartnern rechts,
+  weitere Generationen (im Auswahlfeld 2 bis 7, Vorgabe 4) nach unten auf — mit den Ehepartnern rechts,
   den Geschwistern links und T-förmigen Verbindungslinien. Das kleine <strong>▼</strong>
   an einer Kachel zeigt, dass es unterhalb noch weitergeht; ein Tippen darauf rückt diese
   Person in die Spitze.
@@ -2041,7 +2079,8 @@
 
 <h3>Fächer</h3>
 <p>
-  Der Fächer zeigt die Vorfahren als konzentrische Halbkreis-Ringe (3 bis 8 Generationen):
+  Der Fächer zeigt die Vorfahren als konzentrische Halbkreis-Ringe (im Auswahlfeld 3 bis 8
+  Generationen, Vorgabe 5):
   der Proband unten in der Mitte, die Vaterseite links, die Mutterseite rechts, jede
   Generation ein Ring weiter außen. Eine kompakte Übersicht über die gesamte Ahnenschaft
   auf einen Blick — blau für Männer, rosa für Frauen.
@@ -3326,7 +3365,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.17 · Stand 2026-08-13<br>
+  Stammbaum · Benutzerhandbuch Version 9.18 · Stand 2026-08-19<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 
