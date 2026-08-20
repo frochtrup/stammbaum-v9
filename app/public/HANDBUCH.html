@@ -76,6 +76,13 @@
   ul, ol { margin: 0.6em 0; }
   li { margin: 0.3em 0; }
   code { background: #efeae0; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  /* Draht-Beispiele (Anhang F): echte GEDCOM-Zeilen, waagerecht scrollbar statt umbrechend
+     — ein umbrochenes Beispiel liest sich als andere Datei, als es ist. */
+  pre.wire {
+    background: #efeae0; border: 1px solid var(--app-border); border-radius: 6px;
+    padding: 12px 15px; margin: 1em 0; overflow-x: auto;
+    font-size: 0.86em; line-height: 1.55; white-space: pre;
+  }
 
   /* Hinweisboxen */
   .tip, .info, .warning, .important {
@@ -227,6 +234,7 @@
     <li><a href="#anhangC">Anhang C: Das GRAMPS-Dateiformat</a></li>
     <li><a href="#anhangD">Anhang D: Technischer Überblick</a></li>
 <li><a href="#anhangE">Anhang E: Der Orte-Editor</a></li>
+    <li><a href="#anhangF">Anhang F: Forschungsdaten in der Datei — Tag-Referenz</a></li>
   </ol>
   <p class="muted toc-note">
     Alle Abbildungen in diesem Handbuch stammen aus der laufenden App mit einem
@@ -3118,7 +3126,10 @@
 <p>
   Für Funktionen, die GEDCOM nicht kennt, verwendet Stammbaum eigene, mit Unterstrich
   beginnende Tags. Sie reisen im vollen 5.5.1-Export mit und werden von anderen
-  Programmen ignoriert; im „Strict"-Export entfallen sie.
+  Programmen ignoriert; im „Strict"-Export entfallen sie. Die vier Forschungs-Tags
+  (<code>_TASK</code>, <code>_RLOG</code>, <code>_HYPO</code>, <code>_EVAL</code>) sind in
+  <a href="#anhangF">Anhang F</a> vollständig dokumentiert — Zeile für Zeile, mit allen
+  Werten: Wer die Datei ohne Stammbaum auswerten will, findet dort alles Nötige.
 </p>
 <table class="ref">
   <tr><th>Tag</th><th>Inhalt</th></tr>
@@ -3364,12 +3375,6 @@
   stammen.
 </p>
 
-<footer>
-  Stammbaum · Benutzerhandbuch Version 9.18 · Stand 2026-08-19<br>
-  Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
-</footer>
-
-</div>
 
 <!-- ============================================================= -->
 <h1 class="chapter" id="anhangE">Anhang E: Der Orte-Editor</h1>
@@ -3497,6 +3502,245 @@
 </p>
 </section>
 
+
+<!-- ============================================================= -->
+<h1 class="chapter" id="anhangF">Anhang F: Forschungsdaten in der Datei — Tag-Referenz</h1>
+
+<p class="lead">
+  Aufgaben, Forschungsprotokoll, Hypothesen und Quellenbewertungen kennt der GEDCOM-Standard
+  nicht — es gibt für sie schlicht keine vorgesehenen Zeilen. Stammbaum schreibt sie deshalb
+  in eigene Tags, die mit einem Unterstrich beginnen. Dieser Anhang beschreibt sie
+  vollständig, damit Ihre Datei auch ohne Stammbaum <em>lesbar</em> bleibt: für ein anderes
+  Programm, ein eigenes Auswertungsskript oder für Sie selbst im Texteditor.
+</p>
+
+<div class="info">
+  Alle Beispielzeilen dieses Anhangs sind <strong>echte Ausgabe des Programms</strong>, nicht
+  nachgezeichnet — erzeugt mit demselben Schreibvorgang, den auch „Speichern" verwendet.
+  Was hier steht, steht so in Ihrer Datei.
+</div>
+
+<h2>Wie diese Blöcke aufgebaut sind</h2>
+<p>
+  Eine GEDCOM-Zeile besteht aus einer <strong>Ebene</strong>, einem <strong>Tag</strong> und
+  einem <strong>Wert</strong>: <code>2 _TSTAT doing</code>. Was zu einer Zeile gehört, steht
+  darunter auf der nächsthöheren Ebene. Für die vier Forschungs-Blöcke gilt durchweg:
+</p>
+<ul>
+  <li>Sie hängen auf <strong>Ebene 1</strong> direkt an einem Personen-Satz
+      (<code>0 @I1@ INDI</code>) oder an einem Familien-Satz (<code>0 @F1@ FAM</code>) —
+      beides ist erlaubt; ihre Einzelheiten stehen auf Ebene 2. Einzige Ausnahme ist die
+      Bewertung <code>_EVAL</code>, die eine Ebene unter dem Quellenbezug sitzt, zu dem sie
+      gehört.</li>
+  <li>Sie sind <strong>wiederholbar</strong>: eine Person kann beliebig viele Aufgaben,
+      Protokolleinträge und Hypothesen tragen. Die Reihenfolge in der Datei ist die
+      Reihenfolge in der App.</li>
+  <li>Verweise auf andere Sätze stehen in Klammeraffen — <code>@S5@</code> ist eine Quelle,
+      <code>@R1@</code> ein Archiv, <code>@I7@</code> eine Person.</li>
+  <li>Mehrzeilige Texte folgen der Regel des Standards: <code>CONT</code> beginnt eine neue
+      Zeile, <code>CONC</code> setzt eine zu lange fort. Betroffen sind Notiz, Beweisführung
+      und Auflösungsnotiz.</li>
+  <li><strong>Nur der Anfang jeder Zeile ist Konvention, der Rest ist Ihr Inhalt</strong> —
+      Datumsangaben etwa werden nicht umgeschrieben, sondern so bewahrt, wie sie eingegeben
+      oder eingelesen wurden.</li>
+</ul>
+
+<h2><code>_TASK</code> — Forschungsaufgabe</h2>
+<p>
+  Eine offene Aufgabe an einer Person oder Familie („was ist noch zu tun"). Der Wert der
+  <code>_TASK</code>-Zeile selbst ist der Aufgabentext.
+</p>
+<pre class="wire">1 _TASK Taufeintrag im Kirchenbuch Ochtrup prüfen
+2 _CAT Kirchenbuch
+2 _TSTAT doing
+2 _DATE 2026-07-01
+2 _ID t_aaa
+2 SOUR @S5@</pre>
+<table class="ref">
+  <tr><th>Zeile</th><th>Bedeutung</th></tr>
+  <tr><td>_CAT</td><td>Kategorie als freier Text (etwa <code>Kirchenbuch</code>,
+      <code>Urkunde</code>, <code>Online-Recherche</code>) — entfällt, wenn keine gesetzt ist.</td></tr>
+  <tr><td>_TSTAT</td><td>Der Stand der Aufgabe und die einzige verbindliche Aussage darüber:
+      <code>todo</code> (Offen), <code>doing</code> (In Arbeit), <code>done</code> (Erledigt).
+      Wird immer geschrieben.</td></tr>
+  <tr><td>_DATE</td><td>Anlagedatum. Ein <strong>eigener</strong> Tag, nicht das
+      Standard-<code>DATE</code> — anders als im Protokoll-Block darunter.</td></tr>
+  <tr><td>_ID</td><td>Kennung der Aufgabe innerhalb der Datei; darauf verweist
+      <code>_TASKID</code> im Protokoll.</td></tr>
+  <tr><td>SOUR</td><td>Optionaler Bezug zu der Quelle, um die es geht — ein gewöhnlicher
+      Verweis auf einen Quellsatz derselben Datei.</td></tr>
+</table>
+<div class="info">
+  Ältere Dateien tragen zusätzlich ein <code>2 _DONE 0</code> beziehungsweise
+  <code>2 _DONE 1</code> — den früheren Erledigt-Haken aus der Zeit vor dem Kanban-Status.
+  Stammbaum <em>liest</em> ihn noch (als Rückfall, wenn <code>_TSTAT</code> fehlt), schreibt
+  ihn aber nicht mehr: Zwei Zeilen für dieselbe Aussage können sich widersprechen, und dann
+  gilt keine.
+</div>
+
+<h2><code>_RLOG</code> — Eintrag im Forschungsprotokoll</h2>
+<p>
+  Ein einzelner Suchvorgang: wo gesucht wurde, wonach, mit welchem Ergebnis. Die
+  <code>_RLOG</code>-Zeile selbst trägt <strong>keinen</strong> Wert; alles steht in den
+  Zeilen darunter. Protokolleinträge haben keine eigene Kennung — sie werden über ihre
+  Reihenfolge angesprochen.
+</p>
+<pre class="wire">1 _RLOG
+2 DATE 14 JUL 2026
+2 REPO @R1@
+2 SOUR @S5@
+2 _QUERY Muster, Ochtrup, 1820-1825
+2 _RESULT not-found
+2 NOTE Jahrgang 1823 fehlt im Bestand.
+2 _TASKID t_aaa</pre>
+<table class="ref">
+  <tr><th>Zeile</th><th>Bedeutung</th></tr>
+  <tr><td>DATE</td><td>Datum des Suchvorgangs. Hier das <strong>Standard</strong>-<code>DATE</code>,
+      nicht <code>_DATE</code> wie bei Aufgabe und Hypothese. Diese Ungleichheit ist alt und
+      wird bewusst beibehalten, damit vorhandene Dateien weiter gelesen werden.</td></tr>
+  <tr><td>REPO</td><td>Verweis auf das durchsuchte Archiv.</td></tr>
+  <tr><td>SOUR</td><td>Verweis auf die durchsuchte Quelle.</td></tr>
+  <tr><td>_QUERY</td><td>Der Suchbegriff beziehungsweise die Suchfrage, als freier Text.</td></tr>
+  <tr><td>_RESULT</td><td>Das Ergebnis: <code>found</code> (Gefunden), <code>partial</code>
+      (Teilweise), <code>not-found</code> (Nichts gefunden), <code>pending</code> (Ausstehend).
+      Wird immer geschrieben. <strong>Auf die Schreibweise achten:</strong> „nichts gefunden"
+      steht mit Bindestrich in der Datei. Gelesen wird auch <code>notfound</code>.</td></tr>
+  <tr><td>NOTE</td><td>Freie Notiz zum Suchvorgang; mehrzeilig über <code>CONT</code>.</td></tr>
+  <tr><td>_TASKID</td><td>Optional: die <code>_ID</code> der Aufgabe, die diesen Suchvorgang
+      ausgelöst hat. Ein reiner Vorwärts-Verweis — die Aufgabe schließt sich davon nicht
+      selbst.</td></tr>
+</table>
+
+<h2><code>_HYPO</code> — Hypothese</h2>
+<p>
+  Eine begründete Vermutung samt Belegen, Konfidenz und Stand. Der Wert der
+  <code>_HYPO</code>-Zeile ist die Behauptung selbst.
+</p>
+<pre class="wire">1 _HYPO Max ist der Sohn von Anton Muster
+2 _ID h_aaa
+2 _HSTAT open
+2 _HWGT high
+2 _DATE 2026-07-02
+2 _HKIND IDENT
+2 _HREF @I7@
+2 SOUR @S5@
+3 PAGE S. 12
+2 _RATIO Namensgleichheit und derselbe Hof.
+3 CONT Der Taufpate taucht in beiden Einträgen auf.
+2 _CONCL noch offen</pre>
+<table class="ref">
+  <tr><th>Zeile</th><th>Bedeutung</th></tr>
+  <tr><td>_ID</td><td>Kennung der Hypothese innerhalb der Datei.</td></tr>
+  <tr><td>_HSTAT</td><td>Stand: <code>open</code> (Offen), <code>confirmed</code> (Bestätigt),
+      <code>rejected</code> (Verworfen). Wird immer geschrieben.</td></tr>
+  <tr><td>_HWGT</td><td>Ihre eigene Konfidenz: <code>low</code>, <code>medium</code>,
+      <code>high</code>. <strong>Nicht</strong> zu verwechseln mit der Beweiskraft der Quelle
+      (<code>QUAY</code>) — das eine bewertet die Vermutung, das andere den Beleg.</td></tr>
+  <tr><td>_DATE</td><td>Anlagedatum; eigener Tag wie bei <code>_TASK</code>.</td></tr>
+  <tr><td>_HKIND</td><td>Art der Behauptung. Es gibt genau einen Wert: <code>IDENT</code> —
+      „die genannten Datensätze bezeichnen dieselbe Person". Bei einer freien Hypothese fehlt
+      die Zeile. Zusammen mit <code>_HSTAT rejected</code> ist das der
+      <strong>Dublettenausschluss</strong>: die Begründung, warum zwei ähnliche Personen
+      <em>nicht</em> dieselbe sind — als Befund in der Datei, nicht als Merker im Programm.</td></tr>
+  <tr><td>_HREF</td><td><strong>Wiederholbar.</strong> Verweis auf einen weiteren betroffenen
+      Datensatz (<code>@I…@</code> oder <code>@F…@</code>). Eine Hypothese hängt an einem
+      Datensatz, spricht aber oft über zwei.</td></tr>
+  <tr><td>SOUR</td><td><strong>Wiederholbar</strong> — je ein Beleg. Optional mit
+      <code>3 PAGE</code> für die Fundstelle. Der Beleg ist ein reiner Verweis auf den
+      Quellsatz; der Zitattext wird nicht kopiert.</td></tr>
+  <tr><td>_RATIO</td><td>Die Beweisführung, mehrzeilig über <code>CONT</code>.</td></tr>
+  <tr><td>_CONCL</td><td>Die Auflösungsnotiz, mehrzeilig über <code>CONT</code>.</td></tr>
+</table>
+
+<h2><code>_EVAL</code> — Bewertung eines Quellenbezugs</h2>
+<p>
+  Die drei Achsen der Quellenkritik plus der Informant, angehängt an <em>einen konkreten
+  Quellenbezug</em> — also an das Zitat an einem Ereignis, nicht an die Quelle als Ganzes.
+  Dieselbe Quelle kann an einem Ereignis ein Original aus erster Hand sein und an einem
+  anderen eine späte Abschrift. Die <code>_EVAL</code>-Zeile selbst trägt keinen Wert; sie
+  steht unmittelbar nach <code>QUAY</code> und vor einer etwaigen <code>NOTE</code>.
+</p>
+<pre class="wire">2 SOUR @S5@
+3 PAGE Taufbuch S. 12
+3 QUAY 3
+3 _EVAL
+4 _STYP original
+4 _INFO primary
+4 _EVID direct
+4 _INFM Pfarrer</pre>
+<table class="ref">
+  <tr><th>Zeile</th><th>Bedeutung</th></tr>
+  <tr><td>_STYP</td><td>Quellentyp: <code>original</code> (Original), <code>derivative</code>
+      (Abschrift), <code>authored</code> (Autorenwerk).</td></tr>
+  <tr><td>_INFO</td><td>Information: <code>primary</code> (primär, vom Zeugen selbst),
+      <code>secondary</code> (sekundär, aus zweiter Hand), <code>undetermined</code>
+      (unbestimmt).</td></tr>
+  <tr><td>_EVID</td><td>Evidenz: <code>direct</code> (direkt), <code>indirect</code>
+      (indirekt), <code>negative</code> (negativ — das Fehlen als Aussage).</td></tr>
+  <tr><td>_INFM</td><td>Der Informant: freier Text oder ein Verweis auf eine Person der Datei.</td></tr>
+</table>
+<p>
+  Jede Achse steht nur da, wenn sie gesetzt ist; ist keine gesetzt, entfällt der ganze Block
+  — eine leere Bewertung schreibt keine leere Zeile. Die Beweiskraft <code>QUAY</code> bleibt
+  davon unberührt: Sie ist Teil des Standards und wird aus den Achsen allenfalls
+  <em>vorgeschlagen</em>, nie überschrieben.
+</p>
+
+<h2>Was in welcher Ausgabe mitreist</h2>
+<table class="ref">
+  <tr><th>Ausgabe</th><th>Forschungsdaten</th></tr>
+  <tr><td>GEDCOM 5.5.1</td><td>Vollständig — alle vier Blöcke, unverändert.</td></tr>
+  <tr><td>GEDCOM 5.5.1 „Strict"</td><td><strong>Keine.</strong> Aufgaben, Protokoll,
+      Hypothesen und Bewertungen entfallen ersatzlos; das ist der Zweck dieser Variante
+      (maximale Fremdlesbarkeit), sie ist keine Sicherung.</td></tr>
+  <tr><td>GEDCOM 7.0</td><td>Vollständig. Zusätzlich meldet der Dateikopf jedes verwendete
+      Tag an, etwa
+      <code>2 TAG _TASK https://github.com/frochtrup/Stammbaum/ext/_TASK</code> — erst diese
+      Adresse gibt dem Tag eine Bedeutung über die einzelne Datei hinaus.</td></tr>
+  <tr><td>GRAMPS (<code>.gramps</code>)</td><td><strong>Nur die Bewertung</strong>, und zwar
+      als <code>&lt;srcattribute type="_STYP" value="original"/&gt;</code> am Zitat (ebenso
+      <code>_INFO</code>, <code>_EVID</code>, <code>_INFM</code>). Für Aufgaben, Protokoll und
+      Hypothesen gibt es dort derzeit keine Entsprechung.</td></tr>
+</table>
+
+<div class="warning">
+  <strong>Forschungsdaten reisen zurzeit nur in GEDCOM.</strong> Wer eine
+  <code>.gramps</code>-Datei schreibt, nimmt Aufgaben, Protokolleinträge und Hypothesen nicht
+  mit — sie bleiben in Ihrem Bestand, aber nicht in dieser Ausgabe. Für Sicherungen und für
+  den Umzug zwischen Geräten gilt deshalb: <strong>volles GEDCOM 5.5.1</strong>.
+</div>
+
+<h2>Was mit Werten geschieht, die hier nicht stehen</h2>
+<p>
+  Diese Referenz beschreibt, was Stammbaum <em>schreibt</em>. Beim <em>Lesen</em> ist das
+  Programm bewusst großzügiger, und zwar in beide Richtungen:
+</p>
+<ul>
+  <li><strong>Fremde Unterzeilen in einem bekannten Block</strong> — etwa ein
+      <code>2 _FOO …</code> unter einem <code>_TASK</code> aus einem anderen Programm —
+      bleiben unangetastet erhalten und stehen nach dem Speichern wieder an ihrer Stelle.</li>
+  <li><strong>Unbekannte Werte in einer bekannten Zeile</strong> — etwa ein
+      <code>2 _TSTAT erledigt</code> statt <code>done</code> — gehen ebenfalls nicht verloren:
+      Die Datei behält den Wortlaut, solange Sie die Aufgabe nicht selbst ändern. Die
+      <em>Anzeige</em> kann ihn dann allerdings nicht deuten und zeigt den Vorgabewert
+      (hier: „Offen"). Wer eine solche Datei aus einem anderen Programm übernimmt, sollte den
+      Stand einmal durchsehen.</li>
+</ul>
+<p>
+  Weitere Tags mit Unterstrich, die Stammbaum schreibt — etwa <code>_UID</code>,
+  <code>_FREL</code>/<code>_MREL</code> oder die Archiv-Angaben <code>_RTYPE</code> und
+  <code>_FAURL</code> — betreffen keine Forschungsdaten und sind nicht Gegenstand dieses
+  Anhangs; ihre Behandlung im „Strict"-Export steht in
+  <a href="#anhangB">Anhang B</a>. Die Bedienung der hier beschriebenen Funktionen
+  beschreibt <a href="#k12">Kapitel 15</a>.
+</p>
+
+<footer>
+  Stammbaum · Benutzerhandbuch Version 9.18 · Stand 2026-08-19<br>
+  Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
+</footer>
+
+</div>
 
 <a id="to-top" href="#toc" aria-label="Zurück zum Inhaltsverzeichnis">
   <span class="arrow" aria-hidden="true">↑</span><span class="label">Inhalt</span>
