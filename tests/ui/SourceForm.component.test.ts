@@ -198,3 +198,65 @@ describe('SourceForm — Medientyp hängt an Archiv + Signatur', () => {
     expect(screen.getByText(HINWEIS)).toBeTruthy();
   });
 });
+
+describe('SourceForm — Gattung (BL-373)', () => {
+  const gattung = () => screen.getByLabelText('Gattung') as HTMLSelectElement;
+
+  it('zeigt die aus dem Kurznamen abgeleitete Gattung an', () => {
+    render(SourceForm, {
+      props: { appState: createAppState(), source: makeSource('@S1@', { abbr: 'KB Ochtrup' }) },
+    });
+
+    expect(gattung().value).toBe('kirchenbuch');
+  });
+
+  it('schreibt den Marker SICHTBAR in den Kurznamen, statt ihn irgendwo zu speichern', async () => {
+    render(SourceForm, {
+      props: { appState: createAppState(), source: makeSource('@S1@', { abbr: 'Vechta 1820' }) },
+    });
+
+    await fireEvent.change(gattung(), { target: { value: 'kirchenbuch' } });
+
+    expect((screen.getByLabelText('Kurzname') as HTMLInputElement).value).toBe('KB Vechta 1820');
+  });
+
+  it('lässt eine Korrektur die Ableitung SCHLAGEN — sonst spränge die Auswahl zurück', async () => {
+    render(SourceForm, {
+      props: { appState: createAppState(), source: makeSource('@S1@', { abbr: 'Totenzettel Meier' }) },
+    });
+
+    expect(gattung().value).toBe('grab');
+    await fireEvent.change(gattung(), { target: { value: 'standesamt' } });
+
+    expect(gattung().value).toBe('standesamt');
+    expect((screen.getByLabelText('Kurzname') as HTMLInputElement).value).toBe('StA Meier');
+  });
+
+  it('bietet „ohne erkennbare Gattung" nur an, solange sie zutrifft — sie ist keine Wahl', async () => {
+    render(SourceForm, {
+      props: { appState: createAppState(), source: makeSource('@S1@', { abbr: 'Wegener' }) },
+    });
+
+    expect(gattung().value).toBe('sonstiges');
+    expect([...gattung().options].some((o) => o.value === 'sonstiges')).toBe(true);
+
+    await fireEvent.change(gattung(), { target: { value: 'persoenlich' } });
+
+    expect([...gattung().options].some((o) => o.value === 'sonstiges')).toBe(false);
+  });
+
+  it('speichert nichts Verstecktes — die Gattung reist im Kurznamen mit', async () => {
+    const appState = createAppState();
+    const gespeichert = vi.spyOn(appState, 'saveSource');
+    render(SourceForm, {
+      props: { appState, source: makeSource('@S1@', { abbr: 'Vechta 1820' }) },
+    });
+
+    await fireEvent.change(gattung(), { target: { value: 'kirchenbuch' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    const arg = gespeichert.mock.calls[0][0];
+    expect(arg.abbr).toBe('KB Vechta 1820');
+    expect(Object.keys(arg)).not.toContain('kind');
+  });
+});

@@ -4,6 +4,7 @@
 // Personen- und Familien-Zitatstellen (Sonder-Events, Ereignisse, Namen, Kindschaft,
 // Assoziationen, Familien-Ereignisse, Familien-Top-Level) — s. collectCitationRefs.
 import type { Citation, Database, Source } from '../../../core/model/types';
+import { sourceKindOf, type SourceKind } from '../../../core/model/source-kinds';
 import { collectCitationRefs } from './citation-refs';
 
 export interface SourceRow {
@@ -29,6 +30,12 @@ export interface SourceRow {
   /** 🏛-Archiv-Name (BL-202) — der Name des Archivs, in dem die Quelle liegt (`Source.repo`
    *  über `db.repositories` aufgelöst; freier Repo-Text durchgereicht). Leer = kein Archiv. */
   repoName: string;
+  /** Abgeleitete Gattung (BL-373, `sourceKindOf`) — NICHT als Zeilen-Pille sichtbar,
+   *  sondern die Grundlage des Gattungs-Filters. Eine Pille trüge hier kein Signal:
+   *  am Realbestand fielen 66 von 153 Quellen in EINE Gattung, das Etikett stünde
+   *  also auf fast jeder Zeile (dieselbe Messlatte, an der ADR-v9-149 die
+   *  Anreicherungs-Pille zum Filter gemacht hat, [21 §10l]). */
+  kind: SourceKind;
 }
 
 /** Archiv-Name zu `Source.repo` — aufgelöst über `db.repositories`, sonst der freie
@@ -59,24 +66,47 @@ function toRow(s: Source, refCount: number, db: Database): SourceRow {
     hasNotes: s.text.trim() !== '' || s.noteText.trim() !== '',
     hasMedia: s.media.length > 0,
     repoName: repoNameOf(db, s),
+    kind: sourceKindOf(s),
   };
 }
 
-/** Alphabetisch nach Anzeigelabel (Kurzname bevorzugt) sortiert. */
-export function buildSourceRows(db: Database): SourceRow[] {
+/** Filterfelder der Quellenliste (BL-373). Ein Feld — mehr hat die Fläche nicht zu
+ *  fragen; `countActiveFilters` vergleicht es gegen `defaultSourceFilters()`. */
+export interface SourceFilters {
+  /** '' = alle Gattungen. `sonstiges` ist eine wählbare Stufe („ohne erkennbare Gattung"). */
+  kind: SourceKind | '';
+}
+
+export function defaultSourceFilters(): SourceFilters {
+  return { kind: '' };
+}
+
+/**
+ * Alphabetisch nach Anzeigelabel (Kurzname bevorzugt) sortiert, gefiltert nach Suchanfrage
+ * und Gattung.
+ *
+ * `query`/`filters` sind vorbelegt, damit die Funktion ohne sie die ungefilterte Liste
+ * liefert — die Aufrufer, die nur zählen wollen, müssen nichts über Filter wissen.
+ */
+export function buildSourceRows(
+  db: Database,
+  query = '',
+  filters: SourceFilters = defaultSourceFilters(),
+): SourceRow[] {
   const refCounts = countReferencesBySource(db);
   const sources = Array.from(db.sources.values());
   return sources
+    .filter((s) => matchesSearch(s, query))
     .map((s) => toRow(s, refCounts.get(s.id)?.length ?? 0, db))
+    .filter((row) => !filters.kind || row.kind === filters.kind)
     .sort((a, b) => a.label.localeCompare(b.label, 'de'));
 }
 
 /**
  * Textmatch über Kurzname/Titel/Autor/Datum/Verlag/Signatur/Notiz (Spec 20 §1.6 [K]:
- * "Liste (Kurzname, Autor, Datum, Referenzzähler)"). Der lokale Quellen-Tab selbst hat
- * (noch) kein eigenes Suchfeld — diese Funktion existiert primär als der EINE Baustein,
- * den die globale Suche nutzt (ui/views/search/global-search-model.ts, Spec 20 §1.1
- * [K]), analog zu den bereits exportierten `matchesSearch` in person-/family-/
+ * "Liste (…), Suche, Detail"). DERSELBE Baustein für beide Flächen: die globale Suche
+ * (ui/views/search/global-search-model.ts, Spec 20 §1.1 [K]) und seit BL-372 das
+ * Suchfeld der Quellenliste selbst — analog zu den `matchesSearch` in person-/family-/
  * place-list-model.ts (ADR-v9-18-Lehre: eine Extraktionsfunktion statt Drift).
  */
 export function matchesSearch(s: Source, query: string): boolean {

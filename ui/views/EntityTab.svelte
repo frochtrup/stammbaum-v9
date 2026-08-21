@@ -20,6 +20,7 @@
     HofListState,
     PersonListState,
     PlaceListState,
+    SourceListState,
   } from './list-view-state.svelte';
   import type { NavHistory } from '../shell/nav-history.svelte';
   import { swipeNav } from '../shell/swipe-nav';
@@ -92,6 +93,7 @@
     listStates?: {
       person?: PersonListState;
       family?: FamilyListState;
+      source?: SourceListState;
       place?: PlaceListState;
       hof?: HofListState;
     };
@@ -345,6 +347,7 @@
         <SourceList
           {appState}
           {viewState}
+          list={listStates?.source}
           windowed={windowStates?.source}
           onCreate={(id) => nav.createSource(id)}
         />
