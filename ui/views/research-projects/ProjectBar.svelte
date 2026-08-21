@@ -145,7 +145,6 @@
         aria-selected={projects.activeProjectId === p.id}
         onclick={() => projects.setActive(p.id)}
         ondblclick={() => openEdit(p)}
-        title="Doppelklick zum Bearbeiten"
       >
         {#if p.color && colorVarFor(p.color)}
           <span
@@ -163,6 +162,24 @@
          Reiter ansagen, der beim Aktivieren kein Ziel wählt, sondern ein Formular öffnet.
          Die Reihe bleibt optisch dieselbe, der Rahmen trägt jetzt nur das Layout. -->
     <button type="button" class="project-bar__add" onclick={openNew} aria-label="Neues Forschungsprojekt">＋</button>
+    <!-- Der einzige Weg ins Bearbeiten-Formular war ein `ondblclick` auf dem Chip, samt
+         Hinweis im `title` (BL-376). Beides gibt es auf der primären Zielplattform nicht:
+         eine Doppelklick-Geste kennt Touch nicht, und ein Tooltip ist dort kein Kanal
+         ([ADR-v9-183](../../../specs/v9/04-Entscheidungslog.md#adr-v9-183): „ein Kanal,
+         den es auf dem Telefon nicht gibt, ist keine Anzeige"). Damit war ein Projekt
+         weder änderbar noch löschbar — der Löschknopf IM Formular war gebaut und
+         unerreichbar. Der Öffner steht deshalb sichtbar neben „＋", trägt dieselbe
+         Optik und erscheint nur, wenn es etwas zu bearbeiten gibt: bei „Alle" gibt es
+         kein Projekt, und ein dauerhaft wirkungsloser Knopf wäre schlechter als keiner.
+         Der Doppelklick bleibt als Abkürzung erhalten, verspricht aber nichts mehr. -->
+    {#if projects.activeProject}
+      <button
+        type="button"
+        class="project-bar__add"
+        onclick={() => openEdit(projects.activeProject!)}
+        aria-label={`Projekt ${projects.activeProject.name || "ohne Namen"} bearbeiten`}
+      >✎</button>
+    {/if}
 
     <!-- Verwandtschafts-Relevanz (BL-375). Ein <select> und keine zweite Chip-Reihe: die
          Stufen sind exklusiv und selten gewechselt, eine zweite Reihe neben den
