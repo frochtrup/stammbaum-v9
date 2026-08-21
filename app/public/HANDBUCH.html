@@ -192,7 +192,7 @@
   <div class="tree-icon">🌳</div>
   <h1>STAMMBAUM</h1>
   <div class="subtitle">Genealogie-Editor für iPhone, iPad und Computer</div>
-  <div class="version">Benutzerhandbuch · Version 9.18 · Stand 2026-08-19</div>
+  <div class="version">Benutzerhandbuch · Version 9.19 · Stand 2026-08-21</div>
   <div class="tagline">
     Eine App, die Ihre Familienforschung verwaltet — ganz ohne Server, ohne Konto,
     offline nutzbar. Sie öffnet und schreibt GEDCOM- und GRAMPS-Dateien und bewahrt
@@ -1044,7 +1044,29 @@
     <p>
       Quellen belegen Ihre Angaben. Der Bereich <strong>Quellen</strong> hat zwei
       Segmente: <strong>Quellen</strong> und <strong>Archive</strong> (Repositorien).
-      Die Quellenliste zeigt jede Quelle mit der Zahl ihrer Referenzen.
+      Die Quellenliste zeigt jede Quelle mit der Zahl ihrer Referenzen — mit einem
+      <strong>Suchfeld</strong> und einem <strong>Gattungs-Filter</strong> darüber.
+    </p>
+    <h3>Die Gattung — abgelesen, nicht abgefragt</h3>
+    <p>
+      Der Filter kennt acht Gattungen: <em>Kirchenbuch</em>, <em>Standesamt/Urkunde</em>,
+      <em>Grabstein/Totenzettel</em>, <em>Zeitung/Literatur</em>, <em>Persönliche
+      Information</em>, <em>Internet/Datenbank</em>, <em>Fremder Stammbaum</em> und
+      <em>Sonstiges</em>. Sie stehen <strong>nirgends in Ihrer Datei</strong>: Die App
+      liest sie am Kurznamen ab — an einem führenden Marker wie <code>KB</code> oder
+      <code>StA</code>, sonst an Stichwörtern aus Kurzname und Titel. Genau so legen die
+      Quellen-Vorlagen die Namen ohnehin an („KB&nbsp;Taufen", „StA&nbsp;Geburten",
+      „Totenzettel"), und in einem gewachsenen Bestand ordnen sich die allermeisten
+      Quellen dadurch von selbst ein, ohne dass Sie etwas nachtragen.
+    </p>
+    <p>
+      Der Preis dieser Sparsamkeit ist offen benannt: Wo die App <em>falsch</em> liest,
+      korrigieren Sie den <strong>Namen</strong>, nicht ein verstecktes Feld. Im
+      Quellen-Formular gibt es dafür eine Auswahlbox, die den passenden Marker sichtbar in
+      den Kurznamen schreibt — sie ersetzt einen falschen Marker, statt Präfixe zu stapeln,
+      und lässt einen bereits passenden Namen in Ruhe. <em>Sonstiges</em> ist deshalb
+      nicht wählbar: Es gibt kein Wort, das man einem Namen hinzufügt, damit er nichts
+      mehr aussagt.
     </p>
     <h3>Die Quellen-Detailansicht</h3>
     <ul>
@@ -1536,7 +1558,23 @@
           Kette — und was die übergeordneten Ebenen an Wechseln erlebt haben, steht
           darunter als eigener, so beschrifteter Block. Ein Dorf, über das nur bekannt
           ist, dass es zum Kreis Steinfurt gehört, behauptet damit keine zehn eigenen
-          Zugehörigkeitswechsel.</li>
+          Zugehörigkeitswechsel.
+          <br>Eine neue Zeile entsteht nur an einer Grenze, die für <em>diesen</em> Ort
+          zu <em>dieser</em> Zeit gilt. Ein Kreis, der erst ab 1969 über dem Ort steht,
+          bringt seine eigene Umbenennung von 1804 nicht mit — sonst stünde in Ihrer
+          Ortsgeschichte ein Einschnitt, den es dort nie gab. Und wo Sie eine
+          Zugehörigkeit <a href="#stichtag">tagegenau</a> erfasst haben, trägt die Zeile
+          den Tag — in der Abbildung „ab 14.&nbsp;November 1808", der Tag des Dekrets,
+          mit dem das Großherzogtum Berg in Departements gegliedert wurde —, statt von
+          der nur jahrgenauen Angabe einer übergeordneten Ebene auf den 1.&nbsp;Januar
+          zurückgezogen zu werden.
+          <br>Endet eine Zugehörigkeit, ohne dass die nächste anschließt, sagt die
+          Ansicht das: Ab dem Folgetag steht dort <em>„unbekannt"</em>, bis wieder etwas
+          dokumentiert ist. Das ist ein Fingerzeig auf eine Lücke in Ihrer Kuration, kein
+          Fehler der Datei. Aus demselben Grund endet auch ein <strong>⚠</strong> sichtbar:
+          Teilen sich zwei Zeiträume ein Grenzjahr, trägt die Zeile dieses Jahres den
+          Hinweis, die Zeile des Folgejahres nicht mehr — die Mehrdeutigkeit ist damit
+          eingegrenzt statt bloß behauptet.</li>
       <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
           heirateten, starben — mit Quellen-Badges.</li>
       <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
@@ -1552,7 +1590,7 @@
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
       der Geschichte, nur weil kein Anfangsjahr bekannt ist.
     </p>
-    <h3>Jahr oder Stichtag — beides im selben Feld</h3>
+    <h3 id="stichtag">Jahr oder Stichtag — beides im selben Feld</h3>
     <p>
       Grenzen von Zugehörigkeiten <em>und</em> von Ortsnamen nehmen wahlweise ein Jahr
       (<code>1810</code>) oder ein tagegenaues Datum (<code>1 OCT 1810</code>). Beides
@@ -2386,6 +2424,25 @@
   Bestand, keine Aussage über ihn. Auf ein zweites Gerät nehmen Sie sie zusammen mit den
   übrigen App-Einstellungen über <code>app-data.json</code> mit
   (<a href="#appdata">Kapitel 18</a>).
+  <br><br>Ein gewähltes Projekt lässt sich über den <strong>✎</strong>-Knopf neben
+  <strong>＋</strong> umbenennen, in seinen Achsen ändern und löschen. Der Knopf erscheint
+  nur, solange wirklich ein Projekt aktiv ist — bei „Alle" gibt es nichts zu bearbeiten.
+</div>
+
+<div class="info">
+  <strong>Verwandtschafts-Relevanz — die zweite Achse daneben.</strong> Neben dem
+  Projekt-Wähler steht eine Auswahl <em>Alle · Vorfahren · Nachkommen · Kernbaum ·
+  Außerhalb</em>. Sie misst jeden Eintrag an seinem Abstand zum
+  <a href="#proband">Probanden</a>: <em>Vorfahren</em> und <em>Nachkommen</em> sind seine
+  direkte Linie (er selbst eingeschlossen), <em>Kernbaum</em> ist alles, was über
+  Eltern-Kind-Beziehungen mit ihm zusammenhängt, <em>Außerhalb</em> genau der Rest — die
+  angeheirateten Seitenlinien, die sonst gleichberechtigt in der Liste stehen.
+  <br><br>Die Achse sitzt <strong>einmal</strong> über allen vier Bereichen, nicht dreimal
+  hinter drei Filtern, und wirkt auch auf das <strong>Dashboard</strong>: Score, Ampel,
+  Lückenradar und Ast-Reifegrad lesen dieselbe Menge wie die Listen daneben. Mit dem
+  Projekt-Scope wird sie <em>verundet</em> — „Projekt Meier" und „nur Vorfahren" ergibt
+  die Schnittmenge. Der Zähler in der unteren Leiste bleibt bewusst bei der vollen Zahl:
+  Er zählt Ihre offene Arbeit, nicht den gerade gewählten Ausschnitt.
 </div>
 
 <div class="info">
@@ -2407,10 +2464,21 @@
       <strong>Liste</strong> oder als <strong>Board</strong> anzeigen — das Board ordnet
       sie nach Bearbeitungsstatus (<em>Offen</em>, <em>In Arbeit</em> …). Mit
       „→ In Arbeit" verschieben Sie eine Karte. Jede Karte nennt die zugehörige Person.
+      Weil es hier nur zwei Ansichten gibt, ist der Umschalter <em>ein</em> Knopf, der
+      den aktuellen Zustand nennt und beim Antippen wechselt — erst ab drei Ansichten
+      lohnt eine Segmentreihe, und der gesparte Platz trägt das Suchfeld.
     </p>
     <p>
       <strong>+ Aufgabe</strong> legt eine neue an (Text, Kategorie, Ziel-Person,
       optional eine Quelle). Ein Filter grenzt die Ansicht ein.
+    </p>
+    <p>
+      Alle drei Bereiche — Aufgaben, Protokoll und Hypothesen — haben ein
+      <strong>Suchfeld direkt in der Kopfzeile</strong>, nicht hinter dem Filter
+      versteckt: Was man erst aufklappen muss, findet man nicht. Gesucht wird über die
+      Textfelder des jeweiligen Eintrags <em>und über den Namen der Person</em>, an der
+      er hängt — diese Listen gehen über den ganzen Bestand, und „alles zu Meier" ist die
+      häufigste Frage an sie.
     </p>
   </div>
   <figure class="phone">
@@ -2577,7 +2645,11 @@
       schon ab zwei Zeichen, <strong>nach Datenart gruppiert</strong>. Ein Tippen führt
       direkt zum Eintrag. Im Beispiel filtert „Ochtr" bereits alle in Ochtrup geborenen
       Personen heraus. Innerhalb einer Liste filtert zusätzlich das jeweilige lokale
-      Suchfeld sofort mit.
+      Suchfeld sofort mit — inzwischen an <em>jeder</em> Liste: Personen, Familien,
+      <a href="#k6">Quellen</a>, Orte, Höfe und die drei
+      <a href="#k12">Forschungs-Bereiche</a>. Der Unterschied zur globalen Suche ist die
+      Absicht: Diese sucht, wo Sie <em>hinwollen</em>, jene grenzt ein, wo Sie schon
+      <em>sind</em>.
     </p>
     <h3>≈ Soundex — ähnlich klingende Namen</h3>
     <p>
@@ -3736,7 +3808,7 @@
 </p>
 
 <footer>
-  Stammbaum · Benutzerhandbuch Version 9.18 · Stand 2026-08-19<br>
+  Stammbaum · Benutzerhandbuch Version 9.19 · Stand 2026-08-21<br>
   Abbildungen aus der laufenden App mit einem Beispiel-Stammbaum.
 </footer>
 

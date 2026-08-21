@@ -22,6 +22,18 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.19] — 2026-08-21
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`1ef7009`…HEAD) erzeugt._
+
+- fix(orte): Segmentgrenzen der Zeitleiste nur aus periodengerecht erreichbaren Ebenen (BL-377) (`77e95f7`)
+- fix(v9-forschung): BL-376 — Forschungsprojekte sind wieder aenderbar und loeschbar (ADR-v9-279) (`8407202`)
+- feat(v9-forschung): Suchfeld sichtbar in der Kopfzeile, Umschalter auf einen Slot (ADR-v9-278) (`7948149`)
+- feat(v9-forschung): BL-374/375 — Suche und Verwandtschafts-Relevanz (ADR-v9-278) (`057a498`)
+- feat(v9-quellen): BL-372/373 — Suche und Gattungs-Filter der Quellenliste (ADR-v9-277) (`cdec6df`)
+
+---
+
 ## [9.18] — 2026-08-19
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`357b328`…HEAD) erzeugt._
