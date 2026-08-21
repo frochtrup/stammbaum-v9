@@ -95,10 +95,9 @@
   ];
 
   const activeFilterCount = $derived(
-    // Die Suchanfrage zählt MIT (BL-374): sie liegt hinter derselben Disclosure wie
-    // der Status-Filter, und eine wirksame Einschränkung, die von außen kein Signal
-    // gibt, ist unauffindbar — dieselbe Sorge wie beim Achtungs-Punkt (ADR-v9-148).
-    countActiveFilters({ filter: hypotheses.filter, query: hypotheses.query }, { filter: DEFAULT_FILTER, query: '' }),
+    // Die Suchanfrage zählt NICHT mit: sie steht sichtbar in der Kopfzeile, und ein
+    // Badge über einem sichtbaren Feld zeigte dieselbe Sache zweimal an.
+    countActiveFilters({ filter: hypotheses.filter }, { filter: DEFAULT_FILTER }),
   );
 
   function openAddForm() {
@@ -152,21 +151,18 @@
 
 <div class="hyp-view">
   <div class="hyp-view__toolbar">
+    <div class="stb-research-search">
+      <input
+        type="search" {...PLAIN_FIELD}
+        placeholder="Suche…"
+        aria-label="Hypothesen durchsuchen"
+        bind:value={hypotheses.query}
+      />
+      {#if hypotheses.query}
+        <button type="button" aria-label="Suche löschen" onclick={() => (hypotheses.query = '')}>✕</button>
+      {/if}
+    </div>
     <FilterBar activeCount={activeFilterCount}>
-        <label class="stb-filter-search">
-          <span>Suche</span>
-          <span class="stb-research-search">
-            <input
-              type="search" {...PLAIN_FIELD}
-              placeholder="Suche…"
-              aria-label="Hypothesen durchsuchen"
-              bind:value={hypotheses.query}
-            />
-            {#if hypotheses.query}
-              <button type="button" aria-label="Suche löschen" onclick={() => (hypotheses.query = '')}>✕</button>
-            {/if}
-          </span>
-        </label>
       <fieldset class="stb-filter-set">
         <legend>Status</legend>
         {#each FILTERS as f (f.key)}

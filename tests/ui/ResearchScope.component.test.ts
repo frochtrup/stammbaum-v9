@@ -78,12 +78,12 @@ function renderTab(scopeState = createResearchScopeState()) {
 const relevanz = () => screen.getByLabelText('Relevanz') as HTMLSelectElement;
 
 /**
- * Das Suchfeld der Forschungs-Segmente liegt HINTER der Filter-Disclosure (gemessen:
- * bei 375px bleiben in ihrer Toolbar 51px, und Spec 21 §6h ordnet einen Textfilter
- * ohnehin dorthin). Der Test geht denselben Weg wie der Nutzer — erst öffnen.
+ * Das Suchfeld steht SICHTBAR in der Toolbar — den Platz dafür schafft der
+ * Zwei-Zustands-Umschalter (ein Knopf statt zweier Segmente, Spec 21 §6h „ein
+ * Icon-Slot"). Kein Öffnen nötig; die Funktion bleibt, damit die Fälle unten lesbar
+ * bleiben, wenn sich der Weg noch einmal ändert.
  */
 async function suchfeld(label: string) {
-  await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
   return screen.getByLabelText(label) as HTMLInputElement;
 }
 
@@ -210,16 +210,15 @@ describe('Suche in den Forschungs-Segmenten (BL-374)', () => {
     expect((await suchfeld('Hypothesen durchsuchen')).value).toBe('');
   });
 
-  it('meldet eine gesetzte Anfrage NACH AUSSEN — sonst wäre sie hinter der Disclosure unsichtbar', async () => {
+  it('steht sichtbar in der Kopfzeile und zählt deshalb NICHT im Filter-Badge mit', async () => {
     mobile();
     renderTab();
 
-    // Die Vorgabe „Offen" IST die Vorgabe und zählt deshalb nicht mit (countActiveFilters
-    // vergleicht gegen sie) — der Trigger steht auf „Filter".
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeTruthy();
+    expect(screen.getByLabelText('Aufgaben durchsuchen')).toBeTruthy();
     await fireEvent.input(await suchfeld('Aufgaben durchsuchen'), { target: { value: 'sterbe' } });
 
-    expect(screen.getByRole('button', { name: 'Filter · 1' })).toBeTruthy();
+    // Ein Badge über einem sichtbaren Feld zeigte dieselbe Sache zweimal an.
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeTruthy();
   });
 
   it('leert die Anfrage über ✕', async () => {

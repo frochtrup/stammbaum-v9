@@ -235,11 +235,11 @@ describe('LogView — Filter und Anzeige-Modus überleben das Wegnavigieren (BL-
     const props = { appState, route, log: createLogViewState(), onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
 
     const first = render(LogView, { props });
-    await fireEvent.click(screen.getByRole('tab', { name: /Timeline|Zeitleiste|🕒/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /wechseln zu 🕒 Timeline/ }));
     first.unmount();
 
     render(LogView, { props: { ...props } });
 
-    expect(screen.getByRole('tab', { name: /Timeline|Zeitleiste|🕒/ }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: /🕒 Timeline, wechseln zu/ })).toBeTruthy();
   });
 });

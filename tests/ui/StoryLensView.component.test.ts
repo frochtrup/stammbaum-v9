@@ -80,7 +80,7 @@ describe('StoryLensView — Lens-/Fokus-Verdrahtung + Modus (Spec 21 §4, BL-133
     viewState.setCurrent('lensFocus', 'I1');
     render(StoryLensView, { props: { appState, viewState, route: createRoute(), onNavigateLens: vi.fn() } });
 
-    await fireEvent.click(screen.getByRole('tab', { name: 'Familie' }));
+    await fireEvent.click(screen.getByRole('button', { name: /wechseln zu .*Familie/ }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'Familie Otto Meyer & Berta Klein' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Heirat' })).toBeTruthy();

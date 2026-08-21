@@ -122,10 +122,9 @@
   ];
 
   const activeFilterCount = $derived(
-    // Die Suchanfrage zählt MIT (BL-374): sie liegt hinter derselben Disclosure wie
-    // der Status-Filter, und eine wirksame Einschränkung, die von außen kein Signal
-    // gibt, ist unauffindbar — dieselbe Sorge wie beim Achtungs-Punkt (ADR-v9-148).
-    countActiveFilters({ filter: log.filter, query: log.query }, { filter: DEFAULT_FILTER, query: '' }),
+    // Die Suchanfrage zählt NICHT mit: sie steht sichtbar in der Kopfzeile, und ein
+    // Badge über einem sichtbaren Feld zeigte dieselbe Sache zweimal an.
+    countActiveFilters({ filter: log.filter }, { filter: DEFAULT_FILTER }),
   );
 
   function openAddForm() {
@@ -186,21 +185,18 @@
 
 <div class="log-view">
   <div class="log-view__toolbar">
+    <div class="stb-research-search">
+      <input
+        type="search" {...PLAIN_FIELD}
+        placeholder="Suche…"
+        aria-label="Protokoll durchsuchen"
+        bind:value={log.query}
+      />
+      {#if log.query}
+        <button type="button" aria-label="Suche löschen" onclick={() => (log.query = '')}>✕</button>
+      {/if}
+    </div>
     <FilterBar activeCount={activeFilterCount}>
-        <label class="stb-filter-search">
-          <span>Suche</span>
-          <span class="stb-research-search">
-            <input
-              type="search" {...PLAIN_FIELD}
-              placeholder="Suche…"
-              aria-label="Protokoll durchsuchen"
-              bind:value={log.query}
-            />
-            {#if log.query}
-              <button type="button" aria-label="Suche löschen" onclick={() => (log.query = '')}>✕</button>
-            {/if}
-          </span>
-        </label>
       <fieldset class="stb-filter-set">
         <legend>Ergebnis</legend>
         {#each FILTERS as f (f.key)}
