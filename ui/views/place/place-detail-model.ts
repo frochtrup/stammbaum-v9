@@ -15,9 +15,12 @@ import {
   eventYear,
   jahresBeginn,
   normPlaceName,
+  spanneVonDatiert,
   tagesOrdinal,
+  trifft,
   type Grenze,
-  type GrenzEingabe
+  type GrenzEingabe,
+  type Spanne
 } from '../../../core/places';
 import { isEventPresent } from '../../../core/model';
 import { formatDateForDisplay } from '../../../core/model/gedcom-date';
@@ -113,8 +116,9 @@ export interface PlaceDetailModel {
    *  (die UI rendert dieses Segment als reinen Text, kein Selbst-Link, ADR-v9-78 Punkt 3). */
   enclosureChain: ChainSegment[];
   /** Vollständige Verwaltungshierarchie ("Zugehörigkeit nach Jahr") — die Kette ALLER
-   *  Ebenen zu jedem Schlüsseljahr, inkl. Zeitgrenzen, die sich erst aus den Perioden der
-   *  ÜBERGEORDNETEN Ebenen selbst ergeben (v8-Vorbild `_placeDetailHierarchyTimeline`,
+   *  Ebenen zu jedem Schlüsselpunkt, inkl. Zeitgrenzen, die sich erst aus den Perioden der
+   *  übergeordneten Ebenen ergeben, soweit diese DANN über dem Ort standen (BL-377,
+   *  [ADR-v9-280]; v8-Vorbild `_placeDetailHierarchyTimeline`,
    *  Nutzer-Auftrag "Orts-Detailansicht" — Nachtrag ADR-v9-75, ERSETZT die zunächst
    *  zusätzlich gebaute, nur-direkter-Elternteil-Zeitraum-Ansicht — vom Nutzer nach
    *  Ansicht beider Sektionen nebeneinander als redundant erkannt und entfernt, zweiter
@@ -240,12 +244,14 @@ export function spanLabelOf(d: {
 /**
  * Vollständige Verwaltungshierarchie zu jedem Schlüsseljahr ("Zugehörigkeit nach Jahr",
  * v8-Vorbild `_placeDetailHierarchyTimeline`, `legacy-v8/ui-views-place.js`). Zeigt die
- * VOLLE Kette (alle Ebenen, nicht nur der direkte Elternteil) — und die Schlüsseljahre
- * kommen NICHT nur aus `place.enclosedBy` selbst, sondern rekursiv (BFS über den
- * gesamten Eltern-Graphen, `place.enclosedBy[].placeId`) auch aus den Perioden JEDER
- * übergeordneten Ebene (deren eigene `enclosedBy`/`pnames`/
- * `existsFrom`/`existsTo`) — ein Wechsel drei Ebenen höher erzeugt hier also ebenfalls
- * eine neue Zeile, auch wenn die direkte Elternschaft dieses Orts unverändert blieb.
+ * VOLLE Kette (alle Ebenen, nicht nur der direkte Elternteil) — und die Schlüsselpunkte
+ * kommen NICHT nur aus `place.enclosedBy` selbst, sondern rekursiv (Tiefensuche über
+ * `place.enclosedBy[].placeId`) auch aus den Perioden der übergeordneten Ebenen (deren
+ * eigene `enclosedBy`/`pnames`/`existsFrom`/`existsTo`) — ein Wechsel drei Ebenen höher
+ * erzeugt hier also ebenfalls eine neue Zeile, auch wenn die direkte Elternschaft dieses
+ * Orts unverändert blieb. **Aber nur im jeweils gültigen Zeitfenster** (BL-377,
+ * [ADR-v9-280]): eine Ebene, die zu jenem Zeitpunkt gar nicht über dem Ort steht, setzt
+ * hier keine Grenze — s. den Kommentar an `collectPunkte`.
  * Konsekutive Schlüsseljahre mit IDENTISCHER voller Kette werden zu einer Zeile
  * zusammengefasst; Lücken (kein Elternteil zu diesem Jahr dokumentiert) erzeugen genau
  * EINE "unbekannt"-Zeile pro Lücke, nicht pro Jahr. Reine Funktion, deterministisch.
@@ -265,42 +271,105 @@ function buildHierarchyTimeline(
   const encs = place.enclosedBy;
   if (!encs.length) return [];
 
-  // Schlüsselpunkte rekursiv aus dem gesamten Eltern-Graphen sammeln (BFS, Zyklen-sicher).
+  // Schlüsselpunkte rekursiv aus dem Eltern-Graphen sammeln — aber NUR im jeweils
+  // gültigen Zeitfenster (BL-377, [ADR-v9-280]).
   //
   // BL-324: ein Punkt ist ein TAGES-Ordinal, kein Jahr. Wo ein Stichtag erfasst ist
   // („1 OCT 1512"), ist er der Schlüsselpunkt; sonst der 1. Januar des Jahres — dann
   // verhält sich alles wie zuvor. Erst dadurch wird die Zeile ENTSCHEIDBAR: die Abfrage
   // unten fragt nach EINEM Tag, nicht nach einem ganzen Jahr, in dem beide Perioden
   // gelten. Der Rohtext wandert mit, weil nur er die Beschriftung tragen kann.
+  //
+  // DAS FENSTER WANDERT MIT. Bis BL-377 lief hier eine flache BFS über den ganzen
+  // Elterngraphen: jeder erreichbare Knoten steuerte ALLE seine Grenzen bei, gleichgültig,
+  // ob er zu diesem Zeitpunkt über dem Ort stand. Ein Elternteil ab 1969 brachte damit
+  // seine Namensgrenze von 1804 mit, und ein Departement, das den Ort erst ab dem
+  // 14. November 1808 erfasst, seine eigene, nur jahrgenaue Grenze vom 1. Januar 1808 —
+  // die dann als „ab 1808" den Tag verdrängte, den der Ort selbst kuratiert trägt
+  // (Nutzer-Befund 2026-08-21, beide Fälle am eigenen Bestand nachgestellt).
+  // Ein Knoten wird deshalb im SCHNITT aus dem aktuellen Fenster und der Spanne der
+  // Kante betreten, über die er erreicht wurde, und ein Punkt zählt nur, wenn er in
+  // dieses Fenster fällt.
+  //
+  // Gefolgt wird JEDER überlappenden Kante, nicht nur der Tie-Break-Siegerin (Spec 11 §5):
+  // der ⚠-Hinweis meldet gerade den Fall, dass mehrere Perioden Anspruch erheben — nur
+  // die Siegerin zu betreten nähme ihm seine Grundlage.
   const keyPunkte = new Map<number, string | null>();
-  const merke = (jahr: number | null, roh: string | null | undefined): void => {
-    const tag = tagesOrdinal(roh);
-    if (tag != null) {
-      keyPunkte.set(tag, roh ?? null);
-      return;
-    }
-    if (jahr != null && !keyPunkte.has(jahresBeginn(jahr))) keyPunkte.set(jahresBeginn(jahr), null);
+  const imFenster = (punkt: number, f: Spanne): boolean =>
+    (f.von == null || punkt >= f.von) && (f.bis == null || punkt <= f.bis);
+  // Ein Punkt mit Rohtext gewinnt gegen denselben Punkt ohne — nur der Rohtext kann die
+  // Beschriftung tragen, und er sagt dasselbe genauer.
+  const merkePunkt = (punkt: number | null, roh: string | null, fenster: Spanne): void => {
+    if (punkt == null || !imFenster(punkt, fenster)) return;
+    if (roh != null) keyPunkte.set(punkt, roh);
+    else if (!keyPunkte.has(punkt)) keyPunkte.set(punkt, null);
   };
-  const visited = new Set<PlaceId>();
-  const collectYears = (pid: PlaceId | null): void => {
-    if (!pid || visited.has(pid)) return;
-    visited.add(pid);
+  const merke = (jahr: number | null, roh: string | null | undefined, fenster: Spanne): void => {
+    const tag = tagesOrdinal(roh);
+    merkePunkt(tag ?? (jahr != null ? jahresBeginn(jahr) : null), tag != null ? (roh ?? null) : null, fenster);
+  };
+  // Der Punkt DIREKT hinter einem Perioden-Ende — der KALENDARISCHE Folgetag, nicht
+  // `Ordinal + 1`. Beim Bau zweimal daran gescheitert: auf den 31. Dezember folgte der
+  // „32.", auf den 30. September der „31." — beide sortieren zwar noch richtig, tragen
+  // aber das falsche Jahr (die Beschriftung der Zeile) bzw. liegen als eigener,
+  // unpassierbarer Tag zwischen zwei lückenlos aneinander anschließenden Perioden und
+  // erfanden dort eine Ein-Tages-Lücke. `Date.UTC` rechnet beides korrekt und ohne
+  // Wall-Clock (INV-ARCH-1 unberührt: reine Kalenderarithmetik, kein `Date.now()`).
+  const naechsterTag = (o: number): number => {
+    const d = new Date(Date.UTC(Math.trunc(o / 10000), (Math.trunc(o / 100) % 100) - 1, (o % 100) + 1));
+    return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+  };
+  const schnitt = (a: Spanne, b: Spanne): Spanne => ({
+    von: a.von == null ? b.von : b.von == null ? a.von : Math.max(a.von, b.von),
+    bis: a.bis == null ? b.bis : b.bis == null ? a.bis : Math.min(a.bis, b.bis),
+  });
+  // Besucht wird je (Knoten, Fenster), nicht je Knoten: derselbe Elternort kann über zwei
+  // verschiedene Perioden erreichbar sein und trägt dann in jeder etwas anderes bei. Das
+  // terminiert auch bei Zyklen — Fenster werden durch den Schnitt nur enger, und ihre
+  // Grenzen stammen aus einer endlichen Menge von Ordinalen.
+  const besucht = new Set<string>();
+  const collectPunkte = (pid: PlaceId | null, fenster: Spanne, eigen: boolean): void => {
+    if (!pid) return;
+    const schluessel = `${pid}|${fenster.von}|${fenster.bis}`;
+    if (besucht.has(schluessel)) return;
+    besucht.add(schluessel);
     const p = ctx.places.byId(pid);
     if (!p) return;
     for (const e of p.enclosedBy) {
-      merke(e.from, e.fromDate);
-      merke(e.to, e.toDate);
-      collectYears(e.placeId);
+      const s = spanneVonDatiert(e);
+      if (!trifft(s, fenster)) continue;
+      merke(e.from, e.fromDate, fenster);
+      merke(e.to, e.toDate, fenster);
+      // Wo eine EIGENE Periode endet, beginnt eine Verwaltungslücke — es sei denn, die
+      // nächste schließt nahtlos an; dann fällt dieser Punkt mit deren Anfang zusammen
+      // und die Dedup unten wirft die Zeile wieder weg. Ohne ihn wäre eine Lücke nur
+      // sichtbar, wenn zufällig ein FREMDER Schlüsselpunkt hineinfällt — genau die
+      // Zufälligkeit, die BL-377 beseitigt (und die der Fix sonst mit entfernt hätte).
+      //
+      // NUR die eigene Achse: die Lücke eines ELTERNORTS ist dessen Aussage, nicht die
+      // dieses Orts. Sie erscheint hier ohnehin — als `truncated` („› ?") an den Zeilen,
+      // die es gibt —, und eine eigene Zeile dafür verschöbe den Gegenstand der
+      // Zeitleiste („wozu gehörte DIESER Ort wann").
+      //
+      // Ohne Rohtext: das Jahr des Punktes beschriftet die Zeile. Eine Lücke ist eine
+      // Aussage über fehlende Überlieferung; wo ihr Beginn tagegenau ableitbar wäre,
+      // schließt die nächste Periode fast immer nahtlos an und die Zeile entsteht gar nicht.
+      if (eigen) merkePunkt(s.bis == null ? null : naechsterTag(s.bis), null, fenster);
+      collectPunkte(e.placeId, schnitt(s, fenster), false);
     }
     for (const pn of p.pnames) {
-      merke(pn.from, pn.fromDate);
-      merke(pn.to, pn.toDate);
+      const s = spanneVonDatiert(pn);
+      if (!trifft(s, fenster)) continue;
+      merke(pn.from, pn.fromDate, fenster);
+      merke(pn.to, pn.toDate, fenster);
     }
     // 'existsFrom'/'existsTo' bleiben Jahres-Skalare (BL-324, s. core/places/zeitbezug.ts).
-    merke(p.existsFrom, null);
-    merke(p.existsTo, null);
+    merke(p.existsFrom, null, fenster);
+    merke(p.existsTo, null, fenster);
   };
-  collectYears(placeId);
+  // Der Ort selbst wird ohne Klemme betreten — seine eigenen Grenzen sind die Aussage
+  // dieser Zeitleiste, nicht eine geerbte.
+  collectPunkte(placeId, { von: null, bis: null }, true);
 
   // Auf die Existenzdaten DIESES Orts + den dokumentierten enclosedBy-Zeitraum klemmen.
   const exFrom = place.existsFrom;
@@ -403,7 +472,7 @@ function buildHierarchyTimeline(
  *
  * Das ist die Trennlinie, an der die Jahres-Zeilen ihren Eigentümer wechseln. Ohne eine
  * eigene Datierung stammt JEDES Schlüsseljahr der Zeitleiste aus einer übergeordneten
- * Ebene (`buildHierarchyTimeline` sammelt sie per BFS über den ganzen Elterngraphen), und
+ * Ebene (`buildHierarchyTimeline` sammelt sie rekursiv über den Elterngraphen), und
  * die undatierte eigene Zuordnung gilt „jederzeit" — sie wird also auf jedes fremde Jahr
  * projiziert. Das erzeugt zwei verschiedene Unwahrheiten: eine erfundene Datierung („ab
  * 1180" über einem undatierten Eintrag) und eine vorgetäuschte lokale Veränderung (eine
