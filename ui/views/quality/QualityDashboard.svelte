@@ -63,6 +63,13 @@
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung (alle Personen). */
     scope?: ProjectScope | null;
     /**
+     * Personenmenge der Verwandtschafts-Relevanz (BL-375, Spec 20 §1.11i) — `null` =
+     * Stufe „Alle". Die Achse sitzt auf der Umbrella-Ebene und scoped ALLE VIER
+     * Segmente; das Dashboard auszunehmen wäre der halbe Zustand aus Spec 21 §5 —
+     * eine sichtbar gesetzte Einschränkung, die auf einer der Flächen nichts tut.
+     */
+    allowed?: ReadonlySet<PersonId> | null;
+    /**
      * Ansichts-Unterzustand von AUSSEN (BL-319): Filter, offener Bericht und Ast-Auswahl
      * müssen das Wegnavigieren überleben, diese Fläche wird dabei abgebaut. Optional,
      * damit Komponententests das Dashboard weiterhin ohne Umgebung montieren können —
@@ -78,6 +85,7 @@
     onNavigateToPlace,
     onNavigateToHof,
     scope = null,
+    allowed = null,
     quality: qualityProp,
   }: Props = $props();
 
@@ -88,12 +96,21 @@
 
   // Personenmenge des aktiven Projekts als Set (Spec 20 §1.11g: „die Personenmenge kommt
   // als Parameter herein"); null = keine Einschränkung. matchesScope ist die Kern-Wahrheit.
-  const scopeSet = $derived(
+  const projektSet = $derived(
     scope
       ? new Set(
           [...appState.db.individuals.values()].filter((p) => matchesScope(p, scope)).map((p) => p.id),
         )
       : null,
+  );
+
+  // Beide Achsen schneiden sich per UND (Spec 20 §1.11i). Genau EINE Menge geht danach in
+  // die Engine — der Ast-Reifegrad und die Brennpunkte unten lesen dieselbe, es gibt also
+  // keinen Pfad, auf dem nur eine der beiden Einschränkungen wirkt.
+  const scopeSet = $derived(
+    projektSet && allowed
+      ? new Set([...projektSet].filter((id) => allowed.has(id)))
+      : (projektSet ?? allowed),
   );
 
   const FOCUS_FILTERS: { key: FocusFilter; label: string }[] = [

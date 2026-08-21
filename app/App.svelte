@@ -162,6 +162,7 @@
   const tasksState = holders.tasks;
   const logState = holders.log;
   const hypothesesState = holders.hypotheses;
+  const researchScopeState = holders.researchScope;
   // Der Hinweis-Kanal der Schale. Frist und Schließen trägt `StatusNotice` (BL-335) —
   // hier steht nur, WAS gemeldet wird, nicht wie lange.
   let placesEditNotice = $state('');
@@ -463,6 +464,7 @@
         tasks={tasksState}
         log={logState}
         hypotheses={hypothesesState}
+        researchScope={researchScopeState}
         onNavigateToPerson={openPerson}
         onNavigateToFamily={openFamily}
         onNavigateToPlace={openPlace}

@@ -19,6 +19,7 @@
 import type { TaskFilter } from './tasks/tasks-model';
 import type { LogFilter } from './research-log/log-model';
 import type { HypothesisFilter } from './hypotheses/hypothesis-model';
+import type { KinshipClass } from '../../core/model/kinship';
 
 /**
  * Vorgaben — hier, nicht je View: `countActiveFilters` vergleicht den aktuellen Wert
@@ -28,31 +29,56 @@ import type { HypothesisFilter } from './hypotheses/hypothesis-model';
 export const DEFAULT_TASK_FILTER: TaskFilter = 'open';
 export const DEFAULT_LOG_FILTER: LogFilter = 'all';
 export const DEFAULT_HYPO_FILTER: HypothesisFilter = 'all';
+/** Vorgabe der Relevanz-Achse (BL-375): keine Einschränkung. */
+export const DEFAULT_KINSHIP: KinshipClass = 'all';
 
 export interface TasksViewState {
   filter: TaskFilter;
+  /** Suchanfrage (BL-374) — im SELBEN Halter wie der Filter, nicht in einem zweiten
+   *  `$state` daneben: beide beantworten dieselbe Frage („was zeigt diese Fläche") und
+   *  müssen denselben Navigationsweg überleben. */
+  query: string;
 }
 
 export interface LogViewState {
   filter: LogFilter;
+  query: string;
 }
 
 export interface HypothesesViewState {
   filter: HypothesisFilter;
+  query: string;
+}
+
+/**
+ * Die Relevanz-Achse der Forschungs-Umbrella (BL-375, Spec 20 §1.11i).
+ *
+ * EIGENER Halter, nicht ein viertes Feld in den drei Segment-Haltern: die Achse gehört
+ * nicht EINER Fläche, sie scoped alle vier gemeinsam — dieselbe Rolle wie der aktive
+ * Projekt-Scope, der aus demselben Grund in `ProjectsState` oberhalb der Segmente liegt.
+ * Sie dreimal zu halten hieße, drei Wahrheiten über denselben Ausschnitt zu führen.
+ */
+export interface ResearchScopeState {
+  kinship: KinshipClass;
 }
 
 export function createTasksViewState(): TasksViewState {
-  const s = $state<TasksViewState>({ filter: DEFAULT_TASK_FILTER });
+  const s = $state<TasksViewState>({ filter: DEFAULT_TASK_FILTER, query: '' });
   return s;
 }
 
 export function createLogViewState(): LogViewState {
-  const s = $state<LogViewState>({ filter: DEFAULT_LOG_FILTER });
+  const s = $state<LogViewState>({ filter: DEFAULT_LOG_FILTER, query: '' });
   return s;
 }
 
 export function createHypothesesViewState(): HypothesesViewState {
-  const s = $state<HypothesesViewState>({ filter: DEFAULT_HYPO_FILTER });
+  const s = $state<HypothesesViewState>({ filter: DEFAULT_HYPO_FILTER, query: '' });
+  return s;
+}
+
+export function createResearchScopeState(): ResearchScopeState {
+  const s = $state<ResearchScopeState>({ kinship: DEFAULT_KINSHIP });
   return s;
 }
 

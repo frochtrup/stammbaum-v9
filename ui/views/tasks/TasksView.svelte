@@ -22,6 +22,7 @@
   import {
     collectAllTasks,
     filterTasks,
+    matchesTaskQuery,
     groupByCategory,
     buildKanbanColumns,
     nextTaskStatus,
@@ -45,6 +46,8 @@
     type TasksViewState,
   } from '../research-segment-state.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
+  import type { PersonId } from '../../../core/model/types';
 
   interface Props {
     appState: AppState;
@@ -57,6 +60,12 @@
     onStartLogFromTask?: (pf: LogPrefill) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /**
+     * Personenmenge der Verwandtschafts-Relevanz (BL-375) — `null` = Stufe „Alle" =
+     * keine Einschränkung. Kommt von der Umbrella-Ebene, wo sie EINMAL für alle vier
+     * Segmente gerechnet wird (Spec 20 §1.11i).
+     */
+    allowed?: ReadonlySet<PersonId> | null;
     /**
      * Routen-Quelle — trägt den Anzeige-Modus (Liste · Board) als Merker, wie sie es für
      * die Lens-Modi längst tut (BL-320, Spec 21 §5 Heimat ①). PFLICHT, nicht optional:
@@ -77,6 +86,7 @@
     onNavigateToFamily,
     onStartLogFromTask,
     scope = null,
+    allowed = null,
     route,
     tasks: tasksProp,
   }: Props = $props();
@@ -103,12 +113,20 @@
     text: '', category: '', sourceRef: '', kind: 'person', entityId: '',
   });
 
-  const allTasks = $derived(collectAllTasks(appState.db, appState.placeContext, scope));
-  const filteredTasks = $derived(filterTasks(allTasks, tasks.filter));
+  const allTasks = $derived(collectAllTasks(appState.db, appState.placeContext, scope, allowed));
+  // Suche NACH dem Status-Filter: beide grenzen ein, die Reihenfolge ist für das
+  // Ergebnis gleichgültig — so herum bleibt die teurere Textprüfung auf der kleineren
+  // Menge.
+  const filteredTasks = $derived(
+    filterTasks(allTasks, tasks.filter).filter((e) => matchesTaskQuery(e, tasks.query)),
+  );
   const categoryGroups = $derived(groupByCategory(filteredTasks));
   const kanbanColumns = $derived(buildKanbanColumns(filteredTasks));
   const activeFilterCount = $derived(
-    countActiveFilters({ filter: tasks.filter }, { filter: DEFAULT_FILTER }),
+    // Die Suchanfrage zählt MIT (BL-374): sie liegt hinter derselben Disclosure wie
+    // der Status-Filter, und eine wirksame Einschränkung, die von außen kein Signal
+    // gibt, ist unauffindbar — dieselbe Sorge wie beim Achtungs-Punkt (ADR-v9-148).
+    countActiveFilters({ filter: tasks.filter, query: tasks.query }, { filter: DEFAULT_FILTER, query: '' }),
   );
 
   function openAddForm() {
@@ -186,6 +204,20 @@
 <div class="tasks-view">
   <div class="tasks-view__toolbar">
     <FilterBar activeCount={activeFilterCount}>
+        <label class="stb-filter-search">
+          <span>Suche</span>
+          <span class="stb-research-search">
+            <input
+              type="search" {...PLAIN_FIELD}
+              placeholder="Suche…"
+              aria-label="Aufgaben durchsuchen"
+              bind:value={tasks.query}
+            />
+            {#if tasks.query}
+              <button type="button" aria-label="Suche löschen" onclick={() => (tasks.query = '')}>✕</button>
+            {/if}
+          </span>
+        </label>
       <fieldset class="stb-filter-set">
         <legend>Status</legend>
         {#each FILTERS as f (f.key)}
@@ -320,6 +352,8 @@
   }
 
   /* EINE Toolbar-Zeile mit drei Elementen (INV-UI-11): Filter · Ansicht · Neuanlage. */
+
+
   .tasks-view__toolbar {
     display: flex;
     flex-wrap: wrap;

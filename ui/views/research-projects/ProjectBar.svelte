@@ -1,21 +1,34 @@
 <script lang="ts">
-  // ui/views/research-projects/ProjectBar.svelte — Projekt-Chip-Selektor + Verwaltung
-  // (Spec 12 §5, Spec 20 §1.11f, BL-58). Lebt GENAU EINMAL auf der ResearchTab-Umbrella-
-  // Ebene (oberhalb der Segmente, INV-UI-11) und scoped Aufgaben+Protokoll+Dashboard
-  // gemeinsam — NICHT pro Segment dupliziert.
+  // ui/views/research-projects/ProjectBar.svelte — die SCOPE-LEISTE der Forschungsfläche:
+  // Projekt-Chip-Selektor + Verwaltung (Spec 12 §5, Spec 20 §1.11f, BL-58) UND die
+  // Verwandtschafts-Relevanz (Spec 20 §1.11i, BL-375). Lebt GENAU EINMAL auf der
+  // ResearchTab-Umbrella-Ebene (oberhalb der Segmente, INV-UI-11) und scoped
+  // Aufgaben+Protokoll+Hypothesen+Dashboard gemeinsam — NICHT pro Segment dupliziert.
+  //
+  // WARUM DIE RELEVANZ HIER UND NICHT IN EINER EIGENEN LEISTE: sie beantwortet dieselbe
+  // Frage wie das Projekt („welcher Ausschnitt?"), gilt für dieselben vier Flächen und
+  // schneidet sich mit ihm per UND. Eine zweite Leiste darunter kostete eine der wenigen
+  // mobilen Zeilen für dieselbe Sache (INV-UI-11). Die Zustände bleiben getrennt (das
+  // Projekt in `ProjectsState`, die Achse im Halter der Wurzel) — geteilt wird die
+  // Fläche, nicht der Topf.
   //
   // Die Scope-Achsen (Nachname/Ort/Zeitraum) sind kommagetrennte Freitext-Eingaben; die
   // Matching-Wahrheit (welche Person fällt hinein) liegt im Kern (matchesScope, BL-58),
   // nicht hier.
   import type { ProjectsState } from '../../shell/projects-state.svelte';
+  import { KINSHIP_CLASSES, type KinshipClass } from '../../../core/model/kinship';
   import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
   import { makeProject, type Project } from '../../../core/research/index';
   import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
     projects: ProjectsState;
+    /** Gewählte Relevanz-Stufe (BL-375). Der Halter liegt an der App-Wurzel; diese
+     *  Komponente zeigt und meldet nur — sie hält keinen eigenen Zustand daneben. */
+    kinship?: KinshipClass;
+    onKinship?: (next: KinshipClass) => void;
   }
-  const { projects }: Props = $props();
+  const { projects, kinship = 'all', onKinship }: Props = $props();
 
   // Farbpalette (BL-209, ADR-v9-158): EIN Token-Satz (`--stb-proj-1..6`,
   // design-system.css), keine rohen v8-Hex-Werte hier. `Project.color` speichert den
@@ -150,6 +163,21 @@
          Reiter ansagen, der beim Aktivieren kein Ziel wählt, sondern ein Formular öffnet.
          Die Reihe bleibt optisch dieselbe, der Rahmen trägt jetzt nur das Layout. -->
     <button type="button" class="project-bar__add" onclick={openNew} aria-label="Neues Forschungsprojekt">＋</button>
+
+    <!-- Verwandtschafts-Relevanz (BL-375). Ein <select> und keine zweite Chip-Reihe: die
+         Stufen sind exklusiv und selten gewechselt, eine zweite Reihe neben den
+         Projekt-Chips wäre optisch dieselbe Sache mit anderer Bedeutung. -->
+    <label class="project-bar__kinship">
+      Relevanz
+      <select
+        value={kinship}
+        onchange={(e) => onKinship?.((e.currentTarget as HTMLSelectElement).value as KinshipClass)}
+      >
+        {#each KINSHIP_CLASSES as k (k.key)}
+          <option value={k.key}>{k.label}</option>
+        {/each}
+      </select>
+    </label>
   </div>
 
   {#if showForm}
@@ -255,6 +283,26 @@
   .project-bar__chips {
     flex-wrap: wrap;
     gap: 0.3rem;
+  }
+
+  /* Sitzt am rechten Rand derselben Zeile; bricht auf schmalen Flächen mit um, statt
+     die Chip-Reihe zu quetschen (`flex-wrap` steht am `__row`). */
+  .project-bar__kinship {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+  }
+
+  .project-bar__kinship select {
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.25rem 0.4rem;
+    font-size: 0.8rem;
   }
 
   .project-bar__add {
