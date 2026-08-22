@@ -336,7 +336,8 @@ function parseEvent(node: GedNode): Event {
  * Erledigt-Haken, `_TSTAT` der später dazugekommene Kanban-Status (v8 `RES-PROJ 3a`).
  * v8s Parser liest beide unabhängig. `_DONE` galt hier ursprünglich als NICHT gelesen
  * (aus status abgeleitet, INV Spec 12 §1) — seit BL-302 ist es der Rückfall, wenn
- * `_TSTAT` fehlt, s. den Kommentar in der Funktion. Der Writer schreibt beide.
+ * `_TSTAT` fehlt, s. den Kommentar in der Funktion. Der Writer schreibt es seit
+ * ADR-v9-213/BL-307 NICHT mehr (s. `taskNode` in write-back-emit.ts).
  */
 function parseTask(node: GedNode): ResearchTask {
   const raw = childValue(node, '_TSTAT');

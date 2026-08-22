@@ -76,6 +76,13 @@
   ul, ol { margin: 0.6em 0; }
   li { margin: 0.3em 0; }
   code { background: #efeae0; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  /* Draht-Beispiele (Anhang F): echte GEDCOM-Zeilen, waagerecht scrollbar statt umbrechend
+     — ein umbrochenes Beispiel liest sich als andere Datei, als es ist. */
+  pre.wire {
+    background: #efeae0; border: 1px solid var(--app-border); border-radius: 6px;
+    padding: 12px 15px; margin: 1em 0; overflow-x: auto;
+    font-size: 0.86em; line-height: 1.55; white-space: pre;
+  }
 
   /* Hinweisboxen */
   .tip, .info, .warning, .important {
@@ -186,7 +193,7 @@
 <header class="cover">
   <h1>Orte-Editor — Handbuch</h1>
   <p>Ein Editor für orte.json, das Ortsverzeichnis über Stammbaum-Dateien hinweg</p>
-  <p class="stamp">Version 9.17 · Stand 2026-08-13</p>
+  <p class="stamp">Version 9.19 · Stand 2026-08-21</p>
 </header>
 
 <nav id="toc">
@@ -445,7 +452,23 @@
           Kette — und was die übergeordneten Ebenen an Wechseln erlebt haben, steht
           darunter als eigener, so beschrifteter Block. Ein Dorf, über das nur bekannt
           ist, dass es zum Kreis Steinfurt gehört, behauptet damit keine zehn eigenen
-          Zugehörigkeitswechsel.</li>
+          Zugehörigkeitswechsel.
+          <br>Eine neue Zeile entsteht nur an einer Grenze, die für <em>diesen</em> Ort
+          zu <em>dieser</em> Zeit gilt. Ein Kreis, der erst ab 1969 über dem Ort steht,
+          bringt seine eigene Umbenennung von 1804 nicht mit — sonst stünde in Ihrer
+          Ortsgeschichte ein Einschnitt, den es dort nie gab. Und wo Sie eine
+          Zugehörigkeit <a href="#stichtag">tagegenau</a> erfasst haben, trägt die Zeile
+          den Tag — in der Abbildung „ab 14.&nbsp;November 1808", der Tag des Dekrets,
+          mit dem das Großherzogtum Berg in Departements gegliedert wurde —, statt von
+          der nur jahrgenauen Angabe einer übergeordneten Ebene auf den 1.&nbsp;Januar
+          zurückgezogen zu werden.
+          <br>Endet eine Zugehörigkeit, ohne dass die nächste anschließt, sagt die
+          Ansicht das: Ab dem Folgetag steht dort <em>„unbekannt"</em>, bis wieder etwas
+          dokumentiert ist. Das ist ein Fingerzeig auf eine Lücke in Ihrer Kuration, kein
+          Fehler der Datei. Aus demselben Grund endet auch ein <strong>⚠</strong> sichtbar:
+          Teilen sich zwei Zeiträume ein Grenzjahr, trägt die Zeile dieses Jahres den
+          Hinweis, die Zeile des Folgejahres nicht mehr — die Mehrdeutigkeit ist damit
+          eingegrenzt statt bloß behauptet.</li>
       <li><strong>Ereignisse nach Typ</strong>: welche Personen hier geboren wurden,
           heirateten, starben — mit Quellen-Badges.</li>
       <li><strong>Ortszeitgenossen</strong>: wer zur selben Zeit am selben Ort lebte.</li>
@@ -461,7 +484,7 @@
       dürfen dabei vorne offen sein („bis 1806") — die Zeit davor verschwindet nicht aus
       der Geschichte, nur weil kein Anfangsjahr bekannt ist.
     </p>
-    <h3>Jahr oder Stichtag — beides im selben Feld</h3>
+    <h3 id="stichtag">Jahr oder Stichtag — beides im selben Feld</h3>
     <p>
       Grenzen von Zugehörigkeiten <em>und</em> von Ortsnamen nehmen wahlweise ein Jahr
       (<code>1810</code>) oder ein tagegenaues Datum (<code>1 OCT 1810</code>). Beides

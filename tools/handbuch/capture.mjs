@@ -677,5 +677,25 @@ await page.evaluate(() => {
 }); await sleep(600);
 await shot('29-story');
 
+// Bedienleiste der Baum-Insel VOLLSTÄNDIG (BL-367/368, ADR-v9-275). Sie trägt drei
+// Elemente, aber „★ Zentrieren" erscheint NUR, wenn die Mitte nicht der Proband ist — in
+// 14b/14c steht dort der Proband, der Knopf fehlt dort also zu Recht. Für den Shot deshalb
+// bewusst einen Ring nach oben rücken.
+//
+// WARUM GANZ AM ENDE und nicht direkt nach 14c: das Umrücken schreibt `lensFocus`, und der
+// ist geteilt (Lesson 5) — Zeitleiste und Story beziehen ihre Person daraus. Hier hinten
+// ist der Sprengradius null, egal auf wem der Baum stehen bleibt.
+//
+// Der Klick geht per `dispatchEvent`: die Fächer-Segmente sind SVG-Pfade, und `.click()`
+// gibt es nur auf `HTMLElement`.
+await click('Baum'); await sleep(1300);
+await click('Fächer'); await sleep(1300);
+await page.evaluate(() => {
+  const seg = document.querySelector('.tree-island__fan-seg[data-person-id]');
+  if (seg) seg.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+await sleep(1400);
+await shot('14e-insel-leiste');
+
 await browser.close();
 console.log('fertig — Screenshots in', OUT);

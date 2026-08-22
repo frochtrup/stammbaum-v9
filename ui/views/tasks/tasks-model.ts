@@ -12,39 +12,48 @@
 // Liste) — diese Datei portiert die geschlossene Enum-Einschränkung NICHT. Kategorien
 // werden dynamisch aus den tatsächlich vorkommenden Werten gruppiert; die v8-Label
 // bleiben nur als UI-seitige Presets (s. TasksView.svelte `CATEGORY_PRESETS`).
-import type { Database } from '../../../core/model/types';
+import type { Database, PersonId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import type { ResearchTask, TaskStatus, ProjectScope } from '../../../core/research/types';
 import { isTaskDone } from '../../../core/research/task';
 import { matchesScope } from '../../../core/research/index';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
+import { matchesResearchQuery } from '../research-search';
 
 export type TaskEntityKind = 'person' | 'family';
 
 /**
- * Fällt eine Trägerentität in den aktiven Projekt-Scope (BL-58)? `scope` null/undefined =
- * kein aktives Projekt = keine Einschränkung. Personen über `matchesScope`; eine Familie
- * gilt als im Scope, wenn mindestens ein Ehepartner im Scope liegt (die Familie hat selbst
- * keinen Nachnamen/kein Geburtsdatum). Geteilt von allen drei Forschungslisten (INV-UI-4).
+ * Ist eine Trägerentität überhaupt im Blick? DIE eine Sichtbarkeits-Frage der drei
+ * Forschungslisten (INV-UI-4) — sie beantwortet BEIDE Scope-Achsen gemeinsam:
+ *
+ *  - `scope` — der aktive Projekt-Scope (BL-58, Nachname/Ort/Zeitraum/Einzelpersonen).
+ *  - `allowed` — die Personenmenge der Verwandtschafts-Relevanz (BL-375). `null` =
+ *    Stufe „Alle" = keine Einschränkung; NICHT die leere Menge.
+ *
+ * Beide schneiden sich per UND (Spec 20 §1.11i). Eine Familie gilt als im Blick, wenn
+ * mindestens ein Ehepartner es ist — sie hat selbst weder Nachnamen noch Abstammung; die
+ * Rekursion hält diese Regel an EINER Stelle, für beide Achsen gleich.
  */
 export function entityInScope(
   db: Database,
   kind: TaskEntityKind,
   entityId: string,
   scope: ProjectScope | null | undefined,
+  allowed: ReadonlySet<PersonId> | null = null,
 ): boolean {
-  if (!scope) return true;
+  // Ohne beide Achsen ist alles im Blick — auch eine Familie ohne eingetragene Ehepartner,
+  // die die Rekursion unten sonst herausfiltern würde.
+  if (!scope && !allowed) return true;
   if (kind === 'person') {
+    if (allowed && !allowed.has(entityId)) return false;
+    if (!scope) return true;
     const p = db.individuals.get(entityId);
     return !!p && matchesScope(p, scope);
   }
   const f = db.families.get(entityId);
   if (!f) return false;
-  return [f.husband, f.wife].some((id) => {
-    const sp = id ? db.individuals.get(id) : undefined;
-    return !!sp && matchesScope(sp, scope);
-  });
+  return [f.husband, f.wife].some((id) => !!id && entityInScope(db, 'person', id, scope, allowed));
 }
 
 /** Eine Aufgabe zusammen mit ihrer Trägerentität (Spec 20 §1.11: "globale Liste"). */
@@ -67,17 +76,22 @@ export interface TaskEntry {
  * gleichnamige Personen unterscheidbare Gruppen-Kopfzeilen bekommen (INV-UI-6, BL-109);
  * die reinen Zähl-/Export-Aufrufer (openTaskCount, exportTasksMarkdown) lassen es weg.
  */
-export function collectAllTasks(db: Database, ctx?: PlaceContext, scope?: ProjectScope | null): TaskEntry[] {
+export function collectAllTasks(
+  db: Database,
+  ctx?: PlaceContext,
+  scope?: ProjectScope | null,
+  allowed: ReadonlySet<PersonId> | null = null,
+): TaskEntry[] {
   const out: TaskEntry[] = [];
   for (const [id, p] of db.individuals) {
-    if (scope && !matchesScope(p, scope)) continue;
+    if (!entityInScope(db, 'person', id, scope, allowed)) continue;
     const summary = ctx ? yearPlaceSummary(p.birth, ctx) : '';
     for (const task of p.tasks) {
       out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), entitySummary: summary, task });
     }
   }
   for (const [id] of db.families) {
-    if (!entityInScope(db, 'family', id, scope)) continue;
+    if (!entityInScope(db, 'family', id, scope, allowed)) continue;
     const label = familyLabelFor(db, id);
     const f = db.families.get(id)!;
     for (const task of f.tasks) {
@@ -102,6 +116,15 @@ export function formatBadgeCount(n: number): string {
 }
 
 export type TaskFilter = 'all' | 'open' | 'done';
+
+/**
+ * Textsuche über Aufgabentext, Kategorie und Trägername (BL-374, Spec 20 §1.11a). Der
+ * Trägername gehört dazu, weil die Liste global ist: „alles zu Meier" ist die häufigste
+ * Frage an sie, und ohne ihn fände man sie nur über den Projekt-Scope.
+ */
+export function matchesTaskQuery(e: TaskEntry, query: string): boolean {
+  return matchesResearchQuery([e.task.text, e.task.category, e.entityLabel], query);
+}
 
 /** Filtert nach Status (Orakel: `switchTasksFilter` alle/offen/erledigt). */
 export function filterTasks(entries: TaskEntry[], filter: TaskFilter): TaskEntry[] {

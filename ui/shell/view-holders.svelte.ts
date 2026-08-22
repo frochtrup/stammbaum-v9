@@ -16,10 +16,12 @@ import {
   createFamilyListState,
   createPlaceListState,
   createHofListState,
+  createSourceListState,
   type PersonListState,
   type FamilyListState,
   type PlaceListState,
   type HofListState,
+  type SourceListState,
 } from '../views/list-view-state.svelte';
 import { createQualityDashboardState } from '../views/quality/quality-dashboard-state.svelte';
 import { createTreeViewState } from '../views/tree/tree-view-state.svelte';
@@ -27,6 +29,7 @@ import { createGlobalSearchState } from '../views/search/global-search-state.sve
 import {
   createHypothesesViewState,
   createLogViewState,
+  createResearchScopeState,
   createTasksViewState,
 } from '../views/research-segment-state.svelte';
 import { createWindowed, type Windowed } from './windowed.svelte';
@@ -43,9 +46,12 @@ export interface ViewHolders {
   tasks: ReturnType<typeof createTasksViewState>;
   log: ReturnType<typeof createLogViewState>;
   hypotheses: ReturnType<typeof createHypothesesViewState>;
+  /** Relevanz-Achse der Forschungs-Umbrella (BL-375) — scoped alle vier Segmente. */
+  researchScope: ReturnType<typeof createResearchScopeState>;
   lists: {
     person: PersonListState;
     family: FamilyListState;
+    source: SourceListState;
     place: PlaceListState;
     hof: HofListState;
   };
@@ -65,9 +71,11 @@ export function createViewHolders(): ViewHolders {
     tasks: createTasksViewState(),
     log: createLogViewState(),
     hypotheses: createHypothesesViewState(),
+    researchScope: createResearchScopeState(),
     lists: {
       person: createPersonListState(),
       family: createFamilyListState(),
+      source: createSourceListState(),
       place: createPlaceListState(),
       hof: createHofListState(),
     },

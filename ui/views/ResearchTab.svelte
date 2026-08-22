@@ -18,6 +18,7 @@
   // über `route.setTarget()` gepflegt; ohne ihn fiel die Fläche bei jedem Verlassen auf
   // "Aufgaben" zurück (dieselbe Lücke, die `entityTarget` für die Entitäten längst schloss,
   // BL-90/ADR-v9-101).
+  import { untrack } from 'svelte';
   import type { AppState } from '../shell/app-state.svelte';
   import type { Route } from '../shell/route.svelte';
   import type { ViewState } from '../shell/view-state.svelte';
@@ -30,11 +31,15 @@
   import HypothesesView from './hypotheses/HypothesesView.svelte';
   import QualityDashboard from './quality/QualityDashboard.svelte';
   import type { QualityDashboardState } from './quality/quality-dashboard-state.svelte';
-  import type {
-    HypothesesViewState,
-    LogViewState,
-    TasksViewState,
+  import {
+    createResearchScopeState,
+    type HypothesesViewState,
+    type LogViewState,
+    type ResearchScopeState,
+    type TasksViewState,
   } from './research-segment-state.svelte';
+  import { computeKinship, kinshipMembers, type KinshipClass } from '../../core/model/kinship';
+  import { resolveProband } from '../shell/proband';
   import ProjectBar from './research-projects/ProjectBar.svelte';
   import type { ProjectsState } from '../shell/projects-state.svelte';
 
@@ -60,6 +65,12 @@
     tasks?: TasksViewState;
     log?: LogViewState;
     hypotheses?: HypothesesViewState;
+    /**
+     * Relevanz-Achse (BL-375, Spec 20 §1.11i) — wie die drei Segment-Halter von AUSSEN.
+     * Sie gehört der App-Wurzel, nicht dieser Fläche: der Weg auf eine Person baut auch
+     * `ResearchTab` ab, ein hier angelegter Halter hätte nichts gerettet.
+     */
+    researchScope?: ResearchScopeState;
     onNavigateToPerson?: (id: string) => void;
     onNavigateToFamily?: (id: string) => void;
     onNavigateToPlace?: (id: string) => void;
@@ -74,6 +85,7 @@
     tasks,
     log,
     hypotheses,
+    researchScope: researchScopeProp,
     onNavigateToPerson,
     onNavigateToFamily,
     onNavigateToPlace,
@@ -87,6 +99,20 @@
   // 'tasks'), weil das Dashboard nur bei Auswahl mountet und seine DB-weite Validierung
   // nicht bei jedem Öffnen der Fläche anlaufen soll.
   const segments = RESEARCH_TARGETS;
+
+  const scopeState = untrack(() => researchScopeProp ?? createResearchScopeState());
+
+  // Die Verwandtschafts-Mengen hängen am aufgelösten Probanden (ADR-v9-135/139, dieselbe
+  // Auflösung wie Dashboard und Ast-Reifegrad — kein zweiter Rückfall hier) und werden
+  // EINMAL für alle vier Segmente gerechnet, nicht je Segment. `kinshipMembers` liefert
+  // `null` für „Alle": das ist KEINE Einschränkung und wird von den Segmenten anders
+  // behandelt als eine leere Menge.
+  const kinshipSets = $derived(computeKinship(appState.db, resolveProband(appState.db, viewState)));
+  const allowed = $derived(kinshipMembers(appState.db, kinshipSets, scopeState.kinship));
+
+  function setKinship(next: KinshipClass) {
+    scopeState.kinship = next;
+  }
 
   const activeSegment = $derived(route.researchTarget);
 
@@ -109,8 +135,12 @@
 
 <div class="research-tab">
   <!-- Projekt-Chip-Selektor GENAU EINMAL oberhalb der Segmente (BL-58, INV-UI-11) —
-       scoped Aufgaben/Protokoll/Hypothesen gemeinsam, in BEIDEN Formfaktoren. -->
-  <ProjectBar {projects} />
+       scoped Aufgaben/Protokoll/Hypothesen gemeinsam, in BEIDEN Formfaktoren.
+       Die Relevanz-Achse (BL-375) sitzt IN derselben Leiste, nicht in einer zweiten
+       darunter: sie beantwortet dieselbe Frage („welcher Ausschnitt?") und kostet als
+       eigene Zeile eine von wenigen mobilen Zeilen (INV-UI-11). `onchange` statt
+       `bind:value` — TST-12/ESLint-Regel (happy-dom-Falle). -->
+  <ProjectBar {projects} kinship={scopeState.kinship} onKinship={setKinship} />
 
   <!-- Die Forschungs-Segmentreihe ist die MOBILE Sub-Navigation (Spec 21 §2). Auf Desktop
        führt die Sidebar dieselben vier Ziele beschriftet und dauerhaft in der Gruppe
@@ -143,17 +173,19 @@
       {onNavigateToFamily}
       onStartLogFromTask={startLogFromTask}
       scope={projects.activeScope}
+      {allowed}
     />
   {:else if activeSegment === 'log'}
-    <LogView {appState} {route} {log} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
+    <LogView {appState} {route} {log} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} {allowed} />
   {:else if activeSegment === 'hypotheses'}
-    <HypothesesView {appState} {hypotheses} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} />
+    <HypothesesView {appState} {hypotheses} {onNavigateToPerson} {onNavigateToFamily} scope={projects.activeScope} {allowed} />
   {:else if activeSegment === 'quality'}
     <QualityDashboard
       {appState}
       {viewState}
       {quality}
       scope={projects.activeScope}
+      {allowed}
       {onNavigateToPerson}
       {onNavigateToFamily}
       {onNavigateToPlace}

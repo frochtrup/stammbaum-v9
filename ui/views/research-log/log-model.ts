@@ -3,13 +3,13 @@
 // Protokoll-Tab + Markdown-Export"). Analog ui/views/tasks/tasks-model.ts
 // (collectAllTasks) — DOM-frei testbar (Testpyramide, TST-5), liest AUSSCHLIESSLICH
 // über db.individuals/db.families (Chokepoint-Zugriff, Spec 02 §3).
-import type { Database } from '../../../core/model/types';
+import type { Database, PersonId } from '../../../core/model/types';
 import type { PlaceContext } from '../../../core/places';
 import type { LogEntry, LogResult, ResearchTask, ProjectScope } from '../../../core/research/types';
-import { matchesScope } from '../../../core/research/index';
 import { displayName, yearPlaceSummary } from '../../shell/person-display';
 import { familyLabelFor } from '../source/family-label';
 import { entityInScope, type TaskEntityKind } from '../tasks/tasks-model';
+import { matchesResearchQuery } from '../research-search';
 
 /** Vorbelegung des Protokoll-Formulars aus einer Aufgabe heraus (UI-Kurzweg, BL-65).
  *  ResearchTab hält diesen Wert transient, TasksView setzt ihn, LogView konsumiert ihn. */
@@ -36,17 +36,22 @@ export interface LogEntryRow {
  * Chokepoints (db.individuals/db.families) neu lesen → diese Funktion erneut aufrufen.
  * `ctx` optional (INV-UI-6, BL-109) — s. collectAllTasks.
  */
-export function collectAllLogEntries(db: Database, ctx?: PlaceContext, scope?: ProjectScope | null): LogEntryRow[] {
+export function collectAllLogEntries(
+  db: Database,
+  ctx?: PlaceContext,
+  scope?: ProjectScope | null,
+  allowed: ReadonlySet<PersonId> | null = null,
+): LogEntryRow[] {
   const out: LogEntryRow[] = [];
   for (const [id, p] of db.individuals) {
-    if (scope && !matchesScope(p, scope)) continue;
+    if (!entityInScope(db, 'person', id, scope, allowed)) continue;
     const summary = ctx ? yearPlaceSummary(p.birth, ctx) : '';
     p.researchLog.forEach((entry, index) => {
       out.push({ kind: 'person', entityId: id, entityLabel: displayName(p), entitySummary: summary, index, entry });
     });
   }
   for (const [id] of db.families) {
-    if (!entityInScope(db, 'family', id, scope)) continue;
+    if (!entityInScope(db, 'family', id, scope, allowed)) continue;
     const label = familyLabelFor(db, id);
     const f = db.families.get(id)!;
     f.researchLog.forEach((entry, index) => {
@@ -65,8 +70,23 @@ export function collectAllLogEntries(db: Database, ctx?: PlaceContext, scope?: P
  * demselben Datenbestand wie die gruppierte Liste; `collectAllLogEntries` sortiert bereits
  * absteigend nach Datum, die Timeline ist genau diese flache Reihenfolge.
  */
-export function buildResearchTimeline(db: Database, ctx?: PlaceContext, scope?: ProjectScope | null): LogEntryRow[] {
-  return collectAllLogEntries(db, ctx, scope);
+export function buildResearchTimeline(
+  db: Database,
+  ctx?: PlaceContext,
+  scope?: ProjectScope | null,
+  allowed: ReadonlySet<PersonId> | null = null,
+): LogEntryRow[] {
+  return collectAllLogEntries(db, ctx, scope, allowed);
+}
+
+/**
+ * Textsuche über Suchanfrage, Notiz und Trägername (BL-374, Spec 20 §1.11b). Archiv und
+ * Quelle sind bewusst NICHT dabei: beide stehen als Id im Eintrag (`repoRef`/`sourceRef`),
+ * ihr Klartext entsteht erst in der Zeile — eine Suche über „@R1@" fände niemand, und die
+ * Auflösung hier hieße, das Anzeige-Modell in die Matchfunktion zu ziehen.
+ */
+export function matchesLogQuery(row: LogEntryRow, query: string): boolean {
+  return matchesResearchQuery([row.entry.query, row.entry.note, row.entityLabel], query);
 }
 
 /** Eine Trägerentität mit ihren Protokollzeilen (personenweise gruppierte Ansicht, BL-56). */

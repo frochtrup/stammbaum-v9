@@ -20,11 +20,14 @@
   // dessen Panel. Der 🕒-Timeline-Umschalter (Spec 20 §1.11b, noch offen) bekommt später
   // den dritten Slot über `ViewModeToggle` — analog TasksView, nicht als eigenes Icon.
   import type { AppState } from '../../shell/app-state.svelte';
+  import type { PersonId } from '../../../core/model/types';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
   import LogForm, { type LogFormValues } from './LogForm.svelte';
   import {
     buildResearchTimeline,
     groupLogByEntity,
     filterLogEntries,
+    matchesLogQuery,
     resultLabel,
     exportLogMarkdown,
     linkedTaskText,
@@ -54,6 +57,9 @@
     onNavigateToFamily?: (id: string) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /** Personenmenge der Verwandtschafts-Relevanz (BL-375) — `null` = keine
+     *  Einschränkung; EINMAL auf der Umbrella-Ebene gerechnet (Spec 20 §1.11i). */
+    allowed?: ReadonlySet<PersonId> | null;
     /**
      * Routen-Quelle — trägt den Anzeige-Modus (gruppiert · Zeitleiste) als Merker, wie sie
      * es für die Lens-Modi längst tut (BL-320, Spec 21 §5 Heimat ①). PFLICHT wie bei
@@ -71,6 +77,7 @@
     onNavigateToPerson,
     onNavigateToFamily,
     scope = null,
+    allowed = null,
     route,
     log: logProp,
   }: Props = $props();
@@ -100,8 +107,10 @@
   }
   let formInitial = $state<LogFormValues>(emptyForm());
 
-  const allEntries = $derived(buildResearchTimeline(appState.db, appState.placeContext, scope));
-  const filteredEntries = $derived(filterLogEntries(allEntries, log.filter));
+  const allEntries = $derived(buildResearchTimeline(appState.db, appState.placeContext, scope, allowed));
+  const filteredEntries = $derived(
+    filterLogEntries(allEntries, log.filter).filter((r) => matchesLogQuery(r, log.query)),
+  );
   const groups = $derived(groupLogByEntity(filteredEntries));
 
   const FILTERS: { key: LogFilter; label: string }[] = [
@@ -113,6 +122,8 @@
   ];
 
   const activeFilterCount = $derived(
+    // Die Suchanfrage zählt NICHT mit: sie steht sichtbar in der Kopfzeile, und ein
+    // Badge über einem sichtbaren Feld zeigte dieselbe Sache zweimal an.
     countActiveFilters({ filter: log.filter }, { filter: DEFAULT_FILTER }),
   );
 
@@ -174,6 +185,17 @@
 
 <div class="log-view">
   <div class="log-view__toolbar">
+    <div class="stb-research-search">
+      <input
+        type="search" {...PLAIN_FIELD}
+        placeholder="Suche…"
+        aria-label="Protokoll durchsuchen"
+        bind:value={log.query}
+      />
+      {#if log.query}
+        <button type="button" aria-label="Suche löschen" onclick={() => (log.query = '')}>✕</button>
+      {/if}
+    </div>
     <FilterBar activeCount={activeFilterCount}>
       <fieldset class="stb-filter-set">
         <legend>Ergebnis</legend>
@@ -283,6 +305,8 @@
     display: flex;
     flex-direction: column;
   }
+
+
 
   .log-view__toolbar {
     display: flex;

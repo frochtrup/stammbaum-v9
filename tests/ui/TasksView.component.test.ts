@@ -81,7 +81,7 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('wechselt in die Board-Ansicht mit den 3 Spalten Offen/In Arbeit/Erledigt', async () => {
     renderView(seedDb());
     await setFilter('Alle'); // alle Status sichtbar
-    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
+    await fireEvent.click(screen.getByRole('button', { name: /wechseln zu ▦ Board/ }));
 
     // Spaltenköpfe (nicht der Filter-Button "Offen" oben in der Toolbar) — Selektor über
     // die Board-Spalten-Klasse, damit der Test nicht an der gleichlautenden Filter-
@@ -96,7 +96,7 @@ describe('TasksView — Liste ⇄ Kanban-Board-Umschalter', () => {
   it('Tap-to-Advance im Board erhöht den Status um eine Stufe', async () => {
     const { appState } = renderView(seedDb());
     await setFilter('Alle');
-    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
+    await fireEvent.click(screen.getByRole('button', { name: /wechseln zu ▦ Board/ }));
 
     const advanceBtn = screen.getByText('→ In Arbeit'); // t1 ist todo -> next=doing
     await fireEvent.click(advanceBtn);
@@ -249,12 +249,13 @@ describe('TasksView — Filter und Anzeige-Modus überleben das Wegnavigieren (B
     const props = { appState, route, tasks: createTasksViewState(), onNavigateToPerson: vi.fn(), onNavigateToFamily: vi.fn() };
 
     const first = render(TasksView, { props });
-    await fireEvent.click(screen.getByRole('tab', { name: '▦ Board' }));
+    await fireEvent.click(screen.getByRole('button', { name: /wechseln zu ▦ Board/ }));
     first.unmount();
 
     render(TasksView, { props: { ...props } });
 
-    expect(screen.getByRole('tab', { name: '▦ Board' }).getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByRole('tab', { name: '☰ Liste' }).getAttribute('aria-selected')).toBe('false');
+    // Der Zwei-Zustands-Umschalter nennt den IST-Zustand (Spec 21 §6h „ein Icon-Slot"):
+    // steht dort „Board", ist die Board-Ansicht offen — und der Klick führte zurück.
+    expect(screen.getByRole('button', { name: /▦ Board, wechseln zu ☰ Liste/ })).toBeTruthy();
   });
 });

@@ -22,6 +22,29 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.19] — 2026-08-21
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`1ef7009`…HEAD) erzeugt._
+
+- fix(orte): Segmentgrenzen der Zeitleiste nur aus periodengerecht erreichbaren Ebenen (BL-377) (`77e95f7`)
+- fix(v9-forschung): BL-376 — Forschungsprojekte sind wieder aenderbar und loeschbar (ADR-v9-279) (`8407202`)
+- feat(v9-forschung): Suchfeld sichtbar in der Kopfzeile, Umschalter auf einen Slot (ADR-v9-278) (`7948149`)
+- feat(v9-forschung): BL-374/375 — Suche und Verwandtschafts-Relevanz (ADR-v9-278) (`057a498`)
+- feat(v9-quellen): BL-372/373 — Suche und Gattungs-Filter der Quellenliste (ADR-v9-277) (`cdec6df`)
+
+---
+
+## [9.18] — 2026-08-19
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`357b328`…HEAD) erzeugt._
+
+- feat(v9-tree): BL-370/371 — Faecher-Segmente nennen Namen und Geburtsjahr im Tooltip, bis zu 8 Ringe (ADR-v9-276) (`e0c503a`)
+- feat(v9-tree): BL-366/367/368 — Fächer klickbar, Rückweg zum Probanden, wählbare Generationen (ADR-v9-275) (`3b4a532`)
+- feat(person): die Verwandtschaftszeile verlangt einen gewaehlten Probanden (ADR-v9-274 E7) (`4bf4958`)
+- feat(person): das Datum fuehrt die Familienzeile an, der Verwandtschaftsgrad ist hervorgehoben + Handbuch 9.17 (`2fa6be8`)
+
+---
+
 ## [9.17] — 2026-08-13
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`d6f28b3`…HEAD) erzeugt._

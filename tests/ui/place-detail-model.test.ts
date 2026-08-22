@@ -340,10 +340,14 @@ describe('buildPlaceDetail — nach unten offene Zugehörigkeit (ADR-v9-181)', (
 
     // Der Defekt: `docStart` entstand nur aus Einträgen MIT `from`, wurde damit 1816 und
     // klemmte das Schlüsseljahr 1806 weg — übrig blieb EINE Zeile.
-    expect(detail!.hierarchyTimeline).toHaveLength(2);
+    // Die DRITTE Zeile kam mit BL-377 dazu und ist keine Aufweichung dieser Zusage: zwischen
+    // 1807 und 1815 ist für diesen Ort nichts dokumentiert, und genau das sagt sie jetzt
+    // verlässlich statt nur dann, wenn zufällig ein fremder Schlüsselpunkt hineinfällt.
+    expect(detail!.hierarchyTimeline).toHaveLength(3);
     expect(detail!.hierarchyTimeline[0].chain).toEqual([
       { id: '@FUERST@', label: 'Fürstbistum Münster' },
     ]);
+    expect(detail!.hierarchyTimeline[1].chain, 'die Lücke 1807–1815').toBeNull();
   });
 
   it('beschriftet die erste Zeile mit dem Zeitraum „bis …", nicht mit einem Punktjahr', () => {
@@ -352,7 +356,9 @@ describe('buildPlaceDetail — nach unten offene Zugehörigkeit (ADR-v9-181)', (
     const detail = buildPlaceDetail(db, ctxFor(db), '@P1@');
 
     // „1806" allein läse sich, als hätte die Zugehörigkeit in genau diesem Jahr gegolten.
-    expect(detail!.hierarchyTimeline.map((r) => r.label)).toEqual(['bis 1806', 'ab 1816']);
+    // Die Beschriftung der ersten Zeile bleibt von der Lückenzeile (BL-377) unberührt: die
+    // Obergrenze ist weiterhin der frühere Wert aus `to` und „Jahr vor der nächsten Zeile".
+    expect(detail!.hierarchyTimeline.map((r) => r.label)).toEqual(['bis 1806', 'ab 1807', 'ab 1816']);
   });
 
   it('klemmt weiterhin, wo es einen dokumentierten Anfang gibt (die Klemme fällt nicht ersatzlos)', () => {
@@ -787,5 +793,123 @@ describe('buildPlaceDetail — Stichtage in der Zeitleiste (BL-324)', () => {
     const davor = rows.filter((r) => r.year === 1512);
     expect(davor.map((r) => r.label)).toEqual(['ab 1512']);
     expect(davor[0].chain).toEqual([{ id: '@AMT@', label: 'Amt Ilten' }]);
+  });
+});
+
+describe('buildPlaceDetail — Segmentgrenzen nur aus periodengerecht erreichbaren Ebenen (BL-377)', () => {
+  // Nutzer-Befund 2026-08-21, am eigenen Bestand nachgestellt: die Schlüsselpunkte der
+  // Zeitleiste stammten aus JEDEM über `enclosedBy` erreichbaren Knoten — unabhängig
+  // davon, ob dieser Knoten zu jenem Zeitpunkt überhaupt über dem Ort stand. Ein
+  // Elternteil ab 1969 brachte damit seine Namensgrenze von 1804 mit.
+
+  it('ein Elternteil ab 1969 setzt keine Segmentgrenze im Jahr 1804', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@STIFT@', place('@STIFT@', { title: 'Fürstbistum Münster' }));
+    db.placeObjects.set('@REICH@', place('@REICH@', { title: 'Heiliges Römisches Reich' }));
+    // Der Kreis ist erst ab 1969 Elternteil — seine eigene Namensachse reicht weit davor
+    // zurück und trägt eine Grenze im Jahr 1804.
+    db.placeObjects.set(
+      '@KREIS@',
+      place('@KREIS@', {
+        title: 'Kreis Steinfurt',
+        pnames: [
+          { value: 'Grafschaft Steinfurt', from: 1150, to: 1804 },
+          { value: 'Kreis Steinfurt', from: 1804, to: null },
+        ],
+      }),
+    );
+    // Das Amt wechselt 1803 den Träger — die beiden Jahres-Perioden teilen sich das
+    // Grenzjahr, im Jahr 1803 gilt deshalb der Hinweis auf die Mehrdeutigkeit.
+    db.placeObjects.set(
+      '@AMT@',
+      place('@AMT@', {
+        title: 'Amt Horstmar',
+        enclosedBy: [
+          { placeId: '@STIFT@', from: 1269, to: 1803 },
+          { placeId: '@REICH@', from: 1803, to: 1806 },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1269, to: 1808 },
+          { placeId: '@KREIS@', from: 1969, to: null },
+        ],
+      }),
+    );
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    // 1806 und 1809 sind EIGENE Grenzen: das Amt verliert 1806 seinen Träger, und ab 1809
+    // ist für den Ort selbst nichts dokumentiert (Lücke bis 1969). 1804 dagegen gehört dem
+    // Kreis, und der steht hier erst ab 1969 über dem Ort.
+    expect(rows.map((r) => r.year)).toEqual([1269, 1803, 1806, 1808, 1809, 1969]);
+    expect(rows.some((r) => r.year === 1804), 'kein Segment im Jahr 1804').toBe(false);
+    // Der Hinweis auf die Mehrdeutigkeit gilt für die ganze Strecke ab 1803 — er endete
+    // vorher scheinbar 1804, weil dort ein fremder Schlüsselpunkt lag.
+    expect(rows.find((r) => r.year === 1803)!.ueberlappt).toBe(true);
+  });
+
+  it('ein Elternteil ab dem 14. November 1808 verlegt seine Grenze nicht auf den 1. Januar', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@HRR@', place('@HRR@', { title: 'Heiliges Römisches Reich' }));
+    db.placeObjects.set('@RB@', place('@RB@', { title: 'Rheinbund' }));
+    db.placeObjects.set(
+      '@BERG@',
+      place('@BERG@', {
+        title: 'Großherzogtum Berg',
+        enclosedBy: [
+          { placeId: '@HRR@', from: 1800, to: 1806 },
+          { placeId: '@RB@', from: 1806, to: 1813 },
+        ],
+      }),
+    );
+    // Das Departement entsteht 1808 — sein eigener Bestand ist nur jahrgenau. Über den
+    // Ort erreichbar ist es aber erst ab dem 14. November.
+    db.placeObjects.set(
+      '@DEP@',
+      place('@DEP@', {
+        title: 'Departement Ems',
+        existsFrom: 1808,
+        pnames: [{ value: 'Departement Ems', from: 1808, to: 1811 }],
+        enclosedBy: [{ placeId: '@BERG@', from: 1808, to: 1811 }],
+      }),
+    );
+    db.placeObjects.set(
+      '@AMT@',
+      place('@AMT@', {
+        title: 'Amt Horstmar',
+        enclosedBy: [
+          { placeId: '@BERG@', from: 1806, to: 1808, fromDate: '12 JUL 1806', toDate: '13 NOV 1808' },
+        ],
+      }),
+    );
+    db.placeObjects.set(
+      '@P1@',
+      place('@P1@', {
+        title: 'Ochtrup',
+        enclosedBy: [
+          { placeId: '@AMT@', from: 1269, to: 1808, toDate: '13 NOV 1808' },
+          { placeId: '@DEP@', from: 1808, to: 1811, fromDate: '14 NOV 1808' },
+        ],
+      }),
+    );
+
+    const rows = buildPlaceDetail(db, ctxFor(db), '@P1@')!.hierarchyTimeline;
+
+    expect(rows.map((r) => r.label), 'keine Zeile "ab 1808"').toEqual([
+      'ab 1269',
+      'ab 12. Juli 1806',
+      'ab 13. November 1808',
+      'ab 14. November 1808',
+    ]);
+    expect(rows.at(-1)!.chain).toEqual([
+      { id: '@DEP@', label: 'Departement Ems' },
+      { id: '@BERG@', label: 'Großherzogtum Berg' },
+      { id: '@RB@', label: 'Rheinbund' },
+    ]);
   });
 });

@@ -32,6 +32,12 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Source } from '../../../core/model/types';
   import { SOURCE_TEMPLATES, type SourceTemplate } from '../../../core/model/source-templates';
+  import {
+    ASSIGNABLE_SOURCE_KINDS,
+    sourceKindOf,
+    withSourceKindMarker,
+    type SourceKind,
+  } from '../../../core/model/source-kinds';
   import RepositoryPicker from '../../shell/RepositoryPicker.svelte';
   import { formEscape, formSubmit } from '../../shell/form-keys';
 
@@ -96,6 +102,23 @@
   // nach dem Neuladen weg). Da die Vorlagen oben das Feld von sich aus vorbelegen, ist
   // das der Regelfall, nicht der Ausnahmefall — also sagen wir es, statt es zu schlucken.
   const mediaOrphan = $derived(!!callMedia.trim() && !(repo && callNumber.trim()));
+
+  // --- Gattung (BL-373, Spec 20 §1.6) --------------------------------------------------
+  // Die Gattung ist KEIN eigenes Feld: sie wird aus Kurzname und Titel abgeleitet und
+  // dort auch geändert. Die Auswahlbox schreibt den kanonischen Marker sichtbar in den
+  // Kurznamen — der Nutzer sieht sofort, was passiert ist, und kann es wie jeden anderen
+  // Text weiterbearbeiten. Ein verstecktes Feld hätte zwei Wahrheiten erzeugt (die
+  // Ableitung sagte das eine, der Speicher das andere), und ein stiller Umschreib-
+  // Automatismus wäre genau der plausible Fantasiewert, den `source-templates.ts` bei
+  // den Autor-Feldern bewusst NICHT einträgt.
+  //
+  // `$derived` über den LEBENDEN Formularwerten, nicht über `source`: wer tippt, soll die
+  // Einordnung mitwandern sehen, ohne zu speichern.
+  const kind = $derived(sourceKindOf({ abbr, title }));
+
+  function setKind(next: SourceKind) {
+    abbr = withSourceKindMarker(abbr, next);
+  }
 
   function applyTemplateByLabel() {
     const match = SOURCE_TEMPLATES.find((t) => t.label === templateQuery);
@@ -188,6 +211,30 @@
       Kurzname
       <input type="text" {...PLAIN_FIELD} bind:value={abbr} />
     </label>
+    <!-- Die Gattung steht NEBEN dem Kurznamen, weil sie in ihm wohnt (BL-373). `onchange`
+         statt `bind:value` — TST-12/ESLint-Regel (happy-dom-Falle). „Sonstiges" ist keine
+         wählbare Option: es gibt kein Wort, das man einem Namen hinzufügt, damit er nichts
+         mehr aussagt — wer eine Einordnung loswerden will, bearbeitet den Kurznamen. -->
+    <label>
+      Gattung
+      <select
+        value={kind}
+        onchange={(e) => setKind((e.currentTarget as HTMLSelectElement).value as SourceKind)}
+        aria-describedby="source-form-kind-hint"
+      >
+        {#if kind === 'sonstiges'}
+          <option value="sonstiges">ohne erkennbare Gattung</option>
+        {/if}
+        {#each ASSIGNABLE_SOURCE_KINDS as k (k.key)}
+          <option value={k.key}>{k.label}</option>
+        {/each}
+      </select>
+    </label>
+    <!-- Wie beim Medientyp darunter: der Hinweis steht AUSSERHALB des <label>, sonst
+         würde er Teil des Accessible Name des Feldes statt als Beschreibung angesagt. -->
+    <p class="source-form__hint" id="source-form-kind-hint">
+      Aus dem Kurznamen abgeleitet — eine Änderung setzt den Marker dort sichtbar ein.
+    </p>
     <label>
       Autor
       <input type="text" {...PLAIN_FIELD} bind:value={author} />
@@ -285,6 +332,14 @@
     font-size: 0.8rem;
     color: var(--stb-text-dim);
     margin-top: 0.4rem;
+  }
+
+  /* Erklärzeile unter einem Feld (Gattung, BL-373) — gedämpft und klein, sie erläutert,
+     sie warnt nicht. */
+  .source-form__hint {
+    font-size: 0.7rem;
+    color: var(--stb-text-dim);
+    line-height: 1.3;
   }
 
   /* Hinweis, kein Fehler: die Eingabe ist gültig, nur noch nicht speicherbar — deshalb

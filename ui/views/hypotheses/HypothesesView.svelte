@@ -20,6 +20,8 @@
   import { untrack } from 'svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { sourceLabel } from '../../shell/source-label';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
+  import type { PersonId } from '../../../core/model/types';
   import {
     createHypothesesViewState,
     DEFAULT_HYPO_FILTER,
@@ -28,6 +30,7 @@
   import {
     collectAllHypotheses,
     filterHypotheses,
+    matchesHypothesisQuery,
     statusLabel,
     weightLabel,
     type HypothesisFilter,
@@ -43,6 +46,9 @@
     onNavigateToFamily?: (id: string) => void;
     /** Aktiver Projekt-Scope (BL-58) — null = keine Einschränkung. */
     scope?: ProjectScope | null;
+    /** Personenmenge der Verwandtschafts-Relevanz (BL-375) — `null` = keine
+     *  Einschränkung; EINMAL auf der Umbrella-Ebene gerechnet (Spec 20 §1.11i). */
+    allowed?: ReadonlySet<PersonId> | null;
     /**
      * Filterzustand von AUSSEN (BL-320): dieses Segment wird beim Wechsel des Nav-Ziels
      * abgebaut, ein gesetzter Filter war danach weg (Spec 21 §5).
@@ -54,6 +60,7 @@
     onNavigateToPerson,
     onNavigateToFamily,
     scope = null,
+    allowed = null,
     hypotheses: hypothesesProp,
   }: Props = $props();
 
@@ -73,8 +80,12 @@
   }
   let formInitial = $state<HypothesisFormValues>(emptyForm());
 
-  const allEntries = $derived(collectAllHypotheses(appState.db, appState.placeContext, scope));
-  const filteredEntries = $derived(filterHypotheses(allEntries, hypotheses.filter));
+  const allEntries = $derived(collectAllHypotheses(appState.db, appState.placeContext, scope, allowed));
+  const filteredEntries = $derived(
+    filterHypotheses(allEntries, hypotheses.filter).filter((e) =>
+      matchesHypothesisQuery(e, hypotheses.query),
+    ),
+  );
 
   const FILTERS: { key: HypothesisFilter; label: string }[] = [
     { key: 'all', label: 'Alle' },
@@ -84,6 +95,8 @@
   ];
 
   const activeFilterCount = $derived(
+    // Die Suchanfrage zählt NICHT mit: sie steht sichtbar in der Kopfzeile, und ein
+    // Badge über einem sichtbaren Feld zeigte dieselbe Sache zweimal an.
     countActiveFilters({ filter: hypotheses.filter }, { filter: DEFAULT_FILTER }),
   );
 
@@ -138,6 +151,17 @@
 
 <div class="hyp-view">
   <div class="hyp-view__toolbar">
+    <div class="stb-research-search">
+      <input
+        type="search" {...PLAIN_FIELD}
+        placeholder="Suche…"
+        aria-label="Hypothesen durchsuchen"
+        bind:value={hypotheses.query}
+      />
+      {#if hypotheses.query}
+        <button type="button" aria-label="Suche löschen" onclick={() => (hypotheses.query = '')}>✕</button>
+      {/if}
+    </div>
     <FilterBar activeCount={activeFilterCount}>
       <fieldset class="stb-filter-set">
         <legend>Status</legend>
@@ -221,6 +245,8 @@
     display: flex;
     flex-direction: column;
   }
+
+
 
   .hyp-view__toolbar {
     display: flex;

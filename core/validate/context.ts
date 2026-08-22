@@ -1,52 +1,18 @@
 // core/validate/context.ts — die DB-weiten Vorberechnungen, die VOR den Regelschleifen
 // genau einmal laufen (Spec 20 §3, „Vernetzung ist eine Graph-Traversierung").
-import type { Database, HofId, PersonId, SourceId } from '../model/types';
+import type { Database, HofId, SourceId } from '../model/types';
 import type { RuleContext, ValidationConfig } from './types';
-import { smallestPersonId } from '../model/queries';
+import { reachableFrom } from '../model/kinship';
 import { eventHofId, makePlaceRegistry, makeHofRegistry, HOF_EVENT_TYPES, type PlaceContext } from '../places';
 
 /**
- * Erreichbarkeitsmenge des Kernbaums: BFS vom Probanden über alle Eltern- und
- * Ehe-Kanten. Alles nicht Erreichte ist „verwaist" (DISCONNECTED_FROM_ROOT).
- *
- * Die Wurzel ist der konfigurierte Proband; ohne ihn die kleinste Personen-ID in
- * SORTIERTER Reihenfolge — nicht die erste der Map. Das ist bewusst: die Map-Reihenfolge
- * hängt an der Einlese-Reihenfolge der Datei, die Wurzel-Wahl würde sonst zwischen zwei
- * Importen derselben Daten springen und den Befund-Bestand mitverschieben.
+ * Erreichbarkeitsmenge des Kernbaums — die Definition ist mit BL-375 in den
+ * Modell-Kern gezogen (`core/model/kinship.ts`), weil seither auch die
+ * Forschungsfläche danach fragt und zwei BFS über dieselben Kanten zwei Wahrheiten
+ * wären. Hier steht nur noch der Re-Export: `buildContext` unten und die Aufrufer
+ * über `core/validate/index.ts` bleiben unverändert.
  */
-export function reachableFrom(db: Database, probandId: PersonId | null): {
-  rootId: PersonId | null;
-  reachable: Set<PersonId>;
-} {
-  const reachable = new Set<PersonId>();
-  let rootId = probandId;
-  if (!rootId || !db.individuals.has(rootId)) {
-    // Dieselbe Proband-Default-Definition wie die UI (`resolveProband`), ADR-v9-135/139.
-    rootId = smallestPersonId(db);
-  }
-  if (rootId === null) return { rootId: null, reachable };
-
-  const queue: PersonId[] = [rootId];
-  reachable.add(rootId);
-  while (queue.length) {
-    const pid = queue.shift()!;
-    const p = db.individuals.get(pid);
-    if (!p) continue;
-    const famIds = [...p.childOf.map((c) => c.familyId), ...p.parentIn];
-    for (const fid of famIds) {
-      const f = db.families.get(fid);
-      if (!f) continue;
-      const members = [f.husband, f.wife, ...f.children].filter((x): x is PersonId => !!x);
-      for (const mid of members) {
-        if (!reachable.has(mid)) {
-          reachable.add(mid);
-          queue.push(mid);
-        }
-      }
-    }
-  }
-  return { rootId, reachable };
-}
+export { reachableFrom } from '../model/kinship';
 
 /**
  * Höfe mit Wohn-Semantik: mindestens ein hof-bindendes (= wohn-/besitz-semantisches)

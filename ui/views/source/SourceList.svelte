@@ -9,7 +9,12 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeSource, allocatorFromDatabase, nextId } from '../../../core/model';
-  import { buildSourceRows } from './source-list-model';
+  import { buildSourceRows, defaultSourceFilters } from './source-list-model';
+  import { SOURCE_KINDS, type SourceKind } from '../../../core/model/source-kinds';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import { countActiveFilters } from '../../shell/count-active-filters';
+  import { PLAIN_FIELD } from '../../shell/plain-input';
+  import { createSourceListState, type SourceListState } from '../list-view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { noDataHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
@@ -32,10 +37,30 @@
      * ([32 TST-24](../../../specs/v9/32-Testframework.md)).
      */
     windowed?: Windowed;
+    /**
+     * Suchanfrage + Gattungs-Filter von AUSSEN (BL-372, Spec 21 §5 Heimat ③): auf Mobil
+     * ERSETZT der Steckbrief die Liste — komponenten-lokal gehalten wäre eine mühsam
+     * eingegrenzte Suche nach dem ersten Blick auf eine Quelle weg. Dieselbe Ebene und
+     * derselbe Grund wie bei den vier übrigen Entitätslisten (ADR-v9-230).
+     */
+    list?: SourceListState;
   }
-  const { appState, viewState, onCreate, windowed: windowedProp }: Props = $props();
+  const {
+    appState,
+    viewState,
+    onCreate,
+    windowed: windowedProp,
+    list: listProp,
+  }: Props = $props();
 
-  const rows = $derived(buildSourceRows(appState.db));
+  const list = untrack(() => listProp ?? createSourceListState());
+  const filters = list.filters;
+
+  const rows = $derived(buildSourceRows(appState.db, list.query, filters));
+  const activeFilterCount = $derived(countActiveFilters(filters, defaultSourceFilters()));
+  /** Leer NUR, weil Suche/Filter greifen — nicht zu verwechseln mit „keine Quellen
+   *  erfasst": der Leerzustand darf nicht behaupten, der Bestand sei leer. */
+  const leerDurchFilter = $derived(rows.length === 0 && appState.db.sources.size > 0);
 
   // --- Virtuelles Scrollen (BL-311, ADR-v9-235/236) ---------------------------------------
   // EIN Fenster über die Liste: gerendert wird nur, was im Sichtbereich steht, plus Overscan.
@@ -50,6 +75,10 @@
   const win = $derived(sec.slice(off));
 
   const isEmpty = $derived(appState.db.sources.size === 0);
+
+  function clearSearch() {
+    list.query = '';
+  }
 
   function selectSource(id: string) {
     viewState.setCurrent('source', id);
@@ -71,8 +100,43 @@
     </div>
   {:else}
     <div class="source-list__toolbar">
+      <div class="source-list__search">
+        <input
+          type="search" {...PLAIN_FIELD}
+          placeholder="Suche…"
+          aria-label="Quellen durchsuchen"
+          bind:value={list.query}
+        />
+        {#if list.query}
+          <button type="button" class="source-list__search-clear" aria-label="Suche löschen" onclick={clearSearch}>✕</button>
+        {/if}
+      </div>
+      <!-- Erster Filter dieser Liste (BL-373): die Gattung ist eine ABFRAGE, keine
+           Zeilen-Pille — am Realbestand trügen 66 von 153 Zeilen dasselbe Etikett
+           (dieselbe Messlatte wie ADR-v9-149, Spec 21 §10l). Hinter der Disclosure, damit
+           das Kopf-Budget bei EINER Toolbar-Zeile bleibt (INV-UI-11).
+           `onchange` statt `bind:value` — TST-12/ESLint-Regel (happy-dom-Falle). -->
+      <FilterBar activeCount={activeFilterCount}>
+        <div class="source-list__filters">
+          <label class="stb-filter-opt stb-filter-opt--compact">
+            Gattung
+            <select
+              value={filters.kind}
+              onchange={(e) => (filters.kind = (e.currentTarget as HTMLSelectElement).value as SourceKind | '')}
+            >
+              <option value="">alle</option>
+              {#each SOURCE_KINDS as k (k.key)}
+                <option value={k.key}>{k.key === 'sonstiges' ? 'ohne erkennbare Gattung' : k.label}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+      </FilterBar>
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>
+    {#if leerDurchFilter}
+      <p class="source-list__empty">Keine Quelle passt zu Suche und Filter.</p>
+    {/if}
     <ul class="source-list__rows" use:sec.frame>
       {#if win.padTop > 0}
         <li class="stb-window-pad" style:height={win.padTop + 'px'} aria-hidden="true"></li>
@@ -124,6 +188,44 @@
   .source-list__toolbar--empty {
     position: static;
     justify-content: flex-start;
+  }
+
+  .source-list__search {
+    position: relative;
+    flex: 1 1 8rem;
+    min-width: 6rem;
+    display: flex;
+  }
+
+  .source-list__search input {
+    width: 100%;
+    background: var(--stb-surface-3);
+    color: var(--stb-text);
+    border: 1px solid var(--stb-gold-dim);
+    border-radius: var(--stb-radius-control);
+    padding: 0.35rem 1.8rem 0.35rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .source-list__search-clear {
+    position: absolute;
+    right: 0.15rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--stb-text-dim);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0.25rem 0.35rem;
+  }
+
+  .source-list__filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
   }
 
   .source-list__new-btn {

@@ -904,6 +904,46 @@ button.stb-coord-indicator__glyph:focus-visible {
   transition: opacity 0.08s ease;
 }
 
+/* Suchfeld in der Toolbar der Forschungs-Segmente (BL-374, INV-UI-4). Dieselbe Form wie
+   in den fünf Entitätslisten — eine Suche soll nicht je Fläche anders aussehen. Sie steht
+   SICHTBAR in der Kopfzeile und nicht hinter der Disclosure; den Platz dafür schafft der
+   Zwei-Zustands-Umschalter (`ViewModeToggle`, ein Icon-Slot statt zweier Segmente,
+   Spec 21 §6h) — gemessen bei 375px. */
+.stb-research-search {
+  position: relative;
+  /* Basis bewusst KLEIN (4,5rem) plus grow: bei 375px sind von 343px innen 251 durch
+     [Filter] [Umschalter] [+ …] und die Abstände belegt — mit einer größeren Basis
+     überschreitet die Summe die Zeile, und der Primärknopf bricht um (gemessen). So
+     nimmt das Feld genau den Rest und die Toolbar bleibt EINE Zeile (INV-UI-11). */
+  flex: 1 1 4.5rem;
+  min-width: 4.5rem;
+  display: flex;
+}
+
+.stb-research-search input {
+  width: 100%;
+  background: var(--stb-surface-3);
+  color: var(--stb-text);
+  border: 1px solid var(--stb-gold-dim);
+  border-radius: var(--stb-radius-control);
+  padding: 0.35rem 1.8rem 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.stb-research-search button {
+  position: absolute;
+  right: 0.15rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--stb-text-dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.25rem 0.35rem;
+}
+
 /* Filter-Optionsliste im `FilterBar`-Panel (INV-UI-4). Vier Views (Aufgaben, Protokoll,
    Hypothesen, Dashboard) reichen dieselbe einachsige Auswahl "Alle/…" hinter FilterBar
    ein (Spec 21 §6h Zuordnungsregel "Filter → immer hinter FilterBar"); ohne diese

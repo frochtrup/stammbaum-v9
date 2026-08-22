@@ -1,64 +1,77 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "rev": 0,
   "device": "v8-migration",
   "ts": 1782413210750,
   "placeObjects": [
     {
       "id": "_ep_0362394a",
-      "title": "Dolgen, Stadt Sehnde, Region Hannover, Niedersachsen",
+      "title": "Dolgen (Hann.)",
       "type": "Village",
       "pnames": [
         {
+          "value": "Thologun",
+          "from": 973,
+          "to": 1500
+        },
+        {
           "value": "Dolgen",
-          "from": null,
+          "from": 1500,
           "to": null
         }
       ],
       "enclosedBy": [
         {
           "placeId": "_po_grosses_freies",
-          "from": null,
-          "to": 1807
+          "from": 973,
+          "to": 1512
         },
         {
           "placeId": "_po_amt_ilten",
-          "from": null,
-          "to": 1807
+          "from": 1512,
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
-          "from": 1807,
-          "to": 1813
+          "from": 1810,
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
-          "from": 1816,
+          "from": 1814,
           "to": 1859
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1974
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
-          "from": 1866,
-          "to": 1974
+          "from": 1885,
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
-      "lat": null,
-      "long": null,
+      "lat": 52.3185,
+      "long": 10.04832,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 973,
       "existsTo": null,
       "govId": null,
-      "govTypes": null
+      "govTypes": null,
+      "shortName": "",
+      "reviewedAt": 1785869042534
     },
     {
       "id": "_ep_b8d34cf1",
@@ -66,40 +79,50 @@
       "type": "Town",
       "pnames": [
         {
+          "value": "Cosenow",
+          "from": 1284,
+          "to": 1400
+        },
+        {
           "value": "Kotzenau",
-          "from": null,
+          "from": 1400,
           "to": 1945
         },
         {
           "value": "Chocianów",
           "from": 1945,
           "to": null
-        },
-        {
-          "value": "Cosenow",
-          "from": 1284,
-          "to": 1400
         }
       ],
       "enclosedBy": [
+        {
+          "placeId": "_po_hztm_liegnitz",
+          "from": 1284,
+          "to": 1742
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1742,
+          "to": 1816
+        },
         {
           "placeId": "_po_lkr_lueben",
           "from": 1816,
           "to": 1945
         },
         {
-          "placeId": "_po_prov_niederschlesien",
-          "from": 1742,
-          "to": 1945
+          "placeId": "_po_pl",
+          "from": 1945,
+          "to": 1999
         },
         {
-          "placeId": "_po_de",
-          "from": 1742,
-          "to": 1945
+          "placeId": "_po_powiat_polkowicki",
+          "from": 1999,
+          "to": null
         }
       ],
-      "lat": 51.5318,
-      "long": 15.9244,
+      "lat": 51.41867,
+      "long": 15.90172,
       "note": "Erste Erwähnung 1284. 1742 nach Preußen (Schlesischer Krieg). Kreis Lüben, Regierungsbezirk Liegnitz. 1945 unter polnische Verwaltung → Chocianów (Woiwodschaft Niederschlesien).",
       "existsFrom": 1284,
       "existsTo": null,
@@ -109,9 +132,44 @@
     {
       "id": "_ep_e7142fd9",
       "title": "Arnsberg",
-      "type": "",
-      "pnames": [],
-      "enclosedBy": [],
+      "type": "Town",
+      "pnames": [
+        {
+          "value": "Arnsberg",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kurkoeln",
+          "from": 1238,
+          "to": 1803,
+          "fromDate": null,
+          "toDate": null
+        },
+        {
+          "placeId": "_po_de",
+          "from": 1803,
+          "to": 1817,
+          "fromDate": null,
+          "toDate": null
+        },
+        {
+          "placeId": "_po_kreis_arnsberg",
+          "from": 1817,
+          "to": 1974,
+          "fromDate": null,
+          "toDate": "31 DEC 1974"
+        },
+        {
+          "placeId": "_po_regbez_arnsberg",
+          "from": 1975,
+          "to": null,
+          "fromDate": "1 JAN 1975",
+          "toDate": null
+        }
+      ],
       "lat": 51.39922,
       "long": 8.06929,
       "note": "",
@@ -145,7 +203,7 @@
         {
           "placeId": "_po_sachsen_anhalt",
           "from": 1945,
-          "to": null
+          "to": 1994
         },
         {
           "placeId": "_po_lkr_wittenberg",
@@ -218,12 +276,38 @@
     },
     {
       "id": "_ep_efb9b9a2",
-      "title": "Giessmannsdorf, Schlesien, , , ,",
-      "type": "",
-      "pnames": [],
-      "enclosedBy": [],
-      "lat": 51.87915,
-      "long": 13.69379,
+      "title": "Gießmannsdorf",
+      "type": "Village",
+      "pnames": [
+        {
+          "value": "Gießmannsdorf",
+          "from": null,
+          "to": null
+        },
+        {
+          "value": "Gościszów",
+          "from": 1945,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kreis_bunzlau",
+          "from": 1816,
+          "to": 1945,
+          "fromDate": "1 MAY 1816",
+          "toDate": null
+        },
+        {
+          "placeId": "_po_pl",
+          "from": 1945,
+          "to": null,
+          "fromDate": null,
+          "toDate": null
+        }
+      ],
+      "lat": 51.16111,
+      "long": 15.45167,
       "note": "",
       "existsFrom": null,
       "existsTo": null,
@@ -233,13 +317,50 @@
     {
       "id": "_ep_83d7b3ab",
       "title": "Großenhelmsdorf",
-      "type": "",
-      "pnames": [],
-      "enclosedBy": [],
+      "type": "Village",
+      "pnames": [
+        {
+          "value": "Großhelmsdorf",
+          "from": 1223,
+          "to": null
+        },
+        {
+          "value": "Großenhelmsdorf",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kreis_weissenfels",
+          "from": 1300,
+          "to": 1945
+        },
+        {
+          "placeId": "_po_sachsen_anhalt",
+          "from": 1945,
+          "to": 1952
+        },
+        {
+          "placeId": "_po_bezirk_gera",
+          "from": 1952,
+          "to": 1990
+        },
+        {
+          "placeId": "_po_thueringen",
+          "from": 1990,
+          "to": 1994
+        },
+        {
+          "placeId": "_po_gem_heideland",
+          "from": 1994,
+          "to": null
+        }
+      ],
       "lat": 51.01935,
       "long": 11.88277,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1223,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -251,8 +372,13 @@
       "pnames": [
         {
           "value": "Guben",
-          "from": null,
+          "from": 1235,
           "to": null
+        },
+        {
+          "value": "Wilhelm-Pieck-Stadt Guben",
+          "from": 1961,
+          "to": 1990
         },
         {
           "value": "Gubin",
@@ -262,23 +388,28 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_prov_brandenburg",
-          "from": 1815,
-          "to": 1947
+          "placeId": "_po_niederlausitz",
+          "from": 1235,
+          "to": 1815
+        },
+        {
+          "placeId": "_po_kreis_guben",
+          "from": 1816,
+          "to": 1952
+        },
+        {
+          "placeId": "_po_bezirk_cottbus",
+          "from": 1952,
+          "to": 1990
         },
         {
           "placeId": "_po_brb",
           "from": 1990,
-          "to": null
+          "to": 1993
         },
         {
           "placeId": "_po_lkr_spree_neisse",
           "from": 1993,
-          "to": null
-        },
-        {
-          "placeId": "_po_de",
-          "from": null,
           "to": null
         }
       ],
@@ -329,53 +460,52 @@
         {
           "placeId": "_ep_e54c5042",
           "from": 1803,
-          "to": 1807
+          "to": 1806
         },
         {
           "placeId": "_ep_16b18773",
           "from": 1806,
           "to": 1808,
+          "toDate": "13 NOV 1808",
           "dateRaw": "dateTo: 1808-11-14"
         },
         {
           "placeId": "_ep_037934db",
           "from": 1808,
-          "to": 1811,
+          "to": 1810,
+          "fromDate": "14 NOV 1808",
+          "toDate": "25 DEC 1810",
           "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01"
         },
         {
-          "placeId": "_po_frankreich",
-          "from": 1811,
+          "placeId": "_po_arr_steinfurt",
+          "from": 1810,
           "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811",
           "dateRaw": "dateFrom: 1811-01-01; dateTo: 1811-04-27"
         },
         {
-          "placeId": "_po_dep_lippe",
+          "placeId": "_po_arr_steinfurt",
           "from": 1811,
           "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813",
           "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11"
         },
         {
           "placeId": "_ep_bc089dae",
           "from": 1813,
           "to": 1816,
+          "fromDate": "14 NOV 1813",
+          "toDate": "9 AUG 1816",
           "dateRaw": "dateFrom: 1813-11"
         },
         {
           "placeId": "_po_grafschaft_steinfurt",
           "from": 1816,
-          "to": null
-        },
-        {
-          "placeId": "_po_regbez_muenster",
-          "from": 1816,
-          "to": null
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1946,
           "to": null,
-          "dateRaw": "dateFrom: 1946-08-23"
+          "fromDate": "10 AUG 1816"
         }
       ],
       "lat": 52.20939,
@@ -389,13 +519,40 @@
     {
       "id": "_ep_8093af64",
       "title": "Burgsteinfurt",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [],
+      "type": "Town",
+      "pnames": [
+        {
+          "value": "Steinvorde",
+          "from": 1129,
+          "to": 1350
+        },
+        {
+          "value": "Burgsteinfurt (Stadtteil von Steinfurt)",
+          "from": 1975,
+          "to": null
+        },
+        {
+          "value": "Burgsteinfurt",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1150,
+          "to": 1974
+        },
+        {
+          "placeId": "_po_stadt_steinfurt",
+          "from": 1975,
+          "to": null
+        }
+      ],
       "lat": 52.14946,
       "long": 7.34045,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1129,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -416,17 +573,46 @@
     },
     {
       "id": "_ep_ac768701",
-      "title": "Linden, Hannover",
+      "title": "Linden",
       "type": "Town",
-      "pnames": [],
-      "enclosedBy": [],
+      "pnames": [
+        {
+          "value": "Linden",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_hannover",
+          "from": 1150,
+          "to": 1866,
+          "fromDate": null,
+          "toDate": "2 OCT 1866"
+        },
+        {
+          "placeId": "_po_regbez_hannover",
+          "from": 1866,
+          "to": 1920,
+          "fromDate": "3 OCT 1866",
+          "toDate": "31 MAR 1920"
+        },
+        {
+          "placeId": "_plac_hannover__niedersachsen",
+          "from": 1920,
+          "to": null,
+          "fromDate": "1 APR 1920",
+          "toDate": null
+        }
+      ],
       "lat": 52.36797,
       "long": 9.71194,
       "note": "",
       "existsFrom": null,
       "existsTo": null,
       "govId": null,
-      "govTypes": null
+      "govTypes": null,
+      "shortName": "Linden (Hannover)"
     },
     {
       "id": "_po_de",
@@ -434,34 +620,51 @@
       "type": "Country",
       "pnames": [
         {
-          "value": "Heiliges Römisches Reich Deutscher Nation",
+          "value": "Heiliges Römisches Reich",
           "from": 800,
-          "to": 1806
+          "to": 1512
+        },
+        {
+          "value": "Heiliges Römisches Reich Deutscher Nation",
+          "from": 1512,
+          "to": 1806,
+          "fromDate": null,
+          "toDate": "6 AUG 1806"
         },
         {
           "value": "Rheinbund",
           "from": 1806,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "12 JUL 1806",
+          "toDate": null
         },
         {
           "value": "Deutscher Bund",
           "from": 1815,
-          "to": 1866
+          "to": 1866,
+          "fromDate": "10 JUN 1815",
+          "toDate": "23 AUG 1866"
         },
         {
           "value": "Norddeutscher Bund",
           "from": 1866,
-          "to": 1870
+          "to": 1870,
+          "fromDate": "24 AUG 1866",
+          "toDate": "31 DEC 1870"
         },
         {
           "value": "Deutsches Reich",
           "from": 1871,
-          "to": 1945
+          "to": 1945,
+          "fromDate": "1 JAN 1871",
+          "toDate": "8 MAY 1945"
         },
         {
           "value": "Deutschland",
           "from": 1945,
-          "to": 1949
+          "to": 1949,
+          "fromDate": "9 MAY 1945",
+          "toDate": null
         },
         {
           "value": "Deutschland",
@@ -486,14 +689,18 @@
         {
           "value": "Nordrhein-Westfalen",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
         }
       ],
       "enclosedBy": [
         {
           "placeId": "_po_de",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
         }
       ],
       "lat": 51.4332,
@@ -512,14 +719,18 @@
         {
           "value": "Niedersachsen",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "enclosedBy": [
         {
           "placeId": "_po_de",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.6368,
@@ -536,9 +747,14 @@
       "type": "Country",
       "pnames": [
         {
+          "value": "Französische Republik",
+          "from": 1792,
+          "to": 1804
+        },
+        {
           "value": "Kaiserreich Frankreich (Napoleon I.)",
           "from": 1804,
-          "to": 1814
+          "to": 1813
         }
       ],
       "enclosedBy": [],
@@ -662,12 +878,16 @@
         {
           "value": "Provinz Westfalen",
           "from": 1815,
-          "to": 1946
+          "to": 1946,
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
         },
         {
           "value": "Land Westfalen-Lippe",
           "from": 1946,
-          "to": 1946
+          "to": 1946,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
         },
         {
           "value": "Westfalen",
@@ -685,7 +905,8 @@
           "placeId": "_ep_e54c5042",
           "from": 1815,
           "to": 1946,
-          "dateRaw": "dateTo: 1946-08-23"
+          "fromDate": "10 JUN 1815",
+          "toDate": "22 AUG 1946"
         }
       ],
       "lat": 51.7,
@@ -701,7 +922,8 @@
           "dateFrom": "1815",
           "dateTo": "1946-08-23"
         }
-      ]
+      ],
+      "translations": []
     },
     {
       "id": "_po_regbez_muenster",
@@ -719,13 +941,15 @@
           "placeId": "_po_prov_westfalen",
           "from": 1816,
           "to": 1946,
-          "dateRaw": "dateFrom: 1816-07-25; dateTo: 1946-08-23"
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
         },
         {
           "placeId": "_po_nrw",
           "from": 1946,
           "to": null,
-          "dateRaw": "dateFrom: 1946-08-23"
+          "fromDate": "23 AUG 1946",
+          "toDate": null
         }
       ],
       "lat": 51.96,
@@ -805,17 +1029,21 @@
         {
           "value": "Kreis Steinfurt",
           "from": 1816,
-          "to": 1952
+          "to": 1953,
+          "toDate": "30 SEP 1953"
         },
         {
           "value": "Kreis Steinfurt",
-          "from": 1970,
-          "to": null
+          "from": 1969,
+          "to": null,
+          "fromDate": "1 OCT 1969"
         },
         {
           "value": "Landkreis Steinfurt",
           "from": 1953,
-          "to": 1969
+          "to": 1969,
+          "fromDate": "1 OCT 1953",
+          "toDate": "30 SEP 1969"
         }
       ],
       "enclosedBy": [
@@ -837,12 +1065,16 @@
         {
           "placeId": "_po_prov_westfalen",
           "from": 1815,
-          "to": 1946
+          "to": 1946,
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
         },
         {
           "placeId": "_po_nrw",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
         }
       ],
       "lat": 52.1469,
@@ -859,38 +1091,39 @@
       "type": "District",
       "pnames": [
         {
-          "value": "Kirchspiel Ochtrup / Amt Ochtrup (Grafschaft Steinfurt)",
-          "from": 1300,
-          "to": 1806
-        },
-        {
-          "value": "Amt Ochtrup",
+          "value": "Bürgermeisterei Ochtrup",
           "from": 1816,
-          "to": 1934
+          "to": 1844
         },
         {
           "value": "Mairie Ochtrup",
           "from": 1811,
           "to": 1813
+        },
+        {
+          "value": "Amt Ochtrup",
+          "from": 1844,
+          "to": 1969
         }
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_grafschaft_steinfurt",
-          "from": 1300,
-          "to": 1813
+          "placeId": "_po_arr_steinfurt",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "27 APR 1811"
         },
         {
           "placeId": "_po_grafschaft_steinfurt",
           "from": 1816,
-          "to": 1934
+          "to": 1969
         }
       ],
-      "lat": 52.21,
-      "long": 7.19,
+      "lat": 52.2047,
+      "long": 7.1867,
       "note": "",
-      "existsFrom": null,
-      "existsTo": null,
+      "existsFrom": 1811,
+      "existsTo": 1969,
       "govId": null,
       "govTypes": null
     },
@@ -948,34 +1181,51 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_grafschaft_steinfurt",
+          "placeId": "_po_amt_ochtrup",
           "from": 1811,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813"
         },
         {
           "placeId": "_po_amt_ochtrup",
           "from": 1816,
-          "to": 1934
+          "to": 1969,
+          "fromDate": "10 AUG 1816",
+          "toDate": "30 JUN 1969"
         },
         {
           "placeId": "_po_grafschaft_steinfurt",
-          "from": 1934,
-          "to": null
+          "from": 1969,
+          "to": null,
+          "fromDate": "1 JUL 1969"
         },
         {
-          "placeId": "_ep_ac5f9351",
+          "placeId": "_po_amt_horstmar",
           "from": 1269,
-          "to": 1808
+          "to": 1808,
+          "toDate": "13 NOV 1808"
         },
         {
           "placeId": "_ep_bc089dae",
           "from": 1813,
-          "to": 1816
+          "to": 1816,
+          "fromDate": "14 NOV 1813",
+          "toDate": "9 AUG 1816"
         },
         {
           "placeId": "_ep_df647373",
           "from": 1808,
-          "to": 1810
+          "to": 1810,
+          "fromDate": "14 NOV 1808",
+          "toDate": "25 DEC 1810"
+        },
+        {
+          "placeId": "_po_arr_steinfurt",
+          "from": 1810,
+          "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811"
         }
       ],
       "lat": 52.2047,
@@ -1009,12 +1259,21 @@
         {
           "value": "Königreich Hannover",
           "from": 1814,
-          "to": 1866
+          "to": 1866,
+          "fromDate": null,
+          "toDate": "2 OCT 1866"
+        },
+        {
+          "value": "Provinz Hannover",
+          "from": 1866,
+          "to": 1946,
+          "fromDate": "3 OCT 1866",
+          "toDate": null
         },
         {
           "value": "Provinz Hannover (Preußen)",
-          "from": 1866,
-          "to": 1946
+          "from": null,
+          "to": null
         }
       ],
       "enclosedBy": [
@@ -1031,12 +1290,23 @@
         {
           "placeId": "_po_de",
           "from": 1814,
-          "to": 1946
+          "to": 1866,
+          "fromDate": null,
+          "toDate": "2 OCT 1866"
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1866,
+          "to": 1946,
+          "fromDate": "3 OCT 1866",
+          "toDate": "22 AUG 1946"
         },
         {
           "placeId": "_po_nds",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.37,
@@ -1067,7 +1337,9 @@
         {
           "placeId": "_po_nds",
           "from": 1946,
-          "to": 1978
+          "to": 1978,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.37,
@@ -1124,7 +1396,12 @@
         {
           "placeId": "_po_prov_hannover",
           "from": 1420,
-          "to": 1810
+          "to": 1806
+        },
+        {
+          "placeId": "_po_kgr_westfalen",
+          "from": 1807,
+          "to": 1809
         },
         {
           "placeId": "_po_dep_aller",
@@ -1158,18 +1435,8 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_prov_hannover",
-          "from": 1885,
-          "to": 1946
-        },
-        {
           "placeId": "_po_regbez_hannover",
           "from": 1885,
-          "to": 1974
-        },
-        {
-          "placeId": "_po_nds",
-          "from": 1946,
           "to": 1974
         }
       ],
@@ -1188,7 +1455,7 @@
       "pnames": [
         {
           "value": "Landkreis Hannover",
-          "from": 1974,
+          "from": 1885,
           "to": 2001
         },
         {
@@ -1199,15 +1466,20 @@
       ],
       "enclosedBy": [
         {
+          "placeId": "_po_regbez_hannover",
+          "from": 1885,
+          "to": 1978
+        },
+        {
           "placeId": "_po_nds",
-          "from": 1974,
+          "from": 1978,
           "to": null
         }
       ],
       "lat": 52.37,
       "long": 9.73,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1885,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -1273,12 +1545,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -1288,17 +1562,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.3728,
@@ -1317,22 +1595,21 @@
         {
           "value": "Grafschaft Oldenburg",
           "from": 1100,
-          "to": 1776
+          "to": 1774
         },
         {
           "value": "Herzogtum Oldenburg",
-          "from": 1776,
-          "to": 1806
+          "from": 1774,
+          "to": 1815,
+          "fromDate": null,
+          "toDate": "8 JUN 1815"
         },
         {
-          "value": "Fürstentum Oldenburg",
-          "from": 1806,
-          "to": 1810
-        },
-        {
-          "value": "Herzogtum Oldenburg",
-          "from": 1813,
-          "to": 1918
+          "value": "Großherzogtum Oldenburg",
+          "from": 1815,
+          "to": 1918,
+          "fromDate": "9 JUN 1815",
+          "toDate": null
         },
         {
           "value": "Freistaat Oldenburg",
@@ -1344,22 +1621,23 @@
         {
           "placeId": "_po_de",
           "from": 1100,
-          "to": 1806
-        },
-        {
-          "placeId": "_po_kgr_holland",
-          "from": 1806,
-          "to": 1810
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
         },
         {
           "placeId": "_po_frankreich",
-          "from": 1810,
-          "to": 1813
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
         },
         {
           "placeId": "_po_de",
           "from": 1813,
-          "to": 1946
+          "to": 1946,
+          "fromDate": "27 NOV 1813",
+          "toDate": null
         }
       ],
       "lat": 53.1439,
@@ -1434,14 +1712,25 @@
           "to": 1803
         },
         {
-          "placeId": "_po_dep_bouches_ems",
-          "from": 1807,
-          "to": 1813
+          "placeId": "_po_hztm_oldenburg",
+          "from": 1803,
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
+        },
+        {
+          "placeId": "_po_dep_ems_superieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
         },
         {
           "placeId": "_po_hztm_oldenburg",
-          "from": 1803,
-          "to": 1858
+          "from": 1813,
+          "to": 1858,
+          "fromDate": "27 NOV 1813",
+          "toDate": null
         }
       ],
       "lat": 52.73,
@@ -1477,7 +1766,9 @@
         {
           "placeId": "_po_nds",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.73,
@@ -1501,8 +1792,13 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_bist_muenster_kirche",
+          "placeId": "_po_bist_osnabrueck",
           "from": 1200,
+          "to": 1668
+        },
+        {
+          "placeId": "_po_bist_muenster_kirche",
+          "from": 1668,
           "to": null
         }
       ],
@@ -1544,22 +1840,29 @@
         {
           "placeId": "_po_amt_vechta",
           "from": 1160,
-          "to": 1806
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
         },
         {
-          "placeId": "_po_dep_bouches_ems",
-          "from": 1807,
-          "to": 1813
+          "placeId": "_po_dep_ems_superieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
         },
         {
           "placeId": "_po_amt_vechta",
           "from": 1813,
-          "to": 1858
+          "to": 1858,
+          "fromDate": "27 NOV 1813",
+          "toDate": "31 OCT 1858"
         },
         {
           "placeId": "_po_lkr_vechta",
           "from": 1858,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1858"
         }
       ],
       "lat": 52.7264,
@@ -1591,22 +1894,25 @@
           "to": null
         },
         {
+          "value": "Herzogtum Preußen",
+          "from": 1525,
+          "to": 1701,
+          "fromDate": null,
+          "toDate": "17 JAN 1701"
+        },
+        {
           "value": "Königreich Preußen",
           "from": 1701,
           "to": 1918,
-          "dateRaw": "dateFrom: 1701-01-18; dateTo: 1918-11-08"
+          "fromDate": "18 JAN 1701",
+          "toDate": "8 NOV 1918"
         },
         {
           "value": "Freistaat Preußen",
           "from": 1918,
           "to": 1945,
-          "dateRaw": "dateFrom: 1918-11-09; dateTo: 1945-06-04"
-        },
-        {
-          "value": "Herzogtum Preußen",
-          "from": 1525,
-          "to": 1701,
-          "dateRaw": "dateTo: 1701-01-17"
+          "fromDate": "9 NOV 1918",
+          "toDate": "4 JUN 1945"
         }
       ],
       "enclosedBy": [
@@ -1614,26 +1920,29 @@
           "placeId": "_ep_ded83840",
           "from": 1815,
           "to": 1866,
-          "dateRaw": "dateFrom: 1815-06-10; dateTo: 1866-06-13"
+          "fromDate": "10 JUN 1815",
+          "toDate": "13 JUN 1866"
         },
         {
           "placeId": "_ep_dea99b2b",
-          "from": 1867,
+          "from": 1866,
           "to": 1870,
-          "dateRaw": "dateFrom: 1867-07-01; dateTo: 1870-12-31"
+          "fromDate": "23 AUG 1866",
+          "toDate": null
         },
         {
           "placeId": "_po_de",
           "from": 1871,
-          "to": 1945,
-          "dateRaw": "dateFrom: 1871-01-01; dateTo: 1945-06-04"
+          "to": 1947,
+          "fromDate": "1 JAN 1871",
+          "toDate": "25 FEB 1947"
         }
       ],
       "lat": null,
       "long": null,
       "note": "",
       "existsFrom": 1525,
-      "existsTo": 1945,
+      "existsTo": 1947,
       "govId": "object_190317",
       "govTypes": [
         {
@@ -1659,18 +1968,14 @@
     {
       "id": "_ep_ded83840",
       "title": "Deutscher Bund",
-      "type": "Unknown",
+      "type": "Country",
       "pnames": [
         {
           "value": "Deutscher Bund",
           "from": 1815,
           "to": 1866,
-          "dateRaw": "dateFrom: 1815-06-10; dateTo: 1866-08-24"
-        },
-        {
-          "value": "German Confederation",
-          "from": null,
-          "to": null
+          "fromDate": null,
+          "toDate": "23 AUG 1866"
         }
       ],
       "enclosedBy": [],
@@ -1681,13 +1986,9 @@
       "existsTo": null,
       "govId": "object_218127",
       "govTypes": [
-        {
-          "rawType": "Staatenbund",
-          "type": "Unknown",
-          "dateFrom": "1815-06-10",
-          "dateTo": "1866-08-24"
-        }
-      ]
+        "[object Object]"
+      ],
+      "shortName": ""
     },
     {
       "id": "_ep_dea99b2b",
@@ -1722,111 +2023,35 @@
       "type": "Town",
       "pnames": [
         {
-          "value": "Grafschaft Salm-Horstmar",
-          "from": 1803,
-          "to": 1806
-        },
-        {
-          "value": "Amt Horstmar",
-          "from": 1269,
-          "to": 1802
-        },
-        {
-          "value": "Herrschaft Horstmar",
-          "from": null,
-          "to": 1269
+          "value": "Horstmaria",
+          "from": 1150,
+          "to": 1300
         },
         {
           "value": "Horstmar",
-          "from": null,
+          "from": 1300,
           "to": null
-        },
-        {
-          "value": "Salm-Horstmar",
-          "from": 1806,
-          "to": 1920
         }
       ],
       "enclosedBy": [
         {
-          "placeId": "_ep_52113362",
-          "from": null,
-          "to": 1803
-        },
-        {
-          "placeId": "_ep_9a4c2475",
-          "from": 1803,
-          "to": 1806
-        },
-        {
-          "placeId": "_ep_16b18773",
-          "from": 1806,
-          "to": 1808
-        },
-        {
-          "placeId": "_ep_037934db",
-          "from": 1808,
-          "to": 1810,
-          "dateRaw": "dateTo: 1810-11"
-        },
-        {
-          "placeId": "_po_dep_lippe",
-          "from": 1810,
-          "to": 1813,
-          "dateRaw": "dateFrom: 1810-11"
-        },
-        {
-          "placeId": "_ep_bc089dae",
-          "from": 1813,
+          "placeId": "_po_amt_horstmar",
+          "from": 1269,
           "to": 1816
-        },
-        {
-          "placeId": "_po_prov_westfalen",
-          "from": 1815,
-          "to": 1946
-        },
-        {
-          "placeId": "_po_regbez_muenster",
-          "from": 1816,
-          "to": 1946
         },
         {
           "placeId": "_po_grafschaft_steinfurt",
           "from": 1816,
-          "to": null
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1946,
           "to": null
         }
       ],
       "lat": 52.0811414,
       "long": 7.3034425,
       "note": "",
-      "existsFrom": 1269,
+      "existsFrom": 1150,
       "existsTo": null,
-      "govId": "object_1051709",
-      "govTypes": [
-        {
-          "rawType": "Amt",
-          "type": "Municipality",
-          "dateFrom": "1269",
-          "dateTo": "1802"
-        },
-        {
-          "rawType": "Grafschaft",
-          "type": "Unknown",
-          "dateFrom": "1802",
-          "dateTo": "1806"
-        },
-        {
-          "rawType": "Herrschaft",
-          "type": "Unknown",
-          "dateFrom": null,
-          "dateTo": "1269"
-        }
-      ]
+      "govId": null,
+      "govTypes": null
     },
     {
       "id": "_ep_52113362",
@@ -1843,19 +2068,14 @@
         {
           "placeId": "_po_de",
           "from": 800,
-          "to": 1805
-        },
-        {
-          "placeId": "_ep_e54c5042",
-          "from": 1803,
-          "to": 1807
+          "to": 1803
         }
       ],
       "lat": 51.9607,
       "long": 7.6261,
       "note": "",
       "existsFrom": null,
-      "existsTo": 1808,
+      "existsTo": 1803,
       "govId": null,
       "govTypes": null
     },
@@ -1956,7 +2176,7 @@
         {
           "value": "Arrondissement Coesfeld",
           "from": 1808,
-          "to": 1810
+          "to": 1811
         },
         {
           "value": "Coesfeld",
@@ -1968,8 +2188,9 @@
         {
           "placeId": "_ep_037934db",
           "from": 1808,
-          "to": 1810,
-          "dateRaw": "dateFrom: 1808-11-14"
+          "to": 1811,
+          "dateRaw": "dateFrom: 1808-11-14",
+          "fromDate": "14 NOV 1808"
         }
       ],
       "lat": null,
@@ -1995,7 +2216,7 @@
         {
           "value": "Departement Ems",
           "from": 1808,
-          "to": 1810
+          "to": 1811
         },
         {
           "value": "Département de l´Ems",
@@ -2008,7 +2229,9 @@
           "placeId": "_ep_16b18773",
           "from": 1808,
           "to": 1810,
-          "dateRaw": "dateFrom: 1808-11-14; dateTo: 1810-12-31"
+          "dateRaw": "dateFrom: 1808-11-14; dateTo: 1810-12-31",
+          "fromDate": "14 NOV 1808",
+          "toDate": "31 DEC 1810"
         }
       ],
       "lat": null,
@@ -2033,7 +2256,7 @@
       "pnames": [
         {
           "value": "Großes Freies",
-          "from": 1100,
+          "from": 973,
           "to": 1512
         },
         {
@@ -2045,14 +2268,14 @@
       "enclosedBy": [
         {
           "placeId": "_po_de",
-          "from": 1100,
+          "from": 973,
           "to": 1512
         }
       ],
       "lat": 52.37,
       "long": 9.97,
       "note": "Freier Gerichtsbezirk der Großen Freien östlich von Hannover (Lehrte, Burgdorf, Sehnde u.a.). Kam 1512 mit dem Großen Freien zum Fürstentum Lüneburg.",
-      "existsFrom": 1100,
+      "existsFrom": 973,
       "existsTo": 1512,
       "govId": null,
       "govTypes": null
@@ -2082,7 +2305,17 @@
         {
           "placeId": "_po_prov_hannover",
           "from": 1512,
+          "to": 1806
+        },
+        {
+          "placeId": "_po_kgr_westfalen",
+          "from": 1807,
           "to": 1810
+        },
+        {
+          "placeId": "_po_dep_aller",
+          "from": 1811,
+          "to": 1813
         },
         {
           "placeId": "_po_prov_hannover",
@@ -2149,7 +2382,12 @@
         {
           "placeId": "_po_prov_hannover",
           "from": 1512,
-          "to": 1810
+          "to": 1806
+        },
+        {
+          "placeId": "_po_kgr_westfalen",
+          "from": 1807,
+          "to": 1809
         },
         {
           "placeId": "_po_dep_aller",
@@ -2195,7 +2433,9 @@
         {
           "placeId": "_po_nds",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.319,
@@ -2226,12 +2466,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2241,17 +2483,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.351,
@@ -2287,27 +2533,33 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1420,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1814,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.395,
@@ -2333,27 +2585,33 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1472,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1814,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.42522,
@@ -2384,27 +2642,33 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1420,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1814,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.412,
@@ -2440,27 +2704,33 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1643,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1814,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.40864,
@@ -2486,32 +2756,40 @@
         {
           "placeId": "_po_amt_meinersen",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_meinersen",
           "from": 1814,
-          "to": 1852
+          "to": 1852,
+          "toDate": "30 SEP 1852"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1852,
-          "to": 1885
+          "to": 1885,
+          "fromDate": "1 OCT 1852",
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.38693,
@@ -2542,32 +2820,40 @@
         {
           "placeId": "_po_amt_meinersen",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_meinersen",
           "from": 1814,
-          "to": 1852
+          "to": 1852,
+          "toDate": "30 SEP 1852"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1852,
-          "to": 1885
+          "to": 1885,
+          "fromDate": "1 OCT 1852",
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.37096,
@@ -2593,32 +2879,40 @@
         {
           "placeId": "_po_amt_meinersen",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_meinersen",
           "from": 1814,
-          "to": 1852
+          "to": 1852,
+          "toDate": "30 SEP 1852"
         },
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1852,
-          "to": 1885
+          "to": 1885,
+          "fromDate": "1 OCT 1852",
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_lehrte",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.394,
@@ -2742,12 +3036,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2757,17 +3053,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.317,
@@ -2803,12 +3103,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2818,17 +3120,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.34568,
@@ -2859,12 +3165,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2874,17 +3182,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.3084,
@@ -2915,12 +3227,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2930,17 +3244,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.34031,
@@ -2971,12 +3289,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -2986,17 +3306,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.29613,
@@ -3027,12 +3351,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3042,17 +3368,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.362,
@@ -3088,12 +3418,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3103,17 +3435,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.35017,
@@ -3149,12 +3485,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3164,17 +3502,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.28505,
@@ -3210,12 +3552,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3225,17 +3569,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.31596,
@@ -3266,12 +3614,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3281,17 +3631,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 53.17253,
@@ -3322,12 +3676,14 @@
         {
           "placeId": "_po_amt_ilten",
           "from": 1512,
-          "to": 1810
+          "to": 1810,
+          "toDate": "28 FEB 1810"
         },
         {
           "placeId": "_po_dep_aller",
           "from": 1810,
-          "to": 1813
+          "to": 1813,
+          "fromDate": "1 MAR 1810"
         },
         {
           "placeId": "_po_amt_ilten",
@@ -3337,17 +3693,21 @@
         {
           "placeId": "_po_amt_burgdorf",
           "from": 1859,
-          "to": 1885
+          "to": 1885,
+          "toDate": "31 MAR 1885"
         },
         {
           "placeId": "_po_kreis_burgdorf",
           "from": 1885,
-          "to": 1974
+          "to": 1974,
+          "fromDate": "1 APR 1885",
+          "toDate": "28 FEB 1974"
         },
         {
           "placeId": "_po_stadt_sehnde",
           "from": 1974,
-          "to": null
+          "to": null,
+          "fromDate": "1 MAR 1974"
         }
       ],
       "lat": 52.29761,
@@ -3383,12 +3743,23 @@
         {
           "placeId": "_po_hztm_oldenburg",
           "from": 1803,
-          "to": 1858
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
         },
         {
-          "placeId": "_po_dep_bouches_ems",
-          "from": 1807,
-          "to": 1813
+          "placeId": "_po_dep_ems_superieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
+        },
+        {
+          "placeId": "_po_hztm_oldenburg",
+          "from": 1813,
+          "to": 1858,
+          "fromDate": "27 NOV 1813",
+          "toDate": null
         }
       ],
       "lat": 52.848,
@@ -3424,7 +3795,9 @@
         {
           "placeId": "_po_nds",
           "from": 1946,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
         }
       ],
       "lat": 52.848,
@@ -3448,8 +3821,13 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_bist_muenster_kirche",
+          "placeId": "_po_bist_osnabrueck",
           "from": 1350,
+          "to": 1668
+        },
+        {
+          "placeId": "_po_bist_muenster_kirche",
+          "from": 1668,
           "to": null
         }
       ],
@@ -3481,17 +3859,23 @@
         {
           "placeId": "_po_amt_cloppenburg",
           "from": 1400,
-          "to": 1806
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
         },
         {
-          "placeId": "_po_dep_bouches_ems",
-          "from": 1807,
-          "to": 1813
+          "placeId": "_po_dep_ems_superieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
         },
         {
           "placeId": "_po_amt_cloppenburg",
           "from": 1813,
-          "to": 1858
+          "to": 1858,
+          "fromDate": "27 NOV 1813",
+          "toDate": null
         },
         {
           "placeId": "_po_lkr_cloppenburg",
@@ -3537,49 +3921,53 @@
         {
           "placeId": "_ep_e54c5042",
           "from": 1803,
-          "to": 1807
+          "to": 1806
         },
         {
           "placeId": "_ep_16b18773",
           "from": 1806,
           "to": 1808,
+          "toDate": "13 NOV 1808",
           "dateRaw": "dateTo: 1808-11-14"
         },
         {
           "placeId": "_ep_037934db",
           "from": 1808,
-          "to": 1811,
+          "to": 1810,
+          "fromDate": "14 NOV 1808",
+          "toDate": "25 DEC 1810",
           "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01"
         },
         {
-          "placeId": "_po_frankreich",
-          "from": 1811,
+          "placeId": "_po_arr_muenster",
+          "from": 1810,
           "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811",
           "dateRaw": "dateFrom: 1811-01-01; dateTo: 1811-04-27"
         },
         {
-          "placeId": "_po_dep_lippe",
+          "placeId": "_po_arr_muenster",
           "from": 1811,
           "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813",
           "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11-14"
         },
         {
           "placeId": "_ep_bc089dae",
           "from": 1813,
           "to": 1816,
-          "dateRaw": "dateFrom: 1813-11-14; dateTo: 1816-07-25"
+          "fromDate": "14 NOV 1813",
+          "dateRaw": "dateFrom: 1813-11-14; dateTo: 1816-07-25",
+          "toDate": "24 JUL 1816"
         },
         {
           "placeId": "_po_regbez_muenster",
           "from": 1816,
           "to": null,
-          "dateRaw": "dateFrom: 1816-07-25"
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1946,
-          "to": null,
-          "dateRaw": "dateFrom: 1946-08-23"
+          "dateRaw": "dateFrom: 1816-07-25",
+          "fromDate": "25 JUL 1816"
         }
       ],
       "lat": 51.9607,
@@ -3603,8 +3991,13 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_bist_muenster_kirche",
+          "placeId": "_po_bist_osnabrueck",
           "from": 1150,
+          "to": 1668
+        },
+        {
+          "placeId": "_po_bist_muenster_kirche",
+          "from": 1668,
           "to": null
         }
       ],
@@ -3641,22 +4034,29 @@
         {
           "placeId": "_po_amt_vechta",
           "from": 890,
-          "to": 1806
+          "to": 1810,
+          "fromDate": null,
+          "toDate": "31 DEC 1810"
         },
         {
-          "placeId": "_po_dep_bouches_ems",
-          "from": 1807,
-          "to": 1813
+          "placeId": "_po_dep_ems_superieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
         },
         {
           "placeId": "_po_amt_vechta",
           "from": 1813,
-          "to": 1858
+          "to": 1858,
+          "fromDate": "27 NOV 1813",
+          "toDate": "31 OCT 1858"
         },
         {
           "placeId": "_po_lkr_vechta",
           "from": 1858,
-          "to": null
+          "to": null,
+          "fromDate": "1 NOV 1858"
         }
       ],
       "lat": 52.6628,
@@ -3692,58 +4092,59 @@
         {
           "placeId": "_ep_e54c5042",
           "from": 1803,
-          "to": 1807
+          "to": 1806
         },
         {
           "placeId": "_ep_16b18773",
           "from": 1806,
           "to": 1808,
+          "toDate": "13 NOV 1808",
           "dateRaw": "dateTo: 1808-11-14"
         },
         {
           "placeId": "_ep_037934db",
           "from": 1808,
-          "to": 1811,
+          "to": 1810,
+          "fromDate": "14 NOV 1808",
+          "toDate": "25 DEC 1810",
           "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01"
         },
         {
-          "placeId": "_po_frankreich",
-          "from": 1811,
+          "placeId": "_po_arr_steinfurt",
+          "from": 1810,
           "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811",
           "dateRaw": "dateFrom: 1811-01-01; dateTo: 1811-04-27"
         },
         {
-          "placeId": "_po_dep_lippe",
+          "placeId": "_po_arr_steinfurt",
           "from": 1811,
           "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813",
           "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11"
         },
         {
           "placeId": "_ep_bc089dae",
           "from": 1813,
           "to": 1816,
+          "fromDate": "14 NOV 1813",
+          "toDate": "9 AUG 1816",
           "dateRaw": "dateFrom: 1813-11"
         },
         {
           "placeId": "_po_kreis_ahaus",
           "from": 1816,
-          "to": 1975
+          "to": 1974,
+          "fromDate": "10 AUG 1816",
+          "toDate": "31 DEC 1974"
         },
         {
           "placeId": "_po_kreis_borken",
           "from": 1975,
-          "to": null
-        },
-        {
-          "placeId": "_po_regbez_muenster",
-          "from": 1816,
-          "to": null
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1946,
           "to": null,
-          "dateRaw": "dateFrom: 1946-08-23"
+          "fromDate": "1 JAN 1975"
         }
       ],
       "lat": 52.0761541,
@@ -3770,12 +4171,60 @@
     },
     {
       "id": "_ep_cafc2028",
-      "title": "Welbergen, Westfalen, Deutschland",
+      "title": "Welbergen",
       "type": "Village",
-      "pnames": [],
-      "enclosedBy": [],
-      "lat": 52.2021369,
-      "long": 7.2554135,
+      "pnames": [
+        {
+          "value": "Welbergen",
+          "from": null,
+          "to": null
+        },
+        {
+          "value": "Welbergen, Westfalen, Deutschland",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_amt_horstmar",
+          "from": 1269,
+          "to": 1808,
+          "toDate": "13 NOV 1808"
+        },
+        {
+          "placeId": "_ep_df647373",
+          "from": 1808,
+          "to": 1811,
+          "fromDate": "14 NOV 1808"
+        },
+        {
+          "placeId": "_po_amt_ochtrup",
+          "from": 1811,
+          "to": 1813,
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_bc089dae",
+          "from": 1813,
+          "to": 1816,
+          "fromDate": "14 NOV 1813",
+          "toDate": "9 AUG 1816"
+        },
+        {
+          "placeId": "_po_amt_ochtrup",
+          "from": 1816,
+          "to": 1969,
+          "fromDate": "10 AUG 1816"
+        },
+        {
+          "placeId": "_po_ochtrup",
+          "from": 1969,
+          "to": null
+        }
+      ],
+      "lat": 52.1875,
+      "long": 7.2264,
       "note": "",
       "existsFrom": null,
       "existsTo": null,
@@ -3784,10 +4233,31 @@
     },
     {
       "id": "_ep_d9c9c4a4",
-      "title": "Boekelo, Enschede, Niederlande",
+      "title": "Boekelo",
       "type": "Village",
-      "pnames": [],
-      "enclosedBy": [],
+      "pnames": [
+        {
+          "value": "Boekelo",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_gem_lonneker",
+          "from": 1811,
+          "to": 1934,
+          "fromDate": null,
+          "toDate": "30 APR 1934"
+        },
+        {
+          "placeId": "_po_gem_enschede",
+          "from": 1934,
+          "to": null,
+          "fromDate": "1 MAY 1934",
+          "toDate": null
+        }
+      ],
       "lat": 52.2039859,
       "long": 6.7994423,
       "note": "",
@@ -3809,20 +4279,24 @@
         {
           "value": "Kurfürstentum Bayern",
           "from": 1623,
-          "to": 1806,
-          "dateRaw": "dateTo: 1806-01-01"
+          "to": 1805,
+          "dateRaw": "dateTo: 1806-01-01",
+          "toDate": "31 DEC 1805"
         },
         {
           "value": "Königreich Bayern",
           "from": 1806,
           "to": 1918,
-          "dateRaw": "dateFrom: 1806-01-01; dateTo: 1918-11-08"
+          "dateRaw": "dateFrom: 1806-01-01; dateTo: 1918-11-08",
+          "fromDate": "1 JAN 1806",
+          "toDate": "7 NOV 1918"
         },
         {
           "value": "Freistaat Bayern",
           "from": 1918,
           "to": null,
-          "dateRaw": "dateFrom: 1918-11-08"
+          "dateRaw": "dateFrom: 1918-11-08",
+          "fromDate": "8 NOV 1918"
         }
       ],
       "enclosedBy": [
@@ -3835,7 +4309,7 @@
       "lat": 48.7904,
       "long": 11.4979,
       "note": "",
-      "existsFrom": 1180,
+      "existsFrom": null,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -3865,14 +4339,16 @@
         {
           "placeId": "_po_isarkreis",
           "from": 1808,
-          "to": 1838,
-          "dateRaw": "dateTo: 1838-01-01"
+          "to": 1837,
+          "dateRaw": "dateTo: 1838-01-01",
+          "toDate": "31 DEC 1837"
         },
         {
           "placeId": "_po_regbez_oberbayern",
           "from": 1838,
           "to": null,
-          "dateRaw": "dateFrom: 1838-01-01"
+          "dateRaw": "dateFrom: 1838-01-01",
+          "fromDate": "1 JAN 1838"
         }
       ],
       "lat": 48.1371079,
@@ -3886,19 +4362,62 @@
     {
       "id": "_ep_d3896766",
       "title": "Radevormwald",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [
+      "type": "Town",
+      "pnames": [
         {
-          "placeId": "_po_nrw",
-          "from": null,
+          "value": "Rotha",
+          "from": 1050,
+          "to": 1300
+        },
+        {
+          "value": "Rade vor dem Walde",
+          "from": 1300,
+          "to": 1600
+        },
+        {
+          "value": "Radevormwald",
+          "from": 1600,
           "to": null
         }
       ],
-      "lat": null,
-      "long": null,
+      "enclosedBy": [
+        {
+          "placeId": "_po_amt_beyenburg",
+          "from": 1304,
+          "to": 1806
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1813,
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1813,
+          "to": 1816,
+          "fromDate": "14 NOV 1813"
+        },
+        {
+          "placeId": "_po_kreis_lennep",
+          "from": 1816,
+          "to": 1929
+        },
+        {
+          "placeId": "_po_rhein_wupper_kreis",
+          "from": 1929,
+          "to": 1975
+        },
+        {
+          "placeId": "_po_oberbergischer_kreis",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "lat": 51.2,
+      "long": 7.3667,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1050,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -3906,19 +4425,52 @@
     {
       "id": "_ep_ceb680c9",
       "title": "Dahlhausen",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [
+      "type": "Village",
+      "pnames": [
         {
-          "placeId": "_ep_d3896766",
-          "from": null,
+          "value": "Dalhusen",
+          "from": 1317,
+          "to": 1600
+        },
+        {
+          "value": "Dahlhausen",
+          "from": 1600,
           "to": null
         }
       ],
-      "lat": null,
-      "long": null,
+      "enclosedBy": [
+        {
+          "placeId": "_po_amt_beyenburg",
+          "from": 1317,
+          "to": 1806
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1813,
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1813,
+          "to": 1816,
+          "fromDate": "14 NOV 1813"
+        },
+        {
+          "placeId": "_po_kreis_lennep",
+          "from": 1816,
+          "to": 1929
+        },
+        {
+          "placeId": "_ep_d3896766",
+          "from": 1929,
+          "to": null
+        }
+      ],
+      "lat": 51.21192,
+      "long": 7.31292,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1317,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -3939,14 +4491,38 @@
     },
     {
       "id": "_ep_e895b182",
-      "title": "Oldenburg",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [],
-      "lat": null,
-      "long": null,
+      "title": "Oldenburg (Oldb)",
+      "type": "Town",
+      "pnames": [
+        {
+          "value": "Aldenburg",
+          "from": 1108,
+          "to": 1350
+        },
+        {
+          "value": "Oldenburg",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_hztm_oldenburg",
+          "from": 1108,
+          "to": 1945
+        },
+        {
+          "placeId": "_po_nds",
+          "from": 1946,
+          "to": null,
+          "fromDate": "1 NOV 1946",
+          "toDate": null
+        }
+      ],
+      "lat": 53.1435,
+      "long": 8.2146,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1108,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -3954,13 +4530,30 @@
     {
       "id": "_ep_5b82ded9",
       "title": "Dorsten",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [],
-      "lat": null,
-      "long": null,
+      "type": "Town",
+      "pnames": [
+        {
+          "value": "Dorsten",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_vest_recklinghausen",
+          "from": 1150,
+          "to": 1816
+        },
+        {
+          "placeId": "_po_kreis_recklinghausen",
+          "from": 1816,
+          "to": null
+        }
+      ],
+      "lat": 51.6597,
+      "long": 6.9647,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1150,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -3988,13 +4581,25 @@
     {
       "id": "_ep_6dd54c65",
       "title": "Ammersbek",
-      "type": "Village",
-      "pnames": [],
-      "enclosedBy": [],
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Ammersbek",
+          "from": 1978,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kreis_stormarn",
+          "from": 1978,
+          "to": null
+        }
+      ],
       "lat": 53.6950809,
       "long": 10.1905014,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1978,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4002,19 +4607,55 @@
     {
       "id": "_ep_871f8e4f",
       "title": "Breitungen/Werra",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [
+      "type": "Municipality",
+      "pnames": [
         {
-          "placeId": "_po_de",
-          "from": null,
+          "value": "bretinga",
+          "from": 933,
+          "to": 1200
+        },
+        {
+          "value": "Breitungen",
+          "from": 1200,
+          "to": null
+        },
+        {
+          "value": "Breitungen (Werra)",
+          "from": 1950,
           "to": null
         }
       ],
-      "lat": null,
-      "long": null,
+      "enclosedBy": [
+        {
+          "placeId": "_po_herrschaft_schmalkalden",
+          "from": 1583,
+          "to": 1821
+        },
+        {
+          "placeId": "_po_kreis_schmalkalden",
+          "from": 1821,
+          "to": 1950
+        },
+        {
+          "placeId": "_po_lkr_meiningen",
+          "from": 1950,
+          "to": 1952
+        },
+        {
+          "placeId": "_po_kreis_schmalkalden",
+          "from": 1952,
+          "to": 1994
+        },
+        {
+          "placeId": "_po_lkr_schmalkalden_meiningen",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "lat": 50.755,
+      "long": 10.3333,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 933,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4022,19 +4663,76 @@
     {
       "id": "_ep_32fb5b49",
       "title": "Neuenkirchen",
-      "type": "Village",
-      "pnames": [],
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Snedwinkel",
+          "from": 1200,
+          "to": 1300
+        },
+        {
+          "value": "Neuenkirchen",
+          "from": 1247,
+          "to": null
+        },
+        {
+          "value": "Wigbold Neuenkirchen",
+          "from": 1400,
+          "to": 1934
+        }
+      ],
       "enclosedBy": [
         {
-          "placeId": "_po_nrw",
-          "from": null,
+          "placeId": "_ep_52113362",
+          "from": 1247,
+          "to": 1803
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1803,
+          "to": 1806
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1808,
+          "toDate": "13 NOV 1808"
+        },
+        {
+          "placeId": "_ep_037934db",
+          "from": 1808,
+          "to": 1811,
+          "fromDate": "14 NOV 1808",
+          "toDate": "26 APR 1811"
+        },
+        {
+          "placeId": "_po_dep_lippe",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_bc089dae",
+          "from": 1813,
+          "to": 1816,
+          "fromDate": "14 NOV 1813"
+        },
+        {
+          "placeId": "_po_amt_neuenkirchen",
+          "from": 1816,
+          "to": 1934
+        },
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1934,
           "to": null
         }
       ],
       "lat": 52.24358,
       "long": 7.36983,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1247,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4045,98 +4743,47 @@
       "type": "Municipality",
       "pnames": [
         {
+          "value": "Walbeke",
+          "from": 1185,
+          "to": 1250
+        },
+        {
+          "value": "Wigbold Wolbeck",
+          "from": 1250,
+          "to": 1957
+        },
+        {
           "value": "Gemeinde Wolbeck",
-          "from": 1935,
-          "to": 1974,
-          "dateRaw": "dateFrom: 1935-04-01; dateTo: 1974-12-31"
+          "from": 1957,
+          "to": 1975
         },
         {
-          "value": "Landgemeinde Wolbeck",
-          "from": null,
-          "to": 1935,
-          "dateRaw": "dateTo: 1935-03-31"
-        },
-        {
-          "value": "Marie Wolbeck",
-          "from": 1809,
-          "to": 1813
-        },
-        {
-          "value": "Mairie",
-          "from": 1811,
-          "to": 1813
-        },
-        {
-          "value": "Bürgermeisterei",
-          "from": 1816,
-          "to": 1843,
-          "dateRaw": "dateFrom: 1816-08-10"
-        },
-        {
-          "value": "Standesamt",
-          "from": 1874,
-          "to": null,
-          "dateRaw": "dateFrom: 1874-10-01"
+          "value": "Wolbeck",
+          "from": 1975,
+          "to": null
         }
       ],
       "enclosedBy": [
         {
           "placeId": "_ep_52113362",
-          "from": null,
-          "to": 1803
+          "from": 1185,
+          "to": 1300
         },
         {
-          "placeId": "_ep_e54c5042",
-          "from": 1803,
-          "to": 1807
-        },
-        {
-          "placeId": "_ep_16b18773",
-          "from": 1806,
-          "to": 1808,
-          "dateRaw": "dateTo: 1808-11-14"
-        },
-        {
-          "placeId": "_ep_037934db",
-          "from": 1808,
-          "to": 1811,
-          "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01"
-        },
-        {
-          "placeId": "_po_frankreich",
-          "from": 1811,
-          "to": 1811,
-          "dateRaw": "dateFrom: 1811-01-01; dateTo: 1811-04-27"
-        },
-        {
-          "placeId": "_ep_a105ddb8",
-          "from": 1811,
-          "to": 1813,
-          "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11-14"
-        },
-        {
-          "placeId": "_ep_bc089dae",
-          "from": 1813,
-          "to": 1816,
-          "dateRaw": "dateFrom: 1813-11-14; dateTo: 1816-08-10"
-        },
-        {
-          "placeId": "_ep_dea6e6ed",
-          "from": 1816,
-          "to": 1975,
-          "dateRaw": "dateFrom: 1816-08-10; dateTo: 1975-01-01"
+          "placeId": "_po_amt_wolbeck",
+          "from": 1300,
+          "to": 1975
         },
         {
           "placeId": "_po_muenster",
           "from": 1975,
-          "to": null,
-          "dateRaw": "dateFrom: 1975-01-01"
+          "to": null
         }
       ],
       "lat": 51.920586,
       "long": 7.727183,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1185,
       "existsTo": null,
       "govId": "WOLOLDJO31UW",
       "govTypes": [
@@ -4158,12 +4805,76 @@
       "id": "_ep_3e8392e6",
       "title": "Borghorst",
       "type": "Town",
-      "pnames": [],
-      "enclosedBy": [],
+      "pnames": [
+        {
+          "value": "Borghorst (Stadtteil von Steinfurt)",
+          "from": 1975,
+          "to": null
+        },
+        {
+          "value": "Borghorst",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_stift_borghorst",
+          "from": 968,
+          "to": 1715
+        },
+        {
+          "placeId": "_ep_52113362",
+          "from": 1716,
+          "to": 1802
+        },
+        {
+          "placeId": "_po_amt_horstmar",
+          "from": 1803,
+          "to": 1805
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1810
+        },
+        {
+          "placeId": "_po_dep_lippe",
+          "from": 1811,
+          "to": 1813,
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_bc089dae",
+          "from": 1813,
+          "to": 1815,
+          "fromDate": "14 NOV 1813"
+        },
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1816,
+          "to": 1843
+        },
+        {
+          "placeId": "_po_amt_borghorst",
+          "from": 1844,
+          "to": 1934
+        },
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1935,
+          "to": 1974
+        },
+        {
+          "placeId": "_po_stadt_steinfurt",
+          "from": 1975,
+          "to": null
+        }
+      ],
       "lat": 52.1250913,
       "long": 7.3952033,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 968,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4184,10 +4895,31 @@
     },
     {
       "id": "_ep_da2902a0",
-      "title": "Meuselwitz, Thüringen, Germany",
+      "title": "Meuselwitz",
       "type": "Town",
-      "pnames": [],
-      "enclosedBy": [],
+      "pnames": [
+        {
+          "value": "Meuselwitz",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_hztm_sachsen_altenburg",
+          "from": 1350,
+          "to": 1920,
+          "fromDate": null,
+          "toDate": "30 APR 1920"
+        },
+        {
+          "placeId": "_po_thueringen",
+          "from": 1920,
+          "to": null,
+          "fromDate": "1 MAY 1920",
+          "toDate": null
+        }
+      ],
       "lat": 51.0475,
       "long": 12.2975,
       "note": "",
@@ -4202,12 +4934,7 @@
       "type": "Parish",
       "pnames": [
         {
-          "value": "Pfarrei",
-          "from": null,
-          "to": null
-        },
-        {
-          "value": "Wolbeck (St. Nikolaus)",
+          "value": "Pfarrei Wolbeck (St. Nikolaus)",
           "from": null,
           "to": null
         }
@@ -4222,7 +4949,8 @@
           "placeId": "_po_muenster",
           "from": 1975,
           "to": null,
-          "dateRaw": "dateFrom: 1975-01-01"
+          "dateRaw": "dateFrom: 1975-01-01",
+          "fromDate": "1 JAN 1975"
         }
       ],
       "lat": null,
@@ -4242,25 +4970,24 @@
     },
     {
       "id": "_ep_dea6e6ed",
-      "title": "Münster",
+      "title": "Kreis Münster",
       "type": "County",
       "pnames": [
         {
           "value": "Kreis Münster",
           "from": 1816,
           "to": 1938,
-          "dateRaw": "dateFrom: 1816-08-10; dateTo: 1938-12-31"
+          "dateRaw": "dateFrom: 1816-08-10; dateTo: 1938-12-31",
+          "fromDate": "10 AUG 1816",
+          "toDate": "31 DEC 1938"
         },
         {
           "value": "Landkreis Münster",
           "from": 1939,
           "to": 1974,
-          "dateRaw": "dateFrom: 1939-01-01; dateTo: 1974-12-31"
-        },
-        {
-          "value": "Münster",
-          "from": null,
-          "to": null
+          "dateRaw": "dateFrom: 1939-01-01; dateTo: 1974-12-31",
+          "fromDate": "1 JAN 1939",
+          "toDate": "31 DEC 1974"
         }
       ],
       "enclosedBy": [
@@ -4268,14 +4995,16 @@
           "placeId": "_po_regbez_muenster",
           "from": 1816,
           "to": 1974,
-          "dateRaw": "dateFrom: 1816-08-10; dateTo: 1974-12-31"
+          "dateRaw": "dateFrom: 1816-08-10; dateTo: 1974-12-31",
+          "fromDate": "10 AUG 1816",
+          "toDate": "31 DEC 1974"
         }
       ],
       "lat": null,
       "long": null,
       "note": "",
       "existsFrom": null,
-      "existsTo": null,
+      "existsTo": 1974,
       "govId": "object_263342",
       "govTypes": [
         {
@@ -4290,7 +5019,8 @@
           "dateFrom": "1939-01-01",
           "dateTo": "1974-12-31"
         }
-      ]
+      ],
+      "shortName": ""
     },
     {
       "id": "_ep_a105ddb8",
@@ -4298,7 +5028,7 @@
       "type": "Unknown",
       "pnames": [
         {
-          "value": "Kanton",
+          "value": "Kanton St. Mauritz",
           "from": 1808,
           "to": 1813
         },
@@ -4312,20 +5042,26 @@
         {
           "placeId": "_ep_037934db",
           "from": 1808,
-          "to": 1811,
-          "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01"
+          "to": 1810,
+          "toDate": "25 DEC 1810",
+          "dateRaw": "dateFrom: 1808-11-14; dateTo: 1811-01-01",
+          "fromDate": "14 NOV 1808"
         },
         {
-          "placeId": "_po_frankreich",
-          "from": 1811,
+          "placeId": "_po_arr_muenster",
+          "from": 1810,
           "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811",
           "dateRaw": "dateFrom: 1811-01-01; dateTo: 1811-04-27"
         },
         {
-          "placeId": "_po_dep_lippe",
+          "placeId": "_po_arr_muenster",
           "from": 1811,
           "to": 1813,
-          "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11-14"
+          "fromDate": "27 APR 1811",
+          "dateRaw": "dateFrom: 1811-04-27; dateTo: 1813-11-14",
+          "toDate": "13 NOV 1813"
         }
       ],
       "lat": null,
@@ -4346,19 +5082,45 @@
     {
       "id": "_ep_a6e2308e",
       "title": "Augsburg",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [
+      "type": "City",
+      "pnames": [
         {
-          "placeId": "_ep_dc2951af",
-          "from": null,
+          "value": "Augusta Vindelicum",
+          "from": -15,
+          "to": 500
+        },
+        {
+          "value": "Augusta",
+          "from": 500,
+          "to": 1200
+        },
+        {
+          "value": "Augsburg",
+          "from": 1200,
           "to": null
         }
       ],
-      "lat": null,
-      "long": null,
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1276,
+          "to": 1806
+        },
+        {
+          "placeId": "_ep_dc2951af",
+          "from": 1806,
+          "to": 1817
+        },
+        {
+          "placeId": "_po_regbez_schwaben",
+          "from": 1817,
+          "to": null
+        }
+      ],
+      "lat": 48.37154,
+      "long": 10.89851,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": -15,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4386,13 +5148,30 @@
     {
       "id": "_ep_3fff290c",
       "title": "Albersloh",
-      "type": "Unknown",
-      "pnames": [],
-      "enclosedBy": [],
+      "type": "Village",
+      "pnames": [
+        {
+          "value": "Albersloh",
+          "from": 1171,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_amt_wolbeck",
+          "from": 1300,
+          "to": 1975
+        },
+        {
+          "placeId": "_po_stadt_sendenhorst",
+          "from": 1975,
+          "to": null
+        }
+      ],
       "lat": 51.86783,
       "long": 7.73768,
       "note": "",
-      "existsFrom": null,
+      "existsFrom": 1171,
       "existsTo": null,
       "govId": null,
       "govTypes": null
@@ -4405,16 +5184,18 @@
         {
           "value": "Isarkreis",
           "from": 1808,
-          "to": 1838,
-          "dateRaw": "dateTo: 1838-01-01"
+          "to": 1837,
+          "dateRaw": "dateTo: 1838-01-01",
+          "toDate": "31 DEC 1837"
         }
       ],
       "enclosedBy": [
         {
           "placeId": "_ep_dc2951af",
           "from": 1808,
-          "to": 1838,
-          "dateRaw": "dateTo: 1838-01-01"
+          "to": 1837,
+          "dateRaw": "dateTo: 1838-01-01",
+          "toDate": "31 DEC 1837"
         }
       ],
       "lat": 48.14,
@@ -4434,7 +5215,8 @@
           "value": "Oberbayern",
           "from": 1838,
           "to": null,
-          "dateRaw": "dateFrom: 1838-01-01"
+          "dateRaw": "dateFrom: 1838-01-01",
+          "fromDate": "1 JAN 1838"
         }
       ],
       "enclosedBy": [
@@ -4442,7 +5224,8 @@
           "placeId": "_ep_dc2951af",
           "from": 1838,
           "to": null,
-          "dateRaw": "dateFrom: 1838-01-01"
+          "dateRaw": "dateFrom: 1838-01-01",
+          "fromDate": "1 JAN 1838"
         }
       ],
       "lat": 47.95,
@@ -4522,7 +5305,7 @@
       ],
       "enclosedBy": [
         {
-          "placeId": "_po_prov_niederschlesien",
+          "placeId": "_po_regbez_liegnitz",
           "from": 1816,
           "to": 1945
         }
@@ -4544,13 +5327,15 @@
           "value": "Herzogtum Anhalt",
           "from": 1863,
           "to": 1918,
-          "dateRaw": "dateTo: 1918-11-12"
+          "dateRaw": "dateTo: 1918-11-12",
+          "toDate": "11 NOV 1918"
         },
         {
           "value": "Freistaat Anhalt",
           "from": 1918,
           "to": 1945,
-          "dateRaw": "dateFrom: 1918-11-12"
+          "dateRaw": "dateFrom: 1918-11-12",
+          "fromDate": "12 NOV 1918"
         },
         {
           "value": "Fürstentum Anhalt-Bernburg",
@@ -4677,7 +5462,7 @@
         }
       ],
       "lat": 52.38,
-      "long": 7.0,
+      "long": 7,
       "note": "",
       "existsFrom": 2001,
       "existsTo": null,
@@ -4725,7 +5510,8 @@
           "placeId": "_po_de",
           "from": 1990,
           "to": null,
-          "dateRaw": "dateFrom: 1990-10-03"
+          "dateRaw": "dateFrom: 1990-10-03",
+          "fromDate": "3 OCT 1990"
         }
       ],
       "lat": 52.4,
@@ -4746,7 +5532,8 @@
           "placeId": "_po_brb",
           "from": 1993,
           "to": null,
-          "dateRaw": "dateFrom: 1993-12-06"
+          "dateRaw": "dateFrom: 1993-12-06",
+          "fromDate": "6 DEC 1993"
         }
       ],
       "lat": 51.85,
@@ -4773,15 +5560,10 @@
           "placeId": "_po_regbez_muenster",
           "from": 1816,
           "to": 1975
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1946,
-          "to": 1975
         }
       ],
       "lat": 52.07,
-      "long": 7.0,
+      "long": 7,
       "note": "",
       "existsFrom": 1816,
       "existsTo": 1975,
@@ -4792,17 +5574,29 @@
       "id": "_po_kreis_borken",
       "title": "Kreis Borken",
       "type": "County",
-      "pnames": [],
+      "pnames": [
+        {
+          "value": "Kreis Borken",
+          "from": 1816,
+          "to": 1974,
+          "fromDate": null,
+          "toDate": "31 DEC 1974"
+        },
+        {
+          "value": "Kreis Borken",
+          "from": 1975,
+          "to": null,
+          "fromDate": "1 JAN 1975",
+          "toDate": null
+        }
+      ],
       "enclosedBy": [
         {
           "placeId": "_po_regbez_muenster",
-          "from": 1975,
-          "to": null
-        },
-        {
-          "placeId": "_po_nrw",
-          "from": 1975,
-          "to": null
+          "from": 1816,
+          "to": null,
+          "fromDate": null,
+          "toDate": null
         }
       ],
       "lat": 51.85,
@@ -4810,6 +5604,2181 @@
       "note": "",
       "existsFrom": 1975,
       "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_liegnitz",
+      "title": "Regierungsbezirk Liegnitz",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Liegnitz",
+          "from": 1815,
+          "to": 1945
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_plac_schlesien",
+          "from": 1815,
+          "to": 1945
+        }
+      ],
+      "lat": 51.207,
+      "long": 16.1619,
+      "note": "Einer der drei schlesischen Regierungsbezirke (neben Breslau und Oppeln), eingerichtet 1815 mit Sitz in Liegnitz; umfasste Niederschlesien westlich der Oder einschließlich der Kreise Freystadt, Lüben, Glogau und Grünberg. 1945 unter polnische Verwaltung.",
+      "existsFrom": 1815,
+      "existsTo": 1945,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_plac_schlesien",
+      "title": "Schlesien",
+      "shortName": "",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Provinz Schlesien",
+          "from": 1815,
+          "to": 1919
+        },
+        {
+          "value": "Provinz Niederschlesien",
+          "from": 1919,
+          "to": 1938
+        },
+        {
+          "value": "Provinz Schlesien",
+          "from": 1938,
+          "to": 1941
+        },
+        {
+          "value": "Provinz Niederschlesien",
+          "from": 1941,
+          "to": 1945
+        }
+      ],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1742,
+          "to": 1945
+        }
+      ],
+      "lat": 51.1,
+      "long": 16.9,
+      "note": "Nach dem Ersten Schlesischen Krieg 1742 an Preußen, 1815 als Provinz Schlesien konstituiert (Regierungsbezirke Breslau, Liegnitz, Oppeln). 1919 in die Provinzen Nieder- und Oberschlesien geteilt, 1938 kurzzeitig wiedervereinigt, 1941 erneut geteilt. 1945 unter polnische Verwaltung.\nACHTUNG — Dublette: Diese Wurzel entspricht `_po_prov_niederschlesien`. Beide bestehen nebeneinander, weil der Bestand sowohl „Schlesien\" als auch „Niederschlesien\" als PLAC-Ebene führt (Erkelsdorf/Freystadt über diese, Kotzenau/Lüben über jene). Eine Zusammenführung setzt voraus, dass vorher die PLAC-Strings angeglichen werden.",
+      "existsFrom": 1742,
+      "existsTo": 1945,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_amt_wolbeck",
+      "title": "Amt Wolbeck",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Amt Wolbeck",
+          "from": 1300,
+          "to": 1809
+        },
+        {
+          "value": "Mairie Wolbeck",
+          "from": 1809,
+          "to": 1813
+        },
+        {
+          "value": "Amt Wolbeck",
+          "from": 1814,
+          "to": 1816
+        },
+        {
+          "value": "Bürgermeisterei Wolbeck",
+          "from": 1816,
+          "to": 1843
+        },
+        {
+          "value": "Amt Wolbeck",
+          "from": 1843,
+          "to": 1975
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_52113362",
+          "from": 1300,
+          "to": 1803
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1803,
+          "to": 1806
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1808,
+          "toDate": "13 NOV 1808"
+        },
+        {
+          "placeId": "_ep_037934db",
+          "from": 1808,
+          "to": 1811,
+          "fromDate": "14 NOV 1808"
+        },
+        {
+          "placeId": "_ep_a105ddb8",
+          "from": 1811,
+          "to": 1813
+        },
+        {
+          "placeId": "_ep_bc089dae",
+          "from": 1813,
+          "to": 1816
+        },
+        {
+          "placeId": "_ep_dea6e6ed",
+          "from": 1816,
+          "to": 1974
+        }
+      ],
+      "lat": 51.920586,
+      "long": 7.727183,
+      "note": "Verwaltungsebene über dem Ort Wolbeck, durchgehend mit Sitz in Wolbeck.\n• Fürstbischöfliches Amt Wolbeck (bis 1803): flächengrößtes und bevölkerungsreichstes Amt des Oberstifts Münster mit rund 40 Kirchspielen. Verwaltungssitz war der 1535 von Drost Dirk von Merveldt erbaute Drostenhof.\n• 1803 preußisch, 1806 Großherzogtum Berg, 1808 Departement Ems / Kanton St. Mauritz.\n• Mairie Wolbeck 1809–1813 (französische Zeit).\n• 1816 Bürgermeisterei Wolbeck im neuen Kreis Münster.\n• 1843/44 durch die Landgemeinde-Ordnung in das (preußische) Amt Wolbeck überführt, zunächst mit sechs Gemeinden: Wigbold Wolbeck, Kirchspiel Wolbeck, Albersloh, Alverskirchen, Angelmodde, Rinkerode. Zum 01.01.1975 durch das Münster/Hamm-Gesetz aufgelöst.\nACHTUNG: Das fürstbischöfliche und das preußische Amt tragen denselben Namen, unterscheiden sich aber stark im Umfang (40 Kirchspiele vs. 6 Gemeinden).",
+      "existsFrom": 1300,
+      "existsTo": 1975,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_stadt_sendenhorst",
+      "title": "Stadt Sendenhorst",
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Stadt Sendenhorst",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kreis_warendorf",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "lat": 51.8433,
+      "long": 7.8283,
+      "note": "Am 01.01.1975 durch das Münster/Hamm-Gesetz aus der alten Stadt Sendenhorst (bis dahin Kreis Beckum) und der Gemeinde Albersloh (bis dahin Amt Wolbeck, Landkreis Münster) gebildet. Seitdem im Kreis Warendorf.",
+      "existsFrom": 1975,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_warendorf",
+      "title": "Kreis Warendorf",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Warendorf",
+          "from": 1806,
+          "to": 1809
+        },
+        {
+          "value": "Kreis Warendorf",
+          "from": 1816,
+          "to": 1974
+        },
+        {
+          "value": "Kreis Warendorf",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1806,
+          "to": 1809
+        },
+        {
+          "placeId": "_po_regbez_muenster",
+          "from": 1816,
+          "to": null
+        }
+      ],
+      "lat": 51.9506,
+      "long": 7.9878,
+      "note": "Drei zu unterscheidende Gebilde gleichen Namens:\n• 1804 als preußischer Kreis im Erbfürstentum Münster gebildet, 1806–1809 kurzzeitig erweitert (u. a. um Albersloh), danach in der französischen Zeit aufgelöst.\n• 10.08.1816 als preußischer Kreis Warendorf im Regierungsbezirk Münster neu gebildet.\n• 01.01.1975 durch das Münster/Hamm-Gesetz zum heutigen Kreis Warendorf vergrößert: der alte Kreis Warendorf, der aufgelöste Kreis Beckum und Teile des Landkreises Münster (Albersloh, Alverskirchen, Rinkerode aus dem Amt Wolbeck) wurden zusammengelegt. Kreisstadt ist Warendorf.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_schwaben",
+      "title": "Regierungsbezirk Schwaben",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Oberdonaukreis",
+          "from": 1817,
+          "to": 1837
+        },
+        {
+          "value": "Kreis Schwaben und Neuburg",
+          "from": 1837,
+          "to": 1938
+        },
+        {
+          "value": "Schwaben",
+          "from": 1938,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_dc2951af",
+          "from": 1817,
+          "to": null
+        }
+      ],
+      "lat": 48.3717,
+      "long": 10.8983,
+      "note": "Bayerischer Regierungsbezirk mit Sitz in **Augsburg**.\n• 1803 kam das schwäbische Gebiet als „Baierische Provinz Schwaben\" an Bayern; 1808 in die drei Kreise Oberdonaukreis, Lechkreis und Illerkreis geteilt, **1817** zum Oberdonaukreis mit Sitz Augsburg vereinigt.\n• **1837** in „Kreis Schwaben und Neuburg\" umbenannt — König Ludwig I. griff damit auf das alte Herzogtum Schwaben zurück und fügte das Neuburger Gebiet hinzu. **1938** auf „Schwaben\" verkürzt.\n• Heute vier kreisfreie Städte und zehn Landkreise (Zuschnitt der Gebietsreform 1972).",
+      "existsFrom": 1817,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_arr_muenster",
+      "title": "Arrondissement Münster",
+      "shortName": "",
+      "type": "District",
+      "pnames": [],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_dep_yssel_superieur",
+          "from": 1810,
+          "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811"
+        },
+        {
+          "placeId": "_po_dep_lippe",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813"
+        }
+      ],
+      "lat": null,
+      "long": null,
+      "note": "Kantone Dülmen, Haltern, Münster, Nottuln, Mauritz",
+      "existsFrom": 1810,
+      "existsTo": 1813,
+      "govId": null,
+      "govTypes": [],
+      "reviewedAt": null
+    },
+    {
+      "id": "_po_dep_yssel_superieur",
+      "title": "Département de l'Yssel-Supérieur",
+      "shortName": "",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Departement Ober-Yssel",
+          "from": 1810,
+          "to": 1811
+        }
+      ],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_frankreich",
+          "from": 1810,
+          "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811"
+        }
+      ],
+      "lat": null,
+      "long": null,
+      "note": "",
+      "existsFrom": 1810,
+      "existsTo": 1811,
+      "govId": null,
+      "govTypes": [],
+      "reviewedAt": null
+    },
+    {
+      "id": "_po_hztm_sachsen_altenburg",
+      "title": "Herzogtum Sachsen-Altenburg",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Herzogtum Sachsen-Altenburg",
+          "from": 1826,
+          "to": 1918
+        },
+        {
+          "value": "Freistaat Sachsen-Altenburg",
+          "from": 1918,
+          "to": 1920,
+          "fromDate": null,
+          "toDate": "30 APR 1920"
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1826,
+          "to": 1920,
+          "fromDate": null,
+          "toDate": "30 APR 1920"
+        }
+      ],
+      "lat": 50.9853,
+      "long": 12.4364,
+      "note": "1826 aus der ernestinischen Länderteilung hervorgegangen, 1918 Freistaat, am 01.05.1920 im Land Thüringen aufgegangen.",
+      "existsFrom": 1826,
+      "existsTo": 1920,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_thueringen",
+      "title": "Thüringen",
+      "type": "State",
+      "pnames": [
+        {
+          "value": "Land Thüringen",
+          "from": 1920,
+          "to": 1952
+        },
+        {
+          "value": "Land Thüringen",
+          "from": 1990,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1920,
+          "to": null
+        }
+      ],
+      "lat": 50.9,
+      "long": 11.03,
+      "note": "1920 aus den thüringischen Kleinstaaten gebildet (darunter Sachsen-Meiningen). 1945 um die vormals preußischen Gebiete des Regierungsbezirks Erfurt einschließlich des Kreises Schmalkalden erweitert. 1952 in der DDR zugunsten der Bezirke Erfurt, Gera und Suhl aufgelöst, am 03.10.1990 als Freistaat Thüringen wiedererrichtet.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_stift_borghorst",
+      "title": "Stift Borghorst",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Stift Borghorst",
+          "from": 968,
+          "to": 1716
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 968,
+          "to": 1716
+        }
+      ],
+      "lat": 52.1250913,
+      "long": 7.3952033,
+      "note": "Am 23.10.968 gestattete Kaiser Otto I. der Gräfinwitwe Bertha und ihrer Tochter Hedwig, ihre Burg in eine geistliche Gemeinschaft umzuwandeln — daraus wurde das freiweltlich-adelige Damenstift Borghorst. Otto II. und Otto III. bestätigten den Kirchbau bis 989. Erst ein Vertrag von 1716 brachte Borghorst unter die Landeshoheit des Fürstbischofs von Münster. Das Stift selbst wurde 1811 nach 843 Jahren aufgehoben.",
+      "existsFrom": 968,
+      "existsTo": 1811,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_amt_horstmar",
+      "title": "Amt Horstmar",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Herrschaft Horstmar",
+          "from": null,
+          "to": 1269
+        },
+        {
+          "value": "Amt Horstmar",
+          "from": 1269,
+          "to": 1802,
+          "toDate": "11 NOV 1802"
+        },
+        {
+          "value": "Grafschaft Salm-Horstmar",
+          "from": 1802,
+          "to": 1806,
+          "fromDate": "12 NOV 1802",
+          "toDate": "11 JUL 1806"
+        },
+        {
+          "value": "Salm-Horstmar",
+          "from": 1806,
+          "to": 1920,
+          "fromDate": "12 JUL 1806"
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_52113362",
+          "from": 1269,
+          "to": 1802,
+          "toDate": "11 NOV 1802"
+        },
+        {
+          "placeId": "_po_de",
+          "from": 1802,
+          "to": 1806,
+          "fromDate": "12 NOV 1802",
+          "toDate": "11 JUL 1806"
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1806,
+          "to": 1808,
+          "fromDate": "12 JUL 1806",
+          "toDate": "13 NOV 1808"
+        },
+        {
+          "placeId": "_ep_037934db",
+          "from": 1808,
+          "to": 1810,
+          "fromDate": "14 NOV 1808"
+        },
+        {
+          "placeId": "_po_dep_lippe",
+          "from": 1810,
+          "to": 1813,
+          "toDate": "13 NOV 1813"
+        },
+        {
+          "placeId": "_ep_bc089dae",
+          "from": 1813,
+          "to": 1816,
+          "fromDate": "14 NOV 1813"
+        }
+      ],
+      "lat": 52.0811414,
+      "long": 7.3034425,
+      "note": "Verwaltungsebene über der Stadt Horstmar, nicht der Ort selbst.\n• Aus der **Herrschaft Horstmar** der Edelherren von Horstmar hervorgegangen, die 1269 an das Hochstift Münster kam und dort als fürstbischöfliches **Amt Horstmar** fortbestand — eines der Ämter des Oberstifts im Braemschen Bezirk. Dazu gehörten unter anderem die Kirchspiele Ochtrup, Metelen, Schöppingen, Eggerode, Epe, Heek, Gronau, Borghorst und Horstmar selbst.\n• Am 25.02.1803 fiel das Amt im Reichsdeputationshauptschluss als **Grafschaft Salm-Horstmar** an die Wild- und Rheingrafen aus dem Hause Salm-**Grumbach** (nicht Salm-Kyrburg). 1806 Mediatisierung → Großherzogtum Berg, 1808 Departement Ems, ab November 1810 Kaiserreich Frankreich (Département de la Lippe), 1813 Regierungskommission Münster.\n• 1816 ging das Gebiet im preußischen Kreis Steinfurt auf; der Titel Fürst zu Salm-Horstmar bestand als Standesherrschaft bis 1920 fort.\nACHTUNG: Amt und Stadt tragen denselben Namen. Dieses Objekt ist die Verwaltungsebene; die **Stadt Horstmar** ist `_ep_ac5f9351`.",
+      "existsFrom": 1269,
+      "existsTo": 1816,
+      "govId": "object_1051709",
+      "govTypes": [
+        {
+          "rawType": "Amt",
+          "type": "Municipality",
+          "dateFrom": "1269",
+          "dateTo": "1802"
+        },
+        {
+          "rawType": "Grafschaft",
+          "type": "Unknown",
+          "dateFrom": "1802",
+          "dateTo": "1806"
+        },
+        {
+          "rawType": "Herrschaft",
+          "type": "Unknown",
+          "dateFrom": null,
+          "dateTo": "1269"
+        }
+      ]
+    },
+    {
+      "id": "_po_amt_borghorst",
+      "title": "Amt Borghorst",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Amt Borghorst",
+          "from": 1844,
+          "to": 1934
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1844,
+          "to": 1934
+        }
+      ],
+      "lat": 52.1250913,
+      "long": 7.3952033,
+      "note": "Borghorst bildete von 1844 bis 1934 ein eigenes Amt im Kreis Steinfurt.",
+      "existsFrom": 1844,
+      "existsTo": 1934,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_stadt_steinfurt",
+      "title": "Stadt Steinfurt",
+      "type": "Town",
+      "pnames": [
+        {
+          "value": "Stadt Steinfurt",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "lat": 52.1503,
+      "long": 7.3403,
+      "note": "Am 01.01.1975 durch das Münster/Hamm-Gesetz aus den bis dahin selbständigen Städten Burgsteinfurt und Borghorst gebildet. Kreisstadt des Kreises Steinfurt.",
+      "existsFrom": 1975,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_amt_neuenkirchen",
+      "title": "Amt Neuenkirchen",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Bürgermeisterei Neuenkirchen",
+          "from": 1816,
+          "to": 1844
+        },
+        {
+          "value": "Amt Neuenkirchen",
+          "from": 1844,
+          "to": 1934
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_grafschaft_steinfurt",
+          "from": 1816,
+          "to": 1934
+        }
+      ],
+      "lat": 52.24358,
+      "long": 7.36983,
+      "note": "Preußische Bürgermeisterei Neuenkirchen, 1844 mit der westfälischen Landgemeindeordnung in ein **Amt** überführt; Kreis Steinfurt, Regierungsbezirk Münster, Provinz Westfalen.\n• Das Amt bestand aus einer **einzigen Gemeinde** — 1931 rund 5.310 Einwohner auf 4.555 Hektar.\n• Die preußische Amtsordnung vom 08.10.1934 (in Kraft am 01.11.1934) löste alle Ämter auf, die nur aus einer Gemeinde bestanden. Betroffen waren im Kreis Steinfurt **Altenberge, Borghorst, Neuenkirchen, Nordwalde und Wettringen**; die Gemeinde Neuenkirchen wurde Rechtsnachfolgerin.\nABGRENZUNG: Das mehrgemeindige Amt Ochtrup (`_po_amt_ochtrup`) war davon **nicht** betroffen und bestand bis 1969 fort — siehe dort zur 1934-Frage.",
+      "existsFrom": 1816,
+      "existsTo": 1934,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_herrschaft_schmalkalden",
+      "title": "Herrschaft Schmalkalden",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Herrschaft Schmalkalden",
+          "from": 1360,
+          "to": 1821
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1360,
+          "to": 1806
+        },
+        {
+          "placeId": "_po_kurhessen",
+          "from": 1806,
+          "to": 1821
+        }
+      ],
+      "lat": 50.7203,
+      "long": 10.4444,
+      "note": "Exklave, die seit 1360 zur Hälfte und nach dem Aussterben der Grafen von Henneberg 1583 vollständig an Hessen-Kassel fiel; sie blieb bis 1866 hessisch, obwohl sie geographisch mitten in Thüringen lag. Gegliedert in die Ämter Schmalkalden, Hallenberg, Herrenbreitungen und Brotterode — aus diesen vier Ämtern entstand 1821 bei der Trennung von Verwaltung und Justiz der Kreis Schmalkalden.",
+      "existsFrom": 1360,
+      "existsTo": 1821,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_schmalkalden",
+      "title": "Kreis Schmalkalden",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Schmalkalden",
+          "from": 1821,
+          "to": 1907
+        },
+        {
+          "value": "Kreis Herrschaft Schmalkalden",
+          "from": 1907,
+          "to": 1946
+        },
+        {
+          "value": "Landkreis Schmalkalden",
+          "from": 1946,
+          "to": 1950
+        },
+        {
+          "value": "Kreis Schmalkalden",
+          "from": 1952,
+          "to": 1990
+        },
+        {
+          "value": "Landkreis Schmalkalden",
+          "from": 1990,
+          "to": 1994
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kurhessen",
+          "from": 1821,
+          "to": 1866
+        },
+        {
+          "placeId": "_po_prov_hessen_nassau",
+          "from": 1868,
+          "to": 1944
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1944,
+          "to": 1945
+        },
+        {
+          "placeId": "_po_thueringen",
+          "from": 1945,
+          "to": 1950
+        },
+        {
+          "placeId": "_po_bezirk_suhl",
+          "from": 1952,
+          "to": 1990
+        },
+        {
+          "placeId": "_po_thueringen",
+          "from": 1990,
+          "to": 1994
+        }
+      ],
+      "lat": 50.7203,
+      "long": 10.4444,
+      "note": "1821 aus den vier Ämtern Schmalkalden, Hallenberg, Herrenbreitungen und Brotterode der hessischen Herrschaft Schmalkalden gebildet. 1866 mit Kurhessen an Preußen, ab 1868 im Regierungsbezirk Kassel der Provinz Hessen-Nassau; 1907–1946 amtlich „Kreis Herrschaft Schmalkalden\". Mit der Auflösung der Provinz Hessen-Nassau am 01.07.1944 zum Regierungsbezirk Erfurt (Provinz Sachsen) und damit unter die Verwaltung des Reichsstatthalters für Thüringen in Weimar; 1945 endgültig zum Land Thüringen. Am 01.07.1950 aufgelöst und auf die Landkreise Meiningen und Suhl verteilt, am 25.07.1952 in ähnlichem Zuschnitt im Bezirk Suhl neu gebildet. Zum 01.07.1994 im Landkreis Schmalkalden-Meiningen aufgegangen.",
+      "existsFrom": 1821,
+      "existsTo": 1994,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_lkr_meiningen",
+      "title": "Landkreis Meiningen",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Landkreis Meiningen",
+          "from": 1920,
+          "to": 1952
+        },
+        {
+          "value": "Kreis Meiningen",
+          "from": 1952,
+          "to": 1994
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_thueringen",
+          "from": 1920,
+          "to": 1952
+        },
+        {
+          "placeId": "_po_bezirk_suhl",
+          "from": 1952,
+          "to": 1990
+        },
+        {
+          "placeId": "_po_thueringen",
+          "from": 1990,
+          "to": 1994
+        }
+      ],
+      "lat": 50.5686,
+      "long": 10.4156,
+      "note": "Nachfolger der Kreise des Herzogtums Sachsen-Meiningen, zu dem Frauen- und Altenbreitungen (Amt Frauenbreitungen) gehörten. 1950–1952 kam auch das vereinigte Breitungen hierher, bevor es 1952 dem neu gebildeten Kreis Schmalkalden zugeschlagen wurde. Zum 01.07.1994 im Landkreis Schmalkalden-Meiningen aufgegangen.",
+      "existsFrom": 1920,
+      "existsTo": 1994,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_lkr_schmalkalden_meiningen",
+      "title": "Landkreis Schmalkalden-Meiningen",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Landkreis Schmalkalden-Meiningen",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_thueringen",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "lat": 50.6583,
+      "long": 10.4506,
+      "note": "Am 01.07.1994 aus den Kreisen Schmalkalden und Meiningen sowie Teilen des Kreises Suhl-Land gebildet, Kreissitz Meiningen.",
+      "existsFrom": 1994,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_bezirk_suhl",
+      "title": "Bezirk Suhl",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Bezirk Suhl",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "lat": 50.6094,
+      "long": 10.6931,
+      "note": "Bei der DDR-Verwaltungsreform vom 25.07.1952 aus dem Süden des aufgelösten Landes Thüringen gebildet; der neu zugeschnittene Kreis Schmalkalden gehörte dazu. 1990 mit der Wiederbildung der Länder aufgelöst.",
+      "existsFrom": 1952,
+      "existsTo": 1990,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kurhessen",
+      "title": "Hessen-Kassel",
+      "type": "State",
+      "pnames": [
+        {
+          "value": "Landgrafschaft Hessen-Kassel",
+          "from": 1567,
+          "to": 1803
+        },
+        {
+          "value": "Kurfürstentum Hessen",
+          "from": 1803,
+          "to": 1866
+        },
+        {
+          "value": "Kurhessen",
+          "from": 1803,
+          "to": 1866
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1567,
+          "to": 1807
+        },
+        {
+          "placeId": "_po_kgr_westfalen",
+          "from": 1807,
+          "to": 1813
+        },
+        {
+          "placeId": "_ep_ded83840",
+          "from": 1815,
+          "to": 1866
+        }
+      ],
+      "lat": 51.3127,
+      "long": 9.4797,
+      "note": "1567 aus der Erbteilung Hessens hervorgegangen, Residenz Kassel. 1803 zum Kurfürstentum erhoben, 1807–1813 im Königreich Westphalen aufgegangen, 1813 wiederhergestellt und Mitglied des Deutschen Bundes. Nach dem Deutschen Krieg 1866 von Preußen annektiert und 1868 in der Provinz Hessen-Nassau aufgegangen.",
+      "existsFrom": 1567,
+      "existsTo": 1866,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_prov_hessen_nassau",
+      "title": "Provinz Hessen-Nassau",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Provinz Hessen-Nassau",
+          "from": 1868,
+          "to": 1944
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1868,
+          "to": 1944
+        }
+      ],
+      "lat": 50.6,
+      "long": 8.8,
+      "note": "1868 aus den 1866 von Preußen annektierten Gebieten (Kurhessen, Herzogtum Nassau, Freie Stadt Frankfurt u. a.) gebildet, Sitz Kassel, Regierungsbezirke Kassel und Wiesbaden. Zum 01.07.1944 von der NS-Regierung aufgelöst und in die Provinzen Kurhessen und Nassau zerlegt; der Kreis Herrschaft Schmalkalden kam dabei zum Regierungsbezirk Erfurt der Provinz Sachsen.",
+      "existsFrom": 1868,
+      "existsTo": 1944,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_stormarn",
+      "title": "Kreis Stormarn",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Stormarn",
+          "from": 1867,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_schleswig_holstein",
+          "from": 1867,
+          "to": 1946
+        },
+        {
+          "placeId": "_po_sh",
+          "from": 1946,
+          "to": null
+        }
+      ],
+      "lat": 53.7,
+      "long": 10.4,
+      "note": "1867 als preußischer Kreis aus dem holsteinischen Landesteil Stormarn gebildet, Kreissitz zunächst Wandsbek, seit 1944 Bad Oldesloe. Durch das Groß-Hamburg-Gesetz 1937 verlor der Kreis große südliche Teile an Hamburg.",
+      "existsFrom": 1867,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_prov_schleswig_holstein",
+      "title": "Provinz Schleswig-Holstein",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Provinz Schleswig-Holstein",
+          "from": 1867,
+          "to": 1946
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1867,
+          "to": 1946,
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
+        }
+      ],
+      "lat": 54.2194,
+      "long": 9.6961,
+      "note": "1867 nach der Annexion der Herzogtümer Schleswig und Holstein durch Preußen gebildet, Sitz Schleswig (ab 1917 Kiel). 1946 in das Land Schleswig-Holstein überführt.",
+      "existsFrom": 1867,
+      "existsTo": 1946,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_sh",
+      "title": "Schleswig-Holstein",
+      "type": "State",
+      "pnames": [
+        {
+          "value": "Schleswig-Holstein",
+          "from": 1946,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1946,
+          "to": null
+        }
+      ],
+      "lat": 54.2194,
+      "long": 9.6961,
+      "note": "1946 aus der preußischen Provinz Schleswig-Holstein (`_po_prov_schleswig_holstein`) gebildet; Landeshauptstadt Kiel. Umfasst die vormaligen Herzogtümer Schleswig und Holstein, die 1867 von Preußen annektiert worden waren.",
+      "existsFrom": 1946,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_vest_recklinghausen",
+      "title": "Vest Recklinghausen",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Vest Recklinghausen",
+          "from": 1150,
+          "to": 1816
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_kurkoeln",
+          "from": 1180,
+          "to": 1803
+        },
+        {
+          "placeId": "_po_hztm_arenberg",
+          "from": 1803,
+          "to": 1811
+        },
+        {
+          "placeId": "_ep_16b18773",
+          "from": 1811,
+          "to": 1813
+        }
+      ],
+      "lat": 51.6144,
+      "long": 7.1979,
+      "note": "Kurkölnische Exklave zwischen Emscher und Lippe, gegliedert in Ober- und Untervest. Zum Untervest gehörten Stadt und Kirchspiel Dorsten sowie die Kirchspiele Bottrop, Buer, Gladbeck, Horst, Kirchhellen, Marl, Osterfeld und Polsum. Nach dem Reichsdeputationshauptschluss vom 26.11.1802 nahm Herzog Ludwig Engelbert von Arenberg das Vest am 25.02.1803 in Besitz; 1811 vereinigte Napoleon es mit dem Großherzogtum Berg. 1815/16 kam es an Preußen und ging im Kreis Recklinghausen auf.",
+      "existsFrom": 1150,
+      "existsTo": 1816,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_recklinghausen",
+      "title": "Kreis Recklinghausen",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Recklinghausen",
+          "from": 1816,
+          "to": 1946
+        },
+        {
+          "value": "Landkreis Recklinghausen",
+          "from": 1946,
+          "to": 1975
+        },
+        {
+          "value": "Kreis Recklinghausen",
+          "from": 1975,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_muenster",
+          "from": 1816,
+          "to": null
+        }
+      ],
+      "lat": 51.6144,
+      "long": 7.1979,
+      "note": "1816 im Regierungsbezirk Münster der preußischen Provinz Westfalen aus dem vormaligen Vest Recklinghausen gebildet. Durch den Steinkohlenbergbau ab der Mitte des 19. Jh. stark gewachsen; nacheinander schieden Recklinghausen (1901), Bottrop, Buer und Gladbeck aus dem Kreisverband aus. Seit 1946 in Nordrhein-Westfalen.",
+      "existsFrom": 1816,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kurkoeln",
+      "title": "Kurköln",
+      "type": "State",
+      "pnames": [
+        {
+          "value": "Kurfürstentum Köln",
+          "from": 1180,
+          "to": 1803
+        },
+        {
+          "value": "Erzstift Köln",
+          "from": 1180,
+          "to": 1803
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1180,
+          "to": 1803
+        }
+      ],
+      "lat": 50.9375,
+      "long": 6.9603,
+      "note": "Weltliches Territorium der Kölner Erzbischöfe, seit 1180 Herzogtum Westfalen und Kurfürstentum; Niederrheinisch-Westfälischer bzw. Kurrheinischer Reichskreis. Zu Kurköln gehörte als Exklave das Vest Recklinghausen. Im Reichsdeputationshauptschluss vom 25.02.1803 säkularisiert und aufgeteilt.",
+      "existsFrom": 1180,
+      "existsTo": 1803,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_hztm_arenberg",
+      "title": "Herzogtum Arenberg",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Herzogtum Arenberg-Meppen",
+          "from": 1803,
+          "to": 1811
+        },
+        {
+          "value": "Herzogtum Arenberg-Recklinghausen",
+          "from": 1803,
+          "to": 1811
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1803,
+          "to": 1806
+        }
+      ],
+      "lat": 51.6144,
+      "long": 7.1979,
+      "note": "Entschädigungsterritorium der Herzöge von Arenberg für ihre linksrheinischen Verluste, 1803 aus dem Vest Recklinghausen und dem Amt Meppen gebildet. 1806 Rheinbund, 1810/11 von Frankreich bzw. dem Großherzogtum Berg mediatisiert.",
+      "existsFrom": 1803,
+      "existsTo": 1811,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_amt_beyenburg",
+      "title": "Amt Beyenburg",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Amt Beyenburg",
+          "from": 1304,
+          "to": 1806
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_hztm_berg",
+          "from": 1304,
+          "to": 1806
+        }
+      ],
+      "lat": 51.2478,
+      "long": 7.2803,
+      "note": "Bergisches Amt im Osten des Herzogtums mit Sitz auf Burg Beyenburg (heute Wuppertal). Radevormwald und mit ihm Dahlhausen gehörten nach 1301/04 dazu. 1806 im Großherzogtum Berg aufgegangen.",
+      "existsFrom": 1304,
+      "existsTo": 1806,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_lennep",
+      "title": "Kreis Lennep",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Lennep",
+          "from": 1816,
+          "to": 1929
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_duesseldorf",
+          "from": 1816,
+          "to": 1929
+        }
+      ],
+      "lat": 51.1219,
+      "long": 7.2258,
+      "note": "1816 im Regierungsbezirk Düsseldorf der preußischen Rheinprovinz gebildet, Kreissitz Lennep (heute Remscheid); umfasste das nördliche Bergische Land mit Radevormwald, Hückeswagen und Wermelskirchen. 1929 bei der rheinischen Neugliederung aufgelöst und im Rhein-Wupper-Kreis aufgegangen.",
+      "existsFrom": 1816,
+      "existsTo": 1929,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_duesseldorf",
+      "title": "Regierungsbezirk Düsseldorf",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Düsseldorf",
+          "from": 1815,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_rheinprovinz",
+          "from": 1815,
+          "to": 1946
+        },
+        {
+          "placeId": "_po_nrw",
+          "from": 1946,
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
+        }
+      ],
+      "lat": 51.2277,
+      "long": 6.7735,
+      "note": "",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_rheinprovinz",
+      "title": "Rheinprovinz",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Provinz Jülich-Kleve-Berg",
+          "from": 1815,
+          "to": 1822
+        },
+        {
+          "value": "Rheinprovinz",
+          "from": 1822,
+          "to": 1946
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1815,
+          "to": 1946,
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
+        }
+      ],
+      "lat": 50.3569,
+      "long": 7.589,
+      "note": "Preußische Provinz. 1815 zunächst als Provinz Jülich-Kleve-Berg und Provinz Großherzogtum Niederrhein, 1822 zur Rheinprovinz vereinigt. 1946 aufgeteilt auf Nordrhein-Westfalen und Rheinland-Pfalz.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_hztm_berg",
+      "title": "Herzogtum Berg",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Grafschaft Berg",
+          "from": 1100,
+          "to": 1380
+        },
+        {
+          "value": "Herzogtum Berg",
+          "from": 1380,
+          "to": 1806
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1100,
+          "to": 1806
+        }
+      ],
+      "lat": 51.1657,
+      "long": 7,
+      "note": "1380 zum Herzogtum erhoben, Residenz Düsseldorf. Ab 1423 in Personalunion mit Jülich, 1614/66 an Pfalz-Neuburg. 1806 an Napoleons Schwager Joachim Murat und im Großherzogtum Berg aufgegangen. Gegliedert in Ämter, darunter das Amt Mettmann.",
+      "existsFrom": 1100,
+      "existsTo": 1806,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_rhein_wupper_kreis",
+      "title": "Rhein-Wupper-Kreis",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Rhein-Wupper-Kreis",
+          "from": 1929,
+          "to": 1975
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_duesseldorf",
+          "from": 1929,
+          "to": 1975
+        }
+      ],
+      "lat": 51.05,
+      "long": 7,
+      "note": "1929 aus dem aufgelösten Kreis Lennep und Teilen des Kreises Solingen-Land gebildet, Kreissitz Opladen. Zum 01.01.1975 aufgelöst; die nördlichen Gemeinden kamen zum Oberbergischen Kreis, die übrigen zum Rheinisch-Bergischen Kreis bzw. zur Stadt Leverkusen.",
+      "existsFrom": 1929,
+      "existsTo": 1975,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_oberbergischer_kreis",
+      "title": "Oberbergischer Kreis",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Oberbergischer Kreis",
+          "from": 1932,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_koeln",
+          "from": 1932,
+          "to": null
+        }
+      ],
+      "lat": 51,
+      "long": 7.5,
+      "note": "Kreis im Bergischen Land mit Sitz in Gummersbach, Regierungsbezirk Köln. Zum 01.01.1975 kam Radevormwald aus dem aufgelösten Rhein-Wupper-Kreis hinzu und wechselte damit zugleich vom Regierungsbezirk Düsseldorf nach Köln; Radevormwald ist seitdem die nördlichste Kommune des Kreises.",
+      "existsFrom": 1932,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_koeln",
+      "title": "Regierungsbezirk Köln",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Köln",
+          "from": 1816,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_rheinprovinz",
+          "from": 1816,
+          "to": 1946
+        },
+        {
+          "placeId": "_po_nrw",
+          "from": 1946,
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
+        }
+      ],
+      "lat": 50.9375,
+      "long": 6.9603,
+      "note": "1816 in der preußischen Rheinprovinz eingerichtet; seit 1946 in Nordrhein-Westfalen. Zu ihm gehört seit 1975 der Oberbergische Kreis.",
+      "existsFrom": 1816,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_gem_lonneker",
+      "title": "Gemeente Lonneker",
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Lonneker",
+          "from": 1811,
+          "to": 1934,
+          "fromDate": null,
+          "toDate": "30 APR 1934"
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_overijssel",
+          "from": 1811,
+          "to": 1934,
+          "fromDate": null,
+          "toDate": "30 APR 1934"
+        }
+      ],
+      "lat": 52.2419,
+      "long": 6.9047,
+      "note": "Selbständige niederländische Gemeinde von 1811 bis 1934; sie umschloss die Stadt Enschede ringförmig und umfasste u.a. Boekelo, Usselo, Glanerbrug und Lonneker. Nach zwölfjähriger Debatte beschloss die Zweite Kammer am 28.03.1934 die vollständige Zusammenlegung; wirksam zum 01.05.1934 — nach 123 Jahren Selbständigkeit.\nHINWEIS: Vereinzelt findet sich auch die Angabe „bis Juli 1934\". Für die GEDCOM ist das ohne Folgen — das einzige Boekelo-Ereignis ist auf ABT 1945 datiert.",
+      "existsFrom": 1811,
+      "existsTo": 1934,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_gem_enschede",
+      "title": "Enschede",
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Enschede",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_overijssel",
+          "from": null,
+          "to": null
+        }
+      ],
+      "lat": 52.2215,
+      "long": 6.8937,
+      "note": "Gemeinde in der Provinz Overijssel (Twente). Zum 01.05.1934 wurde die gesamte Nachbargemeinde Lonneker eingemeindet — seither gehören die Dörfer Boekelo, Usselo, Glanerbrug und Lonneker zu Enschede.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_arr_steinfurt",
+      "title": "Arrondissement Steinfurt",
+      "shortName": "",
+      "type": "District",
+      "pnames": [],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_dep_bouches_yssel",
+          "from": 1810,
+          "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811"
+        },
+        {
+          "placeId": "_po_dep_lippe",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "27 APR 1811",
+          "toDate": "13 NOV 1813"
+        }
+      ],
+      "lat": null,
+      "long": null,
+      "note": "Kantone Ahaus, Billerbeck, Coesfeld, Ochtrup, Rheine, Steinfurt",
+      "existsFrom": 1810,
+      "existsTo": 1813,
+      "govId": null,
+      "govTypes": [],
+      "reviewedAt": null
+    },
+    {
+      "id": "_po_dep_bouches_yssel",
+      "title": "Département des Bouches-de-l'Yssel",
+      "shortName": "",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Departement Yssel-Mündung",
+          "from": 1810,
+          "to": 1811
+        }
+      ],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_frankreich",
+          "from": 1810,
+          "to": 1811,
+          "fromDate": "26 DEC 1810",
+          "toDate": "26 APR 1811"
+        }
+      ],
+      "lat": null,
+      "long": null,
+      "note": "",
+      "existsFrom": 1810,
+      "existsTo": 1811,
+      "govId": null,
+      "govTypes": [],
+      "reviewedAt": null
+    },
+    {
+      "id": "_po_dep_ems_superieur",
+      "title": "Département de l'Ems-Supérieur",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Département de l'Ems-Supérieur",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
+        },
+        {
+          "value": "Departement der Oberen Ems",
+          "from": 1811,
+          "to": 1813
+        },
+        {
+          "value": "Oberems-Departement",
+          "from": 1811,
+          "to": 1813
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_frankreich",
+          "from": 1811,
+          "to": 1813,
+          "fromDate": "1 JAN 1811",
+          "toDate": "26 NOV 1813"
+        }
+      ],
+      "lat": 52.2799,
+      "long": 8.0472,
+      "note": "Eines der vier hanseatischen Departements, gebildet zum 01.01.1811 nach der Annexion Nordwestdeutschlands durch Frankreich. Präfektur: Osnabrück. Vier Arrondissements: Osnabrück, Lingen, Minden und Quakenbrück.\n• Der südliche Teil des Herzogtums Oldenburg — die Ämter Vechta und Cloppenburg — bildete den Kern des Arrondissements Quakenbrück (Kantone u.a. Vechta, Dinklage, Cloppenburg, Löningen, Friesoythe, Wildeshausen, Quakenbrück, Ankum, Vörden, Diepholz).\n• Bestand bis November 1813.\n• Die Arrondissement-/Kantonsebene ist hier bewusst NICHT als eigenes Objekt modelliert — wie bei Münster (Departement Ems, Département de la Lippe) hängen die Orte direkt am Departement.\n• NICHT ZU VERWECHSELN mit dem Département des Bouches-de-l'Ems (Emsmündungen). Dorthin war das Oldenburger Münsterland bis zur Korrektur vom 09.08.2026 fälschlich gehängt.",
+      "existsFrom": 1811,
+      "existsTo": 1813,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_bist_osnabrueck",
+      "title": "Bistum Osnabrück (kirchlich)",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Bistum Osnabrück",
+          "from": 800,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 800,
+          "to": null
+        }
+      ],
+      "lat": 52.2732,
+      "long": 8.0428,
+      "note": "Das Niederstift Münster (Ämter Vechta, Cloppenburg, Meppen) gehörte politisch zum Hochstift Münster, kirchlich jedoch bis 1668 zum Bistum Osnabrück. Am 19.09.1668 verkaufte Fürstbischof Ernst August von Osnabrück die geistliche Jurisdiktion für 10.000 Taler an Fürstbischof Christoph Bernhard von Galen (Münster); Papst Clemens IX. ratifizierte im selben Jahr. Gründungsjahr hier auf 800 gerundet, analog zu _po_bist_muenster_kirche.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_plac_hannover__niedersachsen",
+      "title": "Hannover",
+      "shortName": "",
+      "type": "City",
+      "pnames": [
+        {
+          "value": "Honovere",
+          "from": 1150,
+          "to": 1300
+        },
+        {
+          "value": "Hannover",
+          "from": 1300,
+          "to": null
+        },
+        {
+          "value": "Hanover",
+          "from": null,
+          "to": null
+        }
+      ],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_hannover",
+          "from": 1241,
+          "to": 1866,
+          "toDate": "2 OCT 1866"
+        },
+        {
+          "placeId": "_po_regbez_hannover",
+          "from": 1866,
+          "to": 1978,
+          "fromDate": "3 OCT 1866"
+        },
+        {
+          "placeId": "_po_nds",
+          "from": 1978,
+          "to": 2001
+        },
+        {
+          "placeId": "_po_region_hannover",
+          "from": 2001,
+          "to": null
+        }
+      ],
+      "lat": 52.37052,
+      "long": 9.73322,
+      "note": "Die **Stadt Hannover** an der Leine — das Hauptobjekt für alle Ortsangaben der Form „…, Hannover, …, Niedersachsen, Deutschland\".\n• Um 1150 erstmals im Hildesheimer *Miracula Sancti Bernwardi* als *vicus Honovere* („hohes Ufer\") erwähnt; 1241 Stadtrecht durch den Herzog von Braunschweig-Lüneburg. Mitglied der Hanse vom 13. Jh. bis um 1620.\n• 1636 machte Herzog Georg von Calenberg Hannover zur welfischen Residenz; 1692 Erhebung zum Kurfürstentum. Von 1714 bis 1837 Personalunion mit Großbritannien — Kurfürst Georg Ludwig wurde als **Georg I.** König.\n• 1814 Hauptstadt des Königreichs Hannover, nach dem Deutschen Krieg 1866 von Preußen annektiert und Provinzhauptstadt; Sitz des Regierungsbezirks Hannover.\n• Im Zweiten Weltkrieg schwer zerstört. Seit 1946 Landeshauptstadt von Niedersachsen, durchgehend kreisfreie Stadt; seit 2001 zugleich Teil der **Region Hannover**. Expo 2000.\nTITELKOLLISION: Der Bestand führte drei Objekte namens „Hannover\". Dieses ist die Stadt; `_plac_hannover__deutschland` meint das **Territorium** (Kurfürstentum/Königreich/Provinz Hannover), `_plac_hannover__leinetal` ist eine Dublette dieser Stadt.",
+      "existsFrom": 1150,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_niederlausitz",
+      "title": "Niederlausitz",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Markgraftum Niederlausitz",
+          "from": 1200,
+          "to": 1815
+        },
+        {
+          "value": "Niederlausitz",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1200,
+          "to": 1806
+        }
+      ],
+      "lat": 51.75,
+      "long": 14.3,
+      "note": "Markgraftum zwischen Spree und Neiße. 1367 an die Krone Böhmen, damit ab 1526 habsburgisch; im Prager Frieden 1635 zusammen mit der Oberlausitz an das Kurfürstentum Sachsen. Verwaltet in Kreisen, darunter der **Gubenische Kreis**. 1815 auf dem Wiener Kongress an Preußen und in die Provinz Brandenburg eingegliedert.",
+      "existsFrom": 1200,
+      "existsTo": 1815,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_guben",
+      "title": "Kreis Guben",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Gubenischer Kreis",
+          "from": 1635,
+          "to": 1816
+        },
+        {
+          "value": "Kreis Guben",
+          "from": 1816,
+          "to": 1939
+        },
+        {
+          "value": "Landkreis Guben",
+          "from": 1939,
+          "to": 1952
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_niederlausitz",
+          "from": 1635,
+          "to": 1815
+        },
+        {
+          "placeId": "_po_regbez_frankfurt",
+          "from": 1816,
+          "to": 1945
+        },
+        {
+          "placeId": "_po_prov_brandenburg",
+          "from": 1945,
+          "to": 1947
+        }
+      ],
+      "lat": 51.95,
+      "long": 14.6,
+      "note": "Aus dem sächsischen Gubenischen Kreis hervorgegangen, der 1635 mit der Niederlausitz an Kursachsen kam. Bei der preußischen Kreisreform 1816 in den neuen Kreis Guben und den Kreis Sorau geteilt; Regierungsbezirk Frankfurt (Oder), Provinz Brandenburg. 1945 wurde der Kreis durch die Oder-Neiße-Linie zerschnitten, 1952 bei der DDR-Verwaltungsreform aufgelöst.\n1947 wurde die Provinz Brandenburg aufgelöst; bis zur DDR-Verwaltungsreform 1952 lag der Kreis im Land Brandenburg.",
+      "existsFrom": 1635,
+      "existsTo": 1952,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_bezirk_cottbus",
+      "title": "Bezirk Cottbus",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Bezirk Cottbus",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "lat": 51.7563,
+      "long": 14.3329,
+      "note": "Bei der DDR-Verwaltungsreform vom 25.07.1952 gebildet, umfasste die Niederlausitz einschließlich Guben. 1990 mit der Wiederbildung der Länder aufgelöst; das Gebiet kam an Brandenburg.",
+      "existsFrom": 1952,
+      "existsTo": 1990,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_frankfurt",
+      "title": "Regierungsbezirk Frankfurt",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Frankfurt (Oder)",
+          "from": 1816,
+          "to": 1945
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_brandenburg",
+          "from": 1816,
+          "to": 1945
+        }
+      ],
+      "lat": 52.3412,
+      "long": 14.5487,
+      "note": "1816 in der preußischen Provinz Brandenburg eingerichtet, Sitz Frankfurt (Oder); umfasste unter anderem die 1815 von Sachsen gekommene Niederlausitz mit den Kreisen Guben und Sorau. 1945 mit der Provinz aufgelöst.",
+      "existsFrom": 1816,
+      "existsTo": 1945,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_weissenfels",
+      "title": "Kreis Weißenfels",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Amt Weißenfels",
+          "from": 1300,
+          "to": 1815
+        },
+        {
+          "value": "Kreis Weißenfels",
+          "from": 1816,
+          "to": 1945
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_plac_sachsen__deutschland",
+          "from": 1300,
+          "to": 1815
+        },
+        {
+          "placeId": "_po_regbez_merseburg",
+          "from": 1816,
+          "to": 1944
+        },
+        {
+          "placeId": "_po_sachsen_anhalt",
+          "from": 1945,
+          "to": 1952
+        }
+      ],
+      "lat": 51.2,
+      "long": 11.97,
+      "note": "Aus dem kursächsischen Amt Weißenfels hervorgegangen, das 1815 auf dem Wiener Kongress an Preußen fiel. 1816 als Kreis Weißenfels im Regierungsbezirk Merseburg der Provinz Sachsen eingerichtet, ab 1945 im Land Sachsen-Anhalt, 1952 bei der DDR-Verwaltungsreform aufgelöst.",
+      "existsFrom": 1300,
+      "existsTo": 1952,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_bezirk_gera",
+      "title": "Bezirk Gera",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Bezirk Gera",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1952,
+          "to": 1990
+        }
+      ],
+      "lat": 50.8809,
+      "long": 12.0806,
+      "note": "Bei der DDR-Verwaltungsreform vom 25.07.1952 im Osten Thüringens gebildet; nahm auch Gemeinden des aufgelösten Kreises Zeitz aus Sachsen-Anhalt auf — dadurch kam Großhelmsdorf zu Thüringen. 1990 aufgelöst.",
+      "existsFrom": 1952,
+      "existsTo": 1990,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_gem_heideland",
+      "title": "Heideland",
+      "type": "Municipality",
+      "pnames": [
+        {
+          "value": "Heideland",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_saale_holzland_kreis",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "lat": 51,
+      "long": 11.87,
+      "note": "Am 09.04.1994 aus mehreren Dörfern zwischen Schkölen und Eisenberg gebildet, darunter Großhelmsdorf. Gehört der Verwaltungsgemeinschaft Heideland-Elstertal-Schkölen an.",
+      "existsFrom": 1994,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_saale_holzland_kreis",
+      "title": "Saale-Holzland-Kreis",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Saale-Holzland-Kreis",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_thueringen",
+          "from": 1994,
+          "to": null
+        }
+      ],
+      "lat": 50.93,
+      "long": 11.68,
+      "note": "1994 bei der thüringischen Kreisreform gebildet, Kreissitz Eisenberg.",
+      "existsFrom": 1994,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_plac_sachsen__deutschland",
+      "title": "Sachsen",
+      "shortName": "",
+      "type": "State",
+      "pnames": [
+        {
+          "value": "Markgrafschaft Meißen",
+          "from": 1000,
+          "to": 1423
+        },
+        {
+          "value": "Kurfürstentum Sachsen",
+          "from": 1423,
+          "to": 1806
+        },
+        {
+          "value": "Königreich Sachsen",
+          "from": 1806,
+          "to": 1918
+        },
+        {
+          "value": "Freistaat Sachsen",
+          "from": 1918,
+          "to": 1952
+        },
+        {
+          "value": "Freistaat Sachsen",
+          "from": 1990,
+          "to": null
+        }
+      ],
+      "translations": [],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1000,
+          "to": 1813
+        },
+        {
+          "placeId": "_ep_ded83840",
+          "from": 1815,
+          "to": 1866
+        },
+        {
+          "placeId": "_ep_dea99b2b",
+          "from": 1867,
+          "to": 1870
+        },
+        {
+          "placeId": "_po_de",
+          "from": 1871,
+          "to": null
+        }
+      ],
+      "lat": 51,
+      "long": 13.3,
+      "note": "Aus der Markgrafschaft Meißen der Wettiner hervorgegangen; 1423 kam die sächsische Kurwürde hinzu. 1806 unter Napoleon zum Königreich erhoben und Mitglied des Rheinbunds, 1815 nach dem Wiener Kongress um rund die Hälfte verkleinert (Nordsachsen an Preußen). 1871 Bundesstaat des Deutschen Reiches, 1918 Freistaat. 1952 in der DDR zugunsten der Bezirke Dresden, Leipzig und Karl-Marx-Stadt aufgelöst, am 03.10.1990 als Freistaat wiedererrichtet.",
+      "existsFrom": null,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_merseburg",
+      "title": "Regierungsbezirk Merseburg",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Merseburg",
+          "from": 1816,
+          "to": 1944
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_sachsen",
+          "from": 1816,
+          "to": 1944
+        }
+      ],
+      "lat": 51.3547,
+      "long": 11.9917,
+      "note": "Südlicher Regierungsbezirk der preußischen Provinz Sachsen mit Sitz in Merseburg; umfasste die 1815 von Sachsen abgetretenen Kreise um Halle, Merseburg, Naumburg, Weißenfels und Zeitz.",
+      "existsFrom": 1816,
+      "existsTo": 1944,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_prov_sachsen",
+      "title": "Provinz Sachsen",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Provinz Sachsen",
+          "from": 1816,
+          "to": 1944
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1816,
+          "to": 1944
+        }
+      ],
+      "lat": 51.5,
+      "long": 11.9,
+      "note": "1816 aus den 1815 von Sachsen abgetretenen Gebieten und älterem preußischem Besitz gebildet, Sitz Magdeburg; Regierungsbezirke Magdeburg, **Merseburg** und Erfurt. 1944 in die Provinzen Magdeburg, Halle-Merseburg und Kurhessen/Erfurt zerlegt; 1945 ging der Kern im Land Sachsen-Anhalt auf.",
+      "existsFrom": 1816,
+      "existsTo": 1944,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_bunzlau",
+      "title": "Kreis Bunzlau",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Bunzlau",
+          "from": 1816,
+          "to": 1939,
+          "fromDate": "1 MAY 1816",
+          "toDate": null
+        },
+        {
+          "value": "Landkreis Bunzlau",
+          "from": 1939,
+          "to": 1945
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_liegnitz",
+          "from": 1816,
+          "to": 1945,
+          "fromDate": "1 MAY 1816",
+          "toDate": null
+        }
+      ],
+      "lat": 51.2625,
+      "long": 15.5686,
+      "note": "Am 01.05.1816 durch Teilung des Kreises Löwenberg-Bunzlau gebildet (Beschluss der Regierung Liegnitz vom 26.01.1816), Regierungsbezirk Liegnitz, Provinz Schlesien bzw. ab 1919 Niederschlesien. 1945 unter polnische Verwaltung; heute Powiat Bolesławiecki.",
+      "existsFrom": 1816,
+      "existsTo": 1945,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_pl",
+      "title": "Polen",
+      "type": "Country",
+      "pnames": [
+        {
+          "value": "Rzeczpospolita Polska",
+          "from": 1918,
+          "to": 1952
+        },
+        {
+          "value": "Polska Rzeczpospolita Ludowa",
+          "from": 1952,
+          "to": 1989
+        },
+        {
+          "value": "Rzeczpospolita Polska",
+          "from": 1989,
+          "to": null
+        },
+        {
+          "value": "Polen",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [],
+      "lat": 52,
+      "long": 19,
+      "note": "Die ehemals niederschlesischen Gebiete östlich von Oder und Neiße kamen 1945 nach dem Potsdamer Abkommen unter polnische Verwaltung; die deutsche Bevölkerung wurde vertrieben, die Ortsnamen wurden polonisiert.",
+      "existsFrom": 1918,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kreis_arnsberg",
+      "title": "Kreis Arnsberg",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Kreis Arnsberg",
+          "from": 1817,
+          "to": 1939
+        },
+        {
+          "value": "Landkreis Arnsberg",
+          "from": 1939,
+          "to": 1974
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_regbez_arnsberg",
+          "from": 1817,
+          "to": 1974,
+          "fromDate": null,
+          "toDate": null
+        }
+      ],
+      "lat": 51.39922,
+      "long": 8.06929,
+      "note": "1817 im Regierungsbezirk Arnsberg der preußischen Provinz Westfalen eingerichtet, 1974 in der kommunalen Neugliederung aufgelöst (Hochsauerlandkreis).",
+      "existsFrom": 1817,
+      "existsTo": 1974,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_regbez_arnsberg",
+      "title": "Regierungsbezirk Arnsberg",
+      "type": "District",
+      "pnames": [
+        {
+          "value": "Regierungsbezirk Arnsberg",
+          "from": 1816,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_prov_westfalen",
+          "from": 1816,
+          "to": 1946,
+          "fromDate": null,
+          "toDate": "22 AUG 1946"
+        },
+        {
+          "placeId": "_po_nrw",
+          "from": 1946,
+          "to": null,
+          "fromDate": "23 AUG 1946",
+          "toDate": null
+        }
+      ],
+      "lat": 51.3958,
+      "long": 8.0653,
+      "note": "Einer der drei Regierungsbezirke der 1815 gebildeten preußischen Provinz Westfalen (neben Münster und Minden), eingerichtet 1816 mit Sitz in Arnsberg. Umfasst das Sauerland, Siegerland und das östliche Ruhrgebiet einschließlich Bochum. Seit 1946 in Nordrhein-Westfalen.",
+      "existsFrom": 1816,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_hztm_liegnitz",
+      "title": "Herzogtum Liegnitz",
+      "type": "Region",
+      "pnames": [
+        {
+          "value": "Herzogtum Liegnitz",
+          "from": 1248,
+          "to": 1675
+        },
+        {
+          "value": "Erbfürstentum Liegnitz",
+          "from": 1675,
+          "to": 1813
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1248,
+          "to": 1335
+        },
+        {
+          "placeId": "_po_kgr_boehmen",
+          "from": 1335,
+          "to": 1742
+        },
+        {
+          "placeId": "_ep_e54c5042",
+          "from": 1742,
+          "to": 1813
+        }
+      ],
+      "lat": 51.207,
+      "long": 16.1619,
+      "note": "1248 durch Teilung des Herzogtums Schlesien entstanden, unter den schlesischen Piasten. Ab 1335 unter der Lehnshoheit der Krone Böhmen, damit ab 1526 habsburgisch.\n• **1675** starb der fünfzehnjährige Herzog Georg Wilhelm von Liegnitz, Brieg und Wohlau an den Pocken — mit ihm erlosch die Linie der schlesischen Piasten. Kaiser Leopold zog das Herzogtum als erledigtes Lehen für die Krone Böhmen ein; es bestand als **Erbfürstentum Liegnitz** fort, fiel 1742 an Preußen und wurde 1813 aufgelöst.",
+      "existsFrom": 1248,
+      "existsTo": 1813,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_powiat_polkowicki",
+      "title": "Powiat Polkowice",
+      "type": "County",
+      "pnames": [
+        {
+          "value": "Powiat polkowicki",
+          "from": 1999,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_woj_dolnoslaskie",
+          "from": 1999,
+          "to": null
+        }
+      ],
+      "lat": 51.5,
+      "long": 16.07,
+      "note": "Zum 01.01.1999 bei der Rückkehr zur dreistufigen polnischen Verwaltungsgliederung errichtet, Kreissitz Polkowice (deutsch Polkwitz); umfasst unter anderem Chocianów (Kotzenau). Auf dem Gebiet des vormaligen Kreises Lüben.",
+      "existsFrom": 1999,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_woj_dolnoslaskie",
+      "title": "Woiwodschaft Niederschlesien",
+      "type": "Province",
+      "pnames": [
+        {
+          "value": "Województwo dolnośląskie",
+          "from": 1999,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_pl",
+          "from": 1999,
+          "to": null
+        }
+      ],
+      "lat": 51,
+      "long": 16.5,
+      "note": "Zum 01.01.1999 gebildet, Hauptstadt Wrocław (Breslau). Umfasst den größten Teil des historischen Niederschlesien einschließlich der früheren Kreise Lüben und Liegnitz.",
+      "existsFrom": 1999,
+      "existsTo": null,
+      "govId": null,
+      "govTypes": null
+    },
+    {
+      "id": "_po_kgr_boehmen",
+      "title": "Königreich Böhmen",
+      "type": "Country",
+      "pnames": [
+        {
+          "value": "Königreich Böhmen",
+          "from": 1198,
+          "to": 1918
+        },
+        {
+          "value": "Krone Böhmens",
+          "from": 1348,
+          "to": 1918
+        },
+        {
+          "value": "Regnum Bohemiae",
+          "from": null,
+          "to": null
+        }
+      ],
+      "enclosedBy": [
+        {
+          "placeId": "_po_de",
+          "from": 1198,
+          "to": 1806
+        }
+      ],
+      "lat": 50.0755,
+      "long": 14.4378,
+      "note": "Reichslehen und Kurfürstentum des Heiligen Römischen Reiches, Residenz Prag. Die schlesischen Herzogtümer kamen im 14. Jh. unter die Lehnshoheit der böhmischen Krone. 1526 fiel Böhmen mit Schlesien an die Habsburger; nach dem Ersten Schlesischen Krieg musste Maria Theresia 1742 den größten Teil Schlesiens an Preußen abtreten.",
+      "existsFrom": 1198,
+      "existsTo": 1918,
       "govId": null,
       "govTypes": null
     }
@@ -5591,12 +8560,6 @@
       "addrs": [
         {
           "value": "Lindhorststr. 12",
-          "from": null,
-          "to": null,
-          "lang": "deu"
-        },
-        {
-          "value": "Lindhorststr. 24",
           "from": null,
           "to": null,
           "lang": "deu"
@@ -6612,10 +9575,16 @@
           "from": null,
           "to": null,
           "lang": "deu"
+        },
+        {
+          "value": "Wigbold 14 (Weinerstr. 17)",
+          "from": null,
+          "to": null,
+          "lang": "deu"
         }
       ],
-      "lat": 52.20802,
-      "long": 7.18988,
+      "lat": 52.20871,
+      "long": 7.18862,
       "note": "",
       "existsFrom": null,
       "existsTo": null,
@@ -8810,8 +11779,8 @@
           "lang": "deu"
         }
       ],
-      "lat": 51.86783,
-      "long": 7.73768,
+      "lat": 51.87997,
+      "long": 7.71229,
       "note": "",
       "existsFrom": null,
       "existsTo": null,

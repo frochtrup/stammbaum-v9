@@ -1,5 +1,5 @@
-// ui/views/list-view-state.svelte.ts — Suche, Filter und Sortier-/Abschnitts-Wahl der vier
-// Entitätslisten, gehalten AUSSERHALB der Listen-Komponenten (BL-320, Spec 21 §5).
+// ui/views/list-view-state.svelte.ts — Suche, Filter und Sortier-/Abschnitts-Wahl der fünf
+// Entitätslisten, gehalten AUSSERHALB der Listen-Komponenten (BL-320/BL-372, Spec 21 §5).
 //
 // Warum außerhalb: auf Mobil ERSETZT das Detail die Liste (`EntityTab`, `{#if hasSelection}`)
 // — wer aus einer gefilterten Liste eine Person öffnet, kommt in die ungefilterte zurück,
@@ -35,6 +35,7 @@ import {
 } from './family/family-list-model';
 import { defaultPlaceFilters, type PlaceFilters } from './place/place-list-model';
 import { defaultHofFilters, type HofFilters } from './hof/hof-list-model';
+import { defaultSourceFilters, type SourceFilters } from './source/source-list-model';
 
 /** Abschnitt der Orte-/Höfe-Liste: referenzierte oder unreferenzierte Objekte. */
 export type ListSection = 'referenced' | 'unreferenced';
@@ -62,6 +63,14 @@ export interface PlaceListState {
    */
   groupMode: boolean;
   section: ListSection;
+}
+
+/** Quellenliste (BL-372/373): Suchanfrage + Gattungs-Filter. Kein Sortier-Modus — die
+ *  Liste sortiert alphabetisch nach Anzeigelabel, und eine zweite Ordnung hat niemand
+ *  verlangt. */
+export interface SourceListState {
+  query: string;
+  filters: SourceFilters;
 }
 
 export interface HofListState {
@@ -94,6 +103,14 @@ export function createPlaceListState(): PlaceListState {
     filters: defaultPlaceFilters(),
     groupMode: false,
     section: 'referenced',
+  });
+  return s;
+}
+
+export function createSourceListState(): SourceListState {
+  const s = $state<SourceListState>({
+    query: '',
+    filters: defaultSourceFilters(),
   });
   return s;
 }
