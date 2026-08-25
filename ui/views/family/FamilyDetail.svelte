@@ -402,7 +402,17 @@
       </section>
     {/if}
 
-    <NotesSection db={appState.db} owner={detail.family} />
+    <!-- Die Familie hat KEIN Formular und bekommt auch keins (BL-382): sie wird
+         abschnittsweise bearbeitet — Eltern per Picker, Ereignisse per Editor, Zitate
+         per Zitatzeile. Ein Formular wäre hier das Fremdkörper-Muster; die Notiz-Sektion
+         ist derselbe Baustein wie an Person und Quelle. `noteRefs` kennt die Familie
+         nicht (das Modell führt sie nur an Person und Quelle) — der Anteil des Patches
+         fällt deshalb weg, statt ein Feld zu erfinden. -->
+    <NotesSection
+      {appState}
+      owner={{ ...detail.family, noteRefs: [] }}
+      onOwnerChange={({ noteText, extraNotes }) => appState.saveFamily({ ...detail.family, noteText, extraNotes })}
+    />
 
     <!-- Dieselbe Sektion wie am Personen-Steckbrief (BL-341, INV-UI-4) — nur `kind`
          unterscheidet sich. Eine Familie trägt Aufgaben/Protokoll/Hypothesen genauso, und

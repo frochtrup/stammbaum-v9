@@ -219,7 +219,11 @@
       <p class="stb-role-label">Wortlaut</p>
       <p class="source-detail__text">{detail.source.text}</p>
     {/if}
-    <NotesSection db={appState.db} owner={detail.source} />
+    <NotesSection
+      {appState}
+      owner={detail.source}
+      onOwnerChange={(p) => appState.saveSource({ ...detail.source, ...p })}
+    />
 
     <section class="source-detail__section">
       <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>

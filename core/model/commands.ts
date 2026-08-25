@@ -27,6 +27,8 @@ import type {
   Media,
   MediaCitation,
   MediaId,
+  Note,
+  NoteId,
   Person,
   PersonId,
   Repository,
@@ -259,6 +261,23 @@ export function deleteRepository(
  *  ein flaches Modell ohne Beziehungsgraph (analog Source) — reines Whole-Object-Upsert. */
 export function saveMedia(media: ReadonlyMap<MediaId, Media>, next: Media): Map<MediaId, Media> {
   const out = new Map(media);
+  out.set(next.id, next);
+  return out;
+}
+
+/**
+ * Upsert eines geteilten Notiz-Records (BL-382). Flaches Modell wie `Media`, deshalb dieselbe
+ * Form: Whole-Object, kein Beziehungs-Graph.
+ *
+ * **Ohne Kaskade, und das ist der Punkt:** ein Record kann von mehreren Datensätzen verwiesen
+ * werden (an `Testdateien/Unsere Familie 2026-4.ged` zeigen 184 Verweise auf 185 Records).
+ * Ihn zu ändern ändert ihn für alle — genau deshalb nennt die Fläche die Mitverwender VOR dem
+ * Edit ([21 §10](../../specs/v9/21-UI-UX.md)). Ein Verweis wird am Träger entfernt
+ * (`noteRefs`), nicht hier: der Record bleibt bestehen, auch wenn ihn niemand mehr verweist
+ * (35 solche gibt es im Bestand bereits).
+ */
+export function saveNote(notes: ReadonlyMap<NoteId, Note>, next: Note): Map<NoteId, Note> {
+  const out = new Map(notes);
   out.set(next.id, next);
   return out;
 }

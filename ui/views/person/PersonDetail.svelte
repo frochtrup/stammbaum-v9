@@ -479,7 +479,11 @@
       <ResearchSection {appState} kind="person" entityId={detail.person.id} heute={heute()} />
     </section>
 
-    <NotesSection db={appState.db} owner={detail.person} />
+    <NotesSection
+      {appState}
+      owner={detail.person}
+      onOwnerChange={(p) => appState.savePerson({ ...detail.person, ...p })}
+    />
 
     {#if detail.person.hypotheses.length > 0}
       <ProofSummaryNote person={detail.person} />
