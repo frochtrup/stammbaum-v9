@@ -105,14 +105,15 @@ describe('BL-379 — M3: ein Nutzer-Edit kommt an, und der alte Wert bleibt nirg
    * Derselbe Edit am Realbestand — hier ist die Mutation FINDER, nicht Zusicherung: der Korpus
    * hat jede Form einmal, der Bestand hat sie tausendfach und in Kombinationen, die keine
    * kuratierte Fixture vorsieht. Geprüft wird nicht „welche Zahl", sondern „welche ARTEN von
-   * Pfaden kommen nicht an" — die Menge ist heute einelementig und benannt. Kommt eine neue
-   * Art hinzu, wird der Test rot und nennt sie; wächst die Zahl innerhalb der bekannten Art,
-   * bleibt er grün (das ist der Bestand, nicht der Code).
+   * Pfaden kommen nicht an" — die Menge ist LEER. Kommt eine neue Art hinzu, wird der Test rot
+   * und nennt sie.
    *
-   * Gemessen an `Unsere Familie 2026-4.ged`: 32.030 mutierte Felder, 219 nicht angekommen,
-   * alle 219 unter den Notiz-Records (`notes` → `text`) — s. BL-380.
+   * BIS BL-380 stand hier eine benannte Ausnahme: 219 der 32.030 mutierten Felder kamen nicht
+   * zurück, alle unter den Notiz-Records — `applyDatabaseToRoots` kannte den Record nicht.
+   * Dass diese Zeile jetzt `[]` sagt, IST die Fertig-Bedingung jener Zeile; sie hat sich
+   * selbst geprüft, statt dass jemand sie für erledigt erklären musste.
    */
-  it.skipIf(!realbestandVorhanden())('(d) am Realbestand kommt jeder Edit an — außer der einen benannten Art (BL-380)', () => {
+  it.skipIf(!realbestandVorhanden())('(d) am Realbestand kommt jeder Edit an — ohne Ausnahme (BL-380 geschlossen)', () => {
     const p = parseGedcom(realbestandText());
     const { db, soll } = mutiereTexte(p.db, edit);
     const ist = sammleTexte(parseGedcom(schreibe(db, p.roots)).db);
@@ -123,7 +124,7 @@ describe('BL-379 — M3: ein Nutzer-Edit kommt an, und der alte Wert bleibt nirg
       if (ist.get(pfad) === s) continue;
       arten.add(pfad.replace(/\/@[^/]+@/g, '/*').replace(/\/\d+/g, '/N'));
     }
-    expect([...arten]).toEqual(['/notes/*/text']);
+    expect([...arten]).toEqual([]);
   });
 
   it('(c) der Stand nach dem Edit ist stabil (out2 === out3)', () => {

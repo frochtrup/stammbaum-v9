@@ -857,4 +857,5 @@ export {
   parseFamily as parseFamilyPublic,
   parseSource as parseSourcePublic,
   parseRepository as parseRepositoryPublic,
+  parseNote as parseNotePublic,
 };
