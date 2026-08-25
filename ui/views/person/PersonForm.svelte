@@ -16,7 +16,7 @@
   // Baut analog PlaceDetail.svelte (inline-Editier-Abschnitt, appState.savePerson(model)
   // mit dem KOMPLETTEN Objekt) — kein Feld-Setter-Pattern aus dem DOM.
   import { untrack } from 'svelte';
-  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
+  import { PLAIN_FIELD, PROSE_FIELD, autoGrow } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person } from '../../../core/model/types';
   import { composeGedcomName } from '../../../core/model/name-parts';
@@ -235,7 +235,7 @@
     </div>
     <label>
       Notiz
-      <textarea {...PROSE_FIELD} bind:value={noteText}></textarea>
+      <textarea use:autoGrow {...PROSE_FIELD} bind:value={noteText}></textarea>
     </label>
     {#if identityPills.length > 0}
       <div class="stb-activation-pill-row" aria-label="Weitere Felder">

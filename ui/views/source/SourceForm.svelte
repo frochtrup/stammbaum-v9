@@ -28,7 +28,7 @@
   // Fallback: value ohne Treffer in items -> Rohwert statt "nichts ausgewaehlt") — bleibt
   // erhalten, bis der Nutzer aktiv ein anderes Archiv waehlt oder "— kein Archiv —" waehlt.
   import { untrack } from 'svelte';
-  import { PLAIN_FIELD, PROSE_FIELD } from '../../shell/plain-input';
+  import { PLAIN_FIELD, PROSE_FIELD, autoGrow } from '../../shell/plain-input';
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Source } from '../../../core/model/types';
   import { SOURCE_TEMPLATES, type SourceTemplate } from '../../../core/model/source-templates';
@@ -291,12 +291,12 @@
        die Transkription. -->
   <label>
     Wortlaut (Zitat aus der Quelle)
-    <textarea {...PROSE_FIELD} bind:value={text}></textarea>
+    <textarea use:autoGrow {...PROSE_FIELD} bind:value={text}></textarea>
   </label>
 
   <label>
     Notiz
-    <textarea {...PROSE_FIELD} bind:value={noteText}></textarea>
+    <textarea use:autoGrow {...PROSE_FIELD} bind:value={noteText}></textarea>
   </label>
 
   <div class="source-form__actions">

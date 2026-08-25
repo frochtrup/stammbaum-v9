@@ -12,6 +12,7 @@
   import { buildSourceDetail, hasPageContent, type SourceReferenceRow, formatSourceCoverage } from './source-detail-model';
   import QuayMeter from '../../shell/QuayMeter.svelte';
   import EventsByType from '../../shell/EventsByType.svelte';
+  import NotesSection from '../../shell/NotesSection.svelte';
   import SourceForm from './SourceForm.svelte';
   import { tooltip } from '../../shell/tooltip';
   import { isSourceEmpty } from '../../../core/model';
@@ -209,18 +210,16 @@
       {/each}
     </dl>
 
-    <!-- Zwei getrennte Textblöcke seit BL-336, und die Beschriftung sagt jetzt, welcher
-         welcher ist: `text` (SOUR>TEXT) ist der ZITIERTE Wortlaut aus der Quelle,
-         `noteText` (SOUR>NOTE) die Anmerkung ÜBER sie. Bis dahin gab es nur den ersten,
-         unbeschriftet, und er trug beide Bedeutungen. -->
+    <!-- `text` (SOUR>TEXT) ist der ZITIERTE Wortlaut aus der Quelle und bleibt hier: er ist
+         kein Kommentar, sondern Inhalt der Quelle selbst (BL-336). Die Anmerkung ÜBER sie
+         (`noteText`, SOUR>NOTE) ist dagegen eine Notiz wie jede andere und zog mit BL-381 in
+         die geteilte Notiz-Sektion — dort steht sie neben den weiteren und den geteilten
+         Notizen der Quelle, statt als einziger von drei Fällen einen eigenen Block zu haben. -->
     {#if detail.source.text}
       <p class="stb-role-label">Wortlaut</p>
       <p class="source-detail__text">{detail.source.text}</p>
     {/if}
-    {#if detail.source.noteText}
-      <p class="stb-role-label">Notiz</p>
-      <p class="source-detail__text">{detail.source.noteText}</p>
-    {/if}
+    <NotesSection db={appState.db} owner={detail.source} />
 
     <section class="source-detail__section">
       <h3 class="stb-section-title">Referenzen ({detail.references.length})</h3>

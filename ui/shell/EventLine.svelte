@@ -322,9 +322,14 @@
     flex: 0 0 auto;
   }
 
+  /* `pre-wrap` wie an jeder anderen Notiz-Fläche (Ort/Hof/Quelle/Hypothesen, BL-381):
+     ein Zeilenumbruch, den der Nutzer gesetzt hat, verschwand hier bisher still. Ein
+     Aufklapper braucht die Zeile NICHT — am Bestand gemessen ist die längste Ereignisnotiz
+     153 Zeichen lang und der Median 10, sie liegt also durchweg unter der Schwelle. */
   .event-line__note {
     margin: 0.3rem 0 0;
     font-size: 0.82rem;
     color: var(--stb-text-dim);
+    white-space: pre-wrap;
   }
 </style>

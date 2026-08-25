@@ -35,6 +35,7 @@
   import ResearchSection from '../../shell/ResearchSection.svelte';
   import PersonAssociations from './PersonAssociations.svelte';
   import ProofSummaryNote from './ProofSummaryNote.svelte';
+  import NotesSection from '../../shell/NotesSection.svelte';
   import { makeEvent, makeAssociation } from '../../../core/model/factory';
   import { isEventPresent, isEventEmpty, isPersonEmpty } from '../../../core/model';
   import { retractIfPristine } from '../../shell/create-retraction';
@@ -477,6 +478,8 @@
     <section class="person-detail__section">
       <ResearchSection {appState} kind="person" entityId={detail.person.id} heute={heute()} />
     </section>
+
+    <NotesSection db={appState.db} owner={detail.person} />
 
     {#if detail.person.hypotheses.length > 0}
       <ProofSummaryNote person={detail.person} />

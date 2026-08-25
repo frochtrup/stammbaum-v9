@@ -15,6 +15,7 @@
   import { isEventPresent } from '../../../core/model';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import NotesSection from '../../shell/NotesSection.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import ResearchSection from '../../shell/ResearchSection.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
@@ -400,6 +401,8 @@
         </div>
       </section>
     {/if}
+
+    <NotesSection db={appState.db} owner={detail.family} />
 
     <!-- Dieselbe Sektion wie am Personen-Steckbrief (BL-341, INV-UI-4) — nur `kind`
          unterscheidet sich. Eine Familie trägt Aufgaben/Protokoll/Hypothesen genauso, und
