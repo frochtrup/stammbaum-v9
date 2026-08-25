@@ -153,6 +153,49 @@ describe('interop research-log — Mutationen überleben Roundtrip', () => {
     expect(rl.result).toBe('pending');
   });
 
+  /**
+   * BL-378 (ADR-v9-281) — der gemeldete Fall, an einem echten Zyklus nachgestellt.
+   *
+   * Die Import-Vergleichs-Fläche erzeugt Suchbegriffe wie „<Feld> aus <Datei>: „<Wert>"" —
+   * die reißen mühelos die 255-Byte-Grenze. Der Serialisierer bricht dann per `CONC` um; bis
+   * BL-378 las `parseLogEntry` nur die erste Zeile, und der Rest war beim nächsten Neubau des
+   * Records weg (der Passthrough rettet Fortsetzungen bewusst NICHT, s. `FORTSETZUNG`).
+   * Es brauchte dafür nicht einmal eine Datei: die Arbeitskopie in IndexedDB IST
+   * serialisierter GEDCOM-Text.
+   *
+   * Geprüft wird deshalb der ganze Zyklus, nicht nur das Lesen: speichern → lesen →
+   * NEBENAN etwas ändern → wieder speichern. Der zweite Schritt ist der eigentliche
+   * Verlustmoment — nach dem reinen Lesen stand der Text noch in der Datei.
+   */
+  it('ein _QUERY über der Byte-Grenze überlebt Speichern, Lesen und eine Änderung daneben', () => {
+    const lang = 'Sterbeeintrag Kirchenbuch St. Lamberti Ochtrup 1847–1852 prüfen, Abweichung '
+      + 'Basis="12 SEP 1849" gegen Import="11 NOV 1950" aus 75pa86_1631203sa7895qm065fh46_A.ged, '
+      + 'zusätzlich Heiratsregister Metelen und die Zivilstandsregister Gronau gegenprüfen.';
+    // In BYTES gemessen, denn in Bytes ist die Grenze formuliert: `2 _QUERY ` kostet 9 davon,
+    // ein Umlaut zwei. Ohne diese Vorbedingung könnte der Test grün sein, ohne je umzubrechen.
+    expect(Buffer.byteLength(lang, 'utf8')).toBeGreaterThan(246);
+    const src = [
+      '0 HEAD', '1 GEDC', '2 VERS 5.5.1',
+      '0 @I1@ INDI', '1 NAME Max /Muster/',
+      '1 _RLOG', '2 DATE 2026-08-25', `2 _QUERY ${lang}`, '2 _RESULT pending',
+      '0 TRLR',
+    ].join('\n');
+
+    const erstesSpeichern = serializeAfterWriteBack(parseGedcom(src));
+    expect(erstesSpeichern).toContain('CONC'); // der Umbruch hat stattgefunden
+
+    const gelesen = parseGedcom(erstesSpeichern);
+    const eintrag = gelesen.db.individuals.get('@I1@')!.researchLog[0];
+    expect(eintrag.query).toBe(lang);
+
+    // Die Notiz daneben ändern — das baut den `_RLOG`-Block neu.
+    gelesen.db.individuals.get('@I1@')!.researchLog[0] = { ...eintrag, note: 'im Archiv gewesen' };
+    const wieder = parseGedcom(serializeAfterWriteBack(gelesen));
+    const danach = wieder.db.individuals.get('@I1@')!.researchLog[0];
+    expect(danach.query).toBe(lang);
+    expect(danach.note).toBe('im Archiv gewesen');
+  });
+
   it('Log-Eintrag löschen: der _RLOG-Block ist weg, der andere bleibt', () => {
     const doc = parseGedcom(FIXTURE);
     const p = doc.db.individuals.get('@I1@')!;

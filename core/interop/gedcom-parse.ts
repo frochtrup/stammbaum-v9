@@ -50,7 +50,7 @@ import type {
   PersonName,
   Quay,
 } from '../model/types';
-import { parseTree, child, children, childValue, unescapeAt } from './gedcom-tree';
+import { parseTree, child, children, childValue, collectText, unescapeAt } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
 import { formToMime } from './media-mime';
 import type { ParsedGedcom } from './types';
@@ -75,16 +75,6 @@ function parseChan(node: GedNode): string {
   const zeit = childValue(dateNode ?? node, 'TIME');
   const datum = childValue(node, 'DATE');
   return zeit ? datum + ' ' + zeit : datum;
-}
-
-/** Sammelt reinen Text aus value + CONC/CONT-Kindern (GEDCOM-Textmodell §5). */
-function collectText(node: GedNode): string {
-  let out = node.value;
-  for (const c of node.children) {
-    if (c.tag === 'CONC') out += c.value;
-    else if (c.tag === 'CONT') out += '\n' + c.value;
-  }
-  return out;
 }
 
 /** Geo-Koordinate: `N52.21`→52.21, `S…`/`W…`→negativ (Spec 13 §3, GEDCOM.md §3). */
@@ -128,7 +118,7 @@ function findMap(node: GedNode): GedNode | null {
  */
 function parseEvidenceEval(node: GedNode): EvidenceEval {
   const ev = makeEvidenceEval();
-  for (const c of node.children) if (isEvalTag(c.tag)) applyEvalAxis(ev, c.tag, c.value);
+  for (const c of node.children) if (isEvalTag(c.tag)) applyEvalAxis(ev, c.tag, collectText(c));
   return ev;
 }
 
@@ -177,7 +167,7 @@ function parseMedia(objeNode: GedNode): MediaCitation {
   const fileNode = child(objeNode, 'FILE');
   const noteNode = child(objeNode, 'NOTE');
   // Pointer-Form: der Wert (`@M1@`) IST die Identität; inline: der FILE-Pfad.
-  const mediaId = objeNode.value || (fileNode ? fileNode.value : '');
+  const mediaId = objeNode.value || (fileNode ? collectText(fileNode) : '');
   // Was DIESE Fundstelle an globalen Datenzeilen trug (BL-306) — am Knoten gefragt, nicht am
   // Wert, und strikt an der Position, die `mediaNode` auch emittiert (`FILE`→`FORM`→`MEDI`).
   // Ein `MEDI` direkt unter `OBJE` ist un-modelliert und reist als `extra` durch; es hier
@@ -216,10 +206,10 @@ export function projectMediaRecord(node: GedNode): Media | null {
   if (node.tag !== 'OBJE') return null;
   const fileNode = child(node, 'FILE');
   const isRecord = !!node.xref;
-  const id = node.xref || (!node.value && fileNode ? fileNode.value : '');
+  const id = node.xref || (!node.value && fileNode ? collectText(fileNode) : '');
   if (!id) return null;
   const formNode = fileNode ? child(fileNode, 'FORM') : null;
-  const file = fileNode ? fileNode.value : id;
+  const file = fileNode ? collectText(fileNode) : id;
   // Input-Kanonisierung (ADR-v9-126): FORM-Endung → einheitliches MIME (Narrow-Waist).
   // Der Rohwert bleibt daneben stehen (BL-290): die Kanonisierung ist nicht umkehrbar,
   // ohne ihn schriebe jedes Speichern `JPEG` als `jpg` zurück.
@@ -290,12 +280,12 @@ function parseEvent(node: GedNode): Event {
   ev.value = collectText(node);
 
   const dateNode = child(node, 'DATE');
-  ev.date = dateNode ? dateNode.value : null;
+  ev.date = dateNode ? collectText(dateNode) : null;
   const typeNode = child(node, 'TYPE');
-  if (typeNode) ev.eventType = typeNode.value;
+  if (typeNode) ev.eventType = collectText(typeNode);
 
   const placNode = child(node, 'PLAC');
-  ev.place = placNode ? placNode.value : null;
+  ev.place = placNode ? collectText(placNode) : null;
 
   const map = findMap(node);
   if (map) {
@@ -456,7 +446,7 @@ function roleFromGed7(asso: GedNode): string {
  */
 function parsePersonName(node: GedNode): PersonName {
   return {
-    nameRaw: node.value,
+    nameRaw: collectText(node),
     given: childValue(node, 'GIVN'),
     surname: childValue(node, 'SURN'),
     prefix: childValue(node, 'NPFX'),
@@ -481,7 +471,7 @@ function parsePerson(rec: GedNode): Person {
         if (nameGesehen) { p.extraNames.push(parsePersonName(c)); break; }
         nameGesehen = true;
         {
-          p.name = c.value;
+          p.name = collectText(c);
           p.given = childValue(c, 'GIVN');
           p.surname = childValue(c, 'SURN');
           p.prefix = childValue(c, 'NPFX');
@@ -498,7 +488,7 @@ function parsePerson(rec: GedNode): Person {
           // eine Quelle darf `GIVN Anna` bewusst enger setzen als der NAME-Wert
           // (`Anna Maria /Decker/`) und trotzdem `SURN` weglassen. Ein explizit
           // gesetztes Untertag wird nie überschrieben.
-          const parts = splitGedcomName(c.value);
+          const parts = splitGedcomName(p.name);
           if (parts) {
             if (!p.given) p.given = parts.given;
             if (!p.surname) p.surname = parts.surname;
@@ -598,7 +588,7 @@ function parsePerson(rec: GedNode): Person {
         break;
       case 'REFN':
       case 'EXID':
-        p.exids.push({ value: c.value, type: childValue(c, 'TYPE') });
+        p.exids.push({ value: collectText(c), type: childValue(c, 'TYPE') });
         break;
       case 'CREA': // 7.0
         p.createdDate = childValue(c, 'DATE');
@@ -715,7 +705,10 @@ function parseSource(rec: GedNode): Source {
   if (text) s.text = collectText(text);
   const repo = child(rec, 'REPO');
   if (repo) {
-    s.repo = repo.value.startsWith('@') ? unescapeAt(repo.value) : repo.value;
+    // Fortsetzungen ZUERST falten, dann über die Form entscheiden: ein Zeiger wie `@R1@`
+    // ist kurz, ein freier Archivname kann die Byte-Grenze reißen (BL-378).
+    const repoWert = collectText(repo);
+    s.repo = repoWert.startsWith('@') ? unescapeAt(repoWert) : repoWert;
     s.callNumber = childValue(repo, 'CALN');
     const caln = child(repo, 'CALN');
     if (caln) s.callMedia = childValue(caln, 'MEDI');
@@ -729,7 +722,7 @@ function parseSource(rec: GedNode): Source {
     s.agnc = childValue(data, 'AGNC');
     for (const ev of children(data, 'EVEN')) {
       s.dataEvents.push({
-        eventTypes: ev.value,
+        eventTypes: collectText(ev),
         date: childValue(ev, 'DATE'),
         place: childValue(ev, 'PLAC'),
       });
