@@ -31,12 +31,28 @@ function svelteDateien(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Kommentare raus, BEVOR gesucht wird — die Erklärung eines Feldes darf nicht als Feld
+ * zählen. Genau das ist passiert (BL-382): ein Kommentar, der begründet, warum ein
+ * mehrzeiliges Feld trotzdem in einem `<form onsubmit>` sitzen darf, nennt das Element beim
+ * Namen und wurde als Fundstelle ohne Spread gemeldet. Der Geschwister-Wächter
+ * `entity-form-keyboard.test.ts` hatte diese Vorsichtsmaßnahme von Anfang an und begründet
+ * sie wortgleich; sie fehlte hier. Zeilenweise ersetzt statt entfernt, damit die gemeldete
+ * ZEILENNUMMER weiter stimmt.
+ */
+function ohneKommentare(src: string): string {
+  return src
+    .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/^\s*\/\/.*$/gm, '');
+}
+
 /** Alle Fundstellen als `datei:zeile` — je Eintrag ein Feld, das den Spread tragen muss. */
 function fundstellen(muster: RegExp): { ort: string; zeile: string }[] {
   const treffer: { ort: string; zeile: string }[] = [];
   for (const wurzel of WURZELN) {
     for (const f of svelteDateien(wurzel)) {
-      readFileSync(f, 'utf8')
+      ohneKommentare(readFileSync(f, 'utf8'))
         .split('\n')
         .forEach((zeile, i) => {
           if (muster.test(zeile)) treffer.push({ ort: `${f}:${i + 1}`, zeile: zeile.trim() });

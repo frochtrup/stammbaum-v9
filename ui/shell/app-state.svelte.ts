@@ -21,6 +21,7 @@ import type {
   Repository,
   Media,
   MediaId,
+  Note,
 } from '../../core/model/types';
 import type { PlaceObject, HofObject, GrenzEingabe } from '../../core/places';
 import { FULL_PLACES_CAPS, type PlacesHost, type PlacesHostCaps } from './places-host';
@@ -36,6 +37,7 @@ import {
   saveRepository as saveRepositoryCmd,
   deleteRepositoryCascade as deleteRepositoryCmd,
   saveMedia as saveMediaCmd,
+  saveNote as saveNoteCmd,
   deleteMedia as deleteMediaCmd,
   withChangeStamps,
   applyEntryTemplate as applyEntryTemplateCmd,
@@ -293,6 +295,14 @@ export interface AppState extends PlacesHost {
    * Medium-Detail ②) als auch die Neuanlage ab (📷-Kamera-Schnellzugriff, Ereignis-Editor).
    */
   saveMedia(model: Media): void;
+  /**
+   * Kommando: Upsert eines geteilten Notiz-Records (`saveNote(model)`, BL-382). Flaches
+   * Modell wie `Media`, deshalb dieselbe Form. **Ohne Kaskade:** der Record gehört
+   * möglicherweise mehreren Datensätzen, ein Edit trifft sie alle — die Fläche sagt das
+   * vorher ([21 §10](../../specs/v9/21-UI-UX.md)). Einen VERWEIS entfernt man am Träger
+   * (`noteRefs` in `savePerson`/`saveSource`), nicht hier.
+   */
+  saveNote(model: Note): void;
   /**
    * Kommando: entfernt ein Medium referenz-auflösend (`deleteMedia`, BEWUSST MIT Kaskade,
    * anders als `deleteSource` — s. core/model/commands.ts-Kopf) — jede `MediaCitation`,
@@ -1063,6 +1073,9 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     },
     saveMedia(model) {
       commit({ ...db, media: saveMediaCmd(db.media, roh(model)) }, { workingCopy: true });
+    },
+    saveNote(model) {
+      commit({ ...db, notes: saveNoteCmd(db.notes, roh(model)) }, { workingCopy: true });
     },
     deleteMedia(id) {
       // Referenz-auflösend (BEWUSST MIT Kaskade, s. core/model/commands.ts) → vollständiges

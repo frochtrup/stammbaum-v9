@@ -37,6 +37,7 @@ import type {
   Family,
   Media,
   MediaCitation,
+  Note,
   Person,
   PersonName,
   Repository,
@@ -51,6 +52,7 @@ import {
   parseFamilyPublic,
   parseSourcePublic,
   parseRepositoryPublic,
+  parseNotePublic,
   projectMediaRecord,
   definingMediaNodes,
 } from './gedcom-parse';
@@ -60,6 +62,7 @@ import {
   emitSource,
   emitRepository,
   emitMediaRecord,
+  emitNote,
   type MediaLookup,
 } from './write-back-emit';
 
@@ -102,6 +105,15 @@ const RECOGNIZED_SOURCE = new Set([
 const RECOGNIZED_REPO = new Set(['NAME', 'ADDR', 'PHON', 'WWW', 'EMAIL', '_RTYPE', '_FAURL', 'CHAN']);
 // Medien-Record `0 @M@ OBJE` (ADR-v9-125): FILE (+FORM/MEDI darunter) + globaler TITL.
 const RECOGNIZED_MEDIA = new Set(['FILE', 'TITL', 'CHAN']);
+/**
+ * Notiz-Record `0 @N@ NOTE` (BL-380): das Modell beansprucht **nur den Text** — der steht im
+ * Wert und in den Fortsetzungen, und die sind ohnehin vom Passthrough ausgenommen
+ * (`FORTSETZUNG`). Die Menge bleibt deshalb LEER, und alles andere unter dem Record reist
+ * un-modelliert mit: an `Testdateien/Unsere Familie 2026-4.ged` sind das `CHAN` (8×),
+ * `REFN` (1×) und `_VALID` (1×) — gemessen, nicht vermutet. Eine leere Menge ist hier also
+ * die Aussage „nichts davon gehört dem Modell", nicht eine vergessene Liste.
+ */
+const RECOGNIZED_NOTE = new Set<string>();
 
 /**
  * Projiziert ein editiertes `db` zurück in den Passthrough-Baum. Liefert einen NEUEN
@@ -136,7 +148,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
   const recById = new Map<string, GedNode>();
   for (const r of roots) if (r.xref) recById.set(r.xref, r);
   // Welche IDs sind bereits im Baum vertreten? (für Neu-Erkennung)
-  const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>(), OBJE: new Set<string>() };
+  const seen = { INDI: new Set<string>(), FAM: new Set<string>(), SOUR: new Set<string>(), REPO: new Set<string>(), OBJE: new Set<string>(), NOTE: new Set<string>() };
   let trlrIndex = -1;
 
   for (const rec of roots) {
@@ -185,12 +197,26 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
         out.push(mediaRecordNode(rec, cur));
         break;
       }
+      // Geteilter Notiz-Record (BL-380). Bis dahin fiel er in den `default`-Zweig: für den
+      // ROUNDTRIP richtig (byte-gleich durch), für jeden EDIT falsch — die Änderung
+      // verschwand still. `SNOTE` ist die GEDCOM-7-Schreibweise desselben Records und wird
+      // hier gleich behandelt; welchen Tag die Datei bekommt, entscheidet das Modell.
+      case 'NOTE':
+      case 'SNOTE': {
+        const id = rec.xref ?? '';
+        if (!id) { out.push(rec); break; } // inline-NOTE steht nie auf Level 0 — sicherheitshalber
+        seen.NOTE.add(id);
+        const cur = db.notes.get(id);
+        if (!cur) break; // aus dem Modell entfernt → Record fällt weg, wie bei den anderen fünf
+        out.push(noteNode(rec, cur));
+        break;
+      }
       case 'TRLR':
         trlrIndex = out.length;
         out.push(rec);
         break;
       default:
-        out.push(rec); // HEAD, NOTE-Records, SUBM, Unbekanntes: unangetastet
+        out.push(rec); // HEAD, SUBM, Unbekanntes: unangetastet
         break;
     }
   }
@@ -201,6 +227,7 @@ export function applyDatabaseToRoots(db: Database, roots: GedNode[]): GedNode[] 
   for (const f of db.families.values()) if (!seen.FAM.has(f.id)) additions.push(emitFamily(f, media));
   for (const s of db.sources.values()) if (!seen.SOUR.has(s.id)) additions.push(emitSource(s, media));
   for (const r of db.repositories.values()) if (!seen.REPO.has(r.id)) additions.push(emitRepository(r));
+  for (const n of db.notes.values()) if (!seen.NOTE.has(n.id)) additions.push(emitNote(n));
   // Neue record-basierte Medien (ADR-v9-125): nur `wireOrigin==='record'` sind Top-Level-Records;
   // inline-Medien leben am Verweis und werden nie als eigener Record geschrieben.
   for (const m of db.media.values()) if (m.wireOrigin === 'record' && !seen.OBJE.has(m.id)) additions.push(emitMediaRecord(m));
@@ -247,6 +274,31 @@ function repoNode(orig: GedNode, cur: Repository): GedNode {
   const projected = parseRepositoryPublic(orig);
   if (repoEqual(projected, cur)) return orig;
   return mergeRecord(orig, cur, RECOGNIZED_REPO, emitRepository, [], () => emitRepository(projected));
+}
+/**
+ * Notiz-Record: unverändert → der Original-Knoten (byte-gleich), sonst neu aus dem Modell
+ * gebaut plus den un-modellierten Kindern des Originals (`CHAN`/`REFN`/`_VALID`).
+ *
+ * WARUM NICHT `mergeRecord` (BL-380). Dessen letzte Zeile gibt bewusst `tag` und **`value`
+ * des ORIGINALS** zurück: bei INDI/FAM/SOUR/REPO/OBJE steckt die Nutzlast ausschließlich in
+ * den Kindern, der Record-Wert ist leer, und ihn zu erhalten ist reine Treue. Der
+ * Notiz-Record ist der erste, dessen **Wert die Nutzlast IST** — durch `mergeRecord`
+ * geschickt käme jeder Edit an und würde im letzten Moment wieder überschrieben (genau so
+ * gemessen, bevor diese Funktion hier stand). `mergeRecord` dafür zu parametrisieren hieße,
+ * fünf funktionierende Aufrufer für einen sechsten Fall anzufassen; die sechs Zeilen hier
+ * sind die kleinere Antwort.
+ *
+ * Die Fortsetzungen (`CONT` aus `emitNote`) stehen VOR dem übernommenen Passthrough — eine
+ * Fortsetzung gehört unmittelbar an ihre Zeile ([ADR-v9-266] E2). `FORTSETZUNG`-Kinder des
+ * Originals werden nicht mitgenommen: sie sind Teil des Textes und stecken schon im frischen
+ * Knoten, ein zweites Mal angehängt verdoppelten sie ihn.
+ */
+function noteNode(orig: GedNode, cur: Note): GedNode {
+  const projected = parseNotePublic(orig);
+  if (noteEqual(projected, cur)) return orig;
+  const fresh = emitNote(cur);
+  const passthrough = orig.children.filter((c) => !FORTSETZUNG.has(c.tag));
+  return { ...fresh, level: orig.level, children: [...fresh.children, ...passthrough] };
 }
 function mediaRecordNode(orig: GedNode, cur: Media): GedNode {
   const projected = projectMediaRecord(orig);
@@ -336,11 +388,14 @@ export function modellierteKinder(tag: string): readonly string[] {
 /** Die vier Erkennungsmengen für den Drift-Wächter (BL-335). Bewusst als `ReadonlySet`
  *  herausgegeben, nicht als kopiertes Array: der Test soll DIESE Mengen prüfen, nicht eine
  *  Momentaufnahme davon. */
-export const ERKANNTE_TAGS: Readonly<Record<'person' | 'family' | 'source' | 'repo', ReadonlySet<string>>> = {
+export const ERKANNTE_TAGS: Readonly<Record<'person' | 'family' | 'source' | 'repo' | 'note', ReadonlySet<string>>> = {
   person: RECOGNIZED_PERSON,
   family: RECOGNIZED_FAMILY,
   source: RECOGNIZED_SOURCE,
   repo: RECOGNIZED_REPO,
+  // Leer, und das ist die Aussage (s. `RECOGNIZED_NOTE`): am Notiz-Record beansprucht das
+  // Modell nur den Wert selbst, kein Kind-Tag.
+  note: RECOGNIZED_NOTE,
 };
 
 /** Die Ereignis-Tags, für die `MODELLIERTE_KINDER` einen Eintrag führen muss (BL-335). */
@@ -897,6 +952,11 @@ function repoEqual(a: Repository, b: Repository): boolean {
     a.phone === b.phone && a.www === b.www && a.email === b.email &&
     a.findingAid === b.findingAid && a.lastChanged === b.lastChanged
   );
+}
+
+/** Notiz-Record-Vergleich (BL-380): Text und Tag — mehr hält das Modell nicht. */
+function noteEqual(a: Note, b: Note): boolean {
+  return a.text === b.text && a.type === b.type;
 }
 
 // Medien-Record-Vergleich (ADR-v9-125): die GLOBALEN Felder — hier wird eine Änderung an

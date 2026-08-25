@@ -70,6 +70,7 @@ export {
   saveRepository,
   deleteRepository,
   saveMedia,
+  saveNote,
   deleteMedia,
   withAddedMediaCitation,
   withRemovedMediaCitation,

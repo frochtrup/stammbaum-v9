@@ -20,6 +20,7 @@ import type {
   Media,
   MediaCitation,
   MediaId,
+  Note,
   Person,
   PersonName,
   Repository,
@@ -47,6 +48,21 @@ export function N(tag: string, value: string, children: GedNode[] = [], xref: st
 // Ausgabe-Konvention (siehe gedcom-tree.ts unescapeAt + Ancestris-Fixture `@F1@`).
 
 // --- gemeinsame Bausteine ---------------------------------------------------------------
+
+/**
+ * NOTE-Record `0 @N@ NOTE …` (invers zu `parseNote`): mehrzeiliger Text → value + CONT-Kinder.
+ *
+ * Wohnt seit BL-380 hier statt in `build-gedcom-from-model.ts`: der Write-Back braucht ihn
+ * jetzt auch, und zwei Emitter für denselben Record wären zwei Meinungen über sein Format.
+ * Der Tag kommt aus dem Modell (`NOTE`/`SNOTE`) — GEDCOM 7 kennt den geteilten Record unter
+ * anderem Namen, und ihn beim Zurückschreiben zu erraten wäre eine stille Umdeutung.
+ */
+export function emitNote(n: Note): GedNode {
+  const parts = n.text.split('\n');
+  const kids: GedNode[] = [];
+  for (let i = 1; i < parts.length; i++) kids.push(N('CONT', parts[i]));
+  return N(n.type, parts[0] ?? '', kids, n.id);
+}
 
 /** CONT/CONC-freier Textknoten: mehrzeiligen Text auf value + CONT-Kinder abbilden. */
 function textNode(tag: string, text: string): GedNode {

@@ -152,6 +152,11 @@ const UPSERTS: { name: string; ausfuehren: (a: AppState) => void; ergebnis: (a: 
     ergebnis: (a) => a.db.media.get('foto.jpg'),
   },
   {
+    name: 'saveNote',
+    ausfuehren: (a) => a.saveNote(reaktiv({ id: '@N1@', type: 'NOTE' as const, text: 'Aus dem Kirchenbuch' })),
+    ergebnis: (a) => a.db.notes.get('@N1@'),
+  },
+  {
     name: 'savePlace',
     ausfuehren: (a) => a.savePlace(reaktiv(place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' }))),
     ergebnis: (a) => a.db.placeObjects.get('@OCHTRUP@'),

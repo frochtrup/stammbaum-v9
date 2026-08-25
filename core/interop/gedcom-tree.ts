@@ -167,6 +167,25 @@ function schreibeZeile(
   maxBytes: number,
 ): void {
   if (wert === '') { out.push(praefix); return; }
+  // Ein Wert mit `\n` wird ZUERST in `CONT`-Zeilen zerlegt, dann greift die Byte-Grenze auf
+  // jedem Stück (BL-378, ADR-v9-281). Roh geschrieben ergäbe ein Zeilenumbruch mitten im Wert
+  // eine Ausgabe, die kein Leser mehr als GEDCOM-Zeile sieht — genau die Gefahr, die
+  // [ADR-v9-266] E2 benannt hat, als sie die Schreib-Hälfte zur Lese-Hälfte forderte.
+  //
+  // WARUM HIER UND NICHT (nur) IM EMITTER: `textNode` (write-back-emit.ts) baut dieselbe
+  // Zerlegung als Baumform und bleibt, wo sie steht — sie ist die Form, die der
+  // Passthrough-Vergleich sieht. Aber sie deckt nur die Felder ab, an die jemand gedacht hat.
+  // Seit `childValue` Fortsetzungen faltet, kann JEDER Modellwert ein `\n` tragen; die
+  // Zusicherung „keine kaputte Zeile" gehört deshalb an die eine Stelle, durch die ausnahmslos
+  // jeder Wert läuft. Zwang statt Erinnerung — für einen Wert ohne `\n` ändert sich nichts.
+  if (wert.includes('\n')) {
+    const teile = wert.split('\n');
+    schreibeZeile(praefix, teile[0], contTiefe, out, maxBytes);
+    // Die Fortsetzung steht auf `contTiefe` und wird ihrerseits von `CONC` fortgesetzt
+    // (`2 CONT` → `2 CONC`, nicht `3 CONC`) — dieselbe Regel wie in `writeNode`.
+    for (let i = 1; i < teile.length; i++) schreibeZeile(`${contTiefe} CONT`, teile[i], contTiefe, out, maxBytes);
+    return;
+  }
   const concPraefix = `${contTiefe} CONC`;
   let rest = wert;
   let p = praefix;
@@ -243,10 +262,45 @@ export function children(node: GedNode, tag: string): GedNode[] {
   return node.children.filter((c) => c.tag === tag);
 }
 
-/** Wert eines direkten Kind-Tags, oder '' wenn nicht vorhanden. */
+/**
+ * Sammelt reinen Text aus value + `CONC`/`CONT`-Kindern (GEDCOM-Textmodell §5).
+ *
+ * Wohnt hier und nicht im Projektions-Layer, seit `childValue` sie benutzt — eine zweite
+ * Kopie in `gedcom-parse.ts` wäre die Sorte Doppelung, die auseinanderläuft.
+ */
+export function collectText(node: GedNode): string {
+  let out = node.value;
+  for (const c of node.children) {
+    if (c.tag === 'CONC') out += c.value;
+    else if (c.tag === 'CONT') out += '\n' + c.value;
+  }
+  return out;
+}
+
+/**
+ * Wert eines direkten Kind-Tags MIT seinen Fortsetzungen, oder '' wenn nicht vorhanden.
+ *
+ * WARUM MIT FORTSETZUNGEN, AUSNAHMSLOS (BL-378, ADR-v9-281). Ein `CONC`/`CONT`-Kind macht den
+ * Elternwert zum FRAGMENT — der volle Text steht erst mit ihm zusammen da. Wer den Wert allein
+ * liest, kürzt ihn still. Und der Passthrough kann das nicht auffangen: `CONC`/`CONT` sind von
+ * ihm bewusst ausgenommen (`FORTSETZUNG`, write-back.ts), sonst hängten die alten Fragmente an
+ * jeden neuen Wert. Ein Wert, den das Modell BEANSPRUCHT, aber roh liest, ist deshalb beim
+ * nächsten Neubau des Records verloren — nicht latent, sondern sofort.
+ *
+ * Das trifft nicht nur die Tags, für die GEDCOM Fortsetzungen vorsieht: unser eigener
+ * Serialisierer bricht JEDEN Wert über 255 Bytes per `CONC` um (ZEILEN_MAX_BYTES,
+ * [ADR-v9-211]). Ein langer `_QUERY` aus der Import-Vergleichs-Fläche überlebte so genau einen
+ * Speicher-Zyklus — die Arbeitskopie in IndexedDB ist serialisierter GEDCOM-Text, der Verlust
+ * brauchte also nicht einmal eine Datei. Gemessen: 306 Zeichen rein, 246 zurück.
+ *
+ * [ADR-v9-266] hat dieselbe Lücke am Ereigniswert geschlossen und die Geschwister
+ * (`DATE`/`PLAC`/`TYPE`/`PAGE`) bewusst liegen lassen, weil sie „heute ohne Daten im Bestand"
+ * seien. Die Zusicherung wohnt jetzt in den zwei Funktionen, durch die jeder Wert läuft, statt
+ * in einer Liste von Feldern, an die jemand denken muss.
+ */
 export function childValue(node: GedNode, tag: string): string {
   const c = child(node, tag);
-  return c ? c.value : '';
+  return c ? collectText(c) : '';
 }
 
 /**

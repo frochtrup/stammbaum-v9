@@ -26,10 +26,11 @@
 //
 // Reine Funktion, DOM-/Plattform-frei (INV-ARCH-1), build-frei testbar (INV-ARCH-2).
 
-import type { Database, Note } from '../model/types';
+import type { Database } from '../model/types';
 import type { GedNode } from './gedcom-tree';
 import {
   N,
+  emitNote,
   emitPerson,
   emitFamily,
   emitSource,
@@ -48,14 +49,6 @@ function buildHead(): GedNode {
     N('GEDC', '', [N('VERS', '5.5.1'), N('FORM', 'LINEAGE-LINKED')]),
     N('CHAR', 'UTF-8'),
   ]);
-}
-
-/** NOTE-Record `0 @N@ NOTE …` (invers zu parseNote): mehrzeiliger Text → value + CONT-Kinder. */
-function emitNote(n: Note): GedNode {
-  const parts = n.text.split('\n');
-  const kids: GedNode[] = [];
-  for (let i = 1; i < parts.length; i++) kids.push(N('CONT', parts[i]));
-  return N(n.type, parts[0] ?? '', kids, n.id);
 }
 
 // ── Referenz-Remapping: Tag → zuständige Klassen-Abbildung ────────────────────

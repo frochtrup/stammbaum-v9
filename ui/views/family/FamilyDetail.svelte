@@ -15,6 +15,7 @@
   import { isEventPresent } from '../../../core/model';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import NotesSection from '../../shell/NotesSection.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import ResearchSection from '../../shell/ResearchSection.svelte';
   import EventEditModal from '../../shell/EventEditModal.svelte';
@@ -400,6 +401,18 @@
         </div>
       </section>
     {/if}
+
+    <!-- Die Familie hat KEIN Formular und bekommt auch keins (BL-382): sie wird
+         abschnittsweise bearbeitet — Eltern per Picker, Ereignisse per Editor, Zitate
+         per Zitatzeile. Ein Formular wäre hier das Fremdkörper-Muster; die Notiz-Sektion
+         ist derselbe Baustein wie an Person und Quelle. `noteRefs` kennt die Familie
+         nicht (das Modell führt sie nur an Person und Quelle) — der Anteil des Patches
+         fällt deshalb weg, statt ein Feld zu erfinden. -->
+    <NotesSection
+      {appState}
+      owner={{ ...detail.family, noteRefs: [] }}
+      onOwnerChange={({ noteText, extraNotes }) => appState.saveFamily({ ...detail.family, noteText, extraNotes })}
+    />
 
     <!-- Dieselbe Sektion wie am Personen-Steckbrief (BL-341, INV-UI-4) — nur `kind`
          unterscheidet sich. Eine Familie trägt Aufgaben/Protokoll/Hypothesen genauso, und

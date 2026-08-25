@@ -38,7 +38,7 @@
   // war nicht modal, die Navigation blieb darüber bedienbar und verdeckte bei hohem Panel
   // die eigenen Aktionsknöpfe. Nur das Panel bleibt lokal (Breite/Polsterung je Fall).
   import { untrack } from 'svelte';
-  import { PLAIN_FIELD, PROSE_FIELD } from './plain-input';
+  import { PLAIN_FIELD, PROSE_FIELD, autoGrow } from './plain-input';
   import type { AppState } from './app-state.svelte';
   import type { Event, MediaCitation } from '../../core/model/types';
   import { makeMedia, makeMediaCitation } from '../../core/model/factory';
@@ -291,7 +291,7 @@
 
     <label>
       Notiz
-      <textarea {...PROSE_FIELD} bind:value={editable.note}></textarea>
+      <textarea use:autoGrow {...PROSE_FIELD} bind:value={editable.note}></textarea>
     </label>
 
     <EventCitationsSection

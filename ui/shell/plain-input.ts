@@ -46,3 +46,39 @@ export const PROSE_FIELD = {
   autocorrect: 'off',
   spellcheck: 'true',
 } as const;
+
+/**
+ * Ein Prosa-Feld wächst mit seinem Inhalt (BL-381).
+ *
+ * WOZU. Die längste Personen-Notiz im Bestand (`Testdateien/Unsere Familie 2026-4.ged`) hat
+ * **1.540 Zeichen**; ein `<textarea>` im Browser-Default zeigt davon zwei Zeilen. Wer eine
+ * gewachsene Hofgeschichte bearbeiten will, scrollt in einem Guckloch — und genau diese
+ * Notizen sind die, die überhaupt bearbeitet werden.
+ *
+ * WARUM EINE ACTION UND NICHT CSS. `field-sizing: content` täte es in einer Zeile, ist aber
+ * auf dem primären Zielgerät (iOS-Safari, [21 §2](../../specs/v9/21-UI-UX.md)) nicht
+ * verfügbar; ein größeres festes `rows` ist kein Mitwachsen, sondern ein größeres Guckloch.
+ * Zehn Zeilen DOM sind hier die kleinere Antwort als ein Feld, das seine Aufgabe nicht tut.
+ *
+ * `min-height` bleibt dem CSS überlassen — die Action setzt nur die Höhe, die der Inhalt
+ * braucht, und niemals eine kleinere als die vom Stylesheet vorgegebene (`height: auto`
+ * misst zuerst neu, sonst wüchse das Feld monoton).
+ */
+export function autoGrow(el: HTMLTextAreaElement): { destroy: () => void } {
+  const anpassen = (): void => {
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  anpassen();
+  el.addEventListener('input', anpassen);
+  // Auch bei Größenänderung: die nötige Höhe hängt an der BREITE, und die ändert sich beim
+  // Drehen des Telefons. Ohne dies bliebe nach der Drehung die Höhe der alten Breite stehen —
+  // bei 375 px braucht dieselbe 282-Zeichen-Notiz 113 px, im Querformat 40 (gemessen).
+  window.addEventListener('resize', anpassen);
+  return {
+    destroy: () => {
+      el.removeEventListener('input', anpassen);
+      window.removeEventListener('resize', anpassen);
+    },
+  };
+}
