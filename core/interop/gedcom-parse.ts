@@ -50,7 +50,7 @@ import type {
   PersonName,
   Quay,
 } from '../model/types';
-import { parseTree, child, children, childValue, collectText, unescapeAt } from './gedcom-tree';
+import { parseTree, child, children, childValue, childValueAll, collectText, unescapeAt } from './gedcom-tree';
 import type { GedNode } from './gedcom-tree';
 import { formToMime } from './media-mime';
 import type { ParsedGedcom } from './types';
@@ -412,8 +412,11 @@ function parseHypothesis(node: GedNode): Hypothesis {
       page: childValue(s, 'PAGE'),
     });
   }
-  const ratio = child(node, '_RATIO');
-  const concl = child(node, '_CONCL');
+  // Mehrfach vorkommende `_RATIO`/`_CONCL` werden GEFALTET, nicht auf die erste gekuerzt
+  // (childValueAll): das Modell haelt je EINEN Wert, und was doppelt in der Datei stand,
+  // ist danach im Modell und verschwindet beim naechsten Schreiben aus dem Wire.
+  const ratioText = childValueAll(node, '_RATIO');
+  const conclText = childValueAll(node, '_CONCL');
   // Unbekannte _HKIND-Werte fallen bewusst auf 'free' zurück (wie _HSTAT/_HWGT): ein
   // fremder oder künftiger Wert darf nicht dazu führen, dass ein Filter ihn als
   // Identitäts-Aussage liest.
@@ -426,8 +429,8 @@ function parseHypothesis(node: GedNode): Hypothesis {
     weight,
     created: childValue(node, '_DATE'),
     evidence,
-    rationale: ratio ? collectText(ratio) : '',
-    conclusion: concl ? collectText(concl) : '',
+    rationale: ratioText,
+    conclusion: conclText,
   });
 }
 

@@ -377,7 +377,12 @@ const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
   // Forschungsdaten (taskNode/logEntryNode/hypothesisNode)
   _TASK: ['_CAT', '_DONE', '_TSTAT', '_DATE', '_ID', 'SOUR'],
   _RLOG: ['DATE', 'REPO', 'SOUR', '_QUERY', '_RESULT', '_TASKID', '_ID', 'NOTE'],
-  _HYPO: ['_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR'],
+  // `_ID`/`_RATIO`/`_CONCL` gehoerten von Anfang an hierher — der Parser liest sie, der
+  // Emitter schreibt sie. Ihr Fehlen machte sie zu UEBERSCHUSS: der Passthrough hing die
+  // Originale zusaetzlich an, bei jeder Bearbeitung erneut (gemessen: aus zwei `_RATIO`
+  // wurden drei, angezeigt wurde die erste). Geschwister `_TASK`/`_RLOG` fuehren `_ID`
+  // laengst — dies ist die uebersehene dritte Stelle derselben Regel.
+  _HYPO: ['_ID', '_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR', '_RATIO', '_CONCL'],
 };
 
 /** Die Kind-Tags, die das Modell unter `tag` abbildet (leer = alles darunter ist Passthrough). */
@@ -524,6 +529,22 @@ function nachTag(xs: readonly GedNode[]): Map<string, GedNode[]> {
  * kanonisch um (`NAME`→GIVN/SURN/…); ein Tiefenvergleich hielte jeden umsortierten Knoten
  * für unabbildbar und schriebe ihn ein zweites Mal daneben.
  */
+/**
+ * Tags, die das Modell FALTET statt zu wiederholen (`childValueAll`, gedcom-tree.ts).
+ *
+ * Der Ueberschuss unten rettet wiederholte Zeilen, weil das Modell je einen Slot hat und
+ * die zweite sonst still wegfiele. Fuer diese Tags trifft die Praemisse nicht zu: alle
+ * Vorkommen sind BEREITS im Modellwert enthalten (mit `\n` verbunden, wortgleiche
+ * Wiederholungen einmal). Sie zusaetzlich nachzutragen schriebe denselben Text ein zweites
+ * Mal daneben — und bei jeder weiteren Bearbeitung ein drittes.
+ *
+ * Gemessen am Nutzer-Befund 2026-08-26 (`@F514805142@`): zwei `_RATIO`-Zeilen, inhaltlich
+ * dieselbe Begruendung, nur anders umgebrochen. Angezeigt wurde die erste, mitgeschleppt
+ * beide, und eine Bearbeitung machte drei daraus. Dieselbe Rolle wie `FORTSETZUNG` — ein
+ * wiederholtes `_RATIO` IST eine Fortsetzung, nur ohne `CONT` geschrieben.
+ */
+const GEFALTET = new Set(['_RATIO', '_CONCL']);
+
 function ueberschuss(
   alteKinder: readonly GedNode[],
   wieGelesenKinder: readonly GedNode[],
@@ -534,6 +555,7 @@ function ueberschuss(
   const out: GedNode[] = [];
   for (const c of alteKinder) {
     if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag) || ABGESCHAFFT.has(c.tag)) continue;
+    if (GEFALTET.has(c.tag)) continue; // alle Vorkommen stehen bereits im Modellwert
     const n = (gesehen.get(c.tag) ?? 0) + 1;
     gesehen.set(c.tag, n);
     if (n > (gelesen.get(c.tag)?.length ?? 0)) out.push(c);
