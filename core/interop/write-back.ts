@@ -45,7 +45,7 @@ import type {
   SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
-import type { GedNode } from './gedcom-tree';
+import { collectText, type GedNode } from './gedcom-tree';
 import { evidenceEvalEqual, EVAL_TAGS } from './enum-maps';
 import {
   parsePersonPublic,
@@ -377,7 +377,12 @@ const MODELLIERTE_KINDER: Readonly<Record<string, readonly string[]>> = {
   // Forschungsdaten (taskNode/logEntryNode/hypothesisNode)
   _TASK: ['_CAT', '_DONE', '_TSTAT', '_DATE', '_ID', 'SOUR'],
   _RLOG: ['DATE', 'REPO', 'SOUR', '_QUERY', '_RESULT', '_TASKID', '_ID', 'NOTE'],
-  _HYPO: ['_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR'],
+  // `_ID`/`_RATIO`/`_CONCL` gehoerten von Anfang an hierher — der Parser liest sie, der
+  // Emitter schreibt sie. Ihr Fehlen machte sie zu UEBERSCHUSS: der Passthrough hing die
+  // Originale zusaetzlich an, bei jeder Bearbeitung erneut (gemessen: aus zwei `_RATIO`
+  // wurden drei, angezeigt wurde die erste). Geschwister `_TASK`/`_RLOG` fuehren `_ID`
+  // laengst — dies ist die uebersehene dritte Stelle derselben Regel.
+  _HYPO: ['_ID', '_HSTAT', '_HWGT', '_DATE', '_HKIND', '_HREF', 'PAGE', 'SOUR', '_RATIO', '_CONCL'],
 };
 
 /** Die Kind-Tags, die das Modell unter `tag` abbildet (leer = alles darunter ist Passthrough). */
@@ -404,19 +409,48 @@ export const EREIGNIS_TAGS_PUBLIC: readonly string[] = EREIGNIS_TAGS;
 /**
  * Paart alte und frische Knoten desselben Tags (BL-285).
  *
- * Bei GLEICHER Anzahl der Reihe nach — der Emitter erhält die Modell-Reihenfolge, die
- * ihrerseits aus der Datei stammt. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
+ * Bei GLEICHER Anzahl der Reihe nach — ABER NUR INNERHALB DERSELBEN FORM (BL-388). Die
+ * frühere Fassung paarte die ganze Gruppe der Reihe nach, mit der Begründung „der Emitter
+ * erhält die Modell-Reihenfolge, die ihrerseits aus der Datei stammt". Für `NOTE` stimmt das
+ * nicht: das Modell teilt sie in `noteText`, `extraNotes` und `noteRefs`, und der Emitter
+ * schreibt sie in DIESER festen Ordnung — Zeiger zuletzt. Stand in der Datei ein Zeiger VOR
+ * einer Inline-Notiz, paarte die Position Zeiger↔Notiz, und `haltWert` überschrieb den
+ * Notiztext mit dem Zeiger: die Notiz war weg, der Zeiger stand doppelt da (gemessen an
+ * `@I566052202@`, per Delta-Debugging auf drei Zeilen reduziert).
+ *
+ * Ein Zeiger (`@X@`) und ein Text sind verschiedene Dinge, die sich einen Tag teilen. Sie
+ * werden deshalb getrennt gepaart; innerhalb jeder Form bleibt es bei der Reihenfolge.
+ *
+ * DER WERT-VERGLEICH LIEST MIT FORTSETZUNGEN (BL-389). Bei ungleicher Anzahl — der Nutzer
+ * hat eines hinzugefügt oder gelöscht — wird über den Wert gepaart. Verglichen wurde dabei
+ * der ROHE `.value`; trägt der alte Knoten aber `CONC`/`CONT`-Kinder, ist sein `.value` nur
+ * das ERSTE Fragment, während der frische den vollen Text trägt ([ADR-v9-281]). Die Werte
+ * stimmten nie überein, es kam keine Paarung zustande, und der Passthrough dieses Knotens
+ * ging verloren. Gemessen an `@F88@`: eine zweite Familien-Notiz anzulegen (die Funktion aus
+ * [ADR-v9-285]) löschte die Quellenzitation der ersten — `2 SOUR @S123@` samt `PAGE`,
+ * `QUAY`, `_EVAL` und Matricula-Link. `collectText` vergleicht, was dort wirklich steht. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
  * oder gelöscht) verschiebt eine Paarung nach Position die Zuordnung und übernähme
  * Passthrough vom FALSCHEN Knoten; dann wird nur noch über den exakten Wert gepaart, und
  * was übrig bleibt, bleibt ungepaart. Lieber ein Knoten ohne Passthrough-Rettung als einer
  * mit fremden Zeilen.
  */
+const istZeiger = (n: GedNode): boolean => n.value.startsWith('@');
+
 function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
+  // Getrennt nach Form, solange BEIDE Seiten je Form gleich viele tragen.
+  const aZ = alte.filter(istZeiger), aT = alte.filter((n) => !istZeiger(n));
+  const fZ = frische.filter(istZeiger), fT = frische.filter((n) => !istZeiger(n));
+  if (aZ.length && aT.length && aZ.length === fZ.length && aT.length === fT.length)
+    return [
+      ...aZ.map((a, i): [GedNode, GedNode] => [a, fZ[i]]),
+      ...aT.map((a, i): [GedNode, GedNode] => [a, fT[i]]),
+    ];
   if (alte.length === frische.length) return alte.map((a, i) => [a, frische[i]]);
   const paare: [GedNode, GedNode][] = [];
   const offen = [...frische];
   for (const a of alte) {
-    const i = offen.findIndex((f) => f.value === a.value);
+    const aText = collectText(a);
+    const i = offen.findIndex((f) => collectText(f) === aText);
     if (i >= 0) paare.push([a, offen.splice(i, 1)[0]]);
   }
   return paare;
@@ -448,9 +482,12 @@ function uebernimmTiefenPassthrough(
     // Wert ist hier die Frage. Bei ungleicher Größe bleibt es deshalb beim alten Verhalten.
     const gleichLang = alteGruppe.length === frischeGruppe.length
       && frischeGruppe.length === gelesenGruppe.length;
-    const pos = new Map(alteGruppe.map((a, i) => [a, i]));
+    // `wieGelesen` und `frisch` stammen BEIDE aus dem Emitter, ihre Reihenfolge stimmt
+    // also ueberein; `alt` kommt aus der Datei und kann anders sortiert sein (BL-388).
+    // Die Probe wird deshalb ueber die Position von `f` geholt, nicht ueber die von `a`.
+    const posF = new Map(frischeGruppe.map((f, i) => [f, i]));
     for (const [a, f] of paare(alteGruppe, frischeGruppe)) {
-      const g = gelesenGruppe[pos.get(a)!] ?? null;
+      const g = gelesenGruppe[posF.get(f)!] ?? null;
       if (gleichLang && g) haltWert(a, f, g);
       uebernimmIn(a, f, g);
     }
@@ -524,6 +561,22 @@ function nachTag(xs: readonly GedNode[]): Map<string, GedNode[]> {
  * kanonisch um (`NAME`→GIVN/SURN/…); ein Tiefenvergleich hielte jeden umsortierten Knoten
  * für unabbildbar und schriebe ihn ein zweites Mal daneben.
  */
+/**
+ * Tags, die das Modell FALTET statt zu wiederholen (`childValueAll`, gedcom-tree.ts).
+ *
+ * Der Ueberschuss unten rettet wiederholte Zeilen, weil das Modell je einen Slot hat und
+ * die zweite sonst still wegfiele. Fuer diese Tags trifft die Praemisse nicht zu: alle
+ * Vorkommen sind BEREITS im Modellwert enthalten (mit `\n` verbunden, wortgleiche
+ * Wiederholungen einmal). Sie zusaetzlich nachzutragen schriebe denselben Text ein zweites
+ * Mal daneben — und bei jeder weiteren Bearbeitung ein drittes.
+ *
+ * Gemessen am Nutzer-Befund 2026-08-26 (`@F514805142@`): zwei `_RATIO`-Zeilen, inhaltlich
+ * dieselbe Begruendung, nur anders umgebrochen. Angezeigt wurde die erste, mitgeschleppt
+ * beide, und eine Bearbeitung machte drei daraus. Dieselbe Rolle wie `FORTSETZUNG` — ein
+ * wiederholtes `_RATIO` IST eine Fortsetzung, nur ohne `CONT` geschrieben.
+ */
+const GEFALTET = new Set(['_RATIO', '_CONCL']);
+
 function ueberschuss(
   alteKinder: readonly GedNode[],
   wieGelesenKinder: readonly GedNode[],
@@ -534,6 +587,7 @@ function ueberschuss(
   const out: GedNode[] = [];
   for (const c of alteKinder) {
     if (!recognized.has(c.tag) || FORTSETZUNG.has(c.tag) || ABGESCHAFFT.has(c.tag)) continue;
+    if (GEFALTET.has(c.tag)) continue; // alle Vorkommen stehen bereits im Modellwert
     const n = (gesehen.get(c.tag) ?? 0) + 1;
     gesehen.set(c.tag, n);
     if (n > (gelesen.get(c.tag)?.length ?? 0)) out.push(c);

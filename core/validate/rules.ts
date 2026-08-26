@@ -800,6 +800,54 @@ export const RULES: readonly Rule[] = [
     },
   },
   {
+    id: 'ORT_WIE_HOFADRESSE',
+    label: 'Ort sieht aus wie eine Hofadresse',
+    group: 'geo',
+    severity: 'warn',
+    defaultEnabled: true,
+    threshold: null,
+    category: 'online',
+    /**
+     * Ein Ort, dessen Name auf eine Hausnummer endet ("Oster 68", "Weinerstr. 17",
+     * "Oster 46 (9)"), ist mit hoher Wahrscheinlichkeit eine HOFSTELLE, die als Ortsebene
+     * modelliert wurde. Das ist keine Formatfrage, sondern eine Identitaetsfrage: an einem
+     * Ort haengt keine Adresshistorie, er taucht in keiner Hof-Liste auf, und seine
+     * Ereignisse bekommen keinen Hof-Kontext.
+     *
+     * WARUM MELDEN UND NICHT REPARIEREN. Ob "Oster 68" eine Hofstelle oder eine
+     * Ortsebene ist, steht nicht in der Datei - der Bestand kennt dort weder einen Hof
+     * noch ein Hof-Typ-Ereignis mit passendem ADDR. Eine Automatik muesste raten und laege
+     * beim naechsten echten Dorf daneben; die Entscheidung gehoert der Kuration. Der Seed
+     * legt solche Orte seit der Objektfrage in `core/places/seed.ts` nicht mehr NEU an -
+     * diese Regel findet die, die schon da sind.
+     *
+     * AM BESTAND GEMESSEN (2026-08-26, `orte-2.json` rev 448): 6 Treffer von 440 Orten
+     * (1,4 %), keine Fehlalarme - jeder Treffer ist eine Hausadresse unter Ochtrup. Am
+     * aelteren Stand rev 329 waren es 2 von 416. Das Kriterium wurde VOR dem Einbau am
+     * Bestand geprueft, nicht danach (ADR-v9-232: ein Kriterium, das plausibel klingt, ist
+     * noch kein Befund).
+     *
+     * ZWEI STUFEN im Text, weil die Evidenz zwei Staerken hat: existiert im selben Dorf
+     * ein Hof mit GENAU dieser Adresse, ist dieselbe Stelle nachweislich doppelt
+     * modelliert - das ist kein Verdacht mehr.
+     */
+    place: (o, ctx) => {
+      const titel = (o.title ?? '').trim();
+      if (!/\s\d+[a-z]?(\s*\([^)]*\))?$/i.test(titel)) return NONE;
+      const norm = (x: string) => x.trim().toLowerCase();
+      const doppelt = [...ctx.db.hofObjects.values()].some(
+        (h) =>
+          o.enclosedBy.some((e) => e.placeId === h.villageId) &&
+          (h.addrs ?? []).some((a) => norm(a.value) === norm(titel)),
+      );
+      return hit(
+        doppelt
+          ? 'Als Ort UND als Hof im selben Dorf modelliert - dieselbe Stelle doppelt'
+          : 'Name endet auf eine Hausnummer - vermutlich eine Hofstelle, kein Ort',
+      );
+    },
+  },
+  {
     id: 'HOF_NO_COORD',
     label: 'Hof ohne eigene Koordinaten',
     group: 'geo',

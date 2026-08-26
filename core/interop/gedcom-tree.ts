@@ -304,6 +304,30 @@ export function childValue(node: GedNode, tag: string): string {
 }
 
 /**
+ * Wert ALLER gleichnamigen Kind-Tags, jeder mit seinen Fortsetzungen, verbunden mit `\n`.
+ *
+ * WOFUER (Nutzer-Befund 2026-08-26). `childValue` liest das ERSTE Kind — richtig fuer ein
+ * Feld, das laut Modell einmal vorkommt. Steht es in einer Datei trotzdem zweimal, ist der
+ * zweite Wert dem Modell unsichtbar: er ueberlebt als Passthrough-Ueberschuss, wird bei
+ * jeder Bearbeitung erneut angehaengt und waechst mit. Gemessen an `_HYPO`/`_RATIO`: eine
+ * Bearbeitung machte aus zwei Zeilen drei, und angezeigt wurde die erste.
+ *
+ * Falten statt Erste-nehmen ist die verlustfreie Antwort: das Modell sieht alles, der
+ * Writer schreibt es als EINEN Wert zurueck, und die ueberzaehligen Zeilen verschwinden,
+ * ohne dass ihr Text verlorengeht. WORTGLEICHE Wiederholungen zaehlen einmal — sie sind
+ * kein zweiter Inhalt, sondern dieselbe Aussage doppelt abgelegt (der gemessene Realfall).
+ */
+export function childValueAll(node: GedNode, tag: string): string {
+  const teile: string[] = [];
+  for (const c of node.children) {
+    if (c.tag !== tag) continue;
+    const t = collectText(c);
+    if (t && !teile.includes(t)) teile.push(t);
+  }
+  return teile.join('\n');
+}
+
+/**
  * `@@Sxx@@` → `@Sxx@` (GEDCOM-Escaping: ein `@` am Wert-Anfang wird verdoppelt).
  * Wir normieren Pointer-Werte für den Modell-Vergleich.
  */

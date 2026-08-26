@@ -230,3 +230,115 @@ describe('_HKIND/_HREF — Identitäts-Hypothese im Wire-Format', () => {
     expect(serializeAfterWriteBack(doc)).not.toContain('_HREF @F3@');
   });
 });
+
+// --- Mehrfach-`_RATIO` (Nutzer-Befund 2026-08-26, @F514805142@) -------------------------
+//
+// Das Modell kennt EINE `rationale` (`core/research/types.ts`), der Editor EIN Textfeld
+// (`HypothesisForm.svelte`, ein `<textarea>`) — eine zweite `_RATIO`-Zeile kann durch die
+// App nicht entstehen. Kommt sie doch in einer Datei vor, las der Parser nur die ERSTE
+// (`child(node, '_RATIO')`); die zweite blieb dem Modell unsichtbar, ueberlebte aber als
+// Passthrough wortgleich AN IHRER STELLE — und die liegt ggf. hinter `_CONCL`. Ergebnis:
+// die Datei trug zwei Begruendungen, die Anzeige eine, und die Reihenfolge war verletzt.
+function hypoDoc(kinder: string[]): ParsedGedcom {
+  return parseGedcom(
+    [
+      '0 HEAD',
+      '1 GEDC',
+      '2 VERS 5.5.1',
+      '0 @F9@ FAM',
+      '1 _HYPO Heinrich ist der Sohn von Grete',
+      ...kinder,
+      '0 TRLR',
+      '',
+    ].join('\n'),
+  );
+}
+const zaehle = (text: string, tag: string): number =>
+  text.split('\n').filter((z) => z.startsWith('2 ' + tag + ' ')).length;
+
+describe('_HYPO — mehrfaches `_RATIO` wird gefaltet, nicht gespiegelt', () => {
+  /** Eine Bearbeitung, wie sie das Formular ausloest — erst danach wird der Record neu
+   *  gebaut. Ein UNBERUEHRTER Record bleibt byte-gleich (write-back.ts, LP-1); die
+   *  Wire-Normalisierung darf also nicht am unveraenderten Satz behauptet werden. */
+  function nachBearbeitung(doc: ParsedGedcom, neuerText: string): string {
+    [...doc.db.families.values()][0].hypotheses[0].rationale = neuerText;
+    return serializeAfterWriteBack(doc);
+  }
+
+  it('zwei INHALTSGLEICHE `_RATIO` zaehlen im Modell als EINE (der gemessene Realfall)', () => {
+    const doc = hypoDoc([
+      '2 _HSTAT open',
+      '2 _HWGT 3',
+      '2 _RATIO Die Patin verbindet beide Haushalte.',
+      '2 _CONCL Wahrscheinlich.',
+      '2 _RATIO Die Patin verbindet beide Haushalte.',
+    ]);
+    const h = [...doc.db.families.values()][0].hypotheses[0];
+    expect(h.rationale).toBe('Die Patin verbindet beide Haushalte.');
+    const out = nachBearbeitung(doc, 'Korrigierte Begruendung.');
+    expect(zaehle(out, '_RATIO')).toBe(1);
+    expect(zaehle(out, '_CONCL')).toBe(1);
+    expect(out).toContain('2 _RATIO Korrigierte Begruendung.');
+  });
+
+  it('zwei VERSCHIEDENE `_RATIO` gehen nicht verloren — beide stehen im EDITIERBAREN Feld', () => {
+    // Der Kern des Nutzer-Einwands: eine Begruendung, die weder angezeigt noch bearbeitet
+    // werden kann, ist nicht hilfreich. Nach dem Falten steht sie im Formularfeld.
+    const doc = hypoDoc([
+      '2 _HSTAT open',
+      '2 _HWGT 3',
+      '2 _RATIO Erste Begruendung.',
+      '2 _CONCL Wahrscheinlich.',
+      '2 _RATIO Zweite Begruendung.',
+    ]);
+    const h = [...doc.db.families.values()][0].hypotheses[0];
+    expect(h.rationale).toBe('Erste Begruendung.\nZweite Begruendung.');
+    // Denselben Wert zurueckzuschreiben ist KEINE Bearbeitung — der Satz bleibt byte-gleich.
+    // Erst eine echte Aenderung baut ihn neu; dann steht der Text als EINE `_RATIO` mit
+    // `CONT` da, und die zweite Zeile ist verschwunden, ohne dass ihr Inhalt fehlt.
+    const out = nachBearbeitung(doc, h.rationale + '\nDritte Begruendung.');
+    expect(zaehle(out, '_RATIO')).toBe(1);
+    expect(out).toContain('2 _RATIO Erste Begruendung.');
+    expect(out).toContain('3 CONT Zweite Begruendung.');
+    expect(out).toContain('3 CONT Dritte Begruendung.');
+  });
+
+  it('nach der Bearbeitung steht `_RATIO` wieder vor `_CONCL`', () => {
+    const doc = hypoDoc([
+      '2 _HSTAT open',
+      '2 _HWGT 3',
+      '2 _CONCL Wahrscheinlich.',
+      '2 _RATIO Die Patin verbindet beide Haushalte.',
+    ]);
+    const zeilen = nachBearbeitung(doc, 'Korrigiert.').split('\n');
+    expect(zeilen.findIndex((z) => z.startsWith('2 _RATIO'))).toBeLessThan(
+      zeilen.findIndex((z) => z.startsWith('2 _CONCL')),
+    );
+  });
+
+  it('KEINE stille Umschreibung: ein UNBERUEHRTER Satz bleibt byte-gleich (LP-1)', () => {
+    // Die Gegenrichtung, damit der Fix nicht in die 668 stillen Umschreibungen zurueckfaellt,
+    // die ADR-v9-197 abgeschafft hat: solange niemand die Hypothese anfasst, bleibt die
+    // Datei, wie sie ist — auch mit ihrer doppelten Zeile.
+    const doc = hypoDoc([
+      '2 _HSTAT open',
+      '2 _HWGT 3',
+      '2 _RATIO Erste Begruendung.',
+      '2 _CONCL Wahrscheinlich.',
+      '2 _RATIO Zweite Begruendung.',
+    ]);
+    expect(zaehle(serializeAfterWriteBack(doc), '_RATIO')).toBe(2);
+  });
+
+  it('Kontrollprobe: eine einzelne `_RATIO` mit `CONT` bleibt unveraendert', () => {
+    const doc = hypoDoc([
+      '2 _HSTAT open',
+      '2 _HWGT 3',
+      '2 _RATIO Erste Zeile.',
+      '3 CONT Zweite Zeile.',
+    ]);
+    const h = [...doc.db.families.values()][0].hypotheses[0];
+    expect(h.rationale).toBe('Erste Zeile.\nZweite Zeile.');
+    expect(zaehle(serializeAfterWriteBack(doc), '_RATIO')).toBe(1);
+  });
+});

@@ -9,6 +9,9 @@
 2 GIVN Anna
 2 SURN Muster
 2 _ZZ unter NAME
+1 NAME Anna Maria /Muster/
+2 TYPE aka
+2 _ZZ unter NAME2
 1 SEX F
 1 FAMC @F1@
 2 PEDI birth
@@ -34,6 +37,7 @@
 3 _ZZ unter PLAC
 2 ADDR Hof 1
 2 NOTE Geburtsnotiz
+3 CONT Zweite Zeile der Geburtsnotiz, per CONT fortgesetzt.
 2 SOUR @S1@
 3 PAGE 12
 3 QUAY 3
@@ -52,6 +56,10 @@
 5 _ZZ unter FILE
 4 _ZZ unter OBJE
 3 _ZZ unter SOUR
+2 SOUR @S1@
+3 PAGE 34
+3 QUAY 2
+3 _ZZ unter SOUR2
 2 _ZZ unter BIRT
 1 CHR
 2 DATE 2 JAN 1900
@@ -68,6 +76,9 @@
 1 RESI
 2 ADDR Hof 2
 2 _ZZ unter RESI
+1 RESI
+2 ADDR Hof 4
+2 _ZZ unter RESI2
 1 EDUC Volksschule
 2 _ZZ unter EDUC
 1 EMIG
@@ -119,6 +130,13 @@
 2 _TASKID T1
 2 _ID L1
 2 _ZZ unter _RLOG
+1 _RLOG Zweite Suche im Archiv
+2 DATE 3 JAN 2026
+2 _QUERY Ein absichtlich langer Suchbegriff, der die Zeilenlaenge ueberschreitet und
+3 CONC  deshalb per CONC fortgesetzt wird - genau die Form aus BL-355.
+2 _RESULT gefunden
+2 _ID L2
+2 _ZZ unter _RLOG2
 1 _HYPO Vermutlich dieselbe Person
 2 _ID H1
 2 _HSTAT open
@@ -127,16 +145,29 @@
 2 _HKIND IDENT
 2 _HREF @I2@
 2 _ZZ unter _HYPO
+2 _RATIO Erste Zeile der Beweisfuehrung
+3 CONT zweite Zeile derselben Beweisfuehrung
+2 _CONCL Noch offen
+2 _RATIO Eine zweite, eigenstaendige Begruendung
 1 OBJE
 2 TITL Portrait
 2 FILE portrait.jpg
 3 FORM jpg
 2 _ZZ unter OBJE-Person
+1 OBJE
+2 TITL Zweites Bild
+2 FILE zweites.jpg
+3 FORM jpg
+2 _ZZ unter OBJE-Person2
 0 @I2@ INDI
 1 NAME Berta /Muster/
 0 @F1@ FAM
+0 @I3@ INDI
+1 NAME Carl /Muster/
+1 FAMC @F1@
 1 HUSB @I2@
 1 CHIL @I1@
+1 CHIL @I3@
 1 MARR
 2 DATE 1 JUN 1899
 2 PLAC Ochtrup
@@ -147,6 +178,8 @@
 1 DIV
 2 DATE 1 JUL 1910
 2 _ZZ unter DIV
+1 NOTE Familiennotiz, erste Zeile
+2 CONT und ihre zweite Zeile
 0 @S1@ SOUR
 1 TITL Kirchenbuch Ochtrup
 1 DATA
