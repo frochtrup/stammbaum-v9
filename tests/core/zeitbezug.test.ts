@@ -92,6 +92,39 @@ describe('trifft — der zweistufige Vergleich, ohne Fallunterscheidung', () => 
     expect(trifft(departement, ereignis)).toBe(true);
   });
 
+  it('MITTLERE SPROSSE: ein monatsgenaues Ereignis verschmälert auf den MONAT, nicht auf das Jahr', () => {
+    // Nutzer-Befund 2026-08-26 an @I566053080@ (BIRT `MAY 1808`): die Kette kippte auf
+    // `Arrondissement Coesfeld, Departement Ems`, das erst ab dem 14.11.1808 galt — weil
+    // `MAY 1808` dasselbe Intervall lieferte wie `1808` UND wie `NOV 1808`, und der
+    // Tie-Break „spätester Beginn" dann entscheidet. Der Monat ist eine echte Angabe.
+    const juni = spanneVonEreignis('JUN 1810')!;
+    expect(juni).toEqual({ von: 18100601, bis: 18100631 });
+    expect(trifft(amtIlten, juni)).toBe(true);
+    expect(trifft(departement, juni)).toBe(false);
+
+    const november = spanneVonEreignis('NOV 1810')!;
+    expect(trifft(amtIlten, november)).toBe(false);
+    expect(trifft(departement, november)).toBe(true);
+  });
+
+  it('MITTLERE SPROSSE, Periodenseite: ein monatsgenaues `fromDate`/`toDate` klemmt auf die Monatskante', () => {
+    const bisJuni = spanneVonDatiert({ from: 1512, to: 1810, toDate: 'JUN 1810' });
+    const abJuli = spanneVonDatiert({ from: 1810, to: 1813, fromDate: 'JUL 1810' });
+    expect(bisJuni.bis).toBe(18100631);
+    expect(abJuli.von).toBe(18100701);
+    // Ein Ereignis im Mai trifft nur die erste, eines im August nur die zweite.
+    expect(trifft(bisJuni, spanneVonEreignis('MAY 1810')!)).toBe(true);
+    expect(trifft(abJuli, spanneVonEreignis('MAY 1810')!)).toBe(false);
+    expect(trifft(bisJuni, spanneVonEreignis('AUG 1810')!)).toBe(false);
+    expect(trifft(abJuli, spanneVonEreignis('AUG 1810')!)).toBe(true);
+  });
+
+  it('KEINE erfundene Genauigkeit: ein QUALIFIZIERTER Monat bleibt das ganze Jahr', () => {
+    // Dieselbe Grenze wie bei `ABT 15 JUN 1810`: „ungefähr" ist die Aussage, nicht der Monat.
+    expect(spanneVonEreignis('ABT JUN 1810')).toEqual(jahresSpanne(1810));
+    expect(spanneVonEreignis('BEF JUN 1810')).toEqual(jahresSpanne(1810));
+  });
+
   it('RÜCKFALL 1: ein nur jahrgenaues Ereignis trifft weiterhin BEIDE — keine erfundene Genauigkeit', () => {
     const ereignis = spanneVonEreignis('1810')!;
     expect(trifft(amtIlten, ereignis)).toBe(true);

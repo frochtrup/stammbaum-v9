@@ -16,6 +16,7 @@
 //
 //   Angabe            Intervall
 //   „15 JUN 1810"     [1810-06-15, 1810-06-15]   ein Tag
+//   „JUN 1810"        [1810-06-01, 1810-06-31]   ein Monat  (BL-385)
 //   „1810" als `from` [1810-01-01, offen]        Jahresanfang
 //   „1810" als `to`   [offen, 1810-12-31]        Jahresende
 //   „1810" (Ereignis) [1810-01-01, 1810-12-31]   das ganze Jahr
@@ -100,6 +101,33 @@ export function tagesOrdinal(roh: string | null | undefined): number | null {
 }
 
 /**
+ * Die MONATS-Kanten eines GEDCOM-Datumsstrings — `null`, sobald der Monat fehlt, ein
+ * Qualifier im Spiel ist oder das Jahr fehlt. Trägt das Datum zusätzlich einen Tag,
+ * liefert bereits `tagesOrdinal` die schärfere Antwort; diese Funktion ist die Sprosse
+ * dazwischen.
+ *
+ * WARUM ES SIE GIBT (BL-385). Die Leiter oben nennt drei Genauigkeiten, gebaut waren nur
+ * zwei: `MAY 1808` bekam dasselbe Intervall wie `1808` — und damit auch dasselbe wie
+ * `NOV 1808`. Am Nutzer-Fall `@I566053080@` (BIRT `MAY 1808`) kippte die Ortskette
+ * deshalb auf `Arrondissement Coesfeld, Departement Ems`, das erst ab dem 14.11.1808 galt:
+ * das verbreiterte Intervall traf beide Perioden, und der Tie-Break „spätester Beginn"
+ * (Spec 11 §5) entschied statt der Daten. Ein Monat ist eine echte Angabe, keine
+ * Ungenauigkeit — er gehört als Breite ins Intervall wie der Tag als Punkt.
+ *
+ * Die obere Kante ist bewusst der 31., nicht der echte Monatsletzte: sie ist eine
+ * SCHRANKE, die jeden Tag des Monats einschließen muss — dieselbe Begründung wie bei
+ * `jahresEnde` (31. Dezember) und bei der Tagesbereichsprüfung in `teileAusEingabe`.
+ */
+export function monatsKanten(roh: string | null | undefined): { von: number; bis: number } | null {
+  if (!roh) return null;
+  const t = parseDateValue(roh);
+  if (t.qualifier !== 'EXACT') return null;
+  const m = monatsZahl(t.month);
+  if (t.year == null || m == null) return null;
+  return { von: ordinal(t.year, m, 1), bis: ordinal(t.year, m, 31) };
+}
+
+/**
  * Die Spanne EINER datierten Angabe (`pnames`/`enclosedBy`/`addrs`). `fromDate`/`toDate`
  * gewinnen, wo sie tagegenau sind; sonst klemmt das Jahr auf seine jeweilige Kante.
  *
@@ -117,11 +145,13 @@ export function spanneVonDatiert(d: {
 }): Spanne {
   const vonTag = tagesOrdinal(d.fromDate);
   const bisTag = tagesOrdinal(d.toDate);
+  const vonMonat = monatsKanten(d.fromDate);
+  const bisMonat = monatsKanten(d.toDate);
   const vonJahr = placeYear(d.from);
   const bisJahr = placeYear(d.to);
   return {
-    von: vonTag ?? (vonJahr != null ? jahresBeginn(vonJahr) : null),
-    bis: bisTag ?? (bisJahr != null ? jahresEnde(bisJahr) : null),
+    von: vonTag ?? vonMonat?.von ?? (vonJahr != null ? jahresBeginn(vonJahr) : null),
+    bis: bisTag ?? bisMonat?.bis ?? (bisJahr != null ? jahresEnde(bisJahr) : null),
   };
 }
 
@@ -189,6 +219,8 @@ export function istDatiert(d: { from: Year; to: Year; fromDate?: string | null; 
 export function spanneVonEreignis(datum: string | null | undefined): Spanne | null {
   const tag = tagesOrdinal(datum);
   if (tag != null) return { von: tag, bis: tag };
+  const monat = monatsKanten(datum);
+  if (monat != null) return monat;
   const jahr = placeYear(datum);
   return jahr == null ? null : jahresSpanne(jahr);
 }
