@@ -28,6 +28,28 @@ import type { Database } from '../../core/model/types';
  * einmal UND un-modellierte `_ZZ`-Nachbarn auf jeder Ebene — genau das, was eine Mutation
  * braucht: Struktur zum Anfassen und Passthrough, der dabei heil bleiben muss. Den INHALT
  * liefert die jeweilige Mutation, nicht die Datei; deshalb genügt hier eine.
+ *
+ * DIE DRITTE ACHSE: JEDE FORM MINDESTENS EINMAL ([ADR-v9-289]). Die ersten beiden Achsen —
+ * „jeder Tag" und „`_ZZ` auf jeder Ebene" — beschreiben das VOKABULAR. Sie sagen nichts über
+ * die GESTALT, in der ein Dokument dieses Vokabular anordnet, und genau dort saßen die
+ * Verlustklassen, die dem Nutzer aufgefallen sind. Gemessen 2026-08-26, Korpus gegen
+ * Realbestand:
+ *
+ *     Fortsetzungszeilen (CONC/CONT)        Korpus 0   ·   Realbestand 707
+ *     Eltern mit WIEDERHOLTEM Kind-Tag      Korpus 0   ·   Realbestand 1823
+ *
+ * Nicht unterrepräsentiert — NULL. Ein wiederholtes `_RATIO` ([ADR-v9-288]) und ein Wert ohne
+ * seine Fortsetzung ([ADR-v9-281]/BL-355) konnten in diesem Korpus nicht auftreten, egal wie
+ * gründlich die Zensen darüber liefen. Der Korpus trägt beide Formen jetzt: Fortsetzungen auf
+ * beanspruchten Textfeldern (NOTE mit `CONT`, `_QUERY` mit `CONC`) und wiederholte Geschwister
+ * für die real häufigsten Tags (`SOUR` 925×, `CHIL` 424×, `NAME` 89×, dazu `RESI`/`OBJE`/
+ * `_RLOG`/`_RATIO`).
+ *
+ * DASS ES WIRKT, IST GEMESSEN, nicht behauptet: mit ausgebauter `GEFALTET`-Ausnahme
+ * ([ADR-v9-288]) läuft `tests/roundtrip` am ALTEN Korpus grün durch (306 passed) und meldet
+ * am neuen zwei unabhängige Zensen rot (`wire-edit-ankunft`, `wire-loss-lange-werte`).
+ * Wer den Korpus erweitert, macht diese Gegenprobe mit — ein Korpus-Zuwachs, dessen Wirkung
+ * niemand gesehen hat, ist Zeilen, keine Zusicherung.
  */
 export const KORPUS = join(__dirname, '../fixtures/passthrough-matrix.small.ged');
 
