@@ -121,8 +121,30 @@ export function buildListPlaceName(ev: Event, ctx: PlaceContext): string {
  *      einmal.
  *   2. kein hofId, aber placeId → nur Dorf-Hierarchie.
  * Reine Funktion — keine Wall-Clock, kein Zustand.
+ *
+ * OHNE STICHTAG GILT ZUSÄTZLICH DIE EBENEN-SPERRE (BL-384, ADR-v9-292). `buildFormString`
+ * liefert für `when == null` bewusst nur den atomaren Leitnamen: eine Kette ohne Datum
+ * wäre eine erfundene Epoche (am Realbestand hätte die volle undatierte Kette 696 von 711
+ * undatierten Ereignissen 2.022 Segmente hinzugeschrieben, 686 davon über eine
+ * reihenfolgeabhängige `enclosedBy[0]`-Wahl — „Kaiserreich Frankreich" auf einem
+ * undatierten OCCU). Der Leitname ist damit die richtige KONSTRUKTION, aber kein
+ * zulässiger ERSATZ für eine reichere Quelle: nennt der Quelltext eine Ortsebene, die
+ * diese Projektion nicht trägt, wird `null` geliefert. Alle sieben `ev.place`-Schreib-
+ * stellen fallen dadurch OHNE eigenes Zutun auf den Quelltext zurück (dieselbe Bewegung
+ * wie der `hofObject fehlt`-Guard unten) — der Zwang statt der Erinnerung, statt die
+ * Regel an sieben Aufrufern nachzuziehen und beim achten zu vergessen.
+ *
+ * DATIERT bleibt unberührt: dort hat die Frage seit ADR-v9-224 ihre eigene, engere
+ * Antwort (`unbekannteEbenen` im Textangleich), und eine Kürzung kommt dort am
+ * Realbestand in 0 von 4.538 Fällen vor.
  */
 export function buildPlacForGedcom(ev: Event, when: Zeitbezug, ctx: PlaceContext): string | null {
+  const gebaut = bauePlac(ev, when, ctx);
+  if (when != null || gebaut == null) return gebaut;
+  return verloreneEbenen(ev, ctx, gebaut).length > 0 ? null : gebaut;
+}
+
+function bauePlac(ev: Event, when: Zeitbezug, ctx: PlaceContext): string | null {
   if (!ev) return null;
 
   const hofId: HofId | null = ev.hofId;
@@ -171,28 +193,111 @@ export function eventYear(ev: Event): Year {
  * Fassungen derselben Prüfung wären zwei Wahrheiten darüber, was „unbekannte Ebene" heißt.
  */
 export function unbekannteEbenen(ev: Event, ctx: PlaceContext): string[] {
-  const roh = (ev?.place ?? '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const roh = segmente(ev?.place ?? '');
   if (!roh.length) return [];
 
-  const hof = ev.hofId != null ? ctx.hofs.byId(ev.hofId) : undefined;
-  const ankerId = hof ? hof.villageId : ev.placeId;
-  if (ankerId == null) return [];
+  const kette = ketteNamen(ev, ctx);
+  if (!kette) return [];
 
   const abgedeckt = new Set<string>();
-  for (const id of ctx.places.enclosureIdsAsOf(ankerId, eventSpanne(ev))) {
-    const po = ctx.places.byId(id);
-    if (!po) continue;
-    abgedeckt.add(normPlaceName(po.title));
-    for (const pn of po.pnames ?? []) abgedeckt.add(normPlaceName(pn.value));
-    if (po.shortName) abgedeckt.add(normPlaceName(po.shortName));
-  }
-  for (const a of hof?.addrs ?? []) abgedeckt.add(normHofAddr(a.value));
+  for (const knoten of kette.knoten) for (const n of knoten) abgedeckt.add(n);
+  for (const a of kette.hofNamen) abgedeckt.add(a);
   abgedeckt.delete('');
 
   return roh.filter((seg) => !abgedeckt.has(normPlaceName(seg)));
+}
+
+/**
+ * Die Ebenen, die der PLAC-Text des Ereignisses nennt und die eine gegebene PROJEKTION
+ * fallenließe — die Nachbarfrage zu `unbekannteEbenen` (BL-384, ADR-v9-292).
+ *
+ * DER UNTERSCHIED IST NICHT KOSMETISCH, ER IST GEMESSEN. `unbekannteEbenen` fragt, ob die
+ * Quelle eine Ebene nennt, die der BESTAND nicht kennt; hier wird gefragt, ob die
+ * PROJEKTION eine Ebene wegläßt, die der Bestand sehr wohl kennt. Die erste Prüfung fängt
+ * die zweite nicht: rechnet man dieselben 4.478 reichen, kuratierten Ereignisse des
+ * Realbestands einmal OHNE Datum, würde `alignCuratedEventTexts` 260 von ihnen trotz
+ * bestandener `unbekannteEbenen`-Sperre schreiben und dabei die Kette auf den Leitnamen
+ * kappen („…, Llantwit Major, , The Vale of Glamorgan, Wales, Vereinigtes Königreich" →
+ * „Llantwit Major").
+ *
+ * KNOTENBASIERT, aus demselben Grund wie dort und über dieselbe Abdeckung (`ketteNamen`):
+ * ein Segment gilt als getragen, wenn IRGENDEIN Name seines Knotens in der Projektion
+ * steht. Eine periodengerechte Umbenennung desselben Knotens („Herzogtum Oldenburg" →
+ * „Großherzogtum Oldenburg", 232× gemessen in ADR-v9-224) ist deshalb KEIN Verlust — ein
+ * reiner Zeichenketten-Vergleich hätte genau die mitgesperrt.
+ *
+ * Reine Funktion; die Projektion wird hereingereicht statt hier gebaut, damit die Prüfung
+ * nicht davon abhängt, mit welchem Zeitbezug der Aufrufer gebaut hat.
+ */
+export function verloreneEbenen(ev: Event, ctx: PlaceContext, projektion: string): string[] {
+  const roh = segmente(ev?.place ?? '');
+  if (!roh.length) return [];
+
+  const kette = ketteNamen(ev, ctx);
+  if (!kette) return [];
+
+  const projSegmente = segmente(projektion);
+  const projOrte = new Set(projSegmente.map((s) => normPlaceName(s)));
+  const projAdressen = new Set(projSegmente.map((s) => normHofAddr(s)));
+  const vertreten = kette.knoten.map((namen) => [...namen].some((n) => n !== '' && projOrte.has(n)));
+  const hofVertreten = [...kette.hofNamen].some((a) => a !== '' && projAdressen.has(a));
+
+  const verloren: string[] = [];
+  for (const seg of roh) {
+    const name = normPlaceName(seg);
+    const index = kette.knoten.findIndex((namen) => namen.has(name));
+    if (index >= 0) {
+      if (!vertreten[index]) verloren.push(seg);
+      continue;
+    }
+    // Kein Ortsknoten — aber vielleicht eine Adressvariante des Hofs (Konvention α).
+    if (kette.hofNamen.has(normHofAddr(seg)) && !hofVertreten) verloren.push(seg);
+  }
+  return verloren;
+}
+
+/** Komma-getrennte, getrimmte Segmente eines Ortstexts; leere Ebenen fallen weg. */
+function segmente(s: string): string[] {
+  return s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Die Namens-Abdeckung der periodengerechten Kette eines Ereignisses — die gemeinsame
+ * Grundlage von `unbekannteEbenen` und `verloreneEbenen`. JE KNOTEN eine Namensmenge
+ * (Titel, `shortName`, alle `pnames`), dazu die Adressvarianten des gebundenen Hofs.
+ *
+ * Bewusst je Knoten statt als ein flaches Set: die eine Prüfung braucht nur die Vereinigung
+ * („kennt der Bestand das Segment überhaupt?"), die andere die Zuordnung („welcher Knoten,
+ * und steht der in der Projektion?"). Ein flaches Set kann die zweite Frage nicht
+ * beantworten — und zwei getrennte Ketten-Läufe wären zwei Wahrheiten darüber, welche
+ * Knoten überhaupt zur Kette gehören.
+ *
+ * `null`, wenn das Ereignis an nichts hängt (kein Anker → keine Aussage möglich).
+ */
+function ketteNamen(
+  ev: Event,
+  ctx: PlaceContext,
+): { knoten: Set<string>[]; hofNamen: Set<string> } | null {
+  const hof = ev.hofId != null ? ctx.hofs.byId(ev.hofId) : undefined;
+  const ankerId = hof ? hof.villageId : ev.placeId;
+  if (ankerId == null) return null;
+
+  const knoten: Set<string>[] = [];
+  for (const id of ctx.places.enclosureIdsAsOf(ankerId, eventSpanne(ev))) {
+    const po = ctx.places.byId(id);
+    if (!po) continue;
+    const namen = new Set<string>([normPlaceName(po.title)]);
+    for (const pn of po.pnames ?? []) namen.add(normPlaceName(pn.value));
+    if (po.shortName) namen.add(normPlaceName(po.shortName));
+    namen.delete('');
+    knoten.push(namen);
+  }
+  const hofNamen = new Set<string>((hof?.addrs ?? []).map((a) => normHofAddr(a.value)));
+  hofNamen.delete('');
+  return { knoten, hofNamen };
 }
 
 /**
