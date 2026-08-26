@@ -236,6 +236,7 @@ export type RuleId =
   | 'ENCLOSURE_CYCLE'
   | 'HOF_NO_COORD'
   | 'HOF_FAR'
+  | 'ORT_WIE_HOFADRESSE'
   // Format (Interop)
   | 'ADDR_INDEX_ONLY'
   | 'PLAC_EBENE_UNBEKANNT';

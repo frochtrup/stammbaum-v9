@@ -438,6 +438,46 @@ describe('Geo (Orte/Höfe)', () => {
     expect(texts(db, 'ENCLOSURE_CYCLE')).toEqual([]);
   });
 
+  it('ORT_WIE_HOFADRESSE meldet Orte mit nachgestellter Hausnummer — und nur die', () => {
+    // Am Bestand gemessen (2026-08-26, orte-2.json rev 448): 6 von 440 Orten, keine
+    // Fehlalarme. Die Kontrollnamen unten sind die Formen, die NICHT anschlagen dürfen.
+    const db = dbWith([], [], {
+      placeObjects: new Map([
+        ['@P1@', place('@P1@', { title: 'Oster 68' })],
+        ['@P2@', place('@P2@', { title: 'Oster 46 (9)' })],
+        ['@P3@', place('@P3@', { title: 'Weinerstr. 17' })],
+        ['@P4@', place('@P4@', { title: 'Ochtrup (Westf.)' })],
+        ['@P5@', place('@P5@', { title: 'Kreis Steinfurt' })],
+        ['@P6@', place('@P6@', { title: 'Bad Salzuflen' })],
+      ]),
+    });
+    expect(runValidation(db, only('ORT_WIE_HOFADRESSE')).map((f) => f.placeId).sort()).toEqual([
+      '@P1@',
+      '@P2@',
+      '@P3@',
+    ]);
+  });
+
+  it('ORT_WIE_HOFADRESSE unterscheidet Verdacht von Beleg: gleichnamiger Hof im selben Dorf', () => {
+    const db = dbWith([], [], {
+      placeObjects: new Map([
+        ['@DORF@', place('@DORF@', { title: 'Ochtrup' })],
+        [
+          '@P1@',
+          place('@P1@', {
+            title: 'Weinerstr. 17',
+            enclosedBy: [{ placeId: '@DORF@', from: null, to: null }],
+          }),
+        ],
+      ]),
+      hofObjects: new Map([
+        ['@H1@', hof('@H1@', '@DORF@', { addrs: [{ value: 'Weinerstr. 17', from: null, to: null }] })],
+      ]),
+    });
+    const [befund] = runValidation(db, only('ORT_WIE_HOFADRESSE'));
+    expect(befund.text).toContain('doppelt');
+  });
+
   it('HOF_NO_COORD meldet nur Höfe mit Wohn-Semantik (RESI/PROP)', () => {
     const bewohnt = personWith('@I1@');
     bewohnt.events = [makeEvent('RESI', { hofId: '@H1@', seen: true })];

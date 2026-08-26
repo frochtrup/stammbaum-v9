@@ -19,10 +19,13 @@
 // wie §4.3 gewählt (Konvention-1-Hof-Fall → Leitsegment ist der Hof → Village = segs[1..]).
 import type { Event, PlaceId } from '../model/types';
 import type { PlaceObject } from './types';
-import type { PlaceContext } from './build-plac';
+import { eventSpanne, type PlaceContext } from './build-plac';
 import { eventPlaceId } from './chokepoints';
 import { chainCompatibleAnyPath } from './place-registry';
 import { normPlaceName, extractHofAddr, slugify } from './normalize';
+// Autoritaets-Satz (ADR-v9-224, Spec 11 §9.1): kuratiertes Wissen ist Autoritaet, ein
+// Bootstrap-Objekt ist ein Spiegel des Textes. Hier entscheidet das, WEM der Seed glaubt.
+import { isCuratedHof } from './curation';
 // Hof-relevante Event-Typen (Spec 11 §4.2) — die EINE Quelle, kein Duplikat mehr: der
 // Seed-Vorpass und der Resolver dürfen nicht auseinanderdriften (OCCU-Entfernung
 // ADR-v9-143 muss beide zugleich treffen).
@@ -34,15 +37,112 @@ function segments(plac: string): string[] {
 }
 
 /**
+ * Kennt der Bestand das Leitsegment bereits als ADRESSE EINES HOFES in dem Dorf, das das
+ * naechste Segment nennt? Dann ist es dieser Hof - und kein Dorf.
+ *
+ * WARUM DIESE FRAGE VOR DEN KONVENTIONEN STEHT. Die Konventionen unten schliessen vom
+ * ereignis-eigenen TEXT auf die Rolle des Leitsegments: sie vergleichen `ev.addr` mit
+ * `segs[0]` als Zeichenketten. Das trug, solange ein Hof genau EINE Adresse hatte - dann
+ * waren die beiden Werte immer gleich, und Ungleichheit hiess verlaesslich "zwei
+ * verschiedene Dinge". Seit ein Hof eine Adressliste fuehrt (ADR-v9-223) stimmt der Schluss
+ * nicht mehr: `PLAC` wird live aus `addrs` berechnet, `ADDR` bleibt eingefroren (ADR-v9-47
+ * fill-if-empty) - dieselbe Hofstelle steht dann links und rechts unter zwei ihrer eigenen
+ * Bezeichnungen, und der Textvergleich las das als Beleg fuer ein Dorf. Gemessen am
+ * Realbestand (2026-08-26, `orte-2.json` rev 448) hat das Hausnummern als `PlaceObject`
+ * unter Ochtrup angelegt - `Oster 34`, `Oster 46 (9)`, `Oster 52 (15)`, `Weinerstr. 17`,
+ * je einen pro kuratierter Hofadresse.
+ *
+ * Die Registry beantwortet die Frage direkt: `addrs` IST die Liste der Bezeichnungen EINES
+ * Hofes. Am Objekt gefragt, kann keine Adressvariante mehr wie eine zweite Stelle wirken.
+ *
+ * NUR KURATIERTE HOEFE ZAEHLEN, keine rohen Bootstraps. Ein gebootstrappter Hof entsteht
+ * aus demselben Ereignistext, den er hier interpretieren soll - ihn als Beleg zu nehmen
+ * waere ein Zirkel: ein einzelnes `RESI` mit `ADDR=X` erzeugte beim ersten Laden einen
+ * Hof X, und beim zweiten erklaerte dieser Hof das Leitsegment X aller uebrigen
+ * Ereignisse zur Hofstelle - auch wenn X in Wahrheit ein Dorf ist (gemessen an
+ * `Lehrdte`: 66 BIRT/CHR/DEAT/BURI/MARR, null `ADDR=Lehrdte` in der Quelle). Das ist
+ * derselbe Satz wie in `alignCuratedEventTexts` (ADR-v9-224): kuratiertes Wissen ist
+ * Autoritaet, ein Seed-/Bootstrap-Objekt spiegelt nur den Text. Am Bestand sind 17 von
+ * 213 Hoefen rohe Bootstraps; alle vier Faelle, die diese Funktion loesen soll, sind
+ * kuratiert.
+ *
+ * AUF DAS DORF EINGEGRENZT, nicht global: eine Hausnummer ist zwischen Doerfern nicht
+ * eindeutig. Ist das Dorf (noch) nicht bekannt, wird NICHTS behauptet und die Konventionen
+ * unten entscheiden wie bisher - der Seed soll eine echte, dem Bestand noch unbekannte
+ * Ortsebene weiterhin anlegen duerfen.
+ *
+ * GILT FUER JEDEN EREIGNISTYP, nicht nur fuer `HOF_EVENT_TYPES`. Ob ein Ereignis an einen
+ * Hof BINDEN darf, ist eine andere Frage (Spec 11 §4.2, dort bewusst auf RESI/PROP/CENS
+ * beschraenkt) - hier geht es nur darum, aus einer bekannten Hofadresse keinen ORT zu
+ * machen. Am Realbestand tragen acht Nicht-Hof-Ereignisse (BIRT 5, CHR 1, DEAT 2) eine
+ * bekannte Hofadresse als Leitsegment; sie waren der zweite Weg zu denselben Objekten.
+ */
+function leitsegmentIstBekannterHof(ev: Event, segs: string[], ctx: PlaceContext): boolean {
+  const dorfId = ctx.places.findByName(segs[1]);
+  if (dorfId == null) return false;
+  return ctx.hofs.findAllByAddr(segs[0], eventSpanne(ev), dorfId).some((id) => {
+    const h = ctx.hofs.byId(id);
+    return h != null && isCuratedHof(h);
+  });
+}
+
+/**
  * Verwaltungs-Kette (leaf-first) eines Events: Village + Eltern. Muss KONSISTENT zum
  * Resolver sein (sonst schattet der Seed die Hof-Erkennung): bei hof-relevanten Typen mit
  * reichem PLAC behandelt der Resolver das Leitsegment als (potenziellen) Hof (Pfad A/C) —
  * der Seed darf es dann NICHT als Ort anlegen, Dorf = segs[1..]. Ausnahme Konvention 2
  * (§4.3): eine explizite ADDR nennt einen ANDEREN Hof als das Leitsegment → das
  * Leitsegment ist das Dorf (behalten). Non-Hof-Typen: das Leitsegment ist immer der Ort.
+ *
+ * VORGESCHALTET (s. `leitsegmentIstBekannterHof`): kennt der Bestand das Leitsegment schon
+ * als Adresse eines Hofes im selben Dorf, entscheidet dieses Wissen - Wissen ueber das
+ * Objekt schlaegt den Schluss aus dem Text.
  */
-function adminChain(ev: Event, segs: string[]): string[] {
+/**
+ * Welche Stellen nennt die DATEI selbst als Hofstelle? Genau Konvention 1: ein Hof-Typ-
+ * Ereignis, dessen ADDR das Leitsegment WIEDERHOLT. Das ist das einzige Signal, mit dem
+ * eine Quelle "hier wohnt jemand auf diesem Hof" sagt.
+ *
+ * WOZU. Der Seed laeuft VOR dem Resolver und entschied je Ereignis fuer sich. Ein `DEAT`
+ * an "Oster 60, Ochtrup, ..." machte das Leitsegment deshalb zum ORT, bevor die beiden
+ * `RESI` an derselben Adresse (mit `ADDR=Oster 60`) ihren Hof per Pfad C bootstrappen
+ * konnten; danach band alles an diesen Ort, und der Hof entstand nie. Die REIHENFOLGE
+ * zweier Ereignisse an derselben Stelle entschied, was dort entsteht.
+ *
+ * WARUM NUR MIT AUSGESCHRIEBENEM ADDR, und nicht auch bei leerem ADDR (Pfad C). Ein
+ * Hof-Typ-Ereignis ohne ADDR ist KEIN Beleg fuer eine Hofstelle - "wohnhaft in X" ist
+ * genauso oft ein Dorf. Gemessen am Realbestand (2026-08-26): `Lehrdte` traegt 66
+ * Nicht-Hof-Ereignisse (BIRT/CHR/DEAT/BURI/MARR) und NULL Hof-Typ-Ereignisse mit
+ * `ADDR=Lehrdte` - ein Dorf. `Oster 60` traegt 2 mit `ADDR=Oster 60`. Die erste Fassung
+ * dieser Funktion zaehlte auch ADDR-lose Ereignisse und erklaerte damit Doerfer zu
+ * Hofstellen; sie brach ADR-v9-222 (nach einem Merge kehrten zwei `Amtsvogtei Ilten`
+ * zurueck), weil sie den 66 Lehrdte-Ereignissen ihr Leitsegment nahm.
+ *
+ * DIE QUELLE, NICHT DIE PROJEKTION: `ev.addr` kann von der App stammen (fill-if-empty,
+ * ADR-v9-47). Das ist hier unschaedlich, weil ein von der App gesetztes ADDR bereits eine
+ * Hof-Bindung VORAUSSETZT - es bestaetigt den Anspruch, es erfindet ihn nicht.
+ */
+function hofAnsprueche(events: readonly Event[]): Set<string> {
+  const out = new Set<string>();
+  for (const ev of events) {
+    if (!HOF_EVENT_TYPES.has(ev.type)) continue;
+    if (!ev.addr) continue;
+    const segs = segments(ev.place ?? '');
+    if (segs.length <= 1) continue;
+    if (normPlaceName(extractHofAddr(ev.addr)) !== normPlaceName(segs[0])) continue;
+    out.add(normPlaceName(segs[0]) + ' >> ' + normPlaceName(segs[1]));
+  }
+  return out;
+}
+
+function adminChain(
+  ev: Event,
+  segs: string[],
+  ctx: PlaceContext,
+  ansprueche: ReadonlySet<string>,
+): string[] {
   if (segs.length <= 1) return segs;
+  if (leitsegmentIstBekannterHof(ev, segs, ctx)) return segs.slice(1);
   if (HOF_EVENT_TYPES.has(ev.type)) {
     if (ev.addr) {
       const extractNorm = normPlaceName(extractHofAddr(ev.addr));
@@ -52,7 +152,11 @@ function adminChain(ev: Event, segs: string[]): string[] {
     // Konvention 1 / Pfad-C (auch ohne ADDR): Leitsegment = Hof → nicht seeden.
     return segs.slice(1);
   }
-  return segs;
+  // Nicht-Hof-Typ: das Leitsegment ist der Ort - es sei denn, die Datei selbst nennt
+  // dieselbe Stelle anderswo als Hofstelle (s. `hofAnsprueche`).
+  return ansprueche.has(normPlaceName(segs[0]) + ' >> ' + normPlaceName(segs[1]))
+    ? segs.slice(1)
+    : segs;
 }
 
 /**
@@ -103,10 +207,13 @@ export function seedPlacesFromEvents(events: readonly Event[], ctx: PlaceContext
   // 1. Verwaltungs-Ketten (leaf-first) + alle Suffixe (jede Ebene ist ein Ort) sammeln —
   //    nur aus noch UNAUFGELÖSTEN Events (placeId ODER findByName trifft → schon vorhanden).
   const chains: string[][] = [];
+  // Vorpass VOR der Schleife: welche Stellen nennt die Datei selbst als Hofstelle?
+  // Ohne ihn entschiede die Reihenfolge der Ereignisse, was dort entsteht.
+  const ansprueche = hofAnsprueche(events);
   for (const ev of events) {
     if (eventPlaceId(ev, ctx) != null) continue;
     const segs = segments(ev.place ?? '');
-    const admin = adminChain(ev, segs);
+    const admin = adminChain(ev, segs, ctx, ansprueche);
     for (let i = 0; i < admin.length; i++) chains.push(admin.slice(i));
   }
 

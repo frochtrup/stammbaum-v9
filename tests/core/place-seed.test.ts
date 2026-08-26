@@ -12,11 +12,25 @@ import {
   buildPlacForGedcom,
   eventYear,
 } from '../../core/places/index';
-import type { PlaceContext, PlaceObject } from '../../core/places/index';
-import { place, placeMap, hofMap, ev } from './places-fixtures';
+import type { HofObject, PlaceContext, PlaceObject } from '../../core/places/index';
+import { hof, place, placeMap, hofMap, ev } from './places-fixtures';
 
 function ctxFrom(...ps: PlaceObject[]): PlaceContext {
   return { places: makePlaceRegistry(placeMap(...ps)), hofs: makeHofRegistry(hofMap()) };
+}
+
+/**
+ * Kontext MIT Höfen — die Objektseite, die `ctxFrom` leer lässt.
+ *
+ * WARUM ES DIESEN ZWEITEN HELFER GIBT. Jeder Seed-Test dieser Datei lief bisher gegen
+ * `hofMap()`, also gegen NULL Höfe: der Seed konnte einen Hof nie sehen, auch wenn seine
+ * Regel ihn meinte. Dieselbe eingefrorene Objektseite hat der Determinismus-Property-Test
+ * (`resolve-determinism.property.test.ts`, „Fester Orts-/Hof-Kontext") — er variiert die
+ * Ereignisse über 8 Typen × 7 PLAC × 4 ADDR und hält dabei EINEN Hof mit EINER Adresse
+ * fest. Die beiden Zellen unten sind genau die, die dadurch nie vorkamen.
+ */
+function ctxMitHof(hofs: HofObject[], ...ps: PlaceObject[]): PlaceContext {
+  return { places: makePlaceRegistry(placeMap(...ps)), hofs: makeHofRegistry(hofMap(...hofs)) };
 }
 
 /** Findet unter den erzeugten POs den (ersten) mit gegebenem Titel. */
@@ -110,6 +124,140 @@ describe('seedPlacesFromEvents — Auto-Seed (ADR-v9-28)', () => {
     const titles = created.map((p) => p.title);
     expect(titles).toContain('Ochtrup');
     expect(titles).not.toContain('Wall 33');
+  });
+
+  // ---- Die zwei Zellen, die der Matrix fehlten -------------------------------------
+  //
+  // Beide seeden am Realbestand eine HAUSNUMMER als Ort unter Ochtrup — gemessen 2026-08-26
+  // an `orte-2.json` rev 448: `Oster 34`, `Oster 46 (9)`, `Oster 52 (15)`, `Weinerstr. 17`.
+  // Der Verlauf über die Ortsstände zeigt, wann es anfing: rev 63…333 zwei Altfälle,
+  // rev 347 (12.08.) der erste Zuwachs, rev 406 (21.08.) acht. Kein Wächter schlug an, weil
+  // der Defekt EINMALIG zuschlägt — im Moment der Kuration — und danach als Fixpunkt
+  // einfriert: „kein Wachstum beim zweiten Lesen" (kurations-rundlauf-realdaten.test.ts,
+  // Zusicherung 2) ist an beiden Ständen 0. Ein falscher Zustand kann stabil sein.
+  it('Hof mit ZWEI Adressvarianten: PLAC nennt die eine, ADDR die andere → KEIN Ort aus dem Leitsegment', () => {
+    // Konvention 2 fragt „nennt ADDR einen ANDEREN Hof als das Leitsegment?" und vergleicht
+    // dafür zwei ZEICHENKETTEN. Solange jeder Hof genau eine Adresse trug, waren sie immer
+    // gleich und die Regel lag zufällig richtig. Seit ADR-v9-223 führt ein Hof eine
+    // Adressliste; `PLAC` wird live aus ihr berechnet, `ADDR` bleibt eingefroren
+    // (ADR-v9-47) — die beiden Hälften laufen auseinander, und die Regel liest die
+    // Abweichung als zweiten Hof. Richtig ist die Frage am OBJEKT: gehören beide Werte
+    // demselben `HofObject`? Die Registry weiß das, `addrs` IST diese Liste.
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    const hofMitVarianten = hof('_hof_weinerstr_17_ochtrup', '@OCHTRUP@', {
+      addrs: [
+        { value: 'Weinerstr. 17', from: null, to: null },
+        { value: 'Wigbold 14 (Weinerstr. 17)', from: null, to: null },
+      ],
+    });
+    const events = [
+      ev('RESI', {
+        place: 'Weinerstr. 17, Ochtrup, Deutschland',
+        addr: 'Wigbold 14 (Weinerstr. 17)',
+      }),
+    ];
+    const created = seedPlacesFromEvents(events, ctxMitHof([hofMitVarianten], ochtrup));
+    expect(created.map((p) => p.title)).not.toContain('Weinerstr. 17');
+  });
+
+  it('Nicht-Hof-Typ am Hof: ein DEAT mit bekannter Hofadresse als Leitsegment seedet sie NICHT als Ort', () => {
+    // `adminChain` schneidet das Leitsegment nur für `HOF_EVENT_TYPES` (RESI/PROP/CENS) ab;
+    // jeder andere Typ macht daraus einen Ort. Am Realbestand tragen 8 Nicht-Hof-Ereignisse
+    // (BIRT 5, CHR 1, DEAT 2) eine bekannte Hofadresse als Leitsegment.
+    //
+    // BEWUSST NICHT MITGEPRÜFT: ob das Ereignis danach AN den Hof bindet. Dass Hof-Bindung
+    // auf RESI/PROP/CENS beschränkt ist, ist eine eigene Entscheidung (Spec 11 §4.2); sie
+    // hier mitzuentscheiden hieße, sie durch die Hintertür zu ändern. Zugesichert wird nur
+    // das Schwächere und Unstrittige: aus einer bekannten Hofadresse wird kein ORT.
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    // KURATIERT (Koordinaten gepflegt) — nur so zaehlt der Hof als Beleg, s. Kontrollprobe.
+    const wall33 = hof('_hof_wall_33_ochtrup', '@OCHTRUP@', {
+      addrs: [{ value: 'Wall 33', from: null, to: null }],
+      lat: 52.2,
+      long: 7.18,
+    });
+    const created = seedPlacesFromEvents(
+      [ev('DEAT', { place: 'Wall 33, Ochtrup, Deutschland' })],
+      ctxMitHof([wall33], ochtrup),
+    );
+    expect(created.map((p) => p.title)).not.toContain('Wall 33');
+  });
+
+  it('Kontrollprobe: ein ROH GEBOOTSTRAPPTER Hof zaehlt NICHT als Beleg (kein Zirkel)', () => {
+    // Ein gebootstrappter Hof entsteht aus demselben Ereignistext, den er hier deuten soll.
+    // Ihn als Beleg zu nehmen hiesse: ein einzelnes RESI mit ADDR=X erzeugt beim ersten
+    // Laden Hof X, und beim zweiten erklaert dieser Hof das Leitsegment X aller uebrigen
+    // Ereignisse zur Hofstelle — auch wenn X ein Dorf ist. Am Realbestand ist `Lehrdte`
+    // genau dieser Fall: 66 BIRT/CHR/DEAT/BURI/MARR, null `ADDR=Lehrdte` in der Quelle.
+    // Derselbe Autoritaets-Satz wie in `alignCuratedEventTexts` (ADR-v9-224).
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    const roh = hof('_hof_lehrdte_bootstrap', '@OCHTRUP@', {
+      addrs: [{ value: 'Lehrdte', from: null, to: null }], // sonst alles leer = Rohzustand
+    });
+    const created = seedPlacesFromEvents(
+      [ev('BIRT', { place: 'Lehrdte, Ochtrup, Deutschland' })],
+      ctxMitHof([roh], ochtrup),
+    );
+    expect(created.map((p) => p.title)).toContain('Lehrdte');
+  });
+
+  it('Nicht-Hof-Typ schattet die Hof-Erkennung nicht: nennt ein RESI dieselbe Stelle per ADDR als Hof, seedet das DEAT keinen Ort', () => {
+    // Der Seed läuft VOR dem Resolver. Das RESI unten hätte „Oster 60" per Pfad C als Hof
+    // gebootstrappt — aber wenn das DEAT das Leitsegment vorher zum ORT macht, binden
+    // anschließend BEIDE an diesen Ort und der Hof entsteht nie. Am Realbestand ist das
+    // genau `Oster 60` (2 RESI mit `ADDR=Oster 60`, 2 DEAT ohne ADDR).
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    const events = [
+      ev('DEAT', { place: 'Oster 60, Ochtrup, Deutschland' }),
+      ev('RESI', { place: 'Oster 60, Ochtrup, Deutschland', addr: 'Oster 60' }),
+    ];
+    const created = seedPlacesFromEvents(events, ctxFrom(ochtrup));
+    expect(created.map((p) => p.title)).not.toContain('Oster 60');
+  });
+
+  it('Kontrollprobe: ein Hof-Typ-Ereignis OHNE ADDR beansprucht die Stelle NICHT — ein Dorf bleibt ein Dorf', () => {
+    // Die erste Fassung zählte auch ADDR-lose Hof-Typ-Ereignisse als Anspruch und erklärte
+    // damit Dörfer zu Hofstellen: am Realbestand trägt `Lehrdte` 66 Nicht-Hof-Ereignisse
+    // und NULL `ADDR=Lehrdte` — sie brach ADR-v9-222 (zwei `Amtsvogtei Ilten` kehrten nach
+    // einem Merge zurück), weil sie den 66 Ereignissen ihr Leitsegment nahm.
+    const amt = place('@AMT@', { title: 'Amtsvogtei Ilten', type: 'Region' });
+    const events = [
+      ev('RESI', { place: 'Lehrdte, Amtsvogtei Ilten, Deutschland' }), // ohne ADDR
+      ev('BIRT', { place: 'Lehrdte, Amtsvogtei Ilten, Deutschland' }),
+    ];
+    const created = seedPlacesFromEvents(events, ctxFrom(amt));
+    expect(created.map((p) => p.title)).toContain('Lehrdte');
+  });
+
+  // KONTROLLPROBEN zu den beiden Zellen darüber. Ohne sie stünde dort nur „seede das
+  // Leitsegment nicht", und die billigste Art, das grün zu bekommen, wäre eine zu breite
+  // Regel („bei RESI nie das Leitsegment seeden", „Hausnummern nie seeden") — die den
+  // Fehler durch einen stilleren ersetzte: ein echtes Dorf, das der Bestand noch nicht
+  // kennt, käme nie mehr an. Die zwei Proben halten fest, dass der HOF der Unterscheider
+  // ist und nichts sonst: gleiche Ereignisse, Hof aus dem Kontext genommen → unverändert.
+  it('Kontrollprobe: ist der Hof NICHT bekannt, darf dasselbe Leitsegment weiterhin ein Ort werden', () => {
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    const events = [
+      ev('RESI', {
+        place: 'Weinerstr. 17, Ochtrup, Deutschland',
+        addr: 'Wigbold 14 (Weinerstr. 17)',
+      }),
+    ];
+    // Ohne Hof-Wissen ist „ADDR nennt einen anderen Hof" die ehrliche Lesart (Konvention 2).
+    const created = seedPlacesFromEvents(events, ctxFrom(ochtrup));
+    expect(created.map((p) => p.title)).toContain('Weinerstr. 17');
+  });
+
+  it('Kontrollprobe: ein DEAT an einem Leitsegment, das KEINE Hofadresse ist, seedet weiter einen Ort', () => {
+    const ochtrup = place('@OCHTRUP@', { title: 'Ochtrup', type: 'Town' });
+    const wall33 = hof('_hof_wall_33_ochtrup', '@OCHTRUP@', {
+      addrs: [{ value: 'Wall 33', from: null, to: null }],
+    });
+    const created = seedPlacesFromEvents(
+      [ev('DEAT', { place: 'Langenhorst, Ochtrup, Deutschland' })],
+      ctxMitHof([wall33], ochtrup),
+    );
+    expect(created.map((p) => p.title)).toContain('Langenhorst');
   });
 
   it('atomar mehrdeutig gegenüber ≥2 widersprüchlichen Clustern → kein stilles Merge (kein PO aus dem atomaren Event)', () => {
