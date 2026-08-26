@@ -45,7 +45,7 @@ import type {
   SourceDataEvent,
 } from '../model/types';
 import type { ResearchTask, LogEntry, Hypothesis } from '../research/types';
-import type { GedNode } from './gedcom-tree';
+import { collectText, type GedNode } from './gedcom-tree';
 import { evidenceEvalEqual, EVAL_TAGS } from './enum-maps';
 import {
   parsePersonPublic,
@@ -419,7 +419,16 @@ export const EREIGNIS_TAGS_PUBLIC: readonly string[] = EREIGNIS_TAGS;
  * `@I566052202@`, per Delta-Debugging auf drei Zeilen reduziert).
  *
  * Ein Zeiger (`@X@`) und ein Text sind verschiedene Dinge, die sich einen Tag teilen. Sie
- * werden deshalb getrennt gepaart; innerhalb jeder Form bleibt es bei der Reihenfolge. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
+ * werden deshalb getrennt gepaart; innerhalb jeder Form bleibt es bei der Reihenfolge.
+ *
+ * DER WERT-VERGLEICH LIEST MIT FORTSETZUNGEN (BL-389). Bei ungleicher Anzahl — der Nutzer
+ * hat eines hinzugefügt oder gelöscht — wird über den Wert gepaart. Verglichen wurde dabei
+ * der ROHE `.value`; trägt der alte Knoten aber `CONC`/`CONT`-Kinder, ist sein `.value` nur
+ * das ERSTE Fragment, während der frische den vollen Text trägt ([ADR-v9-281]). Die Werte
+ * stimmten nie überein, es kam keine Paarung zustande, und der Passthrough dieses Knotens
+ * ging verloren. Gemessen an `@F88@`: eine zweite Familien-Notiz anzulegen (die Funktion aus
+ * [ADR-v9-285]) löschte die Quellenzitation der ersten — `2 SOUR @S123@` samt `PAGE`,
+ * `QUAY`, `_EVAL` und Matricula-Link. `collectText` vergleicht, was dort wirklich steht. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
  * oder gelöscht) verschiebt eine Paarung nach Position die Zuordnung und übernähme
  * Passthrough vom FALSCHEN Knoten; dann wird nur noch über den exakten Wert gepaart, und
  * was übrig bleibt, bleibt ungepaart. Lieber ein Knoten ohne Passthrough-Rettung als einer
@@ -440,7 +449,8 @@ function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
   const paare: [GedNode, GedNode][] = [];
   const offen = [...frische];
   for (const a of alte) {
-    const i = offen.findIndex((f) => f.value === a.value);
+    const aText = collectText(a);
+    const i = offen.findIndex((f) => collectText(f) === aText);
     if (i >= 0) paare.push([a, offen.splice(i, 1)[0]]);
   }
   return paare;
