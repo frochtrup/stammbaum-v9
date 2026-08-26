@@ -409,14 +409,33 @@ export const EREIGNIS_TAGS_PUBLIC: readonly string[] = EREIGNIS_TAGS;
 /**
  * Paart alte und frische Knoten desselben Tags (BL-285).
  *
- * Bei GLEICHER Anzahl der Reihe nach — der Emitter erhält die Modell-Reihenfolge, die
- * ihrerseits aus der Datei stammt. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
+ * Bei GLEICHER Anzahl der Reihe nach — ABER NUR INNERHALB DERSELBEN FORM (BL-388). Die
+ * frühere Fassung paarte die ganze Gruppe der Reihe nach, mit der Begründung „der Emitter
+ * erhält die Modell-Reihenfolge, die ihrerseits aus der Datei stammt". Für `NOTE` stimmt das
+ * nicht: das Modell teilt sie in `noteText`, `extraNotes` und `noteRefs`, und der Emitter
+ * schreibt sie in DIESER festen Ordnung — Zeiger zuletzt. Stand in der Datei ein Zeiger VOR
+ * einer Inline-Notiz, paarte die Position Zeiger↔Notiz, und `haltWert` überschrieb den
+ * Notiztext mit dem Zeiger: die Notiz war weg, der Zeiger stand doppelt da (gemessen an
+ * `@I566052202@`, per Delta-Debugging auf drei Zeilen reduziert).
+ *
+ * Ein Zeiger (`@X@`) und ein Text sind verschiedene Dinge, die sich einen Tag teilen. Sie
+ * werden deshalb getrennt gepaart; innerhalb jeder Form bleibt es bei der Reihenfolge. Bei ungleicher Anzahl (der Nutzer hat eines hinzugefügt
  * oder gelöscht) verschiebt eine Paarung nach Position die Zuordnung und übernähme
  * Passthrough vom FALSCHEN Knoten; dann wird nur noch über den exakten Wert gepaart, und
  * was übrig bleibt, bleibt ungepaart. Lieber ein Knoten ohne Passthrough-Rettung als einer
  * mit fremden Zeilen.
  */
+const istZeiger = (n: GedNode): boolean => n.value.startsWith('@');
+
 function paare(alte: GedNode[], frische: GedNode[]): [GedNode, GedNode][] {
+  // Getrennt nach Form, solange BEIDE Seiten je Form gleich viele tragen.
+  const aZ = alte.filter(istZeiger), aT = alte.filter((n) => !istZeiger(n));
+  const fZ = frische.filter(istZeiger), fT = frische.filter((n) => !istZeiger(n));
+  if (aZ.length && aT.length && aZ.length === fZ.length && aT.length === fT.length)
+    return [
+      ...aZ.map((a, i): [GedNode, GedNode] => [a, fZ[i]]),
+      ...aT.map((a, i): [GedNode, GedNode] => [a, fT[i]]),
+    ];
   if (alte.length === frische.length) return alte.map((a, i) => [a, frische[i]]);
   const paare: [GedNode, GedNode][] = [];
   const offen = [...frische];
@@ -453,9 +472,12 @@ function uebernimmTiefenPassthrough(
     // Wert ist hier die Frage. Bei ungleicher Größe bleibt es deshalb beim alten Verhalten.
     const gleichLang = alteGruppe.length === frischeGruppe.length
       && frischeGruppe.length === gelesenGruppe.length;
-    const pos = new Map(alteGruppe.map((a, i) => [a, i]));
+    // `wieGelesen` und `frisch` stammen BEIDE aus dem Emitter, ihre Reihenfolge stimmt
+    // also ueberein; `alt` kommt aus der Datei und kann anders sortiert sein (BL-388).
+    // Die Probe wird deshalb ueber die Position von `f` geholt, nicht ueber die von `a`.
+    const posF = new Map(frischeGruppe.map((f, i) => [f, i]));
     for (const [a, f] of paare(alteGruppe, frischeGruppe)) {
-      const g = gelesenGruppe[pos.get(a)!] ?? null;
+      const g = gelesenGruppe[posF.get(f)!] ?? null;
       if (gleichLang && g) haltWert(a, f, g);
       uebernimmIn(a, f, g);
     }
