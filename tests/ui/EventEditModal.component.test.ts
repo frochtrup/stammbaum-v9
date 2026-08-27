@@ -435,3 +435,84 @@ describe('EventEditModal — Quellreferenz-Ablage über den ECHTEN Editor (BL-23
     expect(gespeichert.citations[0].grampsId).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Quelle neben Projektion ([ADR-v9-295]).
+//
+// Das Ortsfeld ist mit der PROJEKTION vorbelegt, und `fromEditable` schreibt bei
+// `placeDirty` genau diesen Inhalt nach `ev.place`. Ein Tastendruck ersetzte damit den
+// Quelltext, ohne dass er je zu sehen war — eine Ebene, die nur die Quelle nennt, war aus
+// der Datei weg. Diese Zeile macht den Unterschied sichtbar und gibt ihm einen Knopf.
+describe('EventEditModal — Quelle neben Projektion (ADR-v9-295)', () => {
+  const mitOrt = () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Lehrte' }));
+    appState.loadDatabase(db, 'test.ged');
+    return appState;
+  };
+
+  it('zeigt den Quelltext, wenn er von der Projektion abweicht', () => {
+    const appState = mitOrt();
+    const ev = makeEvent('DEAT', { place: 'Lehrte, Amt Burgdorf (Hannover)', placeId: '@P1@' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave: vi.fn(), onClose: vi.fn() } });
+
+    expect(screen.getByText('Quelle')).toBeTruthy();
+    expect(screen.getByText(/Amt Burgdorf \(Hannover\)/)).toBeTruthy();
+  });
+
+  it('schweigt, wenn Quelle und Projektion übereinstimmen (kein Dauer-Hinweis)', () => {
+    const appState = mitOrt();
+    const ev = makeEvent('DEAT', { place: 'Lehrte', placeId: '@P1@' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave: vi.fn(), onClose: vi.fn() } });
+
+    expect(screen.queryByText('Quelle')).toBeNull();
+  });
+
+  it('schweigt bei einem ungebundenen Ereignis (dort IST der Feldinhalt die Quelle)', () => {
+    const appState = mitOrt();
+    const ev = makeEvent('DEAT', { place: 'Irgendwo, Sonstwo' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave: vi.fn(), onClose: vi.fn() } });
+
+    expect(screen.queryByText('Quelle')).toBeNull();
+  });
+
+  it('„Projektion übernehmen" schreibt die Projektion in die Datei', async () => {
+    const appState = mitOrt();
+    const onSave = vi.fn();
+    const ev = makeEvent('DEAT', { place: 'Lehrte, Amt Burgdorf (Hannover)', placeId: '@P1@' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave, onClose: vi.fn() } });
+    await fireEvent.click(screen.getByText('Projektion übernehmen'));
+    await fireEvent.submit(screen.getByText('Speichern').closest('form') as HTMLFormElement);
+
+    expect(onSave).toHaveBeenCalled();
+    expect(onSave.mock.calls[0][0].place).toBe('Lehrte');
+  });
+
+  it('nach dem Übernehmen bleibt die Quelle sichtbar — als Ansage, was ersetzt wird', async () => {
+    const appState = mitOrt();
+    const ev = makeEvent('DEAT', { place: 'Lehrte, Amt Burgdorf (Hannover)', placeId: '@P1@' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave: vi.fn(), onClose: vi.fn() } });
+    await fireEvent.click(screen.getByText('Projektion übernehmen'));
+
+    expect(screen.getByText(/Amt Burgdorf \(Hannover\)/)).toBeTruthy();
+    expect(screen.getByText('wird beim Speichern ersetzt')).toBeTruthy();
+    expect(screen.queryByText('Projektion übernehmen')).toBeNull();
+  });
+
+  it('unberührt gespeichert bleibt der Quelltext unangetastet (die Gegenprobe)', async () => {
+    const appState = mitOrt();
+    const onSave = vi.fn();
+    const ev = makeEvent('DEAT', { place: 'Lehrte, Amt Burgdorf (Hannover)', placeId: '@P1@' });
+
+    render(EventEditModal, { props: { appState, event: ev, label: 'Tod', onSave, onClose: vi.fn() } });
+    await fireEvent.submit(screen.getByText('Speichern').closest('form') as HTMLFormElement);
+
+    expect(onSave.mock.calls[0][0].place).toBe('Lehrte, Amt Burgdorf (Hannover)');
+  });
+});

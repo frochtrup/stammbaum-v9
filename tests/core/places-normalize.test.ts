@@ -5,6 +5,7 @@ import {
   extractHofAddr,
   placeYear,
   placeTypeRank,
+  istHofFaehigerOrt,
   slugify,
 } from '../../core/places/index';
 
@@ -27,6 +28,25 @@ describe('Konvention α — extractHofAddr (Spec 11 §4.4)', () => {
     expect(extractHofAddr('')).toBe('');
     expect(extractHofAddr(null)).toBe('');
     expect(extractHofAddr(undefined)).toBe('');
+  });
+
+  // ADR-v9-294. Gemessener Fall am Realbestand: `Oster 64 (110, Einhorst Leibzucht)`,
+  // 8 Ereignisse — der Schnitt am Komma IN der Klammer ergab das Fragment
+  // `Oster 64 (110` und ließ dadurch die Konvention-1-Erkennung ins Leere laufen.
+  it('ein Komma INNERHALB einer Klammer trennt nicht', () => {
+    expect(extractHofAddr('Oster 64 (110, Einhorst Leibzucht)')).toBe('Oster 64 (110, Einhorst Leibzucht)');
+    expect(extractHofAddr('Oster 46 (9, alt), 48607 Ochtrup')).toBe('Oster 46 (9, alt)');
+    expect(extractHofAddr('Hof [A, B] 7, Ochtrup')).toBe('Hof [A, B] 7');
+  });
+
+  it('der Zeilenumbruch trennt unbedingt — auch nach einer Klammerung', () => {
+    expect(extractHofAddr('Oster 64 (110, Einhorst)\n48607 Ochtrup')).toBe('Oster 64 (110, Einhorst)');
+  });
+
+  it('unbalancierte Klammern → Rückfall auf die nackte Regel (kein Verschlucken)', () => {
+    // Ein verirrtes „(" darf nicht den ganzen Rest der Adresse zur Hof-Identität machen.
+    expect(extractHofAddr('Wall 33 (alt, 48607 Ochtrup, Deutschland')).toBe('Wall 33 (alt');
+    expect(extractHofAddr('Wall 33), Ochtrup')).toBe('Wall 33)');
   });
 });
 
@@ -74,6 +94,22 @@ describe('placeTypeRank — Siedlung vor Verwaltung', () => {
     expect(placeTypeRank('Village')).toBeLessThan(placeTypeRank('State'));
     expect(placeTypeRank(null)).toBe(6);
     expect(placeTypeRank('WeirdType')).toBe(6);
+  });
+});
+
+describe('istHofFaehigerOrt — kein Hof in einer Verwaltungsebene (ADR-v9-293)', () => {
+  it('Siedlungsebenen tragen Höfe', () => {
+    for (const t of ['Village', 'Town', 'City', 'Hamlet', 'Parish', 'Municipality'])
+      expect(istHofFaehigerOrt(t)).toBe(true);
+  });
+  it('Verwaltungs-Container tragen keine Höfe', () => {
+    for (const t of ['District', 'County', 'Region', 'Province', 'State', 'Country'])
+      expect(istHofFaehigerOrt(t)).toBe(false);
+  });
+  it('ungetypt (Seed-Rohzustand) blockiert NICHT — sonst stünde jeder frische Import still', () => {
+    expect(istHofFaehigerOrt('')).toBe(true);
+    expect(istHofFaehigerOrt(null)).toBe(true);
+    expect(istHofFaehigerOrt('WeirdType')).toBe(true);
   });
 });
 

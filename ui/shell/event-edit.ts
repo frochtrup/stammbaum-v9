@@ -20,7 +20,7 @@ import type { PlaceContext } from '../../core/places';
 import { parseDateValue, formatDateValue, normalizeMonth, type DateQualifier } from '../../core/model/gedcom-date';
 import { addrDisplay } from '../../core/model/event';
 import { linkEventToPlace, linkEventToHof } from '../../core/places';
-import { eventPlaceLabel } from './person-display';
+import { buildPlacForGedcom, eventSpanne } from '../../core/places';
 
 export const QUALIFIER_OPTIONS: { value: DateQualifier; label: string }[] = [
   { value: 'EXACT', label: 'exakt' },
@@ -135,7 +135,23 @@ export interface EditableEvent {
 /** Baut den editierbaren Formular-Zustand aus einem Event. `ctx` (PlaceContext) wird für
  *  den Live-Anfangswert des Ort-Feldes gebraucht (ADR-v9-47 Punkt 3: bei gesetzter
  *  placeId/hofId LIVE aus dem Modell seeden statt den ggf. veralteten Cache-Rohwert zu
- *  zeigen — NUR der initiale Anzeigewert, Tristate-Erhaltung bleibt unverändert). */
+ *  zeigen — NUR der initiale Anzeigewert, Tristate-Erhaltung bleibt unverändert).
+ *
+ *  DIE PROJEKTION, NICHT DAS ANZEIGE-LABEL ([ADR-v9-295]). Bis dahin stand hier
+ *  `eventPlaceLabel` — ein ANZEIGE-Helfer, der über `eventPlaceId` nur die Dorf-Kette
+ *  baut und den HOF-Teil wegläßt. Dieses Feld ist aber ein `PLAC`-Editor: sein Inhalt
+ *  wird bei `placeDirty` eins zu eins zu `ev.place`. Ein Hof-Ereignis verlor damit sein
+ *  Leitsegment, sobald jemand das Feld auch nur anfaßte —
+ *    Quelle `Wall 33, Ochtrup, Deutschland` → Feld `Ochtrup, Deutschland`.
+ *  `buildPlacForGedcom` ist dieselbe Funktion, aus der Writer-Angleich und
+ *  `linkEventToPlace` ihren Text nehmen; `null` (fehlendes hofObject, oder undatierte
+ *  Projektion mit Ebenenverlust, [ADR-v9-292]) fällt wie überall auf `ev.place` zurück. */
+/** Der Anfangswert des Ort-Feldes: die periodengerechte Projektion, sonst der Rohwert. */
+function platzhalterText(ev: Event, ctx: PlaceContext): string {
+  if (ev.placeId == null && ev.hofId == null) return ev.place ?? '';
+  return buildPlacForGedcom(ev, eventSpanne(ev), ctx) ?? ev.place ?? '';
+}
+
 export function toEditable(key: string, ev: Event, ctx: PlaceContext): EditableEvent {
   const parts = ev.date != null ? parseDateValue(ev.date) : null;
   return {
@@ -152,7 +168,7 @@ export function toEditable(key: string, ev: Event, ctx: PlaceContext): EditableE
     year2: parts?.year2 ?? null,
     originalDate: ev.date,
     dateDirty: false,
-    place: ev.placeId != null || ev.hofId != null ? eventPlaceLabel(ev, ctx) : (ev.place ?? ''),
+    place: platzhalterText(ev, ctx),
     originalPlace: ev.place,
     placeDirty: false,
     placeId: ev.placeId,

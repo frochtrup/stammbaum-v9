@@ -22,7 +22,14 @@ import type { PlaceObject } from './types';
 import { eventSpanne, type PlaceContext } from './build-plac';
 import { eventPlaceId } from './chokepoints';
 import { chainCompatibleAnyPath } from './place-registry';
-import { normPlaceName, extractHofAddr, slugify } from './normalize';
+import {
+  normPlaceName,
+  extractHofAddr,
+  slugify,
+  istHofFaehigerOrt,
+  splitPlacSegments,
+  istKonvention1,
+} from './normalize';
 // Autoritaets-Satz (ADR-v9-224, Spec 11 §9.1): kuratiertes Wissen ist Autoritaet, ein
 // Bootstrap-Objekt ist ein Spiegel des Textes. Hier entscheidet das, WEM der Seed glaubt.
 import { isCuratedHof } from './curation';
@@ -31,10 +38,8 @@ import { isCuratedHof } from './curation';
 // ADR-v9-143 muss beide zugleich treffen).
 import { HOF_EVENT_TYPES } from './resolve';
 
-/** Getrimmte, nicht-leere Komma-Segmente eines PLAC-Strings. */
-function segments(plac: string): string[] {
-  return plac.split(',').map((s) => s.trim()).filter(Boolean);
-}
+/** Segmentsicht des Seeds = die des Resolvers (core/places/normalize.ts). */
+const segments = splitPlacSegments;
 
 /**
  * Kennt der Bestand das Leitsegment bereits als ADRESSE EINES HOFES in dem Dorf, das das
@@ -129,10 +134,33 @@ function hofAnsprueche(events: readonly Event[]): Set<string> {
     if (!ev.addr) continue;
     const segs = segments(ev.place ?? '');
     if (segs.length <= 1) continue;
-    if (normPlaceName(extractHofAddr(ev.addr)) !== normPlaceName(segs[0])) continue;
+    if (!istKonvention1(ev.addr, segs[0])) continue;
     out.add(normPlaceName(segs[0]) + ' >> ' + normPlaceName(segs[1]));
   }
   return out;
+}
+
+/**
+ * Spiegel von `resolve.ts::bootstrapAnkerErlaubt` (Spec 11 §4.2, [ADR-v9-293]): kann in dem
+ * Ort, den `segs[1..]` nennt, überhaupt ein Hof liegen?
+ *
+ * WARUM DER SPIEGEL PFLICHT IST. Die Zweige unten geben das Leitsegment dem Hof-Bootstrap
+ * frei, indem sie es NICHT seeden. Lehnt der Resolver den Bootstrap anschließend ab (weil
+ * der Anker ein Kreis/Département ist), entsteht dort WEDER Hof NOCH Ort — das Leitsegment
+ * fiele still aus dem Bestand. Der Kopfkommentar von `adminChain` sagt es bereits: „Muss
+ * KONSISTENT zum Resolver sein (sonst schattet der Seed die Hof-Erkennung)"; das gilt in
+ * beide Richtungen.
+ *
+ * Kein bekannter Anker → `true`: der Bestand sagt dann nichts, und der Seed legt die
+ * Elternkette ohnehin selbst an (ungetypt, Rang 6) — der Resolver findet danach einen
+ * erlaubten Anker vor. Der Textschluss bleibt also, wo er war.
+ */
+function hofAnkerMoeglich(segs: string[], ctx: PlaceContext): boolean {
+  for (let i = 1; i < segs.length; i++) {
+    const id = ctx.places.findByName(segs[i]);
+    if (id) return istHofFaehigerOrt(ctx.places.byId(id)?.type ?? null);
+  }
+  return true;
 }
 
 function adminChain(
@@ -142,19 +170,30 @@ function adminChain(
   ansprueche: ReadonlySet<string>,
 ): string[] {
   if (segs.length <= 1) return segs;
+  // (i) Ein BESTEHENDER kuratierter Hof gilt überall — Nutzerentscheidung, kein
+  //     Textschluss (ADR-v9-286). Kein Anker-Guard.
   if (leitsegmentIstBekannterHof(ev, segs, ctx)) return segs.slice(1);
   if (HOF_EVENT_TYPES.has(ev.type)) {
     if (ev.addr) {
-      const extractNorm = normPlaceName(extractHofAddr(ev.addr));
       // Konvention 2: ADDR-Hof ≠ Leitsegment → Leitsegment ist das Dorf.
-      if (extractNorm && extractNorm !== normPlaceName(segs[0])) return segs;
+      if (extractHofAddr(ev.addr) && !istKonvention1(ev.addr, segs[0])) return segs;
+      // (ii) Konvention 1: DIESES Ereignis behauptet die Hofstelle selbst (ADDR wiederholt
+      //      das Leitsegment). Auch hier KEIN Anker-Guard — lehnt der Resolver den
+      //      Bootstrap ab, wird die Behauptung an genau diesem Ereignis als Review
+      //      sichtbar (Klasse A, Pfad B′). Ein Seed würde daraus stattdessen einen ORT
+      //      machen, in dem dann derselbe Name noch einmal als Hof landet.
+      return segs.slice(1);
     }
-    // Konvention 1 / Pfad-C (auch ohne ADDR): Leitsegment = Hof → nicht seeden.
-    return segs.slice(1);
+    // (iii) Pfad C OHNE ADDR: die Datei behauptet nichts, das ist ein reiner Textschluss.
+    //       Er gilt nur, wo überhaupt ein Hof liegen kann — sonst entstünde dort weder
+    //       Hof noch Ort (ADR-v9-293).
+    return hofAnkerMoeglich(segs, ctx) ? segs.slice(1) : segs;
   }
-  // Nicht-Hof-Typ: das Leitsegment ist der Ort - es sei denn, die Datei selbst nennt
-  // dieselbe Stelle anderswo als Hofstelle (s. `hofAnsprueche`).
-  return ansprueche.has(normPlaceName(segs[0]) + ' >> ' + normPlaceName(segs[1]))
+  // (iv) Nicht-Hof-Typ: das Leitsegment ist der Ort - es sei denn, die Datei selbst nennt
+  //      dieselbe Stelle anderswo als Hofstelle (s. `hofAnsprueche`). Auch das ist für
+  //      DIESES Ereignis ein Schluss von außen, also mit Anker-Guard.
+  return ansprueche.has(normPlaceName(segs[0]) + ' >> ' + normPlaceName(segs[1])) &&
+    hofAnkerMoeglich(segs, ctx)
     ? segs.slice(1)
     : segs;
 }

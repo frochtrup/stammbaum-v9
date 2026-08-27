@@ -15,7 +15,14 @@ import { makePlaceRegistry, chainCompatibleAnyPath } from './place-registry';
 import { makeHofRegistry } from './hof-registry';
 import { buildFormString, eventSpanne, type PlaceContext } from './build-plac';
 import { findOrCreateHof } from './hof-id';
-import { normPlaceName, extractHofAddr, normHofAddr } from './normalize';
+import {
+  normPlaceName,
+  extractHofAddr,
+  normHofAddr,
+  istHofFaehigerOrt,
+  splitPlacSegments,
+  istKonvention1,
+} from './normalize';
 
 /**
  * Event-Typen, für die ein Hof-Bootstrap überhaupt erlaubt ist (Spec 11 §4.2).
@@ -70,18 +77,12 @@ export interface ResolveResult {
 }
 
 /**
- * Segmentiert einen PLAC-String in getrimmte, NICHT-LEERE Komma-Segmente. Leere Segmente
- * (führend, innen oder abschließend, z. B. `, Ochtrup, , , NRW, Deutschland` — Ancestris/
- * MyHeritage schreiben Fixed-Template-PLAC mit Leerfeldern auf nicht belegten Ebenen)
- * bedeuten „keine Angabe auf dieser Ebene" und werden verworfen — das Leitsegment ist der
- * erste NICHT-leere Wert, nicht positionsstarr segs[0]. Ohne diese Filterung würde ein
- * führendes Leerfeld leadSeg='' erzeugen und das Event bliebe unaufgelöst (Symptom 2).
- * KONSISTENT zum Seed-Vorpass (`seed.ts::segments`), der bereits so filtert — sonst
- * schattet der Seed die Auflösung (unterschiedliche Segment-Sicht).
+ * Segmentsicht des Resolvers = `splitPlacSegments` (core/places/normalize.ts). Die Regel
+ * lebt dort, weil der Seed-Vorpass exakt dieselbe braucht — eine abweichende Segmentsicht
+ * ließe den Seed die Hof-Erkennung schatten. Leerfeld-Filterung (Symptom 2) und
+ * Klammer-Bewusstsein ([ADR-v9-294]) sind dort beschrieben.
  */
-function placSegments(plac: string): string[] {
-  return plac.split(',').map((s) => s.trim()).filter(Boolean);
-}
+const placSegments = splitPlacSegments;
 
 /**
  * Prüft, ob ADDR semantisch nur der Dorfname ist (ADDR=Village-Redundanz, Spec 11 §4.4):
@@ -97,6 +98,26 @@ function isAddrJustVillage(addr: string, villageId: PlaceId | null, ctx: PlaceCo
   const addrNorm = normPlaceName(clean);
   if (pl.title && normPlaceName(pl.title) === addrNorm) return true;
   return pl.pnames.some((pn) => pn.value && normPlaceName(pn.value) === addrNorm);
+}
+
+/**
+ * Darf an DIESEM Ort ein Hof gebootstrappt werden? (Spec 11 §4.2, [ADR-v9-293])
+ *
+ * Nein, wenn der Anker eine Verwaltungsebene oberhalb der Siedlung ist (Kreis, Provinz,
+ * Département, Staat, Land). Der Bootstrap band bis dahin an jedes PlaceObject, das
+ * irgendein PLAC-Segment traf — gemessen am Realbestand erzeugte
+ * `RESI · PLAC „Kreis Cloppenburg, …" · ADDR „Altenoythe"` einen Hof „Altenoythe" im
+ * Landkreis, ohne Review und ohne Spur. Das ist keine Adresse, sondern eine dem Bestand
+ * unbekannte Ortsebene.
+ *
+ * NUR die BOOTSTRAP-Pfade (B′/C) fragen das. Ein BESTEHENDER Hof wird weiterhin überall
+ * gefunden (A/A′/B): wo der Nutzer bewusst einen Hof angelegt hat, hat er entschieden —
+ * dieselbe Grenze wie in `leitsegmentIstBekannterHof` (ADR-v9-286) zwischen kuratiertem
+ * Wissen und einem Schluss aus dem Text.
+ */
+function bootstrapAnkerErlaubt(id: PlaceId | null, ctx: PlaceContext): boolean {
+  if (id == null) return false;
+  return istHofFaehigerOrt(ctx.places.byId(id)?.type ?? null);
 }
 
 /**
@@ -297,8 +318,17 @@ function resolveOne(
   //    (Konvention 1: Leitsegment IST der Hof, segs[1..] das Dorf). Feuert nur, wenn
   //    Schritt 3 kein Dorf verankert hat (ev.placeId == null) — sonst ist das
   //    Leitsegment selbst das Dorf (Konvention 2), und der ADDR-Hof läuft über B/B'.
-  if (hofTypeAllowed && ev.placeId == null && isRich && leadSeg && anchorVillageId != null) {
-    const res = findOrCreateHof(leadSeg, anchorVillageId, workingHofs);
+  if (
+    hofTypeAllowed && ev.placeId == null && isRich && leadSeg &&
+    bootstrapAnkerErlaubt(anchorVillageId, ctx)
+  ) {
+    // Behauptet die ADDR dieselbe Hofstelle (Konvention 1), ist SIE die Identität: eine
+    // PLAC-Kette kann den Hofnamen abgeschnitten haben, die ADDR steht ungeteilt da
+    // ([ADR-v9-294], gemessen an `Oster 64 (110, Ochtrup (Westf.)` — Leitsegment
+    // `Oster 64 (110` gegen `ADDR Oster 64 (110, Einhorst Leibzucht)`). Wo beide Formen
+    // übereinstimmen — die 210 Konvention-1-Ereignisse des Realbestands — ändert das nichts.
+    const identitaet = istKonvention1(ev.addr, leadSeg) ? ev.addr! : leadSeg;
+    const res = findOrCreateHof(identitaet, anchorVillageId!, workingHofs);
     if (res) {
       if (res.created) {
         workingHofs.set(res.created.id, res.created);
@@ -333,7 +363,10 @@ function resolveOne(
 
   // 7. Pfad B' — event.addr ohne Hof.
   if (ev.addr && villageForAddr != null && !isAddrJustVillage(ev.addr, villageForAddr, ctx)) {
-    if (hofTypeAllowed) {
+    // Der Anker muss eine Stelle sein, an der ein Hof liegen KANN — sonst ist die ADDR
+    // keine Adresse, sondern eine unbekannte Ortsebene (ADR-v9-293). Dann derselbe
+    // Ausgang wie beim Non-Hof-Typ: Review statt stillem Bootstrap.
+    if (hofTypeAllowed && bootstrapAnkerErlaubt(villageForAddr, ctx)) {
       // Hof-Typ → Bootstrap aus Event-Typ-Semantik.
       const res = findOrCreateHof(ev.addr, villageForAddr, workingHofs);
       if (res) {
@@ -346,7 +379,8 @@ function resolveOne(
         return { resolved: reproject("B'"), review: null };
       }
     } else {
-      // Non-Hof-Typ mit ADDR ohne Hof-Match → Review (Spec 11 §4.3/§6):
+      // Non-Hof-Typ mit ADDR ohne Hof-Match — ODER Hof-Typ über einem Verwaltungs-Anker
+      // → Review (Spec 11 §4.3/§6):
       //   Klasse D wenn im Dorf bereits Höfe existieren (Norm-Drift), sonst Klasse A.
       const hofsInVillage = ctx.hofs.byVillage(villageForAddr);
       const klass: ReviewClass = hofsInVillage.length > 0 ? 'D' : 'A';

@@ -92,6 +92,63 @@ describe('Konvention 2 — MyHeritage/GRAMPS (PLAC Dorf + ADDR Hof)', () => {
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Anker-Guard (Spec 11 §4.2, ADR-v9-293): der Bootstrap verankerte bis dahin an JEDEM
+// PlaceObject, das ein PLAC-Segment traf — auch an einem Landkreis. Gemessen am
+// Realbestand (2026-08-27, `orte-5.json`):
+//   RESI · PLAC „Kreis Cloppenburg, Großherzogtum Oldenburg, Deutsches Reich" ·
+//   ADDR „Altenoythe"  →  pfad=B′, stiller Hof „Altenoythe" in `_po_lkr_cloppenburg`
+//   (type=County), review=[]. „Altenoythe" ist aber ein Dorf, keine Hofstelle.
+// Zweiter Fall derselben Form: ADDR „Krapendorf" unter `_po_dep_ems_superieur`
+// (type=Province). Beide sind hier als Fixture nachgestellt.
+describe('Anker-Guard — kein stiller Hof in einer Verwaltungsebene (ADR-v9-293)', () => {
+  const kreis = place('@KREIS@', { title: 'Kreis Cloppenburg', type: 'County' });
+  const mitKreis = placeMap(village, country, kreis);
+
+  it("Hof-Typ + ADDR über einem Kreis → KEIN Bootstrap, Review Klasse A", () => {
+    const source = ev('RESI', { place: 'Kreis Cloppenburg, Deutschland', addr: 'Altenoythe', date: '1906' });
+    const res = resolveEvents([source], mitKreis, hofMap());
+    expect(res.hofObjects.size).toBe(0);
+    expect(res.events[0].event.hofId).toBeNull();
+    expect(res.review).toEqual([
+      { index: 0, klass: 'A', addr: 'Altenoythe', eventType: 'RESI', candidates: [] },
+    ]);
+  });
+
+  it('Hof-Typ mit reichem PLAC über einem Kreis → kein Pfad-C-Bootstrap', () => {
+    const source = ev('RESI', { place: 'Krapendorf, Kreis Cloppenburg, Deutschland', date: '1811' });
+    const res = resolveEvents([source], mitKreis, hofMap());
+    expect(res.hofObjects.size).toBe(0);
+    expect(res.events[0].path).not.toBe('C');
+  });
+
+  it('über einer SIEDLUNG bleibt der Bootstrap unverändert (der Guard ist eng)', () => {
+    const source = ev('RESI', { place: 'Ochtrup, Deutschland', addr: 'Wall 33', date: '1900' });
+    const res = resolveEvents([source], mitKreis, hofMap());
+    expect(res.events[0].path).toBe("B'");
+    expect(res.hofObjects.size).toBe(1);
+  });
+
+  it('ein ungetypter Seed-Ort blockiert NICHT (sonst stünde jeder frische Import still)', () => {
+    const roh = placeMap(place('@ROH@', { title: 'Lehrdte' }), country);
+    const source = ev('RESI', { place: 'Lehrdte, Deutschland', addr: 'Wall 33', date: '1900' });
+    const res = resolveEvents([source], roh, hofMap());
+    expect(res.events[0].path).toBe("B'");
+    expect(res.hofObjects.size).toBe(1);
+  });
+
+  it('ein BESTEHENDER Hof im Kreis bleibt bindbar — eine Nutzerentscheidung gilt (Pfad B)', () => {
+    const hofs = hofMap(
+      hof('_hof_altenoythe_kreis', '@KREIS@', { addrs: [{ value: 'Altenoythe', from: null, to: null }] }),
+    );
+    const source = ev('RESI', { place: 'Kreis Cloppenburg, Deutschland', addr: 'Altenoythe', date: '1906' });
+    const res = resolveEvents([source], mitKreis, hofs);
+    expect(res.events[0].path).toBe('B');
+    expect(res.events[0].event.hofId).toBe('_hof_altenoythe_kreis');
+    expect(res.review).toEqual([]);
+  });
+});
+
 describe('Konvention 3a — atomar, global eindeutig (PLAC Wall 33, kein ADDR)', () => {
   it('atomarer Ort mit PO-Match → Verwaltungs-Match (kein Hof)', () => {
     const atomicPlaces = placeMap(place('@WALL@', { title: 'Wall 33', type: 'Village' }));
