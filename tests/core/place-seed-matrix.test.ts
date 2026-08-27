@@ -64,6 +64,15 @@ const BESTAND = [
   { label: 'Hof kuratiert, 2 Adr.', addrs: [LEIT, VARIANTE], kuratiert: true },
 ] as const;
 
+/**
+ * Achse 5: kann in dem Ort, den `segs[1..]` nennt, überhaupt ein Hof liegen?
+ * (ADR-v9-293 — der Bootstrap verankerte bis dahin auch an einem Landkreis.)
+ */
+const ANKER = [
+  { label: 'Anker: Siedlung', typ: 'Town', hofFaehig: true },
+  { label: 'Anker: Kreis', typ: 'County', hofFaehig: false },
+] as const;
+
 /** Achse 4: nennt die DATEI dieselbe Stelle anderswo als Hofstelle (Konvention 1)? */
 const KORPUS = [
   { label: 'ohne Geschwister-RESI', anspruch: false },
@@ -78,6 +87,7 @@ interface Zelle {
   bestandAddrs: readonly string[];
   bestandKuratiert: boolean;
   anspruch: boolean;
+  ankerHofFaehig: boolean;
 }
 
 /**
@@ -88,10 +98,17 @@ interface Zelle {
  *       Wissen über das Objekt schlägt jeden Schluss aus dem Text. Rohe Bootstraps
  *       zählen nicht (Zirkel).
  *   R2  Hof-Typ, ADDR wiederholt das Leitsegment (Konvention 1)    -> Hof
- *   R3  Hof-Typ, ADDR leer (Pfad C)                                -> Hof
+ *       OHNE Anker-Guard: die Behauptung steht an DIESEM Ereignis. Lehnt der Resolver
+ *       den Bootstrap ab, wird sie dort als Review sichtbar (Klasse A) — ein Seed
+ *       machte daraus stattdessen einen ORT, in dem derselbe Name noch einmal als Hof
+ *       landete (die Krankheit aus [ADR-v9-294]).
+ *   R3  Hof-Typ, ADDR leer (Pfad C) UND der Anker kann einen Hof tragen  -> Hof
+ *       MIT Anker-Guard: hier behauptet die Datei nichts, das ist ein reiner
+ *       Textschluss. Über einem Kreis entstünde sonst weder Hof noch Ort ([ADR-v9-293]).
  *   R4  Hof-Typ, ADDR nennt etwas anderes (Konvention 2)           -> Ort
  *   R5  Anderer Typ, aber die Datei nennt die Stelle anderswo
- *       per Konvention 1 als Hofstelle                             -> Hof
+ *       per Konvention 1 als Hofstelle UND der Anker kann einen Hof tragen  -> Hof
+ *       MIT Anker-Guard: für DIESES Ereignis ist das ein Schluss von außen.
  *   R6  sonst                                                      -> Ort
  */
 function erwartet(z: Zelle): Ergebnis {
@@ -99,14 +116,14 @@ function erwartet(z: Zelle): Ergebnis {
   if (z.bestandKuratiert && z.bestandAddrs.some((a) => norm(a) === norm(LEIT))) return 'Hof'; // R1
   if (z.hofTyp) {
     if (norm(z.addr) === norm(LEIT)) return 'Hof'; // R2
-    if (!z.addr) return 'Hof'; // R3
+    if (!z.addr) return z.ankerHofFaehig ? 'Hof' : 'Ort'; // R3
     return 'Ort'; // R4
   }
-  return z.anspruch ? 'Hof' : 'Ort'; // R5 / R6
+  return z.anspruch && z.ankerHofFaehig ? 'Hof' : 'Ort'; // R5 / R6
 }
 
-function ctxMit(b: (typeof BESTAND)[number]): PlaceContext {
-  const dorf = place('@DORF@', { title: DORF, type: 'Town' });
+function ctxMit(b: (typeof BESTAND)[number], ankerTyp = 'Town'): PlaceContext {
+  const dorf = place('@DORF@', { title: DORF, type: ankerTyp });
   const hoefe = b.addrs.length
     ? [
         hof('_hof_x', '@DORF@', {
@@ -121,7 +138,8 @@ function ctxMit(b: (typeof BESTAND)[number]): PlaceContext {
 function gemessen(z: Zelle, b: (typeof BESTAND)[number]): Ergebnis {
   const events = [ev(z.hofTyp ? 'RESI' : 'DEAT', { place: `${LEIT}, ${DORF}, Deutschland`, addr: z.addr })];
   if (z.anspruch) events.push(ev('RESI', { place: `${LEIT}, ${DORF}, Deutschland`, addr: LEIT }));
-  const created = seedPlacesFromEvents(events, ctxMit(b));
+  const anker = ANKER.find((a) => a.hofFaehig === z.ankerHofFaehig)!;
+  const created = seedPlacesFromEvents(events, ctxMit(b, anker.typ));
   return created.some((p) => p.title === LEIT) ? 'Ort' : 'Hof';
 }
 
@@ -131,21 +149,23 @@ describe('Entscheidungstabelle des Seeds — Hofstelle oder Ortsebene?', () => {
     for (const k of KORPUS)
       for (const t of TYPEN)
         for (const a of ADDRS)
-          zellen.push({
-            name: `${b.label} | ${k.label} | ${t.label} | ${a.label}`,
-            z: {
-              hofTyp: t.hofTyp,
-              addr: a.addr,
-              bestandAddrs: b.addrs,
-              bestandKuratiert: b.kuratiert,
-              anspruch: k.anspruch,
-            },
-            b,
-          });
+          for (const n of ANKER)
+            zellen.push({
+              name: `${b.label} | ${k.label} | ${t.label} | ${a.label} | ${n.label}`,
+              z: {
+                hofTyp: t.hofTyp,
+                addr: a.addr,
+                bestandAddrs: b.addrs,
+                bestandKuratiert: b.kuratiert,
+                anspruch: k.anspruch,
+                ankerHofFaehig: n.hofFaehig,
+              },
+              b,
+            });
 
   it('spannt das volle Kreuzprodukt auf (sonst prüft die Tabelle weniger, als sie behauptet)', () => {
-    expect(zellen.length).toBe(BESTAND.length * KORPUS.length * TYPEN.length * ADDRS.length);
-    expect(zellen.length).toBe(64);
+    expect(zellen.length).toBe(BESTAND.length * KORPUS.length * TYPEN.length * ADDRS.length * ANKER.length);
+    expect(zellen.length).toBe(128);
   });
 
   it('beide Ausgänge kommen vor (keine entartete Tabelle)', () => {
@@ -174,6 +194,7 @@ describe('Die Zellen, an denen der Defekt vom 26.08.2026 hing', () => {
       bestandAddrs: kuratiertZweiAdr.addrs,
       bestandKuratiert: true,
       anspruch: false,
+      ankerHofFaehig: true,
     };
     expect(gemessen(z, kuratiertZweiAdr)).toBe('Hof');
   });
@@ -185,6 +206,7 @@ describe('Die Zellen, an denen der Defekt vom 26.08.2026 hing', () => {
       bestandAddrs: [],
       bestandKuratiert: false,
       anspruch: true,
+      ankerHofFaehig: true,
     };
     expect(gemessen(z, keinHof)).toBe('Hof');
   });
@@ -196,6 +218,7 @@ describe('Die Zellen, an denen der Defekt vom 26.08.2026 hing', () => {
       bestandAddrs: [],
       bestandKuratiert: false,
       anspruch: false,
+      ankerHofFaehig: true,
     };
     expect(gemessen(z, keinHof)).toBe('Ort');
   });

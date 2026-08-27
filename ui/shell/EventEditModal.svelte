@@ -107,6 +107,26 @@
   // falls appState.db während des Editierens wechselt. Aufrufer mounten dieses Modal
   // ohnehin frisch pro Öffnen (kein bestehender Modal-Instanz-Wiederverwendungs-Pfad).
   let editable = $state<EditableEvent>(untrack(() => toEditable('modal-event', event, appState.placeContext)));
+
+  /**
+   * Weicht die Quelle (`ev.place`, was in der Datei steht) von dem ab, was das Feld zeigt?
+   * ([ADR-v9-295])
+   *
+   * WOZU DIESE ZEILE. Das Feld ist bei gebundenem Ereignis mit der PROJEKTION vorbelegt
+   * (`toEditable`), und `fromEditable` schreibt bei `placeDirty` genau diesen Feldinhalt
+   * nach `ev.place`. Ein einziger Tastendruck — auch ein sofort wieder gelöschter Tippfehler
+   * — ersetzt damit den Quelltext durch die Projektion, und eine Ortsebene, die nur die
+   * Quelle kennt, ist aus der Datei verschwunden, OHNE dass sie je zu sehen war. Was der
+   * automatische Angleich ausdrücklich nicht darf (Verarmungs-Sperre, [ADR-v9-224]),
+   * passierte hier beiläufig.
+   *
+   * Die Zeile bleibt sichtbar, NACHDEM der Nutzer angefaßt hat — dann als Ansage, was
+   * beim Speichern ersetzt wird. Ein Hinweis, der genau in dem Moment verschwindet, in dem
+   * er zutrifft, wäre keiner.
+   */
+  const quelleWeichtAb = $derived(
+    (editable.originalPlace ?? '') !== '' && (editable.originalPlace ?? '') !== editable.place,
+  );
   let deathCause = $state(untrack(() => cause ?? ''));
 
   /** Ereignis brachte beim Öffnen einen ADDR-Wert mit — EINMAL beim Mount festgehalten,
@@ -242,6 +262,26 @@
         onPick={(placeId) => pickPlaceFor(placeId)}
         label={`${label} Ort`}
       />
+      {#if quelleWeichtAb}
+        <div class="event-edit-modal__quelle">
+          <span class="event-edit-modal__quelle-text">
+            <span class="stb-role-label">Quelle</span>
+            {editable.originalPlace}
+          </span>
+          {#if editable.placeDirty}
+            <span class="event-edit-modal__quelle-hinweis">wird beim Speichern ersetzt</span>
+          {:else}
+            <button
+              type="button"
+              class="stb-btn"
+              data-variant="secondary"
+              onclick={() => (editable.placeDirty = true)}
+            >
+              Projektion übernehmen
+            </button>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     {#if showAddr}
@@ -431,6 +471,29 @@
     padding: 0.35rem 0.7rem;
     cursor: pointer;
     min-height: var(--stb-touch-target);
+  }
+
+  /* Quelle-neben-Projektion ([ADR-v9-295]) — umbricht bei schmaler Spalte, damit der
+     Knopf nicht aus dem Modal läuft (INV-UI-11 misst die SPALTE, nicht den Formfaktor). */
+  .event-edit-modal__quelle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+    margin-top: 0.35rem;
+  }
+
+  .event-edit-modal__quelle-text {
+    font-size: 0.78rem;
+    color: var(--stb-text-dim);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .event-edit-modal__quelle-hinweis {
+    font-size: 0.78rem;
+    color: var(--stb-text-muted);
+    font-style: italic;
   }
 
   .event-edit-modal__actions {

@@ -17,8 +17,12 @@ export {
   normPlaceName,
   normHofAddr,
   extractHofAddr,
+  splitPlacSegments,
+  istKonvention1,
   placeYear,
   placeTypeRank,
+  istHofFaehigerOrt,
+  VERWALTUNGS_RANG,
   slugify,
 } from './normalize';
 

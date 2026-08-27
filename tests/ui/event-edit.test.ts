@@ -119,6 +119,45 @@ describe('event-edit — toEditable/fromEditable Tristate-Erhaltung (ADR-v9-30 P
     expect(rebuilt.place).toBe('Ochtrupp');
   });
 
+  // ADR-v9-295. Der Anfangswert des Ortsfeldes IST der künftige `PLAC`: `fromEditable`
+  // schreibt ihn bei `placeDirty` eins zu eins nach `ev.place`. Bis dahin kam er aus
+  // `eventPlaceLabel` — einem ANZEIGE-Helfer, der nur die Dorf-Kette baut. Ein Hof-Ereignis
+  // verlor sein Leitsegment, sobald jemand das Feld auch nur anfaßte.
+  it('Hof-Ereignis: das Ortsfeld trägt die volle Projektion INKLUSIVE Hof-Leitsegment', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    db.placeObjects.set('@P1@', place('@P1@', { title: 'Ochtrup' }));
+    const person = makePerson('@I1@');
+    const ev = makeEvent('RESI', {
+      place: 'Wall 33, Ochtrup', addr: 'Wall 33', date: '1900', placeId: '@P1@',
+    });
+    person.events.push(ev);
+    db.individuals.set('@I1@', person);
+    appState.loadDatabase(db, 'test.ged');
+    appState.saveHof({
+      id: '@H1@', villageId: '@P1@', addrs: [{ value: 'Wall 33', from: null, to: null }],
+      lat: null, long: null, note: '', existsFrom: null, existsTo: null, predecessor: null,
+      successor: null, govId: null, govTypes: null, schemaVersion: 1,
+    });
+    const gebunden = { ...ev, hofId: '@H1@' };
+
+    const editable = toEditable('ev-0', gebunden, appState.placeContext);
+    expect(editable.place).toBe('Wall 33, Ochtrup');
+
+    // …und ein Edit verliert das Leitsegment nicht mehr.
+    editable.placeDirty = true;
+    expect(fromEditable(gebunden, editable).place).toBe('Wall 33, Ochtrup');
+  });
+
+  it('ohne auflösbares Hof-Objekt bleibt der Rohwert stehen (kein Overwrite mit null)', () => {
+    const appState = createAppState();
+    const db = makeDatabase();
+    appState.loadDatabase(db, 'test.ged');
+    const ev = makeEvent('RESI', { place: 'Wall 33, Ochtrup', hofId: '@FEHLT@' });
+
+    expect(toEditable('ev-0', ev, appState.placeContext).place).toBe('Wall 33, Ochtrup');
+  });
+
   it('QUALIFIER_OPTIONS enthält alle 8 Datums-Qualifier', () => {
     expect(QUALIFIER_OPTIONS.map((q) => q.value)).toEqual([
       'EXACT', 'ABT', 'CAL', 'EST', 'BEF', 'AFT', 'BET', 'FROM',
