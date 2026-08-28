@@ -11,7 +11,8 @@
 // Ereignisse): 33 Fälle, 32 davon ohne jeden Hinweis.
 import { describe, expect, it } from 'vitest';
 import { anzeigeAbweichung } from '../../core/places';
-import { makeDatabase, makeEvent } from '../../core/model';
+import { makeDatabase, makeEvent, makePerson } from '../../core/model';
+import { runValidation, buildQualityDashboard, filterFocus } from '../../core/validate';
 import { buildContext } from '../../core/validate/context';
 import { defaultConfig } from '../../core/validate';
 import { place } from './places-fixtures';
@@ -86,5 +87,43 @@ describe('anzeigeAbweichung — sagt, wenn die Datei etwas anderes trägt als de
     expect(ab).not.toBeNull();
     expect(ab!.angezeigt).toBe('Mainz');
     expect(ab!.gespeichert).toBe(', Mainz, , , , ');
+  });
+});
+
+describe('… und der Befund kommt im Dashboard auch AN (Nutzer-Rückfrage: „bist du sicher?")', () => {
+  // Dass eine Regel feuert, heißt noch nicht, dass sie jemand sieht. Zwischen
+  // `runValidation` und der Brennpunkte-Liste liegen drei Stufen, die je einzeln
+  // wegfiltern können: die personbezogene Auswertung (Orts-/Hof-Befunde ohne Person
+  // fallen dort heraus), der Fokus-Filter der Vorgabe (`attention` = Fehler + Warnungen)
+  // und `withoutAlreadyTasked`. Dieser Test geht den ganzen Weg.
+  it('erscheint als Brennpunkt-Zeile unter der VORGABE-Filterung, nicht erst unter „Alle"', () => {
+    const db = makeDatabase();
+    db.placeObjects = new Map([
+      ['P2', place('P2', { title: 'Amt Vechta' })],
+      [
+        'P1',
+        place('P1', {
+          title: 'Vechta',
+          enclosedBy: [{ placeId: 'P2', from: null, to: null, fromDate: null, toDate: null }],
+        }),
+      ],
+    ]);
+    const p = makePerson('@I1@', { name: 'Test /Person/' });
+    p.birth = makeEvent('BIRT', {
+      date: '31 JAN 1815',
+      place: 'Vechta, Amt Vechta, Deutschland',
+      placeId: 'P1',
+      seen: true,
+    });
+    db.individuals.set('@I1@', p);
+
+    const findings = runValidation(db, defaultConfig());
+    const dashboard = buildQualityDashboard(db, findings);
+    // DEFAULT_QUALITY_FOCUS — die Stellung, in der der Nutzer das Dashboard vorfindet.
+    const rows = filterFocus(dashboard.focus, 'attention');
+
+    const zeile = rows.find((r) => r.findings.some((f) => f.rule === 'PLAC_NICHT_GESPEICHERT'));
+    expect(zeile, 'Brennpunkt-Zeile mit der Regel unter der Vorgabe-Filterung').toBeDefined();
+    expect(zeile!.personId).toBe('@I1@');
   });
 });
