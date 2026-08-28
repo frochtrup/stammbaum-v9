@@ -103,6 +103,17 @@
         <li class="place-dedup__group" class:place-dedup__group--conflict={group.conflict || group.typeMismatch}>
           <h3>
             {group.members.length} mutmaßliche Dubletten
+            <!-- ADR-v9-296: die Zahl, nach der die Liste sortiert ist. Ohne sie wäre die
+                 neue Reihenfolge eine unerklärte Umordnung — „schwerste Zusammenführung
+                 zuerst" ist nur dann eine Hilfe, wenn das Gewicht dabeisteht. Bei 0 (nichts
+                 hängt darunter) schweigt sie: ein „0 Ereignisse" an jeder folgenlosen
+                 Gruppe wäre Rauschen. -->
+            {#if group.reach > 0}
+              <span
+                class="place-dedup__reach"
+                use:tooltip={'So viele Ereignisse hängen unter dem reichweitenstärksten Eintrag dieser Gruppe — direkt oder über die Verwaltungskette. Ordnet die Liste; auf den Gewinner-Vorschlag hat die Zahl bewusst keinen Einfluss.'}
+              >{group.reach} {group.reach === 1 ? 'Ereignis' : 'Ereignisse'} betroffen</span>
+            {/if}
             {#if group.conflict}
               <span class="place-dedup__conflict-badge" use:tooltip={'Die Verwaltungszugehörigkeit der Einträge widerspricht sich — bitte die volle Namenskette vergleichen, bevor zusammengeführt wird (Spec 11 §8 Restklasse 3).'}>⚠ abweichende Verwaltungszugehörigkeit — prüfen</span>
             {/if}
@@ -221,6 +232,13 @@
 
   .place-dedup__group--conflict {
     border: 1px solid var(--stb-quay-1);
+  }
+
+  .place-dedup__reach {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--stb-text-dim);
+    margin-left: 0.5rem;
   }
 
   .place-dedup__conflict-badge {
