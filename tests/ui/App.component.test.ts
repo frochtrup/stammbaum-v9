@@ -285,7 +285,10 @@ describe('App — Ansichts-Unterzustand überlebt echte Navigation (BL-319, Spec
     await fireEvent.click(screen.getByRole('button', { name: 'Forschung' }));
 
     // Hinsehen: der Filter ist noch gesetzt, und die Person, die nur er zeigt, steht da.
-    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    // Der Trigger zählt, was EINSCHRÄNKT (Nutzer-Befund 2026-08-28) — „Alle" tut das
+    // nicht, die Vorgabe „Handlungsbedarf" schon; ein „Filter · 1" hier hieße also, der
+    // Zustand wäre auf die Vorgabe zurückgefallen.
+    expect(screen.getByRole('button', { name: /^Filter$/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Max Muster' })).toBeTruthy();
   });
 

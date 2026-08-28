@@ -14,6 +14,7 @@
 
 import type { FileServiceAdapters, ImportResult, SaveResult, WorkingCopy } from './types';
 import type { DocFormat } from './doc-format';
+import { backupFileName } from './backup-name';
 
 export class FileService {
   constructor(private readonly adapters: FileServiceAdapters) {}
@@ -53,10 +54,13 @@ export class FileService {
    * nach einem Reload. Legt bewusst KEINE Arbeitskopie an, wenn keine existiert: ein
    * Handle ohne Text wäre eine halbe Arbeitskopie, die der Auto-Load nicht laden kann.
    */
-  async rememberHandle(handle: unknown): Promise<void> {
+  async rememberHandle(handle: unknown, name?: string): Promise<void> {
     const existing = await this.adapters.workingCopyStore.load();
     if (!existing) return;
-    await this.adapters.workingCopyStore.save({ ...existing, handle });
+    // Der Name kommt bei „Speichern unter" mit (Spec 14 §4.1): Handle und Name beschreiben
+    // DIESELBE Datei. Getrennt fortgeschrieben wären sie beim nächsten Auto-Load zwei
+    // Wahrheiten — der Titel zeigte den alten Namen, das Handle schriebe in die neue Datei.
+    await this.adapters.workingCopyStore.save({ ...existing, handle, ...(name ? { name } : {}) });
   }
 
   /**
@@ -77,20 +81,35 @@ export class FileService {
    * Ein Nutzerabbruch (Tier 1b oder 2a) liefert `ok:false` und weicht NICHT auf einen
    * weiteren Tier aus — das wäre eine zweite Verzweigung entgegen INV-FILE-3 und gegen
    * die erklärte Absicht des Nutzers.
+   *
+   * `forcePicker` überspringt Tier 1a bei vorhandenem Handle („Speichern unter …" als
+   * bewusste Wahl statt als Notfall-Ausweg) — anders als `forceDownload`, das auch 1b
+   * überspringt.
    */
   async exportToFile(
     bytes: Uint8Array | string,
     filename: string,
     mimeType: string,
-    opts: { handle?: unknown; forceDownload?: boolean } = {}
+    opts: { handle?: unknown; forceDownload?: boolean; forcePicker?: boolean; skipBackup?: boolean } = {}
   ): Promise<SaveResult> {
-    const { handle, forceDownload = false } = opts;
+    const { handle, forceDownload = false, forcePicker = false, skipBackup = false } = opts;
 
-    if (!forceDownload && handle && this.adapters.fsHandle.isSupported()) {
+    if (!forceDownload && !forcePicker && handle && this.adapters.fsHandle.isSupported()) {
       const granted = await this.adapters.fsHandle.requestPermission(handle);
       if (granted) {
+        // DER EINZIGE PUNKT, AN DEM DIE APP FREMDE BYTES VERNICHTET (Spec 14 §4.1): jeder
+        // andere Tier legt etwas Neues an oder fragt vorher. Deshalb hängt der Vorlauf
+        // genau hier — und deshalb wird bei einem FEHLSCHLAG nicht geschrieben. Die
+        // umgekehrte Reihenfolge (erst schreiben, dann sichern) machte den Fehlschlag
+        // meldbar und den Verlust trotzdem endgültig (INV-FILE-4).
+        const sicherung = skipBackup
+          ? ({ backup: 'uebersprungen' } as const)
+          : await this.#sichereVorherigenStand(handle, filename);
+        if (sicherung.backup === 'fehlgeschlagen') {
+          return { tier: 'fs-handle', ok: false, ...sicherung };
+        }
         await this.adapters.fsHandle.write(handle, bytes);
-        return { tier: 'fs-handle', ok: true };
+        return { tier: 'fs-handle', ok: true, ...sicherung };
       }
       // Permission verweigert → fällt durch, kein Sonderpfad nötig.
     }
@@ -101,7 +120,10 @@ export class FileService {
       await this.adapters.fsHandle.write(picked, bytes);
       // Das Handle geht an den AUFRUFER zurück, nicht in die Arbeitskopie: dasselbe Rohr
       // bedient auch orte.json und den App-Daten-Export mit je eigenem Handle-Speicher.
-      return { tier: 'fs-picker', ok: true, handle: picked };
+      // Der NAME kommt mit: im „Speichern unter"-Dialog ist das Umbenennen der Regelfall,
+      // und ohne ihn führte die App danach den alten Namen weiter.
+      const gewaehlt = this.adapters.fsHandle.nameOf(picked);
+      return { tier: 'fs-picker', ok: true, handle: picked, ...(gewaehlt ? { name: gewaehlt } : {}) };
     }
 
     if (!forceDownload && this.adapters.share.isSupported()) {
@@ -111,5 +133,75 @@ export class FileService {
 
     this.adapters.download.download(bytes, filename, mimeType);
     return { tier: 'download', ok: true };
+  }
+
+  /**
+   * Der Vorlauf von Tier 1a (Spec 14 §4.1): den Stand VON DER PLATTE lesen und als
+   * datierte Kopie in den Backup-Ordner schreiben.
+   *
+   * Vier der fünf Ausgänge sind kein Fehler, sondern ein zu MELDENDER Zustand — nur so
+   * kann INV-FILE-4 („nie stillschweigend ohne Sicherung überschreiben") von der
+   * Oberfläche eingehalten werden, ohne dass sie die Ordner-Lage selbst nachrechnet.
+   */
+  async #sichereVorherigenStand(
+    handle: unknown,
+    filename: string
+  ): Promise<Pick<SaveResult, 'backup' | 'backupName' | 'backupError'>> {
+    const ordner = await this.adapters.backupFolderStore.load();
+    // Kein Ordner ist KEIN Fehlschlag: die Sicherung ist eine Zusage, die der Nutzer erst
+    // einlöst, wenn er einen Ordner verbindet. Der Save läuft, die Meldung sagt es.
+    if (!ordner) return { backup: 'kein-ordner' };
+
+    try {
+      const erlaubt = await this.adapters.backupFolder.requestPermission(ordner);
+      if (!erlaubt) {
+        return { backup: 'fehlgeschlagen', backupError: 'Kein Schreibrecht für den Backup-Ordner.' };
+      }
+      const vorher = await this.adapters.fsHandle.read(handle);
+      // Nichts zu sichern ist etwas anderes als eine gescheiterte Sicherung: eine leere
+      // oder nicht lesbare Datei trägt keinen Stand, den das Überschreiben vernichtet.
+      if (!vorher || vorher.byteLength === 0) return { backup: 'leer' };
+
+      const name = backupFileName(filename, (this.adapters.now ?? (() => new Date()))());
+      await this.adapters.backupFolder.writeInto(ordner, name, vorher);
+      return { backup: 'geschrieben', backupName: name };
+    } catch (err) {
+      return {
+        backup: 'fehlgeschlagen',
+        backupError: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /**
+   * Backup-Ordner verbinden (Einstellungen). Liefert den Anzeigenamen oder `null` bei
+   * Abbruch. Das Handle liegt danach im EIGENEN Store — nicht in der Arbeitskopie: es
+   * gehört zum Gerät, nicht zum geladenen Dokument, und überlebt jeden Dateiwechsel.
+   */
+  async connectBackupFolder(): Promise<string | null> {
+    const gewaehlt = await this.adapters.backupFolder.pick();
+    if (!gewaehlt) return null;
+    await this.adapters.backupFolderStore.save(gewaehlt);
+    return this.adapters.backupFolder.nameOf(gewaehlt);
+  }
+
+  /** Verbindung lösen — ab dann speichert Tier 1a mit der Meldung „ohne Sicherung". */
+  async disconnectBackupFolder(): Promise<void> {
+    await this.adapters.backupFolderStore.clear();
+  }
+
+  /**
+   * Lage des Backup-Ordners für die Oberfläche. `supported:false` heißt: diese Plattform
+   * kennt keinen Ordner-Zugriff — dort gibt es aber auch kein stilles Überschreiben, also
+   * nichts zu sichern (die Einstellungen zeigen dann keinen toten Knopf).
+   */
+  async backupFolderStatus(): Promise<{ supported: boolean; connected: boolean; name: string }> {
+    const supported = this.adapters.backupFolder.isSupported();
+    const handle = await this.adapters.backupFolderStore.load();
+    return {
+      supported,
+      connected: handle != null,
+      name: handle ? this.adapters.backupFolder.nameOf(handle) : '',
+    };
   }
 }

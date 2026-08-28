@@ -227,7 +227,10 @@ describe('ExportView — Rückmeldung', () => {
     await fireEvent.click(exportButton());
 
     await waitFor(() => expect(fsHandle.writeCalls).toHaveLength(1));
-    expect(screen.getByText('Gespeichert (direkt in die Datei).')).toBeTruthy();
+    // Teilstring: an den Speichern-Satz hängt seit [ADR-v9-302] der Sicherungs-Hinweis
+    // (hier „kein Backup-Ordner verbunden") — er ist Teil DERSELBEN Meldung, damit ein
+    // Save ohne Sicherung nicht still aussieht (INV-FILE-4).
+    expect(screen.getByText(/Gespeichert \(direkt in die Datei\)\./)).toBeTruthy();
   });
 
   it('bleibt unsichtbar, solange keine Datei geladen ist', () => {

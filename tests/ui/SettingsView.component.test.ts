@@ -14,6 +14,8 @@ import { createAppState } from '../../ui/shell/app-state.svelte';
 import { createMediaResolver } from '../../services/media/media-resolver';
 import type { MediaFolderAdapter, MediaFolderEntry } from '../../services/media/types';
 import { makeDatabase, makeMedia } from '../../core/model';
+import { FileService } from '../../services/file/file-service';
+import { createMockAdapterSet } from '../services/mock-adapters';
 
 function db() {
   const d = makeDatabase();
@@ -263,5 +265,59 @@ describe('SettingsView — Zurücksetzen', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Alles zurücksetzen' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
     expect(screen.queryByText('Wirklich allen lokalen Speicher löschen?')).toBeNull();
+  });
+});
+
+describe('SettingsView — Backup-Ordner (Spec 14 §4.1, [ADR-v9-302])', () => {
+  function mountMitFileService(opts: Parameters<typeof createMockAdapterSet>[0] = {}) {
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    const set = createMockAdapterSet(opts);
+    const view = render(SettingsView, {
+      props: { appState, mediaResolver: resolver([]), fileService: new FileService(set.adapters) },
+    });
+    return { ...view, ...set };
+  }
+
+  it('sagt im Ruhezustand, dass ohne Sicherung überschrieben wird — nicht nur „nicht verbunden"', async () => {
+    mountMitFileService();
+    // Der Satz nennt die FOLGE, nicht den Zustand: „kein Ordner verbunden" allein ließe
+    // offen, was das beim nächsten Speichern bedeutet (INV-FILE-4).
+    await waitFor(() =>
+      expect(screen.getByTestId('backup-folder-status').textContent).toContain(
+        'Speichern überschreibt ohne Sicherung',
+      ),
+    );
+  });
+
+  it('nennt nach dem Verbinden den Ordner als Ziel der Sicherungen', async () => {
+    const { backup } = mountMitFileService();
+
+    // Der Knopf erscheint erst, wenn der Status geladen ist (der Ordner-Zustand lebt im
+    // Dienst, nicht in der Komponente) — warten statt raten.
+    const waehlen = await waitFor(() => screen.getByRole('button', { name: 'Backup-Ordner wählen' }));
+    await fireEvent.click(waehlen);
+
+    await waitFor(() => expect(backup.store._peek()).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId('backup-folder-status').textContent).toContain('Backups'),
+    );
+  });
+
+  it('zeigt auf Plattformen ohne Ordner-Zugriff keinen toten Knopf, sondern den Grund', async () => {
+    const set = createMockAdapterSet();
+    // iOS/Safari: kein `showDirectoryPicker` — dort überschreibt die App aber auch nichts
+    // still, jeder Save ist eine eigene Geste.
+    set.backup.adapter.isSupported = () => false;
+    const appState = createAppState();
+    appState.loadDatabase(db(), 'test.ged');
+    render(SettingsView, {
+      props: { appState, mediaResolver: resolver([]), fileService: new FileService(set.adapters) },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('backup-folder-status').textContent).toContain('nicht nötig'),
+    );
+    expect(screen.queryByRole('button', { name: 'Backup-Ordner wählen' })).toBeNull();
   });
 });

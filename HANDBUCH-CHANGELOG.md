@@ -22,6 +22,30 @@ Personennamen (siehe [tools/handbuch/README.md](tools/handbuch/README.md)).
 
 ---
 
+## [9.20] — 2026-08-28
+
+_Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`87c97a2`…HEAD) erzeugt._
+
+- feat(datei): datierte Sicherung vor dem stillen Ueberschreiben (ADR-v9-302) (`720b5f0`)
+- fix(orte,qualitaet): Ortskette tagegenau anzeigen, Ebenen-Befund nach Ursache trennen (`c77d667`)
+- fix(ui): der Leerzustands-Satz beschreibt den Zustand, statt zum Datei-Öffnen zu schicken (`48c2081`)
+- feat: Startbildschirm beim Erststart + Reset des lokalen Speichers (ADR-v9-297) (`de17949`)
+- feat(dedup): die datierten Perioden je Mitglied anzeigen (ADR-v9-296 E6) (`826b215`)
+- feat(dedup): Evidenz am Objekt vor Relevanz im Baum (ADR-v9-296) (`69733e5`)
+- fix(orte): kein stiller Hof in einer Verwaltungsebene; Klammer-Regel; PLAC-Editor (`ed1f1e4`)
+- fix(places): ohne Stichtag ersetzt die Projektion keine reichere Quelle (BL-384, ADR-v9-292) (`75ba97f`)
+- fix(interop): auch der Paarungs-Vergleich liest Werte mit Fortsetzungen (BL-389, ADR-v9-291) (`2a3ecdf`)
+- fix(interop): Geschwister werden nach FORM gepaart, nicht nach Position (BL-388, ADR-v9-290) (`776f7b5`)
+- fix(interop): ein wiederholter _RATIO wird gefaltet statt gespiegelt (BL-386, ADR-v9-288) (`0127ed7`)
+- fix(orte): monatsgenaue Daten verschmaelern auf den Monat (BL-385, ADR-v9-287) (`ba52189`)
+- fix(orte): Hofadressen werden nicht mehr als Ortsebene geseedet (BL-383, ADR-v9-286) (`22d7d58`)
+- feat(ui): Notizen bearbeiten (BL-382, ADR-v9-285) (`b36d51c`)
+- fix(interop): Write-Back fuer Notiz-Records (BL-380, ADR-v9-284) (`d5e5522`)
+- feat(ui): Notiz-Sektion je Steckbrief (BL-381, ADR-v9-283) (`78d90da`)
+- fix(interop): Fortsetzungen faltet der geteilte Helfer (BL-378, ADR-v9-281) (`024712b`)
+
+---
+
 ## [9.19] — 2026-08-21
 
 _Automatisch aus den Code-Commits seit dem letzten Handbuch-Bau (`1ef7009`…HEAD) erzeugt._

@@ -3,7 +3,7 @@
 // `findPlaceDuplicates(items, 'farms')` aufbauend.
 import type { Database, Event, HofId } from '../../../core/model/types';
 import type { PlaceContext, HofObject } from '../../../core/places';
-import { findPlaceDuplicates, eventHofId, hofEnrichmentLevel, isReviewed, placeDisplayName, isCuratedHof } from '../../../core/places';
+import { findPlaceDuplicates, eventHofId, hofEnrichmentLevel, isReviewed, placeDisplayName, isCuratedHof, hofDatedPeriods } from '../../../core/places';
 import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
@@ -28,12 +28,6 @@ export interface HofDedupGroup {
   suggestedWinnerId: HofId;
   /** Gewicht der Zusammenführung ([ADR-v9-296]) — ordnet die Liste, wählt keinen Gewinner. */
   reach: number;
-}
-
-/** Datierte Adressvarianten eines Hofs ([ADR-v9-296]) — sein Gegenstück zu `enclosedBy`
- *  + `pnames` beim Ort. EINE Stelle, von Heuristik-Meta und Anzeige gemeinsam genutzt. */
-function datierteAddrs(h: HofObject | undefined): number {
-  return h ? h.addrs.filter((a) => a.from != null || a.to != null).length : 0;
 }
 
 /** Verwendungszahl je HofId — wie oft `eventHofId(ev, ctx) === id` über alle Events. */
@@ -73,7 +67,7 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
               level: h ? hofEnrichmentLevel(h) : 'none',
               // Die Zeitachse eines Hofs sind seine datierten Adressvarianten — `enclosedBy`
               // und `pnames` hat er nicht (Spec 11 §1: Hof ist keine Verwaltungseinheit).
-              datiertePerioden: datierteAddrs(h),
+              datiertePerioden: hofDatedPeriods(h),
               usage: usage.get(id) ?? 0,
             },
           ];
@@ -93,7 +87,7 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
           addr: addrOf(id),
           level: levelOf(id),
           reviewed: reviewedOf(id),
-          datiertePerioden: datierteAddrs(db.hofObjects.get(id)),
+          datiertePerioden: hofDatedPeriods(db.hofObjects.get(id)),
         }))
         .sort((a, b) => a.addr.localeCompare(b.addr, 'de'));
       const firstVillageId = db.hofObjects.get(ids[0])?.villageId;

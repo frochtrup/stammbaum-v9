@@ -5,6 +5,9 @@
   //
   // Rendert Regeln UND Schwellen aus der Registry bzw. dem Thresholds-Typ — eine neue
   // Regel oder ein neuer Schwellenwert erscheint hier ohne Änderung an dieser Datei.
+  //
+  // OHNE COMMIT-PUNKT seit 2026-08-28 (Nutzer-Wunsch): jede Änderung wirkt sofort, wie
+  // im Filter-Dialog nebenan. S. die Begründung an `onChange` unten.
   // Der Backdrop kommt aus `.stb-modal-backdrop` (design-system.css, INV-UI-4);
   // lokal bleibt nur das Panel.
   import { SvelteSet } from 'svelte/reactivity';
@@ -17,22 +20,43 @@
 
   interface Props {
     config: ValidationConfig;
-    onSave: (cfg: ValidationConfig) => void;
+    /**
+     * Jede Änderung SOFORT — es gibt kein „Speichern" mehr (Nutzer-Wunsch 2026-08-28:
+     * „unmittelbar aktiv, auch bei Fokuswechsel, wie beim Filter-Dialog").
+     *
+     * Warum das die richtige Form ist und nicht bloß ein Klick weniger: die Fläche
+     * beantwortet die Frage „welche Befunde will ich sehen" — dieselbe Frage wie die
+     * `FilterBar` daneben, die seit jeher ohne Bestätigung auskommt (INV-UI-4: ein
+     * Mechanismus, nicht pro Fläche neu erfunden). Ein Commit-Punkt ist dort richtig, wo
+     * eine halb eingegebene Änderung Schaden anrichten kann (Ereignis-Editor,
+     * [ADR-v9-168]); eine abgeschaltete Prüfregel richtet keinen an — sie ist jederzeit
+     * zurückzunehmen, und die Wirkung ist unmittelbar sichtbar, was die beste Rückmeldung
+     * ist, die eine Konfigurationsfläche geben kann.
+     */
+    onChange: (cfg: ValidationConfig) => void;
     onClose: () => void;
   }
-  const { config, onSave, onClose }: Props = $props();
+  const { config, onChange, onClose }: Props = $props();
 
-  // Arbeitskopie — erst „Speichern" übernimmt (Abbrechen darf folgenlos bleiben).
+  // Anzeige-Zustand des Sheets. Jede Mutation reicht ihn über `melden()` sofort hoch —
+  // eine Arbeitskopie im Sinne von „erst beim Speichern übernehmen" ist es seit dem
+  // Wegfall des Commit-Punkts nicht mehr.
   //
-  // Der Startwert wird BEWUSST nur einmal aus `config` gelesen (Svelte warnt hier vor
-  // `state_referenced_locally`): das Sheet hängt an einem `{#if}` im Aufrufer und wird
-  // bei jedem Öffnen neu montiert. Ein `$derived` wäre hier sogar falsch — es würde die
-  // Arbeitskopie bei jeder Änderung an `config` zurücksetzen und damit die noch nicht
-  // gespeicherten Eingaben des Nutzers verwerfen.
+  // Der Startwert wird weiterhin BEWUSST nur einmal aus `config` gelesen (Svelte warnt
+  // vor `state_referenced_locally`): das Sheet hängt an einem `{#if}` im Aufrufer und
+  // wird bei jedem Öffnen neu montiert. Ein `$derived` wäre auch jetzt falsch — der
+  // Aufrufer schreibt `config` als Antwort auf unsere eigene Meldung zurück, und die
+  // Rückschreibung würde den lokalen Stand mitten in der Eingabe ersetzen.
   // svelte-ignore state_referenced_locally
   const disabled = new SvelteSet<RuleId>(config.disabled);
   // svelte-ignore state_referenced_locally
   let thresholds = $state<Thresholds>({ ...config.thresholds });
+
+  /** Den aktuellen Stand hochreichen — als gewöhnliches Set, der Kern kennt keine
+   *  Svelte-Typen (INV-ARCH-1). */
+  function melden(): void {
+    onChange({ disabled: new Set(disabled), thresholds, probandId: config.probandId });
+  }
 
   const groups = rulesByGroup();
   // Schlüssel aus der Prop, nicht aus der Arbeitskopie — die Menge der Schwellen ist
@@ -43,21 +67,29 @@
   function toggle(id: RuleId) {
     if (disabled.has(id)) disabled.delete(id);
     else disabled.add(id);
+    melden();
   }
 
+  /** Die Schwellen-Felder feuern `onchange`, also bei Enter ODER Verlassen des Feldes —
+   *  genau das „auch bei Fokuswechsel" aus dem Nutzer-Wunsch. Ein `oninput` würde jeden
+   *  Tastendruck melden und damit auch die Zwischenstände einer mehrstelligen Zahl. */
   function setThreshold(key: keyof Thresholds, raw: string) {
     const v = Number(raw);
     // Ungültige Eingabe stillschweigend verwerfen statt NaN in die Engine zu lassen —
     // die Anzeige behält dann den letzten gültigen Wert.
-    if (Number.isFinite(v)) thresholds = { ...thresholds, [key]: v };
+    if (!Number.isFinite(v)) return;
+    thresholds = { ...thresholds, [key]: v };
+    melden();
   }
 
   function allOn() {
     disabled.clear();
+    melden();
   }
 
   function allOff() {
     for (const g of groups) for (const r of g.rules) disabled.add(r.id);
+    melden();
   }
 
   function reset() {
@@ -65,12 +97,7 @@
     disabled.clear();
     for (const id of d.disabled) disabled.add(id);
     thresholds = { ...d.thresholds };
-  }
-
-  function save() {
-    // Als gewöhnliches Set herausgeben — die Kern-Engine kennt keine Svelte-Typen
-    // (INV-ARCH-1: der Kern bleibt framework-frei).
-    onSave({ disabled: new Set(disabled), thresholds, probandId: config.probandId });
+    melden();
   }
 </script>
 
@@ -92,10 +119,12 @@
     aria-modal="true"
     aria-label="Prüfregeln konfigurieren"
   >
-  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schloss schon (svelte:window
-       oben), Enter tat nichts. INNERHALB des Panels, nicht an seiner Stelle — die
+  <!-- Der Inhalt ist ein `<form>` (BL-276, §6i): Escape schließt (svelte:window oben),
+       Enter schließt ebenfalls — seit dem Wegfall des Commit-Punkts gibt es nichts mehr
+       zu bestätigen, und ein Enter, das nichts tut, wäre die schlechtere Antwort als
+       eines, das die Fläche verläßt. INNERHALB des Panels, nicht an seiner Stelle — die
        Dialog-Rolle kann ein `<form>` nicht tragen. -->
-  <form class="valcfg__form" onsubmit={formSubmit(save)}>
+  <form class="valcfg__form" onsubmit={formSubmit(onClose)}>
     <div class="valcfg__head">
       <h3>Prüfregeln</h3>
       <button type="button" class="valcfg__close" onclick={onClose} aria-label="Schließen">✕</button>
@@ -136,9 +165,12 @@
       </label>
     {/each}
 
+    <!-- EIN Knopf, und der beendet nur die Fläche: jede Änderung oben wirkt bereits.
+         „Abbrechen" gäbe es nichts mehr zurückzunehmen — der Knopf verspräche eine
+         Rücknahme, die er nicht mehr leisten kann; „Zurücksetzen" oben ist der ehrliche
+         Weg dorthin. -->
     <div class="valcfg__actions">
-      <button type="button" onclick={onClose}>Abbrechen</button>
-      <button type="submit" class="stb-btn" data-variant="primary">Speichern</button>
+      <button type="submit" class="stb-btn" data-variant="primary">Fertig</button>
     </div>
   </form>
   </div>

@@ -25,6 +25,7 @@ import {
   buildPlacForGedcom,
   verloreneEbenen,
   unbekannteEbenen,
+  ebenenBefund,
   makePlaceRegistry,
   makeHofRegistry,
   linkEventToHof,
@@ -121,5 +122,128 @@ describe('BL-384 — die undatierte Projektion ersetzt Ebenen, sie streicht sie 
     expect(verloreneEbenen(e, ctx, 'Nienberge')).toEqual(['Kreis Münster', 'Westfalen']);
     // Und die NACHBARFRAGE bleibt eine andere: der Bestand kennt beide Ebenen sehr wohl.
     expect(unbekannteEbenen(e, ctx)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die Segmentsicht der beiden Ebenen-Prüfungen ist dieselbe wie die des Resolvers
+// (Nutzer-Befund 2026-08-28, [ADR-v9-294] zweite Hälfte).
+//
+// `unbekannteEbenen`/`verloreneEbenen` teilten den Quelltext mit einem nackten
+// `split(',')`, während Seed, Resolver und `extractHofAddr` seit ADR-v9-294 über
+// `splitPlacSegments` gehen: ein Komma INNERHALB einer Klammer klammert einen Namen und
+// trennt keine Ortsebene. Am Realbestand ist das der Hof `Oster 64 (110, Einhorst
+// Leibzucht)` mit acht Ereignissen — die Dashboard-Regel „Ortsangabe nennt eine Ebene,
+// die die Ortskette nicht kennt" meldete an allen acht das Fragment `Einhorst Leibzucht)`
+// als eigene, unbekannte Verwaltungsebene, während der Resolver dieselbe Zeile
+// anstandslos band.
+describe('Klammerbewusste Segmentsicht — dieselbe wie beim Resolver ([ADR-v9-294])', () => {
+  const OCHTRUP = place('_po_ochtrup', { title: 'Ochtrup', lat: 52.2, long: 7.2 });
+  const HOF = hof('_hof_oster64', '_po_ochtrup', {
+    addrs: [{ value: 'Oster 64 (110, Einhorst Leibzucht)', from: null, to: null }],
+    lat: 52.2,
+    long: 7.2,
+  });
+  const ctxKlammer = (): PlaceContext => ({
+    places: makePlaceRegistry(placeMap(OCHTRUP)),
+    hofs: makeHofRegistry(hofMap(HOF)),
+  });
+
+  /** Der gemessene Fall: Hofname mit Komma in Klammern + Dorf. ZWEI Ebenen, nicht drei. */
+  const hofEreignis = () =>
+    ev('RESI', {
+      place: 'Oster 64 (110, Einhorst Leibzucht), Ochtrup',
+      hofId: '_hof_oster64',
+      date: '3 MAR 1850',
+    });
+
+  it('unbekannteEbenen meldet das Klammer-Fragment nicht als eigene Ebene', () => {
+    expect(unbekannteEbenen(hofEreignis(), ctxKlammer())).toEqual([]);
+  });
+
+  it('verloreneEbenen zerlegt den Hofnamen ebenfalls nicht', () => {
+    const e = hofEreignis();
+    expect(verloreneEbenen(e, ctxKlammer(), 'Oster 64 (110, Einhorst Leibzucht), Ochtrup')).toEqual([]);
+  });
+
+  it('eine echte Ebene wird weiterhin gemeldet — die Klammer entschärft die Prüfung nicht', () => {
+    const e = ev('RESI', {
+      place: 'Oster 64 (110, Einhorst Leibzucht), Ochtrup, Fantasiekreis',
+      hofId: '_hof_oster64',
+      date: '3 MAR 1850',
+    });
+    expect(unbekannteEbenen(e, ctxKlammer())).toEqual(['Fantasiekreis']);
+  });
+
+  it('unbalancierte Klammern fallen auf die nackte Komma-Regel zurück (wie splitPlacSegments)', () => {
+    const e = ev('RESI', {
+      place: 'Oster 64 (110, Ochtrup',
+      hofId: '_hof_oster64',
+      date: '3 MAR 1850',
+    });
+    // „Oster 64 (110" ist keine bekannte Adressvariante dieses Hofes → gemeldet.
+    expect(unbekannteEbenen(e, ctxKlammer())).toEqual(['Oster 64 (110']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die SPERRE bleibt, was sie war — `ebenenBefund` klassifiziert nur (Nutzer-Befund
+// 2026-08-28, [ADR-v9-301]).
+//
+// `unbekannteEbenen` beantwortet weiterhin genau eine Frage, und `alignCuratedEventTexts`
+// liest weiterhin genau diese Antwort. Was sich geaendert hat, ist allein die ANZEIGE: die
+// Dashboard-Regel filtert auf die Ursache. Dieser Waechter haelt die Trennung fest — ohne
+// ihn koennte eine spaetere Bequemlichkeit („die Regel schweigt doch, also darf der
+// Angleich schreiben") die Verarmungs-Sperre aushebeln und Quelltext gegen einen aermeren
+// Projektionstext eintauschen (LP-1).
+describe('Die Ursache klassifiziert, sie lockert nicht ([ADR-v9-301])', () => {
+  const OHNE_KETTE = place('_po_vardel', { title: 'Vardel', lat: 52.7, long: 8.3, enclosedBy: [] });
+  const ctxOhneKette = (): PlaceContext => ({
+    places: makePlaceRegistry(placeMap(OHNE_KETTE)),
+    hofs: makeHofRegistry(hofMap()),
+  });
+
+  it('ankerOhneKette: die Sperre sieht die Ebenen weiterhin — nur der Befund schweigt', () => {
+    const e = ev('BIRT', {
+      place: 'Vardel, Langförden, Amt Vechta',
+      placeId: '_po_vardel',
+      date: '9 FEB 1765',
+    });
+    const ctx = ctxOhneKette();
+    expect(unbekannteEbenen(e, ctx)).toEqual(['Langförden', 'Amt Vechta']);
+    expect(ebenenBefund(e, ctx).ursache).toBe('ankerOhneKette');
+  });
+
+  /**
+   * BEIM BAU AUFGEFALLEN, und der Grund, warum die Sperre unberührt bleiben MUSSTE: bei
+   * einem Ort OHNE Kette greift die Ebenen-Sperre aus [ADR-v9-292] NICHT.
+   *
+   * `verloreneEbenen` ist knotenbasiert — es zählt nur Segmente, die einem Knoten der
+   * Kette zuzuordnen sind. Hat der Ankerort gar keine Kette, gehört `Langförden` zu
+   * keinem Knoten, gilt also nicht als „verloren": `buildPlacForGedcom` liefert brav
+   * `Vardel` statt `null`. Der einzige, der hier zwischen Quelltext und Projektion steht,
+   * ist `unbekannteEbenen`. Hätte die Ursachen-Klassifikation die SPERRE gefiltert statt
+   * nur die Anzeige, wäre aus `Vardel, Langförden, Amt Vechta` beim nächsten Laden
+   * `Vardel` geworden — an genau den Ereignissen, deren Befund gerade als „Rauschen"
+   * eingestuft wurde (LP-1).
+   */
+  it('undatiert + Ort ohne Kette: die Projektion WÜRDE kürzen, nur die Sperre hält sie auf', () => {
+    const e = ev('OCCU', { place: 'Vardel, Langförden, Amt Vechta', placeId: '_po_vardel', date: null });
+    const ctx = ctxOhneKette();
+    expect(buildPlacForGedcom(e, eventSpanne(e), ctx)).toBe('Vardel');
+    expect(verloreneEbenen(e, ctx, 'Vardel')).toEqual([]);
+    expect(unbekannteEbenen(e, ctx)).toEqual(['Langförden', 'Amt Vechta']);
+    expect(ebenenBefund(e, ctx).ursache).toBe('undatiert');
+  });
+
+  it('die echte Ursache bleibt unterscheidbar — ein Ort MIT Kette meldet weiter', () => {
+    const e = ev('BIRT', {
+      place: 'Nienberge, Kreis Münster, Fantasiereich',
+      placeId: '_po_nienberge',
+      date: '9 FEB 1765',
+    });
+    const b = ebenenBefund(e, ctxOrt());
+    expect(b.ursache).toBe('unbekannt');
+    expect(b.ebenen).toEqual(['Fantasiereich']);
   });
 });

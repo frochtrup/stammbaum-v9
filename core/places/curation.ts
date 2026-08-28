@@ -446,3 +446,101 @@ function findHofDuplicates(hofs: HofObjects, toleranceKm: number): DuplicateGrou
 
   return collectGroups(order, find);
 }
+
+// ---------------------------------------------------------------------------
+// §9.2 Gewinner-Vorschlag — EINE Heuristik für beide Pfade ([ADR-v9-298])
+// ---------------------------------------------------------------------------
+
+/**
+ * Merkmale eines Dedup-Kandidaten. Bewusst ein flaches, entitätsfreies Objekt: Orte und
+ * Höfe haben verschiedene Felder, aber dieselbe Frage — der Aufrufer übersetzt.
+ */
+export interface DedupCandidateMeta {
+  /**
+   * Kuratiert (§9.1: geprüft ODER angereichert) — seit [ADR-v9-225] das ERSTE Kriterium.
+   * Grund war ein am Realbestand gemessener Beinahe-Verlust: ein kuratierter Ort (2
+   * Namensvarianten, 6 datierte Ketten-Einträge, Koordinaten, Ortsgeschichte) stand ohne
+   * Ereignisbezug neben einer Seed-Dublette, die das eine Ereignis trug — die damalige
+   * Heuristik schlug die DUBLETTE vor. Seit [ADR-v9-222] behält der Gewinner nur seine
+   * eigenen Angaben; ein Klick hätte die Kuration gelöscht.
+   */
+  curated: boolean;
+  /**
+   * Anreicherungs-GRAD ([ADR-v9-191] E3): sieben Facetten, JE MERKMAL gezählt statt je
+   * Eintrag, Schwellen je Entität am Bestand gemessen.
+   */
+  level: EnrichmentLevel;
+  /**
+   * Menge der DATIERTEN Perioden — bei Orten `enclosedBy` + `pnames`, bei Höfen die
+   * `addrs`. Nicht ihr ANTEIL ([ADR-v9-296], am Bestand widerlegt): der ist bei 10 von 12
+   * Dedup-Mitgliedern 1,00, bei einem Land ohne Elter 0/0, und er bestraft den Reicheren.
+   */
+  datiertePerioden: number;
+  /**
+   * Verwendungszahl. Das LETZTE inhaltliche Kriterium ([ADR-v9-296], Nutzer-Entscheidung:
+   * „die Verwendung sagt nichts über die Güte des gepflegten Ortes"). Sie bleibt, weil sie
+   * als einziges Kriterium Relevanz FÜR DIESEN STAMMBAUM misst statt Pflegetiefe des
+   * Objekts — nur eben als das schwächste Argument.
+   */
+  usage: number;
+}
+
+const LEVEL_RANG: Record<EnrichmentLevel, number> = { none: 0, sparse: 1, rich: 2 };
+
+/**
+ * Wählt den Gewinner aus `ids` (Spec 11 §9.2). Deterministisch, in dieser Reihenfolge:
+ * KURATIERT → Anreicherungs-Grad → datierte Perioden → Verwendungszahl → kleinste ID.
+ *
+ * WARUM EINE KETTE UND KEINE GEWICHTETE KENNZAHL ([ADR-v9-296]). Eine Summe kann
+ * „unbedingt zuerst" nicht ausdrücken: bei genügend großem Summanden überstimmt jede Menge
+ * jedes Gewicht — genau der Fehler, den [ADR-v9-225] geschlossen hat. Dazu sind die
+ * Kriterien nicht kommensurabel, und eine Kette lässt sich in einem Satz erklären.
+ *
+ * WARUM IM KERN, obwohl der sichtbare Aufrufer die Oberfläche ist ([ADR-v9-298]): der
+ * zweite Aufrufer ist der AUTOMATISCHE Hof-Nachlauf nach einem Dorf-Merge
+ * (`reconcileHofsUnderVillage`, `commands.ts`). Der hatte eine eigene, ältere Fassung —
+ * ohne `curated`, ohne die beiden Evidenz-Sprossen — und ist die riskantere der beiden
+ * Stellen: er schlägt nicht vor, er führt zusammen, ohne Klick. Eine Heuristik in der
+ * Schale hätte der Kern nicht aufrufen dürfen (INV-ARCH-1), also lag sie zweimal da.
+ */
+export function pickWinnerId<Id extends string>(
+  ids: readonly Id[],
+  meta: Map<Id, DedupCandidateMeta>,
+): Id {
+  const wert = (id: Id): [number, number, number, number] => {
+    const m = meta.get(id);
+    return [
+      m?.curated ? 1 : 0,
+      m ? LEVEL_RANG[m.level] : 0,
+      m?.datiertePerioden ?? 0,
+      m?.usage ?? 0,
+    ];
+  };
+  return ids
+    .slice()
+    .sort((a, b) => {
+      const wa = wert(a);
+      const wb = wert(b);
+      for (let i = 0; i < wa.length; i++) if (wb[i] !== wa[i]) return wb[i] - wa[i];
+      return a.localeCompare(b);
+    })[0];
+}
+
+/**
+ * Die datierten Perioden eines HofObjects — seine Zeitachse sind die Adressvarianten
+ * ([ADR-v9-296]); `enclosedBy`/`pnames` hat er nicht (Spec 11 §1: ein Hof ist keine
+ * Verwaltungseinheit). EINE Stelle für beide Aufrufer (Dedup-Ansicht und Merge-Nachlauf).
+ */
+export function hofDatedPeriods(h: HofObject | undefined): number {
+  return h ? h.addrs.filter((a) => a.from != null || a.to != null).length : 0;
+}
+
+/**
+ * Die datierten Perioden eines PlaceObjects — über BEIDE Zeitachsen ([ADR-v9-296]):
+ * Zugehörigkeit (`enclosedBy`) und Namen (`pnames`).
+ */
+export function placeDatedPeriods(po: PlaceObject | undefined): number {
+  if (!po) return 0;
+  const datiert = (x: { from: number | null; to: number | null }) => x.from != null || x.to != null;
+  return po.enclosedBy.filter(datiert).length + po.pnames.filter(datiert).length;
+}

@@ -5,8 +5,9 @@
 // person-detail-model.test.ts/family-detail-model.test.ts für deren Abdeckung).
 import { describe, expect, it } from 'vitest';
 import { makeEvent } from '../../core/model';
-import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
-import { fullDateLabel, dateSummary, sexSymbol, pedigreeLabel, ageAtEvent } from '../../ui/shell/person-display';
+import { makePlaceRegistry, makeHofRegistry, buildPlacForGedcom, eventSpanne, type PlaceContext } from '../../core/places';
+import { fullDateLabel, dateSummary, sexSymbol, pedigreeLabel, ageAtEvent, eventPlaceLabel } from '../../ui/shell/person-display';
+import { place, placeMap, hofMap } from '../core/places-fixtures';
 
 function emptyContext(): PlaceContext {
   return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
@@ -94,5 +95,66 @@ describe('ageAtEvent — Alter bei Ereignis (BL-196)', () => {
     const birth = makeEvent('BIRT', { date: '1920' });
     const ev = makeEvent('DEAT', { date: '1850' });
     expect(ageAtEvent(birth, ev)).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Der Stichtag gilt auch für die ANZEIGE (Nutzer-Befund 2026-08-28, BL-…/ADR-v9-…).
+//
+// `eventPlaceLabel` löste die Kette mit `eventYear(ev)` auf — einer ganzen JAHRES-Spanne —
+// während die Projektion (`buildPlacForGedcom`/`platzhalterText` im Ereignis-Editor,
+// `alignCuratedEventTexts`, der Writer) seit BL-324/[ADR-v9-243] `eventSpanne(ev)` nimmt.
+// Genau an einem Grenzjahr, für das die Tagesauflösung gebaut wurde, fallen beide
+// auseinander: das breite Jahres-Intervall trifft BEIDE Perioden, und der Tie-Break
+// „spätester Beginn" entscheidet statt der Daten. Der Nutzer sah im Editor die neue,
+// periodengerechte Kette, übernahm sie, speicherte — und die Ereigniszeile im
+// Personen-Steckbrief zeigte weiter die alte. Sie konnte gar nicht folgen: sie liest
+// `ev.place` nie, sie rechnet live, nur mit dem falschen Zeitbezug.
+//
+// AM REALBESTAND GEMESSEN (`Unsere Familie 2026-4.ged` × `orte-5.json`/`orte-7.json`,
+// beide gleich): 19 von 5.213 ortsgebundenen Ereignissen wichen ab — u. a. Vechta 1813
+// („Département de l'Ems-Supérieur, Kaiserreich Frankreich" vs. „Amt Vechta, Herzogtum
+// Oldenburg, Rheinbund") und Ochtrup 1806.
+describe('eventPlaceLabel — derselbe Stichtag wie die Projektion (BL-324/[ADR-v9-243])', () => {
+  /** Vechta am gemessenen Grenzjahr 1813: bis zum 31.12.1813 französisch, ab 1813
+   *  oldenburgisch — beide Perioden teilen sich das Jahr, nur der TAG trennt sie. */
+  function grenzjahrContext(): PlaceContext {
+    const vechta = place('_po_vechta', {
+      title: 'Vechta',
+      enclosedBy: [
+        { placeId: '_po_ems', from: 1810, to: 1813, fromDate: '1 JAN 1810', toDate: '31 DEC 1813' },
+        { placeId: '_po_amt', from: 1813, to: null, fromDate: '31 DEC 1813', toDate: null },
+      ],
+    });
+    const ems = place('_po_ems', { title: "Département de l'Ems-Supérieur" });
+    const amt = place('_po_amt', { title: 'Amt Vechta' });
+    return {
+      places: makePlaceRegistry(placeMap(vechta, ems, amt)),
+      hofs: makeHofRegistry(hofMap()),
+    };
+  }
+
+  it('tagegenaues Ereignis VOR dem Stichtag → die frühere Kette', () => {
+    const ev = makeEvent('BIRT', { date: '26 JUN 1813', placeId: '_po_vechta' });
+    expect(eventPlaceLabel(ev, grenzjahrContext())).toBe("Vechta, Département de l'Ems-Supérieur");
+  });
+
+  it('tagegenaues Ereignis AM Stichtag → die neue Kette (der Fall des Nutzer-Befunds)', () => {
+    const ev = makeEvent('BIRT', { date: '31 DEC 1813', placeId: '_po_vechta' });
+    expect(eventPlaceLabel(ev, grenzjahrContext())).toBe('Vechta, Amt Vechta');
+  });
+
+  it('die Anzeige stimmt mit der Projektion überein, die der Editor anbietet', () => {
+    const ctx = grenzjahrContext();
+    for (const date of ['26 JUN 1813', '31 DEC 1813', '5 MAR 1815']) {
+      const ev = makeEvent('BIRT', { date, placeId: '_po_vechta' });
+      expect(eventPlaceLabel(ev, ctx)).toBe(buildPlacForGedcom(ev, eventSpanne(ev), ctx));
+    }
+  });
+
+  it('nur jahrgenaues Ereignis bleibt unverändert — keine erfundene Genauigkeit', () => {
+    const ev = makeEvent('BIRT', { date: '1813', placeId: '_po_vechta' });
+    // Ganzes Jahr trifft beide Perioden; der Tie-Break „spätester Beginn" gewinnt.
+    expect(eventPlaceLabel(ev, grenzjahrContext())).toBe('Vechta, Amt Vechta');
   });
 });

@@ -10,7 +10,7 @@
 // Bewusst framework-frei (kein Rune-State): der Aufrufer hält seinen eigenen
 // "speichert gerade"-Zustand, diese Funktion tut nur die Arbeit und meldet das Ergebnis.
 import { exportViaOnePipe, exportFileName, gzipCodec } from '../../services/file';
-import type { ExportFormat, FileService, DocFormat } from '../../services/file';
+import type { ExportFormat, FileService, DocFormat, SaveResult } from '../../services/file';
 import type { ParsedGedcom, GrampsParsed, XmlDocument } from '../../core/interop';
 import type { AppState } from './app-state.svelte';
 
@@ -68,6 +68,35 @@ export interface ExportRequestUi {
   anonymizeReferenceYear?: number;
   /** FS-Handle der Originaldatei; wird nur bei format==geladenem Format (in-place) genutzt. */
   handle?: unknown;
+  /** „Ohne Sicherung speichern" (Spec 14 §4.1) — überspringt den Backup-Vorlauf. */
+  skipBackup?: boolean;
+  /** „Speichern unter …" (Spec 14 §4.1) — erzwingt den Dialog statt des stillen Saves. */
+  forcePicker?: boolean;
+}
+
+/**
+ * Die Meldung zur Sicherung (Spec 14 §4.1, INV-FILE-4) — sie hängt am Speichern-Satz,
+ * statt eine zweite Meldung daneben zu sein.
+ *
+ * Der Grund, warum das eine eigene Funktion ist: „ohne Sicherung gespeichert" MUSS
+ * ankommen, sonst hält der Nutzer jeden stillen Save für gesichert. Ein `default`-Zweig,
+ * der Unbekanntes verschweigt, wäre genau der verbotene Ausgang — deshalb deckt der
+ * Schalter jeden Wert ab und der Compiler hält das fest.
+ */
+function sicherungsHinweis(result: SaveResult): string {
+  switch (result.backup) {
+    case 'geschrieben':
+      return ` Vorheriger Stand gesichert: ${result.backupName}`;
+    case 'kein-ordner':
+      return ' Ohne Sicherung — kein Backup-Ordner verbunden (Einstellungen).';
+    case 'uebersprungen':
+      return ' Ohne Sicherung, wie gewählt.';
+    case 'leer':
+      return ' Die Datei war leer — nichts zu sichern.';
+    case 'fehlgeschlagen':
+    case undefined:
+      return '';
+  }
 }
 
 /**
@@ -84,6 +113,8 @@ export interface ExportOutcome {
   notice: string;
   /** Bei „Speichern unter" (Tier 1b) das neu erworbene FS-Handle, sonst undefined. */
   handle?: unknown;
+  /** Bei „Speichern unter" der im Dialog gewählte Dateiname — die Datei heißt ab jetzt so. */
+  name?: string;
 }
 
 /**
@@ -117,9 +148,23 @@ export async function exportGedcom(
       gzip: isGramps ? gzipCodec : undefined,
       handle: inPlaceCapable ? req.handle : undefined,
       anonymizeReferenceYear: req.anonymizeReferenceYear,
+      skipBackup: req.skipBackup,
+      forcePicker: req.forcePicker,
     });
-    if (!result.ok) return { notice: 'Speichern abgebrochen.' };
-    if (result.tier === 'fs-handle') return { notice: 'Gespeichert (direkt in die Datei).' };
+    if (!result.ok) {
+      // Ein gescheiterter Backup-Vorlauf ist KEIN Abbruch: die Datei ist unverändert,
+      // aber der Nutzer wollte speichern — er muss erfahren, warum es nicht geschah, und
+      // wohin der Ausweg führt (Spec 14 §4.1: erst sichern, dann überschreiben).
+      if (result.backup === 'fehlgeschlagen') {
+        return {
+          notice: `Nicht gespeichert — die Sicherung schlug fehl: ${result.backupError ?? 'unbekannter Grund'} Die Datei ist unverändert; „Ohne Sicherung speichern" schreibt sie trotzdem.`,
+        };
+      }
+      return { notice: 'Speichern abgebrochen.' };
+    }
+    if (result.tier === 'fs-handle') {
+      return { notice: 'Gespeichert (direkt in die Datei).' + sicherungsHinweis(result) };
+    }
     // Tier 1b: der Nutzer hat das Ziel selbst gewählt — die Datei IST geschrieben, nicht
     // nur „angeboten". Das Handle geht mit zurück, damit der nächste Save still läuft.
     if (result.tier === 'fs-picker') {
@@ -134,11 +179,23 @@ export async function exportGedcom(
       // eine Falschmeldung, die den Nutzer ein zweites Mal speichern lässt. Der Preis des
       // Scheiterns ist allein, dass beim nächsten Mal wieder der Dialog kommt.
       try {
-        await fileService.rememberHandle(result.handle);
+        await fileService.rememberHandle(result.handle, result.name);
       } catch {
         /* bewusst verschluckt — s. o. */
       }
-      return { notice: 'Gespeichert (in die gewählte Datei).', handle: result.handle };
+      // Der im Dialog gewählte NAME kommt mit (Spec 14 §4.1): ab hier ist DIESE Datei die
+      // geladene. Ohne das führte die Oberfläche den alten Namen weiter, während der
+      // nächste stille Save längst in die neue Datei schriebe — zwei Wahrheiten über
+      // dieselbe Sache, und die sichtbare wäre die falsche.
+      const umbenannt = result.name && result.name !== `${baseName}${filename.slice(baseName.length)}`;
+      if (result.name) appState.renameFile(result.name);
+      return {
+        notice: umbenannt
+          ? `Gespeichert unter „${result.name}". Weitere Speicherungen gehen in diese Datei.`
+          : 'Gespeichert (in die gewählte Datei).',
+        handle: result.handle,
+        ...(result.name ? { name: result.name } : {}),
+      };
     }
     const wohin = result.tier === 'share' ? 'Zum Sichern angeboten (Share-Sheet).' : 'Als Download bereitgestellt.';
     return { notice: inPlaceCapable ? wohin : `${wohin.slice(0, -1)}: ${filename}` };
@@ -157,6 +214,12 @@ export async function saveCurrentDoc(
   appState: AppState,
   fileService: FileService,
   handle?: unknown,
+  opts: { skipBackup?: boolean; forcePicker?: boolean } = {},
 ): Promise<ExportOutcome> {
-  return exportGedcom(appState, fileService, { format: nativeFormatOf(appState), handle });
+  return exportGedcom(appState, fileService, {
+    format: nativeFormatOf(appState),
+    handle,
+    skipBackup: opts.skipBackup,
+    forcePicker: opts.forcePicker,
+  });
 }

@@ -92,7 +92,7 @@ describe('ValidationPanel', () => {
 describe('ValConfigSheet', () => {
   it('rendert die Regeln aus der Registry, opt-in-Regeln als abgehakt-aus', () => {
     render(ValConfigSheet, {
-      props: { config: defaultConfig(), onSave: () => {}, onClose: () => {} },
+      props: { config: defaultConfig(), onChange: () => {}, onClose: () => {} },
     });
 
     expect(screen.getByText('Sterbejahr vor Geburtsjahr')).toBeTruthy();
@@ -101,46 +101,57 @@ describe('ValConfigSheet', () => {
     expect(screen.getAllByText('opt-in')).toHaveLength(2);
   });
 
-  it('gibt Abschaltung und geänderte Schwelle an onSave weiter', async () => {
-    const onSave = vi.fn();
-    render(ValConfigSheet, { props: { config: defaultConfig(), onSave, onClose: () => {} } });
+  // Ohne Commit-Punkt seit 2026-08-28 (Nutzer-Wunsch): jede Änderung wirkt sofort, wie im
+  // Filter-Dialog nebenan. Die Tests prüfen deshalb den KLICK, nicht ein „Speichern".
+  it('meldet eine Abschaltung SOFORT — ohne Speichern-Klick', async () => {
+    const onChange = vi.fn();
+    render(ValConfigSheet, { props: { config: defaultConfig(), onChange, onClose: () => {} } });
 
-    const box = screen.getByLabelText('Geschlecht unbekannt', { exact: false });
-    await fireEvent.click(box);
-    await fireEvent.click(screen.getByText('Speichern'));
+    await fireEvent.click(screen.getByLabelText('Geschlecht unbekannt', { exact: false }));
 
-    expect(onSave).toHaveBeenCalledTimes(1);
-    const cfg = onSave.mock.calls[0][0];
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const cfg = onChange.mock.calls[0][0];
     expect(cfg.disabled.has('MISSING_SEX')).toBe(true);
     // Das an die Engine gereichte Set ist ein gewöhnliches Set (INV-ARCH-1).
     expect(cfg.disabled.constructor.name).toBe('Set');
   });
 
-  it('„Alle aus" schaltet jede Regel ab, „Zurücksetzen" stellt die Defaults her', async () => {
-    const onSave = vi.fn();
-    render(ValConfigSheet, { props: { config: defaultConfig(), onSave, onClose: () => {} } });
+  it('meldet eine geänderte Schwelle beim FOKUSWECHSEL, nicht erst bei einer Bestätigung', async () => {
+    // `onchange` feuert bei Enter ODER beim Verlassen des Feldes — genau der vom Nutzer
+    // genannte Fall („unmittelbar aktiv auch bei Fokuswechsel").
+    const onChange = vi.fn();
+    render(ValConfigSheet, { props: { config: defaultConfig(), onChange, onClose: () => {} } });
 
-    await fireEvent.click(screen.getByText('Alle aus'));
-    await fireEvent.click(screen.getByText('Speichern'));
-    const alleAus = onSave.mock.calls[0][0];
-    expect(alleAus.disabled.size).toBeGreaterThan(30);
+    const feld = document.querySelector('.valcfg__threshold input') as HTMLInputElement;
+    feld.value = '1912';
+    await fireEvent.change(feld);
 
-    await fireEvent.click(screen.getByText('Zurücksetzen'));
-    await fireEvent.click(screen.getByText('Speichern'));
-    const zurueck = onSave.mock.calls[1][0];
-    expect([...zurueck.disabled].sort()).toEqual(['MISSING_EVAL', 'OPEN_HYPO']);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(Object.values(onChange.mock.calls[0][0].thresholds)).toContain(1912);
   });
 
-  it('Abbrechen verwirft die Änderung folgenlos', async () => {
-    const onSave = vi.fn();
+  it('kein „Speichern" und kein „Abbrechen" mehr — nur noch „Fertig", das die Fläche schließt', async () => {
+    const onChange = vi.fn();
     const onClose = vi.fn();
-    render(ValConfigSheet, { props: { config: defaultConfig(), onSave, onClose } });
+    render(ValConfigSheet, { props: { config: defaultConfig(), onChange, onClose } });
 
-    await fireEvent.click(screen.getByLabelText('Geschlecht unbekannt', { exact: false }));
-    await fireEvent.click(screen.getByText('Abbrechen'));
-
+    expect(screen.queryByText('Speichern')).toBeNull();
+    expect(screen.queryByText('Abbrechen')).toBeNull();
+    await fireEvent.click(screen.getByText('Fertig'));
     expect(onClose).toHaveBeenCalled();
-    expect(onSave).not.toHaveBeenCalled();
+    // „Fertig" beendet nur die Fläche; gemeldet wurde bereits beim Klick auf die Regel.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('„Alle aus" schaltet jede Regel ab, „Zurücksetzen" stellt die Defaults her — beides sofort', async () => {
+    const onChange = vi.fn();
+    render(ValConfigSheet, { props: { config: defaultConfig(), onChange, onClose: () => {} } });
+
+    await fireEvent.click(screen.getByText('Alle aus'));
+    expect(onChange.mock.calls[0][0].disabled.size).toBeGreaterThan(30);
+
+    await fireEvent.click(screen.getByText('Zurücksetzen'));
+    expect([...onChange.mock.calls[1][0].disabled].sort()).toEqual(['MISSING_EVAL', 'OPEN_HYPO']);
   });
 });
 

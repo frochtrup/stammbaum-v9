@@ -715,6 +715,120 @@ describe('PLAC_EBENE_UNBEKANNT — die Gegenseite der Verarmungs-Sperre (ADR-v9-
   });
 });
 
+// ---------------------------------------------------------------------------
+// Nutzer-Befund 2026-08-28: die Regel meldete an 12 Ereignissen des Realbestands
+// (`Unsere Familie 2026-4-2-2-7.ged` x `orte-24.json`) — und KEINE davon war der Zustand,
+// den ihre Beschriftung behauptet. Alle zwoelf wurden vom Resolver anstandslos gebunden,
+// und jede gemeldete Ebene war ein existierender Ort im Bestand. Zwei Ursachen, 7 + 5:
+// das Ereignis war undatiert (dann gibt es keine Kette, gegen die man messen koennte),
+// oder der Ankerort trug gar keine Verwaltungskette (dann fehlt Kuration AN IHM).
+describe('PLAC_EBENE_UNBEKANNT — nur noch die echte Ursache (Nutzer-Befund 2026-08-28)', () => {
+  /** Wie `bestand()` oben, aber Datum und Elternkette des Dorfes sind einstellbar. */
+  function fall(text: string, opts: { datum: string | null; mitKette: boolean }): Database {
+    const places = new Map([
+      ['@ELTER@', place('@ELTER@', { title: 'Kreis Steinfurt' })],
+      [
+        '@DORF@',
+        place('@DORF@', {
+          title: 'Ochtrup',
+          enclosedBy: opts.mitKette
+            ? [{ placeId: '@ELTER@', from: null, to: null, fromDate: null, toDate: null }]
+            : [],
+        }),
+      ],
+    ]);
+    const p = personWith('@I1@');
+    p.birth = makeEvent('BIRT', { date: opts.datum, place: text, placeId: '@DORF@', seen: true });
+    return dbWith([p], [], { placeObjects: places });
+  }
+
+  it('schweigt beim UNDATIERTEN Ereignis — ohne Stichtag gibt es keine Kette (ADR-v9-292)', () => {
+    const db = fall('Ochtrup, Kreis Steinfurt, Deutschland', { datum: null, mitKette: true });
+    expect(texts(db, 'PLAC_EBENE_UNBEKANNT')).toEqual([]);
+  });
+
+  it('meldet denselben Text WEITERHIN, sobald das Ereignis ein Datum traegt', () => {
+    const db = fall('Ochtrup, Kreis Steinfurt, Deutschland', { datum: '3 MAR 1750', mitKette: true });
+    expect(texts(db, 'PLAC_EBENE_UNBEKANNT')).toEqual([
+      'Eine Ortsangabe nennt eine Ebene, die die Ortskette nicht kennt: Deutschland',
+    ]);
+  });
+
+  it('schweigt, wenn der Ankerort gar keine Verwaltungskette traegt — das ist ORT_OHNE_KETTE', () => {
+    const db = fall('Ochtrup, Kreis Steinfurt, Deutschland', { datum: '3 MAR 1750', mitKette: false });
+    expect(texts(db, 'PLAC_EBENE_UNBEKANNT')).toEqual([]);
+  });
+});
+
+describe('ORT_OHNE_KETTE — der Kurationsauftrag steht am Ort, nicht an der Person', () => {
+  /** Drei Ereignisse zweier Personen an EINEM ketten-losen Ort — der Fall `Vardel`. */
+  function bestandOhneKette(): Database {
+    const places = new Map([['@DORF@', place('@DORF@', { title: 'Vardel', enclosedBy: [] })]]);
+    const p1 = personWith('@I1@');
+    p1.birth = makeEvent('BIRT', {
+      date: '9 FEB 1765',
+      place: 'Vardel, Langfoerden, Amt Vechta',
+      placeId: '@DORF@',
+      seen: true,
+    });
+    p1.events = [
+      makeEvent('RESI', {
+        date: '20 AUG 1809',
+        place: 'Vardel, Langfoerden, Herzogtum Oldenburg',
+        placeId: '@DORF@',
+        seen: true,
+      }),
+    ];
+    const p2 = personWith('@I2@');
+    p2.birth = makeEvent('BIRT', {
+      date: '7 FEB 1750',
+      place: 'Vardel, Langfoerden, Amt Vechta',
+      placeId: '@DORF@',
+      seen: true,
+    });
+    return dbWith([p1, p2], [], { placeObjects: places });
+  }
+
+  it('buendelt drei Ereignisse zweier Personen zu EINEM Befund am Ort', () => {
+    const befunde = runValidation(bestandOhneKette(), only('ORT_OHNE_KETTE'));
+    expect(befunde).toHaveLength(1);
+    expect(befunde[0].placeId).toBe('@DORF@');
+    expect(befunde[0].severity).toBe('info');
+    expect(befunde[0].text).toBe(
+      'Keine Verwaltungskette hinterlegt — 3 Ortsangaben nennen 3 Ebenen, die dadurch ' +
+        'nicht projiziert werden können: Langfoerden, Amt Vechta, Herzogtum Oldenburg',
+    );
+  });
+
+  it('schweigt bei einem ketten-losen Ort, auf den keine mehrstufige Ortsangabe zeigt', () => {
+    const places = new Map([['@DORF@', place('@DORF@', { title: 'Vardel', enclosedBy: [] })]]);
+    const p = personWith('@I1@');
+    p.birth = makeEvent('BIRT', { date: '9 FEB 1765', place: 'Vardel', placeId: '@DORF@', seen: true });
+    expect(texts(dbWith([p], [], { placeObjects: places }), 'ORT_OHNE_KETTE')).toEqual([]);
+  });
+
+  it('schweigt, wenn der Ort eine Kette hat — dann ist die Frage PLAC_EBENE_UNBEKANNT', () => {
+    const places = new Map([
+      ['@ELTER@', place('@ELTER@', { title: 'Kreis Steinfurt' })],
+      [
+        '@DORF@',
+        place('@DORF@', {
+          title: 'Ochtrup',
+          enclosedBy: [{ placeId: '@ELTER@', from: null, to: null, fromDate: null, toDate: null }],
+        }),
+      ],
+    ]);
+    const p = personWith('@I1@');
+    p.birth = makeEvent('BIRT', {
+      date: '3 MAR 1750',
+      place: 'Ochtrup, Kreis Steinfurt, Deutschland',
+      placeId: '@DORF@',
+      seen: true,
+    });
+    expect(texts(dbWith([p], [], { placeObjects: places }), 'ORT_OHNE_KETTE')).toEqual([]);
+  });
+});
+
 describe('runValidationOn — Sofort-Plausibilitätsprüfung auf BERÜHRTEN Datensätzen (ADR-v9-264 E10, BL-352)', () => {
   // Die Erfassungs-Vorlagen-Fläche ruft NICHT `runValidation` über den ganzen Bestand
   // (v8-Form, `legacy-v8/ui-quicktpl.js` Z. 868) — sie prüft nur die Personen/Familien,

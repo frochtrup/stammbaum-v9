@@ -30,7 +30,9 @@ describe('exportPlacesFile — INV-FILE-2/3: dasselbe Export-Rohr, Tier-Auswahl 
 
     const result = await exportPlacesFile(fileService, placesStore, handleStore);
 
-    expect(result).toEqual({ tier: 'fs-handle', ok: true });
+    // `backup: 'kein-ordner'`: der Vorlauf hängt an Tier 1a, nicht am Dateityp — auch die
+    // orte.json läuft durch dasselbe Rohr ([ADR-v9-302], INV-FILE-2).
+    expect(result).toEqual({ tier: 'fs-handle', ok: true, backup: 'kein-ordner' });
     expect(fsHandle.writeCalls).toHaveLength(1);
     expect(fsHandle.writeCalls[0].handle).toEqual({ id: 'known-handle' });
     // Der geschriebene Text ist exakt der ROHE Wrapper (schemaVersion/rev/device/ts

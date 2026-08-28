@@ -41,6 +41,9 @@ export {
   eventSpanne,
   unbekannteEbenen,
   verloreneEbenen,
+  ebenenBefund,
+  type EbenenBefund,
+  type EbenenUrsache,
   type PlaceContext,
 } from './build-plac';
 
@@ -153,6 +156,10 @@ export {
   isCuratedHof,
   hasReference,
   findPlaceDuplicates,
+  pickWinnerId,
+  hofDatedPeriods,
+  placeDatedPeriods,
+  type DedupCandidateMeta,
   type DedupKind,
   type DuplicateGroup,
   type EnrichmentLevel,

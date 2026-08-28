@@ -12,7 +12,9 @@ interface FsWritable {
   close(): Promise<void>;
 }
 interface FsFileHandleLike {
+  name?: string;
   createWritable(): Promise<FsWritable>;
+  getFile?(): Promise<Blob>;
   queryPermission?(opts: { mode: 'readwrite' }): Promise<PermissionState>;
   requestPermission?(opts: { mode: 'readwrite' }): Promise<PermissionState>;
 }
@@ -66,5 +68,23 @@ export class FsAccessAdapter implements FsHandleAdapter {
     const writable = await h.createWritable();
     await writable.write(bytes);
     await writable.close();
+  }
+
+  /**
+   * Der Stand VON DER PLATTE — die Vorlage der Sicherung (Spec 14 §4.1). Bewusst als
+   * rohe Bytes, nicht als Text: die Sicherung soll byte-gleich sein, was sie war, und
+   * eine GRAMPS-Datei ist gzip. Eine Text-Runde durch `decode`/`encode` wäre bei jedem
+   * ungewöhnlichen Encoding eine stille Veränderung genau der Kopie, der man im Ernstfall
+   * vertrauen muss (LP-1-Geist).
+   */
+  async read(handle: unknown): Promise<Uint8Array | null> {
+    const h = handle as FsFileHandleLike;
+    if (!h?.getFile) return null;
+    const file = await h.getFile();
+    return new Uint8Array(await file.arrayBuffer());
+  }
+
+  nameOf(handle: unknown): string {
+    return (handle as FsFileHandleLike)?.name ?? '';
   }
 }

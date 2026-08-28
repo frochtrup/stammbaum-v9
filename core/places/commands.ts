@@ -9,6 +9,13 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { PlaceObject, HofObject, PlaceObjects, HofObjects, DatedName, DatedRef, DatedAddress, NameTranslation, Year } from './types';
 import { buildPlacForGedcom, eventSpanne, type PlaceContext } from './build-plac';
 import { normPlaceName, normHofAddr } from './normalize';
+import {
+  hofEnrichmentLevel,
+  hofDatedPeriods,
+  isCuratedHof,
+  pickWinnerId,
+  type DedupCandidateMeta,
+} from './curation';
 import { alsGrenze, type GrenzEingabe } from './zeitbezug';
 import { klonen } from '../clone-diagnose';
 
@@ -610,32 +617,44 @@ export function mergeHofObjects(
 }
 
 /**
- * Gewinner-Heuristik (ADR-v9-45, wie v8 `_pickFarmWinner`): Verwendungszahl im Baum →
- * hat Koordinaten → hat Notiz → kleinste ID (deterministisch). Verwendung = Events mit
- * `ev.hofId === id` (der aufgelöste/gesetzte Link; `eventHofId` bräuchte einen Kontext,
- * die runtime-gesetzte `hofId` genügt und hält die Funktion kontextfrei).
+ * Gewinner des AUTOMATISCHEN Hof-Nachlaufs — seit [ADR-v9-298] dieselbe Kette wie der
+ * Dedup-Vorschlag (`pickWinnerId`, `curation.ts`): kuratiert → Anreicherungs-Grad →
+ * datierte Perioden → Verwendungszahl → kleinste ID.
+ *
+ * VORHER WAR ES EINE ZWEITE, ÄLTERE FASSUNG: Verwendungszahl → Koordinaten → Notiz →
+ * kleinste ID — ohne `curated`, das [ADR-v9-225] an die erste Stelle gestellt hatte, und
+ * ohne die beiden Evidenz-Sprossen aus [ADR-v9-296]. Beide Male ist die Schale nachgezogen
+ * worden und dieser Pfad nicht, weil die Heuristik in `ui/shell` lag und der Kern sie nicht
+ * aufrufen durfte (INV-ARCH-1). Sie ist deshalb in den Kern gezogen, nicht kopiert.
+ *
+ * UND DIESER PFAD IST DER RISKANTERE: er schlägt nicht vor, er führt zusammen — ohne Klick,
+ * als Nachlauf eines Dorf-Merges. Der Schaden aus ADR-v9-225 (seit [ADR-v9-222] behält der
+ * Gewinner nur seine EIGENEN Angaben) träte hier ohne jede Nutzerhandlung ein.
+ *
+ * KONTEXTFREI wie zuvor: Verwendung = Ereignisse mit `ev.hofId === id` (der runtime-gesetzte
+ * Link genügt, `eventHofId` bräuchte einen `PlaceContext`). Alle übrigen Merkmale stehen am
+ * HofObject selbst.
  */
 function pickHofWinner(ids: readonly HofId[], hofs: HofObjects, events: readonly Event[]): HofId {
   const usage = new Map<HofId, number>(ids.map((id) => [id, 0]));
   for (const ev of events) {
     if (ev.hofId != null && usage.has(ev.hofId)) usage.set(ev.hofId, usage.get(ev.hofId)! + 1);
   }
-  return ids
-    .slice()
-    .sort((a, b) => {
-      const ua = usage.get(a) ?? 0;
-      const ub = usage.get(b) ?? 0;
-      if (ub !== ua) return ub - ua;
-      const ha = hofs.get(a);
-      const hb = hofs.get(b);
-      const ca = ha && ha.lat != null ? 1 : 0;
-      const cb = hb && hb.lat != null ? 1 : 0;
-      if (cb !== ca) return cb - ca;
-      const na = ha && ha.note ? 1 : 0;
-      const nb = hb && hb.note ? 1 : 0;
-      if (nb !== na) return nb - na;
-      return String(a).localeCompare(String(b));
-    })[0];
+  const meta = new Map<HofId, DedupCandidateMeta>(
+    ids.map((id) => {
+      const h = hofs.get(id);
+      return [
+        id,
+        {
+          curated: h != null && isCuratedHof(h),
+          level: h ? hofEnrichmentLevel(h) : 'none',
+          datiertePerioden: hofDatedPeriods(h),
+          usage: usage.get(id) ?? 0,
+        },
+      ];
+    }),
+  );
+  return pickWinnerId(ids, meta);
 }
 
 /**
