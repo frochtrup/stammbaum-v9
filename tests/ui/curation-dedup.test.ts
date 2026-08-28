@@ -3,7 +3,7 @@
 // KURATIERT → Anreicherungs-Grad → datierte Perioden → Verwendungszahl → kleinste ID.
 // Reine Funktion (TST-5).
 import { describe, expect, it } from 'vitest';
-import { pickWinnerId, type DedupCandidateMeta } from '../../ui/shell/curation-dedup';
+import { pickWinnerId, datedPeriodLabel, type DedupCandidateMeta } from '../../ui/shell/curation-dedup';
 
 /** Basis-Kandidat; jeder Test überschreibt genau die Achse, um die es ihm geht. */
 const k = (p: Partial<DedupCandidateMeta> = {}): DedupCandidateMeta => ({
@@ -83,5 +83,19 @@ describe('pickWinnerId — Spec 11 §9.2 Gewinner-Heuristik', () => {
     ]);
     expect(pickWinnerId(['@A@', '@B@', '@C@'], m)).toBe('@B@');
     expect(pickWinnerId(['@C@', '@B@', '@A@'], m)).toBe('@B@');
+  });
+});
+
+// [ADR-v9-296] — die Zahl wird in der Dedup-Zeile ausgeschrieben, damit der Vorschlag
+// nachvollziehbar ist (Nutzer-Anforderung 2026-08-27). EINE Fassung für Orte und Höfe.
+describe('datedPeriodLabel — die Beschriftung der entscheidenden Zahl', () => {
+  it('schreibt auch die Null aus (in einer Vergleichsfläche ist „keine" die Information)', () => {
+    expect(datedPeriodLabel(0)).toBe('keine datierte Periode');
+  });
+
+  it('unterscheidet Singular und Plural', () => {
+    expect(datedPeriodLabel(1)).toBe('1 datierte Periode');
+    expect(datedPeriodLabel(2)).toBe('2 datierte Perioden');
+    expect(datedPeriodLabel(8)).toBe('8 datierte Perioden');
   });
 });

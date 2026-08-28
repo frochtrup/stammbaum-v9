@@ -84,3 +84,22 @@ export function pickWinnerId<Id extends string>(ids: readonly Id[], meta: Map<Id
       return a.localeCompare(b);
     })[0];
 }
+
+/**
+ * Beschriftung der datierten Perioden für die Dedup-Zeile ([ADR-v9-296]) — EINE Fassung
+ * für Orte und Höfe, wie die Heuristik selbst. Auch die Null wird ausgeschrieben: in einer
+ * VERGLEICHS-Fläche ist „keine" die Information, an der sich der Vorschlag erklärt (dieselbe
+ * Lesart, aus der die Anreicherungs-Pille dort bei jedem Mitglied steht, ADR-v9-191 E4 —
+ * anders als in der Liste, wo Abwesenheit der Regelfall und damit Rauschen ist, ADR-v9-149).
+ */
+export function datedPeriodLabel(n: number): string {
+  if (n === 0) return 'keine datierte Periode';
+  return n === 1 ? '1 datierte Periode' : `${n} datierte Perioden`;
+}
+
+/** Tooltip dazu — nennt, was gezählt wird, und wofür die Zahl zählt. */
+export const DATIERTE_PERIODEN_HILFE =
+  'Wie viele Zugehörigkeits- und Namens-Einträge dieses Eintrags einen Zeitraum tragen ' +
+  '(beim Hof: seine Adressvarianten). Für eine Verwaltungseinheit ist die Zeitachse das ' +
+  'Wesensmerkmal — deshalb entscheidet diese Zahl den Vorschlag, wenn Kuration und ' +
+  'Anreicherungs-Grad gleichstehen.';

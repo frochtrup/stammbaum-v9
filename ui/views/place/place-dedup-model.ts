@@ -23,6 +23,10 @@ export interface PlaceDedupMember {
   /** Prüf-Marker (ADR-v9-191) — die zweite, unabhängige Achse: hat ein Mensch über dieses
    * Mitglied entschieden? Aus dem Inhalt nicht ableitbar, deshalb eigene Angabe. */
   reviewed: boolean;
+  /** Menge der datierten Perioden ([ADR-v9-296]) — dieselbe Zahl, die als vorletzte Sprosse
+   * den Vorschlag entscheidet. Sichtbar, damit er nachvollziehbar ist: eine Heuristik, deren
+   * Eingabe man nicht sieht, ist für den Nutzer ein Orakel. */
+  datiertePerioden: number;
   /** ADR-v9-77: `PlaceObject.type` roh (z. B. „Town"/„District"), leer wenn unklassifiziert.
    * Zeigt dem Nutzer die Kategorisierung jedes Mitglieds direkt im Dedup-Dialog — der häufige
    * Fall „Stadt X" + „Kreis X" wird sonst nur über den vollen Namen sichtbar, wenn überhaupt. */
@@ -141,6 +145,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         return po ? isReviewed(po) : false;
       };
       const typeOf = (id: PlaceId): string => db.placeObjects.get(id)?.type ?? '';
+      const periodenOf = (id: PlaceId): number => datedPeriods(db.placeObjects.get(id));
       const members: PlaceDedupMember[] = ids
         .map((id) => ({
           id,
@@ -148,6 +153,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
           fullName: fullNameOf(id),
           level: levelOf(id),
           reviewed: reviewedOf(id),
+          datiertePerioden: periodenOf(id),
           type: typeOf(id),
         }))
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));

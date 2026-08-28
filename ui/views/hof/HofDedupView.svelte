@@ -7,6 +7,7 @@
   import { tooltip } from '../../shell/tooltip';
   import { buildHofDedupGroups } from './hof-dedup-model';
   import { enrichmentLabel } from '../../shell/place-labels';
+  import { datedPeriodLabel, DATIERTE_PERIODEN_HILFE } from '../../shell/curation-dedup';
 
   /** Eigene Hof-Schwelle (ADR-v9-191): „ausführlich" heißt hier „mehr als die massenhaft
    *  gesetzte Koordinate" — am Realbestand trugen 163 von 183 Höfen genau diese eine. */
@@ -105,6 +106,7 @@
                   {/if}
                   <!-- ADR-v9-191, Geschwister-Stelle zur Orts-Dedup-Ansicht (INV-UI-4). -->
                   <span class="stb-pill" use:tooltip={ANREICHERUNG_HILFE[m.level]}>{enrichmentLabel(m.level)}</span>
+                  <span class="stb-pill" use:tooltip={DATIERTE_PERIODEN_HILFE}>{datedPeriodLabel(m.datiertePerioden)}</span>
                   {#if m.reviewed}
                     <span class="stb-pill" use:tooltip={'Ein Mensch hat diesen Hof ausdrücklich als geprüft markiert.'}>✓ geprüft</span>
                   {/if}

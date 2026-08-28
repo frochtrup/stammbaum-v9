@@ -26,6 +26,7 @@
     rich: 'Mehrere Angaben erfasst (Typ, Namensvarianten, datierte Zugehörigkeit, Koordinaten …).',
   } as const;
   import { buildPlaceDedupGroups } from './place-dedup-model';
+  import { datedPeriodLabel, DATIERTE_PERIODEN_HILFE } from '../../shell/curation-dedup';
 
   interface Props {
     appState: PlacesHost;
@@ -147,6 +148,10 @@
                   <!-- ADR-v9-191: Grad bei JEDEM Mitglied (nicht nur beim leeren) — hier
                        ist „ausführlich gegen wenig ergänzt" die eigentliche Frage. -->
                   <span class="stb-pill" use:tooltip={ANREICHERUNG_HILFE[m.level]}>{enrichmentLabel(m.level)}</span>
+                  <!-- ADR-v9-296: die Zahl, die den Vorschlag entscheidet, wenn Kuration und
+                       Grad gleichstehen — bei Verwaltungseinheiten der Regelfall. Auch die
+                       Null steht da: in einer Vergleichsfläche ist „keine" die Information. -->
+                  <span class="stb-pill" use:tooltip={DATIERTE_PERIODEN_HILFE}>{datedPeriodLabel(m.datiertePerioden)}</span>
                   {#if m.reviewed}
                     <!-- Zweite, unabhängige Achse: aus dem Inhalt nicht ableitbar. -->
                     <span class="stb-pill" use:tooltip={'Ein Mensch hat diesen Eintrag ausdrücklich als geprüft markiert.'}>✓ geprüft</span>
