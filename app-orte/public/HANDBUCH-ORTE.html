@@ -622,6 +622,76 @@
       Ereignis mehr auf einen „nicht gefundenen Ort", und keines fällt in die Review-Liste
       zurück, das vorher eindeutig zugeordnet war.</li>
 </ul>
+<p>
+  <strong>Wonach der Sieger vorgeschlagen wird.</strong> Nicht nach einer Punktzahl,
+  sondern nach einer Reihenfolge, die man in einem Satz sagen kann: Zuerst zählt, was
+  <em>an diesem Ort</em> belegt ist — ein von Hand kuratierter Ort schlägt jeden
+  automatisch angelegten, danach entscheidet der Anreicherungsgrad, dann die Zahl der
+  <strong>datierten Zeiträume</strong> (sie sind die Arbeit, die man nicht wiederholen
+  will), und erst zuletzt, wie oft der Ort im Baum vorkommt.
+</p>
+<p>
+  Eine Punktzahl könnte „zuerst" nicht ausdrücken: Bei genügend vielen Ereignissen
+  überstimmt jede Menge jedes Gewicht — und ein Klick hätte die gepflegte Fassung zugunsten
+  der häufiger verwendeten gelöscht. Wo zwei Orte gleichauf liegen, nennt der Vorschlag die
+  datierten Zeiträume <em>je Beteiligtem</em>, damit die Entscheidung nachvollziehbar
+  bleibt, statt am internen Datensatz-Kürzel zu hängen.
+</p>
+
+<h2>Woran die Automatik sich beim Anlegen hält</h2>
+<p>
+  Beim Laden liest die App aus den Ortsangaben Ihrer Ereignisse Orte und Höfe heraus. Was
+  sie dabei <em>nicht</em> tut, ist so wichtig wie das, was sie tut — drei Grenzen, jede
+  aus einem echten Fehlgriff gelernt:
+</p>
+<ul>
+  <li><strong>Ein Hof entsteht nur in einer Siedlung</strong>, nie in einem Kreis, einem
+    Département oder einem Land. Ein Hof „Altenoythe", dessen Dorf ein Landkreis ist, war
+    genau der Fall, der diese Grenze nötig gemacht hat. Einen <em>bestehenden</em> Hof
+    dürfen Sie überall anlegen — wer das von Hand tut, hat entschieden.</li>
+  <li><strong>Ein Komma in einer Klammer trennt keine Ortsebene.</strong>
+    <em>Oster 64 (110, Einhorst Leibzucht), Ochtrup</em> sind zwei Ebenen, nicht drei; die
+    Klammer klammert einen Namen. Geht eine Klammer nicht wieder zu, gilt die schlichte
+    Komma-Regel — ein verirrtes Zeichen soll nicht den Rest der Adresse verschlucken.</li>
+  <li><strong>Hausnummern werden nicht zu Ortsebenen.</strong> Ob ein führendes Segment
+    eine Hofstelle ist, entscheidet der Ortsbestand — trägt ein kuratierter Hof im Dorf
+    diese Adresse bereits, ist die Sache klar. Vorher wurde das aus dem Text erschlossen,
+    und aus <em>Weiner 5, Ochtrup</em> wurde ein „Ort" namens <em>Weiner 5</em>.</li>
+</ul>
+
+<h2>Das Ortsfeld im Ereignis zeigt die Kette — und nennt seine Quelle</h2>
+<p>
+  Im Ereignis-Editor steht im Feld <strong>Ort</strong> nicht der rohe Dateitext, sondern
+  die vollständige Ortsangabe, wie sie beim Speichern in die Datei geht: die
+  Verwaltungskette, die zum Datum des Ereignisses gilt. Was Sie dort sehen, ist also das,
+  was geschrieben wird.
+</p>
+<p>
+  Weicht Ihr Dateitext davon ab, erscheint darunter eine Zeile mit dem
+  <strong>Wortlaut aus der Datei</strong> und dem Knopf
+  <strong>„Projektion übernehmen"</strong>. Sie erscheint genau für die Ereignisse, die das
+  Dashboard unter den Orts-Befunden zählt — und sie bleibt sichtbar, nachdem Sie übernommen
+  haben, dann als Ansage („wird beim Speichern ersetzt"). Ein Hinweis, der in dem Moment
+  verschwindet, in dem er zutrifft, wäre keiner.
+</p>
+
+<h2>Wie genau ein Datum sein muss</h2>
+<p>
+  Welche Verwaltungskette gilt, hängt am Datum des Ereignisses — und daran, wie genau es
+  ist:
+</p>
+<ul>
+  <li><strong>Ein Monat ist eine Angabe, keine Unschärfe.</strong> <em>MAY 1808</em> wird
+    auf den Mai eingegrenzt, nicht auf das ganze Jahr 1808 gedehnt. Vorher entschied in
+    solchen Fällen eine Hilfsregel statt Ihrer Daten. Ein ausdrücklich vages Datum
+    (<em>ABT JUN 1810</em>, <em>BEF …</em>) bleibt ausgenommen: Dort ist „ungefähr" die
+    Aussage, nicht der Monat.</li>
+  <li><strong>Ohne Datum wird nichts ersetzt, was reicher ist als das Ergebnis.</strong>
+    Ohne Stichtag gibt es keine Kette, gegen die man messen könnte. Würde die App trotzdem
+    eine bauen, verkürzte sie <em>Wulfen, Kreis Recklinghausen, …</em> beim nächsten Laden
+    auf <em>Wulfen</em>. Nennt Ihre Ortsangabe Ebenen, die eine undatierte Projektion
+    fallenlassen würde, bleibt Ihr Wortlaut stehen.</li>
+</ul>
 
 <h2>Eine Korrektur wirkt bis ins Ereignis</h2>
 <p>

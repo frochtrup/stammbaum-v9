@@ -325,15 +325,28 @@
 
 <div class="shot-row">
   <div class="prose">
-    <h2>Demo-Stammbaum laden</h2>
+    <h2>Der Startbildschirm: drei Wege hinein</h2>
     <p>
-      Beim ersten Start ist die App leer. Der schnellste Weg hineinzuschnuppern:
+      Solange nichts geladen ist, steht anstelle der Liste ein Startbildschirm mit genau
+      den drei Wegen, die es gibt:
     </p>
     <ol>
-      <li>Unten rechts auf <strong>Mehr</strong> tippen.</li>
-      <li><strong>Datei</strong> wählen.</li>
-      <li><strong>Demo laden</strong> antippen.</li>
+      <li><strong>Datei öffnen (GEDCOM/GRAMPS)</strong> — Ihre eigene Datei. Der übliche Weg.</li>
+      <li><strong>Demo laden</strong> — der eingebaute Beispiel-Stammbaum zum Umsehen.</li>
+      <li><strong>Leer beginnen</strong> — ein neuer, leerer Baum unter dem Namen
+        <em>Neuer Stammbaum.ged</em>. Erst beim Speichern entscheiden Sie, wohin er geht.</li>
     </ol>
+    <p>
+      Der Startbildschirm ist eine <em>Lage</em>, kein Begrüßungsfenster: Er verschwindet
+      von selbst, sobald etwas geladen ist, und kommt wieder, wenn Sie den lokalen Speicher
+      zurücksetzen. Es gibt nichts wegzuklicken und keinen „nicht mehr zeigen"-Haken.
+    </p>
+    <p>
+      Er ersetzt dabei nur die <em>Liste</em>, nicht die Fläche: Die Segmentreihe darüber
+      bleibt bedienbar, und <strong>Orte und Höfe zeigen weiter ihren Bestand</strong> — der
+      gehört Ihnen geräteweit und hängt nicht an einer geladenen Datei (siehe
+      <a href="#k7">Kapitel 8</a>).
+    </p>
     <p>
       Der Demo-Stammbaum durchläuft dieselbe Lade-Verarbeitung wie eine echte Datei —
       Sie sehen also genau, wie sich Ihre eigenen Daten verhalten werden.
@@ -743,6 +756,38 @@
   direkten Ahnenlinie steht, ohne den Baum zu öffnen. Alphabetische Trenner gliedern die
   Liste nach Anfangsbuchstaben.
 </p>
+
+<h2>Notizen: eigene, weitere und geteilte</h2>
+<p>
+  Person, Familie und Quelle haben einen eigenen Abschnitt <strong>Notizen</strong> im
+  Steckbrief. Er führt in <em>einer</em> Liste zusammen, was in Ihrer Datei aus drei
+  Richtungen kommt — und sagt je Zeile, woher:
+</p>
+<ul>
+  <li>die <strong>eigene Notiz</strong> des Datensatzes,</li>
+  <li><strong>weitere</strong> Notizen desselben Datensatzes,</li>
+  <li><strong>geteilte</strong> Notizen — eigene Datensätze in Ihrer Datei, auf die
+    mehrere Personen zeigen können. Bei ihnen steht dabei, wer sie sonst noch verwendet.</li>
+</ul>
+<p>
+  Kurze Notizen stehen einfach da; erst ab einer gewissen Länge klappt sich eine Notiz
+  zusammen, und die Kopfzeile zeigt Anriss und Umfang. Diese Schwelle ist an einem echten
+  Bestand gemessen: Praktisch alle Ereignis-Notizen passen in vier Zeilen — eine Kürzung
+  über alles zu legen, hätte 98&nbsp;% der Fälle für die restlichen 2&nbsp;%
+  verschlechtert.
+</p>
+<p>
+  <strong>Bearbeiten und Entfernen</strong> gehen direkt am Abschnitt, und das Zeichen
+  sagt vorher, was passiert: <strong>🗑</strong> heißt „dieser Eintrag verschwindet" —
+  die Notiz gehört diesem Datensatz allein. <strong>✕</strong> heißt „der Verweis wird
+  entfernt": Die geteilte Notiz bleibt in der Datei bestehen, weil möglicherweise andere
+  sie noch verwenden. Beides fragt vor dem Ausführen noch einmal nach.
+</p>
+<div class="info">
+  Notizen an geteilten Datensätzen wurden bis Version 9.20 zwar angezeigt, aber beim
+  Speichern nicht zurückgeschrieben — eine Änderung daran verschwand still. Das ist
+  behoben; siehe <a href="#k15">Kapitel 18</a>.
+</div>
 
 <h2>Personenbezüge: Paten, Zeugen, Informanten</h2>
 <p>
@@ -1729,6 +1774,76 @@
       Ereignis mehr auf einen „nicht gefundenen Ort", und keines fällt in die Review-Liste
       zurück, das vorher eindeutig zugeordnet war.</li>
 </ul>
+<p>
+  <strong>Wonach der Sieger vorgeschlagen wird.</strong> Nicht nach einer Punktzahl,
+  sondern nach einer Reihenfolge, die man in einem Satz sagen kann: Zuerst zählt, was
+  <em>an diesem Ort</em> belegt ist — ein von Hand kuratierter Ort schlägt jeden
+  automatisch angelegten, danach entscheidet der Anreicherungsgrad, dann die Zahl der
+  <strong>datierten Zeiträume</strong> (sie sind die Arbeit, die man nicht wiederholen
+  will), und erst zuletzt, wie oft der Ort im Baum vorkommt.
+</p>
+<p>
+  Eine Punktzahl könnte „zuerst" nicht ausdrücken: Bei genügend vielen Ereignissen
+  überstimmt jede Menge jedes Gewicht — und ein Klick hätte die gepflegte Fassung zugunsten
+  der häufiger verwendeten gelöscht. Wo zwei Orte gleichauf liegen, nennt der Vorschlag die
+  datierten Zeiträume <em>je Beteiligtem</em>, damit die Entscheidung nachvollziehbar
+  bleibt, statt am internen Datensatz-Kürzel zu hängen.
+</p>
+
+<h2>Woran die Automatik sich beim Anlegen hält</h2>
+<p>
+  Beim Laden liest die App aus den Ortsangaben Ihrer Ereignisse Orte und Höfe heraus. Was
+  sie dabei <em>nicht</em> tut, ist so wichtig wie das, was sie tut — drei Grenzen, jede
+  aus einem echten Fehlgriff gelernt:
+</p>
+<ul>
+  <li><strong>Ein Hof entsteht nur in einer Siedlung</strong>, nie in einem Kreis, einem
+    Département oder einem Land. Ein Hof „Altenoythe", dessen Dorf ein Landkreis ist, war
+    genau der Fall, der diese Grenze nötig gemacht hat. Einen <em>bestehenden</em> Hof
+    dürfen Sie überall anlegen — wer das von Hand tut, hat entschieden.</li>
+  <li><strong>Ein Komma in einer Klammer trennt keine Ortsebene.</strong>
+    <em>Oster 64 (110, Einhorst Leibzucht), Ochtrup</em> sind zwei Ebenen, nicht drei; die
+    Klammer klammert einen Namen. Geht eine Klammer nicht wieder zu, gilt die schlichte
+    Komma-Regel — ein verirrtes Zeichen soll nicht den Rest der Adresse verschlucken.</li>
+  <li><strong>Hausnummern werden nicht zu Ortsebenen.</strong> Ob ein führendes Segment
+    eine Hofstelle ist, entscheidet der Ortsbestand — trägt ein kuratierter Hof im Dorf
+    diese Adresse bereits, ist die Sache klar. Vorher wurde das aus dem Text erschlossen,
+    und aus <em>Weiner 5, Ochtrup</em> wurde ein „Ort" namens <em>Weiner 5</em>.</li>
+</ul>
+
+<h2>Das Ortsfeld im Ereignis zeigt die Kette — und nennt seine Quelle</h2>
+<p>
+  Im Ereignis-Editor steht im Feld <strong>Ort</strong> nicht der rohe Dateitext, sondern
+  die vollständige Ortsangabe, wie sie beim Speichern in die Datei geht: die
+  Verwaltungskette, die zum Datum des Ereignisses gilt. Was Sie dort sehen, ist also das,
+  was geschrieben wird.
+</p>
+<p>
+  Weicht Ihr Dateitext davon ab, erscheint darunter eine Zeile mit dem
+  <strong>Wortlaut aus der Datei</strong> und dem Knopf
+  <strong>„Projektion übernehmen"</strong>. Sie erscheint genau für die Ereignisse, die das
+  Dashboard unter den Orts-Befunden zählt — und sie bleibt sichtbar, nachdem Sie übernommen
+  haben, dann als Ansage („wird beim Speichern ersetzt"). Ein Hinweis, der in dem Moment
+  verschwindet, in dem er zutrifft, wäre keiner.
+</p>
+
+<h2>Wie genau ein Datum sein muss</h2>
+<p>
+  Welche Verwaltungskette gilt, hängt am Datum des Ereignisses — und daran, wie genau es
+  ist:
+</p>
+<ul>
+  <li><strong>Ein Monat ist eine Angabe, keine Unschärfe.</strong> <em>MAY 1808</em> wird
+    auf den Mai eingegrenzt, nicht auf das ganze Jahr 1808 gedehnt. Vorher entschied in
+    solchen Fällen eine Hilfsregel statt Ihrer Daten. Ein ausdrücklich vages Datum
+    (<em>ABT JUN 1810</em>, <em>BEF …</em>) bleibt ausgenommen: Dort ist „ungefähr" die
+    Aussage, nicht der Monat.</li>
+  <li><strong>Ohne Datum wird nichts ersetzt, was reicher ist als das Ergebnis.</strong>
+    Ohne Stichtag gibt es keine Kette, gegen die man messen könnte. Würde die App trotzdem
+    eine bauen, verkürzte sie <em>Wulfen, Kreis Recklinghausen, …</em> beim nächsten Laden
+    auf <em>Wulfen</em>. Nennt Ihre Ortsangabe Ebenen, die eine undatierte Projektion
+    fallenlassen würde, bleibt Ihr Wortlaut stehen.</li>
+</ul>
 
 <h2>Eine Korrektur wirkt bis ins Ereignis</h2>
 <p>
@@ -2595,6 +2710,28 @@
       ihrem Dorf entfernt, ringförmige Zugehörigkeitsketten (A liegt in B liegt in A) und
       Zeiträume historischer Ortsnamen, die sich überlappen oder ohne Datum dastehen.
     </p>
+    <p>
+      Zwei dieser Regeln sind seit Version 9.20 nach <em>Ursache</em> getrennt, weil sie
+      vorher als ein einziger Befund erschienen und dabei Dinge meldeten, an denen nichts
+      falsch war:
+    </p>
+    <ul>
+      <li><strong>„Ortsangabe nennt eine unbekannte Ebene"</strong> meldet nur noch den
+        Fall, den der Titel behauptet — eine Ebene, die im Ortsbestand wirklich nicht
+        vorkommt. Ereignisse <em>ohne Datum</em> fallen heraus (ohne Stichtag gibt es keine
+        Kette, gegen die man prüfen könnte), ebenso Orte ohne hinterlegte Kette.</li>
+      <li><strong>„Ort ohne Verwaltungskette"</strong> ist neu und steht dort, wo man
+        etwas tun kann: <em>am Ort</em>, einmal statt an jedem Ereignis. Es ist kein
+        Datenfehler, sondern ein Kurationsauftrag — dem Ort fehlt die Angabe, worin er
+        liegt, deshalb lassen sich die Ebenen Ihrer Ortsangaben nicht bestätigen.</li>
+    </ul>
+    <p>
+      In der <strong>Regel-Konfiguration</strong> (⚙) wirkt jede Änderung sofort — auch,
+      wenn Sie ein Schwellenfeld nur verlassen, ohne die Eingabetaste zu drücken. Es gibt
+      dort kein „Speichern" mehr; „Fertig" schließt nur die Fläche. Die Zählung neben
+      <strong>Filter</strong> nennt, wie viele Befundarten gerade <em>ausgeblendet</em>
+      sind — nicht, wie weit Sie von der Voreinstellung abweichen.
+    </p>
   </div>
   <figure class="phone">
     <img src="handbuch-assets/23-dashboard.png" alt="Qualitäts-Dashboard mit Ampel, Lückenradar und Brennpunkten">
@@ -2773,7 +2910,14 @@
 </ul>
 <p>
   Jeder dieser Punkte ist einzeln gemessen, behoben und mit einem automatischen Wächter
-  gegen Rückfall gesichert. Der Grundsatz dahinter lautet: <em>Der Wert in Ihrer Datei
+  gegen Rückfall gesichert. Seit Version 9.19 sind vier weitere dazugekommen, alle von
+  denselben Prüfläufen gefunden: <strong>Notizen als eigene Datensätze</strong> wurden
+  angezeigt, aber nicht zurückgeschrieben — eine Änderung daran verschwand still (219 in
+  einer Testdatei). Bei <strong>langen, umgebrochenen Texten</strong> las eine Vergleichs-
+  stelle nur die erste Zeile, was zwei verschiedene Notizen gleich aussehen ließ.
+  Gleichartige Zeilen wurden beim Zurückschreiben <strong>nach Position statt nach
+  Form</strong> zugeordnet, und eine wiederholte Beweiskraft-Angabe wurde
+  <strong>verdoppelt statt zusammengefasst</strong>. Der Grundsatz dahinter lautet: <em>Der Wert in Ihrer Datei
   ist die Wahrheit, bis jemand ihn anfasst.</em> Solange Sie ein Feld nicht bearbeiten,
   geht der Wortlaut Ihrer Quelle wieder heraus — auch dann, wenn die App ihn selbst
   anders schreiben würde. Ändern Sie das Feld, tritt Ihre Fassung an seine Stelle.
@@ -2811,10 +2955,28 @@
       <strong>Export-Vorwahl</strong> im Export-Dialog. Ein Link führt jeweils dorthin.
       Eine Einstellung zweimal bedienbar zu machen, schafft nur die Frage, welche der
       beiden gilt.</li>
+  <li><strong>Sicherung beim Speichern</strong> — <em>nur auf diesem Gerät.</em> Der
+      Ordner, in den die datierte Kopie vor jedem Überschreiben geht (siehe oben). Wie beim
+      Medien-Ordner kann eine Ordner-Freigabe das Gerät nicht wechseln.</li>
   <li><strong>Mitnehmen (<code>app-data.json</code>)</strong> — <em>gilt für alle
       Stammbäume und reist mit</em>: Export und Import dieser kleinen Datei, die keine
       Personendaten enthält (gleich unten mehr).</li>
+  <li><strong>Zurücksetzen</strong> — für den Fall eines verhedderten lokalen Zustands.
+      <strong>Ortsdaten zurücksetzen</strong> leert nur den Ortsspiegel; beim nächsten Laden
+      werden Orte neu aufgelöst. <strong>Alles zurücksetzen</strong> leert jeden lokalen
+      Speicher der App, danach startet sie leer. Beide fassen <em>Ihre</em>
+      GEDCOM-/GRAMPS-Datei nicht an — gelöscht wird nur, was im Browser liegt.</li>
 </ul>
+<div class="warn">
+  <strong>Vor „Alles zurücksetzen" lesen, was daran hängt.</strong> Die Rückfrage zählt
+  nicht bloß Speicher, sie nennt sie beim Namen und in drei Klassen: Was es
+  <em>kein zweites Mal gibt</em> (Forschungsprojekte, „kein Duplikat"-Entscheidungen,
+  Regel-Konfiguration, App-Einstellungen), was <em>nur mit einem Export</em> zurückkommt
+  (kuratierte Orte und Höfe, importierte Medien) und was <em>wiederbeschaffbar</em> ist
+  (Arbeitskopie, gemerkte Ordner-Zugriffe). Der Unterschied ist der Punkt: Eine
+  Arbeitskopie steht auch in Ihrer Datei — ein gepflegter Ortsbestand steht in
+  <em>keiner</em> GEDCOM-Datei.
+</div>
   </div>
   <figure class="phone">
     <img src="handbuch-assets/31-einstellungen.png" alt="Einstellungen mit den Gruppen Medien-Ordner, App-Daten und Wird woanders bedient">
