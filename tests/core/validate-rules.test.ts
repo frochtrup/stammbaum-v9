@@ -666,6 +666,47 @@ describe('EVIDENCE_CONFLICT (Widersprüchliche Evidenz)', () => {
   });
 });
 
+describe('PLAC_NICHT_GESPEICHERT — was angezeigt wird, geht so nicht in die Datei ([ADR-v9-304])', () => {
+  /** Dorf mit Kette; das Ereignis trägt den ROHEN Dateitext, der davon abweicht. */
+  function bestand(text: string): Database {
+    const places = new Map([
+      ['@ELTER@', place('@ELTER@', { title: 'Amt Vechta' })],
+      [
+        '@DORF@',
+        place('@DORF@', {
+          title: 'Vechta',
+          enclosedBy: [{ placeId: '@ELTER@', from: null, to: null, fromDate: null, toDate: null }],
+        }),
+      ],
+    ]);
+    const p = personWith('@I1@');
+    p.birth = makeEvent('BIRT', { date: '31 JAN 1815', place: text, placeId: '@DORF@', seen: true });
+    return dbWith([p], [], { placeObjects: places });
+  }
+
+  it('meldet, wenn die Datei etwas anderes trägt als die Anzeige — und nennt beide Werte', () => {
+    const treffer = texts(bestand('Vechta, Amt Vechta, Deutschland'), 'PLAC_NICHT_GESPEICHERT');
+    expect(treffer).toHaveLength(1);
+    expect(treffer[0]).toMatch(/anders gespeichert als angezeigt/);
+    expect(treffer[0]).toMatch(/Vechta, Amt Vechta, Deutschland/); // die Datei-Seite
+    expect(treffer[0]).toMatch(/Projektion übernehmen/); // der Weg heraus
+  });
+
+  it('schweigt, wenn Datei und Anzeige übereinstimmen', () => {
+    expect(texts(bestand('Vechta, Amt Vechta'), 'PLAC_NICHT_GESPEICHERT')).toEqual([]);
+  });
+
+  it('ist eine WARNUNG, nicht ein Hinweis — sonst blendet die Dashboard-Vorgabe sie aus', () => {
+    // Der halbe Nutzer-Befund war „das dashboard zeigt keinen hinweis": die Vorgabe-
+    // Filterung ist `attention` (Fehler + Warnungen) und lässt `info` gar nicht erst
+    // sehen. Eine Regel über einen stillen Unterschied darf nicht selbst still sein.
+    const findings = runValidation(bestand('Vechta, Amt Vechta, Deutschland'), defaultConfig());
+    const treffer = findings.find((f) => f.rule === 'PLAC_NICHT_GESPEICHERT');
+    expect(treffer).toBeDefined();
+    expect(treffer!.severity).toBe('warn');
+  });
+});
+
 describe('PLAC_EBENE_UNBEKANNT — die Gegenseite der Verarmungs-Sperre (ADR-v9-247)', () => {
   /** Dorf unter Elter; das Ereignis hängt am Dorf und trägt den Text der Quelle. */
   function bestand(text: string, elterTitel = 'Kreis Steinfurt'): Database {

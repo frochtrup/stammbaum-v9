@@ -386,3 +386,42 @@ function ketteNamen(
 export function eventSpanne(ev: Event): Spanne | null {
   return spanneVonEreignis(ev.date);
 }
+
+/**
+ * Weicht das, was die Oberfläche ZEIGT, von dem ab, was beim Speichern in die DATEI geht?
+ * (Nutzer-Befund 2026-08-28, [ADR-v9-304].)
+ *
+ * DIE LÜCKE, DIE DAS SCHLIESST. Seit [ADR-v9-197] schreibt der Writer `ev.place` und
+ * NICHT die Live-Projektion — mit gutem Grund: die Live-Fassung schrieb bei jedem
+ * Speichern 668 Werte um, an Ereignissen, die niemand angefasst hatte. Die Anzeige
+ * dagegen rechnet periodengerecht (`buildFormString`/`buildPlacForGedcom`). Beide
+ * Entscheidungen sind für sich richtig; zusammen erzeugen sie einen Zustand, den nichts
+ * benennt: Auf dem Schirm steht die gepflegte Kette, in der Datei der alte Text — und
+ * der nächste Export schreibt den alten.
+ *
+ * `alignCuratedEventTexts` gleicht `ev.place` beim Laden an, aber nur, wenn seine Sperre
+ * es zulässt ([ADR-v9-224]). Genau die Ereignisse, an denen sie greift, bleiben still
+ * auseinander. Am Bestand des Nutzers (`…2026-4-2-2-7.ged` × `orte-24.json`, 6.149
+ * verankerte Ereignisse): **33 Fälle, 32 davon ohne jeden Hinweis** — 27× nur die Form
+ * (leere Segmente aus dem Ancestris-Export, `, Mainz, , , ,` → `Mainz`), 6× echter
+ * Inhalt (`Randau, Herzogtum Magdeburg, Heiliges Römisches Reich…` → `Randau`).
+ *
+ * Rein und ohne Urteil: WAS damit geschieht, entscheiden Regel und Oberfläche. Die
+ * Funktion sagt nur, dass es auseinanderläuft, und nennt beide Seiten — wer nur ein
+ * `boolean` zurückgäbe, zwänge jeden Aufrufer, die zweite Hälfte selbst zu rechnen.
+ */
+export function anzeigeAbweichung(
+  ev: Event,
+  ctx: PlaceContext,
+): { angezeigt: string; gespeichert: string } | null {
+  if (!ev) return null;
+  // Ohne Verankerung gibt es keine Projektion — die Anzeige zeigt dann `ev.place` selbst.
+  if (ev.placeId == null && ev.hofId == null) return null;
+  const gespeichert = ev.place ?? '';
+  if (gespeichert === '') return null;
+  const angezeigt = buildPlacForGedcom(ev, eventSpanne(ev), ctx);
+  // `null` heißt: die Projektion tritt gar nicht an (Sperre, fehlendes Hof-Objekt) — die
+  // Anzeige fällt dann selbst auf `ev.place` zurück, es läuft nichts auseinander.
+  if (angezeigt == null || angezeigt === gespeichert) return null;
+  return { angezeigt, gespeichert };
+}

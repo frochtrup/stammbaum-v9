@@ -256,4 +256,5 @@ export type RuleId =
   | 'ORT_OHNE_KETTE'
   // Format (Interop)
   | 'ADDR_INDEX_ONLY'
-  | 'PLAC_EBENE_UNBEKANNT';
+  | 'PLAC_EBENE_UNBEKANNT'
+  | 'PLAC_NICHT_GESPEICHERT';

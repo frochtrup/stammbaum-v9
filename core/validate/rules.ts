@@ -12,7 +12,7 @@ import type { Hit, Rule, RuleContext } from './types';
 import type { Event, Family, Person } from '../model/types';
 import { distanceKm } from './geo';
 import type { CitationFact } from './facts';
-import { ebenenBefund } from '../places';
+import { ebenenBefund, anzeigeAbweichung } from '../places';
 import {
   birthYear,
   citedSourceIds,
@@ -113,6 +113,38 @@ function adressStrukturVerletzt(ev: Event): boolean {
  * redundant, es kollidierte im Brennpunkte-Key (`rule + text`) und ließ die ganze Liste
  * ausfallen. Dieselbe Bauform wie `ADDR_INDEX_ONLY` daneben: zählen, nicht wiederholen.
  */
+/**
+ * Befund für `PLAC_NICHT_GESPEICHERT`: EIN Treffer je Entität, der die betroffenen
+ * Ereignisse zählt und den ersten Fall im Wortlaut zeigt.
+ *
+ * GEBÜNDELT wie `ebenenBefunde` daneben, aus demselben gemessenen Grund: zwei Ereignisse
+ * derselben Person tragen oft denselben Ortstext, und je Ereignis ein Befund hieße
+ * zweimal derselbe Satz — im Brennpunkte-Schlüssel (`rule + text`) kollidiert das
+ * obendrein.
+ *
+ * DER WORTLAUT NENNT BEIDE SEITEN, nicht nur die Zahl. „Angezeigt wird X, gespeichert
+ * wird Y" ist die einzige Form, in der man die Meldung ohne Nachschlagen einordnen kann —
+ * bei 27 der 33 gemessenen Fälle ist der Unterschied reine Form (leere Segmente), bei 6
+ * echter Inhaltsverlust, und diese Einordnung soll der Nutzer treffen, nicht die Regel.
+ */
+function abweichungsBefunde(evs: readonly Event[], ctx: RuleContext): readonly Hit[] {
+  let betroffen = 0;
+  let erste: { angezeigt: string; gespeichert: string } | null = null;
+  for (const ev of evs) {
+    const ab = anzeigeAbweichung(ev, ctx.places);
+    if (!ab) continue;
+    betroffen++;
+    if (!erste) erste = ab;
+  }
+  if (!erste) return NONE;
+  const wo = betroffen === 1 ? 'Eine Ortsangabe wird' : `${betroffen} Ortsangaben werden`;
+  return [
+    {
+      text: `${wo} anders gespeichert als angezeigt — angezeigt „${erste.angezeigt}", gespeichert „${erste.gespeichert}". Über „Projektion übernehmen" im Ereignis wird die angezeigte Fassung übernommen.`,
+    },
+  ];
+}
+
 function ebenenBefunde(evs: readonly Event[], ctx: RuleContext): readonly Hit[] {
   const fehlend = new Set<string>();
   let betroffen = 0;
@@ -489,6 +521,26 @@ export const RULES: readonly Rule[] = [
     },
   },
   // ── Format (Interop) ───────────────────────────────────────────────
+  {
+    id: 'PLAC_NICHT_GESPEICHERT',
+    label: 'Angezeigte Ortsangabe wird so nicht gespeichert',
+    group: 'format',
+    severity: 'warn',
+    defaultEnabled: true,
+    threshold: null,
+    category: 'online',
+    // WARNUNG, NICHT HINWEIS — und das ist der halbe Befund (Nutzer 2026-08-28: „das
+    // dashboard zeigt keinen hinweis"). Die Vorgabe-Filterung des Dashboards ist
+    // `attention` (Fehler + Warnungen) und blendet `info` aus; eine Regel über einen
+    // stillen Datei-/Anzeige-Unterschied, die selbst still ist, wäre keine.
+    //
+    // Was sie meldet, ist keine schlechte Datenqualität, sondern eine DIVERGENZ: Die
+    // Anzeige rechnet die periodengerechte Kette, der Writer schreibt `ev.place`
+    // ([ADR-v9-197]). Beides ist für sich gewollt — zusammen heißt es, dass der nächste
+    // Export etwas anderes in die Datei schreibt, als auf dem Schirm steht.
+    person: (p, ctx) => abweichungsBefunde(personEvents(p), ctx),
+    family: (f, ctx) => abweichungsBefunde(familyEvents(f), ctx),
+  },
   {
     id: 'ADDR_INDEX_ONLY',
     label: 'Adresse nur in den Index-Tags (ADDR-Zeile leer)',

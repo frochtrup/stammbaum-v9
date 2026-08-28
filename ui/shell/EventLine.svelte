@@ -165,7 +165,11 @@
               tabindex="0"
               onclick={handlePlaceClick}
               onkeydown={handlePlaceKeydown}
-            >{ev.placeLabel}</span>{:else}<span class="event-line__place-text">{ev.placeLabel}</span>{/if}{/if}
+            >{ev.placeLabel}</span>{:else}<span class="event-line__place-text">{ev.placeLabel}</span>{/if}{#if ev.placeAbweichendGespeichert}<span
+            class="event-line__place-warn"
+            use:tooltip={`Wird so nicht gespeichert. In der Datei steht: ${ev.placeAbweichendGespeichert} — mit „Projektion übernehmen“ im Ereignis wird die angezeigte Fassung übernommen.`}
+            aria-label={`Angezeigte Ortsangabe weicht vom gespeicherten Wert ab: ${ev.placeAbweichendGespeichert}`}
+          >⚠</span>{/if}{/if}
       </span>
     {/if}
     <!-- Datums-Freitext (BL-197, GEDCOM PHRASE) — kursiv; steht auch ohne formatiertes Datum. -->
@@ -265,6 +269,15 @@
   .event-line__value {
     color: var(--stb-text);
     font-size: 0.85rem;
+  }
+
+  /* Das Zeichen sitzt direkt hinter der Ortskette, weil es über SIE etwas aussagt: „so,
+     wie das hier steht, geht es nicht in die Datei". Am Zeilenende hinter Quellen und
+     Aktionen gelesen, wäre der Bezug weg ([ADR-v9-304]). */
+  .event-line__place-warn {
+    margin-left: 0.25rem;
+    color: var(--stb-warn, #d08a2a);
+    cursor: help;
   }
 
   .event-line__date {
