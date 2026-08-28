@@ -6,7 +6,7 @@
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
-import { isCuratedPlace, findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed, eventSpanne } from '../../../core/places';
+import { isCuratedPlace, findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed, eventSpanne, placeDatedPeriods } from '../../../core/places';
 import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
@@ -93,17 +93,6 @@ function reachCounts(events: readonly Event[], ctx: PlaceContext): Map<PlaceId, 
 }
 
 /**
- * Menge der DATIERTEN Perioden eines Orts über BEIDE Zeitachsen — Zugehörigkeit
- * (`enclosedBy`) und Namen (`pnames`), [ADR-v9-296]. Bewusst die Menge, nicht der Anteil:
- * ein Land ohne Elter hätte 0/0, und ein Anteil bestrafte den Reicheren.
- */
-function datedPeriods(po: PlaceObject | undefined): number {
-  if (!po) return 0;
-  const datiert = (x: { from: number | null; to: number | null }) => x.from != null || x.to != null;
-  return po.enclosedBy.filter(datiert).length + po.pnames.filter(datiert).length;
-}
-
-/**
  * Baut die Massen-Dedup-Gruppen (Spec 11 §9.2): Kandidatengruppen aus `findPlaceDuplicates`
  * + je einem Gewinner-Vorschlag. Deterministisch bei gleicher Eingabe (TST-3-Analog auf
  * UI-Ebene — reine Funktion).
@@ -130,7 +119,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
               // ADR-v9-296: die vorhandene Kennzahl IST jetzt die zweite Sprosse; die
               // früheren Einzelfragen `hasCoords`/`hasNote` sind zwei ihrer sieben Facetten.
               level: po ? placeEnrichmentLevel(po) : 'none',
-              datiertePerioden: datedPeriods(po),
+              datiertePerioden: placeDatedPeriods(po),
               usage: usage.get(id) ?? 0,
             },
           ];
@@ -145,7 +134,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         return po ? isReviewed(po) : false;
       };
       const typeOf = (id: PlaceId): string => db.placeObjects.get(id)?.type ?? '';
-      const periodenOf = (id: PlaceId): number => datedPeriods(db.placeObjects.get(id));
+      const periodenOf = (id: PlaceId): number => placeDatedPeriods(db.placeObjects.get(id));
       const members: PlaceDedupMember[] = ids
         .map((id) => ({
           id,
