@@ -2853,9 +2853,12 @@
   Sichern bei jedem Speichern von allein.
 </p>
 <ul>
-  <li><strong>Es wird nie stillschweigend ungesichert überschrieben.</strong> Ist kein
-    Ordner verbunden, speichert Stammbaum trotzdem — sagt Ihnen aber in derselben Meldung,
-    dass diesmal keine Sicherung entstanden ist.</li>
+  <li><strong>Ohne verbundenen Ordner wird nicht überschrieben.</strong> Stammbaum meldet
+    dann, dass Ihr bisheriger Stand ungesichert überschrieben würde, und lässt Ihre Datei
+    unangetastet. Ein Knopf neben der Meldung wählt den Ordner und führt denselben
+    Speichervorgang zu Ende; wer bewusst ohne Sicherung speichern will, nimmt den Knopf
+    daneben. Nur wo das Gerät gar keine Ordner freigeben kann (iPhone, iPad), speichert
+    Stammbaum ohne Sicherung — dort überschreibt es aber ohnehin nichts unbemerkt.</li>
   <li><strong>Scheitert die Sicherung, wird nicht überschrieben.</strong> Ihre Datei bleibt
     dann unangetastet, und die Meldung nennt den Grund. Umgekehrt — erst schreiben, dann
     sichern — wäre der Verlust schon geschehen, während die Meldung ihn beklagt.</li>
@@ -2881,7 +2884,9 @@
   <li><strong>Speichern</strong> — zurück in Ihre Datei, mit Sicherung davor. Der
     Normalfall, auch hinter <kbd>⌘S</kbd> / <kbd>Strg&nbsp;+&nbsp;S</kbd>.</li>
   <li><strong>Ohne Sicherung speichern</strong> — überspringt die Kopie. Für den schnellen
-    Zwischenstand, und der Ausweg, wenn die Sicherung einmal nicht gelingt.</li>
+    Zwischenstand, und der Ausweg, wenn kein Ordner verbunden ist oder die Sicherung einmal
+    nicht gelingt. Dieser Weg ist der einzige, der ohne Sicherung überschreibt — und er
+    verlangt einen bewussten Klick.</li>
   <li><strong>Speichern unter …</strong> — öffnet den Datei-Dialog, auch wenn Stammbaum
     Ihre Datei längst kennt. Der dort gewählte Name gilt ab dann: Weitere Speicherungen
     gehen in <em>diese</em> Datei, die vorige bleibt als Stand liegen.</li>

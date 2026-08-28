@@ -63,16 +63,17 @@ describe('INV-FILE-3 — Tier-Auswahl ist die einzige Plattform-Verzweigung', ()
   it('wählt Tier 1 (FS-Handle), wenn ein Handle vorliegt UND die Plattform createWritable unterstützt', async () => {
     const { adapters, fsHandle, share, download } = createMockAdapterSet({
       fsHandleSupported: true,
-      shareSupported: true // Tier 2 wäre auch verfügbar — Tier 1 hat Vorrang.
+      shareSupported: true, // Tier 2 wäre auch verfügbar — Tier 1 hat Vorrang.
+      // Ein verbundener Backup-Ordner gehört seit [ADR-v9-302] zur Voraussetzung eines
+      // In-place-Saves: ohne ihn bricht Tier 1a ab, statt ungesichert zu überschreiben.
+      backupConnected: true,
+      diskContent: new TextEncoder().encode('ALT')
     });
     const svc = new FileService(adapters);
 
     const result = await svc.exportToFile('BYTES', 'datei.ged', 'text/plain', { handle: { id: 1 } });
 
-    // `backup: 'kein-ordner'` ist der Vorgabe-Zustand ohne verbundenen Backup-Ordner
-    // ([ADR-v9-302]) — die Tier-Wahl selbst ist unverändert, sie meldet nur zusätzlich,
-    // dass nicht gesichert wurde (INV-FILE-4: nie stillschweigend).
-    expect(result).toEqual({ tier: 'fs-handle', ok: true, backup: 'kein-ordner' });
+    expect(result).toMatchObject({ tier: 'fs-handle', ok: true, backup: 'geschrieben' });
     expect(fsHandle.writeCalls).toEqual([{ handle: { id: 1 }, bytes: 'BYTES' }]);
     expect(share.share).not.toHaveBeenCalled();
     expect(download.download).not.toHaveBeenCalled();

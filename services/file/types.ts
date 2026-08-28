@@ -56,12 +56,15 @@ export interface SaveResult {
    * Nur bei Tier 1a von Belang; alle anderen Tiers überschreiben nichts.
    *
    *   `geschrieben`        — der vorherige Dateiinhalt liegt als datierte Kopie im Ordner
-   *   `kein-ordner`        — kein Backup-Ordner verbunden; gespeichert wurde trotzdem
+   *   `kein-ordner`        — kein Ordner verbunden, obwohl die Plattform es könnte;
+   *                          DANN WURDE NICHT ÜBERSCHRIEBEN (`ok:false`)
+   *   `nicht-moeglich`     — die Plattform kann keinen Ordner freigeben (iOS/Safari);
+   *                          gespeichert wurde, weil es hier keine Wahl zu treffen gibt
    *   `uebersprungen`      — der Nutzer hat „Ohne Sicherung speichern" gewählt
    *   `leer`               — die Datei war leer/nicht lesbar; es gab nichts zu sichern
    *   `fehlgeschlagen`     — die Sicherung schlug fehl; DANN WURDE NICHT ÜBERSCHRIEBEN
    */
-  backup?: 'geschrieben' | 'kein-ordner' | 'uebersprungen' | 'leer' | 'fehlgeschlagen';
+  backup?: 'geschrieben' | 'kein-ordner' | 'nicht-moeglich' | 'uebersprungen' | 'leer' | 'fehlgeschlagen';
   /** Dateiname der geschriebenen Sicherung (nur bei `backup: 'geschrieben'`). */
   backupName?: string;
   /** Grund des Fehlschlags (nur bei `backup: 'fehlgeschlagen'`) — für die Meldung. */

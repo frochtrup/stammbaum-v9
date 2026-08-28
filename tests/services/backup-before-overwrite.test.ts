@@ -102,15 +102,31 @@ describe('INV-FILE-4 — Tier 1a sichert, bevor es überschreibt', () => {
     expect(fsHandle.writeCalls).toEqual([]);
   });
 
-  it('speichert ohne verbundenen Ordner — meldet den Verzicht aber ausdrücklich', async () => {
+  it('überschreibt NICHT, solange kein Ordner verbunden ist — die Zusage gilt ab dem ersten Save', async () => {
     const { adapters, fsHandle, backup } = inPlaceUmgebung(); // backupConnected: false
     const svc = new FileService(adapters);
 
     const result = await svc.exportToFile('NEU', 'x.ged', 'text/plain', { handle: { id: 1 } });
 
-    // Kein Ordner ist KEIN Fehlschlag: die Zusage löst der Nutzer erst ein, wenn er einen
-    // verbindet. Aber still darf es nicht sein — genau das ist INV-FILE-4.
-    expect(result).toMatchObject({ tier: 'fs-handle', ok: true, backup: 'kein-ordner' });
+    // DIE KORREKTUR AUS DEM NUTZER-BEFUND (2026-08-28): Die erste Fassung ließ hier
+    // durchschreiben und meldete den Verzicht nur — womit ausgerechnet die Lage direkt
+    // nach dem Update, in der noch niemand einen Ordner gewählt hat, ungeschützt blieb.
+    // Ein „kein Ordner" ist eine offene ENTSCHEIDUNG, kein Grund, sie zu übergehen.
+    expect(result).toMatchObject({ tier: 'fs-handle', ok: false, backup: 'kein-ordner' });
+    expect(fsHandle.writeCalls).toEqual([]);
+    expect(backup.writes).toEqual([]);
+  });
+
+  it('speichert dennoch, wo die Plattform gar keinen Ordner freigeben kann (iOS/Safari)', async () => {
+    const { adapters, fsHandle, backup } = inPlaceUmgebung();
+    // Kein `showDirectoryPicker`: hier gibt es keine Wahl, die der Nutzer treffen könnte.
+    // Ein Abbruch machte die App dauerhaft speicher-unfähig, statt sie zu schützen.
+    backup.adapter.isSupported = () => false;
+    const svc = new FileService(adapters);
+
+    const result = await svc.exportToFile('NEU', 'x.ged', 'text/plain', { handle: { id: 1 } });
+
+    expect(result).toMatchObject({ tier: 'fs-handle', ok: true, backup: 'nicht-moeglich' });
     expect(fsHandle.writeCalls).toHaveLength(1);
     expect(backup.writes).toEqual([]);
   });

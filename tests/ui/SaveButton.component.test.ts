@@ -59,13 +59,34 @@ describe('SaveButton — die drei Wege (Spec 14 §4.1)', () => {
     );
   });
 
-  it('sagt es, wenn OHNE Sicherung gespeichert wurde — INV-FILE-4', async () => {
-    const { fsHandle } = setup(); // kein Ordner verbunden
+  it('speichert NICHT, solange kein Ordner verbunden ist — und bietet den Ausweg an', async () => {
+    const { fsHandle, backup } = setup(); // kein Ordner verbunden
     await fireEvent.click(knopf('Speichern'));
 
+    await waitFor(() => expect(screen.getByText(/Nicht gespeichert/)).toBeTruthy());
+    // Der eigentliche Punkt (Nutzer-Befund 2026-08-28): die Datei ist unangetastet.
+    expect(fsHandle.writeCalls).toEqual([]);
+    // Und die Meldung ist keine Sackgasse — der Weg heraus steht als Knopf daneben.
+    const waehlen = knopf('Backup-Ordner wählen und speichern');
+    expect(waehlen).toBeTruthy();
+
+    // Ein Klick verbindet den Ordner UND führt denselben Save zu Ende.
+    await fireEvent.click(waehlen);
     await waitFor(() => expect(fsHandle.writeCalls).toHaveLength(1));
-    // Die Datei ist geschrieben — und der Satz verschweigt die fehlende Sicherung nicht.
-    await waitFor(() => expect(screen.getByText(/Ohne Sicherung — kein Backup-Ordner verbunden/)).toBeTruthy());
+    expect(backup.writes).toHaveLength(1);
+    await waitFor(() => expect(screen.getByText(/Vorheriger Stand gesichert/)).toBeTruthy());
+  });
+
+  it('lässt die Datei unangetastet, wenn die Ordner-Auswahl abgebrochen wird', async () => {
+    const { fsHandle, backup } = setup();
+    backup.adapter.pick = async () => null; // Nutzerabbruch im Ordner-Dialog
+
+    await fireEvent.click(knopf('Speichern'));
+    await waitFor(() => expect(screen.getByText(/Nicht gespeichert/)).toBeTruthy());
+    await fireEvent.click(knopf('Backup-Ordner wählen und speichern'));
+
+    await waitFor(() => expect(screen.getByText(/Ordner-Auswahl abgebrochen/)).toBeTruthy());
+    expect(fsHandle.writeCalls).toEqual([]);
   });
 
   it('„Ohne Sicherung speichern" überspringt den Vorlauf und benennt die Wahl', async () => {

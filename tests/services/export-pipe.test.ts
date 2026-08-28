@@ -78,7 +78,13 @@ describe('INV-FILE-2 — ein Export-Rohr für alle Formate', () => {
   });
 
   it('normaler 5.5.1-Export MIT Handle geht in-place (Tier 1) — derselbe Rohr-Aufruf, andere Tier-Wahl', async () => {
-    const { adapters, fsHandle } = createMockAdapterSet({ fsHandleSupported: true, shareSupported: false });
+    const { adapters, fsHandle } = createMockAdapterSet({
+      fsHandleSupported: true,
+      shareSupported: false,
+      // Tier 1a setzt seit [ADR-v9-302] einen verbundenen Backup-Ordner voraus.
+      backupConnected: true,
+      diskContent: new TextEncoder().encode('ALT')
+    });
     const svc = new FileService(adapters);
     const gedcomDoc = parseGedcom(gedcomFixture);
 

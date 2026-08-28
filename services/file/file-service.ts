@@ -105,7 +105,12 @@ export class FileService {
         const sicherung = skipBackup
           ? ({ backup: 'uebersprungen' } as const)
           : await this.#sichereVorherigenStand(handle, filename);
-        if (sicherung.backup === 'fehlgeschlagen') {
+        // Beide Ausgänge halten das Überschreiben an: eine gescheiterte Sicherung UND
+        // eine, die gar nicht erst versucht wurde, weil kein Ordner verbunden ist. Der
+        // zweite Fall war in der ersten Fassung eine Ausnahme („speichern, aber melden") —
+        // sie hat die Zusage für jeden ausgehöhlt, der noch keinen Ordner gewählt hatte,
+        // also für genau die Lage direkt nach dem Update (Nutzer-Befund 2026-08-28).
+        if (sicherung.backup === 'fehlgeschlagen' || sicherung.backup === 'kein-ordner') {
           return { tier: 'fs-handle', ok: false, ...sicherung };
         }
         await this.adapters.fsHandle.write(handle, bytes);
@@ -148,9 +153,20 @@ export class FileService {
     filename: string
   ): Promise<Pick<SaveResult, 'backup' | 'backupName' | 'backupError'>> {
     const ordner = await this.adapters.backupFolderStore.load();
-    // Kein Ordner ist KEIN Fehlschlag: die Sicherung ist eine Zusage, die der Nutzer erst
-    // einlöst, wenn er einen Ordner verbindet. Der Save läuft, die Meldung sagt es.
-    if (!ordner) return { backup: 'kein-ordner' };
+    if (!ordner) {
+      // ZWEI VERSCHIEDENE LAGEN, und nur eine davon darf das Überschreiben durchlassen
+      // (Nutzer-Befund 2026-08-28 — die erste Fassung ließ beide durch):
+      //
+      //   `kein-ordner`    — die Plattform KÖNNTE einen Ordner verbinden, der Nutzer hat
+      //                      es (noch) nicht getan. Das ist eine offene Entscheidung, kein
+      //                      Grund, ungeschützt zu überschreiben: der Aufrufer bricht ab.
+      //   `nicht-moeglich` — die Plattform kann es gar nicht. Hier gibt es keine Wahl, die
+      //                      der Nutzer treffen könnte; ein Abbruch machte die App
+      //                      dauerhaft speicher-unfähig, statt ihn zu schützen.
+      return this.adapters.backupFolder.isSupported()
+        ? { backup: 'kein-ordner' }
+        : { backup: 'nicht-moeglich' };
+    }
 
     try {
       const erlaubt = await this.adapters.backupFolder.requestPermission(ordner);
