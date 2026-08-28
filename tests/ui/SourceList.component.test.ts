@@ -41,7 +41,7 @@ describe('SourceList — Kurzname/Autor/Referenzzähler (Component)', () => {
 
     render(SourceList, { props: { appState, viewState } });
 
-    expect(screen.getByText(/Keine Quellen geladen/)).toBeTruthy();
+    expect(screen.getByText('Noch keine Quellen in diesem Stammbaum.')).toBeTruthy();
   });
 
   it('Klick auf eine Zeile setzt die Auswahl über den EINEN ViewState-Weg (setCurrent)', async () => {

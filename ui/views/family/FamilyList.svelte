@@ -15,10 +15,10 @@
   import { tooltip } from '../../shell/tooltip';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
-  import { noDataHint } from '../../shell/nav-model';
+  import { emptyEntityHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
-  import { layout } from '../../shell/layout.svelte';
+  
   import { createFamilyListState, type FamilyListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
@@ -125,7 +125,7 @@
 
 <div class="family-list" use:w.container>
   {#if isEmpty}
-    <p class="family-list__empty">{noDataHint('Familien', layout.isDesktopLayout)}</p>
+    <p class="family-list__empty">{emptyEntityHint('Familien')}</p>
     <div class="family-list__toolbar family-list__toolbar--empty">
       <button type="button" class="family-list__new-btn" onclick={createFamily}>＋ Neue Familie</button>
     </div>

@@ -23,8 +23,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import type { ViewState } from '../../shell/view-state.svelte';
-  import { layout } from '../../shell/layout.svelte';
-  import { noDataHint } from '../../shell/nav-model';
+  
+  import { emptyEntityHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
   import {
@@ -202,7 +202,7 @@
 
 <div class="media-gallery" use:w.container>
   {#if isEmpty}
-    <p class="media-gallery__empty">{noDataHint('Medien', layout.isDesktopLayout)}</p>
+    <p class="media-gallery__empty">{emptyEntityHint('Medien')}</p>
   {:else}
     <div class="media-gallery__toolbar">
       <input

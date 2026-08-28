@@ -9,10 +9,10 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeRepository, allocatorFromDatabase, nextId } from '../../../core/model';
   import { buildRepositoryRows } from './repository-list-model';
-  import { noDataHint } from '../../shell/nav-model';
+  import { emptyEntityHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
-  import { layout } from '../../shell/layout.svelte';
+  
 
   interface Props {
     appState: AppState;
@@ -59,7 +59,7 @@
 
 <div class="repository-list" use:w.container>
   {#if isEmpty}
-    <p class="repository-list__empty">{noDataHint('Archive', layout.isDesktopLayout)}</p>
+    <p class="repository-list__empty">{emptyEntityHint('Archive')}</p>
     <div class="repository-list__toolbar repository-list__toolbar--empty">
       <button type="button" class="repository-list__new-btn" onclick={createRepository}>＋ Neues Archiv</button>
     </div>

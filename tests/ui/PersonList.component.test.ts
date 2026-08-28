@@ -46,7 +46,10 @@ describe('PersonList — alphabetische Gruppierung mit Buchstaben-Trenner (Compo
 
     render(PersonList, { props: { appState, viewState } });
 
-    expect(screen.getByText(/Keine Personen geladen/)).toBeTruthy();
+    // [ADR-v9-297]: der Satz schickt nicht mehr zum Datei-Öffnen — wer „Leer beginnen"
+    // gewählt hat, wollte genau das nicht, und mit dem Startbildschirm ist diese Liste
+    // ohnehin nur zu sehen, wenn etwas geladen ist.
+    expect(screen.getByText('Noch keine Personen in diesem Stammbaum.')).toBeTruthy();
   });
 
   it('Klick auf eine Zeile setzt die Auswahl über den EINEN ViewState-Weg (setCurrent)', async () => {
