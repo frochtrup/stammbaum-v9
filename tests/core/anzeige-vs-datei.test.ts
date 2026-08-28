@@ -11,7 +11,7 @@
 // Ereignisse): 33 Fälle, 32 davon ohne jeden Hinweis.
 import { describe, expect, it } from 'vitest';
 import { anzeigeAbweichung } from '../../core/places';
-import { makeDatabase, makeEvent, makePerson } from '../../core/model';
+import { makeDatabase, makeEvent, makePerson, makeFamily } from '../../core/model';
 import { runValidation, buildQualityDashboard, filterFocus } from '../../core/validate';
 import { buildContext } from '../../core/validate/context';
 import { defaultConfig } from '../../core/validate';
@@ -125,5 +125,48 @@ describe('… und der Befund kommt im Dashboard auch AN (Nutzer-Rückfrage: „b
     const zeile = rows.find((r) => r.findings.some((f) => f.rule === 'PLAC_NICHT_GESPEICHERT'));
     expect(zeile, 'Brennpunkt-Zeile mit der Regel unter der Vorgabe-Filterung').toBeDefined();
     expect(zeile!.personId).toBe('@I1@');
+  });
+});
+
+describe('… auch wenn er an einer FAMILIE hängt (Nutzer-Befund: „zeigt keinen einzigen Event")', () => {
+  // DIE LÜCKE, DIE DAS SCHLIESST — und sie war in meinen eigenen Tests: Der erste Wurf
+  // prüfte nur den Personen-Fall. `run.ts` ergänzt die Ankerperson NUR bei Personen-Regeln
+  // (`h.personId ?? p.id`); bei Familien-Regeln bleibt `h.personId ?? null` stehen. Ein
+  // Familien-Hit ohne Anker kommt bis in `findings` — und wird von `buildQualityDashboard`
+  // aus der personbezogenen Auswertung genommen. Er existiert dann, ohne dass ihn jemand
+  // sieht: genau der gemeldete Zustand, an einer Heirat.
+  //
+  // Am Bestand des Nutzers: 30 Befunde, davon vorher 4 ohne Anker (der gemeldete Fall
+  // darunter) — sichtbare Brennpunkt-Zeilen 26, danach 28.
+  it('eine Heirat erzeugt eine sichtbare Brennpunkt-Zeile am Ehepartner', () => {
+    const db = makeDatabase();
+    db.placeObjects = new Map([
+      ['P2', place('P2', { title: 'Amt Vechta' })],
+      [
+        'P1',
+        place('P1', {
+          title: 'Vechta',
+          enclosedBy: [{ placeId: 'P2', from: null, to: null, fromDate: null, toDate: null }],
+        }),
+      ],
+    ]);
+    db.individuals.set('@I1@', makePerson('@I1@', { name: 'Franz /Arck/' }));
+    const f = makeFamily('@F1@', { husband: '@I1@' });
+    f.marriage = makeEvent('MARR', {
+      date: '31 JAN 1815',
+      place: 'Vechta, Amt Vechta, Deutschland',
+      placeId: 'P1',
+      seen: true,
+    });
+    db.families.set('@F1@', f);
+
+    const findings = runValidation(db, defaultConfig());
+    const treffer = findings.filter((f2) => f2.rule === 'PLAC_NICHT_GESPEICHERT');
+    expect(treffer).toHaveLength(1);
+    // Ohne diesen Anker wäre der Befund da — und im Dashboard trotzdem unsichtbar.
+    expect(treffer[0].personId).toBe('@I1@');
+
+    const rows = filterFocus(buildQualityDashboard(db, findings).focus, 'attention');
+    expect(rows.some((r) => r.findings.some((x) => x.rule === 'PLAC_NICHT_GESPEICHERT'))).toBe(true);
   });
 });

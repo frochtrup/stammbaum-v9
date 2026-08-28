@@ -127,7 +127,11 @@ function adressStrukturVerletzt(ev: Event): boolean {
  * bei 27 der 33 gemessenen Fälle ist der Unterschied reine Form (leere Segmente), bei 6
  * echter Inhaltsverlust, und diese Einordnung soll der Nutzer treffen, nicht die Regel.
  */
-function abweichungsBefunde(evs: readonly Event[], ctx: RuleContext): readonly Hit[] {
+function abweichungsBefunde(
+  evs: readonly Event[],
+  ctx: RuleContext,
+  anchor: string | null,
+): readonly Hit[] {
   let betroffen = 0;
   let erste: { angezeigt: string; gespeichert: string } | null = null;
   for (const ev of evs) {
@@ -141,6 +145,7 @@ function abweichungsBefunde(evs: readonly Event[], ctx: RuleContext): readonly H
   return [
     {
       text: `${wo} anders gespeichert als angezeigt — angezeigt „${erste.angezeigt}", gespeichert „${erste.gespeichert}". Über „Projektion übernehmen" im Ereignis wird die angezeigte Fassung übernommen.`,
+      personId: anchor,
     },
   ];
 }
@@ -538,8 +543,13 @@ export const RULES: readonly Rule[] = [
     // Anzeige rechnet die periodengerechte Kette, der Writer schreibt `ev.place`
     // ([ADR-v9-197]). Beides ist für sich gewollt — zusammen heißt es, dass der nächste
     // Export etwas anderes in die Datei schreibt, als auf dem Schirm steht.
-    person: (p, ctx) => abweichungsBefunde(personEvents(p), ctx),
-    family: (f, ctx) => abweichungsBefunde(familyEvents(f), ctx),
+    person: (p, ctx) => abweichungsBefunde(personEvents(p), ctx, p.id),
+    // DER ANKER IST BEI FAMILIEN PFLICHT, nicht Kür (Nutzer-Befund 2026-08-28: „zeigt aber
+    // keinen einzigen event an"). `run.ts` ergänzt ihn nur für Personen-Regeln; ein
+    // Familien-Hit ohne `personId` kommt bis in `findings`, wird aber von
+    // `buildQualityDashboard` aus der personbezogenen Auswertung genommen — er existiert
+    // dann, ohne dass ihn jemand sieht. Dieselbe Konvention wie `SOURCE_REF_MISSING`.
+    family: (f, ctx) => abweichungsBefunde(familyEvents(f), ctx, familyAnchor(f)),
   },
   {
     id: 'ADDR_INDEX_ONLY',
