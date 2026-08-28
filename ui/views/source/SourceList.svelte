@@ -16,10 +16,10 @@
   import { PLAIN_FIELD } from '../../shell/plain-input';
   import { createSourceListState, type SourceListState } from '../list-view-state.svelte';
   import { tooltip } from '../../shell/tooltip';
-  import { noDataHint } from '../../shell/nav-model';
+  import { emptyEntityHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
-  import { layout } from '../../shell/layout.svelte';
+  
 
   // "Notizen"-Badge (ADR-v9-79 Punkt 3, Spec 20 §1.6 [K]): hängt seit BL-336 an `text`
   // (SOUR>TEXT, zitierter Wortlaut) UND `noteText` (SOUR>NOTE, Anmerkung) — die vormals
@@ -94,7 +94,7 @@
 
 <div class="source-list" use:w.container>
   {#if isEmpty}
-    <p class="source-list__empty">{noDataHint('Quellen', layout.isDesktopLayout)}</p>
+    <p class="source-list__empty">{emptyEntityHint('Quellen')}</p>
     <div class="source-list__toolbar source-list__toolbar--empty">
       <button type="button" class="source-list__new-btn" onclick={createSource}>＋ Neue Quelle</button>
     </div>

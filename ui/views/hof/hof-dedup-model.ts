@@ -16,6 +16,9 @@ export interface HofDedupMember {
   level: EnrichmentLevel;
   /** Prüf-Marker (ADR-v9-191) — zweite, unabhängige Achse. */
   reviewed: boolean;
+  /** Datierte Adressvarianten ([ADR-v9-296]) — die Zeitachse eines Hofs; sichtbar, damit der
+   * Vorschlag nachvollziehbar ist. */
+  datiertePerioden: number;
 }
 
 export interface HofDedupGroup {
@@ -23,6 +26,14 @@ export interface HofDedupGroup {
   villageTitle: string;
   members: HofDedupMember[];
   suggestedWinnerId: HofId;
+  /** Gewicht der Zusammenführung ([ADR-v9-296]) — ordnet die Liste, wählt keinen Gewinner. */
+  reach: number;
+}
+
+/** Datierte Adressvarianten eines Hofs ([ADR-v9-296]) — sein Gegenstück zu `enclosedBy`
+ *  + `pnames` beim Ort. EINE Stelle, von Heuristik-Meta und Anzeige gemeinsam genutzt. */
+function datierteAddrs(h: HofObject | undefined): number {
+  return h ? h.addrs.filter((a) => a.from != null || a.to != null).length : 0;
 }
 
 /** Verwendungszahl je HofId — wie oft `eventHofId(ev, ctx) === id` über alle Events. */
@@ -50,14 +61,20 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
           return [
             id,
             {
-              usage: usage.get(id) ?? 0,
-              hasCoords: !!h && h.lat != null && h.long != null,
-              hasNote: !!h?.note,
               // ADR-v9-225: das erste Kriterium des Vorschlags — s. `DedupCandidateMeta`.
               // Der Hof-Pfad bekommt es mit, obwohl der gemessene Fall ein Ort war: die
               // Heuristik ist EINE (geteilte Datei), und die Begründung — die Ereignisse
               // folgen ohnehin dem Gewinner — gilt für Höfe wortgleich.
               curated: !!h && isCuratedHof(h),
+              // ADR-v9-296: die Kennzahl statt zweier ihrer Facetten. Für Höfe gilt die
+              // EIGENE Schwelle (`hofEnrichmentLevel`, ADR-v9-191: „ausführlich" heißt hier
+              // „mehr als die massenhaft gesetzte Koordinate") — eine gemeinsame Zahl für
+              // zwei verschieden große Feldmengen wäre die falsche Aussage.
+              level: h ? hofEnrichmentLevel(h) : 'none',
+              // Die Zeitachse eines Hofs sind seine datierten Adressvarianten — `enclosedBy`
+              // und `pnames` hat er nicht (Spec 11 §1: Hof ist keine Verwaltungseinheit).
+              datiertePerioden: datierteAddrs(h),
+              usage: usage.get(id) ?? 0,
             },
           ];
         }),
@@ -71,7 +88,13 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
         return h ? isReviewed(h) : false;
       };
       const members: HofDedupMember[] = ids
-        .map((id) => ({ id, addr: addrOf(id), level: levelOf(id), reviewed: reviewedOf(id) }))
+        .map((id) => ({
+          id,
+          addr: addrOf(id),
+          level: levelOf(id),
+          reviewed: reviewedOf(id),
+          datiertePerioden: datierteAddrs(db.hofObjects.get(id)),
+        }))
         .sort((a, b) => a.addr.localeCompare(b.addr, 'de'));
       const firstVillageId = db.hofObjects.get(ids[0])?.villageId;
       const villageTitle =
@@ -81,7 +104,11 @@ export function buildHofDedupGroups(db: Database, ctx: PlaceContext, events: rea
         villageTitle,
         members,
         suggestedWinnerId: pickWinnerId(ids, meta),
+        // ADR-v9-296, Ordnung wie bei den Orten: schwerste Zusammenführung zuerst. Beim Hof
+        // ist das die DIREKTE Verwendung — er hat keine Kinder, unter ihm hängt nichts.
+        // Dieselbe Frage („wie viele Ereignisse bewegt dieser Merge"), zwei Rechenwege.
+        reach: ids.reduce((sum, id) => sum + (usage.get(id) ?? 0), 0),
       };
     })
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .sort((a, b) => b.reach - a.reach || a.key.localeCompare(b.key));
 }

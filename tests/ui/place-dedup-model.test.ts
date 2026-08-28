@@ -149,3 +149,81 @@ describe('buildPlaceDedupGroups — Kandidatengruppen + Gewinner-Vorschlag', () 
     expect(JSON.stringify(buildPlaceDedupGroups(db, ctxOf(db), []))).toBe(JSON.stringify(groups));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// [ADR-v9-296] — die Ebenen ÜBER dem Dorf. Bis dahin entschied dort der ID-String: eine
+// Verwaltungseinheit bindet fast nie ein Ereignis direkt (das hängt am Dorf), also war die
+// Verwendungszahl für alle Mitglieder 0, und Koordinaten/Notiz haben kuratierte Knoten
+// ohnehin beide. Am Realbestand betraf das 2 von 6 Dubletten-Gruppen.
+describe('buildPlaceDedupGroups — Verwaltungsebenen (ADR-v9-296)', () => {
+  /** Zwei gleichnamige Provinzen, beide kuratiert, beide mit Koordinaten UND Notiz — der
+   *  gemessene Schlesien-Fall. Unterscheidbar allein über die datierten Perioden. */
+  const schlesienDb = () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@A_ARM@', place('@A_ARM@', {
+      title: 'Provinz Niederschlesien', type: 'Province', lat: 51, long: 16, note: 'x',
+      pnames: [{ value: 'Schlesien', from: null, to: null }],
+      enclosedBy: [{ placeId: '@DE@', from: 1742, to: 1945 }],
+    }));
+    db.placeObjects.set('@Z_REICH@', place('@Z_REICH@', {
+      title: 'Schlesien', type: 'Province', lat: 51, long: 16, note: 'y',
+      pnames: [
+        { value: 'Provinz Schlesien', from: 1815, to: 1919 },
+        { value: 'Provinz Niederschlesien', from: 1919, to: 1938 },
+        { value: 'Provinz Schlesien', from: 1938, to: 1941 },
+      ],
+      enclosedBy: [{ placeId: '@DE@', from: 1742, to: 1945 }],
+    }));
+    db.placeObjects.set('@DE@', place('@DE@', { title: 'Deutschland', type: 'Country' }));
+    return db;
+  };
+
+  it('datierte Perioden entscheiden, wo Verwendung/Koordinaten/Notiz gleichstehen', () => {
+    const db = schlesienDb();
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), []);
+    expect(groups).toHaveLength(1);
+    // Gegenprobe zur Prämisse: der ID-Tie-Break hätte den ÄRMEREN gewählt (@A_ < @Z_).
+    expect(groups[0].members.map((m) => m.id).sort()[0]).toBe('@A_ARM@');
+    expect(groups[0].suggestedWinnerId).toBe('@Z_REICH@');
+  });
+
+  it('die Verwendungszahl kippt das NICHT mehr (Nutzer-Entscheidung 2026-08-27)', () => {
+    const db = schlesienDb();
+    const events = [ev('BIRT', { placeId: '@A_ARM@' }), ev('DEAT', { placeId: '@A_ARM@' })];
+    expect(buildPlaceDedupGroups(db, ctxOf(db), events)[0].suggestedWinnerId).toBe('@Z_REICH@');
+  });
+
+  it('Gruppen sind nach transitiver Reichweite geordnet, nicht nach ID', () => {
+    const db = makeDatabase();
+    // Gruppe 1: zwei gleichnamige Länder, unter dem einen hängt ein Dorf mit Ereignissen.
+    db.placeObjects.set('@Z_LAND@', place('@Z_LAND@', { title: 'Grossland', type: 'Country' }));
+    db.placeObjects.set('@Z_LAND2@', place('@Z_LAND2@', { title: 'Grossland', type: 'Country' }));
+    db.placeObjects.set('@DORF@', place('@DORF@', {
+      title: 'Dorf', type: 'Village', enclosedBy: [{ placeId: '@Z_LAND@', from: null, to: null }],
+    }));
+    // Gruppe 2: zwei gleichnamige Weiler ganz ohne Bezug — alphabetisch VOR Gruppe 1.
+    db.placeObjects.set('@A_KLEIN@', place('@A_KLEIN@', { title: 'Winzig', type: 'Village' }));
+    db.placeObjects.set('@A_KLEIN2@', place('@A_KLEIN2@', { title: 'Winzig', type: 'Village' }));
+    const events = [ev('BIRT', { placeId: '@DORF@' }), ev('DEAT', { placeId: '@DORF@' })];
+
+    const groups = buildPlaceDedupGroups(db, ctxOf(db), events);
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0].members[0].title).toBe('Grossland'); // 2 Ereignisse darunter
+    expect(groups[0].reach).toBe(2);
+    expect(groups[1].members[0].title).toBe('Winzig'); // 0 — trotz kleinerer ID hinten
+    expect(groups[1].reach).toBe(0);
+  });
+
+  it('bei gleicher Reichweite bleibt die Ordnung deterministisch (stabiler Schlüssel)', () => {
+    const db = makeDatabase();
+    db.placeObjects.set('@B1@', place('@B1@', { title: 'Bravo' }));
+    db.placeObjects.set('@B2@', place('@B2@', { title: 'Bravo' }));
+    db.placeObjects.set('@A1@', place('@A1@', { title: 'Alpha' }));
+    db.placeObjects.set('@A2@', place('@A2@', { title: 'Alpha' }));
+
+    const keys = buildPlaceDedupGroups(db, ctxOf(db), []).map((g) => g.key);
+
+    expect(keys).toEqual(['@A1@', '@B1@']);
+  });
+});

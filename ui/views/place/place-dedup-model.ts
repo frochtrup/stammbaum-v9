@@ -1,12 +1,12 @@
 // ui/views/place/place-dedup-model.ts — Massen-Dedup-Ansicht für Orte (Spec 20 §1.7 [K]
 // "Massen-Dedup", Spec 11 §9.2, ADR-v9-45). Baut auf dem Kern-Finder `findPlaceDuplicates`
-// auf (keine eigene Gruppen-Logik) und ergänzt nur die UI-seitige Gewinner-VORSCHLAGS-
-// Anzeige (Verwendungszahl → Koordinaten → Notiz → kleinste ID, geteilt mit dem Höfe-
-// Pendant über `pickWinnerId`, ui/shell/curation-dedup.ts) — der Nutzer kann den
+// auf (keine eigene Gruppen-Logik) und ergänzt nur zwei UI-seitige Zutaten: den
+// Gewinner-VORSCHLAG (geteilt mit dem Höfe-Pendant über `pickWinnerId`,
+// ui/shell/curation-dedup.ts) und die REIHENFOLGE der Gruppen. Der Nutzer kann den
 // Vorschlag jederzeit ändern (§9.2: "Vorschlag, nicht bindend").
 import type { Database, Event, PlaceId } from '../../../core/model/types';
 import type { PlaceContext, PlaceObject, PlaceRegistry } from '../../../core/places';
-import { isCuratedPlace, findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed } from '../../../core/places';
+import { isCuratedPlace, findPlaceDuplicates, eventPlaceId, buildFullPlaceName, placeEnrichmentLevel, isReviewed, eventSpanne } from '../../../core/places';
 import type { EnrichmentLevel } from '../../../core/places';
 import { pickWinnerId, type DedupCandidateMeta } from '../../shell/curation-dedup';
 
@@ -23,6 +23,10 @@ export interface PlaceDedupMember {
   /** Prüf-Marker (ADR-v9-191) — die zweite, unabhängige Achse: hat ein Mensch über dieses
    * Mitglied entschieden? Aus dem Inhalt nicht ableitbar, deshalb eigene Angabe. */
   reviewed: boolean;
+  /** Menge der datierten Perioden ([ADR-v9-296]) — dieselbe Zahl, die als vorletzte Sprosse
+   * den Vorschlag entscheidet. Sichtbar, damit er nachvollziehbar ist: eine Heuristik, deren
+   * Eingabe man nicht sieht, ist für den Nutzer ein Orakel. */
+  datiertePerioden: number;
   /** ADR-v9-77: `PlaceObject.type` roh (z. B. „Town"/„District"), leer wenn unklassifiziert.
    * Zeigt dem Nutzer die Kategorisierung jedes Mitglieds direkt im Dedup-Dialog — der häufige
    * Fall „Stadt X" + „Kreis X" wird sonst nur über den vollen Namen sichtbar, wenn überhaupt. */
@@ -42,6 +46,10 @@ export interface PlaceDedupGroup {
   /** ADR-v9-77: mindestens ein Mitglieder-Paar trägt zwei verschiedene, beide nicht-leere
    * `type`-Werte (z. B. „Stadt Steinfurt" vs. „Kreis Steinfurt") — Warnung, kein Gate. */
   typeMismatch: boolean;
+  /** Transitive Reichweite der Gruppe ([ADR-v9-296]): wie viele Ereignisse hängen unter
+   * ihrem reichweitenstärksten Mitglied? Ordnet die Liste — schwerste Zusammenführung
+   * zuerst. KEIN Gewinner-Kriterium (s. `reachCounts`). */
+  reach: number;
 }
 
 /** Verwendungszahl je PlaceId — wie oft `eventPlaceId(ev, ctx) === id` über alle Events. */
@@ -55,12 +63,54 @@ function usageCounts(ids: readonly PlaceId[], events: readonly Event[], ctx: Pla
 }
 
 /**
+ * Transitive REICHWEITE je PlaceId ([ADR-v9-296]): wie viele Ereignisse hängen unter diesem
+ * Knoten — direkt oder über die periodengerechte Zugehörigkeitskette?
+ *
+ * WOZU. Sie ordnet die Gruppen, sie wählt KEINEN Gewinner. Eine Verwaltungseinheit bindet
+ * fast nie ein Ereignis direkt (das hängt am Dorf); `usage` ist dort für alle Mitglieder 0
+ * und sagt nichts darüber, wie schwer eine Zusammenführung wiegt. Gemessen am Realbestand:
+ * unter `Deutschland` hängen 1172 Ereignisse, unter `Deutscher Bund` 8, unter
+ * `Norddeutscher Bund` 0 — und geordnet wurde die Liste bis dahin nach dem ID-String.
+ *
+ * NICHT als Gewinner-Kriterium, und das ist der Punkt: [ADR-v9-225] hat begründet, dass
+ * eine Mengenzahl kein Argument FÜR ein Objekt ist (die Ereignisse folgen dem Gewinner
+ * ohnehin). Eine Ebene höher gälte das genauso — die Reichweite beantwortet „welche
+ * Zusammenführung sehe ich zuerst an", nicht „welches Objekt überlebt".
+ *
+ * EIN Durchlauf über die Ereignisse (je Ereignis einmal die Kette hoch), nicht je Kandidat
+ * ein Scan über alle Ereignisse.
+ */
+function reachCounts(events: readonly Event[], ctx: PlaceContext): Map<PlaceId, number> {
+  const counts = new Map<PlaceId, number>();
+  for (const ev of events) {
+    const leaf = eventPlaceId(ev, ctx);
+    if (leaf == null) continue;
+    for (const id of ctx.places.enclosureIdsAsOf(leaf, eventSpanne(ev))) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Menge der DATIERTEN Perioden eines Orts über BEIDE Zeitachsen — Zugehörigkeit
+ * (`enclosedBy`) und Namen (`pnames`), [ADR-v9-296]. Bewusst die Menge, nicht der Anteil:
+ * ein Land ohne Elter hätte 0/0, und ein Anteil bestrafte den Reicheren.
+ */
+function datedPeriods(po: PlaceObject | undefined): number {
+  if (!po) return 0;
+  const datiert = (x: { from: number | null; to: number | null }) => x.from != null || x.to != null;
+  return po.enclosedBy.filter(datiert).length + po.pnames.filter(datiert).length;
+}
+
+/**
  * Baut die Massen-Dedup-Gruppen (Spec 11 §9.2): Kandidatengruppen aus `findPlaceDuplicates`
  * + je einem Gewinner-Vorschlag. Deterministisch bei gleicher Eingabe (TST-3-Analog auf
  * UI-Ebene — reine Funktion).
  */
 export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: readonly Event[]): PlaceDedupGroup[] {
   const groups = findPlaceDuplicates(db.placeObjects, 'places');
+  const reach = reachCounts(events, ctx);
   const reg: PlaceRegistry = ctx.places;
   const titleOf = (id: PlaceId): string => db.placeObjects.get(id)?.title || id;
   const fullNameOf = (id: PlaceId): string => buildFullPlaceName(reg, id) || titleOf(id);
@@ -75,11 +125,13 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
           return [
             id,
             {
-              usage: usage.get(id) ?? 0,
-              hasCoords: !!po && po.lat != null && po.long != null,
-              hasNote: !!po?.note,
               // ADR-v9-225: das erste Kriterium des Vorschlags — s. `DedupCandidateMeta`.
               curated: !!po && isCuratedPlace(po),
+              // ADR-v9-296: die vorhandene Kennzahl IST jetzt die zweite Sprosse; die
+              // früheren Einzelfragen `hasCoords`/`hasNote` sind zwei ihrer sieben Facetten.
+              level: po ? placeEnrichmentLevel(po) : 'none',
+              datiertePerioden: datedPeriods(po),
+              usage: usage.get(id) ?? 0,
             },
           ];
         }),
@@ -93,6 +145,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         return po ? isReviewed(po) : false;
       };
       const typeOf = (id: PlaceId): string => db.placeObjects.get(id)?.type ?? '';
+      const periodenOf = (id: PlaceId): number => datedPeriods(db.placeObjects.get(id));
       const members: PlaceDedupMember[] = ids
         .map((id) => ({
           id,
@@ -100,6 +153,7 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
           fullName: fullNameOf(id),
           level: levelOf(id),
           reviewed: reviewedOf(id),
+          datiertePerioden: periodenOf(id),
           type: typeOf(id),
         }))
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'de'));
@@ -109,7 +163,10 @@ export function buildPlaceDedupGroups(db: Database, ctx: PlaceContext, events: r
         suggestedWinnerId: pickWinnerId(ids, meta),
         conflict: g.conflict === true,
         typeMismatch: g.typeMismatch === true,
+        reach: ids.reduce((max, id) => Math.max(max, reach.get(id) ?? 0), 0),
       };
     })
-    .sort((a, b) => a.key.localeCompare(b.key));
+    // Schwerste Zusammenführung zuerst ([ADR-v9-296]) — bei Gleichstand der stabile
+    // Schlüssel, damit die Reihenfolge deterministisch bleibt (TST-3-Analog).
+    .sort((a, b) => b.reach - a.reach || a.key.localeCompare(b.key));
 }

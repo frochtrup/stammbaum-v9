@@ -26,6 +26,10 @@
   import { swipeNav } from '../shell/swipe-nav';
   import { createEntityTabOverlays } from './entity-tab-overlays.svelte';
   import { createEntityTabPanes } from './entity-tab-panes.svelte';
+  import StartScreen from '../shell/StartScreen.svelte';
+  import EntityTabSegments from './EntityTabSegments.svelte';
+  import type { PlacesPersister } from '../shell/places-persister';
+  import type { FileService } from '../../services/file';
   import { createEntityTabNavigation } from './entity-tab-navigation.svelte';
   import { createMediaGalleryFilters } from './media/media-gallery-filters.svelte';
   import type { Windowed } from '../shell/windowed.svelte';
@@ -77,6 +81,15 @@
      *  — optional, durchgereicht an PersonDetail/FamilyDetail/PlaceList/HofList, analog
      *  `onNavigateToTree` oben (echter Ziel-Umschalter sitzt in App.svelte, nicht hier). */
     onNavigateLens?: (lens: LensId) => void;
+    /**
+     * Für den Startbildschirm ([ADR-v9-297]), der die Liste ersetzt, solange nichts geladen
+     * ist. OPTIONAL, damit isolierte Komponententests diese Fläche weiterhin ohne Schale
+     * montieren können — fehlen sie, zeigt der Startbildschirm nur „Leer beginnen" statt
+     * zusätzlich „Datei öffnen"/„Demo laden".
+     */
+    persister?: PlacesPersister;
+    fileService?: FileService;
+    onFileHandleChanged?: (handle: unknown) => void;
     /** Die EINE Routen-Quelle (INV-UI-15) — hält, welches Entitäts-Segment offen ist. */
     route: Route;
     /**
@@ -118,6 +131,9 @@
     mediaResolver,
     listStates,
     windowStates,
+    persister,
+    fileService,
+    onFileHandleChanged,
   }: Props = $props();
 
   // Die Segment-Liste steht seit BL-90 NICHT mehr hier: sie ist die Entitäten-Rolle des
@@ -237,6 +253,22 @@
   // Welche FLÄCHE gezeigt wird (Auswahl je Segment, Liste-oder-Detail, ganzflächiges
   // Werkzeug, Flächen-Übersicht) liegt seit BL-320 in `entity-tab-panes.svelte.ts` —
   // dritte kohäsive Einheit neben `overlays` und `nav` (dort die Begründung).
+  /**
+   * Solange nichts geladen ist, tritt der Startbildschirm an die Stelle der LISTE — nicht
+   * an die der ganzen Fläche ([ADR-v9-297]).
+   *
+   * WARUM NICHT WEITER OBEN, in `App.svelte`: die Segmentreihe lebt in dieser Komponente
+   * (mobil), und ein Startbildschirm davor hätte sie mit verdeckt. Damit wären ORTE und
+   * HÖFE unerreichbar gewesen — und die tragen cross-Stammbaum-Wissen (Spec 11 §2), das
+   * ohne geladenen Baum vollständig da ist. Ein Startbildschirm, der 400 kuratierte Orte
+   * versteckt, weil keine Personen geladen sind, verwechselt „leer" mit „leer an dieser
+   * einen Achse".
+   *
+   * Deshalb nur die vier baum-gebundenen Segmente; `place`/`hof` rendern normal weiter.
+   */
+  const START_SEGMENTE: readonly EntityTargetId[] = ['person', 'family', 'source', 'media'];
+  const zeigeStart = $derived(!appState.fileName && START_SEGMENTE.includes(activeSegment));
+
   const panes = createEntityTabPanes({
     viewState,
     overlays,
@@ -247,65 +279,13 @@
 </script>
 
 <div class="entity-tab">
-  <!-- Die Entitäts-Segmentreihe ist die MOBILE Sub-Navigation (Spec 21 §2: "Familien /
-       Quellen / Orte / Höfe über einen Segment-Umschalter oben"). Auf Desktop führt die
-       Sidebar dieselben fünf Ziele beschriftet und dauerhaft (Spec 21 §3) — beides
-       gleichzeitig wären ZWEI Wege zum selben Ziel und damit ein Bruch von INV-UI-2
-       ("genau ein kanonischer Weg"), zusätzlich zu der Redundanz, die Spec 21 §9 B2 an
-       v8 kritisiert. Die Reihe entfällt daher oberhalb der Layout-Grenze.
-       Die Quellen/Archive-Unterreihe weiter unten bleibt: Archive sind KEIN
-       Sidebar-Ziel, sondern eine Unteransicht des Quellen-Ziels (Spec 20 §1.6). -->
-  {#if !layout.isDesktopLayout}
-    <div class="entity-tab__segments stb-segment-row stb-segment-row--full" role="tablist" aria-label="Entität wählen" data-tour="segments">
-    {#each segments as segment (segment.id)}
-      <button
-        type="button"
-        role="tab"
-        aria-selected={segment.id === activeSegment}
-        class="stb-segment-btn"
-        class:stb-segment-btn--active={segment.id === activeSegment}
-        disabled={!segment.implemented}
-        aria-label={segment.label}
-        onclick={() => selectSegment(segment)}
-      >
-          {segment.shortLabel ?? segment.label}{segment.implemented ? '' : ' (folgt)'}
-        </button>
-      {/each}
-    </div>
-  {/if}
-
-  {#if activeSegment === 'source'}
-    <div
-      class="entity-tab__subsegments stb-segment-row stb-segment-row--full entity-tab__subsegments--dashed"
-      role="tablist"
-      aria-label="Quellen-Ansicht wählen"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sourceSubView === 'sources'}
-        class="stb-segment-btn"
-        class:stb-segment-btn--active={sourceSubView === 'sources'}
-        onclick={() => {
-          nav.setSourceSubView('sources');
-        }}
-      >
-        Quellen
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={sourceSubView === 'repositories'}
-        class="stb-segment-btn"
-        class:stb-segment-btn--active={sourceSubView === 'repositories'}
-        onclick={() => {
-          nav.setSourceSubView('repositories');
-        }}
-      >
-        Archive
-      </button>
-    </div>
-  {/if}
+  <EntityTabSegments
+    {segments}
+    {activeSegment}
+    {sourceSubView}
+    onSelectSegment={selectSegment}
+    onSelectSourceSubView={(v) => nav.setSourceSubView(v)}
+  />
 
   <!-- Liste und Detail sind ab hier zwei SNIPPETS statt einer verschachtelten
        Liste-oder-Detail-Kette. Grund ist der Desktop-Multi-Pane (Spec 21 §3, BL-92): dort
@@ -317,7 +297,9 @@
        Komponente, und sie durch eine neue Zwischenschicht durchzureichen wäre Aufwand
        ohne Gewinn. -->
   {#snippet listPane()}
-    {#if activeSegment === 'person'}
+    {#if zeigeStart}
+      <StartScreen {appState} {persister} {fileService} {onFileHandleChanged} />
+    {:else if activeSegment === 'person'}
       <PersonList
         {appState}
         {viewState}
@@ -533,24 +515,6 @@
      hört zu, er zeigt nichts. Wächter: tests/ui/detail-scroll.test.ts. */
   .entity-tab__swipe {
     display: contents;
-  }
-
-  /* Segment-Control-Pillen selbst kommen aus design-system.css (.stb-segment-row/
-     .stb-segment-btn/--active) — hier bleibt nur das EntityTab-eigene Layout-Detail
-     (Trennlinie unter der Segment-Reihe, gestrichelt unter der Subsegment-Reihe). */
-  .entity-tab__segments,
-  .entity-tab__subsegments {
-    border-bottom: 1px solid var(--stb-surface-3);
-  }
-
-  /* KEIN `padding-top: 0` mehr (BL-299): die Trefferzone ist auf die PILLE zentriert, die
-     Mindesthöhe der Reihe hält sie deshalb nur dann in ihren Grenzen, wenn die Pille auch
-     mittig sitzt. Die asymmetrische Polsterung zog sie 2,8px nach oben — der Abstand zur
-     Segment-Reihe darüber fiel damit auf 41,3px, und die untere Zone deckte den unteren
-     Rand der oberen zu. Die Reihen bleiben trotzdem als Paar erkennbar: das leistet die
-     gestrichelte Trennlinie, nicht die fehlende Polsterung. */
-  .entity-tab__subsegments--dashed {
-    border-bottom-style: dashed;
   }
 
   /* Multi-Pane (Spec 21 §3, BL-92). Die Umschaltung hängt an `layout.isDesktopLayout`

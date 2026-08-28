@@ -15,11 +15,11 @@
   import { makePerson, allocatorFromDatabase, nextId } from '../../../core/model';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
-  import { noDataHint } from '../../shell/nav-model';
+  import { emptyEntityHint } from '../../shell/nav-model';
   import { untrack } from 'svelte';
   import PersonListRow from './PersonListRow.svelte';
   import { createWindowed, type Windowed } from '../../shell/windowed.svelte';
-  import { layout } from '../../shell/layout.svelte';
+  
   import { createPersonListState, type PersonListState } from '../list-view-state.svelte';
   import { toCsv, type CsvColumn } from '../../shell/csv';
   import { AnchorDownloadAdapter } from '../../../services/file/download-adapter';
@@ -162,7 +162,7 @@
      die Liste weiß nichts vom Rundgang, der Rundgang nichts von der Liste. -->
 <div class="person-list" data-tour="list" use:w.container>
   {#if isEmpty}
-    <p class="person-list__empty">{noDataHint('Personen', layout.isDesktopLayout)}</p>
+    <p class="person-list__empty">{emptyEntityHint('Personen')}</p>
     <div class="person-list__toolbar person-list__toolbar--empty">
       <button type="button" class="person-list__new-btn" onclick={createPerson}>＋ Neue Person</button>
     </div>

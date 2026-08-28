@@ -59,6 +59,29 @@ export const STORE_MEDIA_FOLDER_HANDLE = 'media-folder-handle';
  * Schlüssel (einen je Datei), nicht einen festen. */
 export const STORE_MEDIA_BYTES = 'media-bytes';
 
+/**
+ * ALLE Object-Stores dieser Datenbank — die EINE Liste ([ADR-v9-297]).
+ *
+ * Sie speist das Anlegen (`onupgradeneeded`) UND das Zurücksetzen
+ * (`services/reset-local-state.ts`). Vorher stand die Aufzählung nur im Upgrade-Handler
+ * als zehn `if`-Blöcke; ein Reset daneben wäre eine ZWEITE Liste geworden, und der
+ * Kopfkommentar oben („jedes künftige Store muss hier ergänzt werden") wäre damit auf
+ * zwei Stellen angewiesen, von denen man die zweite vergisst. Wer hier einen Store
+ * einträgt, hat ihn angelegt und zurücksetzbar gemacht — der Zwang statt der Erinnerung.
+ */
+export const ALL_STORES: readonly string[] = [
+  STORE_WORKING_COPY,
+  STORE_PLACES_MIRROR,
+  STORE_PLACES_FILE_HANDLE,
+  STORE_VAL_CONFIG,
+  STORE_DEDUP_IGNORED,
+  STORE_PROJECTS,
+  STORE_ORTE_DRAFT,
+  STORE_APP_DATA,
+  STORE_MEDIA_FOLDER_HANDLE,
+  STORE_MEDIA_BYTES,
+];
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 /** Öffnet (und cacht) die EINE stammbaum-v9-IndexedDB mit allen bekannten Object-Stores. */
@@ -68,35 +91,10 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains(STORE_WORKING_COPY)) {
-          db.createObjectStore(STORE_WORKING_COPY);
-        }
-        if (!db.objectStoreNames.contains(STORE_PLACES_MIRROR)) {
-          db.createObjectStore(STORE_PLACES_MIRROR);
-        }
-        if (!db.objectStoreNames.contains(STORE_PLACES_FILE_HANDLE)) {
-          db.createObjectStore(STORE_PLACES_FILE_HANDLE);
-        }
-        if (!db.objectStoreNames.contains(STORE_VAL_CONFIG)) {
-          db.createObjectStore(STORE_VAL_CONFIG);
-        }
-        if (!db.objectStoreNames.contains(STORE_DEDUP_IGNORED)) {
-          db.createObjectStore(STORE_DEDUP_IGNORED);
-        }
-        if (!db.objectStoreNames.contains(STORE_PROJECTS)) {
-          db.createObjectStore(STORE_PROJECTS);
-        }
-        if (!db.objectStoreNames.contains(STORE_ORTE_DRAFT)) {
-          db.createObjectStore(STORE_ORTE_DRAFT);
-        }
-        if (!db.objectStoreNames.contains(STORE_APP_DATA)) {
-          db.createObjectStore(STORE_APP_DATA);
-        }
-        if (!db.objectStoreNames.contains(STORE_MEDIA_FOLDER_HANDLE)) {
-          db.createObjectStore(STORE_MEDIA_FOLDER_HANDLE);
-        }
-        if (!db.objectStoreNames.contains(STORE_MEDIA_BYTES)) {
-          db.createObjectStore(STORE_MEDIA_BYTES);
+        // Über die EINE Liste, nicht über zehn `if`-Blöcke: ein neuer Store wird damit
+        // angelegt UND zurücksetzbar, ohne dass jemand an die zweite Stelle denken muss.
+        for (const name of ALL_STORES) {
+          if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -140,4 +138,27 @@ export async function idbPut(storeName: string, wert: unknown, key: IDBValidKey)
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+/**
+ * Leert die genannten Object-Stores ([ADR-v9-297]) — EINE Transaktion über alle, damit
+ * kein halb geleerter Zwischenstand entsteht, wenn ein Store fehlschlägt.
+ *
+ * Löscht die Stores NICHT, nur ihren Inhalt: die Datenbank behält ihre Version, und der
+ * nächste Zugriff findet dieselbe Struktur vor. Ein `deleteDatabase` müsste warten, bis
+ * jede offene Verbindung geschlossen ist (`onblocked`) — die App hält ihre über
+ * `dbPromise` bewusst offen.
+ */
+export function idbClearStores(names: readonly string[]): Promise<void> {
+  if (names.length === 0) return Promise.resolve();
+  return openStammbaumDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([...names], 'readwrite');
+        for (const name of names) tx.objectStore(name).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      }),
+  );
 }

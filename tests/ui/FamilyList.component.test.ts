@@ -63,7 +63,7 @@ describe('FamilyList — Elternpaar/Heiratsdatum/Kinderzahl (Component)', () => 
 
     render(FamilyList, { props: { appState, viewState } });
 
-    expect(screen.getByText(/Keine Familien geladen/)).toBeTruthy();
+    expect(screen.getByText('Noch keine Familien in diesem Stammbaum.')).toBeTruthy();
   });
 
   it('Klick auf eine Zeile setzt die Auswahl über den EINEN ViewState-Weg (setCurrent)', async () => {

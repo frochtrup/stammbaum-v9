@@ -35,7 +35,7 @@ describe('RepositoryList — Name/Typ/Quellenzähler (Component)', () => {
 
     render(RepositoryList, { props: { appState, viewState } });
 
-    expect(screen.getByText(/Keine Archive geladen/)).toBeTruthy();
+    expect(screen.getByText('Noch keine Archive in diesem Stammbaum.')).toBeTruthy();
   });
 
   it('Klick auf eine Zeile setzt die Auswahl über den EINEN ViewState-Weg (setCurrent)', async () => {

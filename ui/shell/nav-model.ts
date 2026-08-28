@@ -313,15 +313,28 @@ export function bottomNavSlotFor(target: RouteTarget): BottomNavSlot {
 }
 
 /**
- * Leerzustands-Hinweis "noch keine Daten geladen" — EINE Quelle statt vier.
+ * Leerzustands-Hinweis einer Entitätsliste — EINE Quelle statt fünf.
  *
- * Der Satz nennt den Weg zum Datei-Öffnen, und der hängt am Formfaktor: mobil der
- * Mehr-Hub, auf Desktop die Sidebar. Vor BL-06 stand er wörtlich und mit fest
- * eingebautem „unter Mehr" in PersonList/FamilyList/SourceList/RepositoryList — vier
- * Kopien (INV-UI-4), die auf Desktop alle auf eine Fläche verwiesen, die es dort gar
- * nicht gibt. Gefunden bei der eigenen Browser-Verifikation von BL-06.
+ * ER SCHICKT NICHT MEHR ZUM DATEI-ÖFFNEN ([ADR-v9-297]). Bis dahin lautete er „Keine
+ * Personen geladen — unter ‚Mehr' eine Datei öffnen, um zu starten." Mit dem
+ * Startbildschirm ist dieser Satz an zwei Stellen falsch geworden:
+ *
+ *  1. Er WIDERSPRICHT der gerade getroffenen Entscheidung. Wer „Leer beginnen" gewählt
+ *     hat, wollte keine Datei öffnen — und bekam als erstes die Aufforderung, genau das
+ *     zu tun.
+ *  2. Er ist UNERREICHBAR in seinem eigenen Fall. Alle fünf Aufrufer liegen in den
+ *     Segmenten, die der Startbildschirm abdeckt (Personen · Familien · Quellen/Archive ·
+ *     Medien); wird diese Liste überhaupt gerendert, ist etwas geladen. „Keine Daten
+ *     geladen" beschrieb damit einen Zustand, in dem der Satz nie zu sehen war.
+ *
+ * Er beschreibt jetzt, was IST. Der Weg zum nächsten Schritt steht ohnehin daneben — die
+ * Listen setzen ihren „＋ Neu"-Knopf direkt unter diesen Absatz.
+ *
+ * Der `isDesktop`-Parameter ist damit entfallen: er existierte nur, um den Weg zum
+ * Datei-Öffnen je Formfaktor richtig zu benennen (BL-06 — vier Kopien verwiesen auf
+ * Desktop auf eine Fläche, die es dort nicht gibt). Ohne diesen Satzteil gibt es nichts
+ * mehr zu verzweigen.
  */
-export function noDataHint(entityPlural: string, isDesktop: boolean): string {
-  const where = isDesktop ? 'in der Seitenleiste unter „Datei"' : 'unter „Mehr"';
-  return `Keine ${entityPlural} geladen — ${where} eine Datei öffnen, um zu starten.`;
+export function emptyEntityHint(entityPlural: string): string {
+  return `Noch keine ${entityPlural} in diesem Stammbaum.`;
 }
