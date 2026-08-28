@@ -44,6 +44,28 @@ export interface SaveResult {
    * seinen eigenen Store weiter, damit der nächste Save still über Tier 1a läuft.
    */
   handle?: unknown;
+  /**
+   * Bei Tier 1b der Name, den der Nutzer im Dialog TATSÄCHLICH gewählt hat — er muss dem
+   * Vorschlag nicht entsprechen („Speichern unter" ist genau der Fall, in dem er es nicht
+   * tut). Ohne diese Rückmeldung führte die App danach den alten Namen weiter und der
+   * nächste Save schriebe still in eine Datei, die anders heißt als angezeigt.
+   */
+  name?: string;
+  /**
+   * Was mit der Sicherung vor dem Überschreiben geschah (Spec 14 §4.1, INV-FILE-4).
+   * Nur bei Tier 1a von Belang; alle anderen Tiers überschreiben nichts.
+   *
+   *   `geschrieben`        — der vorherige Dateiinhalt liegt als datierte Kopie im Ordner
+   *   `kein-ordner`        — kein Backup-Ordner verbunden; gespeichert wurde trotzdem
+   *   `uebersprungen`      — der Nutzer hat „Ohne Sicherung speichern" gewählt
+   *   `leer`               — die Datei war leer/nicht lesbar; es gab nichts zu sichern
+   *   `fehlgeschlagen`     — die Sicherung schlug fehl; DANN WURDE NICHT ÜBERSCHRIEBEN
+   */
+  backup?: 'geschrieben' | 'kein-ordner' | 'uebersprungen' | 'leer' | 'fehlgeschlagen';
+  /** Dateiname der geschriebenen Sicherung (nur bei `backup: 'geschrieben'`). */
+  backupName?: string;
+  /** Grund des Fehlschlags (nur bei `backup: 'fehlgeschlagen'`) — für die Meldung. */
+  backupError?: string;
 }
 
 /**
@@ -94,6 +116,45 @@ export interface FsHandleAdapter {
   canPickSaveTarget(): boolean;
   /** Öffnet den „Speichern unter"-Dialog. `null` = Nutzerabbruch (KEIN Ausweich-Tier). */
   pickSaveTarget(filename: string, mimeType: string): Promise<unknown | null>;
+  /**
+   * Liest den AKTUELLEN Inhalt der Datei von der Platte — die Vorlage der Sicherung
+   * (Spec 14 §4.1). `null`, wenn das Handle nichts (mehr) liefert.
+   *
+   * Gesichert wird bewusst der Stand VON DER PLATTE, nicht der aus dem Modell erzeugte
+   * oder die Arbeitskopie: nur er ist genau das, was das Überschreiben vernichtet. Ein
+   * aus dem Modell serialisierter „alter" Stand wäre bereits die Projektion des neuen.
+   */
+  read(handle: unknown): Promise<Uint8Array | null>;
+  /** Der Dateiname hinter einem Handle — nach Tier 1b der vom Nutzer gewählte. */
+  nameOf(handle: unknown): string;
+}
+
+/**
+ * Der Backup-Ordner (Spec 14 §4.1): ein eigens gewähltes Verzeichnis-Handle, in das die
+ * datierte Sicherung geschrieben wird, bevor Tier 1a die Originaldatei überschreibt.
+ *
+ * Ein eigener Adapter und nicht `FsHandleAdapter` mit einer weiteren Methode, weil es um
+ * ein VERZEICHNIS geht (`showDirectoryPicker`/`getFileHandle`), nicht um eine Datei — und
+ * weil die File System Access API keinen Weg von einem Datei-Handle zu seinem Ordner
+ * kennt. Ohne dieses zweite Handle könnte die App keine Datei neben der Originaldatei
+ * anlegen, obwohl sie diese in der Hand hält.
+ */
+export interface BackupFolderAdapter {
+  isSupported(): boolean;
+  /** Ordner-Dialog (`mode: 'readwrite'`). `null` = Nutzerabbruch. */
+  pick(): Promise<unknown | null>;
+  requestPermission(handle: unknown): Promise<boolean>;
+  /** Anzeigename des Ordners für die Einstellungen. */
+  nameOf(handle: unknown): string;
+  /** Legt `filename` im Ordner an (überschreibt eine gleichnamige Datei). */
+  writeInto(handle: unknown, filename: string, bytes: Uint8Array | string): Promise<void>;
+}
+
+/** Persistenz des Backup-Ordner-Handles (eigener IDB-Store, Kategorie A). */
+export interface BackupFolderHandleStore {
+  load(): Promise<unknown | null>;
+  save(handle: unknown): Promise<void>;
+  clear(): Promise<void>;
 }
 
 /**
@@ -119,4 +180,18 @@ export interface FileServiceAdapters {
   fsHandle: FsHandleAdapter;
   share: ShareAdapter;
   download: DownloadAdapter;
+  /**
+   * Backup-Ordner (Spec 14 §4.1). PFLICHTFELDER, obwohl die Sicherung selbst optional
+   * ist: ein Adaptersatz, dem man sie weglassen kann, ist ein Adaptersatz, in dem sie
+   * irgendwann fehlt — und ihr Fehlen ist genau der Schaden, den sie verhindert. Ob
+   * gesichert wird, entscheidet der VERBUNDENE ORDNER (Store leer = nicht verbunden),
+   * nicht die An-/Abwesenheit eines Adapters (Zwang statt Erinnerung).
+   */
+  backupFolder: BackupFolderAdapter;
+  backupFolderStore: BackupFolderHandleStore;
+  /**
+   * Zeitgeber für den Stempel der Sicherung — injizierbar, damit Tests einen festen Namen
+   * erwarten können (TST-3). Kein Plattform-Adapter, deshalb optional mit Vorgabe.
+   */
+  now?: () => Date;
 }

@@ -50,11 +50,30 @@ function ohneKommentare(src: string): string {
     .replace(/^\s*\/\/.*$/gm, '');
 }
 
-/** Jede Fläche mit einer „Speichern"-Aktion — die Population, um die es geht. */
+/**
+ * Jede Fläche mit einer „Speichern"-Aktion UND mindestens einem Eingabefeld — die
+ * Population, um die es geht.
+ *
+ * DIE ZWEITE BEDINGUNG IST NICHT KOSMETIK. §6i verlangt „Enter speichert" — Enter kann
+ * nur in einem FELD ausgelöst werden (implicit submission). Eine Fläche ohne Eingabefeld
+ * hat die Frage nicht offen, sie hat sie nicht: ein `<form onsubmit>` um eine reine
+ * Knopfleiste wäre ein Submit-Pfad, den nichts auslösen kann, und ein Escape-Ausgang
+ * ohne Eingabe, die man verwerfen könnte.
+ *
+ * Bis [ADR-v9-302] fiel das nicht auf, weil jede Datei mit einem „Speichern"-Knopf
+ * zufällig auch Felder trug. Der Speichern-Bereich der Datei-Fläche (`SaveButton`, drei
+ * Knöpfe ohne Eingabe) und ein Erklärsatz in den Einstellungen, der mit dem Wort
+ * „Speichern" beginnt, brachten beide Fälle auf einmal — der zweite zeigt zugleich, dass
+ * `>\s*Speichern` allein PROSA trifft, nicht nur Bedienelemente.
+ *
+ * Am Bestand gemessen (2026-08-28): 16 Dateien tragen das Wort, 14 davon ein Feld — die
+ * Population verliert genau die beiden, die keine Formulare sind, und keine echte.
+ */
 function speicherFlaechen(): { pfad: string; src: string }[] {
   return svelteFiles(UI_DIR)
     .map((pfad) => ({ pfad, src: ohneKommentare(readFileSync(pfad, 'utf8')) }))
-    .filter(({ src }) => />\s*Speichern/.test(src));
+    .filter(({ src }) => />\s*Speichern/.test(src))
+    .filter(({ src }) => /<input\b|<textarea\b|<select\b|bind:value/.test(src));
 }
 
 const kurz = (p: string) => p.replace(UI_DIR, 'ui');

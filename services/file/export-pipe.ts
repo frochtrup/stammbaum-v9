@@ -55,6 +55,10 @@ export interface ExportRequest {
   grampsDoc?: GrampsParsed | XmlDocument;
   /** Nur für in-place-fähige Formate (5.5.1) relevant; strict/ged7/gramps ignorieren handle. */
   handle?: unknown;
+  /** „Ohne Sicherung speichern" — überspringt den Backup-Vorlauf von Tier 1a (Spec 14 §4.1). */
+  skipBackup?: boolean;
+  /** „Speichern unter …" — überspringt Tier 1a und öffnet den Dialog (Spec 14 §4.1). */
+  forcePicker?: boolean;
   gzip?: GzipAdapter;
   /**
    * Anonymisierter Export (Spec 13 §7): Anwesenheit ist das Opt-in, der Wert ist das
@@ -115,6 +119,11 @@ export async function exportViaOnePipe(fileService: FileService, req: ExportRequ
 
   return fileService.exportToFile(bytes, filename, mimeTypeFor(req.format), {
     handle: isInPlaceCapable ? req.handle : undefined,
-    forceDownload: !isInPlaceCapable
+    forceDownload: !isInPlaceCapable,
+    // Beide Schalter gelten nur für den in-place-fähigen Pfad: ein Cross-/Strict-/
+    // anonymisierter Export überschreibt nichts, hat also nichts zu sichern und braucht
+    // keinen erzwungenen Dialog (forceDownload deckt ihn ohnehin ab).
+    skipBackup: req.skipBackup,
+    forcePicker: isInPlaceCapable ? req.forcePicker : undefined
   });
 }

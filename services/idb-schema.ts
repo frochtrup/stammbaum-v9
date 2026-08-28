@@ -20,7 +20,7 @@
 import { klonFehlerText } from '../core/clone-diagnose';
 
 const DB_NAME = 'stammbaum-v9';
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 export const STORE_WORKING_COPY = 'working-copy';
 export const STORE_PLACES_MIRROR = 'places-mirror';
@@ -58,6 +58,12 @@ export const STORE_MEDIA_FOLDER_HANDLE = 'media-folder-handle';
  * gerätelokal, reist nicht mit. Anders als die übrigen Stores trägt dieser VIELE
  * Schlüssel (einen je Datei), nicht einen festen. */
 export const STORE_MEDIA_BYTES = 'media-bytes';
+/** Verzeichnis-Handle des Backup-Ordners (Spec 14 §4.1, [ADR-v9-302]) — Kategorie A wie
+ * die übrigen FS-Handles: gerätelokal, nicht serialisierbar, auf einem zweiten Gerät
+ * bedeutungslos. Eigener Store NEBEN `media-folder-handle`, obwohl beide ein Verzeichnis
+ * meinen: der Medien-Ordner ist mit `mode:'read'` verbunden und darf nicht dadurch zum
+ * Schreibziel werden, dass sich zwei Zwecke einen Schlüssel teilen. */
+export const STORE_BACKUP_FOLDER_HANDLE = 'backup-folder-handle';
 
 /**
  * ALLE Object-Stores dieser Datenbank — die EINE Liste ([ADR-v9-297]).
@@ -80,6 +86,7 @@ export const ALL_STORES: readonly string[] = [
   STORE_APP_DATA,
   STORE_MEDIA_FOLDER_HANDLE,
   STORE_MEDIA_BYTES,
+  STORE_BACKUP_FOLDER_HANDLE,
 ];
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -97,8 +104,41 @@ export function openStammbaumDb(): Promise<IDBDatabase> {
           if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // WARUM DIESE ZEILE EXISTIERT — aufgefallen beim ersten Versionssprung seit
+        // langem (10 → 11, [ADR-v9-302]): Diese Verbindung wird bewusst NIE geschlossen
+        // (`dbPromise` cacht sie). Solange ein zweiter Tab mit der alten Version läuft,
+        // blockiert er damit das Upgrade des neuen — dauerhaft, denn niemand schließt.
+        // `versionchange` ist die Aufforderung „mach Platz"; wer sie ignoriert, sperrt
+        // die eigene App aus. Der Fall ist am Code ablesbar, nicht am Browser gemessen:
+        // ohne den `onblocked`-Zweig unten wird das Promise in dieser Lage weder erfüllt
+        // noch abgelehnt, und jeder Wartende hängt still.
+        //
+        // Die Verbindung wird geschlossen, nicht die Seite neu geladen: das Neuladen ist
+        // eine UI-Entscheidung und gehört nicht in einen Dienst (dieselbe Grenze wie in
+        // `reset-local-state.ts`). Nach dem Schließen scheitern laufende Zugriffe dieser
+        // Instanz — richtig so: sie gehören zu einem Stand, den es nicht mehr gibt.
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
+      // Ein blockiertes Upgrade ist der eine Fall, der ohne Handler NICHT scheitert,
+      // sondern schweigt. Eine Fehlermeldung ist hier besser als eine Ladeanzeige, die
+      // nie endet — sie nennt dem Nutzer auch die Handlung, die es löst.
+      req.onblocked = () => {
+        dbPromise = null;
+        reject(
+          new Error(
+            'Der lokale Speicher konnte nicht aktualisiert werden, weil die App noch in einer ' +
+              'anderen Registerkarte geöffnet ist. Bitte alle anderen Stammbaum-Tabs schließen ' +
+              'und diese Seite neu laden.',
+          ),
+        );
+      };
     });
   }
   return dbPromise;

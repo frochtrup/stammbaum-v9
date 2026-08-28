@@ -182,12 +182,110 @@
       tick++;
     }
   }
+
+  // --- Backup-Ordner (Spec 14 §4.1) -----------------------------------------------
+  // Eigener Zustand neben dem Medien-Ordner, kein gemeinsamer: es sind zwei Handles mit
+  // zwei Rechten (`read` vs. `readwrite`) und zwei Lebensläufen — sie nur deshalb
+  // zusammenzulegen, weil beide „ein Ordner" sind, machte aus einem Leserecht für Fotos
+  // stillschweigend ein Schreibrecht.
+  let backup = $state({ supported: false, connected: false, name: '' });
+  let backupNotice = $state('');
+
+  $effect(() => {
+    void tick;
+    if (!fileService) return;
+    fileService
+      .backupFolderStatus()
+      .then((s) => {
+        backup = s;
+      })
+      .catch(() => {
+        /* Ein nicht lesbarer Handle-Store ist kein Grund, die Einstellungen zu leeren. */
+      });
+  });
+
+  async function connectBackupFolder() {
+    if (!fileService) return;
+    busy = true;
+    backupNotice = '';
+    try {
+      const name = await fileService.connectBackupFolder();
+      backupNotice = name
+        ? `Sicherungen gehen ab jetzt nach „${name}".`
+        : 'Ordner-Auswahl abgebrochen.';
+    } catch (err) {
+      backupNotice = 'Ordner konnte nicht verbunden werden: ' + (err instanceof Error ? err.message : String(err));
+    } finally {
+      busy = false;
+      tick++;
+    }
+  }
+
+  async function disconnectBackupFolder() {
+    if (!fileService) return;
+    busy = true;
+    try {
+      await fileService.disconnectBackupFolder();
+      // Der Satz sagt die FOLGE, nicht die Handlung: „getrennt" wüsste der Nutzer schon,
+      // „speichert ab jetzt ohne Sicherung" ist das, was er wissen muss (INV-FILE-4).
+      backupNotice = 'Getrennt — Speichern überschreibt ab jetzt ohne Sicherung.';
+    } finally {
+      busy = false;
+      tick++;
+    }
+  }
 </script>
 
 <div class="settings-view">
   <p class="settings-view__intro">
     Was gilt geräteübergreifend, was nur auf diesem Gerät — und wie Sie es mitnehmen.
   </p>
+
+  <!-- Zuerst, weil es als einziges hier einen DATENVERLUST verhindert: alles andere in
+       dieser Fläche ist Komfort. -->
+  <section class="settings-view__group" aria-labelledby="set-backup">
+    <h3 id="set-backup" class="stb-role-label settings-view__group-label">Sicherung beim Speichern</h3>
+    <p class="settings-view__scope">{SCOPE_LABEL.device}</p>
+    <p class="settings-view__hint">
+      Speichern schreibt still in dieselbe Datei zurück. Ist hier ein Ordner verbunden,
+      legt die App vorher eine datierte Kopie des bisherigen Standes darin ab — z. B.
+      <code>Meine Familie (Backup 2026-08-28 14-32-05).ged</code>. Es wird nichts
+      automatisch gelöscht; alte Sicherungen räumen Sie selbst auf.
+    </p>
+
+    {#if !fileService || !backup.supported}
+      <!-- Kein Verzeichnis-Zugriff auf dieser Plattform (iOS/Safari) — dort überschreibt
+           die App aber auch nichts still: jeder Save ist eine eigene Geste mit eigenem
+           Ziel. Kein toter Knopf, sondern der Grund dafür. -->
+      <p class="settings-view__status" data-testid="backup-folder-status">
+        Auf diesem Gerät nicht nötig: Speichern legt hier jedes Mal eine Datei über den
+        Teilen- bzw. Download-Weg an und überschreibt nichts unbemerkt.
+      </p>
+    {:else}
+      <p class="settings-view__status" data-testid="backup-folder-status">
+        {backup.connected
+          ? `Sicherungen gehen nach „${backup.name}".`
+          : 'Kein Backup-Ordner verbunden — Speichern überschreibt ohne Sicherung.'}
+      </p>
+      <div class="settings-view__actions">
+        <button
+          type="button"
+          class="stb-btn"
+          data-variant={backup.connected ? 'secondary' : 'primary'}
+          disabled={busy}
+          onclick={connectBackupFolder}
+        >
+          {backup.connected ? 'Anderen Ordner wählen' : 'Backup-Ordner wählen'}
+        </button>
+        {#if backup.connected}
+          <button type="button" class="stb-btn" data-variant="secondary" disabled={busy} onclick={disconnectBackupFolder}>
+            Trennen
+          </button>
+        {/if}
+      </div>
+      <StatusNotice text={backupNotice} onDismiss={() => (backupNotice = '')} lage="inline" />
+    {/if}
+  </section>
 
   <section class="settings-view__group" aria-labelledby="set-media">
     <h3 id="set-media" class="stb-role-label settings-view__group-label">Medien-Ordner</h3>

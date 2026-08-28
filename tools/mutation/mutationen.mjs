@@ -464,6 +464,20 @@ export const STELLEN = [
       '      }',
     schwelle: 2,
   },
+  {
+    inv: 'INV-FILE-4',
+    spec: '14',
+    art: 'mutation',
+    zusicherung:
+      'Ein In-place-Save überschreibt nie, ohne dass der vorherige Stand gesichert oder der Verzicht benannt ist',
+    datei: 'services/file/file-service.ts',
+    // Die Reihenfolge UMDREHEN, nicht die Sicherung entfernen: „erst schreiben, dann
+    // sichern" ist der Fehler, der sich beim Lesen richtig anfühlt und den Verlust
+    // trotzdem endgültig macht. Genau das muss ein Test fangen (ADR-v9-302).
+    suche: "        if (sicherung.backup === 'fehlgeschlagen') {",
+    ersetze: "        if (false) {",
+    schwelle: 2,
+  },
 
   // ── UI/UX (Spec 21) ─────────────────────────────────────────────────────────────────
   {

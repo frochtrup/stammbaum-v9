@@ -138,6 +138,14 @@ export interface AppState extends PlacesHost {
   /** Dateiname der zuletzt importierten Datei (leer = noch nichts geladen). */
   readonly fileName: string;
   /**
+   * Kommando: benennt die geladene Datei um — NUR nach „Speichern unter" (Spec 14 §4.1),
+   * wo der Nutzer im Dialog einen anderen Namen gewählt hat. Bewusst KEIN Setter neben
+   * `loadDatabase`: die Datenbank bleibt dieselbe, es wechselt allein das Ziel. Ein
+   * `loadDatabase` hier würde Undo-Stack und „Revert to Saved"-Bezugspunkt löschen — für
+   * eine Umbenennung ist beides falsch.
+   */
+  renameFile(nextFileName: string): void;
+  /**
    * Kommando: ersetzt die Datenbank (z. B. nach parseGedcom) — der EINE Ladepfad.
    * `roots` ist der Passthrough-Baum desselben Dokuments (core/interop ParsedGedcom.roots);
    * optional, weil ältere Aufrufer (Tests, Aufgaben-Kommandos-Setup) ihn nicht immer haben —
@@ -763,6 +771,9 @@ export function createAppState(opts: CreateAppStateOptions = {}): AppState {
     },
     get fileName() {
       return fileName;
+    },
+    renameFile(nextFileName) {
+      if (nextFileName) fileName = nextFileName;
     },
     loadDatabase(nextDb, nextFileName, nextRoots) {
       db = nextDb;

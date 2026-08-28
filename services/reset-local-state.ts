@@ -45,6 +45,7 @@ export const LOKALE_DATEN: readonly LokalerDatenposten[] = [
   { store: 'orte-editor-draft', label: 'Zwischenstand des Orte-Editors', woher: 'ja' },
   { store: 'places-file-handle', label: 'gemerkter Zugriff auf die orte.json', woher: 'ja' },
   { store: 'media-folder-handle', label: 'gemerkter Zugriff auf den Medien-Ordner', woher: 'ja' },
+  { store: 'backup-folder-handle', label: 'gemerkter Zugriff auf den Backup-Ordner', woher: 'ja' },
 ];
 
 /**

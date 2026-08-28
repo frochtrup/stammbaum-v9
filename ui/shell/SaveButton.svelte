@@ -30,10 +30,15 @@
 
   // Der eigentliche Vorgang liegt seit BL-93 in save-action.ts — dieselbe Funktion
   // ruft das Kürzel Cmd/Ctrl+S in App.svelte auf (EIN Speichern-Pfad, INV-UI-4).
-  async function handleClick() {
+  //
+  // Die drei Varianten (Spec 14 §4.1) sind DIESELBE Funktion mit zwei Schaltern, kein
+  // zweiter Speicher-Weg: „Speichern" sichert vorher, „Ohne Sicherung" überspringt den
+  // Vorlauf, „Speichern unter …" erzwingt den Dialog. Hätte jede ihren eigenen Aufruf-
+  // pfad, wären es drei Stellen, an denen der Tier-Fallback auseinanderlaufen kann.
+  async function speichere(opts: { skipBackup?: boolean; forcePicker?: boolean } = {}) {
     status = 'saving';
     notice = '';
-    const outcome = await saveCurrentDoc(appState, fileService, handle);
+    const outcome = await saveCurrentDoc(appState, fileService, handle, opts);
     notice = outcome.notice;
     // Der FileService hat es bereits in der Arbeitskopie gemerkt; hier geht es um den
     // laufenden Sitzungszustand, damit schon der NÄCHSTE Klick still speichert.
@@ -44,25 +49,60 @@
 
 {#if appState.fileName}
   <div class="save-bar">
-    <button type="button" class="stb-btn" data-variant="primary" onclick={handleClick} disabled={status === 'saving'}>
-      {status === 'saving' ? 'Speichere …' : 'Speichern'}
-    </button>
-    {#if notice}
-      <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
-    {:else}
-      <!-- Speicher-Ziel sichtbar machen (ADR-v9-128, Kritik-Punkt 2): „Speichern → Datei",
-           damit klar ist, wohin geschrieben wird. Nach dem Speichern ersetzt die Meldung
-           die Zielangabe. -->
-      <span class="save-bar__target">→ {appState.fileName}</span>
-    {/if}
+    <div class="save-bar__row">
+      <button
+        type="button"
+        class="stb-btn"
+        data-variant="primary"
+        onclick={() => speichere()}
+        disabled={status === 'saving'}
+      >
+        {status === 'saving' ? 'Speichere …' : 'Speichern'}
+      </button>
+      {#if notice}
+        <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
+      {:else}
+        <!-- Speicher-Ziel sichtbar machen (ADR-v9-128, Kritik-Punkt 2): „Speichern → Datei",
+             damit klar ist, wohin geschrieben wird. Nach dem Speichern ersetzt die Meldung
+             die Zielangabe. -->
+        <span class="save-bar__target">→ {appState.fileName}</span>
+      {/if}
+    </div>
+    <!-- Die beiden Nebenwege sichtbar statt in einer Disclosure: „Ohne Sicherung" ist der
+         Ausweg, wenn die Sicherung scheitert (die Meldung nennt ihn wörtlich) — er muss
+         dann dort sein, wo man ihn sucht, nicht hinter einem weiteren Klick. Zwei
+         sekundäre Flächen in einer INHALTS-Gruppe, nicht im Kopfbereich: INV-UI-11
+         (≤5 dauerhafte Elemente) gilt der permanenten Kopfzeile, nicht dieser Fläche. -->
+    <div class="save-bar__row save-bar__row--aside">
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={() => speichere({ forcePicker: true })} disabled={status === 'saving'}>
+        Speichern unter …
+      </button>
+      <button type="button" class="stb-btn" data-variant="secondary" onclick={() => speichere({ skipBackup: true })} disabled={status === 'saving'}>
+        Ohne Sicherung speichern
+      </button>
+    </div>
   </div>
 {/if}
 
 <style>
   .save-bar {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .save-bar__row {
+    display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.6rem;
+  }
+
+  /* Die Nebenwege treten zurück — sie sind seltener als der Hauptknopf und sollen ihn
+     nicht optisch verdoppeln. Die Trefferfläche bleibt die des Design-Systems. */
+  .save-bar__row--aside {
+    font-size: 0.9rem;
   }
 
   /* Optik + Trefferfläche aus `.stb-btn[data-variant='primary']` (design-system.css). */

@@ -69,7 +69,10 @@ describe('INV-FILE-3 — Tier-Auswahl ist die einzige Plattform-Verzweigung', ()
 
     const result = await svc.exportToFile('BYTES', 'datei.ged', 'text/plain', { handle: { id: 1 } });
 
-    expect(result).toEqual({ tier: 'fs-handle', ok: true });
+    // `backup: 'kein-ordner'` ist der Vorgabe-Zustand ohne verbundenen Backup-Ordner
+    // ([ADR-v9-302]) — die Tier-Wahl selbst ist unverändert, sie meldet nur zusätzlich,
+    // dass nicht gesichert wurde (INV-FILE-4: nie stillschweigend).
+    expect(result).toEqual({ tier: 'fs-handle', ok: true, backup: 'kein-ordner' });
     expect(fsHandle.writeCalls).toEqual([{ handle: { id: 1 }, bytes: 'BYTES' }]);
     expect(share.share).not.toHaveBeenCalled();
     expect(download.download).not.toHaveBeenCalled();
