@@ -35,15 +35,43 @@
   // zweiter Speicher-Weg: „Speichern" sichert vorher, „Ohne Sicherung" überspringt den
   // Vorlauf, „Speichern unter …" erzwingt den Dialog. Hätte jede ihren eigenen Aufruf-
   // pfad, wären es drei Stellen, an denen der Tier-Fallback auseinanderlaufen kann.
+  /** Steht, wenn der letzte Save mangels Backup-Ordner unterblieb — s. `ordnerWaehlen`. */
+  let ordnerFehlt = $state(false);
+
   async function speichere(opts: { skipBackup?: boolean; forcePicker?: boolean } = {}) {
     status = 'saving';
     notice = '';
     const outcome = await saveCurrentDoc(appState, fileService, handle, opts);
     notice = outcome.notice;
+    ordnerFehlt = outcome.backupOrdnerFehlt === true;
     // Der FileService hat es bereits in der Arbeitskopie gemerkt; hier geht es um den
     // laufenden Sitzungszustand, damit schon der NÄCHSTE Klick still speichert.
     if (outcome.handle !== undefined) onHandleAcquired?.(outcome.handle);
     status = 'idle';
+  }
+
+  /**
+   * Der Ausweg aus „kein Backup-Ordner verbunden", an Ort und Stelle: Ordner wählen und
+   * denselben Save sofort zu Ende führen. Der Dialog braucht eine Nutzergeste — dieser
+   * Klick IST sie, deshalb steht der Knopf hier und nicht in einer automatischen Reaktion
+   * auf den fehlgeschlagenen Save.
+   */
+  async function ordnerWaehlen() {
+    status = 'saving';
+    try {
+      const name = await fileService.connectBackupFolder();
+      if (!name) {
+        notice = 'Ordner-Auswahl abgebrochen — es wurde nichts gespeichert.';
+        status = 'idle';
+        return;
+      }
+    } catch (err) {
+      notice = 'Ordner konnte nicht verbunden werden: ' + (err instanceof Error ? err.message : String(err));
+      status = 'idle';
+      return;
+    }
+    status = 'idle';
+    await speichere();
   }
 </script>
 
@@ -61,6 +89,13 @@
       </button>
       {#if notice}
         <StatusNotice text={notice} onDismiss={() => (notice = '')} lage="inline" />
+        {#if ordnerFehlt}
+          <!-- Der Weg aus der Meldung heraus, nicht nur ihre Beschreibung: ein Klick
+               wählt den Ordner und führt denselben Save zu Ende. -->
+          <button type="button" class="stb-btn" data-variant="primary" onclick={ordnerWaehlen} disabled={status === 'saving'}>
+            Backup-Ordner wählen und speichern
+          </button>
+        {/if}
       {:else}
         <!-- Speicher-Ziel sichtbar machen (ADR-v9-128, Kritik-Punkt 2): „Speichern → Datei",
              damit klar ist, wohin geschrieben wird. Nach dem Speichern ersetzt die Meldung

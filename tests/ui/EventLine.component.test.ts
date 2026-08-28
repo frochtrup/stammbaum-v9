@@ -21,6 +21,7 @@ function row(patch: Partial<EventLineRow> = {}): EventLineRow {
     datePhrase: '',
     age: '',
     placeLabel: '',
+    placeAbweichendGespeichert: null,
     value: '',
     addr: '',
     note: '',
@@ -587,5 +588,42 @@ describe('dedupeAddrNote (§10k/BL-71, reine Logik)', () => {
   // ganze Zeile), bleibt erhalten — „Bauer" ist nicht dasselbe wie „Bauernhof".
   it('lässt eine note stehen, die bloß Teilstring (nicht ganze Zeile) von addr ist', () => {
     expect(dedupeAddrNote({ note: 'Bauer', addr: 'Bauernhof', value: '' })).toBe('Bauer');
+  });
+});
+
+describe('EventLine — Warnzeichen, wenn die Anzeige nicht das ist, was gespeichert wird', () => {
+  // Nutzer-Vorgabe 2026-08-28: „an der dargestellten projektion sollte ein warnzeichen
+  // erkennbar sein, um zu wissen, dass es so nicht geschrieben wird" ([ADR-v9-304]).
+  it('zeigt es AM Ort und nennt im Label den Wert aus der Datei', () => {
+    renderEventLine({
+      props: {
+        ev: row({
+          placeLabel: 'Vechta, Amt Vechta, Herzogtum Oldenburg',
+          placeAbweichendGespeichert: 'Vechta, Amt Vechta, Herzogtum Oldenburg, Deutschland',
+        }),
+        appState: createAppState(),
+        viewState: createViewState(),
+        onEdit: vi.fn(),
+      },
+    });
+
+    const zeichen = screen.getByLabelText(/weicht vom gespeicherten Wert ab/);
+    expect(zeichen.textContent).toContain('⚠');
+    // Der Datei-Wert steht im Label, nicht nur ein „Achtung": ein Zeichen, das den
+    // Unterschied nicht nennt, zwingt zum Öffnen des Editors, um ihn zu sehen.
+    expect(zeichen.getAttribute('aria-label')).toContain('Deutschland');
+  });
+
+  it('bleibt weg, solange Anzeige und Datei dasselbe sagen', () => {
+    renderEventLine({
+      props: {
+        ev: row({ placeLabel: 'Vechta, Amt Vechta', placeAbweichendGespeichert: null }),
+        appState: createAppState(),
+        viewState: createViewState(),
+        onEdit: vi.fn(),
+      },
+    });
+
+    expect(screen.queryByLabelText(/weicht vom gespeicherten Wert ab/)).toBeNull();
   });
 });

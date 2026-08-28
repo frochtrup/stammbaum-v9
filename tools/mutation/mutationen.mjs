@@ -471,11 +471,13 @@ export const STELLEN = [
     zusicherung:
       'Ein In-place-Save überschreibt nie, ohne dass der vorherige Stand gesichert oder der Verzicht benannt ist',
     datei: 'services/file/file-service.ts',
-    // Die Reihenfolge UMDREHEN, nicht die Sicherung entfernen: „erst schreiben, dann
-    // sichern" ist der Fehler, der sich beim Lesen richtig anfühlt und den Verlust
-    // trotzdem endgültig macht. Genau das muss ein Test fangen (ADR-v9-302).
-    suche: "        if (sicherung.backup === 'fehlgeschlagen') {",
-    ersetze: "        if (false) {",
+    // Die Mutation entfernt GENAU DIE HÄLFTE, die der Nutzer-Befund vom 2026-08-28
+    // nachgeliefert hat: den Abbruch, wenn kein Ordner verbunden ist. Sie sieht dabei
+    // vollkommen harmlos aus — der Fehlschlag-Fall bleibt ja bewacht. Genau deshalb ist
+    // sie die richtige Probe: die erste Fassung des Codes las sich exakt so und ließ
+    // trotzdem jeden Save ungeschützt durch, der vor der ersten Ordner-Wahl passiert.
+    suche: "        if (sicherung.backup === 'fehlgeschlagen' || sicherung.backup === 'kein-ordner') {",
+    ersetze: "        if (sicherung.backup === 'fehlgeschlagen') {",
     schwelle: 2,
   },
 

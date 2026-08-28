@@ -22,6 +22,16 @@ export interface EventLineRow {
    *  gesetzt (Familien-/Orts-/Hof-Zeilen haben kein Einzel-Subjekt → leer). */
   age: string;
   placeLabel: string;
+  /**
+   * Der Wert, der beim Speichern TATSÄCHLICH in die Datei geht — gesetzt NUR, wenn er von
+   * `placeLabel` abweicht ([ADR-v9-304], Nutzer-Befund 2026-08-28).
+   *
+   * Pflichtfeld des Typs (optional nur im Wert), damit der Compiler jeden Erzeuger einer
+   * Ereigniszeile die Frage stellen lässt — dieselbe Wahl wie bei `EventsByType.resetKey`.
+   * Wer es weglässt, zeigt eine Kette an, die so nie in der Datei landet, und niemand
+   * erfährt es; genau das war der gemeldete Zustand.
+   */
+  placeAbweichendGespeichert: string | null;
   value: string;
   addr: string;
   note: string;

@@ -32,6 +32,7 @@ export { makeHofRegistry, type HofRegistry } from './hof-registry';
 // Chokepoint 4 (Spec 11 §5): PLAC-Bau + Kontext-Typ.
 export {
   buildPlacForGedcom,
+  anzeigeAbweichung,
   buildFormString,
   buildFullPlaceName,
   // Listen-Anzeige (INV-UI-14, Spec 21 §6l) — Kurzname statt Verwaltungskette.

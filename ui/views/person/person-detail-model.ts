@@ -4,7 +4,7 @@
 // keine Mutation, keine Feld-Interpretation, die eigentlich in den Kern gehört.
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { PlaceContext, Coords } from '../../../core/places';
-import { eventCoords, eventPlaceId, eventHofId, eventYear } from '../../../core/places';
+import { eventCoords, eventPlaceId, eventHofId, eventYear , anzeigeAbweichung } from '../../../core/places';
 import { isEventPresent, isEventEmpty, addrDisplay } from '../../../core/model';
 import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, ageAtEvent, sortPersonIdsByBirth } from '../../shell/person-display';
 import { eventTypeLabel, eventCategory, EVENT_CATEGORY_ORDER } from '../../shell/event-labels';
@@ -38,6 +38,8 @@ export interface EventRow {
    *  Text in `EventLine.svelte`, klickbar wenn `placeId`/`hofId` gesetzt ist, sonst
    *  unverlinkter Text. */
   placeLabel: string;
+  /** Was beim Speichern in die Datei geht, wenn es von `placeLabel` abweicht ([ADR-v9-304]). */
+  placeAbweichendGespeichert: string | null;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
   /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
@@ -193,6 +195,8 @@ function toEventRow(
     // Alter nur für Nicht-Geburts-Ereignisse (beim Geburtsereignis wäre es trivial 0).
     age: birth && key !== 'BIRT' ? ageAtEvent(birth, ev) : '',
     placeLabel: eventPlaceLabel(ev, ctx),
+    // Null, solange Anzeige und Datei dasselbe sagen — die Zeile zeigt dann kein Zeichen.
+    placeAbweichendGespeichert: anzeigeAbweichung(ev, ctx)?.gespeichert ?? null,
     value: ev.value,
     addr: addrDisplay(ev),
     note: ev.note,

@@ -35,6 +35,10 @@ function setup(opts: {
   const { adapters, fsHandle, share, download } = createMockAdapterSet({
     fsHandleSupported: opts.fsHandleSupported ?? false,
     shareSupported: opts.shareSupported ?? false,
+    // Ein In-place-Save setzt seit [ADR-v9-303] einen verbundenen Backup-Ordner voraus —
+    // ohne ihn bricht Tier 1a ab, statt ungesichert zu überschreiben.
+    backupConnected: true,
+    diskContent: new TextEncoder().encode('ALT'),
   });
   const fileService = new FileService(adapters);
   const placesStore = createMockPlacesStore(opts.wrapper ?? null);

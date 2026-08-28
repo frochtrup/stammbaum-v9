@@ -24,15 +24,19 @@ describe('exportPlacesFile — INV-FILE-2/3: dasselbe Export-Rohr, Tier-Auswahl 
     const handleStore = createMockPlacesFileHandleStore({ id: 'known-handle' });
     const { adapters, fsHandle, share, download } = createMockAdapterSet({
       fsHandleSupported: true,
-      shareSupported: true // Tier 2 wäre auch da — Tier 1 hat Vorrang (INV-FILE-3).
+      shareSupported: true, // Tier 2 wäre auch da — Tier 1 hat Vorrang (INV-FILE-3).
+      // Auch die orte.json wird in-place überschrieben, also gilt für sie derselbe
+      // Vorlauf ([ADR-v9-302], INV-FILE-2 — ein Rohr, keine Ausnahme je Dateiart).
+      backupConnected: true,
+      diskContent: new TextEncoder().encode('ALT')
     });
     const fileService = new FileService(adapters);
 
     const result = await exportPlacesFile(fileService, placesStore, handleStore);
 
-    // `backup: 'kein-ordner'`: der Vorlauf hängt an Tier 1a, nicht am Dateityp — auch die
-    // orte.json läuft durch dasselbe Rohr ([ADR-v9-302], INV-FILE-2).
-    expect(result).toEqual({ tier: 'fs-handle', ok: true, backup: 'kein-ordner' });
+    // Der Vorlauf hängt an Tier 1a, nicht am Dateityp — auch die orte.json läuft durch
+    // dasselbe Rohr ([ADR-v9-302], INV-FILE-2), also braucht auch sie einen Ordner.
+    expect(result).toMatchObject({ tier: 'fs-handle', ok: true, backup: 'geschrieben' });
     expect(fsHandle.writeCalls).toHaveLength(1);
     expect(fsHandle.writeCalls[0].handle).toEqual({ id: 'known-handle' });
     // Der geschriebene Text ist exakt der ROHE Wrapper (schemaVersion/rev/device/ts
@@ -118,7 +122,11 @@ describe('exportPlacesFile — INV-FILE-2/3: dasselbe Export-Rohr, Tier-Auswahl 
     };
     const placesStore = createMockPlacesStore(wrapper);
     const handleStore = createMockPlacesFileHandleStore({ id: 'h1' });
-    const { adapters } = createMockAdapterSet({ fsHandleSupported: true });
+    const { adapters } = createMockAdapterSet({
+      fsHandleSupported: true,
+      backupConnected: true,
+      diskContent: new TextEncoder().encode('ALT')
+    });
     const fileService = new FileService(adapters);
 
     await exportPlacesFile(fileService, placesStore, handleStore);

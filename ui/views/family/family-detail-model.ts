@@ -4,7 +4,7 @@
 // NICHT Teil dieser Scheibe (imperative Insel, s. Auftrag).
 import type { Citation, Database, Event, Family, Person } from '../../../core/model/types';
 import type { Coords, PlaceContext } from '../../../core/places';
-import { eventCoords, eventPlaceId, eventHofId } from '../../../core/places';
+import { eventCoords, eventPlaceId, eventHofId , anzeigeAbweichung } from '../../../core/places';
 import { isEventPresent, isEventEmpty, addrDisplay } from '../../../core/model';
 import { displayName, yearPlaceSummary, fullDateLabel, eventPlaceLabel, pedigreeLabel, sortPersonIdsByBirth } from '../../shell/person-display';
 import { eventTypeLabel } from '../../shell/event-labels';
@@ -45,6 +45,8 @@ export interface FamilyEventRow {
   /** Periodengerechter Ortsname (`eventPlaceLabel`, ADR-v9-80 Punkt 1) — der Ort-Link-
    *  Text in `EventLine.svelte`. */
   placeLabel: string;
+  /** Was beim Speichern in die Datei geht, wenn es von `placeLabel` abweicht ([ADR-v9-304]). */
+  placeAbweichendGespeichert: string | null;
   /** Typ-spezifischer Zusatztext (z. B. Beruf bei OCCU) — core/model/types.ts Event.value. */
   value: string;
   /** Adresse (RESI/PROP/CENS/OCCU) — core/model/types.ts Event.addr. */
@@ -118,6 +120,8 @@ function toEventRow(
     // Familien-Ereignisse haben kein Einzel-Subjekt → kein Alter (BL-196 nur im Personen-Kontext).
     age: '',
     placeLabel: eventPlaceLabel(ev, ctx),
+    // Null, solange Anzeige und Datei dasselbe sagen — die Zeile zeigt dann kein Zeichen.
+    placeAbweichendGespeichert: anzeigeAbweichung(ev, ctx)?.gespeichert ?? null,
     value: ev.value,
     addr: addrDisplay(ev),
     note: ev.note,

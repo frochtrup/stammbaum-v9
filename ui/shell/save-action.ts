@@ -88,7 +88,12 @@ function sicherungsHinweis(result: SaveResult): string {
     case 'geschrieben':
       return ` Vorheriger Stand gesichert: ${result.backupName}`;
     case 'kein-ordner':
-      return ' Ohne Sicherung — kein Backup-Ordner verbunden (Einstellungen).';
+      // Erreicht die Anzeige nicht mehr über diesen Weg: dieser Ausgang bricht den Save
+      // ab und wird im `!ok`-Zweig gemeldet. Der Fall bleibt hier stehen, damit der
+      // Compiler die Vollständigkeit weiter erzwingt.
+      return '';
+    case 'nicht-moeglich':
+      return ' Ohne Sicherung — dieses Gerät kann keinen Ordner freigeben.';
     case 'uebersprungen':
       return ' Ohne Sicherung, wie gewählt.';
     case 'leer':
@@ -115,6 +120,12 @@ export interface ExportOutcome {
   handle?: unknown;
   /** Bei „Speichern unter" der im Dialog gewählte Dateiname — die Datei heißt ab jetzt so. */
   name?: string;
+  /**
+   * Der Save unterblieb, weil kein Backup-Ordner verbunden ist. Die Fläche kann daraufhin
+   * den Ordner-Dialog direkt anbieten, statt den Nutzer in die Einstellungen zu schicken —
+   * die Meldung allein wäre eine Sackgasse mit Wegbeschreibung.
+   */
+  backupOrdnerFehlt?: boolean;
 }
 
 /**
@@ -158,6 +169,16 @@ export async function exportGedcom(
       if (result.backup === 'fehlgeschlagen') {
         return {
           notice: `Nicht gespeichert — die Sicherung schlug fehl: ${result.backupError ?? 'unbekannter Grund'} Die Datei ist unverändert; „Ohne Sicherung speichern" schreibt sie trotzdem.`,
+        };
+      }
+      // Kein Ordner verbunden: die Datei ist unverändert. Die Meldung nennt BEIDE Wege
+      // weiter — den, der die Zusage einlöst, und den, der sie bewusst übergeht. Ein
+      // bloßes „nicht gespeichert" ließe den Nutzer in einer Sackgasse stehen.
+      if (result.backup === 'kein-ordner') {
+        return {
+          notice:
+            'Nicht gespeichert — es ist kein Backup-Ordner verbunden, und ohne ihn würde Ihr bisheriger Stand ungesichert überschrieben. Wählen Sie einen Ordner, oder speichern Sie bewusst „Ohne Sicherung".',
+          backupOrdnerFehlt: true,
         };
       }
       return { notice: 'Speichern abgebrochen.' };
