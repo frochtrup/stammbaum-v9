@@ -121,6 +121,17 @@ export interface StoredValidationConfig {
  * sind `ISOLATED_PERSON`/`DISCONNECTED_FROM_ROOT` gewöhnliche Personen-Prädikate —
  * ein Mechanismus weniger, gleiches Ergebnis (ADR-v9-96).
  */
+/**
+ * Ein Ort ohne `enclosedBy`-Einträge, auf den Ortsangaben mit Elternebenen zeigen —
+ * die Trägerform von `ORT_OHNE_KETTE`. Vorberechnet in `context.ts::orteOhneKette`.
+ */
+export interface OrtOhneKette {
+  /** Wie viele Ortsangaben nennen Ebenen, die dieser Ort nicht projizieren kann. */
+  ereignisse: number;
+  /** Die genannten Ebenen, in Erst-Auftretens-Reihenfolge (Determinismus, TST-3). */
+  ebenen: Set<string>;
+}
+
 export interface RuleContext {
   db: Database;
   /** Orts-/Hof-Registries (Chokepoints, Spec 11 §5) — `buildContext` baut sie ohnehin für
@@ -140,6 +151,11 @@ export interface RuleContext {
    * (ADR-v9-143) — damit sind Hof-Bindung und Wohn-Semantik deckungsgleich.
    */
   hofsWithResidence: ReadonlySet<HofId>;
+  /**
+   * Orte, die keine `enclosedBy`-Einträge tragen und auf die Ortsangaben mit
+   * Elternebenen zeigen — Trägermenge von `ORT_OHNE_KETTE` (s. `context.ts`).
+   */
+  orteOhneKette: ReadonlyMap<PlaceId, OrtOhneKette>;
 }
 
 // --- Regel-Registry ---------------------------------------------------------
@@ -237,6 +253,7 @@ export type RuleId =
   | 'HOF_NO_COORD'
   | 'HOF_FAR'
   | 'ORT_WIE_HOFADRESSE'
+  | 'ORT_OHNE_KETTE'
   // Format (Interop)
   | 'ADDR_INDEX_ONLY'
   | 'PLAC_EBENE_UNBEKANNT';

@@ -3,7 +3,7 @@
 // über core-Chokepoints/-Felder, schreibt nie zurück (reine Query-Funktionen, Spec 02 §3).
 import type { Person, Event, Sex, ChildLink, Database } from '../../core/model/types';
 import type { PlaceContext } from '../../core/places';
-import { eventPlaceId, buildFormString, buildListPlaceName, eventYear } from '../../core/places';
+import { eventPlaceId, buildFormString, buildListPlaceName, eventYear, eventSpanne } from '../../core/places';
 import { dateSortKey, formatDateForDisplay, parseDateValue } from '../../core/model/gedcom-date';
 import { surnameOf } from '../../core/model/name-parts';
 
@@ -109,11 +109,28 @@ export function eventYearLabel(ev: Event): string {
 /**
  * Periodengerechter Ortsname eines Events über den Places-Chokepoint (Spec 11 §5) —
  * NIE ev.place roh anzeigen, wenn eine Auflösung möglich ist (Chokepoint-Pflicht).
+ *
+ * DER ZEITBEZUG IST `eventSpanne`, NICHT `eventYear` (Nutzer-Befund 2026-08-28). Beides
+ * ist ein gültiger `Zeitbezug`, und genau deshalb ist der Unterschied still: ein Jahr
+ * wird zur GANZEN Jahres-Spanne aufgeweitet und trifft an einem Grenzjahr BEIDE
+ * Perioden — dann entscheidet der Tie-Break „spätester Beginn" (Spec 11 §5) statt der
+ * Daten. Die Projektion (`buildPlacForGedcom`, der Ereignis-Editor, der Textangleich,
+ * der Writer) nimmt seit BL-324/[ADR-v9-243] den tagegenauen Stichtag; diese Zeile war
+ * die letzte ereignisbezogene Auflösung, die noch jahresweise rechnete.
+ *
+ * WAS DAS FÜR DEN NUTZER HIESS: der Ereignis-Editor zeigte die neue, periodengerechte
+ * Kette, „Projektion übernehmen" schrieb sie nach `ev.place` — und die Ereigniszeile im
+ * Personen-Steckbrief zeigte weiter die alte. Sie KONNTE nicht folgen: sie liest
+ * `ev.place` gar nicht, sie rechnet live, nur mit dem gröberen Zeitbezug. Am Realbestand
+ * betraf das 19 von 5.213 ortsgebundenen Ereignissen (Vechta 1813, Ochtrup 1806, …).
+ *
+ * `eventYear` bleibt richtig für alles, was wirklich ein JAHR will (Alter, Zeitleisten-
+ * Achse, Sortierung, Statistik) — es ist kein Ersatz für einen Stichtag.
  */
 export function eventPlaceLabel(ev: Event, ctx: PlaceContext): string {
   const placeId = eventPlaceId(ev, ctx);
   if (placeId != null) {
-    const built = buildFormString(ctx.places, placeId, eventYear(ev));
+    const built = buildFormString(ctx.places, placeId, eventSpanne(ev));
     if (built) return built;
   }
   return ev.place ?? '';

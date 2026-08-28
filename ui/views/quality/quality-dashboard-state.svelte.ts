@@ -28,6 +28,18 @@ import type { FocusFilter } from '../../../core/validate/index';
 export const DEFAULT_QUALITY_FOCUS: FocusFilter = 'attention';
 
 /**
+ * Der einzige Zustand, in dem NICHTS ausgeblendet wird — die Bezugsgröße für die
+ * „Filter · N"-Anzeige der `FilterBar` (Nutzer-Befund 2026-08-28).
+ *
+ * Bewusst getrennt von `DEFAULT_QUALITY_FOCUS`: hier ist die Vorgabe selbst eine
+ * Einschränkung (`attention` blendet die Hinweise aus). Wer die Anzeige an der Vorgabe
+ * misst, bekommt sie genau invertiert — Vorgabe filtert und zeigt 0, „Alle" filtert
+ * nicht und zeigt 1. Zwei Namen, weil es zwei verschiedene Fragen sind; sie fallen bei
+ * jeder anderen Filterfläche nur zufällig zusammen.
+ */
+export const UNGEFILTERTER_QUALITY_FOCUS: FocusFilter = 'all';
+
+/**
  * Umfang des offenen Prüfberichts — `'none'` = kein Bericht offen.
  *
  * Ein Slot statt zweier (`showReport` + `reportScope`): „offen" und „welcher Umfang" sind

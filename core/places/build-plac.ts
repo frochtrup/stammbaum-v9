@@ -11,7 +11,7 @@ import type { Event, PlaceId, HofId } from '../model/types';
 import type { Year, PlaceObject } from './types';
 import type { PlaceRegistry } from './place-registry';
 import type { HofRegistry } from './hof-registry';
-import { extractHofAddr, normHofAddr, normPlaceName, placeYear } from './normalize';
+import { extractHofAddr, normHofAddr, normPlaceName, placeYear, splitPlacSegments } from './normalize';
 import { spanneVonEreignis, type Spanne, type Zeitbezug } from './zeitbezug';
 
 /** Erstes Komma-Segment eines Namens (atomarer Ortsname ohne Hierarchie). */
@@ -208,6 +208,70 @@ export function unbekannteEbenen(ev: Event, ctx: PlaceContext): string[] {
 }
 
 /**
+ * WARUM `unbekannteEbenen` allein keine Anzeige tragen kann (Nutzer-Befund 2026-08-28).
+ *
+ * Sie beantwortet EINE Frage — „trägt die periodengerechte Kette jedes Segment der
+ * Quelle?" — und das ist als SPERRE genau richtig: sagt sie nein, darf
+ * `alignCuratedEventTexts` den Quelltext nicht ersetzen ([ADR-v9-224]). Als BEFUND ist
+ * dieselbe Antwort mehrdeutig, weil ein Nein drei verschiedene Ursachen haben kann, und
+ * nur eine davon ist das, was die Regel-Beschriftung behauptet:
+ *
+ *   undatiert       Ohne Stichtag gibt es keine Kette. Gebaut wird trotzdem eine — über
+ *                   den ersten `enclosedBy`-Eintrag — und gegen die wird dann gemessen.
+ *                   Das ist dieselbe erfundene Epoche, die [ADR-v9-292] für die
+ *                   PROJEKTION verboten hat; die PRÜFUNG hatte die Entscheidung nicht
+ *                   mitbekommen. Am Bestand des Nutzers 7 von 12 Meldungen.
+ *   ankerOhneKette  Der Ankerort trägt gar keine `enclosedBy`-Einträge. Die Kette ist
+ *                   dann nur er selbst, und JEDES Elternsegment der Quelle gilt als
+ *                   unbekannt — obwohl der Bestand die Ebenen sehr wohl kennt, sie nur
+ *                   nicht über diesen Ort verkettet hat. Der Resolver ist hier
+ *                   ausdrücklich nachsichtig (`chainCompatibleAnyPath`: „Modell-Kette
+ *                   endet → Präfix ok"); dass die Regel es nicht war, ist der Kern des
+ *                   Befunds „löst nicht gleich auf wie das Basisprogramm". 5 von 12.
+ *   unbekannt       Der eigentliche Zustand: die Quelle nennt eine Ebene, die zum
+ *                   Stichtag nicht in der Kette liegt, obwohl der Ort eine hat. 0 von 12.
+ *
+ * DIE SPERRE BLEIBT UNBERÜHRT. Diese Funktion klassifiziert nur, was `unbekannteEbenen`
+ * bereits gefunden hat — sie lockert nichts. In allen zwölf gemessenen Fällen verhindert
+ * die Sperre eine echte Kürzung (`Wulfen, Kreis Recklinghausen, …, Deutsches Reich` →
+ * `Wulfen`) und tut damit das Richtige; falsch war allein die Beschriftung des Befunds.
+ */
+export type EbenenUrsache = 'keine' | 'undatiert' | 'ankerOhneKette' | 'unbekannt';
+
+export interface EbenenBefund {
+  ursache: EbenenUrsache;
+  /** Die gemeldeten Segmente — leer genau bei `keine`. */
+  ebenen: string[];
+  /** Bei `ankerOhneKette` der Ort, dem die Verwaltungskette fehlt; sonst `null`. */
+  ankerId: PlaceId | null;
+}
+
+const OHNE_BEFUND: EbenenBefund = { ursache: 'keine', ebenen: [], ankerId: null };
+
+/** Der Ankerort eines Ereignisses für die Ketten-Frage (Hof → sein Dorf). */
+function ankerOrt(ev: Event, ctx: PlaceContext): PlaceId | null {
+  const hof = ev.hofId != null ? ctx.hofs.byId(ev.hofId) : undefined;
+  return hof ? hof.villageId : ev.placeId;
+}
+
+/**
+ * `unbekannteEbenen` plus die URSACHE (s. den Block darüber). Eine Fundstelle, drei
+ * Konsumenten mit verschiedenen Bedürfnissen: die Sperre nimmt weiterhin die rohe
+ * Antwort, die Personen-Regel nur `unbekannt`, die Orts-Regel nur `ankerOhneKette`.
+ * Reine Funktion.
+ */
+export function ebenenBefund(ev: Event, ctx: PlaceContext): EbenenBefund {
+  const ebenen = unbekannteEbenen(ev, ctx);
+  if (!ebenen.length) return OHNE_BEFUND;
+  if (eventSpanne(ev) == null) return { ursache: 'undatiert', ebenen, ankerId: null };
+  const ankerId = ankerOrt(ev, ctx);
+  if (ankerId != null && (ctx.places.byId(ankerId)?.enclosedBy.length ?? 0) === 0) {
+    return { ursache: 'ankerOhneKette', ebenen, ankerId };
+  }
+  return { ursache: 'unbekannt', ebenen, ankerId };
+}
+
+/**
  * Die Ebenen, die der PLAC-Text des Ereignisses nennt und die eine gegebene PROJEKTION
  * fallenließe — die Nachbarfrage zu `unbekannteEbenen` (BL-384, ADR-v9-292).
  *
@@ -256,13 +320,20 @@ export function verloreneEbenen(ev: Event, ctx: PlaceContext, projektion: string
   return verloren;
 }
 
-/** Komma-getrennte, getrimmte Segmente eines Ortstexts; leere Ebenen fallen weg. */
-function segmente(s: string): string[] {
-  return s
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
+/**
+ * Die Segmente eines Ortstexts — DIESELBE Sicht wie Seed, Resolver und `extractHofAddr`
+ * ([ADR-v9-294]), nicht eine zweite daneben.
+ *
+ * Hier stand ein nacktes `split(',')`. Ein Komma INNERHALB einer Klammer klammert aber
+ * einen Namen und trennt keine Ortsebene: `Oster 64 (110, Einhorst Leibzucht), Ochtrup`
+ * sind ZWEI Ebenen, nicht drei. Die Dashboard-Regel `PLAC_EBENE_UNBEKANNT` meldete
+ * deshalb an allen acht Ereignissen dieses Hofes das Fragment `Einhorst Leibzucht)` als
+ * unbekannte Verwaltungsebene — eine Ebene, die es nicht gibt — während der Resolver
+ * dieselbe Zeile anstandslos band (Nutzer-Befund 2026-08-28, am Realbestand gemessen:
+ * 8 von 4.923 reichen, verankerten Ereignissen, und das war die EINZIGE Divergenz
+ * zwischen Regel- und Resolver-Verdikt).
+ */
+const segmente = splitPlacSegments;
 
 /**
  * Die Namens-Abdeckung der periodengerechten Kette eines Ereignisses — die gemeinsame

@@ -12,7 +12,7 @@ import type { Hit, Rule, RuleContext } from './types';
 import type { Event, Family, Person } from '../model/types';
 import { distanceKm } from './geo';
 import type { CitationFact } from './facts';
-import { unbekannteEbenen } from '../places';
+import { ebenenBefund } from '../places';
 import {
   birthYear,
   citedSourceIds,
@@ -117,8 +117,14 @@ function ebenenBefunde(evs: readonly Event[], ctx: RuleContext): readonly Hit[] 
   const fehlend = new Set<string>();
   let betroffen = 0;
   for (const ev of evs) {
-    const ebenen = unbekannteEbenen(ev, ctx.places);
-    if (!ebenen.length) continue;
+    // NUR die Ursache `unbekannt` (Nutzer-Befund 2026-08-28, s. `ebenenBefund` im Kern):
+    // `undatiert` ist gar kein Urteil — ohne Stichtag gibt es keine Kette, gegen die man
+    // messen könnte ([ADR-v9-292], eine Tür weiter); `ankerOhneKette` ist ein Befund am
+    // ORT und steht als `ORT_OHNE_KETTE` unten. Am Bestand des Nutzers waren das 7 bzw. 5
+    // von 12 Meldungen, und in beiden Klassen war JEDE gemeldete Ebene ein existierender
+    // Ort — die Regel behauptete einen Datenfehler, wo keiner war.
+    const { ursache, ebenen } = ebenenBefund(ev, ctx.places);
+    if (ursache !== 'unbekannt') continue;
     betroffen++;
     for (const e of ebenen) fehlend.add(e);
   }
@@ -528,12 +534,49 @@ export const RULES: readonly Rule[] = [
     // damit dieselbe, die beim Laden das Schreiben verhindert hat — zwei Fassungen wären
     // zwei Wahrheiten darüber, was „unbekannte Ebene" heißt (INV-UI-4 auf Logik-Ebene).
     //
-    // `info`, nicht `warn`: der Befund kann drei Ursachen haben, und nur eine ist ein
-    // Fehler — eine Lücke im Ortsbestand (dann fehlt Kuration), eine Ebene, die zum
-    // Ereigniszeitpunkt gar nicht existierte (dann irrt die Quelle), oder ein Ortstitel,
-    // der selbst ein Komma trägt und beim Kettenbau abgeschnitten wird.
+    // `info`, nicht `warn`: auch der verbliebene Fall hat mehr als eine Lesart — eine
+    // Ebene, die zum Ereigniszeitpunkt gar nicht existierte (dann irrt die Quelle), oder
+    // ein Ortstitel, der selbst ein Komma trägt und beim Kettenbau abgeschnitten wird.
+    //
+    // MELDET SEIT 2026-08-28 NUR NOCH DIE URSACHE `unbekannt` (s. `ebenenBefunde` oben und
+    // `ebenenBefund` im Kern). Die zwei anderen Ursachen sind keine Aussage über die
+    // Quelle: ohne Datum gibt es keine Kette, und ein Ort ohne Verwaltungskette ist ein
+    // Kurationsauftrag, der als `ORT_OHNE_KETTE` an ihm selbst steht.
     person: (p, ctx) => ebenenBefunde(personEvents(p), ctx),
     family: (f, ctx) => ebenenBefunde(familyEvents(f), ctx),
+  },
+  {
+    id: 'ORT_OHNE_KETTE',
+    label: 'Ort ohne Verwaltungskette, auf den Ortsangaben mit Ebenen zeigen',
+    group: 'geo',
+    severity: 'info',
+    defaultEnabled: true,
+    threshold: null,
+    category: 'online',
+    // DIE ANDERE HÄLFTE VON `PLAC_EBENE_UNBEKANNT` (Nutzer-Befund 2026-08-28). Derselbe
+    // Zustand, aber an der Entität, die ihn beheben kann: trägt ein Ort keine
+    // `enclosedBy`-Einträge, kann die Projektion für KEIN Ereignis dort eine Kette bauen —
+    // die Quelle nennt Ebenen, das Modell hat nichts, wogegen es sie halten könnte.
+    //
+    // Als Personen-Befund war das dreifach die falsche Adresse: es stand an der Person
+    // statt am Ort, es wiederholte sich je Ereignis, und es las sich wie ein Datenfehler,
+    // wo Kurationsarbeit fehlt. Am Bestand des Nutzers: `Vardel` mit drei Ereignissen und
+    // vier Ebenen — vier Meldungen an drei Personen statt EINER Zeile am Ort, die in einem
+    // Griff zu erledigen ist.
+    //
+    // Der Träger kommt aus `ctx.orteOhneKette` (Vorberechnung, einmal über alle
+    // Ereignisse) — ein `place`-Prädikat sieht nur seinen Ort und müsste die Frage sonst je
+    // Ort mit einem eigenen Bestands-Lauf beantworten.
+    place: (o, ctx) => {
+      const eintrag = ctx.orteOhneKette.get(o.id);
+      if (!eintrag) return NONE;
+      const wie = eintrag.ereignisse === 1 ? 'Eine Ortsangabe nennt' : `${eintrag.ereignisse} Ortsangaben nennen`;
+      const was = eintrag.ebenen.size === 1 ? 'eine Ebene' : `${eintrag.ebenen.size} Ebenen`;
+      return hit(
+        `Keine Verwaltungskette hinterlegt — ${wie} ${was}, die dadurch nicht projiziert ` +
+          `werden können: ${[...eintrag.ebenen].join(', ')}`,
+      );
+    },
   },
   {
     id: 'MISSING_QUAY',

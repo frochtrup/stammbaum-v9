@@ -44,7 +44,7 @@
   import { createValConfigStore } from '../../../services/app-data';
   import {
     createQualityDashboardState,
-    DEFAULT_QUALITY_FOCUS,
+    UNGEFILTERTER_QUALITY_FOCUS,
     type QualityDashboardState,
   } from './quality-dashboard-state.svelte';
   import { matchesScope, suggestResearchStep } from '../../../core/research/index';
@@ -175,7 +175,19 @@
   /** Was der offene Bericht zeigt — je nach Umfang alle oder nur die Geo-Befunde. */
   const reportFindings = $derived(quality.report === 'geo' ? geoFindings : findings);
   const rows = $derived(filterFocus((branchFocusDashboard ?? dashboard).focus, quality.focus));
-  const activeFilterCount = $derived(quality.focus === DEFAULT_QUALITY_FOCUS ? 0 : 1);
+  /**
+   * Zählt, was die Ansicht EINSCHRÄNKT — nicht, was von der Vorgabe abweicht
+   * (Nutzer-Befund 2026-08-28: „Filter steht auf Handlungsbedarf, filtert Hinweise
+   * heraus, zeigt das aber nicht an; umgekehrt erscheint bei ‚Alle' eine 1").
+   *
+   * Bei jeder anderen `FilterBar` fallen die zwei Lesarten zusammen, weil die Vorgabe
+   * dort „nichts gefiltert" ist. Hier NICHT: die Vorgabe `attention` blendet die Hinweise
+   * aus, `all` ist der einzige unbeschränkte Zustand — der alte Vergleich gegen
+   * `DEFAULT_QUALITY_FOCUS` zeigte die Zahl deshalb genau invertiert. Die Prop meint
+   * „wie viele Filter schränken ein" (s. `count-active-filters.ts` für die Listen); nur
+   * diese Fläche hat sie an ihrer Vorgabe gemessen statt an der Wirkung.
+   */
+  const activeFilterCount = $derived(quality.focus === UNGEFILTERTER_QUALITY_FOCUS ? 0 : 1);
 
   const scoreClass = $derived(
     dashboard.cleanPct >= 80 ? 'good' : dashboard.cleanPct >= 50 ? 'mid' : 'low',
@@ -199,14 +211,28 @@
     };
   });
 
-  async function saveValConfig(cfg: ValidationConfig) {
+  /**
+   * Schreibungen der Regel-Konfiguration in EINER Kette (Nutzer-Wunsch 2026-08-28: der
+   * ⚙-Sheet wirkt jetzt sofort, es kommen also viele kleine Schreibungen statt einer
+   * beim Speichern). Ohne die Kette könnten zwei Aufrufe sich überholen und der ÄLTERE
+   * Stand zuletzt in den app-lokalen Speicher laufen — ein Fehler, der erst beim nächsten
+   * Start sichtbar würde.
+   */
+  let valStoreKette: Promise<void> = Promise.resolve();
+
+  /**
+   * Übernimmt eine Änderung aus dem ⚙-Sheet — sofort wirksam, das Sheet bleibt offen.
+   * `valConfig` ist reaktiv, `findings` hängt daran: die Wirkung steht sichtbar hinter
+   * dem Sheet, während es noch offen ist.
+   */
+  function applyValConfig(cfg: ValidationConfig) {
     valConfig = cfg;
-    showValConfig = false;
-    try {
-      await valStore.save(configToStored(cfg));
-    } catch {
-      /* app-lokaler Speicher nicht verfügbar — Konfiguration bleibt sitzungslokal. */
-    }
+    valStoreKette = valStoreKette
+      .then(() => valStore.save(configToStored(cfg)))
+      .then(
+        () => undefined,
+        () => undefined, // app-lokaler Speicher nicht verfügbar — bleibt sitzungslokal.
+      );
   }
 
   function barClass(pct: number): string {
@@ -297,7 +323,7 @@
   {#if showValConfig}
     <ValConfigSheet
       config={valConfig}
-      onSave={saveValConfig}
+      onChange={applyValConfig}
       onClose={() => (showValConfig = false)}
     />
   {/if}

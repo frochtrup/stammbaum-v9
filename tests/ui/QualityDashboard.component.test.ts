@@ -165,8 +165,11 @@ describe('QualityDashboard — der Zustand überlebt das Wegnavigieren (BL-319)'
 
     // Hinsehen, nicht abfragen: die Person, die nur der gesetzte Filter zeigt, ist da …
     expect(screen.getByRole('button', { name: 'Anna Klein' })).toBeTruthy();
-    // … der Trigger zählt den abweichenden Filter weiterhin …
-    expect(screen.getByRole('button', { name: /^Filter · 1/ })).toBeTruthy();
+    // … der Trigger zählt, was EINSCHRÄNKT (Nutzer-Befund 2026-08-28): „Alle" schränkt
+    // nicht ein, also keine Zahl. Das ist zugleich der schärfere Beleg für den erhaltenen
+    // Zustand — die Vorgabe „Handlungsbedarf" trüge hier „Filter · 1".
+    expect(screen.getByRole('button', { name: /^Filter$/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Filter · / })).toBeNull();
     // … und die aufgeklappte Auswahl steht auf demselben Wert.
     await fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
     expect((screen.getByLabelText('Alle (inkl. Hinweise)') as HTMLInputElement).checked).toBe(true);

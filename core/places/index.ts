@@ -41,6 +41,9 @@ export {
   eventSpanne,
   unbekannteEbenen,
   verloreneEbenen,
+  ebenenBefund,
+  type EbenenBefund,
+  type EbenenUrsache,
   type PlaceContext,
 } from './build-plac';
 
