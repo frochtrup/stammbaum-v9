@@ -411,6 +411,9 @@
         {navHistory}
         {listStates}
         {windowStates}
+        {persister}
+        {fileService}
+        onFileHandleChanged={(handle) => (fileHandle = handle)}
         onOpenLensForPerson={openLensForPerson}
         onOpenStoryForFamily={openStoryFromFamilyDetail}
         onNavigateLens={navigateLens}

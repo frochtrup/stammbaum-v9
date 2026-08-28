@@ -182,9 +182,11 @@ describe('App — Formfaktor schaltet Navigation UND Layout um (Spec 21 §3, BL-
     await rerender({ fileService, persister: mockPersister(), layoutEnv: layoutEnvFor(true) });
     layout.start(layoutEnvFor(true));
 
-    // Kein Leerlauf: die Personenliste (Entitäten-Einstieg) ist da.
+    // Kein Leerlauf: die Entitäten-Fläche ist da. OHNE geladene Datei ist ihr Körper seit
+    // [ADR-v9-297] der Startbildschirm — der Beleg ist deshalb dessen Einstieg, nicht mehr
+    // „＋ Neue Person" (das steht in der Personenliste, die hier gar nicht rendern soll).
     await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Daten' })).toBeTruthy());
-    expect(screen.getByRole('button', { name: /＋ Neue Person/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Leer beginnen' })).toBeTruthy();
   });
 });
 

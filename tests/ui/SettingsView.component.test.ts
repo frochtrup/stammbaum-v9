@@ -84,7 +84,11 @@ describe('SettingsView — Medien-Ordner', () => {
 
   it('kennzeichnet den Abschnitt als gerätegebunden — er reist NICHT mit', () => {
     mount(resolver([]));
-    expect(screen.getByText(/Nur auf diesem Gerät · reist nicht mit/)).toBeTruthy();
+    // Seit [ADR-v9-297] trägt auch der Zurücksetzen-Abschnitt diese Marke; geprüft wird
+    // deshalb IM Medien-Abschnitt, nicht global — sonst prüfte der Test nur noch, dass die
+    // Marke irgendwo vorkommt.
+    const medien = screen.getByRole('region', { name: 'Medien-Ordner' });
+    expect(medien.textContent).toMatch(/Nur auf diesem Gerät · reist nicht mit/);
   });
 
   it('nennt nach dem Verbinden gefunden / fehlend / nur-über-Dateinamen', async () => {
@@ -213,5 +217,51 @@ describe('SettingsView — Import-Weg ohne Verzeichnis-Handle (BL-259)', () => {
     expect(screen.queryByRole('button', { name: /verwerfen/ })).toBeNull();
     await fireEvent.click(screen.getByRole('button', { name: 'Medien importieren' }));
     await waitFor(() => expect(screen.getByRole('button', { name: /verwerfen/ })).toBeTruthy());
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// Zurücksetzen (Spec 14 §3.3, [ADR-v9-297]). Die Rückfrage wird GEKLICKT, nicht
+// wegdefiniert — genau der Grund, aus dem `ConfirmDialog` existiert (BL-351): ein Test,
+// der die Bestätigung stubbt, prüft alles außer dem Mechanismus, der versagen kann.
+describe('SettingsView — Zurücksetzen', () => {
+  it('bietet beide Stufen an', () => {
+    mount(resolver([]));
+    expect(screen.getByRole('button', { name: 'Ortsdaten zurücksetzen' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Alles zurücksetzen' })).toBeTruthy();
+  });
+
+  it('löscht nicht auf den ersten Klick, sondern fragt', async () => {
+    mount(resolver([]));
+    await fireEvent.click(screen.getByRole('button', { name: 'Alles zurücksetzen' }));
+    expect(screen.getByText('Wirklich allen lokalen Speicher löschen?')).toBeTruthy();
+  });
+
+  it('der Warnhinweis nennt das Unwiederbringliche beim Namen', async () => {
+    mount(resolver([]));
+    await fireEvent.click(screen.getByRole('button', { name: 'Alles zurücksetzen' }));
+    const text = document.body.textContent ?? '';
+    // Die drei Aussagen, für die der Hinweis da ist: WAS weg ist, dass es keine zweite
+    // Kopie gibt, und was NICHT angefasst wird.
+    expect(text).toContain('kuratierte Orte und Höfe');
+    expect(text).toContain('Forschungsprojekte');
+    expect(text).toContain('es gibt keine zweite Kopie');
+    expect(text).toContain('GEDCOM-/GRAMPS-Datei');
+  });
+
+  it('die milde Stufe spricht nur über die Orte — und nennt den Export als Rettung', async () => {
+    mount(resolver([]));
+    await fireEvent.click(screen.getByRole('button', { name: 'Ortsdaten zurücksetzen' }));
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Browser-Spiegel der kuratierten Orte');
+    expect(text).toContain('orte.json exportiert');
+    expect(text).not.toContain('Forschungsprojekte');
+  });
+
+  it('Abbrechen schließt die Rückfrage, ohne etwas zu tun', async () => {
+    mount(resolver([]));
+    await fireEvent.click(screen.getByRole('button', { name: 'Alles zurücksetzen' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+    expect(screen.queryByText('Wirklich allen lokalen Speicher löschen?')).toBeNull();
   });
 });

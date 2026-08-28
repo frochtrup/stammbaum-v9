@@ -94,10 +94,17 @@
     color: var(--stb-gold-light);
   }
 
+  /* `pre-line` statt des Vorgabewerts ([ADR-v9-297]): Zeilenumbrüche im übergebenen Text
+     werden GEZEIGT, Wortumbruch bleibt normal. Aufgefallen beim Hinsehen, nicht im Test —
+     der Warnhinweis vor „Alles zurücksetzen" übergibt eine Aufzählung mit zehn Posten, und
+     die rannen zu einem Fließtext zusammen. Die Zusicherung „nennt, was verloren geht"
+     galt für den textContent und war auf dem Bildschirm trotzdem nicht eingelöst.
+     Für die bisherigen einzeiligen Meldungen ändert sich nichts. */
   .confirm__text {
     margin: 0 0 1rem;
     color: var(--stb-text);
     line-height: 1.45;
+    white-space: pre-line;
   }
 
   /* Bestätigung rechts, Abbrechen links — dieselbe Anordnung wie die Formular-Aktionen

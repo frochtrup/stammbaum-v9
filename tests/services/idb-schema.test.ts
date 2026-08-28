@@ -66,15 +66,42 @@ describe('IndexedDB-Schema — genau EIN zentraler Öffner (Regressionstest)', (
     expect(placesHandleSrc).toMatch(/openStammbaumDb/);
   });
 
-  it('idb-schema.ts registriert alle drei bekannten Object-Stores im selben onupgradeneeded-Handler', () => {
+  // SEIT [ADR-v9-297] STRENGER, nicht schwächer. Vorher zählte dieser Test vier
+  // Store-Konstanten im Quelltext des Upgrade-Handlers auf — er hätte einen FÜNFTEN,
+  // vergessenen Store nicht bemerkt, solange niemand hier eine Zeile ergänzt. Der Handler
+  // läuft jetzt über `ALL_STORES`; geprüft wird deshalb (a) dass er genau das tut und
+  // (b) dass in `ALL_STORES` JEDE exportierte `STORE_*`-Konstante steht. Zusammen ist das
+  // die Zusicherung, die der alte Test nur für die vier aufgezählten Namen gab.
+  it('der Upgrade-Handler legt die Stores über ALL_STORES an, nicht über eine eigene Liste', () => {
     const schemaSrc = readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8');
-    const upgradeBlockMatch = schemaSrc.match(/onupgradeneeded = \(\) => \{[\s\S]*?\};/);
+    const upgradeBlockMatch = schemaSrc.match(/onupgradeneeded = \(\) => \{[\s\S]*?\n {6}\};/);
     expect(upgradeBlockMatch).not.toBeNull();
     const upgradeBlock = upgradeBlockMatch![0];
-    expect(upgradeBlock).toMatch(/STORE_WORKING_COPY/);
-    expect(upgradeBlock).toMatch(/STORE_PLACES_MIRROR/);
-    expect(upgradeBlock).toMatch(/STORE_PLACES_FILE_HANDLE/);
-    expect(upgradeBlock).toMatch(/STORE_PROJECTS/); // BL-58
+    expect(upgradeBlock).toMatch(/for \(const name of ALL_STORES\)/);
+    expect(upgradeBlock).toMatch(/createObjectStore\(name\)/);
+  });
+
+  it('ALL_STORES enthält JEDE exportierte STORE_*-Konstante (kein vergessener Store)', () => {
+    const schemaSrc = readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8');
+    const deklariert = [...schemaSrc.matchAll(/export const (STORE_[A-Z_]+)\s*=/g)].map((m) => m[1]);
+    expect(deklariert.length).toBeGreaterThan(0);
+    const listeMatch = schemaSrc.match(/export const ALL_STORES[\s\S]*?\];/);
+    expect(listeMatch).not.toBeNull();
+    const liste = listeMatch![0];
+    expect(deklariert.filter((name) => !liste.includes(name))).toEqual([]);
+  });
+
+  it('die vier historisch aufgezählten Stores sind weiterhin dabei (Regression von 2026-07)', () => {
+    const schemaSrc = readFileSync(join(SERVICES_DIR, 'idb-schema.ts'), 'utf8');
+    const liste = schemaSrc.match(/export const ALL_STORES[\s\S]*?\];/)![0];
+    for (const name of [
+      'STORE_WORKING_COPY',
+      'STORE_PLACES_MIRROR',
+      'STORE_PLACES_FILE_HANDLE',
+      'STORE_PROJECTS',
+    ]) {
+      expect(liste).toContain(name);
+    }
   });
 
   it('STORE_PLACES_FILE_HANDLE ist ein eigener Store-Name, GETRENNT von STORE_WORKING_COPY/STORE_PLACES_MIRROR (ADR-v9-70)', () => {

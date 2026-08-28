@@ -8,6 +8,7 @@ import type { Database } from '../../../core/model/types';
 import { classifyMediaFile } from '../../../core/model/media-kind';
 import type { StoredValidationConfig } from '../../../core/validate/index';
 import type { ExportPrefs } from '../../../services/app-data';
+import type { LokalerDatenposten } from '../../../services/reset-local-state';
 
 /** Reist die Einstellung mit (`app-data.json`) oder bleibt sie am Gerät (Kategorie A)? */
 export type SettingScope = 'travels' | 'device';
@@ -88,4 +89,28 @@ export function mediaFolderStatusText(s: MediaFolderSummary): string {
   if (s.missing > 0) bits.push(`${s.missing} fehlen`);
   if (s.byBasename > 0) bits.push(`${s.byBasename} nur über den Dateinamen zugeordnet`);
   return `${quelle} — ${bits.join(', ')}.`;
+}
+
+/**
+ * Der Warnhinweis vor „Alles zurücksetzen" ([ADR-v9-297]) — aus `LOKALE_DATEN` komponiert,
+ * nicht abgeschrieben. Reine Funktion, damit der Wortlaut ohne DOM prüfbar ist.
+ *
+ * Die Reihenfolge kommt aus der Liste (Unwiederbringliches zuerst); die Marken „—" und
+ * „(nur mit Export)" sagen je Zeile, ob es die Sache noch woanders gibt. Ohne diese Marken
+ * wäre die Aufzählung eine Wand aus zehn gleich schweren Posten, und der Nutzer könnte
+ * genau die Frage nicht beantworten, für die er den Hinweis liest.
+ */
+export function resetWarnungText(posten: readonly LokalerDatenposten[]): string {
+  const zeile = (d: LokalerDatenposten): string =>
+    d.woher === 'nein'
+      ? `• ${d.label} — es gibt keine zweite Kopie`
+      : d.woher === 'nur-mit-export'
+        ? `• ${d.label} — nur wiederherstellbar, wenn Sie exportiert haben`
+        : `• ${d.label}`;
+  return (
+    'Gelöscht wird der gesamte lokale Speicher dieser App:\n\n' +
+    posten.map(zeile).join('\n') +
+    '\n\nIhre GEDCOM-/GRAMPS-Datei und eine bereits exportierte orte.json bleiben ' +
+    'unberührt — gelöscht wird nur, was im Browser liegt. Danach startet die App leer.'
+  );
 }

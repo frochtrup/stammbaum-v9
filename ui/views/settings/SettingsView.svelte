@@ -19,14 +19,53 @@
   import type { AppDataIO } from '../../../services/app-data';
   import type { MediaResolver } from '../../../services/media';
   import AppDataFileButtons from '../../shell/AppDataFileButtons.svelte';
+  import ConfirmDialog from '../../shell/ConfirmDialog.svelte';
+  import {
+    LOKALE_DATEN,
+    resetAllLocalState,
+    resetPlacesMirror,
+  } from '../../../services/reset-local-state';
   import StatusNotice from '../../shell/StatusNotice.svelte';
   import type { NavTargetId } from '../../shell/nav-model';
   import {
     SCOPE_LABEL,
     mediaFilePaths,
     mediaFolderStatusText,
+    resetWarnungText,
     type MediaFolderSummary,
   } from './settings-model';
+
+  // Diagnose & Wartung (Spec 14 §3.3, [ADR-v9-297]). Zwei Stufen, beide mit Rückfrage —
+  // die harte nennt namentlich, was verschwindet (Nutzer-Entscheidung 2026-08-28:
+  // Warnhinweis mit Aufzählung, kein erzwungener Export-Zwischenschritt).
+  //
+  // NACH dem Zurücksetzen wird neu geladen, nicht der Zustand von Hand geleert: die App
+  // hält den geladenen Bestand, den Orts-Kontext, Undo-Stapel und mehrere Persister im
+  // Speicher. Sie einzeln zurückzudrehen waere eine zweite, stille Definition von „leer",
+  // die bei jedem neuen Zustand nachgezogen werden muesste. Der Neustart IST die Definition.
+  let frage = $state<null | 'orte' | 'alles'>(null);
+  /** Der Hinweis der milden Stufe - hier als Konstante, damit das Template lesbar bleibt. */
+  const ORTE_RESET_TEXT =
+    'Gelöscht wird der Browser-Spiegel der kuratierten Orte und Höfe.\n\n' +
+    'Er ist nur wiederherstellbar, wenn Sie eine orte.json exportiert haben. Die geladene ' +
+    'Datei bleibt unberührt; Orte werden beim nächsten Laden neu aufgelöst.';
+
+  let resetLaeuft = $state(false);
+  let resetFehler = $state('');
+
+  async function fuehreResetAus(welcher: 'orte' | 'alles') {
+    frage = null;
+    resetLaeuft = true;
+    resetFehler = '';
+    try {
+      if (welcher === 'orte') await resetPlacesMirror();
+      else await resetAllLocalState();
+      window.location.reload();
+    } catch (err) {
+      resetLaeuft = false;
+      resetFehler = err instanceof Error ? err.message : String(err);
+    }
+  }
 
   interface Props {
     appState: AppState;
@@ -239,6 +278,57 @@
     </ul>
   </section>
 
+  <section class="settings-view__group settings-view__group--aside" aria-labelledby="set-reset">
+    <h3 id="set-reset" class="stb-role-label settings-view__group-label">Zurücksetzen</h3>
+    <p class="settings-view__scope">{SCOPE_LABEL.device}</p>
+    <p class="settings-view__hint">
+      Für den Fall eines inkonsistenten lokalen Zustands. Beide Aktionen betreffen nur, was
+      im Browser liegt — Ihre GEDCOM-/GRAMPS-Datei wird nicht angefasst.
+    </p>
+    {#if resetFehler}
+      <p class="settings-view__hint" role="alert">Zurücksetzen fehlgeschlagen: {resetFehler}</p>
+    {/if}
+    <div class="settings-view__reset-actions">
+      <button
+        type="button"
+        class="stb-btn"
+        data-variant="secondary"
+        disabled={resetLaeuft}
+        onclick={() => (frage = 'orte')}
+      >
+        Ortsdaten zurücksetzen
+      </button>
+      <button
+        type="button"
+        class="stb-btn"
+        data-variant="danger"
+        disabled={resetLaeuft}
+        onclick={() => (frage = 'alles')}
+      >
+        Alles zurücksetzen
+      </button>
+    </div>
+  </section>
+
+  {#if frage === 'orte'}
+    <ConfirmDialog
+      titel="Ortsdaten zurücksetzen?"
+      text={ORTE_RESET_TEXT}
+      bestaetigen="Ortsdaten löschen"
+      onConfirm={() => fuehreResetAus('orte')}
+      onCancel={() => (frage = null)}
+    />
+  {/if}
+  {#if frage === 'alles'}
+    <ConfirmDialog
+      titel="Wirklich allen lokalen Speicher löschen?"
+      text={resetWarnungText(LOKALE_DATEN)}
+      bestaetigen="Alles löschen"
+      onConfirm={() => fuehreResetAus('alles')}
+      onCancel={() => (frage = null)}
+    />
+  {/if}
+
   {#if appDataIO && fileService}
     <section class="settings-view__group settings-view__group--aside" aria-labelledby="set-appdata">
       <h3 id="set-appdata" class="stb-role-label settings-view__group-label">
@@ -255,6 +345,12 @@
 </div>
 
 <style>
+  .settings-view__reset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .settings-view {
     padding: 1rem;
     overflow-y: auto;
