@@ -20,7 +20,7 @@
 // ersten Speichern.
 import { describe, it, expect } from 'vitest';
 import { parseGedcom, serializeGedcom, applyDatabaseToRoots } from '../../core/interop';
-import { savePerson, saveFamily } from '../../core/model';
+import { savePerson, saveFamily, makeEvent } from '../../core/model';
 
 const OHNE_SONDEREREIGNIS = [
   '0 HEAD', '1 GEDC', '2 VERS 5.5.1', '1 CHAR UTF-8',
@@ -106,5 +106,42 @@ describe('Neu erfasstes Sonder-Ereignis (BL-340)', () => {
     expect(z).not.toContain('1 CHR');
     expect(z).not.toContain('1 DEAT');
     expect(z).not.toContain('1 BURI');
+  });
+});
+
+// Dieselbe Frage fuer den anderen Traeger-Typ (BL-410): ein generischer `events[]`-Eintrag
+// laeuft NICHT durch ein Sonder-Slot-Gate — `emitFamily` schreibt `f.events` bedingungslos.
+// Geprueft wird es trotzdem, und zwar an DIV: seit BL-410 ist die Scheidung ueber das
+// „+ Ereignis"-Menue der Familie anlegbar, und genau dieser Schritt — anlegen, speichern,
+// in der Datei nachsehen — war es, der BL-340 ueberhaupt zutage gefoerdert hat. Ein neuer
+// Anlegepfad ohne diese Zusicherung waere dieselbe Wette noch einmal.
+describe('Neu angelegte Scheidung (BL-410)', () => {
+  it('eine ueber das Familien-Menue angelegte Scheidung landet in der Datei', () => {
+    const doc = parseGedcom(OHNE_SONDEREREIGNIS);
+    const f = doc.db.families.get('@F1@')!;
+    expect(f.events, 'Vorbedingung: die Quelle hatte kein DIV').toEqual([]);
+
+    const div = makeEvent('DIV');
+    div.date = 'ABT 1952';
+    const db = saveFamily(doc.db, { ...f, events: [div] });
+    const z = ausgabe(doc, db);
+
+    expect(z).toContain('1 DIV');
+    expect(z).toContain('2 DATE ABT 1952');
+  });
+
+  it('und sie steht NACH der Heirat, nicht davor (kanonische FAM-Reihenfolge)', () => {
+    const doc = parseGedcom(OHNE_SONDEREREIGNIS);
+    const f = doc.db.families.get('@F1@')!;
+    const div = makeEvent('DIV');
+    div.date = 'ABT 1952';
+    const db = saveFamily(doc.db, {
+      ...f,
+      marriage: { ...f.marriage, date: '1950' },
+      events: [div],
+    });
+    const z = ausgabe(doc, db);
+
+    expect(z.indexOf('1 DIV')).toBeGreaterThan(z.indexOf('1 MARR'));
   });
 });

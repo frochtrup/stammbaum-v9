@@ -1,4 +1,8 @@
-// tests/ui/geburt-immer-offen.test.ts — BL-339: die Geburtszeile steht immer.
+// tests/ui/immer-offen.test.ts — die zwei Zeilen, die IMMER stehen: Geburt (Person,
+// BL-339) und Heirat (Familie, BL-409). Sie liegen bewusst in EINER Datei, weil sie
+// zweimal dieselbe Sache sind — und weil genau das beim ersten Mal übersehen wurde: der
+// Fix an der Geburt zog die Heirat nicht mit, obwohl das Spec für beide wörtlich „immer
+// offen" sagt. Wer eine der beiden anfasst, sieht hier die andere.
 //
 // DER BEFUND (Nutzer: „Kann Geburt nicht im Personendetail ergänzen"). Keine fehlende
 // Funktion, sondern eine nicht ausgeführte Entscheidung: [ADR-v9-62] Punkt 1 hält wörtlich
@@ -14,9 +18,10 @@
 // Datums-Erfassung getrennt hat (81 % der Sterbeeinträge im Bestand sind nur `DEAT Y`).
 // Ein leerer Platzhalter für alle vier wäre die Überladung, vor der derselbe ADR warnt.
 import { describe, expect, it } from 'vitest';
-import { makeDatabase, makePerson, makeEvent } from '../../core/model';
+import { makeDatabase, makePerson, makeFamily, makeEvent } from '../../core/model';
 import { makePlaceRegistry, makeHofRegistry, type PlaceContext } from '../../core/places';
 import { buildPersonDetail } from '../../ui/views/person/person-detail-model';
+import { buildFamilyDetail } from '../../ui/views/family/family-detail-model';
 
 function ctx(): PlaceContext {
   return { places: makePlaceRegistry(new Map()), hofs: makeHofRegistry(new Map()) };
@@ -71,5 +76,58 @@ describe('Geburtszeile (BL-339, ADR-v9-62 Punkt 1)', () => {
     p.events.push(makeEvent('OCCU', { value: 'Landwirt' }));
     const d = detailVon(p);
     expect(d.events.map((e) => e.tag)).toEqual(['BIRT', 'OCCU']);
+  });
+});
+
+// ---------------------------------------------------------------------------------
+// Die Geschwister-Stelle (BL-409, Nutzer: „kann kein Heiratsereignis eingeben ... auch
+// bei einer bestehenden Familie ohne Heiratsereignis"). Identischer Befund, identische
+// Ursache: [20 §2] sagt für die Familie „auf FamilyDetail immer offen ... Heirat", der
+// Code schickte MARR trotzdem durch dieselbe `isEventPresent`-Schranke wie ENGA. Eine
+// frisch angelegte oder ohne MARR importierte Familie hatte keine Heiratszeile UND
+// keinen Weg, eine anzulegen — „+ Ereignis" führt EVEN/CENS/PROP/FACT, und ein
+// Familien-Formular gibt es seit BL-382 nicht mehr. Im Realbestand betraf das 50 von
+// 987 Familien.
+// ---------------------------------------------------------------------------------
+
+function familienDetail(f: ReturnType<typeof makeFamily>) {
+  const db = makeDatabase();
+  db.families.set(f.id, f);
+  return buildFamilyDetail(db, ctx(), f.id)!;
+}
+
+describe('Heiratszeile (BL-409, Spec 20 §2 „immer offen")', () => {
+  it('steht auch an einer Familie ganz ohne Heiratsdaten', () => {
+    const d = familienDetail(makeFamily('@F1@'));
+    const heirat = d.events.find((e) => e.key === 'MARR');
+
+    expect(heirat, 'ohne diese Zeile gibt es keinen Weg, eine Heirat zu erfassen').toBeDefined();
+    expect(heirat!.label).toBe('Heirat');
+    expect(heirat!.empty, 'sie ist leer — und genau deshalb da').toBe(true);
+  });
+
+  it('die Verlobung bleibt unsichtbar, solange sie nichts trägt', () => {
+    // Gegenprobe wie bei Taufe/Tod/Bestattung: „immer offen" gilt für die Heirat, nicht
+    // für beide Sonder-Felder — die Verlobung hat ihren „+ Verlobung"-Pill.
+    const d = familienDetail(makeFamily('@F1@'));
+    expect(d.events.map((e) => e.key)).toEqual(['MARR']);
+  });
+
+  it('eine belegte Heirat sieht unverändert aus (kein zweiter Platzhalter daneben)', () => {
+    const f = makeFamily('@F1@');
+    f.marriage.date = '1 JAN 1900';
+    const d = familienDetail(f);
+    const heiraten = d.events.filter((e) => e.key === 'MARR');
+
+    expect(heiraten).toHaveLength(1);
+    expect(heiraten[0].empty).toBe(false);
+    expect(heiraten[0].dateLabel).toBe('1. Januar 1900');
+  });
+
+  it('stört die generischen Ereignisse nicht — sie stehen weiterhin alle da', () => {
+    const f = makeFamily('@F1@');
+    f.events.push(makeEvent('CENS', { value: 'Zählung 1900' }));
+    const d = familienDetail(f);
+    expect(d.events.map((e) => e.key)).toEqual(['MARR', 'ev-0']);
   });
 });
