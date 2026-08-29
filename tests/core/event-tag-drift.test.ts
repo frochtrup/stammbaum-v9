@@ -16,7 +16,7 @@
 // dorthin zu schauen — das nächste Auseinanderlaufen ist eine Frage der Zeit, nicht der
 // Sorgfalt. Dieser Test stellt die Frage bei jedem Lauf.
 //
-// Die vier Richtungen unten sind bewusst getrennt: jede kann einzeln brechen und benennt
+// Die Richtungen unten sind bewusst getrennt: jede kann einzeln brechen und benennt
 // dann genau die Datei, in der die Ergänzung fehlt.
 //
 // EINE FÜNFTE RICHTUNG GIBT ES, SIE WOHNT NUR WOANDERS (BL-356, ADR-v9-267): der
@@ -31,6 +31,7 @@ import { EVENT_TAGS, SPECIAL_EVENT_TAGS } from '../../core/interop/gedcom-parse'
 import { ERKANNTE_TAGS, EREIGNIS_TAGS_PUBLIC, modellierteKinder } from '../../core/interop/write-back';
 import { EVENT_TYPE_LABELS } from '../../ui/shell/event-labels';
 import { otherEventMenu } from '../../ui/views/person/person-event-menu';
+import { FAMILY_EVENT_TYPES } from '../../ui/views/family/family-event-menu';
 
 /** Alles, was am Ende als `Event.type` im Modell landen kann: die vier festen Slots
  *  (BIRT/CHR/DEAT/BURI) plus die generischen Tags aus `events[]`. */
@@ -44,12 +45,34 @@ describe('Ereignistag-Drift (BL-335)', () => {
     expect(ohneErzeuger, 'Label in ui/shell/event-labels.ts, aber nicht in EVENT_TAGS (core/interop/gedcom-parse.ts)').toEqual([]);
   });
 
+  // Richtung 1b — die UMKEHRUNG von Richtung 1, und die, an der DIV hing (BL-410).
+  // Richtung 1 fragt „hat jedes Label einen Erzeuger?"; niemand fragte „hat jeder Erzeuger
+  // ein Label?". `DIV` war der einzige von 33 parsebaren Ereignistags ohne Übersetzung —
+  // die eine Scheidung im Referenzbestand stand in der Oberfläche als rohes „DIV", mitten
+  // unter deutschen Bezeichnungen. Genau die Mischung, gegen die `event-labels.ts`
+  // angetreten ist (Nutzer-Fund 2026-07-10, s. Kopf jener Datei).
+  //
+  // Sie heißt 1b und nicht „Richtung 5": diese Nummer ist vergeben (s. Kopf — die
+  // Coverage-Umkehrung wohnt nach [ADR-v9-267] E4 in `coverage-spec.test.ts`). Und sie
+  // steht hier statt dort, weil sie eine ANDERE Frage stellt: nicht „ist der Tag im
+  // Spec-Universum geführt?", sondern „hat er ein deutsches Wort?".
+  it('jeder erzeugbare Ereignistyp hat auch eine deutsche Übersetzung', () => {
+    const ohneLabel = [...ERZEUGBAR].filter((t) => !(t in EVENT_TYPE_LABELS));
+    expect(ohneLabel, 'vom Parser erzeugt, aber ohne Eintrag in ui/shell/event-labels.ts → erscheint als roher Tag').toEqual([]);
+  });
+
   // Richtung 2 — die Gegenrichtung, und die teurere: ein Menüpunkt, den der Parser nicht
   // zurücklesen kann, erzeugt ein Ereignis, das der nächste Ladevorgang still verschluckt.
   // Der Nutzer legt es an, speichert, lädt neu — und es ist weg.
-  it('jeder anlegbare Ereignistyp wird beim Laden auch wieder erkannt', () => {
+  it('jeder anlegbare Ereignistyp wird beim Laden auch wieder erkannt — Person UND Familie', () => {
     const nichtLesbar = otherEventMenu.map((i) => i.tag).filter((t) => !ERZEUGBAR.has(t));
-    expect(nichtLesbar, 'im „+ Ereignis"-Menü anlegbar, aber vom Parser nicht gelesen').toEqual([]);
+    expect(nichtLesbar, 'im „+ Ereignis"-Menü der PERSON anlegbar, aber vom Parser nicht gelesen').toEqual([]);
+    // Die Familien-Hälfte kam mit BL-410 dazu. Sie fehlte nicht aus Nachlässigkeit: die
+    // Liste lag inline im `<script>` von FamilyDetail.svelte und war von hier aus nicht
+    // importierbar. Erst die Extraktion nach `family-event-menu.ts` hat sie prüfbar
+    // gemacht — dieselbe Bewegung wie bei `person-event-menu.ts` (max-lines-Ratsche).
+    const famNichtLesbar = [...FAMILY_EVENT_TYPES].filter((t) => !ERZEUGBAR.has(t));
+    expect(famNichtLesbar, 'im „+ Ereignis"-Menü der FAMILIE anlegbar, aber vom Parser nicht gelesen').toEqual([]);
   });
 
   // Richtung 3 — die latente Dublette. `parsePerson`/`parseFamily` legen jeden

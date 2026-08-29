@@ -36,6 +36,11 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   CONF: 'Konfirmation',
   RELI: 'Konfession',
   CREM: 'Einäscherung',
+  // Familien-Ereignis, aber KEIN Sonder-Slot wie MARR/ENGA — die Scheidung lebt in
+  // `Family.events[]` (BL-410). Sie stand als einziger von 33 parsebaren Ereignistags
+  // ohne Übersetzung hier: die eine Scheidung im Referenzbestand erschien als rohes
+  // „DIV". Seit BL-410 hält Richtung 5 in `event-tag-drift.test.ts` die Gegenrichtung.
+  DIV: 'Scheidung',
   FCOM: 'Erstkommunion',
   GRAD: 'Abschluss',
   NATU: 'Einbürgerung',

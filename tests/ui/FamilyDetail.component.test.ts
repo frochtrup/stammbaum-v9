@@ -774,3 +774,53 @@ describe('FamilyDetail — Heirat an einer Familie ohne MARR anlegen (Nutzer-Bef
     expect(isEventPresent(saved.marriage)).toBe(true);
   });
 });
+
+describe('FamilyDetail — Scheidung ist anlegbar (BL-410, Nutzer-Wunsch 2026-08-29)', () => {
+  it('bietet "Scheidung" im "+ Ereignis"-Menü an und legt einen DIV-Eintrag in events[] an', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    db.families.set('@F1@', makeFamily('@F1@'));
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    // Deutsch, nicht als rohes "DIV" — der Tag war der einzige parsebare Ereignistyp ohne
+    // Übersetzung (Richtung 5 in event-tag-drift.test.ts hält das jetzt fest).
+    const eintrag = screen.getByText('Scheidung', { selector: '.stb-event-menu__item' });
+    await fireEvent.click(eintrag);
+
+    expect(screen.getByText('Scheidung anlegen')).toBeTruthy();
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1952' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const f = appState.db.families.get('@F1@')!;
+    expect(f.events.map((e) => e.type)).toEqual(['DIV']);
+    expect(f.events[0].date).toBe('1952');
+    // Kein Sonder-Slot: marriage/engagement bleiben unberührt (Nutzer-Entscheidung
+    // 2026-08-29 — die Scheidung bleibt ein events[]-Eintrag).
+    expect(isEventPresent(f.marriage)).toBe(false);
+    expect(isEventPresent(f.engagement)).toBe(false);
+  });
+
+  it('verschwindet aus dem Menü, sobald die Familie eine Scheidung trägt ("gefüllt schlägt selten")', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    const f = makeFamily('@F1@');
+    f.events.push(makeEvent('DIV', { date: 'ABT 1952' }));
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    // Die vorhandene Scheidung steht als Zeile — mit deutschem Label.
+    expect(screen.getByLabelText('Scheidung bearbeiten')).toBeTruthy();
+
+    await fireEvent.click(screen.getByText('+ Ereignis'));
+    expect(screen.queryByText('Scheidung', { selector: '.stb-event-menu__item' })).toBeNull();
+  });
+});

@@ -30,6 +30,7 @@
   import { tooltip } from '../../shell/tooltip';
   import { eventTypeLabel } from '../../shell/event-labels';
   import { buildFamilyDetail, type FamilyEventRow } from './family-detail-model';
+  import { familyEventMenu } from './family-event-menu';
 
   interface Props {
     appState: AppState;
@@ -234,19 +235,10 @@
 
   // --- "+ Ereignis"-Sammel-Menü (analog PersonDetail, ohne die personen-spezifischen
   // Standing-Pills Tod/Wohnort) — flache Liste, kein "andere Typ"-Fallback nötig (schon
-  // die vollständige, bisherige FamilyForm-Typliste, Spec 20 §2). ---
-  const FAMILY_EVENT_TYPES = ['EVEN', 'CENS', 'PROP', 'FACT'] as const;
-  interface MenuItem {
-    tag: string;
-    label: string;
-  }
-  const menuItems = $derived.by<MenuItem[]>(() => {
-    if (!detail) return [];
-    return FAMILY_EVENT_TYPES.filter((t) => !detail!.family.events.some((e) => e.type === t)).map((t) => ({
-      tag: t,
-      label: eventTypeLabel(t),
-    }));
-  });
+  // die vollständige, bisherige FamilyForm-Typliste, Spec 20 §2). Die Liste selbst liegt
+  // seit BL-410 in `family-event-menu.ts`, damit der Drift-Test sie sehen kann — inline
+  // im `<script>` war sie für ihn unerreichbar. ---
+  const menuItems = $derived(familyEventMenu(detail?.family ?? null));
 
   const engagementPresent = $derived(!!detail && isEventPresent(detail.family.engagement));
 </script>
