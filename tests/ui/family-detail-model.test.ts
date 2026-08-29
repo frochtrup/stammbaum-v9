@@ -42,7 +42,9 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
 
     const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
 
-    expect(detail.events[0].addr).toBe('Nienborger Damm 1');
+    // Über den Key statt den Index: seit dem Heirat-immer-offen-Fix steht die (leere)
+    // MARR-Zeile davor.
+    expect(detail.events.find((e) => e.key === 'ev-0')!.addr).toBe('Nienborger Damm 1');
   });
 
   it('liefert je Mitgliedszeile eine yearPlaceSummary aus der Geburt (Nachtrag 2026-07-06 [20 §1.5])', () => {
@@ -106,7 +108,7 @@ describe('buildFamilyDetail — Mitglieder/Ereignisse/Quellen', () => {
 
     const detail = buildFamilyDetail(db, emptyContext(), '@F1@')!;
 
-    expect(detail.events[0].dateLabel).toBe('5. Juni 1950');
+    expect(detail.events.find((e) => e.key === 'ev-0')!.dateLabel).toBe('5. Juni 1950');
   });
 
   it('liefert placeLabel getrennt vom Datum (ADR-v9-80 Punkt 1) — EventLine rendert "Datum, Ort" statt eines vorverknüpften Strings', () => {

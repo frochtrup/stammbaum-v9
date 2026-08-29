@@ -102,7 +102,8 @@ function memberRow(
 /**
  * `alwaysShow` (Nachtrag 2026-07-12, Spec 20 §2 „Generalisiert", analog
  * person-detail-model.ts): generische `events[]`-Einträge werden IMMER projiziert, auch
- * wenn `!isEventPresent(ev)` — anders als ENGA/MARR (weiterhin isEventPresent-gated).
+ * wenn `!isEventPresent(ev)` — ebenso MARR („immer offen", s. buildFamilyDetail). Nur
+ * ENGA bleibt isEventPresent-gegatet.
  */
 function toEventRow(
   key: string,
@@ -162,7 +163,15 @@ export function buildFamilyDetail(db: Database, ctx: PlaceContext, familyId: str
     ['MARR', family.marriage],
   ];
   for (const [tag, ev] of special) {
-    const row = toEventRow(tag, tag, ev, ctx);
+    // Heirat IMMER, Verlobung nur wenn belegt — die Geschwister-Stelle zu BIRT bei Person
+    // (BL-339): dort stand wörtlich „Geburt bleibt immer offen“ und war doch präsenz-gegatet,
+    // hier sagt [20 §2] genauso wörtlich „auf FamilyDetail immer offen … Heirat“ — und die
+    // Zeile lief durch dieselbe Schranke wie ENGA. Eine frisch angelegte oder ohne MARR
+    // importierte Familie hatte damit keine Heiratszeile UND keinen Weg, eine anzulegen:
+    // das „+ Ereignis“-Menü führt EVEN/CENS/PROP/FACT (nicht MARR), ein Familien-Formular
+    // gibt es nicht (BL-382). Nutzer-Befund „kann kein Heiratsereignis eingeben“.
+    // Verlobung bleibt gegatet — ihr Anlegepfad ist der „+ Verlobung“-Pill.
+    const row = toEventRow(tag, tag, ev, ctx, tag === 'MARR');
     if (row) events.push(row);
   }
   family.events.forEach((ev, i) => {

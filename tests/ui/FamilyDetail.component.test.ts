@@ -748,3 +748,29 @@ describe('FamilyDetail — 🗑 Ereignis löschen (befüllt, mit Bestätigung)',
     expect(screen.getByLabelText('Heirat bearbeiten')).toBeTruthy();
   });
 });
+
+describe('FamilyDetail — Heirat an einer Familie ohne MARR anlegen (Nutzer-Befund 2026-08-29)', () => {
+  it('zeigt die Heiratszeile auch ohne vorhandenes MARR und legt über ✎ Datum/Ort an', async () => {
+    const appState = createAppState();
+    const viewState = createViewState();
+    const db = makeDatabase();
+    // Frisch angelegte Familie: keinerlei Heiratsdaten.
+    const f = makeFamily('@F1@');
+    expect(isEventPresent(f.marriage)).toBe(false);
+    db.families.set('@F1@', f);
+    appState.loadDatabase(db, 'test.ged');
+    viewState.setCurrent('family', '@F1@');
+
+    render(FamilyDetail, { props: { appState, viewState, onNavigateToPerson: vi.fn() } });
+
+    // Die Zeile ist da — vorher war sie unsichtbar und es gab keinen Anlege-Pfad
+    // („+ Ereignis" führt EVEN/CENS/PROP/FACT, kein Familien-Formular existiert).
+    await fireEvent.click(screen.getByLabelText('Heirat bearbeiten'));
+    await fireEvent.change(screen.getByLabelText('Jahr'), { target: { value: '1920' } });
+    await fireEvent.click(screen.getByText('Speichern'));
+
+    const saved = appState.db.families.get('@F1@')!;
+    expect(saved.marriage.date).toBe('1920');
+    expect(isEventPresent(saved.marriage)).toBe(true);
+  });
+});

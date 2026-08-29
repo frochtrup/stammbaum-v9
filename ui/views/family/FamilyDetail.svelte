@@ -149,9 +149,10 @@
    *  Prüft NICHT auf Leere: `EventLine` entscheidet, ob die Handlung sofort (leer, ✕) oder
    *  erst nach `confirm` (befüllt, 🗑) hier ankommt — das Ergebnis ist dasselbe.
    *
-   *  **MARR ist die einzige Ausnahme** (Aufrufer-Guard im Template): die Heiratszeile ist
-   *  `isEventPresent`-gegatet und hat keinen "+ Heirat"-Pill — gelöscht wäre sie ohne jede
-   *  Affordanz aus der Fläche verschwunden. Spiegelt BIRT bei Person. */
+   *  **MARR ist die einzige Ausnahme** (Aufrufer-Guard im Template): die Heiratszeile steht
+   *  laut [20 §2] "immer offen" und hat deshalb keinen "+ Heirat"-Pill — an ihr gibt es
+   *  nichts zu entfernen; wer sie leeren will, tut das feldweise im Editor. Spiegelt BIRT
+   *  bei Person. */
   function retractOrRemove(key: string) {
     if (!detail) return;
     const f = detail.family;
