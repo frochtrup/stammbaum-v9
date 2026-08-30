@@ -13,6 +13,7 @@
   import type { ViewState } from '../../shell/view-state.svelte';
   import { makeFamily, allocatorFromDatabase, nextId } from '../../../core/model';
   import { tooltip } from '../../shell/tooltip';
+  import { entityIdLabel } from '../../shell/entity-id';
   import FilterBar from '../../shell/FilterBar.svelte';
   import { countActiveFilters } from '../../shell/count-active-filters';
   import { emptyEntityHint } from '../../shell/nav-model';
@@ -190,7 +191,12 @@
         {#each rows.slice(win.start, win.end) as row, i (row.id)}
           <li use:sec.probe={{ klasse: 'zeile', index: win.start + i }}>
             <button type="button" class="family-list__row" onclick={() => selectFamily(row.id)}>
-              <span class="family-list__parents">{row.parentsLabel}</span>
+              <span class="family-list__name-line">
+                <span class="family-list__parents">{row.parentsLabel}</span>
+                <!-- Technische Kennung, gleiche Rolle und gleicher Stil wie in der
+                     Personenliste (`entityIdLabel`, INV-UI-4). -->
+                <span class="stb-entity-id" use:tooltip={'Datensatz-Kennung'}>{entityIdLabel(row.id)}</span>
+              </span>
               <span class="family-list__meta">
                 {#if row.marriageSummary}
                   <span use:tooltip={row.marriagePlaceFull || undefined}>⚭ {row.marriageSummary}</span>
@@ -336,6 +342,15 @@
   .family-list__row:hover,
   .family-list__row:focus-visible {
     background: var(--stb-surface-2);
+  }
+
+  /* Name und Kennung teilen eine Umbruch-Einheit (INV-UI-5): bei 375px darf die Kennung
+     umbrechen, ohne das Elternpaar aus seiner Zeile zu drängen. */
+  .family-list__name-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   .family-list__parents {

@@ -10,6 +10,7 @@
   // wird beim Scrollen fortlaufend auf- und abgebaut — deshalb keine eigenen Effekte.
   import { tooltip } from '../../shell/tooltip';
   import { sexSymbol } from '../../shell/person-display';
+  import { entityIdLabel } from '../../shell/entity-id';
   import type { PersonRow } from './person-list-model';
 
   interface Props {
@@ -25,6 +26,10 @@
     <span class="person-list__name">{row.name}</span>
     {#if row.kekule != null}<span class="person-list__kekule" use:tooltip={'Ahnenziffer (Kekulé) zum Probanden'}>#{row.kekule}</span>{/if}
     {#if row.hasMedia}<span class="stb-pill" use:tooltip={'Medien vorhanden'}>📎</span>{/if}
+    <!-- Technische Kennung (`entityIdLabel`): der Weg von einer Datei-/Fremdprogramm-Fundstelle
+         in die App. Am ENDE der Namenszeile, damit sie beim alphabetischen Scannen nicht vor
+         dem Namen steht — und leise (`.stb-entity-id`), nicht als weiteres Badge. -->
+    <span class="stb-entity-id" use:tooltip={'Datensatz-Kennung'}>{entityIdLabel(row.id)}</span>
   </span>
   <span class="person-list__meta">
     {#if row.birthSummary}

@@ -345,8 +345,12 @@ export interface Person {
    * zweimal in der Datei. Ein Slot je Wire-Zeile löst das an der Wurzel ([13 §2]); die
    * Form ist die von `extraNames` für mehrere `NAME`-Zeilen, die dort dasselbe Problem hat.
    *
-   * Wie `extraNames` NICHT über das Formular editierbar: der Editor führt `noteText`,
-   * alles Weitere reist unverändert mit (LP-1).
+   * NICHT über das Formular editierbar: der Editor führt `noteText`, alles Weitere reist
+   * unverändert mit (LP-1). Anders als `extraNames`, das seit ADR-v9-306 eine eigene
+   * Sofort-Sektion am Steckbrief hat (`PersonNamesSection`) — der Unterschied ist nicht
+   * Aufwand, sondern Gegenstand: eine Namensform ist eine benennbare Aussage mit Art und
+   * eigenen Zitaten, eine zweite freie Notiz ist Fließtext ohne Struktur, den zu spalten
+   * die Oberfläche nur verrauschen würde.
    */
   extraNotes: string[];
   noteRefs: NoteId[];

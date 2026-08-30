@@ -11,6 +11,7 @@
   import { displayName, sexSymbol } from '../../shell/person-display';
   import { formatDateForDisplay } from '../../../core/model/gedcom-date';
   import { tooltip } from '../../shell/tooltip';
+  import { entityIdLabel } from '../../shell/entity-id';
   import type { RelationToProband } from '../tools/relationship';
 
   interface Props {
@@ -79,7 +80,11 @@
 
 <!-- Kopf-Untertitel (BL-198): nur bei nick/CHAN — der Sex-Icon sitzt inline am Titel
      (titlePrefix), daher keine verwaiste Ein-Icon-Zeile (Design-Kritik, §10f). -->
-{#if person.nick || person.lastChanged || relationToProband}
+<!-- Die Kennung steht IMMER (anders als Rufname/CHAN/Verwandtschaft): sie ist das eine
+     Merkmal, das jeder Datensatz hat, und wer ueber eine Suche nach `@I12@` hier landet,
+     will bestaetigt sehen, dass er beim richtigen Satz ist. Deshalb traegt sie die
+     Bedingung der Zeile mit. -->
+{#if person.nick || person.lastChanged || relationToProband || person.id}
   <p class="person-detail-header__subtitle">
     {#if person.nick}
       <span class="person-detail-header__nick" use:tooltip={'Rufname'}>«{person.nick}»</span>
@@ -103,6 +108,9 @@
     {/if}
     {#if person.lastChanged}
       <span>Geändert {formatDateForDisplay(person.lastChanged) || person.lastChanged}</span>
+    {/if}
+    {#if person.id}
+      <span class="stb-entity-id" use:tooltip={'Datensatz-Kennung'}>{entityIdLabel(person.id)}</span>
     {/if}
   </p>
 {/if}

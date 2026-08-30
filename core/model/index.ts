@@ -123,3 +123,10 @@ export {
   type ParentWish,
 } from './apply-entry-template';
 export { withChangeStamps } from './change-stamp';
+export {
+  extraNameParts,
+  extraNameDisplay,
+  withAddedExtraName,
+  withRemovedExtraName,
+  withUpdatedExtraName,
+} from './person-names';

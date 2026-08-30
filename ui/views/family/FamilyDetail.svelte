@@ -15,6 +15,7 @@
   import { isEventPresent } from '../../../core/model';
   import SourceBadge from '../../shell/SourceBadge.svelte';
   import DetailHeader from '../../shell/DetailHeader.svelte';
+  import { entityIdLabel } from '../../shell/entity-id';
   import NotesSection from '../../shell/NotesSection.svelte';
   import DeleteEntityButton from '../../shell/DeleteEntityButton.svelte';
   import ResearchSection from '../../shell/ResearchSection.svelte';
@@ -279,6 +280,11 @@
       {/snippet}
     </DetailHeader>
 
+    <!-- Kennung wie im Personen-Steckbrief (INV-UI-4). Der Kopf laeuft hier `compact`
+         und hat keine Untertitel-Zeile, in die sie sich einreihen koennte — also eine
+         eigene, ebenso leise Zeile direkt darunter, statt den Kopf umzubauen. -->
+    <p class="family-detail__id"><span class="stb-entity-id" use:tooltip={'Datensatz-Kennung'}>{entityIdLabel(detail.family.id)}</span></p>
+
     <section class="family-detail__section">
       <h3 class="stb-section-title">Eltern</h3>
       <div class="family-detail__parents">
@@ -469,6 +475,12 @@
 
   .family-detail__empty {
     color: var(--stb-text-dim);
+  }
+
+  /* Setzt selbst keinen Abstand nach oben: der Steckbrief-Container fuehrt seinen
+     Rhythmus als `gap` (BL-342/343), ein eigener Rand kaeme doppelt. */
+  .family-detail__id {
+    margin: 0;
   }
 
 

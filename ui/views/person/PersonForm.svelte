@@ -20,6 +20,8 @@
   import type { AppState } from '../../shell/app-state.svelte';
   import type { Person } from '../../../core/model/types';
   import { composeGedcomName } from '../../../core/model/name-parts';
+  import TypeSelect from '../../shell/TypeSelect.svelte';
+  import { NAME_TYPE_OPTIONS } from '../../shell/name-type-labels';
   import { formEscape, formSubmit } from '../../shell/form-keys';
 
   interface Props {
@@ -50,6 +52,11 @@
   let suffix = $state(untrack(() => person.suffix));
   let nick = $state(untrack(() => person.nick));
   let sex = $state(untrack(() => person.sex));
+  // Art des HAUPTnamens (`NAME.TYPE`, BL-292/ADR-v9-207). Sie war modelliert, gelesen
+  // und geschrieben — nur nirgends zu sehen oder zu setzen; die weiteren Namensformen
+  // tragen ihre Art seit dieser Scheibe an der Zeile (`PersonNamesSection`), der
+  // Hauptname braucht sie hier, sonst bliebe genau eine der Formen stumm.
+  let nameType = $state(untrack(() => person.nameType));
   let title = $state(untrack(() => person.title));
 
   let noteText = $state(untrack(() => person.noteText));
@@ -70,6 +77,7 @@
   let showPrefixSuffix = $state(untrack(() => person.prefix !== '' || person.suffix !== ''));
   let showNick = $state(untrack(() => person.nick !== ''));
   let showTitle = $state(untrack(() => person.title !== ''));
+  let showNameType = $state(untrack(() => person.nameType !== ''));
   let showRestriction = $state(untrack(() => person.restriction !== ''));
   let showEmail = $state(untrack(() => person.email !== ''));
   let showWww = $state(untrack(() => person.www !== ''));
@@ -92,6 +100,7 @@
     if (!showTitle) list.push({ id: 'title', label: 'Titel', activate: () => (showTitle = true) });
     if (!showRestriction) list.push({ id: 'restriction', label: 'Zugriffsbeschränkung', activate: () => (showRestriction = true) });
     if (!showEmail) list.push({ id: 'email', label: 'E-Mail', activate: () => (showEmail = true) });
+    if (!showNameType) list.push({ id: 'nameType', label: 'Art des Namens', activate: () => (showNameType = true) });
     if (!showWww) list.push({ id: 'www', label: 'Website', activate: () => (showWww = true) });
     return list;
   });
@@ -111,6 +120,7 @@
     nick = person.nick;
     sex = person.sex;
     title = person.title;
+    nameType = person.nameType;
     noteText = person.noteText;
     restriction = person.restriction;
     email = person.email;
@@ -146,6 +156,7 @@
       nick: nick.trim(),
       sex,
       title: title.trim(),
+      nameType: nameType.trim(),
       noteText,
       restriction: restriction.trim(),
       email: email.trim(),
@@ -212,6 +223,14 @@
         <label>
           Titel
           <input type="text" {...PLAIN_FIELD} bind:value={title} />
+        </label>
+      {/if}
+      {#if showNameType}
+        <!-- Dasselbe kuratierte Vokabular wie an den weiteren Namensformen (INV-UI-4):
+             gespeichert wird der rohe `NAME_TYPE`-Wert, angezeigt das deutsche Label. -->
+        <label>
+          Art des Namens
+          <TypeSelect value={nameType} options={NAME_TYPE_OPTIONS} label="Art des Hauptnamens" onChange={(v) => (nameType = v)} />
         </label>
       {/if}
       {#if showRestriction}
