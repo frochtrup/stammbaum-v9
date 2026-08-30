@@ -31,6 +31,7 @@
   import { buildPersonDetail, type EventRow } from './person-detail-model';
   import { createPersonEventModal, eventForKey } from './person-event-modal.svelte';
   import PersonForm from './PersonForm.svelte';
+  import PersonNamesSection from './PersonNamesSection.svelte';
   import PersonFamilySection from './PersonFamilySection.svelte';
   import ResearchSection from '../../shell/ResearchSection.svelte';
   import PersonAssociations from './PersonAssociations.svelte';
@@ -356,6 +357,16 @@
     {#if editing}
       <PersonForm {appState} person={detail.person} onSaved={afterSave} />
     {/if}
+
+    <!-- Weitere Namensformen (`extraNames`): AUSSERHALB des Formulars, weil sie sofort
+         committen und ein Sofort-Commit nicht in eine Speichern/Abbrechen-Flaeche gehoert
+         (INV-UI-16). Der `editing`-Schalter gated hier nur die Sichtbarkeit der
+         Mutations-Controls — gelesen wird die Liste immer. -->
+    <PersonNamesSection
+      person={detail.person}
+      {editing}
+      onSave={(next) => appState.savePerson(next)}
+    />
 
     <!-- Porträt (BL-260): das als `_PRIM` markierte Bild der Person, sonst ihr erstes.
          Reine ANZEIGE — verwaltet wird in der Medien-Fläche (INV-UI-11, kein neues

@@ -64,6 +64,10 @@ function familySearchText(db: Database, f: Family): string {
   const wife = person(db, f.wife);
   const children = f.children.map((cid) => person(db, cid)).filter((p): p is Person => p != null);
   return [
+    // Die Kennung ist mitdurchsuchbar wie in der Personenliste (`personSearchText`):
+    // wer sie in Datei, Prüfbericht oder Fremdprogramm vor sich hat, findet den Satz
+    // hier wieder. Roh, mit `@`-Klammern — damit trifft sowohl `@F12@` als auch `F12`.
+    f.id,
     husband ? displayName(husband) : '',
     wife ? displayName(wife) : '',
     ...children.map(displayName),
@@ -78,7 +82,7 @@ function familySearchText(db: Database, f: Family): string {
 }
 
 /**
- * Textmatch über Ehepartnernamen/Kindernamen/Ereignisse/Notizen (Spec 20 §1.5 [K]).
+ * Textmatch über Kennung/Ehepartnernamen/Kindernamen/Ereignisse/Notizen (Spec 20 §1.5 [K]).
  * EXPORTIERT für die globale Suche (ui/views/search/global-search-model.ts,
  * Spec 20 §1.1 [K]) — kein zweiter, abweichender Familien-Matcher (ADR-v9-18-Lehre).
  */

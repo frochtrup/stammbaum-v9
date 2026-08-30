@@ -91,7 +91,9 @@ export interface PersonGroup {
   sectionCount: number;
 }
 
-/** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]). */
+/** Aggregierter Such-String über alle relevanten Felder (Spec 20 §1.4 [K]) — die
+ *  Kennung (`p.id`) eingeschlossen, roh mit `@`-Klammern, damit `@I12@` und `I12`
+ *  gleichermaßen treffen. Geschwister-Stelle: `familySearchText`. */
 function personSearchText(p: Person): string {
   return [
     p.id,

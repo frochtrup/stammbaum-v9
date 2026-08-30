@@ -1032,3 +1032,17 @@ button.stb-coord-indicator__glyph:focus-visible {
 .quality__dot--warn { background: var(--stb-warn, #d9a441); }
 .quality__dot--info { background: var(--stb-text-dim); }
 .quality__dot--clean { background: var(--stb-ok); }
+
+/* Technische Datensatz-Kennung an Listenzeile und Steckbrief-Kopf (`entityIdLabel`,
+   INV-UI-4). BEWUSST KEIN Chip/Pill: sie steht auf JEDER Zeile und wäre als Fläche
+   genau die "Alles wird Pill"-Dichte, die ADR-v9-79 abgelehnt hat — und als Badge die
+   zweite Fundstelle, die §6h/ADR-v9-98 ausschließt. Ein leiser, ziffernstabiler Text
+   also, der beim Scannen zurücktritt und nur dann gelesen wird, wenn jemand ihn sucht
+   (dieselbe Entdramatisierung wie bei der Kekulé-Ziffer, Design-Kritik 2026-07-29). */
+.stb-entity-id {
+  flex: none;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--stb-text-muted);
+}
