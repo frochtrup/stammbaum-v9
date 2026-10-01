@@ -196,9 +196,12 @@ describe('B1 — undatierter Konsistenz-Guard über mehrere gemergte enclosedBy-
 // B2b: die Periodentreue, die der Mehrpfad-Guard NICHT aufweichen darf. Mehrere Ketten
 // gleichzeitig zu prüfen heißt nicht, das Jahr zu ignorieren — je Knoten zählen nur die im
 // Ereignisjahr GÜLTIGEN Einträge (datierter Treffer oder undatiert = „ohne bekannte
-// Datierung"). Ein datierter Eintrag, dessen Periode das Jahr nicht abdeckt, vetoet
-// weiterhin. Ohne diesen Test wäre der naheliegende Fix — einfach `chainCompatibleAnyPath`
-// ohne Jahr aufzurufen — grün und stillschweigend geschichtsblind.
+// Datierung"). Ein datierter Eintrag, dessen Periode das Jahr nicht abdeckt, zählt am
+// Datum nicht — das entscheidet zwischen gleichnamigen Orten. Seit ADR-v9-308 bindet ein
+// Ereignis, dessen Kette am Datum zu KEINEM Kandidaten passt, über alle Perioden aber zu
+// genau einem, an diesen einen (3c″): derselbe Ort mit den Eltern einer anderen Zeit.
+// Der naheliegende Fix — `chainCompatibleAnyPath` einfach ohne Jahr aufzurufen — bleibt
+// falsch: er wählte zwischen gleichnamigen Orten geschichtsblind.
 describe('B2b — Mehrpfad-Guard bleibt periodentreu (ADR-v9-195)', () => {
   const ochtrup = place('@OCH@', {
     title: 'Ochtrup',
@@ -221,13 +224,28 @@ describe('B2b — Mehrpfad-Guard bleibt periodentreu (ADR-v9-195)', () => {
     expect(res.events[0].event.placeId).toBe('@OCH@');
   });
 
-  it('Ereignis 1990 + „Königreich Preußen" → Veto (Periode deckt das Jahr NICHT)', () => {
+  it('Ereignis 1990 + „Königreich Preußen" → bindet über die PERIODENFREMDE Kette (ADR-v9-308)', () => {
+    // Bis zum Nachtrag ein Veto. Der Text nennt aber denselben Ort mit den Eltern einer
+    // anderen Zeit — kein Fremd-Ort wie „Ochtrup, USA". Ungebunden lief so ein Ereignis an
+    // Angleichung UND Projektionsabweichungs-Regel vorbei: die Anzeige zeigte den Dateitext,
+    // es lief nichts auseinander, und die falsche Kette blieb unbemerkt stehen.
     const res = resolveEvents(
       [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1990' })],
       places,
       hofMap(),
     );
-    expect(res.events[0].event.placeId).toBeNull();
+    expect(res.events[0].event.placeId).toBe('@OCH@');
+    expect(res.events[0].path).toBe('hierarchy-period');
+    expect(res.review).toHaveLength(0);
+  });
+
+  it('der Rückfall ändert den Text NICHT — der Ladepass bleibt byte-neutral (ADR-v9-197)', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1990' })],
+      places,
+      hofMap(),
+    );
+    expect(res.events[0].event.place).toBe('Ochtrup, Königreich Preußen');
   });
 
   it('Ereignis 1990 + „Nordrhein-Westfalen" → bindet (die im Jahr gültige Kette)', () => {
@@ -237,5 +255,51 @@ describe('B2b — Mehrpfad-Guard bleibt periodentreu (ADR-v9-195)', () => {
       hofMap(),
     );
     expect(res.events[0].event.placeId).toBe('@OCH@');
+    expect(res.events[0].path).toBe('hierarchy-lead');
+  });
+
+  // Was die Periodentreue weiterhin schützt: die DISAMBIGUIERUNG zwischen gleichnamigen
+  // Orten. Der Rückfall greift nur, wenn am Datum KEIN Kandidat passt.
+  const zweitesOchtrup = place('@OCH2@', {
+    title: 'Ochtrup',
+    type: 'Town',
+    enclosedBy: [{ placeId: '@PREUSSEN@', from: 1815, to: null }],
+  });
+
+  it('zwei gleichnamige Orte: der am Datum verträgliche gewinnt, nicht der periodenfremde', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1990' })],
+      placeMap(ochtrup, zweitesOchtrup, preussen, nrw),
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBe('@OCH2@');
+    expect(res.events[0].path).toBe('hierarchy-lead');
+  });
+
+  it('zwei gleichnamige Orte, beide nur periodenfremd verträglich → weiterhin Review-Klasse P', () => {
+    const och3 = place('@OCH3@', {
+      title: 'Ochtrup',
+      type: 'Town',
+      enclosedBy: [
+        { placeId: '@PREUSSEN@', from: 1700, to: 1800 },
+        { placeId: '@NRW@', from: 1946, to: null },
+      ],
+    });
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, Königreich Preußen', date: '1990' })],
+      placeMap(ochtrup, och3, preussen, nrw),
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBeNull();
+    expect(res.review.map((r) => r.klass)).toEqual(['P']);
+  });
+
+  it('ein widersprechender Elter vetoet weiterhin, auch über alle Perioden („Ochtrup, USA")', () => {
+    const res = resolveEvents(
+      [ev('BIRT', { place: 'Ochtrup, USA', date: '1990' })],
+      placeMap(ochtrup, preussen, nrw, usa),
+      hofMap(),
+    );
+    expect(res.events[0].event.placeId).toBeNull();
   });
 });
