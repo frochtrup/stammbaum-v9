@@ -30,12 +30,14 @@
 //   * Periode nur jahrgenau → „bis irgendwann 1810" deckt das ganze Jahr; auch ein
 //     tagegenaues Ereignis kann dann nicht entscheiden. Ehrlich, und richtig so.
 //
-// WARUM DIE EREIGNIS-SEITE NUR EXAKTE DATEN VERSCHMÄLERT. `ABT 15 JUN 1810` trägt einen
-// Tag, aber keine Tagesgenauigkeit — „ungefähr" ist die Aussage, nicht der 15. Juni.
-// Dasselbe gilt für `BET`/`FROM`/`BEF`/`AFT`/`CAL`/`EST`. Am Realbestand
-// (`Testdateien/Unsere Familie 2026.ged`) betrifft das 747 von 9377 Datumszeilen. Sie
-// behalten exakt ihr bisheriges Verhalten (ganzes Jahr aus `placeYear`) — diese Datei
-// ändert für sie nichts.
+// EIN QUALIFIER MIT TAG WIRD AM TAG AUFGELÖST (ADR-v9-307). `BEF 15 JUN 1810` nennt einen
+// Tag; der Qualifier sagt etwas über die Unsicherheit, nicht darüber, WELCHER Tag gemeint
+// ist. Als Jahr gelesen traf ein solches Datum beide Perioden des Grenzjahres, und der
+// Tie-Break „spätester Beginn" wählte die spätere Schicht — obwohl die Ortsdatei die
+// Tagesgrenze trägt (Muster: Geburt „vor" dem Tauftag, Tauftag vor der Grenze). Bei
+// `BET`/`FROM` zählt der LINKE Tag — dasselbe Datum, das `placeYear` als Jahr liest. Ohne Tag bleibt die Jahresregel (auch für einen
+// qualifizierten Monat). Das gilt NUR für die Ereignisseite: an einer Periodengrenze
+// (`fromDate`/`toDate`) bleibt `tagesOrdinal` streng, dort ist der Tag die Aussage.
 import type { HofObject, PlaceObject, Year } from './types';
 import { placeYear } from './normalize';
 import { formatDateValue, normalizeMonth, parseDateValue } from '../model/gedcom-date';
@@ -212,12 +214,25 @@ export function istDatiert(d: { from: Year; to: Year; fromDate?: string | null; 
 }
 
 /**
- * Die Spanne eines EREIGNIS-Datums: ein Tag bei exaktem Volldatum, sonst das ganze Jahr,
- * `null` wenn gar kein Jahr erkennbar ist (= undatiert, trifft nichts und wird vom
- * Aufrufer als „kein Jahreskontext" behandelt, wie bisher `placeYear(...) == null`).
+ * Der genannte Tag eines Ereignis-Datums, der Qualifier spielt keine Rolle (ADR-v9-307):
+ * `BEF 18 FEB 1811` → 18110218. Bei `BET`/`FROM` der linke Tag. `null` ohne vollen Tag.
+ */
+function ereignisTag(roh: string | null | undefined): number | null {
+  if (!roh) return null;
+  const t = parseDateValue(roh);
+  const m = monatsZahl(t.month);
+  if (t.year == null || m == null || t.day == null) return null;
+  return ordinal(t.year, m, t.day);
+}
+
+/**
+ * Die Spanne eines EREIGNIS-Datums: ein Tag, wenn einer genannt ist (auch qualifiziert),
+ * ein Monat bei exaktem Monatsdatum, sonst das ganze Jahr; `null` wenn gar kein Jahr
+ * erkennbar ist (= undatiert, trifft nichts und wird vom Aufrufer als „kein Jahreskontext"
+ * behandelt, wie bisher `placeYear(...) == null`).
  */
 export function spanneVonEreignis(datum: string | null | undefined): Spanne | null {
-  const tag = tagesOrdinal(datum);
+  const tag = ereignisTag(datum);
   if (tag != null) return { von: tag, bis: tag };
   const monat = monatsKanten(datum);
   if (monat != null) return monat;
