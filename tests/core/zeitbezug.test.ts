@@ -141,11 +141,33 @@ describe('trifft — der zweistufige Vergleich, ohne Fallunterscheidung', () => 
     expect(trifft(grobB, ereignis)).toBe(true);
   });
 
-  it('RÜCKFALL 3: ein qualifiziertes Datum verhält sich wie sein Jahr', () => {
-    const ereignis = spanneVonEreignis('ABT 15 JUN 1810')!;
-    expect(ereignis).toEqual(jahresSpanne(1810));
-    expect(trifft(amtIlten, ereignis)).toBe(true);
-    expect(trifft(departement, ereignis)).toBe(true);
+  it('QUALIFIER MIT TAG: das Datum wird am genannten Tag aufgelöst, nicht am Jahr', () => {
+    // Nutzer-Befund 2026-10-01 (Muster: Geburt `BEF 15 JUN 1810`, Taufe `15 JUN 1810`,
+    // Grenze im Herbst desselben Jahres): als Jahr gelesen traf das Datum beide Perioden des
+    // Grenzjahres, und „spätester Beginn" wählte die spätere Schicht — obwohl orte.json die
+    // Tagesgrenze trägt. Der Qualifier ändert nicht, WELCHER Tag genannt ist.
+    for (const roh of ['ABT 15 JUN 1810', 'CAL 15 JUN 1810', 'EST 15 JUN 1810', 'BEF 15 JUN 1810', 'AFT 15 JUN 1810']) {
+      const ereignis = spanneVonEreignis(roh)!;
+      expect(ereignis, roh).toEqual({ von: 18100615, bis: 18100615 });
+      expect(trifft(amtIlten, ereignis), roh).toBe(true);
+      expect(trifft(departement, ereignis), roh).toBe(false);
+    }
+  });
+
+  it('QUALIFIER MIT TAG, Bereich: es zählt der ERSTE Tag — dasselbe Datum, das placeYear als Jahr liest', () => {
+    expect(spanneVonEreignis('BET 15 JUN 1810 AND 2 NOV 1810')).toEqual({ von: 18100615, bis: 18100615 });
+    expect(spanneVonEreignis('FROM 2 NOV 1810 TO 1812')).toEqual({ von: 18101102, bis: 18101102 });
+    // Linke Seite ohne Tag → Jahresregel, auch wenn die rechte einen Tag trägt.
+    expect(spanneVonEreignis('BET 1810 AND 2 NOV 1811')).toEqual(jahresSpanne(1810));
+  });
+
+  it('RÜCKFALL 3: ein qualifiziertes Datum OHNE Tag verhält sich wie sein Jahr', () => {
+    for (const roh of ['ABT 1810', 'BEF 1810', 'AFT 1810', 'BET 1810 AND 1811']) {
+      const ereignis = spanneVonEreignis(roh)!;
+      expect(ereignis, roh).toEqual(jahresSpanne(1810));
+      expect(trifft(amtIlten, ereignis), roh).toBe(true);
+      expect(trifft(departement, ereignis), roh).toBe(true);
+    }
   });
 
   it('offene Grenzen zählen als unendlich', () => {
@@ -225,10 +247,19 @@ describe('PlaceRegistry — die Randberührung wird durch Tagesangaben entscheid
     expect(meta.ueberlappt).toBe(true);
   });
 
-  it('ein QUALIFIZIERTES Tagesdatum zählt als jahrgenau (`ABT 15 JUN 1810`)', () => {
+  it('ein QUALIFIZIERTES Tagesdatum wird am Tag aufgelöst (`BEF 15 JUN 1810` → Amt, nicht Departement)', () => {
+    // Das Muster der drei Nutzerfälle: Geburt „vor" dem Tauftag, Tauftag vor der Grenze.
+    // Als Jahr gelesen wählte der Tie-Break die spätere Schicht.
     const reg = bestand(true);
     const meta = { truncated: false, ueberlappt: false };
-    expect(reg.enclosureIdsAsOf('@P1@', spanneVonEreignis('ABT 15 JUN 1810'), meta)).toEqual(['@P1@', '@DEP@']);
+    expect(reg.enclosureIdsAsOf('@P1@', spanneVonEreignis('BEF 15 JUN 1810'), meta)).toEqual(['@P1@', '@AMT@']);
+    expect(meta.ueberlappt).toBe(false);
+  });
+
+  it('ein qualifiziertes Datum OHNE Tag bleibt jahrgenau mehrdeutig (`ABT 1810`)', () => {
+    const reg = bestand(true);
+    const meta = { truncated: false, ueberlappt: false };
+    expect(reg.enclosureIdsAsOf('@P1@', spanneVonEreignis('ABT 1810'), meta)).toEqual(['@P1@', '@DEP@']);
     expect(meta.ueberlappt).toBe(true);
   });
 
