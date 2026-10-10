@@ -123,7 +123,7 @@ export function renderFanSvg(layout: FanLayoutResult): DiagramSvg {
   const parts: string[] = [];
   for (const seg of layout.segments) {
     const fill = seg.id ? (seg.sex === 'M' ? C.sexM : seg.sex === 'F' ? C.sexF : C.border) : C.card;
-    parts.push(`<path d="${seg.d}" fill="${fill}" fill-opacity="${seg.id ? seg.fillOpacity : 0.5}" stroke="${C.bg}" stroke-width="1.5"/>`);
+    parts.push(`<path d="${seg.d}" fill="${fill}" fill-opacity="${seg.id ? seg.fillOpacity : 0.5}" stroke="${C.bg}" stroke-width="${seg.strokeWidth}"/>`);
     for (const t of seg.texts) parts.push(text(t.text, t.x, t.y, t.fontSize, t.dim ? C.dim : C.text, { rotate: t.rotation }));
   }
   if (layout.center) {

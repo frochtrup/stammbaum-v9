@@ -109,26 +109,63 @@ describe('computeFanLayout', () => {
     expect(seg.d.endsWith('Z')).toBe(true);
   });
 
-  it('Generationen werden auf 3..8 begrenzt', () => {
-    const db = buildFourGenTree();
+  it('Generationen werden auf 3..12 begrenzt', () => {
+    const db = buildDeepAncestry(12);
     const low = computeFanLayout(db, 'I1', { generations: 1 })!;
     const high = computeFanLayout(db, 'I1', { generations: 99 })!;
     expect(Math.max(...low.segments.map((s) => s.gen))).toBe(3);
     expect(Math.max(...high.segments.map((s) => s.gen))).toBe(MAX_FAN_GENERATIONS);
-    expect(MAX_FAN_GENERATIONS).toBe(8);
+    expect(MAX_FAN_GENERATIONS).toBe(12);
   });
 
-  it('jede wählbare Stufe bis 8 hat einen Radius (kein NaN im Pfad)', () => {
-    const db = buildFourGenTree();
+  it('jede wählbare Stufe bis 12 hat einen Radius (kein NaN im Pfad)', () => {
+    const db = buildDeepAncestry(12);
     for (let g = 3; g <= MAX_FAN_GENERATIONS; g++) {
       const layout = computeFanLayout(db, 'I1', { generations: g })!;
       expect(Math.max(...layout.segments.map((s) => s.gen))).toBe(g);
-      // 2^1 + … + 2^g Segmente, alle mit endlichen Koordinaten.
+      // Lückenlose Ahnenreihe: 2^1 + … + 2^g Segmente, alle mit endlichen Koordinaten.
       expect(layout.segments).toHaveLength(2 ** (g + 1) - 2);
       expect(layout.segments.some((s) => /NaN|undefined/.test(s.d))).toBe(false);
       expect(Number.isFinite(layout.width) && layout.width > 0).toBe(true);
       expect(Number.isFinite(layout.height) && layout.height > 0).toBe(true);
     }
+  });
+
+  it('die unbeschrifteten Ringe sind schmal: zwölf passen in die Fläche, die vorher acht brauchten', () => {
+    const db = buildDeepAncestry(12);
+    const breite = (g: number) => computeFanLayout(db, 'I1', { generations: g })!.width;
+    // Ringe 1–5 tragen Text und behalten ihre Maße (die Vorgabe 5 sieht aus wie bisher).
+    expect(breite(5)).toBe(380 * 2 + 44);
+    // Jeder weitere Ring ist gleich schmal und schmaler als Ring 5 (84 px).
+    const ring = (g: number) => (breite(g) - breite(g - 1)) / 2;
+    for (let g = 6; g <= 12; g++) expect(ring(g)).toBeLessThan(84);
+    expect(new Set([6, 7, 8, 9, 10, 11, 12].map(ring)).size).toBe(1);
+    // Vorher (ADR-v9-276) maß der Außenradius bei acht Ringen 656 px.
+    expect(breite(12)).toBeLessThanOrEqual(656 * 2 + 44);
+  });
+
+  it('eine Lücke ist EIN Keil bis zum Rand — ihre ebenso unbekannten Vorfahren entfallen', () => {
+    // buildFourGenTree: Ringe 1–3 belegt, in Ring 4 fehlen alle 16 Ahnen.
+    const db = buildFourGenTree();
+    const layout = computeFanLayout(db, 'I1', { generations: 12 })!;
+    const leer = layout.segments.filter((s) => s.id === null);
+    expect(leer).toHaveLength(16);
+    expect(leer.every((s) => s.gen === 4)).toBe(true);
+    expect(layout.segments.filter((s) => s.gen > 4)).toHaveLength(0);
+    // Der Keil reicht bis zum äußeren Rand: sein Außenbogen hat den Radius des 12. Rings.
+    const maxR = (layout.width - 44) / 2;
+    expect(leer.every((s) => s.d.includes(`A ${maxR} ${maxR} `))).toBe(true);
+  });
+
+  it('die Trennlinie deckt die schmalen äußeren Segmente nicht zu', () => {
+    const db = buildDeepAncestry(12);
+    const layout = computeFanLayout(db, 'I1', { generations: 12 })!;
+    const innen = layout.segments.filter((s) => s.gen <= 3);
+    const aussen = layout.segments.filter((s) => s.gen === 12);
+    expect(aussen).toHaveLength(4096);
+    expect(innen.every((s) => s.strokeWidth === 1.5)).toBe(true);
+    // Ring 12: Bogenlänge < 1 px — die Linie bleibt ein Bruchteil davon.
+    expect(aussen.every((s) => s.strokeWidth > 0 && s.strokeWidth <= 0.2)).toBe(true);
   });
 
   it('die äußeren Ringe tragen keine gezeichnete Beschriftung mehr — dafür einen Tooltip', () => {

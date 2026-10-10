@@ -46,6 +46,7 @@ export type ResolvePath =
   | 'atomic-po' // 3a atomare PLAC → placeObject
   | 'hierarchy-exact' // 3b Hierarchie voll-projektions-exakt
   | 'hierarchy-lead' // 3c Leitname eindeutig + Anker
+  | 'hierarchy-period' // 3c″ Kette passt nur in einer anderen Periode (ADR-v9-308)
   | "A'" // atomare PLAC ohne PO → globaler Hof
   | 'C' // rich-PLAC ohne Hof → Bootstrap
   | 'B' // event.addr matcht Hof im Dorf
@@ -290,10 +291,25 @@ function resolveOne(
     const plsParents = segs.slice(1);
     const leadIds = ctx.places.findAllByName(leadSeg);
     const compatible = leadIds.filter((id) => chainCompatible(ctx.places, id, plsParents, bezug));
-    if (compatible.length === 1) {
-      ev.placeId = compatible[0];
-      villageOnlyPath = 'hierarchy-lead';
-      if (!ev.addr) return { resolved: reproject('hierarchy-lead'), review: null };
+    // 3c″ (ADR-v9-308). Passt am Datum KEIN Kandidat, aber über alle Perioden
+    //   genau einer, nennt der Text denselben Ort mit den Eltern einer anderen Zeit — kein
+    //   Fremd-Ort wie „Oldenburg, USA" (der passt in keiner Periode und vetoet weiter).
+    //   Dasselbe Kriterium nimmt der Seed-Dedup (Schritt 0) schon immer: ohne Datum.
+    //   Ungebunden lief so ein Ereignis an der Angleichung UND an der
+    //   Projektionsabweichungs-Regel vorbei — Anzeige und Datei zeigten beide die falsche
+    //   Kette, also lief nichts auseinander. Gebunden zeigt die Anzeige die Kette am Datum,
+    //   und was dann noch vom Text abweicht, gleicht die Angleichung an oder meldet die
+    //   Regel. Der Text selbst bleibt hier unberührt (ADR-v9-197). Die Periodentreue der
+    //   DISAMBIGUIERUNG bleibt: der Rückfall greift nur, wenn am Datum keiner passt.
+    const periodenfremd =
+      compatible.length === 0 && bezug != null
+        ? leadIds.filter((id) => chainCompatible(ctx.places, id, plsParents, null))
+        : [];
+    if (compatible.length === 1 || periodenfremd.length === 1) {
+      const pfad: ResolvePath = compatible.length === 1 ? 'hierarchy-lead' : 'hierarchy-period';
+      ev.placeId = compatible.length === 1 ? compatible[0] : periodenfremd[0];
+      villageOnlyPath = pfad;
+      if (!ev.addr) return { resolved: reproject(pfad), review: null };
     } else if (leadIds.length >= 1 && !ev.addr) {
       // Guard-Veto (0 verträglich) ODER Mehrdeutigkeit (≥2 verträglich) → Ort mehrdeutig,
       //   Review-Klasse P (ADR-v9-29, §6). Nicht binden, kein stiller Guess.

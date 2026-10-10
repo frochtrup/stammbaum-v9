@@ -23,7 +23,7 @@ import { makeEvent } from '../../core/model';
 import { buildFourGenTree } from '../islands/tree-fixtures';
 import { pinLayout } from './layout-harness';
 import { layout } from '../../ui/shell/layout.svelte';
-import { MAX_FAN_GENERATIONS, MIN_FAN_GENERATIONS } from '../../ui/islands/tree/fan-layout';
+import { computeFanLayout, MAX_FAN_GENERATIONS, MIN_FAN_GENERATIONS } from '../../ui/islands/tree/fan-layout';
 
 function bubbleText(): string | null {
   return document.querySelector('.stb-tooltip')?.textContent ?? null;
@@ -83,24 +83,29 @@ describe('Fächer — Tooltip statt verlorener Beschriftung', () => {
     expect(bubbleText()).toBeFalsy();
   });
 
-  it('der Regler bietet die volle Spanne bis 8 Generationen an', () => {
+  it('der Regler bietet die volle Spanne bis 12 Generationen an (ADR-v9-309)', () => {
     const { container } = renderFan();
     const sel = container.querySelector('.tree-island__gen-sel') as HTMLSelectElement;
     const werte = Array.from(sel.options).map((o) => Number(o.value));
 
     expect(werte[0]).toBe(MIN_FAN_GENERATIONS);
     expect(werte[werte.length - 1]).toBe(MAX_FAN_GENERATIONS);
-    expect(MAX_FAN_GENERATIONS).toBe(8);
+    expect(MAX_FAN_GENERATIONS).toBe(12);
   });
 
-  it('die Wahl „8" zeichnet acht Ringe (2^1 + … + 2^8 Segmente)', async () => {
+  it('die Wahl „12" zeichnet bis zum zwölften Ring — Lücken als EIN Keil je fehlendem Ahn', async () => {
     const { container } = renderFan();
     const sel = container.querySelector('.tree-island__gen-sel') as HTMLSelectElement;
-    sel.value = '8';
+    sel.value = '12';
     await fireEvent.change(sel);
     await tick();
 
-    expect(container.querySelectorAll('.tree-island__fan-seg')).toHaveLength(2 ** 9 - 2);
+    // buildFourGenTree: Ringe 1–3 belegt (2 + 4 + 8), in Ring 4 fehlen alle 16 Ahnen —
+    // je einer ein Keil bis zum Rand, ihre ebenso unbekannten Vorfahren liegen darin.
+    expect(container.querySelectorAll('.tree-island__fan-seg:not(.tree-island__fan-seg--empty)')).toHaveLength(14);
+    expect(container.querySelectorAll('.tree-island__fan-seg--empty')).toHaveLength(16);
+    const svg = container.querySelector('.tree-island__svg') as SVGSVGElement;
+    expect(svg.getAttribute('width')).toBe(String(computeFanLayout(buildFourGenTree(), 'I1', { generations: 12 })!.width));
     // Und die Beschriftung des Zentrums bleibt lesbar — der äußere Ring drückt sie nicht weg.
     expect(container.querySelector('.tree-island__fan-center')).toBeTruthy();
   });

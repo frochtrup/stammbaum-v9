@@ -12,11 +12,13 @@ import { getParentIds } from './tree-model';
 import type { DiagramNavTargets } from './tree-viewport';
 
 /** Außenradius je Generation; Index 0 = Radius des Proband-Kreises (Orakel: `RADII`).
- *  Die Ringe 7 und 8 sind bewusst BREITER als ihre Vorgänger (92/100 statt 84) — nicht
- *  für Text: die Bogenlänge fällt dort auf ~12 bzw. ~7 px und lässt gar keinen mehr zu
- *  (s. die Schwellen weiter unten). Die Breite trägt die TREFFERFLÄCHE des Segments, also
- *  das, woran Zeiger und Tooltip hängen (ADR-v9-276). */
-const RADII = [38, 90, 148, 218, 296, 380, 464, 556, 656];
+ *  Die Ringe 1–5 sind breit, weil sie Text tragen. Ab Ring 6 lässt die Bogenlänge keine
+ *  Schrift mehr zu (die Schwellen weiter unten greifen dort nie) — diese Ringe sind eine
+ *  Übersicht über die BELEGUNG der Ahnenreihe und deshalb bewusst schmal
+ *  (`NARROW_RING`): so passen zwölf Ringe in die Fläche, die vorher acht brauchten
+ *  (ADR-v9-309). */
+const LABELLED_RADII = [38, 90, 148, 218, 296, 380];
+const NARROW_RING = 30;
 const PAD = 22;
 
 export interface FanText {
@@ -38,6 +40,9 @@ export interface FanSegment {
   sex: 'M' | 'F' | 'U';
   /** Generations-Abstufung (außen blasser) — Tiefen-Hinweis. */
   fillOpacity: number;
+  /** Breite der Trennlinie zum Nachbarsegment — wächst mit der Bogenlänge, damit sie die
+   *  schmalen Segmente der äußeren Ringe nicht zudeckt. */
+  strokeWidth: number;
   texts: FanText[];
   /** Fertige Tooltip-Zeile (Name + Geburtsjahr/-ort, s. `personLabel`); leer bei `id: null`.
    *  Die Insel wertet nichts aus — sie hängt den Text an, wie sie es bei den
@@ -76,18 +81,24 @@ export interface FanLayoutResult {
 /**
  * Wählbare Spanne der AHNEN-RINGE um den Zentrums-Kreis (BL-368). Achtung beim Zählen:
  * `generations = 5` heißt fünf Ringe ZUSÄTZLICH zum Zentrum, die äußerste Generation ist
- * also die der Ururgroßeltern. Obergrenze 8, weil `RADII` neun Einträge hat — mehr Ringe
- * hätten keinen Radius.
+ * also die der Ururgroßeltern.
  *
- * Warum 8 überhaupt lesbar ist, obwohl der äußerste Ring 256 Segmente à ~7 px trägt: die
- * Beschriftung hört dort ohnehin auf (die Schwellen unten), die Identität hängt am
- * Tooltip (`personLabel`). Der äußere Ring ist damit eine ÜBERSICHT über die Belegung der
- * Ahnenreihe — welche Zweige weiterlaufen und welche abbrechen — und wird per Zoom/
- * Vollbild befragt, nicht gelesen.
+ * Obergrenze 12 (ADR-v9-309), obwohl der äußerste Ring 4096 Segmente unter einem Pixel
+ * Bogenlänge trägt: die Beschriftung hört ab Ring 6 ohnehin auf, die Identität hängt am
+ * Tooltip (`personLabel`). Die äußeren Ringe sind eine ÜBERSICHT über die Belegung der
+ * Ahnenreihe — welche Zweige weiterlaufen und wo die Lücken liegen —, keine Lesefläche und
+ * ab Ring ~9 auch keine Trefferfläche mehr; befragt werden sie per Zoom/Vollbild.
  */
 export const MIN_FAN_GENERATIONS = 3;
-export const MAX_FAN_GENERATIONS = 8;
+export const MAX_FAN_GENERATIONS = 12;
 export const DEFAULT_FAN_GENERATIONS = 5;
+
+/** Außenradius des Rings `g` (0 = Zentrums-Kreis): die beschrifteten Ringe aus der Tabelle,
+ *  jeder weitere `NARROW_RING` breiter. */
+function ringRadius(g: number): number {
+  const last = LABELLED_RADII.length - 1;
+  return g <= last ? LABELLED_RADII[g] : LABELLED_RADII[last] + (g - last) * NARROW_RING;
+}
 
 /** Klemmt einen gewünschten Wert in die Spanne (Verteidigungslinie der Insel). */
 export function clampFanGenerations(n: number): number {
@@ -161,7 +172,7 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
 
   const genCount = clampFanGenerations(options.generations ?? DEFAULT_FAN_GENERATIONS);
   const placeCtx = options.placeContext;
-  const maxR = RADII[genCount];
+  const maxR = ringRadius(genCount);
   const width = maxR * 2 + PAD * 2;
   const height = maxR + PAD + 52; // Puffer unter dem Proband-Mittelpunkt
   const cx = width / 2;
@@ -184,14 +195,20 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
 
   const segments: FanSegment[] = [];
   for (let g = 1; g <= genCount; g++) {
-    const r1 = g === 1 ? RADII[0] : RADII[g - 1];
-    const r2 = RADII[g];
+    const r1 = ringRadius(g - 1);
     const n = gens[g].length; // 2^g
     const fillOpacity = Math.max(0.4, 1 - (g - 1) * 0.12);
     for (let i = 0; i < n; i++) {
+      const id = gens[g][i];
+      // Eine Lücke ist EIN Keil bis zum äußeren Rand, nicht 2 + 4 + 8 + … leere Teilsegmente:
+      // wer seinen Vater nicht kennt, kennt auch dessen Eltern nicht. Gezeichnet wird der
+      // Keil am ersten fehlenden Ahn; seine (ebenso leeren) Vorfahren liegen darin und
+      // entfallen. Das macht die Lücke als Fläche sichtbar — der Zweck der äußeren Ringe —
+      // und hält die Pfadzahl bei zwölf Ringen klein (ADR-v9-309).
+      if (!id && !gens[g - 1][i >> 1]) continue;
       const a1 = Math.PI * (1 - i / n);
       const a2 = Math.PI * (1 - (i + 1) / n);
-      const id = gens[g][i];
+      const r2 = id ? ringRadius(g) : maxR;
       const person = id ? db.individuals.get(id) : null;
       const seg: FanSegment = {
         id: id ?? null,
@@ -199,6 +216,9 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
         d: arcPath(cx, cy, r1, r2, a1, a2),
         sex: sexOf(db, id),
         fillOpacity,
+        // Die Trennlinie (Hintergrundfarbe) wäre bei 1,5 px breiter als ein Segment der
+        // äußeren Ringe und deckte die Belegung zu; sie wächst deshalb mit der Bogenlänge.
+        strokeWidth: f(Math.min(1.5, Math.max(0.1, (Math.abs(a1 - a2) * r1) / 4))),
         texts: [],
         tooltip: person ? personLabel(person, placeCtx) : '',
       };
@@ -252,7 +272,7 @@ export function computeFanLayout(db: Database, centerId: PersonId, options: FanL
       id: centerId,
       cx,
       cy,
-      r: RADII[0],
+      r: ringRadius(0),
       sex: sexOf(db, centerId),
       given: center.given || (center.name || '').split(/\s+/)[0] || '',
       surname: center.surname || '',

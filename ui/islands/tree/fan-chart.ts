@@ -91,6 +91,9 @@ export function mountFanChart(
       path.setAttribute('class', 'tree-island__fan-seg' + (seg.id ? '' : ' tree-island__fan-seg--empty'));
       if (seg.id) path.dataset.sex = seg.sex;
       path.setAttribute('fill-opacity', String(seg.fillOpacity));
+      // Inline statt Attribut: die CSS-Regel `.tree-island__fan-seg` schlüge ein
+      // Präsentations-Attribut, und die Breite ist je Ring verschieden (ADR-v9-309).
+      path.style.strokeWidth = String(seg.strokeWidth);
       if (seg.id) {
         // `data-person-id` ist zugleich der Zeiger-Kontrakt: die geteilte SVG-Ebene ist
         // stumm, erst dieses Attribut holt Klick und `cursor` zurück (CSS, BL-366).

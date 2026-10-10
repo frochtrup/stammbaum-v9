@@ -1388,7 +1388,7 @@ describe('Familienzeile: das Datum führt die Zeile an (Nutzer-Wunsch 2026-08-13
   });
 });
 
-describe('Die Verwandtschaftszeile setzt einen GEWÄHLTEN Probanden voraus (Nutzer-Entscheidung 2026-08-13)', () => {
+describe('Die Verwandtschaftszeile steht ab dem Laden — es ist immer ein Proband ausgewählt (ADR-v9-309)', () => {
   /** Zwei Personen, klar verwandt — nur der Proband ist nicht gesetzt. */
   function vaterUndSohn() {
     const db = makeDatabase();
@@ -1401,13 +1401,14 @@ describe('Die Verwandtschaftszeile setzt einen GEWÄHLTEN Probanden voraus (Nutz
     return db;
   }
 
-  it('ohne ausdrücklich gesetzten Probanden erscheint keine Zeile — auch nicht über die Vorbelegung', () => {
+  it('ohne ausdrücklich gesetzten Probanden bezieht sie sich auf die kleinste Id', () => {
     const appState = createAppState();
     const viewState = createViewState();
     appState.loadDatabase(vaterUndSohn(), 'test.ged');
-    viewState.setCurrent('person', '@I2@'); // KEIN setProband — die App belegt intern @I1@ vor
+    viewState.setCurrent('person', '@I2@'); // KEIN setProband — die kleinste Id (@I1@) gilt
     const { container } = render(PersonDetail, { props: { appState, viewState } });
-    expect(container.querySelector('.person-detail-header__relation')).toBeNull();
+    expect(container.querySelector('.person-detail-header__relation')?.textContent?.replace(/\s+/g, ' ').trim())
+      .toBe('Sohn von Otto Alt');
   });
 
   it('sobald einer gesetzt ist, steht sie da', () => {
