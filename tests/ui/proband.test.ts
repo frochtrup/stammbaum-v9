@@ -12,8 +12,19 @@ function dbWith(...ids: string[]) {
 }
 
 describe('smallestPersonId (Kern)', () => {
-  it('liefert die lexikografisch kleinste ID', () => {
+  it('liefert die kleinste ID', () => {
     expect(smallestPersonId(dbWith('@I3@', '@I1@', '@I2@'))).toBe('@I1@');
+  });
+  it('vergleicht die Nummer als ZAHL, nicht als Text (ADR-v9-309)', () => {
+    // Textvergleich hielt "@I1000@" für kleiner als "@I1@" ('0' < '@') — im Realbestand
+    // wurde so Johann Georg Ransmann (@I1000@) Proband statt @I1@.
+    expect(smallestPersonId(dbWith('@I1000@', '@I2@', '@I1@'))).toBe('@I1@');
+    expect(smallestPersonId(dbWith('@I10@', '@I2@'))).toBe('@I2@');
+    expect(smallestPersonId(dbWith('I10', 'I9'))).toBe('I9');
+  });
+  it('bei gleicher Zahl entscheidet der Text — das Ergebnis bleibt eindeutig', () => {
+    expect(smallestPersonId(dbWith('@I01@', '@I1@'))).toBe(smallestPersonId(dbWith('@I1@', '@I01@')));
+    expect(smallestPersonId(dbWith('@P1@', '@I1@'))).toBe('@I1@');
   });
   it('null bei leerer Datenbank', () => {
     expect(smallestPersonId(makeDatabase())).toBeNull();

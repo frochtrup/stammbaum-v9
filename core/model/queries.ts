@@ -10,14 +10,36 @@ import type { Database, PersonId } from './types';
  * die eine gemeinsame Definition (im Kern, damit `core/validate` sie ohne Schichtbruch nutzt
  * und die UI-Schicht `resolveProband` darauf aufsetzt). `null` bei leerer Datenbank.
  *
+ * „Kleinste" heißt: Ziffernfolgen zählen als ZAHL (`compareIdsNatural`). Ein reiner
+ * Textvergleich hielt `@I1000@` für kleiner als `@I1@` (`'0'` < `'@'`) und machte im
+ * Realbestand Person 1000 zum Probanden statt Person 1 (ADR-v9-309).
+ *
  * Einpass-Minimum statt vollständigem Sortieren (gleiches Ergebnis, billiger).
  */
 export function smallestPersonId(db: Database): PersonId | null {
   let min: PersonId | null = null;
   for (const id of db.individuals.keys()) {
-    if (min === null || id < min) min = id;
+    if (min === null || compareIdsNatural(id, min) < 0) min = id;
   }
   return min;
+}
+
+/**
+ * Vergleicht zwei Ids abschnittsweise: Ziffernfolgen als Zahl, alles andere als Text
+ * (`@I9@` < `@I10@`). Bei numerisch gleichen Ids (`@I01@`/`@I1@`) entscheidet der reine
+ * Textvergleich — das Ergebnis bleibt eine totale Ordnung, unabhängig von der Einfüge-
+ * Reihenfolge. Bewusst ohne `Intl.Collator`: dessen Regeln hängen von der Laufzeit ab.
+ */
+export function compareIdsNatural(a: string, b: string): number {
+  const ta = a.split(/(\d+)/);
+  const tb = b.split(/(\d+)/);
+  for (let i = 0; i < Math.min(ta.length, tb.length); i++) {
+    // `split` mit Fanggruppe: ungerade Indizes sind die Ziffernfolgen.
+    const d = i % 2 === 1 ? Number(ta[i]) - Number(tb[i]) : ta[i] < tb[i] ? -1 : ta[i] > tb[i] ? 1 : 0;
+    if (d !== 0) return d;
+  }
+  if (ta.length !== tb.length) return ta.length - tb.length;
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Eltern-Paar aus der ERSTEN Herkunftsfamilie (Orakel: `famc[0]` in v8). */

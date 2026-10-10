@@ -1,5 +1,5 @@
 // tests/ui/person-relation.test.ts — die Verwandtschafts-Zeile des Steckbriefs als reine
-// Query (BL-365, ADR-v9-274 E7). Unit statt Component (TST-5); die Darstellung selbst prüft
+// Query (BL-365; Bezug seit ADR-v9-309 der effektive Proband). Unit statt Component (TST-5); die Darstellung selbst prüft
 // PersonDetail.component.test.ts.
 import { describe, expect, it } from 'vitest';
 import { makeDatabase, makeFamily, makePerson } from '../../core/model';
@@ -30,8 +30,8 @@ describe('relationLineFor', () => {
     });
   });
 
-  it('ohne GESETZTEN Probanden keine Zeile — die Vorbelegung zählt hier bewusst nicht', () => {
-    expect(relationLineFor(vaterUndSohn(), proband(null), '@I2@')).toBeNull();
+  it('ohne gesetzten Probanden gilt die kleinste Id — es ist immer einer ausgewählt (ADR-v9-309)', () => {
+    expect(relationLineFor(vaterUndSohn(), proband(null), '@I2@')?.text).toBe('Sohn von Otto Alt');
   });
 
   it('am Probanden selbst keine Zeile (das sagt „★ Proband")', () => {
@@ -42,8 +42,8 @@ describe('relationLineFor', () => {
     expect(relationLineFor(vaterUndSohn(), proband('@I1@'), null)).toBeNull();
   });
 
-  it('nach einem Datei-Wechsel: gesetzte Id nicht mehr im Bestand → keine Zeile', () => {
-    expect(relationLineFor(vaterUndSohn(), proband('@I999@'), '@I2@')).toBeNull();
+  it('nach einem Datei-Wechsel: gesetzte Id nicht mehr im Bestand → Rückfall auf die kleinste Id', () => {
+    expect(relationLineFor(vaterUndSohn(), proband('@I999@'), '@I2@')?.text).toBe('Sohn von Otto Alt');
   });
 
   it('ohne gemeinsamen Vorfahren sagt sie genau das', () => {

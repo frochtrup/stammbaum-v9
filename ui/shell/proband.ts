@@ -16,7 +16,7 @@ import type { ViewState } from './view-state.svelte';
  * aktuellen Bestand existiert — ein Datei-Wechsel darf keine tote Id hinterlassen), sonst
  * der Default „kleinste ID". `null` nur bei leerer Datenbank.
  */
-export function resolveProband(db: Database, viewState: ViewState): PersonId | null {
+export function resolveProband(db: Database, viewState: Pick<ViewState, 'getProband'>): PersonId | null {
   const set = viewState.getProband();
   if (set && db.individuals.has(set)) return set;
   return smallestPersonId(db);
